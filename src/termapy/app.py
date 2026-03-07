@@ -293,6 +293,35 @@ class ConfigEditor(ModalScreen[tuple | None]):
         self.dismiss(None)
 
 
+class HelpViewer(ModalScreen[None]):
+    """Modal dialog to display the UI help guide."""
+
+    CSS = f"""
+    HelpViewer {{ align: center middle; }}
+    HelpViewer Button {{ {_MODAL_BTN_CSS} }}
+    #help-dialog {{
+        width: 80%; height: 80%;
+        border: thick $primary; background: $surface; padding: 1 2;
+    }}
+    #help-content {{ height: 1fr; overflow-y: auto; }}
+    #help-buttons {{ height: 1; align: right middle; }}
+    """
+
+    def compose(self) -> ComposeResult:
+        from importlib.resources import files as pkg_files
+        from textual.widgets import Markdown
+
+        help_text = pkg_files("termapy").joinpath("help.md").read_text(encoding="utf-8")
+        with Vertical(id="help-dialog"):
+            yield Markdown(help_text, id="help-content")
+            with Horizontal(id="help-buttons"):
+                yield Button("Close", id="help-close", variant="primary")
+
+    @on(Button.Pressed, "#help-close")
+    def close_help(self) -> None:
+        self.dismiss(None)
+
+
 class LogViewer(ModalScreen[None]):
     """Modal dialog to view the log file."""
 
@@ -545,6 +574,13 @@ class SerialTerminal(App):
         margin: 0;
         padding: 0 1;
     }
+    #btn-help {
+        width: 3;
+        min-width: 3;
+        text-align: center;
+        padding: 0;
+        background: $primary;
+    }
     #title-left {
         min-width: 20;
         background: red;
@@ -692,6 +728,9 @@ class SerialTerminal(App):
         port_info = self._port_info_str()
         with Horizontal(id="title-bar"):
             from textual.widgets import Static
+            help_btn = Button("?", id="btn-help")
+            help_btn.tooltip = "Show help guide"
+            yield help_btn
             left = Button(port_info, id="title-left")
             left.tooltip = "Click to select serial port"
             yield left
@@ -1065,6 +1104,8 @@ class SerialTerminal(App):
             if self.is_connected:
                 self.ser.send_break(duration=0.25)
                 self.notify("Break sent", timeout=1.5)
+        elif event.button.id == "btn-help":
+            self.push_screen(HelpViewer())
         elif event.button.id == "btn-log":
             self.push_screen(LogViewer(self._log_path()))
         elif event.button.id == "btn-ss-dir":

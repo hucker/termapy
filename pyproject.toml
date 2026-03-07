@@ -27,6 +27,7 @@ source = ["src/termapy"]
 omit = [
     "src/termapy/__init__.py",
     "src/termapy/builtins/*.py",
+    "src/termapy/app.py",
 ]
 
 [tool.coverage.report]

@@ -1,6 +1,8 @@
 # termapy
 
-*Pronounced "terapee" — as in, therapy for your serial port problems.*
+![tests](https://img.shields.io/badge/tests-137%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+
+*Pronounced "ter-ma-pi" *
 
 A TUI serial terminal with ANSI color support, built on [Textual](https://textual.textualize.io/) and [pyserial](https://pyserial.readthedocs.io/).
 
@@ -8,7 +10,7 @@ A TUI serial terminal with ANSI color support, built on [Textual](https://textua
 
 Requires Python 3.11+.
 
-The recommended way to run termapy is with [uv](https://docs.astral.sh/uv/), which handles dependencies automatically:
+The recommended way to run `termapy` is with [uv](https://docs.astral.sh/uv/), which handles dependencies automatically:
 
 ```sh
 uv run termapy
@@ -33,7 +35,7 @@ You can also override the config directory:
 termapy --cfg-dir /path/to/configs
 ```
 
-On first run with no config files, termapy prompts for a config name and opens an editor with defaults. If one config exists it loads automatically. If multiple exist, a picker dialog appears. Any missing fields are added from defaults and saved back.
+On first run with no config files, `termapy` prompts for a config name and opens an editor with defaults. If one config exists it loads automatically. If multiple exist, a picker dialog appears. Any missing fields are added from defaults and saved back.
 
 Config files are organized in `termapy_cfg/<name>/<name>.json`, with logs, screenshots, scripts, and command history stored alongside each config in its subfolder:
 
@@ -81,11 +83,11 @@ termapy_cfg/
 
 ## Plugins
 
-Extend termapy by dropping Python files into plugin folders. Every REPL command — built-in and custom — uses the same plugin interface.
+Extend `termapy` by dropping Python files into plugin folders. Every REPL command — built-in and custom — uses the same plugin interface.
 
 **Plugin locations** (loaded in order, later can override earlier):
 
-1. **Built-in** -- shipped with termapy in `src/termapy/builtins/`, always available
+1. **Built-in** -- shipped with `termapy` in `src/termapy/builtins/`, always available
 2. **Global** -- `termapy_cfg/plugins/*.py`, shared across all configs
 3. **Per-config** -- `termapy_cfg/<name>/plugins/*.py`, specific to one config
 4. **App hooks** -- commands that need Textual access (screenshots, connect, etc.)
@@ -98,16 +100,18 @@ Create a `.py` file with four things:
 
 ```python
 # hello.py — drop into termapy_cfg/plugins/ or termapy_cfg/<config>/plugins/
+from termapy.plugins import PluginContext
+
 NAME = "hello"
 ARGS = "{name}"        # {braces} = optional, <angle> = required, "" = no args
 HELP = "Say hello."
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str):
     name = args.strip() or "world"
     ctx.write(f"Hello, {name}!")
 ```
 
-That's it. No imports from termapy, no classes to subclass, no registration. The file is discovered automatically when termapy starts.
+No classes to subclass, no registration — the file is discovered automatically when `termapy` starts. The `PluginContext` import is optional but gives your IDE autocomplete for `ctx`.
 
 ### Namespacing with PACKAGE
 
@@ -115,12 +119,14 @@ To avoid name collisions, add an optional `PACKAGE` field. The command becomes `
 
 ```python
 # flash.py
+from termapy.plugins import PluginContext
+
 PACKAGE = "acme"
 NAME = "flash"
 ARGS = "<firmware>"
 HELP = "Flash firmware to the device."
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str):
     ctx.write(f"Flashing {args}...")
     ctx.serial_write(b"FLASH\r\n")
     ctx.serial_wait_idle()
@@ -132,22 +138,22 @@ The user types `!!acme.flash firmware.bin`, and `!!help` groups it under the "ac
 
 The `ctx` object passed to every handler. This is the stable public API for external plugins:
 
-| Method / Attribute | Description |
-| ------------------ | ----------- |
-| `ctx.write(text, color)` | Print to the terminal (color is optional) |
-| `ctx.cfg` | Current config dict (read-only access) |
-| `ctx.config_path` | Path to the current `.json` config file |
-| `ctx.is_connected()` | Check if the serial port is open |
-| `ctx.serial_write(data)` | Send bytes to the serial port |
-| `ctx.serial_wait_idle()` | Wait until serial output settles |
-| `ctx.ss_dir` | Screenshot directory (`Path`) |
-| `ctx.scripts_dir` | Scripts directory (`Path`) |
-| `ctx.notify(text)` | Show a toast notification |
-| `ctx.clear_screen()` | Clear the terminal output |
-| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file |
-| `ctx.get_screen_text()` | Get terminal content as plain text |
+| Method / Attribute          | Description                               |
+| --------------------------- | ----------------------------------------- |
+| `ctx.write(text, color)`    | Print to the terminal (color is optional) |
+| `ctx.cfg`                   | Current config dict (read-only access)    |
+| `ctx.config_path`           | Path to the current `.json` config file   |
+| `ctx.is_connected()`        | Check if the serial port is open          |
+| `ctx.serial_write(data)`    | Send bytes to the serial port             |
+| `ctx.serial_wait_idle()`    | Wait until serial output settles          |
+| `ctx.ss_dir`                | Screenshot directory (`Path`)             |
+| `ctx.scripts_dir`           | Scripts directory (`Path`)                |
+| `ctx.notify(text)`          | Show a toast notification                 |
+| `ctx.clear_screen()`        | Clear the terminal output                 |
+| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file          |
+| `ctx.get_screen_text()`     | Get terminal content as plain text        |
 
-Plugins can use anything from the Python standard library or third-party packages. They interact with termapy only through `ctx`.
+Plugins can use anything from the Python standard library or third-party packages. They interact with `termapy` only through `ctx`.
 
 There is also `ctx.engine` which exposes internal engine state (sequence counters, echo, config save, etc.). This is used by built-in commands and may change between versions — external plugins should avoid it.
 
@@ -158,6 +164,7 @@ See `examples/plugins/` for working examples:
 - **hello.py** -- minimal greeting command
 - **at_test.py** -- send AT commands over serial
 - **timestamp.py** -- print the current date/time
+- **ping.py** -- send a command and measure response time
 
 ## Keyboard Shortcuts
 
@@ -175,26 +182,26 @@ See `examples/plugins/` for working examples:
 
 Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local actions instead of sending to the serial device.
 
-| Command | Description |
-| ------- | ----------- |
-| `!!help [cmd]` | List all REPL commands, or show help for one |
-| `!!connect` | Connect to the serial port |
-| `!!disconnect` | Disconnect from the serial port |
-| `!!port [name \| list]` | Open a port by name, or list available ports |
-| `!!cfg [key [value]]` | Show config, show a key, or change a value (with confirmation) |
-| `!!cfg_auto <key> <value>` | Set a config key immediately (no confirmation) |
-| `!!ss_svg [name]` | Save SVG screenshot |
-| `!!ss_txt [name]` | Save text screenshot |
-| `!!ss_dir [path]` | Set or show the screenshot folder |
-| `!!clr` | Clear the terminal screen |
-| `!!run <filename>` | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
-| `!!delay <duration>` | Wait for a duration (e.g. `500ms`, `1.5s`) |
-| `!!stop` | Abort a running script |
-| `!!seq [reset]` | Show or reset sequence counters |
-| `!!print <text>` | Print a message to the terminal |
-| `!!show <name>` | Show a file (`$cfg` for current config) |
-| `!!echo [on \| off]` | Toggle REPL command echo |
-| `!!os <cmd>` | Run a shell command (10s timeout, requires `os_cmd_enabled`) |
+| Command                    | Description                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `!!help [cmd]`             | List all REPL commands, or show help for one                                     |
+| `!!connect`                | Connect to the serial port                                                       |
+| `!!disconnect`             | Disconnect from the serial port                                                  |
+| `!!port [name \| list]`    | Open a port by name, or list available ports                                     |
+| `!!cfg [key [value]]`      | Show config, show a key, or change a value (with confirmation)                   |
+| `!!cfg_auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
+| `!!ss_svg [name]`          | Save SVG screenshot                                                              |
+| `!!ss_txt [name]`          | Save text screenshot                                                             |
+| `!!ss_dir [path]`          | Set or show the screenshot folder                                                |
+| `!!clr`                    | Clear the terminal screen                                                        |
+| `!!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
+| `!!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
+| `!!stop`                   | Abort a running script                                                           |
+| `!!seq [reset]`            | Show or reset sequence counters                                                  |
+| `!!print <text>`           | Print a message to the terminal                                                  |
+| `!!show <name>`            | Show a file (`$cfg` for current config)                                          |
+| `!!echo [on \| off]`       | Toggle REPL command echo                                                         |
+| `!!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
@@ -234,30 +241,30 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 
 ### Config Fields
 
-| Field | Default | Description |
-| ----- | ------- | ----------- |
-| `port` | `"COM4"` | Serial port name |
-| `baudrate` | `115200` | Baud rate |
-| `bytesize` | `8` | Data bits (5, 6, 7, 8) |
-| `parity` | `"N"` | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"` |
-| `stopbits` | `1` | Stop bits (1, 1.5, 2) |
-| `flow_control` | `"none"` | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons) |
-| `encoding` | `"utf-8"` | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"` |
-| `inter_cmd_delay_ms` | `0` | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
-| `line_ending` | `"\r"` | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF |
-| `autoconnect` | `false` | Connect to the port on startup |
-| `autoreconnect` | `false` | Retry every second if the port drops or fails to open |
-| `autoconnect_cmd` | `""` | Commands to send after connecting, separated by `\n`. Waits for idle between each |
-| `echo_cmd` | `false` | Echo sent commands locally |
-| `echo_cmd_fmt` | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text |
-| `log_file` | `""` | Session log path. If empty, uses `<name>.txt` in the config's subfolder |
-| `add_date_to_cmd` | `false` | Prepend full datetime to command log entries |
-| `title` | `""` | Title bar center text. Defaults to the config filename |
-| `app_border_color` | `""` | Title bar and output border color. Any CSS color name or hex value |
-| `max_lines` | `10000` | Maximum lines in the scrollback buffer |
-| `repl_prefix` | `"!!"` | Prefix for local REPL commands (e.g. `!!help`, `!!clr`) |
-| `os_cmd_enabled` | `false` | Enable the `!!os` REPL command to run shell commands |
-| `custom_buttons` | `[]` | Array of custom button objects (see Custom Buttons below) |
+| Field                | Default                | Description                                                                                              |
+| -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| `port`               | `"COM4"`               | Serial port name                                                                                         |
+| `baudrate`           | `115200`               | Baud rate                                                                                                |
+| `bytesize`           | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
+| `parity`             | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
+| `stopbits`           | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
+| `flow_control`       | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
+| `encoding`           | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
+| `inter_cmd_delay_ms` | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
+| `line_ending`        | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
+| `autoconnect`        | `false`                | Connect to the port on startup                                                                           |
+| `autoreconnect`      | `false`                | Retry every second if the port drops or fails to open                                                    |
+| `autoconnect_cmd`    | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
+| `echo_cmd`           | `false`                | Echo sent commands locally                                                                               |
+| `echo_cmd_fmt`       | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
+| `log_file`           | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
+| `add_date_to_cmd`    | `false`                | Prepend full datetime to command log entries                                                             |
+| `title`              | `""`                   | Title bar center text. Defaults to the config filename                                                   |
+| `app_border_color`   | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
+| `max_lines`          | `10000`                | Maximum lines in the scrollback buffer                                                                   |
+| `repl_prefix`        | `"!!"`                 | Prefix for local REPL commands (e.g. `!!help`, `!!clr`)                                                  |
+| `os_cmd_enabled`     | `false`                | Enable the `!!os` REPL command to run shell commands                                                     |
+| `custom_buttons`     | `[]`                   | Array of custom button objects (see Custom Buttons below)                                                |
 
 ### Config Examples
 
@@ -310,17 +317,34 @@ With `flow_control` set to `"manual"`, three extra buttons appear in the toolbar
 
 ### Custom Buttons
 
-Add up to 4 custom buttons to the toolbar. Each button has `enabled`, `name`, `command`, and `tooltip` fields. Commands starting with `!!` run as REPL commands; everything else is sent to the serial device. Use `\n` to chain multiple commands.
+Add custom buttons to the toolbar. The default config includes 4 disabled placeholders — enable them and fill in the fields, or add more entries. Each button has `enabled`, `name`, `command`, and `tooltip` fields. Commands starting with `!!` run as REPL commands; everything else is sent to the serial device. Use `\n` to chain multiple commands or use `!!run` to run a script file.
 
 ```json
 {
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
         {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n!!sleep 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
-        {"enabled": true, "name": "Status", "command": "!!run status_check.run", "tooltip": "Run status script"},
-        {"enabled": false, "name": "Btn4", "command": "", "tooltip": "Custom button 4"}
+        {"enabled": true, "name": "Status", "command": "!!run status_check.run", "tooltip": "Run status script"}
     ]
 }
 ```
 
 Custom buttons appear in the toolbar between the hardware buttons and the system buttons (Log, SS, Scripts, Exit). They update dynamically when you switch or edit configs.
+
+## Test Coverage
+
+![coverage](https://img.shields.io/badge/coverage-99%25-brightgreen) *excludes `app.py` and `builtins/` — see note below*
+
+137 tests across 6 test files. Run with `uv run pytest`.
+
+| Module                       | Coverage | Test file                            |
+| ---------------------------- | -------- | ------------------------------------ |
+| `scripting.py`               | 100%     | `test_scripting.py`                  |
+| `repl.py`                    | 100%     | `test_engine.py`, `test_repl_cfg.py` |
+| `plugins.py`                 | 99%      | `test_plugins.py`                    |
+| `app.py` (config utils only) | —        | `test_app_config.py`                 |
+| `builtins/*.py`              | —        | `test_builtins.py`                   |
+
+**⚠️ THE UI CODE IN `app.py` IS NOT INCLUDED IN THESE COVERAGE METRICS.**
+
+`app.py` (the Textual UI layer) contains all UI code — modals, widgets, serial I/O, and button handling — which is tested manually. The config utility functions it exports (`cfg_data_dir`, `load_config`, etc.) are covered by `test_app_config.py`. Built-in command plugins (`builtins/*.py`) are also excluded because they are loaded dynamically via `importlib` and coverage cannot map them back to source files; they are tested indirectly through `test_builtins.py`.

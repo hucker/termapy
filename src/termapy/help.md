@@ -165,9 +165,7 @@ Here is an example config for a device called `iot_device`:
     "os_cmd_enabled": false,
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
-        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200", "tooltip": "Reset and set baud"},
-        {"enabled": false, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
-        {"enabled": false, "name": "Btn4", "command": "", "tooltip": "Custom button 4"}
+        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200", "tooltip": "Reset and set baud"}
     ]
 }
 ```
@@ -221,9 +219,10 @@ Invalid JSON is caught before saving, with the error shown inline.
 
 ## Custom Buttons
 
-Add up to 4 custom buttons to the toolbar by configuring `custom_buttons`
+Add custom buttons to the toolbar by configuring `custom_buttons`
 in your JSON config. Each button can send serial commands, run REPL commands,
-or execute scripts. The default config includes 4 disabled placeholders.
+or execute scripts. The default config includes 4 disabled placeholders —
+enable them and fill in the fields, or add more entries.
 
 Each button object has these fields:
 

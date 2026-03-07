@@ -1,6 +1,7 @@
 .generated_files/
 build/
 dist/
+.pytest_cache/
 nbproject/
 Makefile*
 Package-*
@@ -13,6 +14,8 @@ out/
 __pycache__/
 *.egg-info/
 .venv/
+.tox/
 .vscode/
 termapy_cfg/
 .coverage
+CLAUDE.md

@@ -1,10 +1,10 @@
-"""Tests for terapy.scripting — pure functions, no serial or Textual needed."""
+"""Tests for termapy.scripting — pure functions, no serial or Textual needed."""
 
 import re
 
 import pytest
 
-from terapy.scripting import expand_template, parse_duration, parse_script_lines
+from termapy.scripting import expand_template, parse_duration, parse_script_lines
 
 
 # ── expand_template ──────────────────────────────────────────────

@@ -1,5 +1,5 @@
 [project]
-name = "terapy"
+name = "termapy"
 version = "0.1.0"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 requires-python = ">=3.11"
@@ -13,17 +13,17 @@ requires = ["uv_build"]
 build-backend = "uv_build"
 
 [project.scripts]
-terapy = "terapy:run"
+termapy = "termapy:run"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --cov=terapy --cov-report=term-missing"
+addopts = "-v --cov=termapy --cov-report=term-missing"
 
 [tool.coverage.run]
-source = ["src/terapy"]
+source = ["src/termapy"]
 omit = [
-    "src/terapy/__init__.py",
-    "src/terapy/builtins/*.py",
+    "src/termapy/__init__.py",
+    "src/termapy/builtins/*.py",
 ]
 
 [tool.coverage.report]

@@ -1,4 +1,4 @@
-"""Template expansion and script parsing for terapy REPL commands.
+"""Template expansion and script parsing for termapy REPL commands.
 
 Pure functions with no Textual or serial dependencies.
 """

@@ -1,4 +1,4 @@
-# terapy
+# termapy
 
 *Pronounced "terapee" — as in, therapy for your serial port problems.*
 
@@ -8,37 +8,37 @@ A TUI serial terminal with ANSI color support, built on [Textual](https://textua
 
 Requires Python 3.11+.
 
-The recommended way to run terapy is with [uv](https://docs.astral.sh/uv/), which handles dependencies automatically:
+The recommended way to run termapy is with [uv](https://docs.astral.sh/uv/), which handles dependencies automatically:
 
 ```sh
-uv run terapy
+uv run termapy
 ```
 
 You can also install with pip:
 
 ```sh
-pip install terapy
-terapy
+pip install termapy
+termapy
 ```
 
 To specify a config file:
 
 ```sh
-terapy my_device.json
+termapy my_device.json
 ```
 
 You can also override the config directory:
 
 ```sh
-terapy --cfg-dir /path/to/configs
+termapy --cfg-dir /path/to/configs
 ```
 
-On first run with no config files, terapy prompts for a config name and opens an editor with defaults. If one config exists it loads automatically. If multiple exist, a picker dialog appears. Any missing fields are added from defaults and saved back.
+On first run with no config files, termapy prompts for a config name and opens an editor with defaults. If one config exists it loads automatically. If multiple exist, a picker dialog appears. Any missing fields are added from defaults and saved back.
 
-Config files are organized in `terapy_cfg/<name>/<name>.json`, with logs, screenshots, scripts, and command history stored alongside each config in its subfolder:
+Config files are organized in `termapy_cfg/<name>/<name>.json`, with logs, screenshots, scripts, and command history stored alongside each config in its subfolder:
 
 ```text
-terapy_cfg/
+termapy_cfg/
 ├── plugins/                            # global plugins (all configs)
 │   └── hello.py
 ├── iot_dev/
@@ -80,13 +80,13 @@ terapy_cfg/
 
 ## Plugins
 
-Extend terapy by dropping Python files into plugin folders. Every REPL command — built-in and custom — uses the same plugin interface.
+Extend termapy by dropping Python files into plugin folders. Every REPL command — built-in and custom — uses the same plugin interface.
 
 **Plugin locations** (loaded in order, later can override earlier):
 
-1. **Built-in** -- shipped with terapy in `src/terapy/builtins/`, always available
-2. **Global** -- `terapy_cfg/plugins/*.py`, shared across all configs
-3. **Per-config** -- `terapy_cfg/<name>/plugins/*.py`, specific to one config
+1. **Built-in** -- shipped with termapy in `src/termapy/builtins/`, always available
+2. **Global** -- `termapy_cfg/plugins/*.py`, shared across all configs
+3. **Per-config** -- `termapy_cfg/<name>/plugins/*.py`, specific to one config
 4. **App hooks** -- commands that need Textual access (screenshots, connect, etc.)
 
 Later plugins can override earlier ones by using the same `NAME`.
@@ -96,7 +96,7 @@ Later plugins can override earlier ones by using the same `NAME`.
 Create a `.py` file with four things:
 
 ```python
-# hello.py — drop into terapy_cfg/plugins/ or terapy_cfg/<config>/plugins/
+# hello.py — drop into termapy_cfg/plugins/ or termapy_cfg/<config>/plugins/
 NAME = "hello"
 ARGS = "{name}"        # {braces} = optional, <angle> = required, "" = no args
 HELP = "Say hello."
@@ -106,7 +106,7 @@ def handler(ctx, args):
     ctx.write(f"Hello, {name}!")
 ```
 
-That's it. No imports from terapy, no classes to subclass, no registration. The file is discovered automatically when terapy starts.
+That's it. No imports from termapy, no classes to subclass, no registration. The file is discovered automatically when termapy starts.
 
 ### Namespacing with PACKAGE
 
@@ -146,7 +146,7 @@ The `ctx` object passed to every handler. This is the stable public API for exte
 | `ctx.save_screenshot(path)` | Save an SVG screenshot to a file |
 | `ctx.get_screen_text()` | Get terminal content as plain text |
 
-Plugins can use anything from the Python standard library or third-party packages. They interact with terapy only through `ctx`.
+Plugins can use anything from the Python standard library or third-party packages. They interact with termapy only through `ctx`.
 
 There is also `ctx.engine` which exposes internal engine state (sequence counters, echo, config save, etc.). This is used by built-in commands and may change between versions — external plugins should avoid it.
 
@@ -195,7 +195,7 @@ Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local a
 | `!!echo [on \| off]` | Toggle REPL command echo |
 | `!!os <cmd>` | Run a shell command (10s timeout, requires `os_cmd_enabled`) |
 
-Screenshots and logs are saved in the config's subfolder (`terapy_cfg/<name>/`).
+Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
 ## Config Reference
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from terapy.plugins import PluginInfo, load_plugins_from_dir
+from termapy.plugins import PluginInfo, load_plugins_from_dir
 
 
 @pytest.fixture

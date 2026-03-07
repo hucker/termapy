@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from terapy.plugins import EngineAPI, PluginContext
-from terapy.repl import ReplEngine
+from termapy.plugins import EngineAPI, PluginContext
+from termapy.repl import ReplEngine
 
 
 @pytest.fixture

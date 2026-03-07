@@ -1,7 +1,7 @@
-"""REPL engine for terapy — plugin-based command dispatch and scripting.
+"""REPL engine for termapy — plugin-based command dispatch and scripting.
 
 All commands (built-in and external) are plugins loaded as .py files.
-Built-in plugins ship in terapy/builtins/. External plugins are loaded
+Built-in plugins ship in termapy/builtins/. External plugins are loaded
 from folders by app.py. The engine owns state (seq counters, echo, etc.)
 and exposes it through PluginContext lambdas.
 """
@@ -12,8 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event
 
-from terapy.plugins import PluginContext, PluginInfo, builtins_dir, load_plugins_from_dir
-from terapy.scripting import expand_template, parse_duration, parse_script_lines
+from termapy.plugins import PluginContext, PluginInfo, builtins_dir, load_plugins_from_dir
+from termapy.scripting import expand_template, parse_duration, parse_script_lines
 
 
 class ReplEngine:
@@ -39,7 +39,7 @@ class ReplEngine:
         # Config change callback (set by app.py)
         self._after_cfg = None  # callback: (key, new_val) -> None (post-apply refresh)
 
-        # Load built-in plugins from terapy/builtins/
+        # Load built-in plugins from termapy/builtins/
         self._load_builtins()
 
     def _load_builtins(self) -> None:

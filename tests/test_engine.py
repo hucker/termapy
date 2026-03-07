@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from terapy.repl import ReplEngine
+from termapy.repl import ReplEngine
 
 
 @pytest.fixture

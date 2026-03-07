@@ -1,4 +1,4 @@
-"""Plugin system for terapy — discovery, loading, and context API.
+"""Plugin system for termapy — discovery, loading, and context API.
 
 Plugins are .py files with a standard interface:
 
@@ -86,7 +86,7 @@ class PluginInfo:
 
 
 def builtins_dir() -> Path:
-    """Return the path to the built-in plugins directory shipped with terapy."""
+    """Return the path to the built-in plugins directory shipped with termapy."""
     return Path(__file__).parent / "builtins"
 
 
@@ -108,13 +108,13 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> list[PluginIn
             if info:
                 plugins.append(info)
         except Exception as e:
-            print(f"terapy: failed to load plugin {py_file.name}: {e}", file=sys.stderr)
+            print(f"termapy: failed to load plugin {py_file.name}: {e}", file=sys.stderr)
     return plugins
 
 
 def _load_plugin_file(path: Path, source: str) -> PluginInfo | None:
     """Import a single plugin file and extract its PluginInfo."""
-    module_name = f"terapy_plugin_{path.stem}"
+    module_name = f"termapy_plugin_{path.stem}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         return None

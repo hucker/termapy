@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Usage:
-    uv run terapy [config.json]
+    uv run termapy [config.json]
 
 Runs well in most terminals (Windows Terminal, iTerm2, etc).
 VS Code's integrated terminal can be jerky due to its rendering pipeline.
@@ -20,9 +20,9 @@ import serial
 from rich.text import Text
 from textual import on, work
 
-from terapy.plugins import EngineAPI, PluginContext, load_plugins_from_dir
-from terapy.repl import ReplEngine
-from terapy.scripting import parse_duration
+from termapy.plugins import EngineAPI, PluginContext, load_plugins_from_dir
+from termapy.repl import ReplEngine
+from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -31,7 +31,7 @@ from textual.widgets import Button, Input, OptionList, RichLog, TextArea
 from textual.widgets.option_list import Option
 
 
-CFG_DIR = "terapy_cfg"
+CFG_DIR = "termapy_cfg"
 
 
 def cfg_dir() -> Path:
@@ -44,7 +44,7 @@ def cfg_dir() -> Path:
 def cfg_data_dir(config_path: str) -> Path:
     """Return the per-config data directory (for logs, screenshots, etc.).
 
-    Config files live at terapy_cfg/<name>/<name>.json, so the data dir
+    Config files live at termapy_cfg/<name>/<name>.json, so the data dir
     is just the parent directory of the config file.
     """
     d = Path(config_path).parent
@@ -53,7 +53,7 @@ def cfg_data_dir(config_path: str) -> Path:
 
 
 def cfg_path_for_name(name: str) -> Path:
-    """Return the config file path for a given name: terapy_cfg/<name>/<name>.json."""
+    """Return the config file path for a given name: termapy_cfg/<name>/<name>.json."""
     return cfg_dir() / name / f"{name}.json"
 
 
@@ -125,7 +125,7 @@ def load_config(path: str) -> dict:
     p = Path(path)
     if not p.exists():
         print(f"Config file not found: {path}", file=sys.stderr)
-        # Ensure it goes into terapy_cfg/<name>/<name>.json
+        # Ensure it goes into termapy_cfg/<name>/<name>.json
         if not p.parent or p.parent == Path("."):
             name = p.stem
             p = cfg_path_for_name(name)
@@ -270,7 +270,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             return
         if not filename.endswith(".json"):
             filename += ".json"
-        # Place in terapy_cfg/<name>/<name>.json
+        # Place in termapy_cfg/<name>/<name>.json
         p = Path(filename)
         if not p.parent or p.parent == Path("."):
             name = p.stem
@@ -950,7 +950,7 @@ class SerialTerminal(App):
             self._wait_for_idle(400)
 
     def _status(self, text: str, color: str = "dim") -> None:
-        """Write a terapy status message with consistent formatting."""
+        """Write a termapy status message with consistent formatting."""
         self.query_one("#output", RichLog).write(f"[bold italic {color}]{text}[/]")
 
     def _write_output_markup(self, text: str) -> None:
@@ -1519,7 +1519,7 @@ class SerialTerminal(App):
 
 
 def _find_config() -> tuple[str | None, bool]:
-    """Find config in terapy_cfg/<name>/<name>.json. Returns (path, show_picker).
+    """Find config in termapy_cfg/<name>/<name>.json. Returns (path, show_picker).
 
     - 1 json file: (path, False) — auto-load
     - 0 json files: (None, False) — show name picker for new config
@@ -1541,7 +1541,7 @@ def main():
         "config",
         nargs="?",
         default=None,
-        help="Path to JSON config file (auto-detects single .json in terapy_cfg/)",
+        help="Path to JSON config file (auto-detects single .json in termapy_cfg/)",
     )
     parser.add_argument(
         "--cfg-dir",

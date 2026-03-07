@@ -68,15 +68,16 @@ Type `!!help` to see all available REPL commands.
 
 ## Toolbar Buttons
 
-The bottom bar also has buttons that appear based on context:
+The bottom bar also has buttons. Some appear based on context:
 
 | Button | When Visible | Action |
 |--------|-------------|--------|
+| **!!** | Always | Show REPL command picker |
 | **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line |
 | **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line |
 | **Break** | `flow_control` is `"manual"` | Send a 250ms serial break signal |
 | **Log** | Always | View the current session log |
-| **SS** | Screenshots exist | Open the screenshot folder |
+| **SS** | Always | Open the screenshot folder |
 | **Scripts** | Script files exist | Pick and run a script |
 | **Exit** | Always | Close the connection and quit |
 

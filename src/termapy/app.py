@@ -581,6 +581,12 @@ class SerialTerminal(App):
         padding: 0;
         background: $primary;
     }
+    #btn-cmds {
+        width: 4;
+        min-width: 4;
+        text-align: center;
+        padding: 0;
+    }
     #title-left {
         min-width: 20;
         background: red;
@@ -749,6 +755,9 @@ class SerialTerminal(App):
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
+                cmd_btn = Button("!!", id="btn-cmds")
+                cmd_btn.tooltip = "Show REPL commands"
+                yield cmd_btn
                 yield Input(
                     placeholder="!! for REPL commands, Ctrl+P: palette", id="cmd"
                 )
@@ -763,7 +772,7 @@ class SerialTerminal(App):
                 yield _btn("RTS:0", "btn-rts", "Toggle Request To Send line", display=show_hw)
                 yield _btn("Break", "btn-break", "Send serial break signal (250ms)", display=show_hw)
                 yield _btn("Log", "btn-log", "View current log file", "primary")
-                yield _btn("SS", "btn-ss-dir", "Open screenshot folder", "primary", display=False)
+                yield _btn("SS", "btn-ss-dir", "Open screenshot folder", "primary")
                 yield _btn("Scripts", "btn-scripts", "Run a script", "primary", display=False)
                 yield _btn("New", "btn-new-cfg", "Create a new config from defaults", "success")
                 yield _btn("Edit", "btn-config", "Edit the current config", "warning")
@@ -1104,6 +1113,8 @@ class SerialTerminal(App):
             if self.is_connected:
                 self.ser.send_break(duration=0.25)
                 self.notify("Break sent", timeout=1.5)
+        elif event.button.id == "btn-cmds":
+            self._show_commands()
         elif event.button.id == "btn-help":
             self.push_screen(HelpViewer())
         elif event.button.id == "btn-log":
@@ -1328,31 +1339,45 @@ class SerialTerminal(App):
         inp.value = ""
 
     def _show_history(self) -> None:
-        """Show the history popup: recent commands first, then annotated REPL commands."""
-        # Always read fresh from disk so config switches just work
+        """Show the history popup with only past commands."""
         self.history = self._load_history()
         popup = self.query_one("#history-popup", OptionList)
         popup.clear_options()
-        # Recent commands, most recent first
-        if self.history:
-            popup.add_option(Option("── Command History ──", disabled=True))
-        for cmd in reversed(self.history):
-            popup.add_option(Option(cmd))
-        # REPL commands with dim help text
-        popup.add_option(Option("── REPL commands ──", disabled=True))
-        prefix = self.cfg.get("repl_prefix", "!!")
-        for name, plugin in self.repl._plugins.items():
-            cmd = f"{prefix}{name}"
-            if plugin.args:
-                cmd += f" {plugin.args}"
-            label = Text(cmd)
-            label.append(f"  # {plugin.help}", style="dim")
-            popup.add_option(Option(label, id=f"repl:{name}"))
+        if not self.history:
+            popup.add_option(Option("(no history yet)", disabled=True))
+        else:
+            for cmd in reversed(self.history):
+                popup.add_option(Option(cmd))
         popup.add_class("visible")
         popup.focus()
-        # Highlight first selectable option (index 1 skips the disabled header)
-        popup.highlighted = 1 if popup.option_count > 1 else 0
+        popup.highlighted = 0
         self._popup_mode = "history"
+
+    def _show_commands(self) -> None:
+        """Show the REPL command picker with smart arg handling."""
+        popup = self.query_one("#history-popup", OptionList)
+        popup.clear_options()
+        prefix = self.cfg.get("repl_prefix", "!!")
+        groups: dict[str, list] = {}
+        for name, plugin in self.repl._plugins.items():
+            groups.setdefault(plugin.source, []).append((name, plugin))
+        for source, plugins in groups.items():
+            popup.add_option(Option(f"── {source} ──", disabled=True))
+            for name, plugin in plugins:
+                has_required = "<" in plugin.args if plugin.args else False
+                has_optional = "{" in plugin.args if plugin.args else False
+                if not plugin.args or (has_optional and not has_required):
+                    label = Text(f"{prefix}{name}")
+                    label.append(f"  # {plugin.help}", style="dim")
+                    popup.add_option(Option(label, id=f"run:{name}"))
+                if plugin.args:
+                    label = Text(f"{prefix}{name} {plugin.args}")
+                    label.append(f"  # {plugin.help}", style="dim")
+                    popup.add_option(Option(label, id=f"repl:{name}"))
+        popup.add_class("visible")
+        popup.focus()
+        popup.highlighted = 1 if popup.option_count > 1 else 0
+        self._popup_mode = "commands"
 
     def _show_palette(self) -> None:
         """Show the command palette popup."""
@@ -1384,16 +1409,19 @@ class SerialTerminal(App):
             idx = int(opt_id.split(":")[1])
             _, method_name = self.PALETTE_CMDS[idx]
             getattr(self, method_name)()
+        elif opt_id.startswith("run:"):
+            name = opt_id.split(":")[1]
+            self.repl.dispatch(name)
         elif opt_id.startswith("repl:"):
             name = opt_id.split(":")[1]
             prefix = self.cfg.get("repl_prefix", "!!")
             inp = self.query_one("#cmd", Input)
             inp.value = f"{prefix}{name} "
-            inp.cursor_position = len(inp.value)
+            inp.action_end()
         else:
             inp = self.query_one("#cmd", Input)
             inp.value = str(event.option.prompt)
-            inp.cursor_position = len(inp.value)
+            inp.action_end()
 
     def on_key(self, event) -> None:
         """Handle Up arrow to show history, Escape to dismiss."""
@@ -1446,6 +1474,9 @@ class SerialTerminal(App):
     def action_open_screenshot(self) -> None:
         import subprocess
 
+        if not self.config_path:
+            self.notify("No config loaded", severity="warning")
+            return
         folder = str(self.repl.ss_dir.resolve())
         if sys.platform == "win32":
             import os
@@ -1457,10 +1488,15 @@ class SerialTerminal(App):
             subprocess.Popen(["xdg-open", folder])
 
     def _sync_ss_button(self) -> None:
-        """Show the SS button if the screenshot folder has any files."""
+        """Update the SS button tooltip with file counts."""
+        btn = self.query_one("#btn-ss-dir", Button)
         ss_dir = self.repl.ss_dir
-        has_files = ss_dir.exists() and any(ss_dir.iterdir())
-        self.query_one("#btn-ss-dir", Button).display = has_files
+        if ss_dir.exists():
+            svgs = len(list(ss_dir.glob("*.svg")))
+            txts = len(list(ss_dir.glob("*.txt")))
+            btn.tooltip = f"Open screenshot folder ({svgs} svg, {txts} txt)"
+        else:
+            btn.tooltip = "Open screenshot folder (empty)"
 
     def _sync_scripts_button(self) -> None:
         """Show the Scripts button if the scripts folder has any files."""

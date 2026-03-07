@@ -119,6 +119,7 @@ def _load_plugin_file(path: Path, source: str) -> PluginInfo | None:
     if spec is None or spec.loader is None:
         return None
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
 
     name = getattr(mod, "NAME", None)

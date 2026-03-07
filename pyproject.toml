@@ -17,4 +17,23 @@ terapy = "terapy:run"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v"
+addopts = "-v --cov=terapy --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src/terapy"]
+omit = [
+    "src/terapy/__init__.py",
+    "src/terapy/builtins/*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if __name__",
+    "pragma: no cover",
+]
+show_missing = true
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+]

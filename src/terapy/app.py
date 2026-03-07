@@ -1288,6 +1288,8 @@ class SerialTerminal(App):
 
     def _show_history(self) -> None:
         """Show the history popup: recent commands first, then annotated REPL commands."""
+        # Always read fresh from disk so config switches just work
+        self.history = self._load_history()
         popup = self.query_one("#history-popup", OptionList)
         popup.clear_options()
         # Recent commands, most recent first
@@ -1307,8 +1309,8 @@ class SerialTerminal(App):
             popup.add_option(Option(label, id=f"repl:{name}"))
         popup.add_class("visible")
         popup.focus()
-        if popup.option_count > 0:
-            popup.highlighted = 0
+        # Highlight first selectable option (index 1 skips the disabled header)
+        popup.highlighted = 1 if popup.option_count > 1 else 0
         self._popup_mode = "history"
 
     def _show_palette(self) -> None:
@@ -1367,20 +1369,18 @@ class SerialTerminal(App):
 
         if event.key == "up":
             inp = self.query_one("#cmd", Input)
-            if inp.has_focus and self.history:
+            if inp.has_focus:
                 self._show_history()
                 event.prevent_default()
             return
 
         if event.key == "down":
+            inp = self.query_one("#cmd", Input)
             popup = self.query_one("#history-popup", OptionList)
-            if popup.has_focus:
-                if (
-                    popup.highlighted is not None
-                    and popup.highlighted >= popup.option_count - 1
-                ):
-                    self._hide_history()
-                    event.prevent_default()
+            if inp.has_focus and popup.has_class("visible"):
+                # Down from input while popup is showing — focus the popup
+                popup.focus()
+                event.prevent_default()
 
     def action_clear_log(self) -> None:
         self.query_one("#output", RichLog).clear()

@@ -14,4 +14,4 @@ __pycache__/
 *.egg-info/
 .venv/
 .vscode/
-terapy_cfg/
+terapy_cfg/.coverage

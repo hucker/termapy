@@ -2,11 +2,13 @@
 
 Plugins are .py files with a standard interface:
 
+    from termapy.plugins import PluginContext
+
     NAME = "mycommand"
     ARGS = "[arg1]"
     HELP = "What this command does."
 
-    def handler(ctx, args: str):
+    def handler(ctx: PluginContext, args: str):
         ctx.write("Hello from plugin!")
 
 The PluginContext provides a stable API for plugins to interact with

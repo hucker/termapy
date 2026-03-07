@@ -711,6 +711,8 @@ class PortPicker(ModalScreen[str | None]):
 class SerialTerminal(App):
     """Textual app: scrolling output + local input line."""
 
+    TITLE = "termapy"
+
     CSS = """
     #title-bar {
         dock: top;

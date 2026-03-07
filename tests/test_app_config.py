@@ -22,25 +22,40 @@ from termapy.app import (
 
 class TestCfgDataDir:
     def test_creates_subdirs(self, tmp_path):
+        # Arrange
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
-        d = cfg_data_dir(str(config_path))
-        assert d == config_path.parent
+
+        # Act
+        actual = cfg_data_dir(str(config_path))
+
+        # Assert
+        assert actual == config_path.parent  # returns parent directory
         for sub in ("plugins", "ss", "scripts"):
-            assert (d / sub).is_dir()
+            assert (actual / sub).is_dir()  # all subdirs created
 
     def test_idempotent(self, tmp_path):
+        # Arrange
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
+
+        # Act
         cfg_data_dir(str(config_path))
-        cfg_data_dir(str(config_path))  # no error on second call
-        assert (config_path.parent / "ss").is_dir()
+        cfg_data_dir(str(config_path))  # second call should not error
+
+        # Assert
+        assert (config_path.parent / "ss").is_dir()  # subdirs still exist
 
     def test_creates_parent_if_needed(self, tmp_path):
+        # Arrange
         config_path = tmp_path / "new" / "new.json"
-        d = cfg_data_dir(str(config_path))
-        assert d.exists()
-        assert (d / "plugins").is_dir()
+
+        # Act
+        actual = cfg_data_dir(str(config_path))
+
+        # Assert
+        assert actual.exists()  # parent dir created
+        assert (actual / "plugins").is_dir()  # subdirs created
 
 
 # -- cfg helper functions ---------------------------------------------------
@@ -48,28 +63,28 @@ class TestCfgDataDir:
 
 class TestCfgHelpers:
     def test_cfg_path_for_name(self):
-        p = cfg_path_for_name("mydev")
-        assert p.name == "mydev.json"
-        assert p.parent.name == "mydev"
+        actual = cfg_path_for_name("mydev")
+        assert actual.name == "mydev.json"  # filename matches
+        assert actual.parent.name == "mydev"  # parent dir matches
 
     def test_cfg_log_path(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
-        log = cfg_log_path(str(config_path))
-        assert log.endswith("dev.txt")
+        actual = cfg_log_path(str(config_path))
+        assert actual.endswith("dev.txt")  # log named after config
 
     def test_cfg_history_path(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
-        hist = cfg_history_path(str(config_path))
-        assert hist.endswith(".cmd_history.txt")
+        actual = cfg_history_path(str(config_path))
+        assert actual.endswith(".cmd_history.txt")  # history file pattern
 
     def test_cfg_plugins_dir(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
-        d = cfg_plugins_dir(str(config_path))
-        assert d.name == "plugins"
-        assert d.is_dir()
+        actual = cfg_plugins_dir(str(config_path))
+        assert actual.name == "plugins"  # correct subdir name
+        assert actual.is_dir()  # directory created
 
 
 # -- DEFAULT_CFG structure --------------------------------------------------
@@ -77,24 +92,24 @@ class TestCfgHelpers:
 
 class TestDefaultCfg:
     def test_has_custom_buttons(self):
-        assert "custom_buttons" in DEFAULT_CFG
-        assert isinstance(DEFAULT_CFG["custom_buttons"], list)
-        assert len(DEFAULT_CFG["custom_buttons"]) == 4
+        assert "custom_buttons" in DEFAULT_CFG  # key exists
+        assert isinstance(DEFAULT_CFG["custom_buttons"], list)  # is a list
+        assert len(DEFAULT_CFG["custom_buttons"]) >= 4  # at least 4 button placeholders
 
     def test_custom_buttons_all_disabled(self):
         for btn in DEFAULT_CFG["custom_buttons"]:
-            assert btn["enabled"] is False
+            assert btn["enabled"] is False  # all disabled by default
 
     def test_custom_buttons_have_required_fields(self):
         for btn in DEFAULT_CFG["custom_buttons"]:
-            assert "enabled" in btn
-            assert "name" in btn
-            assert "command" in btn
-            assert "tooltip" in btn
+            assert "enabled" in btn  # enabled field present
+            assert "name" in btn  # name field present
+            assert "command" in btn  # command field present
+            assert "tooltip" in btn  # tooltip field present
 
     def test_has_essential_keys(self):
         for key in ("port", "baudrate", "line_ending", "repl_prefix"):
-            assert key in DEFAULT_CFG
+            assert key in DEFAULT_CFG  # essential config key present
 
 
 # -- load_config ------------------------------------------------------------
@@ -102,27 +117,36 @@ class TestDefaultCfg:
 
 class TestLoadConfig:
     def test_creates_default_if_missing(self, tmp_path, monkeypatch):
+        # Arrange
         monkeypatch.chdir(tmp_path)
         config_path = tmp_path / "test" / "test.json"
-        cfg = load_config(str(config_path))
-        assert config_path.exists()
-        assert cfg["port"] == DEFAULT_CFG["port"]
-        assert "custom_buttons" in cfg
+
+        # Act
+        actual = load_config(str(config_path))
+
+        # Assert
+        assert config_path.exists()  # file created on disk
+        assert actual["port"] == DEFAULT_CFG["port"]  # default port
+        assert "custom_buttons" in actual  # default buttons added
 
     def test_adds_missing_keys(self, tmp_path):
+        # Arrange
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
-        # Write a minimal config without custom_buttons
         minimal = {"port": "COM3", "baudrate": 9600}
         config_path.write_text(json.dumps(minimal))
-        cfg = load_config(str(config_path))
-        assert cfg["port"] == "COM3"  # original preserved
-        assert "custom_buttons" in cfg  # default added
-        # Verify it was persisted
-        saved = json.loads(config_path.read_text())
-        assert "custom_buttons" in saved
+
+        # Act
+        actual = load_config(str(config_path))
+
+        # Assert
+        assert actual["port"] == "COM3"  # original value preserved
+        assert "custom_buttons" in actual  # missing default added
+        actual_saved = json.loads(config_path.read_text())
+        assert "custom_buttons" in actual_saved  # persisted to disk
 
     def test_does_not_overwrite_existing_keys(self, tmp_path):
+        # Arrange
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
         custom = {
@@ -133,10 +157,14 @@ class TestLoadConfig:
             ],
         }
         config_path.write_text(json.dumps(custom))
-        cfg = load_config(str(config_path))
-        assert cfg["port"] == "COM7"
-        assert len(cfg["custom_buttons"]) == 1
-        assert cfg["custom_buttons"][0]["enabled"] is True
+
+        # Act
+        actual = load_config(str(config_path))
+
+        # Assert
+        assert actual["port"] == "COM7"  # custom port preserved
+        assert len(actual["custom_buttons"]) == 1  # custom buttons not replaced
+        assert actual["custom_buttons"][0]["enabled"] is True  # custom value kept
 
 
 # -- _SCRIPT_TEMPLATE -------------------------------------------------------
@@ -144,17 +172,17 @@ class TestLoadConfig:
 
 class TestScriptTemplate:
     def test_has_placeholder(self):
-        result = _SCRIPT_TEMPLATE.format(name="test_script")
-        assert "test_script" in result
+        actual = _SCRIPT_TEMPLATE.format(name="test_script")
+        assert "test_script" in actual  # name placeholder expanded
 
     def test_has_comments(self):
-        result = _SCRIPT_TEMPLATE.format(name="x")
-        lines = result.strip().splitlines()
-        assert all(line.startswith("#") for line in lines if line.strip())
+        actual = _SCRIPT_TEMPLATE.format(name="x")
+        lines = actual.strip().splitlines()
+        assert all(line.startswith("#") for line in lines if line.strip())  # all lines are comments
 
     def test_has_example_commands(self):
-        result = _SCRIPT_TEMPLATE.format(name="x")
-        assert "!!sleep" in result or "!!" in result
+        actual = _SCRIPT_TEMPLATE.format(name="x")
+        assert "!!sleep" in actual or "!!" in actual  # contains REPL example
 
 
 # -- Custom button config validation ----------------------------------------
@@ -163,38 +191,52 @@ class TestScriptTemplate:
 class TestCustomButtonConfig:
     def test_enabled_filter(self):
         """Simulate the enabled filter used in compose."""
+        # Arrange
         buttons = [
             {"enabled": True, "name": "A", "command": "cmd1", "tooltip": "t1"},
             {"enabled": False, "name": "B", "command": "cmd2", "tooltip": "t2"},
             {"enabled": True, "name": "C", "command": "cmd3", "tooltip": "t3"},
         ]
-        enabled = [b for b in buttons if b.get("enabled", False)]
-        assert len(enabled) == 2
-        assert enabled[0]["name"] == "A"
-        assert enabled[1]["name"] == "C"
+
+        # Act
+        actual = [b for b in buttons if b.get("enabled", False)]
+
+        # Assert
+        assert len(actual) == 2  # only enabled buttons returned
+        assert actual[0]["name"] == "A"  # first enabled button
+        assert actual[1]["name"] == "C"  # second enabled button
 
     def test_missing_enabled_defaults_false(self):
+        # Arrange
         buttons = [{"name": "X", "command": "cmd", "tooltip": "tip"}]
-        enabled = [b for b in buttons if b.get("enabled", False)]
-        assert len(enabled) == 0
+
+        # Act
+        actual = [b for b in buttons if b.get("enabled", False)]
+
+        # Assert
+        assert len(actual) == 0  # missing enabled treated as False
 
     def test_command_split(self):
         """Simulate the \\n split used in _run_custom_button."""
+        # Arrange
         raw = "ATZ\\nAT+INFO\\n!!sleep 500ms"
-        parts = [c.strip() for c in raw.split("\\n") if c.strip()]
-        assert parts == ["ATZ", "AT+INFO", "!!sleep 500ms"]
+        expected = ["ATZ", "AT+INFO", "!!sleep 500ms"]
+
+        # Act
+        actual = [c.strip() for c in raw.split("\\n") if c.strip()]
+
+        # Assert
+        assert actual == expected  # multi-command split correctly
 
     def test_command_split_single(self):
-        raw = "ATZ"
-        parts = [c.strip() for c in raw.split("\\n") if c.strip()]
-        assert parts == ["ATZ"]
+        actual = [c.strip() for c in "ATZ".split("\\n") if c.strip()]
+        assert actual == ["ATZ"]  # single command unchanged
 
     def test_command_split_empty(self):
-        raw = ""
-        parts = [c.strip() for c in raw.split("\\n") if c.strip()]
-        assert parts == []
+        actual = [c.strip() for c in "".split("\\n") if c.strip()]
+        assert actual == []  # empty string yields empty list
 
     def test_repl_prefix_detection(self):
         prefix = "!!"
-        assert "!!run test.run".startswith(prefix)
-        assert not "ATZ".startswith(prefix)
+        assert "!!run test.run".startswith(prefix)  # REPL command detected
+        assert not "ATZ".startswith(prefix)  # serial command not matched

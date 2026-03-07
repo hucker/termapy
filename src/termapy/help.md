@@ -41,11 +41,12 @@ termapy_cfg/
 
 ## Title Bar
 
-The title bar has four buttons:
+The title bar buttons (left to right):
 
 - **?** — opens this help guide.
-- **Port** — shows the port name and baud rate. Click to pick a different serial port.
+- **Cfg** — opens the config picker (New / Edit / Load / Cancel).
 - **Title** — shows the config name (or custom title). Click to open the config picker.
+- **Port** — shows the port name and baud rate. Click to pick a different serial port.
 - **Status** — shows connection status: green **Connected** or red **Disconnected**. Click to toggle the connection.
 
 The title bar color can be set per config with `app_border_color` to visually distinguish multiple sessions.
@@ -78,7 +79,8 @@ The bottom bar also has buttons. Some appear based on context:
 | **Break** | `flow_control` is `"manual"` | Send a 250ms serial break signal |
 | **Log** | Always | View the current session log |
 | **SS** | Always | Open the screenshot folder |
-| **Scripts** | Script files exist | Pick and run a script |
+| **Scripts** | Always | Pick, run, create, or edit a script |
+| **Custom** | `custom_buttons` enabled | User-defined command buttons |
 | **Exit** | Always | Close the connection and quit |
 
 ## Keyboard Shortcuts
@@ -160,7 +162,13 @@ Here is an example config for a device called `iot_device`:
     "app_border_color": "blue",
     "max_lines": 10000,
     "repl_prefix": "!!",
-    "os_cmd_enabled": false
+    "os_cmd_enabled": false,
+    "custom_buttons": [
+        {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
+        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200", "tooltip": "Reset and set baud"},
+        {"enabled": false, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
+        {"enabled": false, "name": "Btn4", "command": "", "tooltip": "Custom button 4"}
+    ]
 }
 ```
 
@@ -191,10 +199,19 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `max_lines` | `10000` | Maximum number of lines kept in the scrollback buffer |
 | `repl_prefix` | `!!` | Prefix that identifies local REPL commands (e.g. `!!help`) |
 | `os_cmd_enabled` | `false` | Allow the `!!os` command to run shell commands (disabled by default for safety) |
+| `custom_buttons` | `[]` | Array of custom button objects (see Custom Buttons below) |
 
-## Config Editor
+## Config Management
 
-Click the center title bar button or use the command palette to open the config editor. It provides a JSON text editor with:
+Click the **Cfg** button in the title bar, click the config name, or use the
+command palette to open the config picker. The picker has four actions:
+
+- **New** — create a new config from defaults (prompts for a name, then opens the editor)
+- **Edit** — open the highlighted config in the JSON editor
+- **Load** — switch to the highlighted config
+- **Cancel** — close the picker
+
+The JSON editor provides:
 
 - **Save** — write changes to the current config file
 - **Save As** — save as a new config (creates a new subfolder)
@@ -202,14 +219,49 @@ Click the center title bar button or use the command palette to open the config 
 
 Invalid JSON is caught before saving, with the error shown inline.
 
+## Custom Buttons
+
+Add up to 4 custom buttons to the toolbar by configuring `custom_buttons`
+in your JSON config. Each button can send serial commands, run REPL commands,
+or execute scripts. The default config includes 4 disabled placeholders.
+
+Each button object has these fields:
+
+| Field | Description |
+| ----- | ----------- |
+| `enabled` | `true` to show the button, `false` to hide it |
+| `name` | Label displayed on the button |
+| `command` | Command to execute when clicked |
+| `tooltip` | Hover text for the button |
+
+**Command format:**
+
+- Plain text is sent to the serial device (e.g. `"ATZ"`)
+- Commands starting with `!!` run as REPL commands (e.g. `"!!run test.run"`)
+- Use `\n` to chain multiple commands (e.g. `"ATZ\nAT+INFO"`)
+- Mixed serial and REPL commands work: `"ATZ\n!!sleep 500ms\nAT+INFO"`
+
+Custom buttons appear in the toolbar between the hardware buttons and the
+system buttons (Log, SS, Scripts, Exit), with a small gap separating them.
+
 ## Scripting
 
-Use `!!run <filename>` or the **Scripts** button to execute script files. Scripts support:
+Click the **Scripts** button or use `!!run <filename>` to work with scripts.
+The script picker has four actions:
+
+- **New** — create a new script (opens the editor with a template)
+- **Edit** — open the highlighted script in the editor
+- **Run** — execute the highlighted script
+- **Cancel** — close the picker
+
+The script editor provides syntax highlighting (bash-style) for comments
+and a name field. Scripts are saved with a `.run` extension in the per-config
+`scripts/` folder.
+
+Script files support:
 
 - Serial commands (sent to the device)
 - `!!` prefixed REPL commands (delays, screenshots, print, etc.)
 - Comments (lines starting with `#`)
 - Blank lines (ignored)
 - Sequence counters with `{+counter}` for auto-incrementing values
-
-Scripts are loaded from the per-config `scripts/` folder.

@@ -49,6 +49,8 @@ def cfg_data_dir(config_path: str) -> Path:
     """
     d = Path(config_path).parent
     d.mkdir(parents=True, exist_ok=True)
+    for sub in ("plugins", "ss", "scripts"):
+        (d / sub).mkdir(exist_ok=True)
     return d
 
 
@@ -117,6 +119,13 @@ DEFAULT_CFG = {
     # Logging
     "log_file": "",
     "add_date_to_cmd": False,
+    # Custom buttons
+    "custom_buttons": [
+        {"enabled": False, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
+        {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
+        {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
+        {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
+    ],
 }
 
 
@@ -396,8 +405,8 @@ class NamePicker(ModalScreen[str | None]):
         self.dismiss(None)
 
 
-class ConfigPicker(ModalScreen[str | None]):
-    """Modal dialog to select a JSON config file from the current directory."""
+class ConfigPicker(ModalScreen[tuple | None]):
+    """Modal dialog to select a JSON config: load, edit, or create new."""
 
     CSS = f"""
     ConfigPicker {{ align: center middle; }}
@@ -416,24 +425,46 @@ class ConfigPicker(ModalScreen[str | None]):
 
         json_files = sorted(cfg_dir().glob("*/*.json"))
         with Vertical(id="picker-dialog"):
-            yield Static("Select JSON Config File", id="picker-title")
+            yield Static("Select Config", id="picker-title")
             ol = OptionList(id="picker-list")
             for f in json_files:
                 ol.add_option(Option(f.stem, id=str(f)))
             yield ol
             with Horizontal(id="picker-buttons"):
+                yield Button("New", id="picker-new", variant="success")
+                yield Button("Edit", id="picker-edit", variant="primary")
+                yield Button("Load", id="picker-load", variant="warning")
                 yield Button("Cancel", id="picker-cancel", variant="error")
 
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        self.dismiss(str(event.option.id))
+    def _selected_path(self) -> str | None:
+        ol = self.query_one("#picker-list", OptionList)
+        if ol.highlighted is not None:
+            return str(ol.get_option_at_index(ol.highlighted).id)
+        return None
+
+    @on(Button.Pressed, "#picker-new")
+    def new_config(self) -> None:
+        self.dismiss(("new",))
+
+    @on(Button.Pressed, "#picker-edit")
+    def edit_config(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("edit", path))
+
+    @on(Button.Pressed, "#picker-load")
+    def load_config_btn(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("load", path))
 
     @on(Button.Pressed, "#picker-cancel")
     def cancel_picker(self) -> None:
         self.dismiss(None)
 
 
-class ScriptPicker(ModalScreen[str | None]):
-    """Modal dialog to select a script file to run."""
+class ScriptPicker(ModalScreen[tuple | None]):
+    """Modal dialog to pick a script file to run, edit, or create new."""
 
     CSS = f"""
     ScriptPicker {{ align: center middle; }}
@@ -463,13 +494,134 @@ class ScriptPicker(ModalScreen[str | None]):
                 ol.add_option(Option(f.name, id=str(f)))
             yield ol
             with Horizontal(id="script-buttons"):
+                yield Button("New", id="script-new", variant="success")
+                yield Button("Edit", id="script-edit", variant="primary")
+                yield Button("Run", id="script-run", variant="warning")
                 yield Button("Cancel", id="script-cancel", variant="error")
 
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        self.dismiss(str(event.option.id))
+    def _selected_path(self) -> str | None:
+        ol = self.query_one("#script-list", OptionList)
+        if ol.highlighted is not None:
+            return str(ol.get_option_at_index(ol.highlighted).id)
+        return None
+
+    @on(Button.Pressed, "#script-new")
+    def new_script(self) -> None:
+        self.dismiss(("new",))
+
+    @on(Button.Pressed, "#script-edit")
+    def edit_script(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("edit", path))
+
+    @on(Button.Pressed, "#script-run")
+    def run_script(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("run", path))
 
     @on(Button.Pressed, "#script-cancel")
     def cancel_picker(self) -> None:
+        self.dismiss(None)
+
+
+_SCRIPT_TEMPLATE = """\
+# Script: {name}
+# Lines starting with # are comments
+# Lines starting with !! are REPL commands
+# All other lines are sent to the serial device
+#
+# Example:
+# !!sleep 500ms
+# AT+INFO
+"""
+
+
+class ScriptEditor(ModalScreen[str | None]):
+    """Modal editor for .run script files with bash syntax highlighting."""
+
+    CSS = f"""
+    ScriptEditor {{ align: center middle; }}
+    ScriptEditor Button {{ {_MODAL_BTN_CSS} }}
+    #sed-dialog {{
+        width: 70; height: 28;
+        border: thick $primary; background: $surface; padding: 1 2;
+    }}
+    #sed-title {{ height: 1; text-style: bold; }}
+    #sed-editor {{ height: 1fr; }}
+    #sed-name-row {{ height: 1; }}
+    #sed-name {{ width: 1fr; height: 1; border: none; }}
+    #sed-error {{ height: 1; color: $error; display: none; }}
+    #sed-error.visible {{ display: block; }}
+    #sed-buttons {{ height: 1; align: right middle; }}
+    """
+
+    def __init__(self, scripts_dir: Path, path: str | None = None) -> None:
+        super().__init__()
+        self.scripts_dir = scripts_dir
+        self.edit_path = path
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        if self.edit_path:
+            name = Path(self.edit_path).stem
+            try:
+                content = Path(self.edit_path).read_text(encoding="utf-8")
+            except OSError:
+                content = f"# Error: could not read {self.edit_path}\n"
+            title = f"Edit: {Path(self.edit_path).name}"
+        else:
+            name = ""
+            content = _SCRIPT_TEMPLATE.format(name="untitled")
+            title = "New Script"
+
+        with Vertical(id="sed-dialog"):
+            yield Static(title, id="sed-title")
+            yield TextArea(
+                content,
+                language="bash",
+                show_line_numbers=True,
+                id="sed-editor",
+            )
+            with Horizontal(id="sed-name-row"):
+                yield Input(
+                    placeholder="script name (without .run)",
+                    value=name,
+                    id="sed-name",
+                )
+            yield Static("", id="sed-error")
+            with Horizontal(id="sed-buttons"):
+                yield Button("Save", id="sed-save", variant="success")
+                yield Button("Cancel", id="sed-cancel", variant="error")
+
+    def _show_error(self, msg: str) -> None:
+        from textual.widgets import Static
+
+        err = self.query_one("#sed-error", Static)
+        err.update(msg)
+        err.add_class("visible")
+
+    @on(Button.Pressed, "#sed-save")
+    def save_script(self) -> None:
+        name = self.query_one("#sed-name", Input).value.strip()
+        if not name:
+            self._show_error("Enter a script name")
+            return
+        if not name.endswith(".run"):
+            name += ".run"
+        content = self.query_one("#sed-editor", TextArea).text
+        path = self.scripts_dir / name
+        path.write_text(content, encoding="utf-8")
+        self.dismiss(str(path))
+
+    @on(Input.Submitted, "#sed-name")
+    def save_on_enter(self) -> None:
+        self.save_script()
+
+    @on(Button.Pressed, "#sed-cancel")
+    def cancel_editor(self) -> None:
         self.dismiss(None)
 
 
@@ -571,10 +723,11 @@ class SerialTerminal(App):
         height: 1;
         min-height: 1;
         border: none;
-        margin: 0;
+        margin: 0 0 0 1;
         padding: 0 1;
     }
     #btn-help {
+        margin-left: 0;
         width: 3;
         min-width: 3;
         text-align: center;
@@ -604,6 +757,9 @@ class SerialTerminal(App):
         min-width: 14;
         text-align: center;
         background: red;
+    }
+    #btn-cfg {
+        background: #3498db;
     }
     RichLog {
         height: 1fr;
@@ -638,14 +794,17 @@ class SerialTerminal(App):
     #btn-break {
         background: #546e7a;
     }
+    .custom-btn {
+        background: #6c5ce7;
+    }
     #btn-log {
+        background: #9b59b6;
+    }
+    #btn-ss-dir {
         background: #3498db;
     }
-    #btn-new-cfg {
-        background: #2ecc71;
-    }
-    #btn-config {
-        background: #1e8449;
+    #btn-scripts {
+        background: #1abc9c;
     }
     #btn-exit {
         background: #e74c3c;
@@ -739,14 +898,17 @@ class SerialTerminal(App):
             help_btn = Button("?", id="btn-help")
             help_btn.tooltip = "Show help guide"
             yield help_btn
-            left = Button(port_info, id="title-left")
-            left.tooltip = "Click to select serial port"
-            yield left
+            cfg_btn = Button("Cfg", id="btn-cfg")
+            cfg_btn.tooltip = "New / Edit / Load config"
+            yield cfg_btn
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
             center.tooltip = "Click to load a config"
             yield center
             yield Static("", id="title-spacer-r")
+            left = Button(port_info, id="title-left")
+            left.tooltip = "Click to select serial port"
+            yield left
             right = Button("Disconnected", id="title-right")
             right.tooltip = "Click to connect/disconnect"
             yield right
@@ -786,18 +948,24 @@ class SerialTerminal(App):
                     "Send serial break signal (250ms)",
                     display=show_hw,
                 )
-                yield _btn("Log", "btn-log", "View current log file", "primary")
-                yield _btn("SS", "btn-ss-dir", "Open screenshot folder", "primary")
-                yield _btn(
-                    "Scripts", "btn-scripts", "Run a script", "primary", display=False
-                )
-                yield _btn(
-                    "New", "btn-new-cfg", "Create a new config from defaults", "success"
-                )
-                yield _btn("Edit", "btn-config", "Edit the current config", "warning")
-                yield _btn(
-                    "Exit", "btn-exit", "Close connection and exit (Ctrl+C)", "error"
-                )
+                custom_buttons = self.cfg.get("custom_buttons", [])
+                has_custom = False
+                for i, cb in enumerate(custom_buttons):
+                    if not cb.get("enabled", False):
+                        continue
+                    has_custom = True
+                    btn_id = f"btn-custom-{i}"
+                    b = Button(cb.get("name", f"C{i}"), id=btn_id)
+                    b.tooltip = cb.get("tooltip", cb.get("name", ""))
+                    b.add_class("custom-btn")
+                    yield b
+                log_btn = _btn("Log", "btn-log", "View current log file")
+                if has_custom:
+                    log_btn.styles.margin = (0, 0, 0, 2)
+                yield log_btn
+                yield _btn("SS", "btn-ss-dir", "Open screenshot folder")
+                yield _btn("Scripts", "btn-scripts", "Run a script")
+                yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C)")
 
     def _log_path(self) -> str:
         """Return log file path in the per-config data directory."""
@@ -1094,16 +1262,27 @@ class SerialTerminal(App):
         self._sync_hw_visibility()
         self._sync_ss_button()
         self._sync_scripts_button()
+        self._sync_custom_buttons()
         self._open_log()
         if was_connected or (reconnect_on_auto and cfg.get("autoconnect")):
             self._connect()
 
-    def _on_config_picked(self, filename: str | None) -> None:
-        if filename is None:
+    def _on_config_picked(self, result: tuple | None) -> None:
+        if result is None:
             return
-        cfg = load_config(filename)
-        self._switch_config(cfg, filename, reconnect_on_auto=True)
-        self._status(f"Loaded config: {filename}", "green")
+        action = result[0]
+        if action == "load":
+            cfg = load_config(result[1])
+            self._switch_config(cfg, result[1], reconnect_on_auto=True)
+            self._status(f"Loaded config: {result[1]}", "green")
+        elif action == "new":
+            self._new_config()
+        elif action == "edit":
+            cfg = load_config(result[1])
+            self.push_screen(
+                ConfigEditor(cfg, result[1]),
+                callback=self._on_config_result,
+            )
 
     def _on_config_result(self, result: tuple | None) -> None:
         if result is None:
@@ -1183,16 +1362,27 @@ class SerialTerminal(App):
                 ScriptPicker(self.repl.scripts_dir),
                 callback=self._on_script_picked,
             )
-        elif event.button.id == "btn-new-cfg":
-            self._new_config()
-        elif event.button.id == "btn-config":
-            self.push_screen(
-                ConfigEditor(self.cfg, self.config_path),
-                callback=self._on_config_result,
-            )
+        elif event.button.id == "btn-cfg":
+            self.push_screen(ConfigPicker(), callback=self._on_config_picked)
         elif event.button.id == "btn-exit":
             self._disconnect()
             self.exit()
+        elif event.button.id and event.button.id.startswith("btn-custom-"):
+            self._run_custom_button(event.button.id)
+
+    def _run_custom_button(self, btn_id: str) -> None:
+        """Execute the command associated with a custom button."""
+        idx = int(btn_id.split("-")[-1])
+        buttons = self.cfg.get("custom_buttons", [])
+        if idx >= len(buttons):
+            return
+        raw = buttons[idx].get("command", "").strip()
+        if not raw:
+            return
+        for cmd in raw.split("\\n"):
+            cmd = cmd.strip()
+            if cmd:
+                self._execute_command(cmd)
 
     def _show_port_picker(self) -> None:
         self.push_screen(PortPicker(), callback=self._on_port_picked)
@@ -1364,26 +1554,26 @@ class SerialTerminal(App):
             self.log_fh.write(f"[{ts}] CMD> {cmd}\n")
             self.log_fh.flush()
 
-        # Check for REPL command — echo controlled by !!echo
+        self._execute_command(cmd)
+        self.query_one("#cmd", Input).value = ""
+
+    def _execute_command(self, cmd: str) -> None:
+        """Dispatch a single command: REPL prefix goes to REPL, otherwise serial."""
         prefix = self.cfg.get("repl_prefix", "!!")
         if cmd.startswith(prefix):
             if self.repl.echo:
                 fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
                 self._write_output_markup(fmt.replace("{cmd}", cmd))
-            self.repl.dispatch(cmd[len(prefix) :].strip())
-            self.query_one("#cmd", Input).value = ""
+            self.repl.dispatch(cmd[len(prefix):].strip())
             return
-
         # Echo serial command locally if enabled
         if self.cfg.get("echo_cmd"):
             fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
             self._write_output_markup(fmt.replace("{cmd}", cmd))
-
-        # Send to device — split on literal \n for multi-command input
         if not self.is_connected:
             self._status("Not connected — command not sent", "red")
-            self.query_one("#cmd", Input).value = ""
             return
+        # Split on literal \n for multi-command input
         parts = cmd.replace("\\n", "\n").split("\n")
         if len(parts) > 1:
             self._run_multi_cmd(parts)
@@ -1467,10 +1657,10 @@ class SerialTerminal(App):
         if self._popup_mode == "palette" and opt_id.startswith("palette:"):
             idx = int(opt_id.split(":")[1])
             _, method_name = self.PALETTE_CMDS[idx]
-            getattr(self, method_name)()
+            self.call_after_refresh(getattr(self, method_name))
         elif opt_id.startswith("run:"):
             name = opt_id.split(":")[1]
-            self.repl.dispatch(name)
+            self.call_after_refresh(self.repl.dispatch, name)
         elif opt_id.startswith("repl:"):
             name = opt_id.split(":")[1]
             prefix = self.cfg.get("repl_prefix", "!!")
@@ -1558,12 +1748,33 @@ class SerialTerminal(App):
             btn.tooltip = "Open screenshot folder (empty)"
 
     def _sync_scripts_button(self) -> None:
-        """Show the Scripts button if the scripts folder has any files."""
+        """Update the Scripts button tooltip with file counts."""
+        btn = self.query_one("#btn-scripts", Button)
         scripts_dir = self.repl.scripts_dir
-        has_files = scripts_dir.exists() and any(
-            f.is_file() for f in scripts_dir.iterdir()
-        )
-        self.query_one("#btn-scripts", Button).display = has_files
+        if scripts_dir.exists():
+            count = len([f for f in scripts_dir.iterdir() if f.is_file()])
+            btn.tooltip = f"Run a script ({count} available)"
+        else:
+            btn.tooltip = "Run a script (empty)"
+
+    def _sync_custom_buttons(self) -> None:
+        """Remove old custom buttons and create new ones from config."""
+        for old in list(self.query(".custom-btn")):
+            old.remove()
+        log_btn = self.query_one("#btn-log", Button)
+        log_btn.styles.margin = (0, 0, 0, 0)
+        custom_buttons = self.cfg.get("custom_buttons", [])
+        has_custom = False
+        for i, cb in enumerate(custom_buttons):
+            if not cb.get("enabled", False):
+                continue
+            has_custom = True
+            b = Button(cb.get("name", f"C{i}"), id=f"btn-custom-{i}")
+            b.tooltip = cb.get("tooltip", cb.get("name", ""))
+            b.add_class("custom-btn")
+            self.query_one("#bottom-bar").mount(b, before=log_btn)
+        if has_custom:
+            log_btn.styles.margin = (0, 0, 0, 2)
 
     # -- REPL hook implementations (app-coupled commands) ----------------------
 
@@ -1628,6 +1839,8 @@ class SerialTerminal(App):
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
+        if key == "custom_buttons":
+            self._sync_custom_buttons()
         if key in self._SERIAL_KEYS and was_connected:
             self._connect()
 
@@ -1640,11 +1853,29 @@ class SerialTerminal(App):
 
         self.push_screen(CfgConfirm(key, old_val, new_val), callback=on_result)
 
-    def _on_script_picked(self, filename: str | None) -> None:
-        if filename:
-            path = self.repl.start_script(filename)
+    def _on_script_picked(self, result: tuple | None) -> None:
+        if result is None:
+            return
+        action = result[0]
+        if action == "run":
+            path = self.repl.start_script(result[1])
             if path:
                 self._run_script(path)
+        elif action == "new":
+            self.push_screen(
+                ScriptEditor(self.repl.scripts_dir),
+                callback=self._on_script_saved,
+            )
+        elif action == "edit":
+            self.push_screen(
+                ScriptEditor(self.repl.scripts_dir, result[1]),
+                callback=self._on_script_saved,
+            )
+
+    def _on_script_saved(self, path: str | None) -> None:
+        if path:
+            self._status(f"Script saved: {Path(path).name}", "green")
+            self._sync_scripts_button()
 
     def _hook_run(self, ctx, args: str) -> None:
         path = self.repl.start_script(args)

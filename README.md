@@ -69,10 +69,11 @@ termapy_cfg/
 - **Auto-connect and auto-reconnect** -- reconnects on port drop with retry
 - **Auto-login commands** -- send a sequence of commands on connect (separated by `\n` in config)
 - **Session logging** -- timestamped plain-text log stored per-config, with optional date-stamped commands
-- **Screenshots** -- save the terminal view as SVG (F5) or plain text (F7), open the containing folder (F6); an SS button appears when screenshots exist
+- **Screenshots** -- save the terminal view as SVG (F5) or plain text (F7), open the containing folder (F6)
 - **Hardware line control** -- toggle DTR/RTS and send Break when `flow_control` is `"manual"` (see example below)
 - **REPL commands** -- type `!!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
-- **Scripting** -- run script files with serial commands, delays, and REPL commands; scripts are resolved from the per-config `scripts/` folder; sequence counters with auto-increment; a Scripts button appears automatically when scripts exist
+- **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
+- **Custom buttons** -- add up to 4 configurable toolbar buttons that send serial commands, run REPL commands, or execute multi-command sequences
 - **Command history** -- press Up to recall the last 10 commands, persisted per-config
 - **Local echo** -- optionally echo sent commands with configurable Rich markup formatting
 - **Color-coded sessions** -- set `app_border_color` per config to visually distinguish multiple serial connections
@@ -221,7 +222,13 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
     "app_border_color": "",
     "max_lines": 10000,
     "repl_prefix": "!!",
-    "os_cmd_enabled": false
+    "os_cmd_enabled": false,
+    "custom_buttons": [
+        {"enabled": false, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
+        {"enabled": false, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
+        {"enabled": false, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
+        {"enabled": false, "name": "Btn4", "command": "", "tooltip": "Custom button 4"}
+    ]
 }
 ```
 
@@ -250,6 +257,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 | `max_lines` | `10000` | Maximum lines in the scrollback buffer |
 | `repl_prefix` | `"!!"` | Prefix for local REPL commands (e.g. `!!help`, `!!clr`) |
 | `os_cmd_enabled` | `false` | Enable the `!!os` REPL command to run shell commands |
+| `custom_buttons` | `[]` | Array of custom button objects (see Custom Buttons below) |
 
 ### Config Examples
 
@@ -299,3 +307,20 @@ Manual hardware line control, with DTR/RTS toggle buttons and Break:
 ```
 
 With `flow_control` set to `"manual"`, three extra buttons appear in the toolbar: DTR and RTS (showing current state as DTR:0/DTR:1) and Break (sends a 250ms break signal). This is useful for devices that use DTR or RTS for reset, bootloader entry, or other hardware signaling.
+
+### Custom Buttons
+
+Add up to 4 custom buttons to the toolbar. Each button has `enabled`, `name`, `command`, and `tooltip` fields. Commands starting with `!!` run as REPL commands; everything else is sent to the serial device. Use `\n` to chain multiple commands.
+
+```json
+{
+    "custom_buttons": [
+        {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
+        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n!!sleep 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
+        {"enabled": true, "name": "Status", "command": "!!run status_check.run", "tooltip": "Run status script"},
+        {"enabled": false, "name": "Btn4", "command": "", "tooltip": "Custom button 4"}
+    ]
+}
+```
+
+Custom buttons appear in the toolbar between the hardware buttons and the system buttons (Log, SS, Scripts, Exit). They update dynamically when you switch or edit configs.

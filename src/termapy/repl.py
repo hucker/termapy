@@ -202,9 +202,7 @@ class ReplEngine:
     def ss_dir(self) -> Path:
         """Screenshot directory, derived from config_path."""
         if self.config_path:
-            d = Path(self.config_path).parent / "ss"
-            d.mkdir(exist_ok=True)
-            return d
+            return Path(self.config_path).parent / "ss"
         return Path(".")
 
     @property

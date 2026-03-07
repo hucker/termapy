@@ -15,6 +15,8 @@ def engine(tmp_path):
     config_path = tmp_path / "sub" / "test.json"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
+    for sub in ("plugins", "ss", "scripts"):
+        (config_path.parent / sub).mkdir(exist_ok=True)
     output = []
     return ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c))), output
 

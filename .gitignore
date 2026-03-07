@@ -1,0 +1,17 @@
+.generated_files/
+build/
+dist/
+nbproject/
+Makefile*
+Package-*
+private/
+_build/
+!cmake/**/user.cmake
+cmake/**/.generated/*
+cmake/**/CMake*
+out/
+__pycache__/
+*.egg-info/
+.venv/
+.vscode/
+terapy_cfg/

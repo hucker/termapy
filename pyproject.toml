@@ -1,0 +1,20 @@
+[project]
+name = "terapy"
+version = "0.1.0"
+description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
+requires-python = ">=3.11"
+dependencies = [
+    "textual>=0.80",
+    "pyserial>=3.5",
+]
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[project.scripts]
+terapy = "terapy:run"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

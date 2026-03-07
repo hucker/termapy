@@ -1,0 +1,223 @@
+"""REPL engine for terapy — plugin-based command dispatch and scripting.
+
+All commands (built-in and external) are plugins loaded as .py files.
+Built-in plugins ship in terapy/builtins/. External plugins are loaded
+from folders by app.py. The engine owns state (seq counters, echo, etc.)
+and exposes it through PluginContext lambdas.
+"""
+
+import json
+import time
+from datetime import datetime
+from pathlib import Path
+from threading import Event
+
+from terapy.plugins import PluginContext, PluginInfo, builtins_dir, load_plugins_from_dir
+from terapy.scripting import expand_template, parse_duration, parse_script_lines
+
+
+class ReplEngine:
+    """Plugin-based REPL command engine."""
+
+    def __init__(self, cfg: dict, config_path: str, write, prefix="!!"):
+        self.cfg = cfg
+        self.config_path = config_path
+        self.write = write              # write(text, color="dim") callback
+        self.prefix = prefix
+        self._seq_counters: dict[int, int] = {}
+        self._seq_start_time: str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._in_script: bool = False
+        self._script_stop = Event()
+        self._echo: bool = True         # echo !! command lines to screen
+
+        # Plugin context — set by app.py after mount via set_context()
+        self.ctx = PluginContext(write=write)
+
+        # Unified plugin registry — all commands live here
+        self._plugins: dict[str, PluginInfo] = {}
+
+        # Config change callback (set by app.py)
+        self._after_cfg = None  # callback: (key, new_val) -> None (post-apply refresh)
+
+        # Load built-in plugins from terapy/builtins/
+        self._load_builtins()
+
+    def _load_builtins(self) -> None:
+        """Load built-in command plugins from the builtins/ package directory."""
+        for info in load_plugins_from_dir(builtins_dir(), "built-in"):
+            self._plugins[info.name] = info
+
+    # -- Plugin management ----------------------------------------------------
+
+    def set_context(self, ctx: PluginContext) -> None:
+        """Set the plugin context (called by app.py after mount)."""
+        self.ctx = ctx
+
+    def register_plugin(self, info: PluginInfo) -> None:
+        """Register a plugin. Replaces any existing plugin with the same name."""
+        self._plugins[info.name] = info
+
+    def register_hook(self, name: str, args: str, help_text: str,
+                      handler, source: str = "built-in") -> None:
+        """Register an app-coupled command as a plugin.
+
+        This is the bridge for commands that need Textual access (screenshots,
+        connect, etc.). The handler receives (ctx, args) like any plugin.
+        """
+        self._plugins[name] = PluginInfo(
+            name=name, args=args, help=help_text,
+            handler=handler, source=source,
+        )
+
+    # -- Dispatch -------------------------------------------------------------
+
+    def dispatch(self, line: str) -> None:
+        """Parse and dispatch a REPL command (prefix already stripped)."""
+        parts = line.split(None, 1)
+        if not parts:
+            plugin = self._plugins.get("help")
+            if plugin:
+                plugin.handler(self.ctx, "")
+            return
+        name = parts[0].lower()
+        raw_args = parts[1] if len(parts) > 1 else ""
+        args, self._seq_counters = expand_template(
+            raw_args, self._seq_counters, self._seq_start_time
+        )
+        plugin = self._plugins.get(name)
+        if plugin:
+            plugin.handler(self.ctx, args)
+        else:
+            self.write(f"Unknown REPL command: {name}", "red")
+
+    # -- Engine helpers (exposed to plugins via PluginContext) -----------------
+
+    @staticmethod
+    def _coerce_type(value_str: str, existing):
+        """Coerce a string value to match the type of the existing value."""
+        if isinstance(existing, bool):
+            if value_str.lower() in ("true", "1", "yes", "on"):
+                return True
+            if value_str.lower() in ("false", "0", "no", "off"):
+                return False
+            raise ValueError(f"Expected bool, got '{value_str}'")
+        if isinstance(existing, int):
+            return int(value_str)
+        if isinstance(existing, float):
+            return float(value_str)
+        return value_str
+
+    def _apply_cfg(self, key: str, new_val) -> None:
+        """Apply a config change, save to disk, and notify."""
+        self.cfg[key] = new_val
+        try:
+            with open(self.config_path, "w") as f:
+                json.dump(self.cfg, f, indent=4)
+            self.write(f"{key} = {new_val!r}  (saved)", "green")
+            if self._after_cfg:
+                self._after_cfg(key, new_val)
+        except Exception as e:
+            self.write(f"Error saving config: {e}", "red")
+
+    def _reset_seq(self) -> None:
+        """Reset sequence counters and start time."""
+        self._seq_counters = {}
+        self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # -- Scripting ------------------------------------------------------------
+
+    def start_script(self, args: str) -> Path | None:
+        """Validate and prepare for script run. Returns path if ready, None if not."""
+        filename = args.strip()
+        if not filename:
+            self.write("Usage: !!run <filename>", "red")
+            return None
+        path = Path(filename)
+        if not path.exists():
+            # Try resolving relative to the per-config scripts/ folder
+            alt = self.scripts_dir / filename
+            if alt.exists():
+                path = alt
+            else:
+                self.write(f"File not found: {filename}", "red")
+                if self.scripts_dir != Path("."):
+                    self.write(f"  (also checked {self.scripts_dir})", "dim")
+                return None
+        if self._in_script:
+            self.write("Script already running. Use !!stop first.", "red")
+            return None
+        self._in_script = True
+        self._script_stop.clear()
+        self._seq_counters = {}
+        self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.write(f"Running script: {filename}")
+        return path
+
+    def run_script(self, path: Path) -> None:
+        """Execute a script file (call from a background thread)."""
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            prefix = self.prefix
+            line_ending = self.cfg.get("line_ending", "\r")
+            enc = self.cfg.get("encoding", "utf-8")
+            parsed = parse_script_lines(lines, prefix)
+            for kind, content in parsed:
+                if self._script_stop.is_set():
+                    self.write("Script stopped.")
+                    break
+                if kind == "skip":
+                    continue
+                if kind == "repl":
+                    name, _, args = content.partition(" ")
+                    if name.lower() == "delay":
+                        expanded, self._seq_counters = expand_template(
+                            args.strip(), self._seq_counters, self._seq_start_time
+                        )
+                        try:
+                            seconds = parse_duration(expanded)
+                        except ValueError as e:
+                            self.write(str(e), "red")
+                            break
+                        time.sleep(seconds)
+                        self.write(f"Delay {expanded} done.")
+                    else:
+                        self.dispatch(content)
+                        time.sleep(0.1)
+                elif kind == "serial":
+                    if self.ctx.is_connected():
+                        self.ctx.serial_write(
+                            (content + line_ending).encode(enc)
+                        )
+                        self.ctx.serial_wait_idle()
+            else:
+                self.write("Script finished.")
+        except Exception as e:
+            self.write(f"Script error: {e}", "red")
+        finally:
+            self._in_script = False
+
+    # -- Properties -----------------------------------------------------------
+
+    @property
+    def ss_dir(self) -> Path:
+        """Screenshot directory, derived from config_path."""
+        if self.config_path:
+            d = Path(self.config_path).parent / "ss"
+            d.mkdir(exist_ok=True)
+            return d
+        return Path(".")
+
+    @property
+    def scripts_dir(self) -> Path:
+        """Scripts directory, derived from config_path."""
+        if self.config_path:
+            return Path(self.config_path).parent / "scripts"
+        return Path(".")
+
+    @property
+    def echo(self) -> bool:
+        return self._echo
+
+    @property
+    def in_script(self) -> bool:
+        return self._in_script

@@ -703,7 +703,8 @@ class SerialTerminal(App):
         self.history: list[str] = self._load_history()
         self._popup_mode: str = "history"
         self.repl = ReplEngine(
-            cfg, config_path,
+            cfg,
+            config_path,
             write=self._status,
             prefix=cfg.get("repl_prefix", "!!"),
         )
@@ -734,6 +735,7 @@ class SerialTerminal(App):
         port_info = self._port_info_str()
         with Horizontal(id="title-bar"):
             from textual.widgets import Static
+
             help_btn = Button("?", id="btn-help")
             help_btn.tooltip = "Show help guide"
             yield help_btn
@@ -761,6 +763,7 @@ class SerialTerminal(App):
                 yield Input(
                     placeholder="!! for REPL commands, Ctrl+P: palette", id="cmd"
                 )
+
                 def _btn(label, id, tip, variant="default", display=True):
                     b = Button(label, id=id, variant=variant)
                     b.tooltip = tip
@@ -768,15 +771,33 @@ class SerialTerminal(App):
                     return b
 
                 show_hw = self.cfg.get("flow_control") == "manual"
-                yield _btn("DTR:0", "btn-dtr", "Toggle Data Terminal Ready line", display=show_hw)
-                yield _btn("RTS:0", "btn-rts", "Toggle Request To Send line", display=show_hw)
-                yield _btn("Break", "btn-break", "Send serial break signal (250ms)", display=show_hw)
+                yield _btn(
+                    "DTR:0",
+                    "btn-dtr",
+                    "Toggle Data Terminal Ready line",
+                    display=show_hw,
+                )
+                yield _btn(
+                    "RTS:0", "btn-rts", "Toggle Request To Send line", display=show_hw
+                )
+                yield _btn(
+                    "Break",
+                    "btn-break",
+                    "Send serial break signal (250ms)",
+                    display=show_hw,
+                )
                 yield _btn("Log", "btn-log", "View current log file", "primary")
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder", "primary")
-                yield _btn("Scripts", "btn-scripts", "Run a script", "primary", display=False)
-                yield _btn("New", "btn-new-cfg", "Create a new config from defaults", "success")
+                yield _btn(
+                    "Scripts", "btn-scripts", "Run a script", "primary", display=False
+                )
+                yield _btn(
+                    "New", "btn-new-cfg", "Create a new config from defaults", "success"
+                )
                 yield _btn("Edit", "btn-config", "Edit the current config", "warning")
-                yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C)", "error")
+                yield _btn(
+                    "Exit", "btn-exit", "Close connection and exit (Ctrl+C)", "error"
+                )
 
     def _log_path(self) -> str:
         """Return log file path in the per-config data directory."""
@@ -812,9 +833,9 @@ class SerialTerminal(App):
             prefix=self.cfg.get("repl_prefix", "!!"),
             plugins=self.repl._plugins,
             get_echo=lambda: self.repl._echo,
-            set_echo=lambda val: setattr(self.repl, '_echo', val),
+            set_echo=lambda val: setattr(self.repl, "_echo", val),
             get_seq_counters=lambda: self.repl._seq_counters,
-            set_seq_counters=lambda val: setattr(self.repl, '_seq_counters', val),
+            set_seq_counters=lambda val: setattr(self.repl, "_seq_counters", val),
             reset_seq=self.repl._reset_seq,
             in_script=lambda: self.repl._in_script,
             script_stop=lambda: self.repl._script_stop.set(),
@@ -840,33 +861,69 @@ class SerialTerminal(App):
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg
         # Register app-coupled commands as plugins
-        self.repl.register_hook("ss_svg", "{name}",
+        self.repl.register_hook(
+            "ss_svg",
+            "{name}",
             "Save SVG screenshot. Name defaults to 'screenshot'.",
-            self._hook_ss_svg, source="app")
-        self.repl.register_hook("ss_txt", "{name}",
+            self._hook_ss_svg,
+            source="app",
+        )
+        self.repl.register_hook(
+            "ss_txt",
+            "{name}",
             "Save text screenshot. Name defaults to 'screenshot'.",
-            self._hook_ss_txt, source="app")
-        self.repl.register_hook("ss_dir", "",
+            self._hook_ss_txt,
+            source="app",
+        )
+        self.repl.register_hook(
+            "ss_dir",
+            "",
             "Show the screenshot folder path.",
-            self._hook_ss_dir, source="app")
-        self.repl.register_hook("clr", "",
+            self._hook_ss_dir,
+            source="app",
+        )
+        self.repl.register_hook(
+            "clr",
+            "",
             "Clear the terminal screen.",
-            lambda ctx, args: self._clear_output(), source="app")
-        self.repl.register_hook("delay", "<duration>",
+            lambda ctx, args: self._clear_output(),
+            source="app",
+        )
+        self.repl.register_hook(
+            "delay",
+            "<duration>",
             "Wait for duration (e.g. 500ms, 1.5s).",
-            self._hook_delay, source="app")
-        self.repl.register_hook("port", "{name | list}",
+            self._hook_delay,
+            source="app",
+        )
+        self.repl.register_hook(
+            "port",
+            "{name | list}",
             "Open a port by name, or 'list' to show available ports.",
-            self._hook_port, source="app")
-        self.repl.register_hook("run", "<filename>",
+            self._hook_port,
+            source="app",
+        )
+        self.repl.register_hook(
+            "run",
+            "<filename>",
             "Run a script file. Checks scripts/ folder then cwd.",
-            self._hook_run, source="app")
-        self.repl.register_hook("connect", "",
+            self._hook_run,
+            source="app",
+        )
+        self.repl.register_hook(
+            "connect",
+            "",
             "Connect to the serial port.",
-            lambda ctx, args: self._connect(), source="app")
-        self.repl.register_hook("disconnect", "",
+            lambda ctx, args: self._connect(),
+            source="app",
+        )
+        self.repl.register_hook(
+            "disconnect",
+            "",
             "Disconnect from the serial port.",
-            lambda ctx, args: self._disconnect(), source="app")
+            lambda ctx, args: self._disconnect(),
+            source="app",
+        )
         # Load external plugins: global first, then per-config (can override)
         for info in load_plugins_from_dir(global_plugins_dir(), "global"):
             self.repl.register_plugin(info)
@@ -887,9 +944,7 @@ class SerialTerminal(App):
         elif self.cfg.get("autoconnect"):
             self._connect()
         else:
-            self._status(
-                f"{self._port_info_str()} — press Connect to start"
-            )
+            self._status(f"{self._port_info_str()} — press Connect to start")
 
     def on_unmount(self) -> None:
         self._disconnect()
@@ -1023,7 +1078,9 @@ class SerialTerminal(App):
         self.query_one("#btn-rts", Button).display = show
         self.query_one("#btn-break", Button).display = show
 
-    def _switch_config(self, cfg: dict, path: str, reconnect_on_auto: bool = False) -> None:
+    def _switch_config(
+        self, cfg: dict, path: str, reconnect_on_auto: bool = False
+    ) -> None:
         """Apply a new config: disconnect, update state, refresh UI, reconnect."""
         was_connected = self.is_connected
         if was_connected:
@@ -1313,7 +1370,7 @@ class SerialTerminal(App):
             if self.repl.echo:
                 fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
                 self._write_output_markup(fmt.replace("{cmd}", cmd))
-            self.repl.dispatch(cmd[len(prefix):].strip())
+            self.repl.dispatch(cmd[len(prefix) :].strip())
             self.query_one("#cmd", Input).value = ""
             return
 
@@ -1332,7 +1389,9 @@ class SerialTerminal(App):
             self._run_multi_cmd(parts)
         else:
             line_ending = self.cfg.get("line_ending", "\r")
-            self.ser.write((cmd + line_ending).encode(self.cfg.get("encoding", "utf-8")))
+            self.ser.write(
+                (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+            )
 
         # Clear input
         inp = self.query_one("#cmd", Input)
@@ -1542,6 +1601,7 @@ class SerialTerminal(App):
         arg = args.strip().lower()
         if not arg or arg == "list":
             from serial.tools.list_ports import comports
+
             ports = sorted(comports(), key=lambda p: p.device)
             if not ports:
                 self._status("No serial ports found", "yellow")
@@ -1552,7 +1612,14 @@ class SerialTerminal(App):
             return
         self._update_port(args.strip())
 
-    _SERIAL_KEYS = {"port", "baudrate", "bytesize", "parity", "stopbits", "flow_control"}
+    _SERIAL_KEYS = {
+        "port",
+        "baudrate",
+        "bytesize",
+        "parity",
+        "stopbits",
+        "flow_control",
+    }
 
     def _refresh_after_cfg(self, key: str, new_val) -> None:
         was_connected = self.is_connected
@@ -1588,7 +1655,9 @@ class SerialTerminal(App):
     def _run_script(self, path: Path) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
         saved_write = self.repl.write
-        self.repl.write = lambda text, color="dim": self.call_from_thread(self._status, text, color)
+        self.repl.write = lambda text, color="dim": self.call_from_thread(
+            self._status, text, color
+        )
         try:
             self.repl.run_script(path)
         finally:
@@ -1613,7 +1682,9 @@ def _find_config() -> tuple[str | None, bool]:
 
 def main():
     global CFG_DIR
-    parser = argparse.ArgumentParser(description="TUI serial terminal with ANSI color support")
+    parser = argparse.ArgumentParser(
+        description="TUI serial terminal with ANSI color support"
+    )
     parser.add_argument(
         "config",
         nargs="?",

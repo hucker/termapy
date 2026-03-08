@@ -93,6 +93,7 @@ DEFAULT_CFG = {
     "log_file": "",
     # Display
     "show_timestamps": False,
+    "max_grep_lines": 100,
     # Custom buttons
     "custom_buttons": [
         {"enabled": False, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
@@ -135,6 +136,20 @@ def load_config(path: str) -> dict:
         with open(path, "w") as f:
             json.dump(cfg, f, indent=4)
     return cfg
+
+
+def open_with_system(path: str) -> None:
+    """Open a file or folder with the system default application."""
+    import subprocess
+
+    if sys.platform == "win32":
+        import os
+
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
 
 
 def open_serial(cfg: dict) -> serial.Serial:

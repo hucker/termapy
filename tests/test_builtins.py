@@ -367,6 +367,26 @@ class TestGrep:
         texts = [t for t, _ in output]
         assert any("3 match(es)" in t for t in texts)  # assert regex alternation works
 
+    def test_grep_skips_own_output(self, repl_env):
+        # Arrange — scrollback contains prior grep output and echoed command
+        engine, _, _, output = repl_env
+        text = (
+            "real error line\n"
+            "  grep: 'error' — 1 match(es)\n"
+            "  grep:     1 | real error line\n"
+            "> !!grep error"
+        )
+        self._set_screen_text(engine, text)
+
+        # Act
+        engine.dispatch("grep error")
+
+        # Assert — only the real line matches, grep noise is skipped
+        texts = [t for t, _ in output]
+        assert any("1 match(es)" in t for t in texts)  # assert only 1 match
+        grep_lines = [t for t in texts if "grep:" in t and "|" in t]
+        assert len(grep_lines) == 1  # assert grep output and echoed cmd excluded
+
     def test_grep_bad_regex(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
@@ -374,8 +394,8 @@ class TestGrep:
         assert output[-1][1] == "red"  # assert error shown in red
         assert "invalid pattern" in output[-1][0]  # assert error message
 
-    def test_grep_max_output(self, repl_env):
-        # Arrange — create text with 150 matching lines
+    def test_grep_max_output_default(self, repl_env):
+        # Arrange — create text with 150 matching lines, no max_grep_lines in cfg
         engine, _, _, output = repl_env
         lines = [f"match line {i}" for i in range(150)]
         self._set_screen_text(engine, "\n".join(lines))
@@ -383,8 +403,24 @@ class TestGrep:
         # Act
         engine.dispatch("grep match")
 
-        # Assert
+        # Assert — default cap is 100
         texts = [t for t, _ in output]
         assert any("first 100 of 150" in t for t in texts)  # assert cap message
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
         assert len(grep_lines) == 100  # assert only 100 lines output
+
+    def test_grep_max_output_from_config(self, repl_env):
+        # Arrange — set custom max_grep_lines
+        engine, cfg, _, output = repl_env
+        cfg["max_grep_lines"] = 5
+        lines = [f"match line {i}" for i in range(20)]
+        self._set_screen_text(engine, "\n".join(lines))
+
+        # Act
+        engine.dispatch("grep match")
+
+        # Assert — cap uses config value
+        texts = [t for t, _ in output]
+        assert any("first 5 of 20" in t for t in texts)  # assert config cap message
+        grep_lines = [t for t in texts if "grep:" in t and "|" in t]
+        assert len(grep_lines) == 5  # assert only 5 lines output

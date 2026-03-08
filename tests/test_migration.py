@@ -61,3 +61,23 @@ def test_migration_skips_when_no_function():
     cfg = {"config_version": 0}
     result = migrate_config(cfg)
     assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v1_to_v2_renames_add_date_to_cmd():
+    """Migration v1→v2 renames add_date_to_cmd to show_timestamps."""
+    cfg = {"config_version": 1, "add_date_to_cmd": True, "port": "COM4"}
+    result = migrate_config(cfg)
+
+    assert result["show_timestamps"] is True  # assert renamed key has old value
+    assert "add_date_to_cmd" not in result  # assert old key removed
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v1_to_v2_without_old_key():
+    """Migration v1→v2 handles configs that never had add_date_to_cmd."""
+    cfg = {"config_version": 1, "port": "COM4"}
+    result = migrate_config(cfg)
+
+    assert "add_date_to_cmd" not in result  # assert old key not introduced
+    assert "show_timestamps" not in result  # assert new key not added by migration
+    assert result["config_version"] == CURRENT_CONFIG_VERSION

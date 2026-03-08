@@ -91,7 +91,8 @@ DEFAULT_CFG = {
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     # Logging
     "log_file": "",
-    "add_date_to_cmd": False,
+    # Display
+    "show_timestamps": False,
     # Custom buttons
     "custom_buttons": [
         {"enabled": False, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},

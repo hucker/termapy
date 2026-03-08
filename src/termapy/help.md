@@ -157,7 +157,7 @@ Here is an example config for a device called `iot_device`:
     "echo_cmd": true,
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
-    "add_date_to_cmd": false,
+    "show_timestamps": false,
     "title": "IoT Device",
     "app_border_color": "blue",
     "max_lines": 10000,
@@ -191,7 +191,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `echo_cmd` | `false` | Show sent commands in the terminal output |
 | `echo_cmd_fmt` | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text) |
 | `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.txt` in the config subfolder) |
-| `add_date_to_cmd` | `false` | Prepend a full datetime stamp to each command in the log |
+| `show_timestamps` | `false` | Prefix each line in the terminal display with `[HH:MM:SS.mmm]` |
 | `title` | ` ` | Text shown in the center of the title bar (defaults to the config filename) |
 | `app_border_color` | ` ` | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`) |
 | `max_lines` | `10000` | Maximum number of lines kept in the scrollback buffer |

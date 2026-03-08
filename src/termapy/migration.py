@@ -10,10 +10,20 @@ To add a migration:
     3. Add it to MIGRATIONS: {N: _migrate_vN_to_vN1}
 """
 
-CURRENT_CONFIG_VERSION = 1
+CURRENT_CONFIG_VERSION = 2
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, callable] = {}
+
+
+def _migrate_v1_to_v2(cfg: dict) -> dict:
+    """Rename add_date_to_cmd → show_timestamps."""
+    if "add_date_to_cmd" in cfg:
+        cfg["show_timestamps"] = cfg.pop("add_date_to_cmd")
+    return cfg
+
+
+MIGRATIONS[1] = _migrate_v1_to_v2
 
 
 def migrate_config(cfg: dict) -> dict:

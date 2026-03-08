@@ -919,13 +919,18 @@ class SerialTerminal(App):
 
     def _write_output_batch(self, lines: list[str]) -> None:
         log = self.query_one("#output", RichLog)
+        show_ts = self.cfg.get("show_timestamps", False)
         for text in lines:
-            log.write(Text.from_ansi(text))
+            if show_ts:
+                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                log.write(Text.from_ansi(f"[{ts}] {text}"))
+            else:
+                log.write(Text.from_ansi(text))
 
     def _write_log_batch(self, lines: list[str]) -> None:
         if self.log_fh:
             for text in lines:
-                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 clean = ANSI_RE.sub("", text)
                 self.log_fh.write(f"[{ts}] {clean}\n")
             self.log_fh.flush()
@@ -943,12 +948,6 @@ class SerialTerminal(App):
             if len(self.history) > 15:
                 self.history.pop(0)
             self._save_history()
-
-        # Log command with datetime if enabled
-        if self.cfg.get("add_date_to_cmd") and self.log_fh:
-            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            self.log_fh.write(f"[{ts}] CMD> {cmd}\n")
-            self.log_fh.flush()
 
         self._execute_command(cmd)
         self.query_one("#cmd", Input).value = ""

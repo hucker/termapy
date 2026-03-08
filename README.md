@@ -235,7 +235,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 
 ```json
 {
-    "config_version": 1,
+    "config_version": 2,
     "port": "COM4",
     "baudrate": 115200,
     "bytesize": 8,
@@ -251,7 +251,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
     "echo_cmd": false,
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
-    "add_date_to_cmd": false,
+    "show_timestamps": false,
     "title": "",
     "app_border_color": "",
     "max_lines": 10000,
@@ -270,7 +270,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 
 | Field                | Default                | Description                                                                                              |
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| `config_version`     | `1`                    | Schema version — managed automatically by the migration system, do not edit                              |
+| `config_version`     | `2`                    | Schema version — managed automatically by the migration system, do not edit                              |
 | `port`               | `"COM4"`               | Serial port name                                                                                         |
 | `baudrate`           | `115200`               | Baud rate                                                                                                |
 | `bytesize`           | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
@@ -286,7 +286,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 | `echo_cmd`           | `false`                | Echo sent commands locally                                                                               |
 | `echo_cmd_fmt`       | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
 | `log_file`           | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
-| `add_date_to_cmd`    | `false`                | Prepend full datetime to command log entries                                                             |
+| `show_timestamps`    | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                          |
 | `title`              | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`   | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`          | `10000`                | Maximum lines in the scrollback buffer                                                                   |

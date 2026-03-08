@@ -27,7 +27,18 @@ MIGRATIONS[1] = _migrate_v1_to_v2
 
 
 def migrate_config(cfg: dict) -> dict:
-    """Run config through the migration chain to bring it up to date."""
+    """Run config through the migration chain to bring it up to date.
+
+    Applies migration functions sequentially from the config's current
+    version to CURRENT_CONFIG_VERSION. Versions without a migration
+    function are skipped (version number still advances).
+
+    Args:
+        cfg: Config dict to migrate (modified in place).
+
+    Returns:
+        The migrated config dict with config_version set to current.
+    """
     v = cfg.get("config_version", 0)
     while v < CURRENT_CONFIG_VERSION:
         if v in MIGRATIONS:

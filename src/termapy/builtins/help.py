@@ -1,11 +1,19 @@
 """Built-in plugin: list commands or show help for a specific command."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
+
 NAME = "help"
 ARGS = "{cmd}"
 HELP = "List REPL commands, or show help for one command."
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """List all REPL commands or show detailed help for one."""
     name = args.strip().lower() if isinstance(args, str) else ""
     prefix = ctx.engine.prefix
     if name:

@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event
 from types import MappingProxyType
+from typing import Callable
 
 from termapy.plugins import PluginContext, PluginInfo, builtins_dir, load_plugins_from_dir
 from termapy.scripting import expand_template, parse_duration, parse_script_lines
@@ -20,7 +21,16 @@ from termapy.scripting import expand_template, parse_duration, parse_script_line
 class ReplEngine:
     """Plugin-based REPL command engine."""
 
-    def __init__(self, cfg: dict, config_path: str, write, prefix="!!"):
+    def __init__(self, cfg: dict, config_path: str,
+                 write: Callable, prefix: str = "!!") -> None:
+        """Initialize the REPL engine with config and plugin loading.
+
+        Args:
+            cfg: Config dict (owned by the engine, wrapped in MappingProxyType).
+            config_path: Path to the JSON config file on disk.
+            write: Callback for output — write(text, color="dim").
+            prefix: REPL command prefix (default "!!").
+        """
         self._cfg_data = cfg
         self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
@@ -60,11 +70,18 @@ class ReplEngine:
         self._plugins[info.name] = info
 
     def register_hook(self, name: str, args: str, help_text: str,
-                      handler, source: str = "built-in") -> None:
+                      handler: Callable, source: str = "built-in") -> None:
         """Register an app-coupled command as a plugin.
 
-        This is the bridge for commands that need Textual access (screenshots,
-        connect, etc.). The handler receives (ctx, args) like any plugin.
+        Bridge for commands that need Textual access (screenshots, connect,
+        etc.). The handler receives (ctx, args) like any plugin.
+
+        Args:
+            name: Command name (e.g. "connect").
+            args: Argument spec string for help display.
+            help_text: One-line description for !!help output.
+            handler: Callable(ctx, args) invoked when the command runs.
+            source: Label for origin (default "built-in").
         """
         self._plugins[name] = PluginInfo(
             name=name, args=args, help=help_text,
@@ -74,7 +91,14 @@ class ReplEngine:
     # -- Dispatch -------------------------------------------------------------
 
     def dispatch(self, line: str) -> None:
-        """Parse and dispatch a REPL command (prefix already stripped)."""
+        """Parse and dispatch a REPL command (prefix already stripped).
+
+        Splits the line into command name and args, expands sequence
+        templates in the args, then invokes the matching plugin handler.
+
+        Args:
+            line: Command string without the REPL prefix (e.g. "grep error").
+        """
         parts = line.split(None, 1)
         if not parts:
             plugin = self._plugins.get("help")
@@ -95,8 +119,19 @@ class ReplEngine:
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
 
     @staticmethod
-    def _coerce_type(value_str: str, existing):
-        """Coerce a string value to match the type of the existing value."""
+    def _coerce_type(value_str: str, existing: object) -> object:
+        """Coerce a string value to match the type of the existing config value.
+
+        Args:
+            value_str: Raw string from user input.
+            existing: Current config value whose type determines the conversion.
+
+        Returns:
+            Converted value matching the type of existing.
+
+        Raises:
+            ValueError: If conversion fails (e.g. non-boolean string for a bool field).
+        """
         if isinstance(existing, bool):
             if value_str.lower() in ("true", "1", "yes", "on"):
                 return True
@@ -135,7 +170,17 @@ class ReplEngine:
     # -- Scripting ------------------------------------------------------------
 
     def start_script(self, args: str) -> Path | None:
-        """Validate and prepare for script run. Returns path if ready, None if not."""
+        """Validate and prepare for script execution.
+
+        Resolves the filename (checking scripts/ dir as fallback), validates
+        that no script is already running, and resets sequence counters.
+
+        Args:
+            args: Filename string from the !!run command.
+
+        Returns:
+            Resolved Path if ready to run, None if validation failed.
+        """
         filename = args.strip()
         if not filename:
             self.write("Usage: !!run <filename>", "red")
@@ -162,7 +207,15 @@ class ReplEngine:
         return path
 
     def run_script(self, path: Path) -> None:
-        """Execute a script file (call from a background thread)."""
+        """Execute a script file line by line (call from a background thread).
+
+        Parses the script into serial commands, REPL commands, and delays.
+        Supports !!stop to abort mid-execution. Serial commands are sent with
+        the configured line ending and encoding.
+
+        Args:
+            path: Path to the script file to execute.
+        """
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
             prefix = self.prefix

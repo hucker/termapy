@@ -1,11 +1,19 @@
 """Built-in plugin: toggle REPL command echo."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
+
 NAME = "echo"
 ARGS = "{on | off}"
 HELP = "Toggle REPL command echo, or set on/off. Output is not affected."
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """Toggle or set REPL command echo on/off."""
     arg = args.strip().lower()
     if arg == "on":
         ctx.engine.set_echo(True)

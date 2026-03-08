@@ -228,6 +228,7 @@ Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local a
 | `!!show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `!!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
+| `!!grep <pattern>`         | Search the scrollback for lines matching a regex (case-insensitive)              |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 

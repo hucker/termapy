@@ -17,7 +17,6 @@ from pathlib import Path
 from threading import Event
 
 import serial
-from rich.markup import escape as rich_escape
 from termapy.config import (
     CFG_DIR,
     DEFAULT_CFG,
@@ -586,7 +585,9 @@ class SerialTerminal(App):
 
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting."""
-        self.query_one("#output", RichLog).write(f"[bold italic {color}]{rich_escape(text)}[/]")
+        self.query_one("#output", RichLog).write(
+            Text(text, style=f"bold italic {color}")
+        )
 
     def _write_output_markup(self, text: str) -> None:
         self.query_one("#output", RichLog).write(text)

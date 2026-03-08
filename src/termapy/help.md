@@ -131,6 +131,7 @@ Commands prefixed with `!!` (configurable via `repl_prefix`) run locally instead
 | `!!show <name>` | Show a file (`$cfg` for current config) |
 | `!!echo [on\|off]` | Toggle command echo |
 | `!!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
+| `!!grep <pattern>` | Search the scrollback for matching lines (case-insensitive regex) |
 
 ## JSON Config File
 

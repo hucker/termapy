@@ -4,11 +4,11 @@ version = "0.1.0"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 requires-python = ">=3.11"
 dependencies = [
-    "textual>=0.80",
+    "textual[syntax]>=0.80",
     "pyserial>=3.5",
 ]
 
-[tool.uv.build]
+[tool.uv-build]
 include = ["src/termapy/*.md"]
 
 [build-system]
@@ -28,6 +28,7 @@ omit = [
     "src/termapy/__init__.py",
     "src/termapy/builtins/*.py",
     "src/termapy/app.py",
+    "src/termapy/dialogs.py",
 ]
 
 [tool.coverage.report]

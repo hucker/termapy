@@ -1,10 +1,27 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-137%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-141%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-ma-pi" *
 
-A TUI serial terminal with ANSI color support, built on [Textual](https://textual.textualize.io/) and [pyserial](https://pyserial.readthedocs.io/).
+A portable, lightweight TUI serial terminal with ANSI color support, built on [Textual](https://textual.textualize.io/) and [pyserial](https://pyserial.readthedocs.io/). Features screenshots, plugins, scripting, and extensive customization. Intended for embedded systems development and manufacturing.
+
+## Quick Start
+
+Make sure you have `uv` installed: [uv](https://docs.astral.sh/uv/).
+
+Start `termapy` directly from GitHub to install a temporary environment to run the emulator.
+
+```sh
+uvx --from git+https://github.com/hucker/termapy termapy
+```
+
+Press the `cfg` button and edit your COM port parameters:
+
+![termapy screenshot](img/screenshot_cfg.svg)
+
+Press the connection button at the top and type commands at the bottom input box.
+![termapy screenshot](img/screenshot_iot_dev.svg)
 
 ## Install
 
@@ -16,9 +33,16 @@ The recommended way to run `termapy` is with [uv](https://docs.astral.sh/uv/), w
 uv run termapy
 ```
 
+Or run directly from GitHub without installing:
+
+```sh
+uvx --from git+https://github.com/hucker/termapy termapy
+```
+
 You can also install with pip:
 
 ```sh
+
 pip install termapy
 termapy
 ```
@@ -63,22 +87,26 @@ termapy_cfg/
     └── plugins/
 ```
 
+## Portability
+
+`termapy` has been developed and tested 100% on **Windows**. Basic usage has been verified on **macOS** — connecting to serial ports, ANSI terminal rendering, and screenshots all work — but macOS support should be considered **alpha** until there is more testing. Linux has not been tested yet.
+
 ## Features
 
 - **ANSI terminal emulation** -- renders color escape sequences and handles clear-screen
-- **JSON config files** -- create, load, edit, and switch configs from within the app; each config gets its own subfolder
 - **Interactive title bar** -- clickable buttons for port selection, config switching, and connect/disconnect with red/green status
 - **Auto-connect and auto-reconnect** -- reconnects on port drop with retry
 - **Auto-login commands** -- send a sequence of commands on connect (separated by `\n` in config)
-- **Session logging** -- timestamped plain-text log stored per-config, with optional date-stamped commands
-- **Screenshots** -- save the terminal view as SVG (F5) or plain text (F7), open the containing folder (F6)
 - **Hardware line control** -- toggle DTR/RTS and send Break when `flow_control` is `"manual"` (see example below)
-- **REPL commands** -- type `!!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
-- **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
-- **Custom buttons** -- add up to 4 configurable toolbar buttons that send serial commands, run REPL commands, or execute multi-command sequences
 - **Command history** -- press Up to recall the last 10 commands, persisted per-config
 - **Local echo** -- optionally echo sent commands with configurable Rich markup formatting
+- **Custom buttons** -- add up to 4 configurable toolbar buttons that send serial commands, run REPL commands, or execute multi-command sequences
+- **JSON config files** -- create, load, edit, and switch configs from within the app; each config gets its own subfolder
 - **Color-coded sessions** -- set `app_border_color` per config to visually distinguish multiple serial connections
+- **Session logging** -- timestamped plain-text log stored per-config, with optional date-stamped commands
+- **Screenshots** -- save the terminal view as SVG (Ctrl+S) or plain text (Ctrl+T)
+- **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
+- **REPL commands** -- type `!!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
 - **Plugins** -- drop `.py` files into `plugins/` folders to add custom REPL commands; all built-in commands use the same plugin architecture
 
 ## Plugins
@@ -168,15 +196,13 @@ See `examples/plugins/` for working examples:
 
 ## Keyboard Shortcuts
 
-| Key    | Action                 |
-| ------ | ---------------------- |
-| Ctrl+C | Quit                   |
-| Ctrl+L | Clear screen           |
-| F5     | Save SVG screenshot    |
-| F6     | Open screenshot folder |
-| F7     | Save text screenshot   |
-| Up     | Command history        |
-| Ctrl+P | Command palette        |
+| Key    | Action              |
+| ------ | ------------------- |
+| Ctrl+C | Quit                |
+| Ctrl+S | Save SVG screenshot |
+| Ctrl+T | Save text screenshot|
+| Ctrl+P | Command palette     |
+| Up     | Command history     |
 
 ## REPL Commands
 
@@ -209,6 +235,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 
 ```json
 {
+    "config_version": 1,
     "port": "COM4",
     "baudrate": 115200,
     "bytesize": 8,
@@ -243,6 +270,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 
 | Field                | Default                | Description                                                                                              |
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| `config_version`     | `1`                    | Schema version — managed automatically by the migration system, do not edit                              |
 | `port`               | `"COM4"`               | Serial port name                                                                                         |
 | `baudrate`           | `115200`               | Baud rate                                                                                                |
 | `bytesize`           | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
@@ -333,18 +361,26 @@ Custom buttons appear in the toolbar between the hardware buttons and the system
 
 ## Test Coverage
 
-![coverage](https://img.shields.io/badge/coverage-99%25-brightgreen) *excludes `app.py` and `builtins/` — see note below*
+![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-137 tests across 6 test files. Run with `uv run pytest`.
+141 tests across 7 test files. Run with `uv run pytest`.
 
-| Module                       | Coverage | Test file                            |
-| ---------------------------- | -------- | ------------------------------------ |
-| `scripting.py`               | 100%     | `test_scripting.py`                  |
-| `repl.py`                    | 100%     | `test_engine.py`, `test_repl_cfg.py` |
-| `plugins.py`                 | 99%      | `test_plugins.py`                    |
-| `app.py` (config utils only) | —        | `test_app_config.py`                 |
-| `builtins/*.py`              | —        | `test_builtins.py`                   |
+| Module         | Coverage | Test file                            |
+| -------------- | -------- | ------------------------------------ |
+| `scripting.py` | 100%     | `test_scripting.py`                  |
+| `migration.py` | 100%     | `test_migration.py`                  |
+| `repl.py`      | 98%      | `test_engine.py`, `test_repl_cfg.py` |
+| `plugins.py`   | 99%      | `test_plugins.py`                    |
+| `config.py`    | 87%      | `test_app_config.py`                 |
 
-**⚠️ THE UI CODE IN `app.py` IS NOT INCLUDED IN THESE COVERAGE METRICS.**
+### What's excluded from coverage and why
 
-`app.py` (the Textual UI layer) contains all UI code — modals, widgets, serial I/O, and button handling — which is tested manually. The config utility functions it exports (`cfg_data_dir`, `load_config`, etc.) are covered by `test_app_config.py`. Built-in command plugins (`builtins/*.py`) are also excluded because they are loaded dynamically via `importlib` and coverage cannot map them back to source files; they are tested indirectly through `test_builtins.py`.
+The modules below are **excluded from coverage metrics** because they cannot be meaningfully unit-tested without a running Textual application or a live import loader:
+
+| Excluded module | Lines | Why excluded                                                                                          | How tested                    |
+| --------------- | ----- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `app.py`        | ~1350 | Textual UI layer — widgets, serial I/O, button handlers, async workers. Requires a running TUI app    | Manual testing                |
+| `dialogs.py`    | ~575  | Modal dialog screens (config editor, pickers, confirmations). Extracted from `app.py`, same situation | Manual testing                |
+| `builtins/*.py` | ~200  | Loaded dynamically via `importlib`; coverage cannot map them back to source files                     | `test_builtins.py` (indirect) |
+
+This separation is deliberate: pure logic lives in testable modules (`config.py`, `repl.py`, `plugins.py`, `scripting.py`, `migration.py`) with 96% coverage, while UI code lives in `app.py` and `dialogs.py` where it is tested manually.

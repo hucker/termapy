@@ -5,10 +5,13 @@ import pytest
 from termapy.protocol import (
     FrameCollector,
     Step,
+    VisualizerInfo,
+    builtins_viz_dir,
     diff_bytes,
     format_hex,
     format_hex_dump,
     load_proto_script,
+    load_visualizers_from_dir,
     match_response,
     parse_data,
     parse_hex,
@@ -772,3 +775,263 @@ class TestDiffBytes:
         result = diff_bytes(expected, actual, mask)
 
         assert result == ["match", "wildcard", "mismatch", "extra"]
+
+
+# ── Packet Visualizer Tests ──────────────────────────────────────────
+
+
+class TestHexViewFormatBytes:
+    """Tests for hex_view.format_bytes."""
+
+    def test_empty(self):
+        """Empty bytes produce empty string."""
+        from termapy.builtins.viz.hex_view import format_bytes
+
+        assert format_bytes(b"") == ""
+
+    def test_single_byte(self):
+        """Single byte formatted without trailing space."""
+        from termapy.builtins.viz.hex_view import format_bytes
+
+        assert format_bytes(b"\xff") == "FF"
+
+    def test_multiple_bytes(self):
+        """Multiple bytes spaced with trailing space stripped."""
+        from termapy.builtins.viz.hex_view import format_bytes
+
+        actual = format_bytes(b"\x01\x02\x0a")
+        expected = "01 02 0A"
+        assert actual == expected
+
+    def test_printable_ascii(self):
+        """Printable ASCII shows as hex, not characters."""
+        from termapy.builtins.viz.hex_view import format_bytes
+
+        actual = format_bytes(b"AB")
+        expected = "41 42"
+        assert actual == expected
+
+
+class TestHexViewFormatDiff:
+    """Tests for hex_view.format_diff with Rich markup."""
+
+    def test_all_match(self):
+        """All matching bytes produce green markup."""
+        from termapy.builtins.viz.hex_view import format_diff
+
+        actual = format_diff(b"\x01\x02", b"\x01\x02", b"\xff\xff")
+        # Each byte should be green
+        assert "[bold bright_green]01 [/]" in actual
+        assert "[bold bright_green]02[/]" in actual
+
+    def test_mismatch(self):
+        """Mismatched bytes produce red markup."""
+        from termapy.builtins.viz.hex_view import format_diff
+
+        actual = format_diff(b"\x01\xFF", b"\x01\x02", b"\xff\xff")
+        assert "[bold bright_green]01 [/]" in actual
+        assert "[bold red]FF[/]" in actual
+
+    def test_missing(self):
+        """Missing bytes produce red placeholder."""
+        from termapy.builtins.viz.hex_view import format_diff
+
+        # Last token has trailing space stripped
+        actual = format_diff(b"\x01", b"\x01\x02", b"\xff\xff")
+        assert "[bold red]--[/]" in actual
+
+    def test_wildcard(self):
+        """Wildcard positions produce dim markup."""
+        from termapy.builtins.viz.hex_view import format_diff
+
+        actual = format_diff(b"\x01\xFF", b"\x01\x02", b"\xff\x00")
+        assert "[dim]FF[/]" in actual
+
+
+class TestTextViewFormatBytes:
+    """Tests for text_view.format_bytes."""
+
+    def test_printable(self):
+        """Printable ASCII characters with space after each."""
+        from termapy.builtins.viz.text_view import format_bytes
+
+        actual = format_bytes(b"Hi")
+        expected = "H i"
+        assert actual == expected
+
+    def test_escapes(self):
+        """Escape sequences rendered as backslash codes."""
+        from termapy.builtins.viz.text_view import format_bytes
+
+        actual = format_bytes(b"\r\n")
+        expected = "\\r\\n"
+        assert actual == expected
+
+    def test_unprintable(self):
+        """Non-printable, non-escape bytes shown as dots."""
+        from termapy.builtins.viz.text_view import format_bytes
+
+        actual = format_bytes(b"\x80\x81")
+        expected = ". ."
+        assert actual == expected
+
+    def test_mixed(self):
+        """Mix of printable, escape, and unprintable."""
+        from termapy.builtins.viz.text_view import format_bytes
+
+        actual = format_bytes(b"A\r\x80")
+        expected = "A \\r."
+        assert actual == expected
+
+
+class TestTextViewFormatDiff:
+    """Tests for text_view.format_diff with Rich markup."""
+
+    def test_match(self):
+        """Matching printable bytes produce green markup."""
+        from termapy.builtins.viz.text_view import format_diff
+
+        actual = format_diff(b"AB", b"AB", b"\xff\xff")
+        assert "[bold bright_green]A [/]" in actual
+        assert "[bold bright_green]B[/]" in actual
+
+    def test_mismatch_escape(self):
+        """Mismatched escape produces red markup."""
+        from termapy.builtins.viz.text_view import format_diff
+
+        actual = format_diff(b"\r", b"\n", b"\xff")
+        assert "[bold red]\\r[/]" in actual
+
+
+class TestLoadVisualizersFromDir:
+    """Tests for visualizer discovery and loading."""
+
+    def test_builtins_load(self):
+        """Built-in viz directory loads Hex and Text."""
+        vizs = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
+
+        names = [v.name for v in vizs]
+        assert "Hex" in names
+        assert "Text" in names
+
+    def test_builtin_sort_order(self):
+        """Hex sorts before Text."""
+        vizs = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
+
+        by_name = {v.name: v for v in vizs}
+        assert by_name["Hex"].sort_order < by_name["Text"].sort_order
+
+    def test_builtin_description(self):
+        """Built-ins have descriptions."""
+        vizs = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
+
+        by_name = {v.name: v for v in vizs}
+        assert by_name["Hex"].description != ""
+        assert by_name["Text"].description != ""
+
+    def test_empty_dir(self, tmp_path):
+        """Empty directory returns no visualizers."""
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert vizs == []
+
+    def test_nonexistent_dir(self, tmp_path):
+        """Non-existent directory returns no visualizers."""
+        vizs = load_visualizers_from_dir(tmp_path / "nope", "test")
+
+        assert vizs == []
+
+    def test_skip_underscore(self, tmp_path):
+        """Files starting with _ are skipped."""
+        (tmp_path / "_hidden.py").write_text(
+            'NAME = "Hidden"\n'
+            'def format_bytes(d): return ""\n'
+            'def format_diff(a, e, m): return ""\n'
+        )
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert vizs == []
+
+    def test_custom_visualizer(self, tmp_path):
+        """Custom .py file with valid exports loads correctly."""
+        (tmp_path / "custom.py").write_text(
+            'NAME = "Custom"\n'
+            'DESCRIPTION = "A test visualizer"\n'
+            'SORT_ORDER = 99\n'
+            'def format_bytes(d): return "custom"\n'
+            'def format_diff(a, e, m): return "diff"\n'
+        )
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert len(vizs) == 1
+        assert vizs[0].name == "Custom"
+        assert vizs[0].description == "A test visualizer"
+        assert vizs[0].sort_order == 99
+        assert vizs[0].source == "test"
+        assert vizs[0].format_bytes(b"") == "custom"
+
+    def test_missing_name_skipped(self, tmp_path):
+        """File without NAME is skipped."""
+        (tmp_path / "bad.py").write_text(
+            'def format_bytes(d): return ""\n'
+            'def format_diff(a, e, m): return ""\n'
+        )
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert vizs == []
+
+    def test_missing_format_bytes_skipped(self, tmp_path):
+        """File without format_bytes is skipped."""
+        (tmp_path / "bad.py").write_text(
+            'NAME = "Bad"\n'
+            'def format_diff(a, e, m): return ""\n'
+        )
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert vizs == []
+
+    def test_defaults(self, tmp_path):
+        """SORT_ORDER defaults to 50, DESCRIPTION to empty, format_header to None."""
+        (tmp_path / "minimal.py").write_text(
+            'NAME = "Min"\n'
+            'def format_bytes(d): return ""\n'
+            'def format_diff(a, e, m): return ""\n'
+        )
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert vizs[0].sort_order == 50
+        assert vizs[0].description == ""
+        assert vizs[0].format_header is None  # assert optional, not required
+
+    def test_format_header_loaded(self, tmp_path):
+        """format_header is loaded when defined in visualizer file."""
+        (tmp_path / "with_header.py").write_text(
+            'NAME = "Hdr"\n'
+            'def format_bytes(d): return ""\n'
+            'def format_diff(a, e, m): return ""\n'
+            'def format_header(d): return "Field1  Field2"\n'
+        )
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        actual = vizs[0].format_header(b"\x01\x02")
+        expected = "Field1  Field2"
+        assert actual == expected  # assert header function returns expected string
+
+    def test_format_header_non_callable_ignored(self, tmp_path):
+        """Non-callable format_header is treated as None."""
+        (tmp_path / "bad_header.py").write_text(
+            'NAME = "BadHdr"\n'
+            'def format_bytes(d): return ""\n'
+            'def format_diff(a, e, m): return ""\n'
+            'format_header = "not a function"\n'
+        )
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert vizs[0].format_header is None  # assert non-callable ignored
+
+    def test_broken_file_skipped(self, tmp_path):
+        """File with syntax error is skipped without crashing."""
+        (tmp_path / "broken.py").write_text("def bad(:\n")
+        vizs = load_visualizers_from_dir(tmp_path, "test")
+
+        assert vizs == []

@@ -16,13 +16,12 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Checkbox, Input, Select, Static
+from textual.widgets import Button, Checkbox, Input, Rule, Select, Static
 
 from termapy.protocol import (
     ProtoScript,
     TestCase,
-    diff_bytes,
-    format_spaced,
+    VisualizerInfo,
     match_response,
     strip_ansi,
 )
@@ -35,15 +34,6 @@ _BTN_CSS = """
     min-width: 0; width: auto; height: 1; min-height: 1;
     border: none; margin: 0 0 0 1;
 """
-
-# Style map for diff coloring
-_DIFF_STYLE = {
-    "match": "bold bright_green",
-    "wildcard": "dim",
-    "mismatch": "bold red",
-    "extra": "bold red",
-    "missing": "bold red",
-}
 
 
 class ProtoDebugScreen(ModalScreen[None]):
@@ -61,13 +51,18 @@ class ProtoDebugScreen(ModalScreen[None]):
         background: $primary-background;
     }}
     ProtoDebugScreen .input-label {{
-        width: auto; height: 1; margin: 0 0 0 2;
+        width: auto; height: 1; margin: 0 0 0 1;
         color: $text-muted;
+    }}
+    ProtoDebugScreen Rule {{
+        height: 1;
+        margin: 0;
+        color: $primary-darken-2;
     }}
 
     #proto-debug-dialog {{
-        width: 90%;
-        height: 80%;
+        width: 96%;
+        height: 90%;
         border: thick $primary;
         background: $surface;
         padding: 1 2;
@@ -83,39 +78,37 @@ class ProtoDebugScreen(ModalScreen[None]):
     #proto-debug-detail {{
         height: 1fr;
         overflow-y: auto;
-        padding: 0 1;
     }}
     #proto-debug-controls {{
         height: 1;
-        align: left middle;
     }}
     #proto-debug-options {{
         height: 1;
-        align: left middle;
     }}
     #proto-debug-status {{
         height: 1;
-        color: $text-muted;
     }}
     #proto-debug-buttons {{
         height: 1;
-        align: left middle;
     }}
     """
 
     def __init__(self, path: Path, ctx: PluginContext,
-                 script: ProtoScript) -> None:
+                 script: ProtoScript,
+                 visualizers: list[VisualizerInfo]) -> None:
         """Initialize the debug screen.
 
         Args:
             path: Path to the .pro script file.
             ctx: Plugin context for serial I/O.
             script: Parsed TOML proto script.
+            visualizers: Available packet visualizers.
         """
         super().__init__()
         self._path = path
         self._ctx = ctx
         self._script = script
+        self._visualizers = visualizers
         self._results: dict[int, tuple[bytes | None, float, bool | None]] = {}
 
     def compose(self) -> ComposeResult:
@@ -130,11 +123,16 @@ class ProtoDebugScreen(ModalScreen[None]):
         with Vertical(id="proto-debug-dialog"):
             yield Static(f"Protocol Debug: {title}", id="proto-debug-title")
             yield Select(options, id="proto-debug-select", prompt="Select a test…")
-            yield Static("", id="proto-debug-detail")
             with Horizontal(id="proto-debug-controls"):
                 yield Static("Format:", classes="input-label")
-                yield Checkbox("Hex", value=False, id="chk-hex")
-                yield Checkbox("Text", value=True, id="chk-text")
+                for i, viz in enumerate(self._visualizers):
+                    checked = (i == 0)
+                    chk = Checkbox(
+                        viz.name, value=checked,
+                        id=f"chk-viz-{i}", classes="viz-chk")
+                    if viz.description:
+                        chk.tooltip = viz.description
+                    yield chk
             with Horizontal(id="proto-debug-options"):
                 yield Static("Repeat:", classes="input-label")
                 yield Input(value="1", id="input-repeat",
@@ -143,7 +141,10 @@ class ProtoDebugScreen(ModalScreen[None]):
                 yield Input(value="0", id="input-delay",
                             type="integer", compact=True)
                 yield Checkbox("Stop on Error", value=False, id="chk-stop-err")
+            yield Rule()
+            yield Static("", id="proto-debug-detail")
             yield Static("", id="proto-debug-status")
+            yield Rule()
             with Horizontal(id="proto-debug-buttons"):
                 yield Button("Setup", id="btn-dbg-setup", variant="primary")
                 yield Button("Run Test", id="btn-dbg-send", variant="success")
@@ -170,15 +171,14 @@ class ProtoDebugScreen(ModalScreen[None]):
             return
         self._show_test_detail(tc)
 
-    @on(Checkbox.Changed, "#chk-hex")
-    @on(Checkbox.Changed, "#chk-text")
+    @on(Checkbox.Changed, ".viz-chk")
     def _on_view_toggle(self, event: Checkbox.Changed) -> None:
-        """Handle hex/text checkbox toggling — enforce at least one checked."""
-        chk_hex = self.query_one("#chk-hex", Checkbox)
-        chk_text = self.query_one("#chk-text", Checkbox)
-
-        # Enforce at least one checked
-        if not chk_hex.value and not chk_text.value:
+        """Handle visualizer checkbox toggling — enforce at least one checked."""
+        any_checked = any(
+            self.query_one(f"#chk-viz-{i}", Checkbox).value
+            for i in range(len(self._visualizers))
+        )
+        if not any_checked:
             event.checkbox.value = True
             return
 
@@ -187,20 +187,18 @@ class ProtoDebugScreen(ModalScreen[None]):
         if tc is not None:
             self._show_test_detail(tc)
 
-    def _get_view_modes(self) -> list[tuple[str, bool]]:
-        """Return list of (label, binary) for active view modes.
+    def _get_active_visualizers(self) -> list[VisualizerInfo]:
+        """Return visualizers whose checkboxes are checked.
 
         Returns:
-            List of tuples: ``("Hex", True)`` and/or ``("Text", False)``.
+            List of active VisualizerInfo instances.
         """
-        modes: list[tuple[str, bool]] = []
-        chk_hex = self.query_one("#chk-hex", Checkbox)
-        chk_text = self.query_one("#chk-text", Checkbox)
-        if chk_hex.value:
-            modes.append(("Hex", True))
-        if chk_text.value:
-            modes.append(("Text", False))
-        return modes
+        active: list[VisualizerInfo] = []
+        for i, viz in enumerate(self._visualizers):
+            chk = self.query_one(f"#chk-viz-{i}", Checkbox)
+            if chk.value:
+                active.append(viz)
+        return active
 
     def _show_test_detail(self, tc: TestCase) -> None:
         """Render the detail panel for a test case.
@@ -223,10 +221,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         if tc.index in self._results:
             actual_data, elapsed_ms, passed = self._results[tc.index]
 
-        # Render a table for each active view mode
-        for mode_label, binary in self._get_view_modes():
-            self._build_table(lines, tc, mode_label, binary,
-                              actual_data, elapsed_ms, passed)
+        # Render a table for each active visualizer
+        for viz in self._get_active_visualizers():
+            self._build_table(lines, tc, viz, actual_data, elapsed_ms, passed)
             lines.append("")
 
         # Result line (once, after all tables)
@@ -248,30 +245,61 @@ class ProtoDebugScreen(ModalScreen[None]):
             combined.append("\n")
         detail.update(combined)
 
+    def _max_line_width(self, markup: str) -> int:
+        """Measure the max display width across lines of a markup string.
+
+        Handles multi-line strings (newlines) by measuring each line
+        individually and returning the widest.
+
+        Args:
+            markup: Plain text or Rich-markup string, possibly multi-line.
+
+        Returns:
+            Maximum display width in terminal cells.
+        """
+        return max(
+            (Text.from_markup(line).cell_len
+             for line in markup.split("\n")),
+            default=0,
+        )
+
     def _build_table(self, lines: list[Text | str], tc: TestCase,
-                     mode_label: str, binary: bool,
-                     actual_data: bytes | None,
+                     viz: VisualizerInfo, actual_data: bytes | None,
                      elapsed_ms: float, passed: bool | None) -> None:
-        """Build a bordered two-column table for one display mode.
+        """Build a bordered two-column table for one visualizer.
+
+        Supports multi-line output from visualizers — newlines in
+        ``format_bytes`` or ``format_diff`` produce continuation rows.
 
         Args:
             lines: List to append table lines to.
             tc: Test case.
-            mode_label: Header label ("Hex" or "Text").
-            binary: True for hex mode, False for text mode.
+            viz: Visualizer to use for formatting.
             actual_data: Actual received bytes, or None.
             elapsed_ms: Round-trip time.
             passed: True/False/None.
         """
-        tx_str = format_spaced(tc.send_data, binary)
-        exp_str = format_spaced(tc.expect_data, binary)
+        tx_str = viz.format_bytes(tc.send_data)
+        exp_str = viz.format_bytes(tc.expect_data)
 
-        data_strs = [tx_str, exp_str]
+        # Optional header row from visualizer
+        header_str = ""
+        if viz.format_header is not None:
+            header_str = viz.format_header(tc.send_data) or ""
+
+        # Measure display widths (handles multi-line)
+        data_widths = [self._max_line_width(tx_str),
+                       self._max_line_width(exp_str)]
+        if header_str:
+            data_widths.append(self._max_line_width(header_str))
+        actual_str = ""
         if actual_data is not None:
-            data_strs.append(format_spaced(actual_data, binary))
+            actual_str = viz.format_diff(actual_data, tc.expect_data,
+                                         tc.expect_mask)
+            data_widths.append(self._max_line_width(actual_str))
 
         label_w = 10
-        max_data_w = max((len(s) for s in data_strs), default=0)
+        max_data_w = max(data_widths, default=0)
         border_l = "─" * (label_w + 2)
         border_r = "─" * (max_data_w + 2)
 
@@ -280,112 +308,92 @@ class ProtoDebugScreen(ModalScreen[None]):
         hdr = Text("  │ ")
         hdr.append("".ljust(label_w), style="dim")
         hdr.append(Text(" │ ", style="dim"))
-        hdr.append(mode_label.center(max_data_w), style="bold")
+        hdr.append(viz.name.center(max_data_w), style="bold")
         hdr.append(Text(" │", style="dim"))
         lines.append(hdr)
         lines.append(Text(f"  ├{border_l}┼{border_r}┤", style="dim"))
 
-        # TX row
-        lines.append(self._table_row(
-            "TX", label_w, tx_str, max_data_w, "bold cyan"))
+        # Optional field header row(s) from visualizer
+        if header_str:
+            self._append_markup_rows(
+                lines, "", label_w, header_str, max_data_w)
 
-        # Expected row
-        lines.append(self._table_row(
-            "Expected", label_w, exp_str, max_data_w, "dim"))
+        # TX row(s)
+        self._append_table_rows(
+            lines, "TX", label_w, tx_str, max_data_w, "bold cyan")
 
-        # Actual row
+        # Expected row(s)
+        self._append_table_rows(
+            lines, "Expected", label_w, exp_str, max_data_w, "dim")
+
+        # Actual row(s)
         if actual_data is not None:
-            lines.append(self._render_diff_row(
-                tc.expect_data, actual_data, tc.expect_mask, binary,
-                label_w, max_data_w))
+            self._append_markup_rows(
+                lines, "Actual", label_w, actual_str, max_data_w)
         elif tc.index in self._results:
-            lines.append(self._table_row(
-                "Actual", label_w, "(timeout)", max_data_w, "bold red"))
+            self._append_table_rows(
+                lines, "Actual", label_w, "(timeout)", max_data_w,
+                "bold red")
 
         # Bottom border
         lines.append(Text(f"  └{border_l}┴{border_r}┘", style="dim"))
 
-    def _table_row(self, label: str, label_w: int,
-                   data: str, data_w: int, style: str) -> Text:
-        """Build a single bordered table row.
+    def _append_table_rows(self, lines: list[Text | str], label: str,
+                           label_w: int, data: str, data_w: int,
+                           style: str) -> None:
+        """Append bordered table rows for plain-text data.
+
+        Splits on newlines — the label appears on the first row only,
+        continuation rows have an empty label column.
 
         Args:
+            lines: List to append to.
             label: Row label (e.g. "TX", "Expected").
             label_w: Width of the label column.
-            data: Formatted data string.
+            data: Formatted data string, possibly multi-line.
             data_w: Width of the data column.
             style: Rich style for the data portion.
-
-        Returns:
-            Rich Text for the table row.
         """
-        row = Text("  │ ")
-        row.append(label.ljust(label_w), style="bold")
-        row.append(Text(" │ ", style="dim"))
-        row.append(data.ljust(data_w), style=style)
-        row.append(Text(" │", style="dim"))
-        return row
+        data_lines = data.split("\n")
+        for i, line_text in enumerate(data_lines):
+            row = Text("  │ ")
+            row_label = label if i == 0 else ""
+            row.append(row_label.ljust(label_w), style="bold")
+            row.append(Text(" │ ", style="dim"))
+            row.append(line_text.ljust(data_w), style=style)
+            row.append(Text(" │", style="dim"))
+            lines.append(row)
 
-    def _render_diff_row(self, expected: bytes, actual: bytes,
-                         mask: bytes, binary: bool,
-                         label_w: int, data_w: int) -> Text:
-        """Build a bordered Actual row with color-coded byte comparison.
+    def _append_markup_rows(self, lines: list[Text | str], label: str,
+                            label_w: int, markup: str,
+                            data_w: int) -> None:
+        """Append bordered table rows from Rich-markup content.
 
-        Uses the same token logic as ``format_spaced`` to guarantee
-        identical column width to TX/Expected rows.
+        Splits on newlines — the label appears on the first row only.
+        Used for the Actual row where the visualizer provides
+        Rich-markup strings with embedded colors.
 
         Args:
-            expected: Expected bytes.
-            actual: Actual received bytes.
-            mask: Wildcard mask.
-            binary: Use hex display if True.
+            lines: List to append to.
+            label: Row label (e.g. "Actual").
             label_w: Width of the label column.
+            markup: Rich-markup formatted string, possibly multi-line.
             data_w: Width of the data column.
-
-        Returns:
-            Rich Text for the bordered actual row.
         """
-        statuses = diff_bytes(expected, actual, mask)
+        markup_lines = markup.split("\n")
+        for i, line_markup in enumerate(markup_lines):
+            row = Text("  │ ")
+            row_label = label if i == 0 else ""
+            row.append(row_label.ljust(label_w), style="bold")
+            row.append(Text(" │ ", style="dim"))
 
-        # Build per-byte tokens matching format_spaced logic
-        _DISPLAY_ESCAPES = {
-            ord("\r"): "\\r", ord("\n"): "\\n",
-            ord("\t"): "\\t", 0: "\\0",
-        }
-        tokens: list[str] = []
-        for i, status in enumerate(statuses):
-            if status == "missing":
-                tokens.append("-- " if binary else ". ")
-            else:
-                b = actual[i]
-                if binary:
-                    tokens.append(f"{b:02X} ")
-                elif b in _DISPLAY_ESCAPES:
-                    tokens.append(_DISPLAY_ESCAPES[b])
-                elif 32 <= b < 127:
-                    tokens.append(f"{chr(b)} ")
-                else:
-                    tokens.append(". ")
-
-        # Strip trailing space from last token to match format_spaced().rstrip()
-        if tokens:
-            tokens[-1] = tokens[-1].rstrip()
-
-        # Build the row
-        result = Text("  │ ")
-        result.append("Actual".ljust(label_w), style="bold")
-        result.append(Text(" │ ", style="dim"))
-
-        char_count = 0
-        for token, status in zip(tokens, statuses):
-            result.append(token, style=_DIFF_STYLE.get(status, ""))
-            char_count += len(token)
-
-        # Pad to match data column width
-        if char_count < data_w:
-            result.append(" " * (data_w - char_count))
-        result.append(Text(" │", style="dim"))
-        return result
+            content = Text.from_markup(line_markup)
+            pad = data_w - content.cell_len
+            if pad > 0:
+                content.append(" " * pad)
+            row.append_text(content)
+            row.append(Text(" │", style="dim"))
+            lines.append(row)
 
     def _get_repeat_count(self) -> int:
         """Get the repeat count from the input field.

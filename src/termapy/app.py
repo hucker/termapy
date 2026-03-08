@@ -572,14 +572,29 @@ class SerialTerminal(App):
     def _open_proto_debug(self, path, script) -> None:
         """Open the interactive protocol debug screen.
 
+        Discovers available packet visualizers from built-in, global,
+        and per-config ``viz/`` directories.
+
         Args:
             path: Path to the .pro script file.
             script: Parsed ProtoScript instance.
         """
         from termapy.proto_debug import ProtoDebugScreen
+        from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
+
+        # Discover visualizers: built-in → per-config (later overrides)
+        visualizers = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
+        if self.config_path:
+            viz_dir = cfg_data_dir(self.config_path) / "viz"
+            visualizers += load_visualizers_from_dir(
+                viz_dir, Path(self.config_path).stem)
+
+        # Deduplicate by name (later wins), sort by sort_order
+        by_name = {v.name: v for v in visualizers}
+        final = sorted(by_name.values(), key=lambda v: v.sort_order)
 
         ctx = self.repl.ctx
-        self.push_screen(ProtoDebugScreen(path, ctx, script))
+        self.push_screen(ProtoDebugScreen(path, ctx, script, final))
 
     def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
         """Collect raw bytes from the serial port using timeout-based framing.

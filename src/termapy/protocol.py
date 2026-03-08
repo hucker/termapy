@@ -6,10 +6,14 @@ Used by the ``!!proto`` builtin plugin for binary serial protocol testing.
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 import time
 import tomllib
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
 
 # ---------------------------------------------------------------------------
 # Hex utilities
@@ -753,3 +757,117 @@ def diff_bytes(expected: bytes, actual: bytes, mask: bytes) -> list[str]:
         else:
             result.append("mismatch")
     return result
+
+
+# ---------------------------------------------------------------------------
+# Packet visualizer discovery
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class VisualizerInfo:
+    """Metadata and formatting functions for a packet visualizer.
+
+    Attributes:
+        name: Display label for checkbox / table header.
+        description: Tooltip text describing the visualizer.
+        sort_order: Controls checkbox ordering (lower = first).
+        format_bytes: Formats raw bytes into a display string.
+        format_diff: Formats actual bytes with diff coloring (Rich markup).
+        format_header: Optional header row generator for protocol-aware views.
+        source: Where the visualizer was loaded from.
+    """
+
+    name: str
+    description: str
+    sort_order: int
+    format_bytes: Callable[[bytes], str]
+    format_diff: Callable[[bytes, bytes, bytes], str]
+    format_header: Callable[[bytes], str] | None = None
+    source: str = "built-in"
+
+
+def builtins_viz_dir() -> Path:
+    """Return the path to the built-in visualizer directory."""
+    return Path(__file__).parent / "builtins" / "viz"
+
+
+def load_visualizers_from_dir(
+    folder: Path, source: str = "global"
+) -> list[VisualizerInfo]:
+    """Discover and load visualizer .py files from a directory.
+
+    Each file must define ``NAME`` (str), ``format_bytes(data)``, and
+    ``format_diff(actual, expected, mask)``. ``SORT_ORDER`` (int) and
+    ``DESCRIPTION`` (str) are optional.
+
+    Files starting with ``_`` are skipped. Files that fail to load
+    print a warning to stderr.
+
+    Args:
+        folder: Directory to scan for .py visualizer files.
+        source: Label for where the visualizer came from.
+
+    Returns:
+        List of VisualizerInfo, one per valid visualizer file found.
+    """
+    visualizers: list[VisualizerInfo] = []
+    if not folder.is_dir():
+        return visualizers
+    for py_file in sorted(folder.glob("*.py")):
+        if py_file.name.startswith("_"):
+            continue
+        try:
+            info = _load_visualizer_file(py_file, source)
+            if info:
+                visualizers.append(info)
+        except Exception as e:
+            print(
+                f"termapy: failed to load visualizer {py_file.name}: {e}",
+                file=sys.stderr,
+            )
+    return visualizers
+
+
+def _load_visualizer_file(path: Path, source: str) -> VisualizerInfo | None:
+    """Import a single visualizer file and extract its VisualizerInfo.
+
+    A valid visualizer module must define ``NAME`` (str),
+    ``format_bytes`` (callable), and ``format_diff`` (callable).
+    Optional: ``SORT_ORDER`` (int, default 50), ``DESCRIPTION``
+    (str, default ``""``).
+
+    Args:
+        path: Path to the .py visualizer file.
+        source: Label for the visualizer's origin.
+
+    Returns:
+        VisualizerInfo if the file is a valid visualizer, None otherwise.
+    """
+    module_name = f"termapy_viz_{path.stem}"
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    name = getattr(mod, "NAME", None)
+    fmt_bytes = getattr(mod, "format_bytes", None)
+    fmt_diff = getattr(mod, "format_diff", None)
+
+    if not isinstance(name, str) or not callable(fmt_bytes) or not callable(fmt_diff):
+        return None
+
+    fmt_header = getattr(mod, "format_header", None)
+    if fmt_header is not None and not callable(fmt_header):
+        fmt_header = None
+
+    return VisualizerInfo(
+        name=name,
+        description=getattr(mod, "DESCRIPTION", ""),
+        sort_order=getattr(mod, "SORT_ORDER", 50),
+        format_bytes=fmt_bytes,
+        format_diff=fmt_diff,
+        format_header=fmt_header,
+        source=source,
+    )

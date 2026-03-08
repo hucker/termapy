@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from threading import Event
+from types import MappingProxyType
 
 from termapy.plugins import PluginContext, PluginInfo, builtins_dir, load_plugins_from_dir
 from termapy.scripting import expand_template, parse_duration, parse_script_lines
@@ -20,7 +21,8 @@ class ReplEngine:
     """Plugin-based REPL command engine."""
 
     def __init__(self, cfg: dict, config_path: str, write, prefix="!!"):
-        self.cfg = cfg
+        self._cfg_data = cfg
+        self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
         self.write = write              # write(text, color="dim") callback
         self.prefix = prefix
@@ -107,12 +109,18 @@ class ReplEngine:
             return float(value_str)
         return value_str
 
+    def replace_cfg(self, cfg: dict, path: str) -> None:
+        """Replace config wholesale (called by app on load/edit)."""
+        self._cfg_data.clear()
+        self._cfg_data.update(cfg)
+        self.config_path = path
+
     def _apply_cfg(self, key: str, new_val) -> None:
         """Apply a config change, save to disk, and notify."""
-        self.cfg[key] = new_val
+        self._cfg_data[key] = new_val
         try:
             with open(self.config_path, "w") as f:
-                json.dump(self.cfg, f, indent=4)
+                json.dump(dict(self._cfg_data), f, indent=4)
             self.write(f"{key} = {new_val!r}  (saved)", "green")
             if self._after_cfg:
                 self._after_cfg(key, new_val)

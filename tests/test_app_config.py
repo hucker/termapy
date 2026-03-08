@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from termapy.app import (
+from termapy.dialogs import _SCRIPT_TEMPLATE
+from termapy.config import (
     DEFAULT_CFG,
-    _SCRIPT_TEMPLATE,
     cfg_data_dir,
     cfg_history_path,
     cfg_log_path,

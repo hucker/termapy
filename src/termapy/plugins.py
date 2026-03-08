@@ -23,6 +23,7 @@ import importlib.util
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Callable
 
 
@@ -54,7 +55,7 @@ class PluginContext:
 
     # Core I/O
     write: Callable             # write(text, color="dim") -> None
-    cfg: dict = field(default_factory=dict)
+    cfg: MappingProxyType | dict = field(default_factory=dict)
     config_path: str = ""
 
     # Serial port

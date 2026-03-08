@@ -5,13 +5,16 @@ import pytest
 from termapy.protocol import (
     FrameCollector,
     Step,
+    diff_bytes,
     format_hex,
     format_hex_dump,
+    load_proto_script,
     match_response,
     parse_data,
     parse_hex,
     parse_pattern,
     parse_proto_script,
+    parse_toml_script,
 )
 
 
@@ -474,3 +477,298 @@ expect: "FB8d\\r"
         _, steps = parse_proto_script(script)
         assert steps[0].action == "flush"
         assert steps[0].timeout_ms == 100
+
+
+# ── TOML script parsing ─────────────────────────────────────────────────
+
+
+class TestParseTomlScript:
+    def test_basic_two_tests(self):
+        """TOML script with two simple tests parses correctly."""
+        toml = '''\
+[[test]]
+name = "Test A"
+send = "01 02"
+expect = "03 04"
+
+[[test]]
+name = "Test B"
+send = '"hello\\r"'
+expect = '"world\\r"'
+'''
+        script = parse_toml_script(toml)
+
+        assert len(script.tests) == 2
+        # Test A
+        assert script.tests[0].name == "Test A"
+        assert script.tests[0].send_data == b"\x01\x02"
+        assert script.tests[0].binary is True
+        # Test B
+        assert script.tests[1].name == "Test B"
+        assert script.tests[1].send_data == b"hello\r"
+        assert script.tests[1].binary is False
+
+    def test_settings(self):
+        """TOML settings are parsed correctly."""
+        toml = '''\
+name = "My Test"
+frame_gap = "100ms"
+timeout = "2s"
+strip_ansi = true
+quiet = true
+
+[[test]]
+name = "T1"
+send = "01"
+expect = "02"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.name == "My Test"
+        assert script.frame_gap_ms == 100
+        assert script.timeout_ms == 2000
+        assert script.strip_ansi is True
+        assert script.quiet is True
+
+    def test_setup_teardown(self):
+        """Setup and teardown arrays are parsed."""
+        toml = '''\
+setup = ["color off", "echo on"]
+teardown = ["color on"]
+
+[[test]]
+name = "T1"
+send = "01"
+expect = "02"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.setup == ["color off", "echo on"]
+        assert script.teardown == ["color on"]
+
+    def test_per_test_setup_teardown(self):
+        """Per-test setup/teardown lists are parsed."""
+        toml = '''\
+[[test]]
+name = "With setup"
+setup = ["echo off", "color off"]
+teardown = ["echo on"]
+send = '"fw\\r"'
+expect = '"FB8d\\r\\n"'
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].setup == ["echo off", "color off"]
+        assert script.tests[0].teardown == ["echo on"]
+
+    def test_per_test_legacy_cmd(self):
+        """Legacy cmd field is converted to single-item setup list."""
+        toml = '''\
+[[test]]
+name = "With cmd"
+cmd = "echo off"
+send = '"fw\\r"'
+expect = '"FB8d\\r\\n"'
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].setup == ["echo off"]  # cmd → setup
+        assert script.tests[0].teardown == []
+
+    def test_per_test_timeout(self):
+        """Per-test timeout overrides default."""
+        toml = '''\
+timeout = "1s"
+
+[[test]]
+name = "Fast"
+send = "01"
+expect = "02"
+timeout = "200ms"
+
+[[test]]
+name = "Default"
+send = "03"
+expect = "04"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].timeout_ms == 200
+        assert script.tests[1].timeout_ms == 1000  # default
+
+    def test_binary_detection(self):
+        """binary flag is True for hex, False for quoted text."""
+        toml = '''\
+[[test]]
+name = "hex"
+send = "01 02 03"
+expect = "04 05"
+
+[[test]]
+name = "text"
+send = '"hello"'
+expect = '"world"'
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].binary is True
+        assert script.tests[1].binary is False
+
+    def test_missing_test_key_raises(self):
+        """TOML without [[test]] raises ValueError."""
+        toml = 'name = "No tests"'
+        with pytest.raises(ValueError, match="must contain"):
+            parse_toml_script(toml)
+
+    def test_missing_send_raises(self):
+        """Test without send field raises ValueError."""
+        toml = '''\
+[[test]]
+name = "No send"
+expect = "01"
+'''
+        with pytest.raises(ValueError, match="missing 'send'"):
+            parse_toml_script(toml)
+
+    def test_missing_expect_raises(self):
+        """Test without expect field raises ValueError."""
+        toml = '''\
+[[test]]
+name = "No expect"
+send = "01"
+'''
+        with pytest.raises(ValueError, match="missing 'expect'"):
+            parse_toml_script(toml)
+
+    def test_wildcard_expect(self):
+        """Expect with ** wildcards sets mask correctly."""
+        toml = '''\
+[[test]]
+name = "Wild"
+send = "01"
+expect = "01 ** 03"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].expect_data == b"\x01\x00\x03"
+        assert script.tests[0].expect_mask == b"\xff\x00\xff"
+
+    def test_default_name(self):
+        """Test without name gets auto-generated name."""
+        toml = '''\
+[[test]]
+send = "01"
+expect = "02"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].name == "Test 1"
+
+    def test_raw_strings_preserved(self):
+        """send_raw and expect_raw store original strings."""
+        toml = '''\
+[[test]]
+name = "T"
+send = '"fw\\r"'
+expect = '"FB8d\\r\\n"'
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].send_raw == '"fw\\r"'
+        assert script.tests[0].expect_raw == '"FB8d\\r\\n"'
+
+
+# ── load_proto_script (format detection) ─────────────────────────────────
+
+
+class TestLoadProtoScript:
+    def test_toml_detected(self):
+        """TOML format is detected when [[test]] present."""
+        toml = '''\
+[[test]]
+name = "T1"
+send = "01"
+expect = "02"
+'''
+        fmt, parsed = load_proto_script(toml)
+
+        assert fmt == "toml"
+        assert hasattr(parsed, "tests")  # assert ProtoScript
+
+    def test_flat_fallback(self):
+        """Flat format used when TOML parse fails."""
+        flat = '''\
+label: Test
+send: "fw\\r"
+expect: "FB8d\\r"
+'''
+        fmt, parsed = load_proto_script(flat)
+
+        assert fmt == "flat"
+        actual_type = type(parsed)
+        assert actual_type == tuple  # assert (settings, steps)
+
+
+# ── diff_bytes ───────────────────────────────────────────────────────────
+
+
+class TestDiffBytes:
+    def test_exact_match(self):
+        """All bytes match → all 'match'."""
+        expected = b"\x01\x02\x03"
+        actual = b"\x01\x02\x03"
+        mask = b"\xff\xff\xff"
+        result = diff_bytes(expected, actual, mask)
+
+        assert result == ["match", "match", "match"]
+
+    def test_mismatch(self):
+        """Differing byte → 'mismatch'."""
+        expected = b"\x01\x02\x03"
+        actual = b"\x01\xFF\x03"
+        mask = b"\xff\xff\xff"
+        result = diff_bytes(expected, actual, mask)
+
+        assert result == ["match", "mismatch", "match"]
+
+    def test_wildcard(self):
+        """Wildcard mask byte → 'wildcard'."""
+        expected = b"\x01\x00\x03"
+        actual = b"\x01\xFF\x03"
+        mask = b"\xff\x00\xff"
+        result = diff_bytes(expected, actual, mask)
+
+        assert result == ["match", "wildcard", "match"]
+
+    def test_actual_shorter(self):
+        """Missing bytes in actual → 'missing'."""
+        expected = b"\x01\x02\x03"
+        actual = b"\x01"
+        mask = b"\xff\xff\xff"
+        result = diff_bytes(expected, actual, mask)
+
+        assert result == ["match", "missing", "missing"]
+
+    def test_actual_longer(self):
+        """Extra bytes in actual → 'extra'."""
+        expected = b"\x01"
+        actual = b"\x01\x02\x03"
+        mask = b"\xff"
+        result = diff_bytes(expected, actual, mask)
+
+        assert result == ["match", "extra", "extra"]
+
+    def test_empty_both(self):
+        """Empty expected and actual → empty result."""
+        result = diff_bytes(b"", b"", b"")
+
+        assert result == []
+
+    def test_mixed(self):
+        """Mix of match, mismatch, wildcard, extra."""
+        expected = b"\x01\x00\x03"
+        actual = b"\x01\xFF\x04\x05"
+        mask = b"\xff\x00\xff"
+        result = diff_bytes(expected, actual, mask)
+
+        assert result == ["match", "wildcard", "mismatch", "extra"]

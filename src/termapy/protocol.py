@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import time
+import tomllib
 from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
@@ -173,18 +174,19 @@ def format_smart(data: bytes) -> str:
 
 
 def format_spaced(data: bytes, binary: bool = False) -> str:
-    """Format bytes with fixed 3-char width per byte for column alignment.
+    """Format bytes with fixed width per byte for column alignment.
 
-    Each byte occupies exactly 3 characters so that TX, Expected, and
-    Actual lines align column-by-column:
+    Two modes with consistent per-byte width:
 
-    - Hex byte: ``4F `` (2 hex + 1 space)
-    - Printable char: ``A  `` (1 char + 2 spaces)
-    - Escape sequence: ``\\r `` (2 chars + 1 space)
+    - **Hex mode** (``binary=True``): ``XX `` — 3 chars per byte.
+    - **Text mode** (``binary=False``): ``c `` — 2 chars per byte.
+      Escapes render as ``\\r``, ``\\n``, ``\\t``, ``\\0`` (2 chars).
+      Other unprintable bytes render as ``.`` + space (2 chars).
 
     Args:
         data: Raw bytes to format.
-        binary: If True, always use hex format.
+        binary: If True, use hex format (3 chars/byte).
+            If False, use text format (2 chars/byte).
 
     Returns:
         Fixed-width spaced representation for visual comparison.
@@ -194,11 +196,11 @@ def format_spaced(data: bytes, binary: bool = False) -> str:
         if binary:
             tokens.append(f"{b:02X} ")
         elif b in _DISPLAY_ESCAPES:
-            tokens.append(f"{_DISPLAY_ESCAPES[b]} ")
+            tokens.append(f"{_DISPLAY_ESCAPES[b]}")
         elif 32 <= b < 127:
-            tokens.append(f"{chr(b)}  ")
+            tokens.append(f"{chr(b)} ")
         else:
-            tokens.append(f"{b:02X} ")
+            tokens.append(". ")
     return "".join(tokens).rstrip()
 
 
@@ -561,3 +563,193 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
             raise ValueError(f"Line {lineno}: unknown key: {key}")
 
     return settings, steps
+
+
+# ---------------------------------------------------------------------------
+# Structured TOML-based proto scripts
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class TestCase:
+    """A single send/expect test from a structured proto script.
+
+    Attributes:
+        index: 1-based test number.
+        name: Human-readable test name.
+        setup: Commands to run before send (e.g. ``["echo off"]``).
+        teardown: Commands to run after send/expect.
+        send_data: Parsed bytes to transmit.
+        send_raw: Original send string from script (for display).
+        expect_data: Expected response bytes.
+        expect_mask: Wildcard mask (0xFF=match, 0x00=any).
+        expect_raw: Original expect string from script (for display).
+        binary: True if send value is hex (not quoted text).
+        timeout_ms: Per-test timeout override.
+    """
+
+    index: int
+    name: str
+    setup: list[str] = field(default_factory=list)
+    teardown: list[str] = field(default_factory=list)
+    send_data: bytes = b""
+    send_raw: str = ""
+    expect_data: bytes = b""
+    expect_mask: bytes = b""
+    expect_raw: str = ""
+    binary: bool = False
+    timeout_ms: int = 1000
+
+
+@dataclass
+class ProtoScript:
+    """Parsed structured proto script.
+
+    Attributes:
+        name: Script display name.
+        frame_gap_ms: Silence gap for frame detection.
+        timeout_ms: Default expect timeout.
+        strip_ansi: Strip ANSI escapes from responses.
+        quiet: Suppress setup/teardown output.
+        setup: List of command strings to run before tests.
+        teardown: List of command strings to run after tests.
+        tests: Ordered list of test cases.
+    """
+
+    name: str = ""
+    frame_gap_ms: int = 50
+    timeout_ms: int = 1000
+    strip_ansi: bool = False
+    quiet: bool = False
+    setup: list[str] = field(default_factory=list)
+    teardown: list[str] = field(default_factory=list)
+    tests: list[TestCase] = field(default_factory=list)
+
+
+def parse_toml_script(text: str) -> ProtoScript:
+    """Parse a TOML-format ``.pro`` script into a ``ProtoScript``.
+
+    Args:
+        text: TOML file content.
+
+    Returns:
+        Parsed ProtoScript with settings and test cases.
+
+    Raises:
+        ValueError: If the script is missing required fields or has
+            invalid data.
+    """
+    try:
+        doc = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as e:
+        raise ValueError(f"TOML parse error: {e}") from e
+
+    if "test" not in doc:
+        raise ValueError("TOML script must contain at least one [[test]] section")
+
+    # Parse settings
+    default_timeout = 1000
+    frame_gap_ms = 50
+    if "timeout" in doc:
+        default_timeout = _parse_duration_ms(str(doc["timeout"]))
+    if "frame_gap" in doc:
+        frame_gap_ms = _parse_duration_ms(str(doc["frame_gap"]))
+
+    script = ProtoScript(
+        name=doc.get("name", ""),
+        frame_gap_ms=frame_gap_ms,
+        timeout_ms=default_timeout,
+        strip_ansi=doc.get("strip_ansi", False),
+        quiet=doc.get("quiet", False),
+        setup=doc.get("setup", []),
+        teardown=doc.get("teardown", []),
+    )
+
+    # Parse test cases
+    for i, entry in enumerate(doc["test"], 1):
+        if "send" not in entry:
+            raise ValueError(f"Test {i}: missing 'send' field")
+        if "expect" not in entry:
+            raise ValueError(f"Test {i}: missing 'expect' field")
+
+        send_raw = entry["send"]
+        expect_raw = entry["expect"]
+        send_data = parse_data(send_raw)
+        expect_data, expect_mask = parse_pattern(expect_raw)
+        is_binary = not send_raw.strip().startswith('"')
+
+        timeout = default_timeout
+        if "timeout" in entry:
+            timeout = _parse_duration_ms(str(entry["timeout"]))
+
+        # Per-test setup/teardown — support both list and legacy "cmd" string
+        test_setup: list[str] = entry.get("setup", [])
+        if not test_setup and "cmd" in entry:
+            test_setup = [entry["cmd"]]
+        test_teardown: list[str] = entry.get("teardown", [])
+
+        script.tests.append(TestCase(
+            index=i,
+            name=entry.get("name", f"Test {i}"),
+            setup=test_setup,
+            teardown=test_teardown,
+            send_data=send_data,
+            send_raw=send_raw,
+            expect_data=expect_data,
+            expect_mask=expect_mask,
+            expect_raw=expect_raw,
+            binary=is_binary,
+            timeout_ms=timeout,
+        ))
+
+    return script
+
+
+def load_proto_script(text: str) -> tuple[str, ProtoScript | tuple[dict, list[Step]]]:
+    """Auto-detect script format and parse accordingly.
+
+    Tries TOML first (looks for ``[[test]]`` sections). Falls back
+    to the flat ``.pro`` format.
+
+    Args:
+        text: File content.
+
+    Returns:
+        Tuple of ``("toml", ProtoScript)`` or ``("flat", (settings, steps))``.
+    """
+    try:
+        doc = tomllib.loads(text)
+        if "test" in doc:
+            return ("toml", parse_toml_script(text))
+    except (tomllib.TOMLDecodeError, ValueError):
+        pass
+    return ("flat", parse_proto_script(text))
+
+
+def diff_bytes(expected: bytes, actual: bytes, mask: bytes) -> list[str]:
+    """Compare expected and actual bytes with mask, returning per-byte status.
+
+    Args:
+        expected: Expected byte pattern.
+        actual: Actual received bytes.
+        mask: Wildcard mask (0xFF=must match, 0x00=any).
+
+    Returns:
+        List of status strings, one per byte position in the longer
+        of expected/actual: ``"match"``, ``"wildcard"``, ``"mismatch"``,
+        ``"extra"`` (actual longer), ``"missing"`` (actual shorter).
+    """
+    max_len = max(len(expected), len(actual))
+    result: list[str] = []
+    for i in range(max_len):
+        if i >= len(actual):
+            result.append("missing")
+        elif i >= len(expected):
+            result.append("extra")
+        elif i < len(mask) and mask[i] == 0x00:
+            result.append("wildcard")
+        elif expected[i] == actual[i]:
+            result.append("match")
+        else:
+            result.append("mismatch")
+    return result

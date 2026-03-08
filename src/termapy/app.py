@@ -395,6 +395,8 @@ class SerialTerminal(App):
             get_hex_mode=lambda: self._proto_hex_mode,
             set_hex_mode=self._set_hex_mode,
             set_proto_active=lambda active: setattr(self, "_proto_active", active),
+            open_proto_debug=lambda path, script: self.call_later(
+                self._open_proto_debug, path, script),
         )
         ctx = PluginContext(
             write=self._status,
@@ -566,6 +568,18 @@ class SerialTerminal(App):
     def _set_hex_mode(self, enabled: bool) -> None:
         """Toggle hex display mode for serial I/O."""
         self._proto_hex_mode = enabled
+
+    def _open_proto_debug(self, path, script) -> None:
+        """Open the interactive protocol debug screen.
+
+        Args:
+            path: Path to the .pro script file.
+            script: Parsed ProtoScript instance.
+        """
+        from termapy.proto_debug import ProtoDebugScreen
+
+        ctx = self.repl.ctx
+        self.push_screen(ProtoDebugScreen(path, ctx, script))
 
     def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
         """Collect raw bytes from the serial port using timeout-based framing.

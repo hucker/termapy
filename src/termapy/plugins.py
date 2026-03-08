@@ -50,6 +50,7 @@ class EngineAPI:
     get_hex_mode: Callable = lambda: False
     set_hex_mode: Callable = lambda enabled: None
     set_proto_active: Callable = lambda active: None
+    open_proto_debug: Callable = lambda path, script: None
 
 
 @dataclass

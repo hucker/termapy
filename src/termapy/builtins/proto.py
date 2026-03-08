@@ -7,13 +7,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.protocol import (
+    ProtoScript,
     format_hex,
     format_hex_dump,
     format_smart,
     format_spaced,
+    load_proto_script,
     match_response,
     parse_data,
     parse_proto_script,
+    parse_toml_script,
     strip_ansi,
 )
 
@@ -28,6 +31,7 @@ HELP = "Binary protocol tools: send, run, hex, status."
 _SUBCMDS: dict[str, str] = {
     "send": "send <hex|\"text\">  — send raw bytes, show response",
     "run": "run <file.pro>      — run a protocol test script",
+    "debug": "debug <file.pro>    — interactive protocol debug screen",
     "hex": "hex {on|off}        — toggle hex display mode",
     "status": "status              — show current proto state",
 }
@@ -47,6 +51,8 @@ def handler(ctx: PluginContext, args: str) -> None:
         _cmd_send(ctx, sub_args)
     elif subcmd == "run":
         _cmd_run(ctx, sub_args)
+    elif subcmd == "debug":
+        _cmd_debug(ctx, sub_args)
     elif subcmd == "hex":
         _cmd_hex(ctx, sub_args)
     elif subcmd == "status":
@@ -128,29 +134,16 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
         ctx.write("  RX: (no response)", "red")
 
 
-def _cmd_run(ctx: PluginContext, args: str) -> None:
-    """Execute a ``.pro`` test script as a sequence of send/expect steps.
-
-    Resolves the script file (checking the per-config ``proto/`` dir as
-    fallback), parses it into steps, then executes each step sequentially:
-
-    - **send**: transmit bytes to the serial port.
-    - **expect**: wait for a response and match against the expected pattern
-      (with wildcard support). Reports PASS or FAIL per step.
-    - **delay**: pause between steps.
-
-    Prints a summary at the end with total pass/fail counts.
+def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
+    """Resolve a proto script filename to a full path.
 
     Args:
-        ctx: Plugin context for serial I/O, filesystem, and output.
-        args: Filename of the ``.pro`` script to run.
-    """
-    filename = args.strip()
-    if not filename:
-        ctx.write("Usage: !!proto run <file.pro>", "red")
-        return
+        ctx: Plugin context with proto_dir.
+        filename: Filename or path to resolve.
 
-    # Resolve file path
+    Returns:
+        Resolved Path, or None if not found (error already written).
+    """
     path = Path(filename)
     if not path.exists():
         alt = ctx.proto_dir / filename
@@ -160,28 +153,117 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
             ctx.write(f"File not found: {filename}", "red")
             if ctx.proto_dir != Path("."):
                 ctx.write(f"  (also checked {ctx.proto_dir})", "dim")
-            return
+            return None
+    return path
 
-    if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
 
-    try:
-        text = path.read_text(encoding="utf-8")
-        settings, steps = parse_proto_script(text)
-    except (ValueError, OSError) as e:
-        ctx.write(f"Script error: {e}", "red")
-        return
+def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int,
+             quiet: bool) -> None:
+    """Send a setup/teardown command and drain the response.
 
-    if not steps:
-        ctx.write("Script has no steps.", "red")
-        return
+    Args:
+        ctx: Plugin context for serial I/O.
+        cmd_text: Command text to send.
+        frame_gap: Frame gap for response collection.
+        quiet: Suppress output if True.
+    """
+    line_ending = ctx.cfg.get("line_ending", "\r")
+    enc = ctx.cfg.get("encoding", "utf-8")
+    if not quiet:
+        ctx.write(f"  CMD: {cmd_text}", "dim")
+    ctx.serial_write((cmd_text + line_ending).encode(enc))
+    response = ctx.serial_read_raw(1000, frame_gap)
+    if not quiet:
+        ctx.write(f"  CMD: flushed {len(response)} bytes", "dim")
 
+
+def _run_toml_script(ctx: PluginContext, path: Path,
+                     script: ProtoScript) -> None:
+    """Execute a TOML-format proto script.
+
+    Args:
+        ctx: Plugin context for serial I/O and output.
+        path: Path to the script file (for display).
+        script: Parsed ProtoScript.
+    """
+    ctx.engine.set_proto_active(True)
+    ctx.serial_drain()
+
+    script_name = script.name or path.name
+    ctx.write(f"{'─' * 40}")
+    ctx.write(f"  {script_name}", "bold underline bright_white")
+    ctx.write(f"  {path.name} — {len(script.tests)} tests", "dim")
+    ctx.write(f"{'─' * 40}")
+
+    frame_gap = script.frame_gap_ms
+
+    # Run setup commands
+    for cmd_text in script.setup:
+        _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
+
+    pass_count = 0
+    fail_count = 0
+    t_start = time.monotonic()
+
+    for tc in script.tests:
+        # Run per-test setup commands
+        for cmd_text in tc.setup:
+            _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
+
+        ctx.write(f"[PROTO] {tc.name}")
+        ctx.write(f"  TX:       {format_spaced(tc.send_data, tc.binary)}", "cyan")
+        ctx.serial_drain()
+        ctx.serial_write(tc.send_data)
+
+        t0 = time.monotonic()
+        response = ctx.serial_read_raw(tc.timeout_ms, frame_gap)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        if script.strip_ansi:
+            response = strip_ansi(response)
+
+        ctx.write(f"  Expected: {format_spaced(tc.expect_data, tc.binary)}", "dim")
+        if response:
+            ctx.write(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
+            if match_response(tc.expect_data, response, tc.expect_mask):
+                ctx.write(f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)", "bright_green")
+                pass_count += 1
+            else:
+                ctx.write("  FAIL", "red")
+                fail_count += 1
+        else:
+            ctx.write(f"  Actual:   (timeout after {tc.timeout_ms}ms)", "red")
+            ctx.write("  FAIL", "red")
+            fail_count += 1
+
+    # Run teardown commands
+    for cmd_text in script.teardown:
+        _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
+
+    # Summary
+    ctx.engine.set_proto_active(False)
+    elapsed_s = time.monotonic() - t_start
+    total = pass_count + fail_count
+    if total > 0:
+        color = "bold bright_green" if fail_count == 0 else "bold red"
+        ctx.write(f"{'─' * 40}")
+        ctx.write(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
+        ctx.write(f"{'─' * 40}")
+
+
+def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
+                     steps: list) -> None:
+    """Execute a flat-format proto script.
+
+    Args:
+        ctx: Plugin context for serial I/O and output.
+        path: Path to the script file (for display).
+        settings: Parsed script settings.
+        steps: Parsed step list.
+    """
     do_strip_ansi = settings.get("strip_ansi", False)
     quiet = False
     frame_gap = settings.get("frame_gap_ms", 0)
 
-    # Suppress normal serial display and drain stale bytes
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
 
@@ -197,11 +279,6 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
     t_start = time.monotonic()
 
     for step in steps:
-        # Check for stop
-        if ctx.engine.in_script() is False and ctx.engine.in_script is not None:
-            # Allow !!stop to abort proto scripts too
-            pass
-
         if step.action == "quiet":
             quiet = True
             continue
@@ -219,16 +296,7 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
             continue
 
         if step.action == "cmd":
-            line_ending = ctx.cfg.get("line_ending", "\r")
-            enc = ctx.cfg.get("encoding", "utf-8")
-            text = step.data.decode("utf-8")
-            if not quiet:
-                ctx.write(f"  CMD: {text}", "dim")
-            ctx.serial_write((text + line_ending).encode(enc))
-            # Use frame_gap to wait for response, then drain it
-            response = ctx.serial_read_raw(1000, frame_gap)
-            if not quiet:
-                ctx.write(f"  CMD: flushed {len(response)} bytes", "dim")
+            _run_cmd(ctx, step.data.decode("utf-8"), frame_gap, quiet)
             continue
 
         if step.action == "send":
@@ -241,7 +309,6 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
 
         elif step.action == "expect":
             if not step.label:
-                # If expect has no label, it's part of the previous send step
                 pass
             else:
                 step_num += 1
@@ -276,6 +343,84 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
         ctx.write(f"{'─' * 40}")
         ctx.write(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
         ctx.write(f"{'─' * 40}")
+
+
+def _cmd_run(ctx: PluginContext, args: str) -> None:
+    """Execute a ``.pro`` test script (TOML or flat format).
+
+    Auto-detects the format: TOML (structured with ``[[test]]`` sections)
+    or flat (line-based with ``send:``/``expect:`` directives).
+
+    Args:
+        ctx: Plugin context for serial I/O, filesystem, and output.
+        args: Filename of the ``.pro`` script to run.
+    """
+    filename = args.strip()
+    if not filename:
+        ctx.write("Usage: !!proto run <file.pro>", "red")
+        return
+
+    path = _resolve_proto_file(ctx, filename)
+    if path is None:
+        return
+
+    if not ctx.is_connected():
+        ctx.write("Not connected.", "red")
+        return
+
+    try:
+        text = path.read_text(encoding="utf-8")
+        fmt, parsed = load_proto_script(text)
+    except (ValueError, OSError) as e:
+        ctx.write(f"Script error: {e}", "red")
+        return
+
+    if fmt == "toml":
+        script = parsed
+        if not script.tests:
+            ctx.write("Script has no tests.", "red")
+            return
+        _run_toml_script(ctx, path, script)
+    else:
+        settings, steps = parsed
+        if not steps:
+            ctx.write("Script has no steps.", "red")
+            return
+        _run_flat_script(ctx, path, settings, steps)
+
+
+def _cmd_debug(ctx: PluginContext, args: str) -> None:
+    """Open the interactive protocol debug screen for a TOML .pro script.
+
+    Args:
+        ctx: Plugin context.
+        args: Filename of the ``.pro`` script.
+    """
+    filename = args.strip()
+    if not filename:
+        ctx.write("Usage: !!proto debug <file.pro>", "red")
+        return
+
+    path = _resolve_proto_file(ctx, filename)
+    if path is None:
+        return
+
+    if not ctx.is_connected():
+        ctx.write("Not connected.", "red")
+        return
+
+    try:
+        text = path.read_text(encoding="utf-8")
+        script = parse_toml_script(text)
+    except (ValueError, OSError) as e:
+        ctx.write(f"Script error: {e}", "red")
+        return
+
+    if not script.tests:
+        ctx.write("Script has no tests.", "red")
+        return
+
+    ctx.engine.open_proto_debug(path, script)
 
 
 def _cmd_hex(ctx: PluginContext, args: str) -> None:

@@ -29,7 +29,7 @@ def cfg_data_dir(config_path: str) -> Path:
     """
     d = Path(config_path).parent
     d.mkdir(parents=True, exist_ok=True)
-    for sub in ("plugins", "ss", "scripts"):
+    for sub in ("plugins", "ss", "scripts", "proto"):
         (d / sub).mkdir(exist_ok=True)
     return d
 

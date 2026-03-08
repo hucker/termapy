@@ -107,6 +107,7 @@ termapy_cfg/
 - **Screenshots** -- save the terminal view as SVG (Ctrl+S) or plain text (Ctrl+T)
 - **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
 - **REPL commands** -- type `!!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
+- **Binary protocol testing** -- send raw hex bytes, run scripted send/expect test sequences with pass/fail reporting, wildcard pattern matching, and hex display mode; supports both hex and quoted text in `.pro` script files
 - **Plugins** -- drop `.py` files into `plugins/` folders to add custom REPL commands; all built-in commands use the same plugin architecture
 
 ## Plugins
@@ -241,6 +242,10 @@ Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local a
 | `!!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `!!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
+| `!!proto send <hex>`       | Send raw hex bytes and display the response                                      |
+| `!!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
+| `!!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
+| `!!proto status`           | Show current protocol mode state                                                 |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
@@ -302,6 +307,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 | `log_file`           | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
 | `show_timestamps`    | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                          |
 | `max_grep_lines`     | `100`                  | Maximum number of matching lines shown by `!!grep`                                                       |
+| `proto_frame_gap_ms` | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`              | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`   | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`          | `10000`                | Maximum lines in the scrollback buffer                                                                   |

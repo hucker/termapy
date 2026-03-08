@@ -47,11 +47,44 @@ class EngineAPI:
     save_cfg: Callable = None       # (key, val) -> confirm dialog; None = no confirm
     apply_cfg: Callable = lambda key, val: None
     coerce_type: Callable = lambda val, existing: val
+    get_hex_mode: Callable = lambda: False
+    set_hex_mode: Callable = lambda enabled: None
+    set_proto_active: Callable = lambda active: None
 
 
 @dataclass
 class PluginContext:
-    """Capabilities exposed to plugins. Plugins receive this as their first arg."""
+    """Stable API for plugin interaction with the terminal.
+
+    Every plugin handler receives a PluginContext as its first argument.
+    This is the only interface plugins should use — it insulates them
+    from Textual, pyserial, and internal engine details.
+
+    Attributes:
+        write: Output text to the terminal. Signature: ``write(text, color="dim")``.
+            Color can be any Rich color name (e.g. ``"red"``, ``"green"``, ``"dim"``).
+        cfg: Read-only config dict (``MappingProxyType``). Access any config
+            field with ``ctx.cfg.get("key", default)``. Do not mutate.
+        config_path: Absolute path to the current JSON config file on disk.
+        is_connected: Returns ``True`` if the serial port is open.
+        serial_write: Send raw bytes to the serial port. No line ending is
+            appended — pass exactly the bytes you want transmitted.
+        serial_wait_idle: Block until the serial port has been quiet for ~400ms.
+            Useful in scripts to wait for a device response before the next command.
+        serial_read_raw: Collect raw bytes from the serial port with timeout-based
+            framing. Signature: ``serial_read_raw(timeout_ms=1000) -> bytes``.
+            Returns a complete frame (bytes) or ``b""`` on timeout.
+        ss_dir: Path to the per-config screenshots directory (auto-created).
+        scripts_dir: Path to the per-config scripts directory (auto-created).
+        proto_dir: Path to the per-config protocol test scripts directory (auto-created).
+        notify: Show a toast notification. Signature: ``notify(text, **kw)``.
+            Keyword args are passed to Textual's ``App.notify()``.
+        clear_screen: Clear the terminal output and reset the line counter.
+        save_screenshot: Save the terminal view. Signature: ``save_screenshot(path)``.
+        get_screen_text: Return all visible terminal output as a plain-text string.
+        engine: Internal engine API (``EngineAPI``). **Built-in plugins only** —
+            this is unstable and may change between versions.
+    """
 
     # Core I/O
     write: Callable             # write(text, color="dim") -> None
@@ -61,11 +94,14 @@ class PluginContext:
     # Serial port
     is_connected: Callable = lambda: False
     serial_write: Callable = lambda data: None
-    serial_wait_idle: Callable = lambda: None
+    serial_wait_idle: Callable = lambda timeout_ms=400: None
+    serial_read_raw: Callable = lambda timeout_ms=1000, frame_gap_ms=0: b""
+    serial_drain: Callable = lambda: 0
 
     # Filesystem
     ss_dir: Path = field(default_factory=lambda: Path("."))
     scripts_dir: Path = field(default_factory=lambda: Path("."))
+    proto_dir: Path = field(default_factory=lambda: Path("."))
 
     # UI
     notify: Callable = lambda text, **kw: None
@@ -79,13 +115,23 @@ class PluginContext:
 
 @dataclass
 class PluginInfo:
-    """Metadata and handler for a single plugin command."""
+    """Metadata and handler for a single plugin command.
+
+    Attributes:
+        name: Command name (lowercase). Users type ``!!name`` to invoke.
+        args: Argument spec for help display. ``""`` = no args,
+            ``"{opt}"`` = optional, ``"<required>"`` = required.
+        help: One-line description shown by ``!!help``.
+        handler: The command function. Signature: ``handler(ctx: PluginContext, args: str) -> None``.
+        source: Where the plugin was loaded from (``"built-in"``, ``"global"``,
+            or the config name).
+    """
 
     name: str
     args: str
     help: str
     handler: Callable   # handler(ctx: PluginContext, args: str) -> None
-    source: str = "built-in"  # "built-in", "global", or config name
+    source: str = "built-in"
 
 
 def builtins_dir() -> Path:
@@ -122,7 +168,19 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> list[PluginIn
 
 
 def _load_plugin_file(path: Path, source: str) -> PluginInfo | None:
-    """Import a single plugin file and extract its PluginInfo."""
+    """Import a single plugin file and extract its PluginInfo.
+
+    A valid plugin module must define at minimum ``NAME`` (str) and
+    ``handler`` (callable). Optional: ``ARGS`` (str), ``HELP`` (str),
+    ``PACKAGE`` (str, for namespaced commands like ``pkg.cmd``).
+
+    Args:
+        path: Path to the .py plugin file.
+        source: Label for the plugin's origin.
+
+    Returns:
+        PluginInfo if the file is a valid plugin, None otherwise.
+    """
     module_name = f"termapy_plugin_{path.stem}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:

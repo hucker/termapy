@@ -1,0 +1,151 @@
+"""Config file management — paths, defaults, loading, and serial port setup.
+
+Pure functions with no UI dependency. Used by app.py and tests.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+import serial
+
+from termapy.migration import CURRENT_CONFIG_VERSION, migrate_config
+
+CFG_DIR = "termapy_cfg"
+
+
+def cfg_dir() -> Path:
+    """Return the config directory, creating it if needed."""
+    d = Path(CFG_DIR)
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def cfg_data_dir(config_path: str) -> Path:
+    """Return the per-config data directory (for logs, screenshots, etc.).
+
+    Config files live at termapy_cfg/<name>/<name>.json, so the data dir
+    is just the parent directory of the config file.
+    """
+    d = Path(config_path).parent
+    d.mkdir(parents=True, exist_ok=True)
+    for sub in ("plugins", "ss", "scripts"):
+        (d / sub).mkdir(exist_ok=True)
+    return d
+
+
+def cfg_path_for_name(name: str) -> Path:
+    """Return the config file path for a given name: termapy_cfg/<name>/<name>.json."""
+    return cfg_dir() / name / f"{name}.json"
+
+
+def cfg_log_path(config_path: str) -> str:
+    """Return the default log file path for a config."""
+    name = Path(config_path).stem + ".txt"
+    return str((cfg_data_dir(config_path) / name).resolve())
+
+
+def cfg_history_path(config_path: str) -> str:
+    """Return the command history file path for a config."""
+    return str(cfg_data_dir(config_path) / ".cmd_history.txt")
+
+
+def cfg_plugins_dir(config_path: str) -> Path:
+    """Return the plugins directory for a config, creating it if needed."""
+    d = cfg_data_dir(config_path) / "plugins"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def global_plugins_dir() -> Path:
+    """Return the global plugins directory, creating it if needed."""
+    d = cfg_dir() / "plugins"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+DEFAULT_CFG = {
+    "config_version": CURRENT_CONFIG_VERSION,
+    # App
+    "title": "",
+    "app_border_color": "",
+    "max_lines": 10000,
+    "repl_prefix": "!!",
+    "os_cmd_enabled": False,
+    # Serial
+    "port": "COM4",
+    "baudrate": 115200,
+    "bytesize": 8,
+    "parity": "N",
+    "stopbits": 1,
+    "flow_control": "none",
+    "encoding": "utf-8",
+    "inter_cmd_delay_ms": 0,
+    # Connection
+    "autoconnect": False,
+    "autoreconnect": False,
+    "autoconnect_cmd": "",
+    "line_ending": "\r",
+    # Input echo
+    "echo_cmd": False,
+    "echo_cmd_fmt": "[purple]> {cmd}[/]",
+    # Logging
+    "log_file": "",
+    "add_date_to_cmd": False,
+    # Custom buttons
+    "custom_buttons": [
+        {"enabled": False, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
+        {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
+        {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
+        {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
+    ],
+}
+
+
+def load_config(path: str) -> dict:
+    """Load and validate JSON config, applying defaults for missing fields."""
+    p = Path(path)
+    if not p.exists():
+        print(f"Config file not found: {path}", file=sys.stderr)
+        # Ensure it goes into termapy_cfg/<name>/<name>.json
+        if not p.parent or p.parent == Path("."):
+            name = p.stem
+            p = cfg_path_for_name(name)
+            path = str(p)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Creating default config at {p}")
+        with open(p, "w") as f:
+            json.dump(DEFAULT_CFG, f, indent=4)
+        return dict(DEFAULT_CFG)
+
+    with open(path) as f:
+        cfg = json.load(f)
+
+    # Run migrations before applying defaults
+    old_version = cfg.get("config_version", 0)
+    cfg = migrate_config(cfg)
+    changed = old_version != CURRENT_CONFIG_VERSION
+
+    for key, val in DEFAULT_CFG.items():
+        if key not in cfg:
+            cfg[key] = val
+            changed = True
+    if changed:
+        with open(path, "w") as f:
+            json.dump(cfg, f, indent=4)
+    return cfg
+
+
+def open_serial(cfg: dict) -> serial.Serial:
+    """Open serial port from config dict."""
+    fc = cfg.get("flow_control", "none")
+    return serial.Serial(
+        port=cfg["port"],
+        baudrate=cfg["baudrate"],
+        bytesize=cfg["bytesize"],
+        parity=cfg["parity"],
+        stopbits=cfg["stopbits"],
+        rtscts=(fc == "rtscts"),
+        xonxoff=(fc == "xonxoff"),
+        timeout=0.05,
+    )

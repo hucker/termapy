@@ -105,7 +105,18 @@ DEFAULT_CFG = {
 
 
 def load_config(path: str) -> dict:
-    """Load and validate JSON config, applying defaults for missing fields."""
+    """Load and validate JSON config, applying defaults for missing fields.
+
+    If the file doesn't exist, creates it with DEFAULT_CFG. On load, runs
+    the migration chain and backfills any missing keys from defaults. Writes
+    the file back if anything changed.
+
+    Args:
+        path: Path to the JSON config file.
+
+    Returns:
+        Config dict with migrations applied and all defaults present.
+    """
     p = Path(path)
     if not p.exists():
         print(f"Config file not found: {path}", file=sys.stderr)

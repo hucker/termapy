@@ -1,11 +1,19 @@
 """Built-in plugin: set a config key immediately (no confirmation)."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
+
 NAME = "cfg_auto"
 ARGS = "<key> <value>"
 HELP = "Set a config key immediately (no confirmation)."
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """Set a config key immediately without confirmation dialog."""
     parts = args.strip().split(None, 1)
     if not parts or len(parts) < 2:
         ctx.write("Usage: !!cfg_auto <key> <value>", "red")

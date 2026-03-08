@@ -1,6 +1,12 @@
 """Built-in plugin: show file contents."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
 
 NAME = "show"
 ARGS = "<name>"
@@ -9,7 +15,8 @@ HELP = "Show a file. $cfg for current config, or a filename."
 _SHOW_SPECIAL = {"$cfg"}
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """Display file contents in the terminal."""
     name = args.strip()
     if not name:
         ctx.write("Usage: !!show <name>  ($cfg for config, or a filename)", "red")

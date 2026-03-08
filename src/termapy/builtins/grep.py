@@ -1,6 +1,13 @@
 """Built-in plugin: search the scrollback for matching lines."""
 
+from __future__ import annotations
+
 import re
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
 
 NAME = "grep"
 ARGS = "<pattern>"
@@ -9,7 +16,8 @@ HELP = "Search the scrollback for lines matching a pattern (case-insensitive reg
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """Search the scrollback for lines matching a regex pattern."""
     pattern = args.strip()
     if not pattern:
         ctx.write("Usage: !!grep <pattern>", "red")

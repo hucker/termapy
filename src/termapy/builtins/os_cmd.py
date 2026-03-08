@@ -1,13 +1,20 @@
 """Built-in plugin: run a shell command."""
 
+from __future__ import annotations
+
 import subprocess
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
 
 NAME = "os"
 ARGS = "<cmd>"
 HELP = "Run a shell command and show output (10s timeout). e.g. !!os dir"
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """Run a shell command and display its output."""
     if not ctx.cfg.get("os_cmd_enabled"):
         ctx.write("!!os is disabled. Set os_cmd_enabled: true in config.", "red")
         return

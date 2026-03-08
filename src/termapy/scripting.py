@@ -12,13 +12,17 @@ def expand_template(
 ) -> tuple[str, dict[int, int]]:
     """Expand {seqN}, {seqN+}, {datetime}, {starttime} placeholders in text.
 
-    Counters start at 0.  {seqN+} pre-increments counter N and substitutes
-    the new value.  Incrementing level N resets all levels < N to 0.
+    Counters start at 0. {seqN+} pre-increments counter N and substitutes
+    the new value. Incrementing level N resets all levels < N to 0.
     {seqN} without + substitutes the current value.
-    {datetime} substitutes YYYYmmdd_HHMMSS (current time).
-    {starttime} substitutes the start_time string (set once at script start).
 
-    Returns (expanded_text, updated_counters).  Input dict is not mutated.
+    Args:
+        text: Template string containing placeholders.
+        counters: Current sequence counter values keyed by level.
+        start_time: Timestamp string set once at script start.
+
+    Returns:
+        Tuple of (expanded_text, updated_counters). Input dict is not mutated.
     """
     new_counters = dict(counters)
 
@@ -41,8 +45,14 @@ def expand_template(
 def parse_duration(text: str) -> float:
     """Parse a duration string to seconds.
 
-    Accepts: '500ms', '1s', '1.5s', '200ms'.
-    Raises ValueError on invalid input.
+    Args:
+        text: Duration string like '500ms', '1s', '1.5s'.
+
+    Returns:
+        Duration in seconds as a float.
+
+    Raises:
+        ValueError: If the input doesn't match a valid duration format.
     """
     text = text.strip().lower()
     m = re.match(r"^(\d+(?:\.\d+)?)\s*(ms|s)$", text)
@@ -58,10 +68,15 @@ def parse_script_lines(
 ) -> list[tuple[str, str]]:
     """Classify script lines for the !!run command.
 
-    Returns a list of (kind, content) tuples:
-      'skip'   — blank line or comment (starts with #)
-      'repl'   — REPL command (prefix stripped)
-      'serial' — plain text to send to the device
+    Args:
+        lines: Raw lines from a script file.
+        prefix: REPL command prefix to detect local commands.
+
+    Returns:
+        List of (kind, content) tuples where kind is one of:
+            'skip'   — blank line or comment (starts with #)
+            'repl'   — REPL command (prefix stripped)
+            'serial' — plain text to send to the device
     """
     result = []
     for line in lines:

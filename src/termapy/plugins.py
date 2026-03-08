@@ -96,9 +96,15 @@ def builtins_dir() -> Path:
 def load_plugins_from_dir(folder: Path, source: str = "global") -> list[PluginInfo]:
     """Discover and load plugin .py files from a directory.
 
-    Each file must define NAME, ARGS, HELP, and handler().
-    Returns a list of PluginInfo, one per valid plugin file.
-    Files that fail to load are skipped with a warning printed to stderr.
+    Each file must define NAME, ARGS, HELP, and handler(). Files starting
+    with '_' are skipped. Files that fail to load print a warning to stderr.
+
+    Args:
+        folder: Directory to scan for .py plugin files.
+        source: Label for where the plugin came from (e.g. "global", config name).
+
+    Returns:
+        List of PluginInfo, one per valid plugin file found.
     """
     plugins = []
     if not folder.is_dir():

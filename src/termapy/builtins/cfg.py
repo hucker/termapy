@@ -1,11 +1,19 @@
 """Built-in plugin: show or change config values."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
+
 NAME = "cfg"
 ARGS = "{key {value}}"
 HELP = "No args: show config. Key only: show value. Key+value: confirm dialog."
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """Show all config, a single key, or set a key with confirmation."""
     parts = args.strip().split(None, 1)
     # !!cfg — show all
     if not parts:

@@ -1,11 +1,19 @@
 """Built-in plugin: show or reset sequence counters."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
+
 NAME = "seq"
 ARGS = "{reset}"
 HELP = "Show sequence counters, or reset them."
 
 
-def handler(ctx, args):
+def handler(ctx: PluginContext, args: str) -> None:
+    """Show current sequence counters or reset them."""
     if args.strip().lower() == "reset":
         ctx.engine.reset_seq()
         ctx.write("Sequence counters reset.")

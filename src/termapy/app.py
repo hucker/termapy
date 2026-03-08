@@ -10,14 +10,12 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 import argparse
 import json
 import re
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from threading import Event
 
 import serial
-from rich.markup import escape as rich_escape
 from termapy.config import (
     CFG_DIR,
     DEFAULT_CFG,
@@ -30,6 +28,7 @@ from termapy.config import (
     global_plugins_dir,
     load_config,
     open_serial,
+    open_with_system,
 )
 from rich.text import Text
 from textual import on, work
@@ -86,6 +85,13 @@ class SerialTerminal(App):
     }
     #btn-help {
         margin-left: 0;
+        width: 3;
+        min-width: 3;
+        text-align: center;
+        padding: 0;
+        background: $primary;
+    }
+    #btn-lineno {
         width: 3;
         min-width: 3;
         text-align: center;
@@ -224,6 +230,8 @@ class SerialTerminal(App):
         )
         self.history: list[str] = self._load_history()
         self._popup_mode: str = "history"
+        self._show_line_numbers: bool = False
+        self._line_counter: int = 0
 
     @property
     def cfg(self):
@@ -258,24 +266,27 @@ class SerialTerminal(App):
             from textual.widgets import Static
 
             help_btn = Button("?", id="btn-help")
-            help_btn.tooltip = "Show help guide"
+            help_btn.tooltip = "Show help guide."
             yield help_btn
+            lineno_btn = Button("#", id="btn-lineno")
+            lineno_btn.tooltip = "Toggle line numbers."
+            yield lineno_btn
             cfg_btn = Button("Cfg", id="btn-cfg")
-            cfg_btn.tooltip = "New / Edit / Load config"
+            cfg_btn.tooltip = "New / Edit / Load config."
             yield cfg_btn
             run_btn = Button("Run", id="btn-scripts")
-            run_btn.tooltip = "Run a script"
+            run_btn.tooltip = "Run a script."
             yield run_btn
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
-            center.tooltip = "Click to load a config"
+            center.tooltip = "Click to load a config."
             yield center
             yield Static("", id="title-spacer-r")
             left = Button(port_info, id="title-left")
-            left.tooltip = "Click to select serial port"
+            left.tooltip = "Click to select serial port."
             yield left
             right = Button("Disconnected", id="title-right")
-            right.tooltip = "Click to connect/disconnect"
+            right.tooltip = "Click to connect/disconnect."
             yield right
         max_lines = self.cfg.get("max_lines", 10000)
         yield RichLog(
@@ -285,7 +296,7 @@ class SerialTerminal(App):
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
                 cmd_btn = Button("!!", id="btn-cmds")
-                cmd_btn.tooltip = "Show REPL commands"
+                cmd_btn.tooltip = "Show REPL !! commands."
                 yield cmd_btn
                 yield Input(
                     placeholder="!! for REPL commands, Ctrl+P: palette", id="cmd"
@@ -301,16 +312,16 @@ class SerialTerminal(App):
                 yield _btn(
                     "DTR:0",
                     "btn-dtr",
-                    "Toggle Data Terminal Ready line",
+                    "Toggle Data Terminal Ready line.",
                     display=show_hw,
                 )
                 yield _btn(
-                    "RTS:0", "btn-rts", "Toggle Request To Send line", display=show_hw
+                    "RTS:0", "btn-rts", "Toggle Request To Send line.", display=show_hw
                 )
                 yield _btn(
                     "Break",
                     "btn-break",
-                    "Send serial break signal (250ms)",
+                    "Send serial break signal (250ms).",
                     display=show_hw,
                 )
                 custom_buttons = self.cfg.get("custom_buttons", [])
@@ -324,12 +335,12 @@ class SerialTerminal(App):
                     b.tooltip = cb.get("tooltip", cb.get("name", ""))
                     b.add_class("custom-btn")
                     yield b
-                log_btn = _btn("Log", "btn-log", "View current log file")
+                log_btn = _btn("Log", "btn-log", "View current log file.")
                 if has_custom:
                     log_btn.styles.margin = (0, 0, 0, 2)
                 yield log_btn
-                yield _btn("SS", "btn-ss-dir", "Open screenshot folder")
-                yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C)")
+                yield _btn("SS", "btn-ss-dir", "Open screenshot folder.")
+                yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C).")
 
     def _log_path(self) -> str:
         """Return log file path in the per-config data directory."""
@@ -470,7 +481,9 @@ class SerialTerminal(App):
         self._sync_ss_button()
         self._sync_scripts_button()
         if self.show_picker_on_start:
-            self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
+            self.push_screen(
+                ConfigPicker(self.config_path), callback=self._on_config_picked
+            )
         elif self.open_editor_on_start:
             self._new_config()
         elif self.cfg.get("autoconnect"):
@@ -586,7 +599,9 @@ class SerialTerminal(App):
 
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting."""
-        self.query_one("#output", RichLog).write(f"[bold italic {color}]{rich_escape(text)}[/]")
+        self.query_one("#output", RichLog).write(
+            Text(text, style=f"bold italic {color}")
+        )
 
     def _write_output_markup(self, text: str) -> None:
         self.query_one("#output", RichLog).write(text)
@@ -676,7 +691,9 @@ class SerialTerminal(App):
         tip_lines = []
         if self.config_path:
             tip_lines.append(f"File: {self.config_path}")
-        tip_lines.append(f"Port: {self.cfg.get('port', '?')} @ {self.cfg.get('baudrate', '?')}")
+        tip_lines.append(
+            f"Port: {self.cfg.get('port', '?')} @ {self.cfg.get('baudrate', '?')}"
+        )
         fc = self.cfg.get("flow_control", "none")
         if fc != "none":
             tip_lines.append(f"Flow: {fc}")
@@ -731,7 +748,9 @@ class SerialTerminal(App):
                     callback=self._on_config_result,
                 )
             else:
-                self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
+                self.push_screen(
+                    ConfigPicker(self.config_path), callback=self._on_config_picked
+                )
         elif event.button.id == "btn-dtr":
             if self.is_connected:
                 self.ser.dtr = not self.ser.dtr
@@ -746,6 +765,16 @@ class SerialTerminal(App):
                 self.notify("Break sent", timeout=1.5)
         elif event.button.id == "btn-cmds":
             self._show_commands()
+        elif event.button.id == "btn-lineno":
+            self._show_line_numbers = not self._show_line_numbers
+            btn = event.button
+            # Green when active, theme primary when off
+            if self._show_line_numbers:
+                btn.styles.background = "#27ae60"
+                self._status("Line numbers ON")
+            else:
+                btn.styles.background = self.get_css_variables()["primary"]
+                self._status("Line numbers OFF")
         elif event.button.id == "btn-help":
             self.push_screen(HelpViewer())
         elif event.button.id == "btn-log":
@@ -758,7 +787,9 @@ class SerialTerminal(App):
                 callback=self._on_script_picked,
             )
         elif event.button.id == "btn-cfg":
-            self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
+            self.push_screen(
+                ConfigPicker(self.config_path), callback=self._on_config_picked
+            )
         elif event.button.id == "btn-exit":
             self._disconnect()
             self.exit()
@@ -826,7 +857,9 @@ class SerialTerminal(App):
         )
 
     def _palette_load_config(self) -> None:
-        self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
+        self.push_screen(
+            ConfigPicker(self.config_path), callback=self._on_config_picked
+        )
 
     def _palette_new_config(self) -> None:
         self._new_config()
@@ -912,6 +945,7 @@ class SerialTerminal(App):
 
     def _clear_output(self) -> None:
         self.query_one("#output", RichLog).clear()
+        self._line_counter = 0
 
     def _get_screen_text(self) -> str:
         log = self.query_one("#output", RichLog)
@@ -920,12 +954,16 @@ class SerialTerminal(App):
     def _write_output_batch(self, lines: list[str]) -> None:
         log = self.query_one("#output", RichLog)
         show_ts = self.cfg.get("show_timestamps", False)
+        show_ln = self._show_line_numbers
         for text in lines:
+            self._line_counter += 1
+            prefix = ""
+            if show_ln:
+                prefix += f"{self._line_counter:>5} | "
             if show_ts:
                 ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                log.write(Text.from_ansi(f"[{ts}] {text}"))
-            else:
-                log.write(Text.from_ansi(text))
+                prefix += f"[{ts}] "
+            log.write(Text.from_ansi(f"{prefix}{text}"))
 
     def _write_log_batch(self, lines: list[str]) -> None:
         if self.log_fh:
@@ -959,7 +997,7 @@ class SerialTerminal(App):
             if self.repl.echo:
                 fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
                 self._write_output_markup(fmt.replace("{cmd}", cmd))
-            self.repl.dispatch(cmd[len(prefix):].strip())
+            self.repl.dispatch(cmd[len(prefix) :].strip())
             return
         # Echo serial command locally if enabled
         if self.cfg.get("echo_cmd"):
@@ -1116,20 +1154,10 @@ class SerialTerminal(App):
         self._sync_ss_button()
 
     def action_open_screenshot(self) -> None:
-        import subprocess
-
         if not self.config_path:
             self.notify("No config loaded", severity="warning")
             return
-        folder = str(self.repl.ss_dir.resolve())
-        if sys.platform == "win32":
-            import os
-
-            os.startfile(folder)
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", folder])
-        else:
-            subprocess.Popen(["xdg-open", folder])
+        open_with_system(str(self.repl.ss_dir.resolve()))
 
     def _sync_ss_button(self) -> None:
         """Update the SS button tooltip with file counts."""
@@ -1138,9 +1166,9 @@ class SerialTerminal(App):
         if ss_dir.exists():
             svgs = len(list(ss_dir.glob("*.svg")))
             txts = len(list(ss_dir.glob("*.txt")))
-            btn.tooltip = f"Open screenshot folder ({svgs} svg, {txts} txt)"
+            btn.tooltip = f"Open screenshot folder ({svgs} svg, {txts} txt)."
         else:
-            btn.tooltip = "Open screenshot folder (empty)"
+            btn.tooltip = "Open screenshot folder (empty)."
 
     def _sync_scripts_button(self) -> None:
         """Update the Scripts button tooltip with file counts."""
@@ -1148,9 +1176,9 @@ class SerialTerminal(App):
         scripts_dir = self.repl.scripts_dir
         if scripts_dir.exists():
             count = len([f for f in scripts_dir.iterdir() if f.is_file()])
-            btn.tooltip = f"Run a script ({count} available)"
+            btn.tooltip = f"Run a script ({count} available)."
         else:
-            btn.tooltip = "Run a script (empty)"
+            btn.tooltip = "Run a script (empty)."
 
     async def _sync_custom_buttons(self) -> None:
         """Remove old custom buttons and create new ones from config."""

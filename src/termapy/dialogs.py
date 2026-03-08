@@ -14,7 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, OptionList, TextArea
 from textual.widgets.option_list import Option
 
-from termapy.config import cfg_dir, cfg_path_for_name
+from termapy.config import cfg_dir, cfg_path_for_name, open_with_system
 
 # Shared CSS for modal dialog buttons
 _MODAL_BTN_CSS = """
@@ -217,7 +217,12 @@ class LogViewer(ModalScreen[None]):
             ta.soft_wrap = False
             yield ta
             with Horizontal(id="log-buttons"):
+                yield Button("Edit", id="log-edit")
                 yield Button("Close", id="log-close", variant="primary")
+
+    @on(Button.Pressed, "#log-edit")
+    def edit_log(self) -> None:
+        open_with_system(self.log_path)
 
     @on(Button.Pressed, "#log-close")
     def close_log(self) -> None:

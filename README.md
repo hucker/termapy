@@ -94,7 +94,7 @@ termapy_cfg/
 ## Features
 
 - **ANSI terminal emulation** -- renders color escape sequences and handles clear-screen
-- **Interactive title bar** -- clickable buttons for port selection, config switching, and connect/disconnect with red/green status
+- **Interactive title bar** -- clickable buttons for port selection, config switching, connect/disconnect with red/green status, and `#` toggle for line numbers
 - **Auto-connect and auto-reconnect** -- reconnects on port drop with retry
 - **Auto-login commands** -- send a sequence of commands on connect (separated by `\n` in config)
 - **Hardware line control** -- toggle DTR/RTS and send Break when `flow_control` is `"manual"` (see example below)
@@ -204,6 +204,18 @@ See `examples/plugins/` for working examples:
 | Ctrl+P | Command palette     |
 | Up     | Command history     |
 
+## Title Bar Buttons
+
+| Button | Action                                                                 |
+| ------ | ---------------------------------------------------------------------- |
+| `?`    | Open the help guide                                                    |
+| `#`    | Toggle line numbers on new output (turns green when active)            |
+| `Cfg`  | Open the config picker                                                 |
+| `Run`  | Open the script picker                                                 |
+| Center | Click to edit the current config                                       |
+| Port   | Click to select a serial port                                          |
+| Status | Click to connect/disconnect (red = disconnected, green = connected)    |
+
 ## REPL Commands
 
 Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local actions instead of sending to the serial device.
@@ -228,6 +240,7 @@ Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local a
 | `!!show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `!!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
+| `!!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
@@ -252,6 +265,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
     "show_timestamps": false,
+    "max_grep_lines": 100,
     "title": "",
     "app_border_color": "",
     "max_lines": 10000,
@@ -287,6 +301,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 | `echo_cmd_fmt`       | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
 | `log_file`           | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
 | `show_timestamps`    | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                          |
+| `max_grep_lines`     | `100`                  | Maximum number of matching lines shown by `!!grep`                                                       |
 | `title`              | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`   | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`          | `10000`                | Maximum lines in the scrollback buffer                                                                   |

@@ -44,6 +44,7 @@ termapy_cfg/
 The title bar buttons (left to right):
 
 - **?** — opens this help guide.
+- **#** — toggle line numbers on new output lines (button turns green when active).
 - **Cfg** — opens the config picker (New / Edit / Load / Cancel).
 - **Title** — shows the config name (or custom title). Click to open the config picker.
 - **Port** — shows the port name and baud rate. Click to pick a different serial port.
@@ -131,6 +132,7 @@ Commands prefixed with `!!` (configurable via `repl_prefix`) run locally instead
 | `!!show <name>` | Show a file (`$cfg` for current config) |
 | `!!echo [on\|off]` | Toggle command echo |
 | `!!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
+| `!!grep <pattern>` | Search scrollback for regex matches (case-insensitive, skips own output) |
 
 ## JSON Config File
 
@@ -158,6 +160,7 @@ Here is an example config for a device called `iot_device`:
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
     "show_timestamps": false,
+    "max_grep_lines": 100,
     "title": "IoT Device",
     "app_border_color": "blue",
     "max_lines": 10000,
@@ -192,6 +195,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `echo_cmd_fmt` | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text) |
 | `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.txt` in the config subfolder) |
 | `show_timestamps` | `false` | Prefix each line in the terminal display with `[HH:MM:SS.mmm]` |
+| `max_grep_lines` | `100` | Maximum number of matching lines shown by `!!grep` |
 | `title` | ` ` | Text shown in the center of the title bar (defaults to the config filename) |
 | `app_border_color` | ` ` | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`) |
 | `max_lines` | `10000` | Maximum number of lines kept in the scrollback buffer |

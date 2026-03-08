@@ -17,71 +17,43 @@ from pathlib import Path
 from threading import Event
 
 import serial
+from rich.markup import escape as rich_escape
+from termapy.config import (
+    CFG_DIR,
+    DEFAULT_CFG,
+    cfg_data_dir,
+    cfg_dir,
+    cfg_history_path,
+    cfg_log_path,
+    cfg_path_for_name,
+    cfg_plugins_dir,
+    global_plugins_dir,
+    load_config,
+    open_serial,
+)
 from rich.text import Text
 from textual import on, work
 
+from termapy.dialogs import (
+    CfgConfirm,
+    ConfigEditor,
+    ConfigPicker,
+    HelpViewer,
+    LogViewer,
+    NamePicker,
+    PortPicker,
+    ScriptEditor,
+    ScriptPicker,
+    _SCRIPT_TEMPLATE,
+)
 from termapy.plugins import EngineAPI, PluginContext, load_plugins_from_dir
 from termapy.repl import ReplEngine
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.screen import ModalScreen
-from textual.widgets import Button, Input, OptionList, RichLog, TextArea
+from textual.widgets import Button, Input, OptionList, RichLog
 from textual.widgets.option_list import Option
-
-
-CFG_DIR = "termapy_cfg"
-
-
-def cfg_dir() -> Path:
-    """Return the config directory, creating it if needed."""
-    d = Path(CFG_DIR)
-    d.mkdir(exist_ok=True)
-    return d
-
-
-def cfg_data_dir(config_path: str) -> Path:
-    """Return the per-config data directory (for logs, screenshots, etc.).
-
-    Config files live at termapy_cfg/<name>/<name>.json, so the data dir
-    is just the parent directory of the config file.
-    """
-    d = Path(config_path).parent
-    d.mkdir(parents=True, exist_ok=True)
-    for sub in ("plugins", "ss", "scripts"):
-        (d / sub).mkdir(exist_ok=True)
-    return d
-
-
-def cfg_path_for_name(name: str) -> Path:
-    """Return the config file path for a given name: termapy_cfg/<name>/<name>.json."""
-    return cfg_dir() / name / f"{name}.json"
-
-
-def cfg_log_path(config_path: str) -> str:
-    """Return the default log file path for a config."""
-    name = Path(config_path).stem + ".txt"
-    return str((cfg_data_dir(config_path) / name).resolve())
-
-
-def cfg_history_path(config_path: str) -> str:
-    """Return the command history file path for a config."""
-    return str(cfg_data_dir(config_path) / ".cmd_history.txt")
-
-
-def cfg_plugins_dir(config_path: str) -> Path:
-    """Return the plugins directory for a config, creating it if needed."""
-    d = cfg_data_dir(config_path) / "plugins"
-    d.mkdir(exist_ok=True)
-    return d
-
-
-def global_plugins_dir() -> Path:
-    """Return the global plugins directory, creating it if needed."""
-    d = cfg_dir() / "plugins"
-    d.mkdir(exist_ok=True)
-    return d
 
 
 # Regex to strip ANSI escape sequences for plain-text logging
@@ -90,622 +62,6 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 CLEAR_SCREEN_RE = re.compile(r"(\x1b\[H)?\x1b\[2J")
 # Incomplete ANSI escape at end of buffer: ESC, or ESC[ with optional digits/semicolons
 PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
-
-
-DEFAULT_CFG = {
-    # App
-    "title": "",
-    "app_border_color": "",
-    "max_lines": 10000,
-    "repl_prefix": "!!",
-    "os_cmd_enabled": False,
-    # Serial
-    "port": "COM4",
-    "baudrate": 115200,
-    "bytesize": 8,
-    "parity": "N",
-    "stopbits": 1,
-    "flow_control": "none",
-    "encoding": "utf-8",
-    "inter_cmd_delay_ms": 0,
-    # Connection
-    "autoconnect": False,
-    "autoreconnect": False,
-    "autoconnect_cmd": "",
-    "line_ending": "\r",
-    # Input echo
-    "echo_cmd": False,
-    "echo_cmd_fmt": "[purple]> {cmd}[/]",
-    # Logging
-    "log_file": "",
-    "add_date_to_cmd": False,
-    # Custom buttons
-    "custom_buttons": [
-        {"enabled": False, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
-        {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
-        {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
-        {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
-    ],
-}
-
-
-def load_config(path: str) -> dict:
-    """Load and validate JSON config, applying defaults for missing fields."""
-    p = Path(path)
-    if not p.exists():
-        print(f"Config file not found: {path}", file=sys.stderr)
-        # Ensure it goes into termapy_cfg/<name>/<name>.json
-        if not p.parent or p.parent == Path("."):
-            name = p.stem
-            p = cfg_path_for_name(name)
-            path = str(p)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Creating default config at {p}")
-        with open(p, "w") as f:
-            json.dump(DEFAULT_CFG, f, indent=4)
-        return dict(DEFAULT_CFG)
-
-    with open(path) as f:
-        cfg = json.load(f)
-
-    changed = False
-    for key, val in DEFAULT_CFG.items():
-        if key not in cfg:
-            cfg[key] = val
-            changed = True
-    if changed:
-        with open(path, "w") as f:
-            json.dump(cfg, f, indent=4)
-    return cfg
-
-
-def open_serial(cfg: dict) -> serial.Serial:
-    """Open serial port from config dict."""
-    fc = cfg.get("flow_control", "none")
-    return serial.Serial(
-        port=cfg["port"],
-        baudrate=cfg["baudrate"],
-        bytesize=cfg["bytesize"],
-        parity=cfg["parity"],
-        stopbits=cfg["stopbits"],
-        rtscts=(fc == "rtscts"),
-        xonxoff=(fc == "xonxoff"),
-        timeout=0.2,
-    )
-
-
-# Shared CSS for modal dialog buttons — used by all modal screens
-_MODAL_BTN_CSS = """
-    min-width: 0; width: auto; height: 1; min-height: 1;
-    border: none; margin: 0 0 0 1;
-"""
-
-
-class ConfigEditor(ModalScreen[tuple | None]):
-    """Modal dialog to edit JSON config. Returns (cfg_dict, path) or None."""
-
-    CSS = f"""
-    ConfigEditor {{ align: center middle; }}
-    ConfigEditor Button {{ {_MODAL_BTN_CSS} }}
-    #config-dialog {{
-        width: 60; height: 24;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #config-title {{ height: 1; text-style: bold; }}
-    #config-editor {{ height: 1fr; }}
-    #config-error {{ height: 1; color: $error; display: none; }}
-    #config-error.visible {{ display: block; }}
-    #save-as-row {{ height: 1; display: none; }}
-    #save-as-row.visible {{ display: block; }}
-    #save-as-input {{ width: 1fr; height: 1; border: none; }}
-    #config-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def __init__(self, cfg: dict, config_path: str) -> None:
-        super().__init__()
-        self.cfg = cfg
-        self.config_path = config_path
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        with Vertical(id="config-dialog"):
-            yield Static(f"JSON: {self.config_path}", id="config-title")
-            yield TextArea(
-                json.dumps(self.cfg, indent=4),
-                language="json",
-                show_line_numbers=True,
-                id="config-editor",
-            )
-            yield Static("", id="config-error")
-            with Horizontal(id="save-as-row"):
-                yield Input(
-                    placeholder="filename.json",
-                    id="save-as-input",
-                )
-            with Horizontal(id="config-buttons"):
-                yield Button("Save", id="cfg-save", variant="success")
-                yield Button("Save As", id="cfg-save-as", variant="primary")
-                yield Button("Cancel", id="cfg-cancel", variant="error")
-
-    def _validate_json(self) -> dict | None:
-        from textual.widgets import Static
-
-        text = self.query_one("#config-editor", TextArea).text
-        err = self.query_one("#config-error", Static)
-        try:
-            new_cfg = json.loads(text)
-        except json.JSONDecodeError as e:
-            err.update(f"Invalid JSON: {e}")
-            err.add_class("visible")
-            return None
-        err.remove_class("visible")
-        return new_cfg
-
-    @on(Button.Pressed, "#cfg-save")
-    def save_config(self) -> None:
-        new_cfg = self._validate_json()
-        if new_cfg is None:
-            return
-        Path(self.config_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, "w") as f:
-            json.dump(new_cfg, f, indent=4)
-        self.dismiss((new_cfg, self.config_path))
-
-    @on(Button.Pressed, "#cfg-save-as")
-    def save_as_config(self) -> None:
-        row = self.query_one("#save-as-row")
-        if not row.has_class("visible"):
-            row.add_class("visible")
-            self.query_one("#save-as-input", Input).focus()
-            return
-        self._do_save_as()
-
-    @on(Input.Submitted, "#save-as-input")
-    def save_as_on_enter(self) -> None:
-        self._do_save_as()
-
-    def _do_save_as(self) -> None:
-        new_cfg = self._validate_json()
-        if new_cfg is None:
-            return
-        filename = self.query_one("#save-as-input", Input).value.strip()
-        if not filename:
-            from textual.widgets import Static
-
-            err = self.query_one("#config-error", Static)
-            err.update("Enter a filename")
-            err.add_class("visible")
-            return
-        if not filename.endswith(".json"):
-            filename += ".json"
-        # Place in termapy_cfg/<name>/<name>.json
-        p = Path(filename)
-        if not p.parent or p.parent == Path("."):
-            name = p.stem
-            p = cfg_path_for_name(name)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        filename = str(p)
-        # Update title to reflect new filename
-        base = p.stem
-        old_title = new_cfg.get("title", "")
-        if old_title and base not in old_title:
-            new_cfg["title"] = f"{old_title} — {base}"
-        elif not old_title:
-            new_cfg["title"] = base
-        with open(filename, "w") as f:
-            json.dump(new_cfg, f, indent=4)
-        self.dismiss((new_cfg, filename))
-
-    @on(Button.Pressed, "#cfg-cancel")
-    def cancel_config(self) -> None:
-        self.dismiss(None)
-
-
-class HelpViewer(ModalScreen[None]):
-    """Modal dialog to display the UI help guide."""
-
-    CSS = f"""
-    HelpViewer {{ align: center middle; }}
-    HelpViewer Button {{ {_MODAL_BTN_CSS} }}
-    #help-dialog {{
-        width: 80%; height: 80%;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #help-content {{ height: 1fr; overflow-y: auto; }}
-    #help-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def compose(self) -> ComposeResult:
-        from importlib.resources import files as pkg_files
-        from textual.widgets import Markdown
-
-        help_text = pkg_files("termapy").joinpath("help.md").read_text(encoding="utf-8")
-        with Vertical(id="help-dialog"):
-            yield Markdown(help_text, id="help-content")
-            with Horizontal(id="help-buttons"):
-                yield Button("Close", id="help-close", variant="primary")
-
-    @on(Button.Pressed, "#help-close")
-    def close_help(self) -> None:
-        self.dismiss(None)
-
-
-class LogViewer(ModalScreen[None]):
-    """Modal dialog to view the log file."""
-
-    CSS = f"""
-    LogViewer {{ align: center middle; }}
-    LogViewer Button {{ {_MODAL_BTN_CSS} }}
-    #log-dialog {{
-        width: 80%; height: 80%;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #log-title {{ height: 1; text-align: center; text-style: bold; }}
-    #log-viewer {{ height: 1fr; }}
-    #log-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def __init__(self, log_path: str) -> None:
-        super().__init__()
-        self.log_path = log_path
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        try:
-            content = Path(self.log_path).read_text(encoding="utf-8")
-        except FileNotFoundError:
-            content = "(no log file yet)"
-        with Vertical(id="log-dialog"):
-            yield Static(self.log_path, id="log-title")
-            yield TextArea(content, read_only=True, id="log-viewer")
-            with Horizontal(id="log-buttons"):
-                yield Button("Close", id="log-close", variant="primary")
-
-    @on(Button.Pressed, "#log-close")
-    def close_log(self) -> None:
-        self.dismiss(None)
-
-
-class NamePicker(ModalScreen[str | None]):
-    """Modal dialog to enter a name for a new config."""
-
-    CSS = f"""
-    NamePicker {{ align: center middle; }}
-    NamePicker Button {{ {_MODAL_BTN_CSS} }}
-    #name-dialog {{
-        width: 40; height: auto;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #name-label {{ height: 1; text-style: bold; }}
-    #name-buttons {{ height: 1; margin-top: 1; }}
-    """
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        with Vertical(id="name-dialog"):
-            yield Static("New config name:", id="name-label")
-            yield Input(placeholder="e.g. iot_dev", id="name-input")
-            with Horizontal(id="name-buttons"):
-                yield Button("Cancel", id="name-cancel")
-
-    @on(Input.Submitted, "#name-input")
-    def submit_name(self) -> None:
-        name = self.query_one("#name-input", Input).value.strip()
-        if name:
-            # Strip .json if they typed it
-            if name.endswith(".json"):
-                name = name[:-5]
-            self.dismiss(name)
-
-    @on(Button.Pressed, "#name-cancel")
-    def cancel(self) -> None:
-        self.dismiss(None)
-
-
-class ConfigPicker(ModalScreen[tuple | None]):
-    """Modal dialog to select a JSON config: load, edit, or create new."""
-
-    CSS = f"""
-    ConfigPicker {{ align: center middle; }}
-    ConfigPicker Button {{ {_MODAL_BTN_CSS} }}
-    #picker-dialog {{
-        width: 50; height: 18;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #picker-title {{ height: 1; text-style: bold; }}
-    #picker-list {{ height: 1fr; }}
-    #picker-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        json_files = sorted(cfg_dir().glob("*/*.json"))
-        with Vertical(id="picker-dialog"):
-            yield Static("Select Config", id="picker-title")
-            ol = OptionList(id="picker-list")
-            for f in json_files:
-                ol.add_option(Option(f.stem, id=str(f)))
-            yield ol
-            with Horizontal(id="picker-buttons"):
-                yield Button("New", id="picker-new", variant="success")
-                yield Button("Edit", id="picker-edit", variant="primary")
-                yield Button("Load", id="picker-load", variant="warning")
-                yield Button("Cancel", id="picker-cancel", variant="error")
-
-    def _selected_path(self) -> str | None:
-        ol = self.query_one("#picker-list", OptionList)
-        if ol.highlighted is not None:
-            return str(ol.get_option_at_index(ol.highlighted).id)
-        return None
-
-    @on(Button.Pressed, "#picker-new")
-    def new_config(self) -> None:
-        self.dismiss(("new",))
-
-    @on(Button.Pressed, "#picker-edit")
-    def edit_config(self) -> None:
-        path = self._selected_path()
-        if path:
-            self.dismiss(("edit", path))
-
-    @on(Button.Pressed, "#picker-load")
-    def load_config_btn(self) -> None:
-        path = self._selected_path()
-        if path:
-            self.dismiss(("load", path))
-
-    @on(Button.Pressed, "#picker-cancel")
-    def cancel_picker(self) -> None:
-        self.dismiss(None)
-
-
-class ScriptPicker(ModalScreen[tuple | None]):
-    """Modal dialog to pick a script file to run, edit, or create new."""
-
-    CSS = f"""
-    ScriptPicker {{ align: center middle; }}
-    ScriptPicker Button {{ {_MODAL_BTN_CSS} }}
-    #script-dialog {{
-        width: 50; height: 18;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #script-title {{ height: 1; text-style: bold; }}
-    #script-list {{ height: 1fr; }}
-    #script-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def __init__(self, scripts_dir: Path) -> None:
-        super().__init__()
-        self.scripts_dir = scripts_dir
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        scripts = sorted(self.scripts_dir.glob("*"))
-        scripts = [f for f in scripts if f.is_file()]
-        with Vertical(id="script-dialog"):
-            yield Static("Select Script", id="script-title")
-            ol = OptionList(id="script-list")
-            for f in scripts:
-                ol.add_option(Option(f.name, id=str(f)))
-            yield ol
-            with Horizontal(id="script-buttons"):
-                yield Button("New", id="script-new", variant="success")
-                yield Button("Edit", id="script-edit", variant="primary")
-                yield Button("Run", id="script-run", variant="warning")
-                yield Button("Cancel", id="script-cancel", variant="error")
-
-    def _selected_path(self) -> str | None:
-        ol = self.query_one("#script-list", OptionList)
-        if ol.highlighted is not None:
-            return str(ol.get_option_at_index(ol.highlighted).id)
-        return None
-
-    @on(Button.Pressed, "#script-new")
-    def new_script(self) -> None:
-        self.dismiss(("new",))
-
-    @on(Button.Pressed, "#script-edit")
-    def edit_script(self) -> None:
-        path = self._selected_path()
-        if path:
-            self.dismiss(("edit", path))
-
-    @on(Button.Pressed, "#script-run")
-    def run_script(self) -> None:
-        path = self._selected_path()
-        if path:
-            self.dismiss(("run", path))
-
-    @on(Button.Pressed, "#script-cancel")
-    def cancel_picker(self) -> None:
-        self.dismiss(None)
-
-
-_SCRIPT_TEMPLATE = """\
-# Script: {name}
-# Lines starting with # are comments
-# Lines starting with !! are REPL commands
-# All other lines are sent to the serial device
-#
-# Example:
-# !!sleep 500ms
-# AT+INFO
-"""
-
-
-class ScriptEditor(ModalScreen[str | None]):
-    """Modal editor for .run script files with bash syntax highlighting."""
-
-    CSS = f"""
-    ScriptEditor {{ align: center middle; }}
-    ScriptEditor Button {{ {_MODAL_BTN_CSS} }}
-    #sed-dialog {{
-        width: 70; height: 28;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #sed-title {{ height: 1; text-style: bold; }}
-    #sed-editor {{ height: 1fr; }}
-    #sed-name-row {{ height: 1; }}
-    #sed-name {{ width: 1fr; height: 1; border: none; }}
-    #sed-error {{ height: 1; color: $error; display: none; }}
-    #sed-error.visible {{ display: block; }}
-    #sed-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def __init__(self, scripts_dir: Path, path: str | None = None) -> None:
-        super().__init__()
-        self.scripts_dir = scripts_dir
-        self.edit_path = path
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        if self.edit_path:
-            name = Path(self.edit_path).stem
-            try:
-                content = Path(self.edit_path).read_text(encoding="utf-8")
-            except OSError:
-                content = f"# Error: could not read {self.edit_path}\n"
-            title = f"Edit: {Path(self.edit_path).name}"
-        else:
-            name = ""
-            content = _SCRIPT_TEMPLATE.format(name="untitled")
-            title = "New Script"
-
-        with Vertical(id="sed-dialog"):
-            yield Static(title, id="sed-title")
-            yield TextArea(
-                content,
-                language="bash",
-                show_line_numbers=True,
-                id="sed-editor",
-            )
-            with Horizontal(id="sed-name-row"):
-                yield Input(
-                    placeholder="script name (without .run)",
-                    value=name,
-                    id="sed-name",
-                )
-            yield Static("", id="sed-error")
-            with Horizontal(id="sed-buttons"):
-                yield Button("Save", id="sed-save", variant="success")
-                yield Button("Cancel", id="sed-cancel", variant="error")
-
-    def _show_error(self, msg: str) -> None:
-        from textual.widgets import Static
-
-        err = self.query_one("#sed-error", Static)
-        err.update(msg)
-        err.add_class("visible")
-
-    @on(Button.Pressed, "#sed-save")
-    def save_script(self) -> None:
-        name = self.query_one("#sed-name", Input).value.strip()
-        if not name:
-            self._show_error("Enter a script name")
-            return
-        if not name.endswith(".run"):
-            name += ".run"
-        content = self.query_one("#sed-editor", TextArea).text
-        path = self.scripts_dir / name
-        path.write_text(content, encoding="utf-8")
-        self.dismiss(str(path))
-
-    @on(Input.Submitted, "#sed-name")
-    def save_on_enter(self) -> None:
-        self.save_script()
-
-    @on(Button.Pressed, "#sed-cancel")
-    def cancel_editor(self) -> None:
-        self.dismiss(None)
-
-
-class CfgConfirm(ModalScreen[bool]):
-    """Modal dialog to confirm a config change."""
-
-    CSS = f"""
-    CfgConfirm {{ align: center middle; }}
-    CfgConfirm Button {{ {_MODAL_BTN_CSS} }}
-    #cfg-confirm-dialog {{
-        width: 50; height: 7;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #cfg-confirm-msg {{ height: 1; }}
-    #cfg-confirm-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def __init__(self, key: str, old_val, new_val) -> None:
-        super().__init__()
-        self.key = key
-        self.old_val = old_val
-        self.new_val = new_val
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        with Vertical(id="cfg-confirm-dialog"):
-            yield Static(
-                f"{self.key}: {self.old_val!r} → {self.new_val!r}",
-                id="cfg-confirm-msg",
-            )
-            with Horizontal(id="cfg-confirm-buttons"):
-                yield Button("Yes", id="cfg-yes", variant="success")
-                yield Button("No", id="cfg-no", variant="error")
-
-    @on(Button.Pressed, "#cfg-yes")
-    def confirm(self) -> None:
-        self.dismiss(True)
-
-    @on(Button.Pressed, "#cfg-no")
-    def cancel(self) -> None:
-        self.dismiss(False)
-
-
-class PortPicker(ModalScreen[str | None]):
-    """Modal dialog to select an available serial port."""
-
-    CSS = f"""
-    PortPicker {{ align: center middle; }}
-    PortPicker Button {{ {_MODAL_BTN_CSS} }}
-    #port-dialog {{
-        width: 60; height: 18;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #port-title {{ height: 1; text-style: bold; }}
-    #port-list {{ height: 1fr; }}
-    #port-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def compose(self) -> ComposeResult:
-        from serial.tools.list_ports import comports
-        from textual.widgets import Static
-
-        ports = sorted(comports(), key=lambda p: p.device)
-        with Vertical(id="port-dialog"):
-            yield Static("Select Serial Port", id="port-title")
-            ol = OptionList(id="port-list")
-            if ports:
-                for p in ports:
-                    desc = p.description or ""
-                    label = f"{p.device} - {desc}" if desc else p.device
-                    ol.add_option(Option(label, id=p.device))
-            else:
-                ol.add_option(Option("(no ports found)", disabled=True))
-            yield ol
-            with Horizontal(id="port-buttons"):
-                yield Button("Cancel", id="port-cancel", variant="error")
-
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        self.dismiss(str(event.option.id))
-
-    @on(Button.Pressed, "#port-cancel")
-    def cancel_port_picker(self) -> None:
-        self.dismiss(None)
 
 
 class SerialTerminal(App):
@@ -750,10 +106,8 @@ class SerialTerminal(App):
         width: 1fr;
     }
     #title-bar #title-center {
-        min-width: 6;
-        max-width: 32;
+        width: 24;
         text-align: center;
-        padding: 0;
     }
     #title-right {
         min-width: 14;
@@ -806,7 +160,7 @@ class SerialTerminal(App):
         background: #3498db;
     }
     #btn-scripts {
-        background: #1abc9c;
+        background: #3498db;
     }
     #btn-exit {
         background: #e74c3c;
@@ -827,6 +181,8 @@ class SerialTerminal(App):
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit"),
         Binding("ctrl+p", "show_palette", "Command Palette", show=False),
+        Binding("ctrl+s", "screenshot", "Screenshot", show=False),
+        Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
     ]
 
     PALETTE_CMDS = [
@@ -851,7 +207,6 @@ class SerialTerminal(App):
         show_picker: bool = False,
     ) -> None:
         super().__init__()
-        self.cfg = cfg
         self.config_path = config_path
         self.open_editor_on_start = open_editor
         self.show_picker_on_start = show_picker
@@ -861,14 +216,19 @@ class SerialTerminal(App):
         self.reader_stopped = Event()
         self.reader_stopped.set()  # no reader running initially
         self.last_screenshot: str | None = None
-        self.history: list[str] = self._load_history()
-        self._popup_mode: str = "history"
         self.repl = ReplEngine(
             cfg,
             config_path,
             write=self._status,
             prefix=cfg.get("repl_prefix", "!!"),
         )
+        self.history: list[str] = self._load_history()
+        self._popup_mode: str = "history"
+
+    @property
+    def cfg(self):
+        """Read-only view of the config dict (single source of truth in ReplEngine)."""
+        return self.repl.cfg
 
     @property
     def is_connected(self) -> bool:
@@ -903,6 +263,9 @@ class SerialTerminal(App):
             cfg_btn = Button("Cfg", id="btn-cfg")
             cfg_btn.tooltip = "New / Edit / Load config"
             yield cfg_btn
+            run_btn = Button("Run", id="btn-scripts")
+            run_btn.tooltip = "Run a script"
+            yield run_btn
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
             center.tooltip = "Click to load a config"
@@ -966,7 +329,6 @@ class SerialTerminal(App):
                     log_btn.styles.margin = (0, 0, 0, 2)
                 yield log_btn
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder")
-                yield _btn("Scripts", "btn-scripts", "Run a script")
                 yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C)")
 
     def _log_path(self) -> str:
@@ -1108,7 +470,7 @@ class SerialTerminal(App):
         self._sync_ss_button()
         self._sync_scripts_button()
         if self.show_picker_on_start:
-            self.push_screen(ConfigPicker(), callback=self._on_config_picked)
+            self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
         elif self.open_editor_on_start:
             self._new_config()
         elif self.cfg.get("autoconnect"):
@@ -1224,7 +586,7 @@ class SerialTerminal(App):
 
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting."""
-        self.query_one("#output", RichLog).write(f"[bold italic {color}]{text}[/]")
+        self.query_one("#output", RichLog).write(f"[bold italic {color}]{rich_escape(text)}[/]")
 
     def _write_output_markup(self, text: str) -> None:
         self.query_one("#output", RichLog).write(text)
@@ -1232,7 +594,14 @@ class SerialTerminal(App):
     def _disconnect(self) -> None:
         self.stop_event.set()
         try:
-            if self.is_connected:
+            was_open = self.is_connected
+            if self.ser:
+                try:
+                    self.ser.close()
+                except Exception:
+                    pass
+                self.ser = None
+            if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
             self._set_conn_status("Disconnected")
             inp = self.query_one("#cmd", Input)
@@ -1248,17 +617,14 @@ class SerialTerminal(App):
         self.query_one("#btn-rts", Button).display = show
         self.query_one("#btn-break", Button).display = show
 
-    def _switch_config(
-        self, cfg: dict, path: str, reconnect_on_auto: bool = False
-    ) -> None:
+    def _switch_config(self, cfg: dict, path: str) -> None:
         """Apply a new config: disconnect, update state, refresh UI, reconnect."""
         was_connected = self.is_connected
         if was_connected:
             self._disconnect()
-        self.cfg = cfg
+        self.repl.replace_cfg(cfg, path)
         self.config_path = path
-        self.repl.cfg = cfg
-        self.repl.config_path = path
+        self.repl.ctx.config_path = path
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
@@ -1266,7 +632,7 @@ class SerialTerminal(App):
         self._sync_scripts_button()
         self._sync_custom_buttons()
         self._open_log()
-        if was_connected or (reconnect_on_auto and cfg.get("autoconnect")):
+        if was_connected or cfg.get("autoconnect"):
             self._connect()
 
     def _on_config_picked(self, result: tuple | None) -> None:
@@ -1275,7 +641,7 @@ class SerialTerminal(App):
         action = result[0]
         if action == "load":
             cfg = load_config(result[1])
-            self._switch_config(cfg, result[1], reconnect_on_auto=True)
+            self._switch_config(cfg, result[1])
             self._status(f"Loaded config: {result[1]}", "green")
         elif action == "new":
             self._new_config()
@@ -1304,7 +670,27 @@ class SerialTerminal(App):
 
     def _update_title(self) -> None:
         title = self.cfg.get("title", "") or self.config_path
-        self.query_one("#title-center", Button).label = title
+        center = self.query_one("#title-center", Button)
+        center.label = Text(title)
+        # Build informative tooltip
+        tip_lines = []
+        if self.config_path:
+            tip_lines.append(f"File: {self.config_path}")
+        tip_lines.append(f"Port: {self.cfg.get('port', '?')} @ {self.cfg.get('baudrate', '?')}")
+        fc = self.cfg.get("flow_control", "none")
+        if fc != "none":
+            tip_lines.append(f"Flow: {fc}")
+        enc = self.cfg.get("encoding", "utf-8")
+        if enc != "utf-8":
+            tip_lines.append(f"Encoding: {enc}")
+        if self.cfg.get("autoconnect"):
+            tip_lines.append("Autoconnect: on")
+        if self.cfg.get("autoreconnect"):
+            tip_lines.append("Autoreconnect: on")
+        if self.cfg.get("os_cmd_enabled"):
+            tip_lines.append("OS commands: enabled")
+        tip_lines.append("Click to edit config")
+        center.tooltip = "\n".join(tip_lines)
         self.query_one("#title-left", Button).label = self._port_info_str()
 
     def _set_conn_status(self, text: str) -> None:
@@ -1338,7 +724,14 @@ class SerialTerminal(App):
         elif event.button.id == "title-left":
             self._show_port_picker()
         elif event.button.id == "title-center":
-            self.push_screen(ConfigPicker(), callback=self._on_config_picked)
+            if self.config_path:
+                cfg = load_config(self.config_path)
+                self.push_screen(
+                    ConfigEditor(cfg, self.config_path),
+                    callback=self._on_config_result,
+                )
+            else:
+                self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
         elif event.button.id == "btn-dtr":
             if self.is_connected:
                 self.ser.dtr = not self.ser.dtr
@@ -1365,7 +758,7 @@ class SerialTerminal(App):
                 callback=self._on_script_picked,
             )
         elif event.button.id == "btn-cfg":
-            self.push_screen(ConfigPicker(), callback=self._on_config_picked)
+            self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
         elif event.button.id == "btn-exit":
             self._disconnect()
             self.exit()
@@ -1391,14 +784,13 @@ class SerialTerminal(App):
 
     def _update_port(self, port: str) -> None:
         """Change serial port, save config, and reconnect."""
-        if self.is_connected:
-            self._disconnect()
-        self.cfg["port"] = port
-        with open(self.config_path, "w") as f:
-            json.dump(self.cfg, f, indent=4)
-        self._update_title()
+        cfg = dict(self.cfg)
+        cfg["port"] = port
+        if self.config_path:
+            with open(self.config_path, "w") as f:
+                json.dump(cfg, f, indent=4)
+        self._switch_config(cfg, self.config_path)
         self._status(f"Port changed to {port}", "green")
-        self._connect()
 
     def _on_port_picked(self, port: str | None) -> None:
         if port is None:
@@ -1434,7 +826,7 @@ class SerialTerminal(App):
         )
 
     def _palette_load_config(self) -> None:
-        self.push_screen(ConfigPicker(), callback=self._on_config_picked)
+        self.push_screen(ConfigPicker(self.config_path), callback=self._on_config_picked)
 
     def _palette_new_config(self) -> None:
         self._new_config()
@@ -1460,6 +852,7 @@ class SerialTerminal(App):
         """Background thread: read serial port and post to output."""
         try:
             buf = ""
+            last_rx = time.monotonic()
             while not self.stop_event.is_set():
                 if not self.ser or not self.ser.is_open:
                     break
@@ -1479,14 +872,15 @@ class SerialTerminal(App):
                     break
 
                 if not data:
-                    # Flush any partial line after idle, but not if it
-                    # ends with an incomplete ANSI escape sequence
-                    if buf and not PARTIAL_ANSI_RE.search(buf):
-                        self.call_from_thread(self._write_output_batch, [buf])
-                        self.call_from_thread(self._write_log_batch, [buf])
-                        buf = ""
+                    # Flush partial line only after 200ms of silence
+                    if buf and (time.monotonic() - last_rx) >= 0.2:
+                        if not PARTIAL_ANSI_RE.search(buf):
+                            self.call_from_thread(self._write_output_batch, [buf])
+                            self.call_from_thread(self._write_log_batch, [buf])
+                            buf = ""
                     continue
 
+                last_rx = time.monotonic()
                 text = data.decode(self.cfg.get("encoding", "utf-8"), errors="replace")
                 buf += text
 
@@ -1759,10 +1153,11 @@ class SerialTerminal(App):
         else:
             btn.tooltip = "Run a script (empty)"
 
-    def _sync_custom_buttons(self) -> None:
+    async def _sync_custom_buttons(self) -> None:
         """Remove old custom buttons and create new ones from config."""
-        for old in list(self.query(".custom-btn")):
-            old.remove()
+        old_buttons = list(self.query(".custom-btn"))
+        for old in old_buttons:
+            await old.remove()
         log_btn = self.query_one("#btn-log", Button)
         log_btn.styles.margin = (0, 0, 0, 0)
         custom_buttons = self.cfg.get("custom_buttons", [])
@@ -1914,7 +1309,8 @@ def _find_config() -> tuple[str | None, bool]:
 
 
 def main():
-    global CFG_DIR
+    import termapy.config as _cfg_mod
+
     parser = argparse.ArgumentParser(
         description="TUI serial terminal with ANSI color support"
     )
@@ -1932,7 +1328,7 @@ def main():
     args = parser.parse_args()
 
     if args.cfg_dir:
-        CFG_DIR = args.cfg_dir
+        _cfg_mod.CFG_DIR = args.cfg_dir
 
     if args.config:
         cfg = load_config(args.config)

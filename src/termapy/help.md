@@ -133,6 +133,10 @@ Commands prefixed with `!!` (configurable via `repl_prefix`) run locally instead
 | `!!echo [on\|off]` | Toggle command echo |
 | `!!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
 | `!!grep <pattern>` | Search scrollback for regex matches (case-insensitive, skips own output) |
+| `!!proto send <hex>` | Send raw hex bytes and display response |
+| `!!proto run <file>` | Run a binary protocol test script (.pro) |
+| `!!proto hex [on\|off]` | Toggle hex display mode for serial I/O |
+| `!!proto status` | Show current protocol mode state |
 
 ## JSON Config File
 
@@ -196,6 +200,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.txt` in the config subfolder) |
 | `show_timestamps` | `false` | Prefix each line in the terminal display with `[HH:MM:SS.mmm]` |
 | `max_grep_lines` | `100` | Maximum number of matching lines shown by `!!grep` |
+| `proto_frame_gap_ms` | `50` | Silence gap (ms) to detect end of a binary protocol frame |
 | `title` | ` ` | Text shown in the center of the title bar (defaults to the config filename) |
 | `app_border_color` | ` ` | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`) |
 | `max_lines` | `10000` | Maximum number of lines kept in the scrollback buffer |
@@ -268,3 +273,60 @@ Script files support:
 - Comments (lines starting with `#`)
 - Blank lines (ignored)
 - Sequence counters with `{+counter}` for auto-incrementing values
+
+## Binary Protocol Testing
+
+The `!!proto` command provides binary protocol testing for request-response serial protocols.
+
+### Interactive Send
+
+Send raw hex bytes and see the response:
+
+```
+!!proto send 01 03 00 00 00 0A C5 CD
+!!proto send "HELLO\r"
+!!proto send 02 "DATA" 03
+```
+
+### Protocol Test Scripts
+
+Create `.pro` files in the per-config `proto/` folder with send/expect sequences:
+
+```
+# modbus_test.pro
+@timeout 1000ms
+@frame_gap 50ms
+
+label: Read registers
+send: 01 03 00 00 00 0A C5 CD
+expect: 01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
+
+label: Write register
+send: 01 06 00 01 00 03 98 0B
+expect: 01 06 00 01 00 03 98 0B
+timeout: 500ms
+
+# Text protocols work too
+label: AT query
+send: "AT+VERSION?\r"
+expect: "V1." ** ** "\r"
+```
+
+Run with `!!proto run modbus_test.pro`. Each step reports PASS/FAIL.
+
+**Script directives:**
+
+- `@timeout <duration>` — default expect timeout (default 1000ms)
+- `@frame_gap <duration>` — silence gap to detect frame end (default 50ms)
+- `@strip_ansi` — strip ANSI escape sequences from responses before matching
+- `label: <text>` — name for the next step
+- `send: <hex or "text">` — transmit raw bytes (no line ending appended)
+- `expect: <pattern>` — wait for response and match (`**` = any byte)
+- `timeout: <duration>` — per-step timeout override
+- `delay: <duration>` — fixed sleep
+- `flush: <duration>` — wait for serial silence (resets on each byte), then discard received bytes
+- `cmd: <text>` — send a plain text command with config line ending (like typing in terminal)
+
+### Hex Display Mode
+
+Toggle hex display for all serial I/O with `!!proto hex on` / `!!proto hex off`.

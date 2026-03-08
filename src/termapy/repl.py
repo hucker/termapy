@@ -274,6 +274,13 @@ class ReplEngine:
         return Path(".")
 
     @property
+    def proto_dir(self) -> Path:
+        """Protocol test scripts directory, derived from config_path."""
+        if self.config_path:
+            return Path(self.config_path).parent / "proto"
+        return Path(".")
+
+    @property
     def echo(self) -> bool:
         return self._echo
 

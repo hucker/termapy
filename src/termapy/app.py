@@ -9,6 +9,7 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 
 import argparse
 import json
+import queue
 import re
 import time
 from datetime import datetime
@@ -171,6 +172,9 @@ class SerialTerminal(App):
     #btn-exit {
         background: #e74c3c;
     }
+    Toast {
+        min-width: 50;
+    }
     #history-popup {
         dock: bottom;
         height: auto;
@@ -232,6 +236,9 @@ class SerialTerminal(App):
         self._popup_mode: str = "history"
         self._show_line_numbers: bool = False
         self._line_counter: int = 0
+        self._proto_hex_mode: bool = False
+        self._proto_active: bool = False
+        self._raw_rx_queue: "queue.Queue[bytes]" = queue.Queue()
 
     @property
     def cfg(self):
@@ -385,6 +392,11 @@ class SerialTerminal(App):
             save_cfg=self._hook_cfg_confirm,
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
+            get_hex_mode=lambda: self._proto_hex_mode,
+            set_hex_mode=self._set_hex_mode,
+            set_proto_active=lambda active: setattr(self, "_proto_active", active),
+            open_proto_debug=lambda path, script: self.call_later(
+                self._open_proto_debug, path, script),
         )
         ctx = PluginContext(
             write=self._status,
@@ -392,9 +404,12 @@ class SerialTerminal(App):
             config_path=self.config_path,
             is_connected=lambda: self.is_connected,
             serial_write=lambda data: self.ser.write(data),
-            serial_wait_idle=lambda: self._wait_for_idle(400),
+            serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
+            serial_read_raw=self._serial_read_raw,
+            serial_drain=self._drain_rx_queue,
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
+            proto_dir=self.repl.proto_dir,
             notify=lambda text, **kw: self.notify(text, **kw),
             clear_screen=self._clear_output,
             save_screenshot=self.save_screenshot,
@@ -550,6 +565,86 @@ class SerialTerminal(App):
                 self.call_from_thread(self._set_conn_status, "Disconnected")
                 continue
 
+    def _set_hex_mode(self, enabled: bool) -> None:
+        """Toggle hex display mode for serial I/O."""
+        self._proto_hex_mode = enabled
+
+    def _open_proto_debug(self, path, script) -> None:
+        """Open the interactive protocol debug screen.
+
+        Discovers available packet visualizers from built-in, global,
+        and per-config ``viz/`` directories.
+
+        Args:
+            path: Path to the .pro script file.
+            script: Parsed ProtoScript instance.
+        """
+        from termapy.proto_debug import ProtoDebugScreen
+        from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
+
+        # Discover visualizers: built-in → per-config (later overrides)
+        visualizers = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
+        if self.config_path:
+            viz_dir = cfg_data_dir(self.config_path) / "viz"
+            visualizers += load_visualizers_from_dir(
+                viz_dir, Path(self.config_path).stem)
+
+        # Deduplicate by name (later wins), sort by sort_order
+        by_name = {v.name: v for v in visualizers}
+        final = sorted(by_name.values(), key=lambda v: v.sort_order)
+
+        ctx = self.repl.ctx
+        self.push_screen(ProtoDebugScreen(path, ctx, script, final))
+
+    def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
+        """Collect raw bytes from the serial port using timeout-based framing.
+
+        Drains the raw RX queue, accumulating bytes until a silence gap
+        indicates a complete frame, or the overall timeout expires.
+
+        Args:
+            timeout_ms: Maximum time to wait for a response in milliseconds.
+            frame_gap_ms: Silence gap to detect frame end. 0 = use config default.
+
+        Returns:
+            Complete frame bytes, or empty bytes on timeout.
+        """
+        from termapy.protocol import FrameCollector
+
+        frame_gap = frame_gap_ms or self.cfg.get("proto_frame_gap_ms", 50)
+        collector = FrameCollector(timeout_ms=frame_gap)
+        deadline = time.monotonic() + timeout_ms / 1000.0
+
+        while time.monotonic() < deadline:
+            try:
+                chunk = self._raw_rx_queue.get(timeout=0.01)
+                now = time.monotonic()
+                frame = collector.feed(chunk, now)
+                if frame is not None:
+                    return frame
+            except queue.Empty:
+                now = time.monotonic()
+                frame = collector.flush(now)
+                if frame is not None:
+                    return frame
+
+        # Final flush in case data arrived right at deadline
+        return collector.flush(time.monotonic()) or b""
+
+    def _drain_rx_queue(self) -> int:
+        """Discard all pending bytes in the raw RX queue.
+
+        Returns:
+            Number of bytes discarded.
+        """
+        count = 0
+        while not self._raw_rx_queue.empty():
+            try:
+                count += len(self._raw_rx_queue.get_nowait())
+            except queue.Empty:
+                break
+        return count
+
     def _wait_for_idle(self, timeout_ms: int = 100, max_wait_s: float = 3.0) -> None:
         """Wait until no serial data arrives for timeout_ms, or max_wait_s elapses."""
         deadline = time.monotonic() + max_wait_s
@@ -640,12 +735,15 @@ class SerialTerminal(App):
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self.repl.ctx.config_path = path
+        self.repl.ctx.ss_dir = self.repl.ss_dir
+        self.repl.ctx.scripts_dir = self.repl.scripts_dir
+        self.repl.ctx.proto_dir = self.repl.proto_dir
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
         self._sync_ss_button()
         self._sync_scripts_button()
-        self._sync_custom_buttons()
+        self.run_worker(self._sync_custom_buttons())
         self._open_log()
         if was_connected or cfg.get("autoconnect"):
             self._connect()
@@ -904,6 +1002,17 @@ class SerialTerminal(App):
                         self.call_from_thread(self._auto_reconnect)
                     break
 
+                if data:
+                    # Feed raw bytes to protocol queue for !!proto
+                    self._raw_rx_queue.put(data)
+
+                # Suppress normal display while proto script is running
+                if self._proto_active:
+                    if data:
+                        last_rx = time.monotonic()
+                        buf = ""
+                    continue
+
                 if not data:
                     # Flush partial line only after 200ms of silence
                     if buf and (time.monotonic() - last_rx) >= 0.2:
@@ -955,6 +1064,7 @@ class SerialTerminal(App):
         log = self.query_one("#output", RichLog)
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
+        hex_mode = self._proto_hex_mode
         for text in lines:
             self._line_counter += 1
             prefix = ""
@@ -963,7 +1073,12 @@ class SerialTerminal(App):
             if show_ts:
                 ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                 prefix += f"[{ts}] "
-            log.write(Text.from_ansi(f"{prefix}{text}"))
+            if hex_mode:
+                hex_str = " ".join(f"{b:02X}" for b in text.encode(
+                    self.cfg.get("encoding", "utf-8"), errors="replace"))
+                log.write(Text.from_ansi(f"{prefix}{hex_str}"))
+            else:
+                log.write(Text.from_ansi(f"{prefix}{text}"))
 
     def _write_log_batch(self, lines: list[str]) -> None:
         if self.log_fh:
@@ -1264,7 +1379,7 @@ class SerialTerminal(App):
         self._apply_border_color()
         self._sync_hw_visibility()
         if key == "custom_buttons":
-            self._sync_custom_buttons()
+            self.run_worker(self._sync_custom_buttons())
         if key in self._SERIAL_KEYS and was_connected:
             self._connect()
 

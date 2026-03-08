@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-141%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-263%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-ma-pi" *
 
@@ -76,15 +76,18 @@ termapy_cfg/
 │   │   └── screenshot_20260306_141530.txt
 │   ├── scripts/                        # script files for !!run
 │   │   └── init_sequence.txt
-│   └── plugins/                        # per-config plugins
-│       └── custom_init.py
+│   ├── plugins/                        # per-config plugins
+│   │   └── custom_init.py
+│   └── viz/                            # per-config packet visualizers
+│       └── modbus_view.py
 └── sensor_b/
     ├── sensor_b.json
     ├── sensor_b.txt
     ├── .cmd_history.txt
     ├── ss/
     ├── scripts/
-    └── plugins/
+    ├── plugins/
+    └── viz/
 ```
 
 ## Portability
@@ -107,7 +110,9 @@ termapy_cfg/
 - **Screenshots** -- save the terminal view as SVG (Ctrl+S) or plain text (Ctrl+T)
 - **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
 - **REPL commands** -- type `!!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
+- **Binary protocol testing** -- send raw hex bytes, run scripted send/expect test sequences with pass/fail reporting, wildcard pattern matching, and hex display mode; supports both hex and quoted text in `.pro` script files; interactive debug screen with repeat, delay, and stop-on-error controls
 - **Plugins** -- drop `.py` files into `plugins/` folders to add custom REPL commands; all built-in commands use the same plugin architecture
+- **Pluggable packet visualizers** -- hex and text views are built-in; drop a `.py` file into `viz/` to add custom packet visualizers (e.g. Modbus field decoding, bit-level views) without modifying core code
 
 ## Plugins
 
@@ -194,6 +199,112 @@ See `examples/plugins/` for working examples:
 - **timestamp.py** -- print the current date/time
 - **ping.py** -- send a command and measure response time
 
+## Packet Visualizers
+
+The proto debug screen displays packet data using pluggable visualizers. Two are built-in (Hex, Text), and you can add your own by dropping a `.py` file into a `viz/` folder.
+
+**Visualizer locations** (loaded in order, later overrides earlier by name):
+
+1. **Built-in** -- shipped with `termapy` in `src/termapy/builtins/viz/`
+2. **Per-config** -- `termapy_cfg/<name>/viz/*.py`, specific to one config
+
+Each visualizer appears as a checkbox in the proto debug screen. Multiple can be active at once.
+
+### Writing a Visualizer
+
+Create a `.py` file with a name, and two formatting functions. Here's an example for a simple sensor protocol: 8-char serial number (ASCII), 16-bit counter (big-endian), three 8-bit sensor values, and a 16-bit CRC:
+
+```python
+# sensor_view.py — drop into termapy_cfg/<config>/viz/
+import struct
+from termapy.protocol import diff_bytes
+
+NAME = "Sensor"
+DESCRIPTION = "Sensor protocol — serial, counter, sensors, CRC"
+SORT_ORDER = 30                           # optional, default 50
+
+# Field layout: serial(8) + counter(2) + sensors(3) + crc(2) = 15 bytes
+_SERIAL_LEN = 8
+_FIELDS = [
+    ("Serial",  _SERIAL_LEN),   # 8 bytes ASCII
+    ("Counter", 2),              # uint16 big-endian
+    ("Temp",    1),              # uint8
+    ("Humid",   1),              # uint8
+    ("Press",   1),              # uint8
+    ("CRC",     2),              # uint16 big-endian
+]
+
+def format_header(data: bytes) -> str:
+    """Generate a column header showing field names aligned to byte positions.
+
+    This optional function returns a Rich-markup string displayed above
+    the data rows. Use it to label protocol fields.
+    """
+    parts = []
+    for name, width in _FIELDS:
+        col_chars = width * 3 - 1  # each byte is "XX " minus trailing space
+        parts.append(f"[bold]{name.center(col_chars)}[/]")
+    return "  ".join(parts)
+
+def format_bytes(data: bytes) -> str:
+    """Format bytes with field separators for readability."""
+    if len(data) < 15:
+        return " ".join(f"{b:02X}" for b in data)
+    pos = 0
+    groups = []
+    for _, width in _FIELDS:
+        groups.append(" ".join(f"{b:02X}" for b in data[pos:pos + width]))
+        pos += width
+    return "  ".join(groups)
+
+def format_diff(actual: bytes, expected: bytes, mask: bytes) -> str:
+    """Format with per-byte diff coloring, grouped by field."""
+    statuses = diff_bytes(expected, actual, mask)
+    if len(actual) < 15:
+        return " ".join(_styled(actual[i], statuses[i]) for i in range(len(statuses)))
+    pos = 0
+    groups = []
+    for _, width in _FIELDS:
+        field_bytes = [_styled(actual[pos + j], statuses[pos + j]) for j in range(width)]
+        groups.append(" ".join(field_bytes))
+        pos += width
+    return "  ".join(groups)
+
+def _styled(byte_val: int, status: str) -> str:
+    style = {"match": "bright_green", "mismatch": "bold red",
+             "wildcard": "dim", "extra": "bold red"}.get(status, "")
+    return f"[{style}]{byte_val:02X}[/]"
+```
+
+This produces output like:
+
+```text
+           Sensor
+ ┌────────────┬───────────────────────────────────────────────────────────────┐
+ │            │                          Sensor                              │
+ ├────────────┼───────────────────────────────────────────────────────────────┤
+ │            │     Serial          Counter  Temp  Humid  Press  CRC         │
+ │ TX         │ 53 4E 30 30 31 32 33 34  00 2A  1F  48  65  A3 B7           │
+ │ Expected   │ 53 4E 30 30 31 32 33 34  00 2A  1F  48  65  A3 B7           │
+ │ Actual     │ 53 4E 30 30 31 32 33 34  00 2A  20  48  65  A3 B7           │
+ └────────────┴───────────────────────────────────────────────────────────────┘
+```
+
+No classes, no Textual dependency — visualizers return plain strings or strings with Rich markup (`[red]...[/]` is just text). Multi-line output is supported via `\n` in the returned string.
+
+### Visualizer API Reference
+
+| Export | Required | Default | Description |
+| ------ | -------- | ------- | ----------- |
+| `NAME` | yes | — | Checkbox label and table header |
+| `format_bytes(data)` | yes | — | Format raw bytes for TX/Expected rows |
+| `format_diff(actual, expected, mask)` | yes | — | Format actual bytes with diff coloring (Rich markup) |
+| `DESCRIPTION` | no | `""` | Tooltip text for the checkbox |
+| `SORT_ORDER` | no | `50` | Checkbox ordering (lower = first, built-ins use 10/20) |
+| `format_header(data)` | no | — | Header row with field names, displayed above data rows |
+
+The `diff_bytes()` utility from `termapy.protocol` is available for per-byte comparison, returning statuses: `match`, `wildcard`, `mismatch`, `extra`, `missing`.
+
 ## Keyboard Shortcuts
 
 | Key    | Action              |
@@ -241,6 +352,10 @@ Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local a
 | `!!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `!!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
+| `!!proto send <hex>`       | Send raw hex bytes and display the response                                      |
+| `!!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
+| `!!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
+| `!!proto status`           | Show current protocol mode state                                                 |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
@@ -302,6 +417,7 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 | `log_file`           | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
 | `show_timestamps`    | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                          |
 | `max_grep_lines`     | `100`                  | Maximum number of matching lines shown by `!!grep`                                                       |
+| `proto_frame_gap_ms` | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`              | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`   | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`          | `10000`                | Maximum lines in the scrollback buffer                                                                   |
@@ -378,24 +494,27 @@ Custom buttons appear in the toolbar between the hardware buttons and the system
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-141 tests across 7 test files. Run with `uv run pytest`.
+263 tests across 8 test files. Run with `uv run pytest`.
 
-| Module         | Coverage | Test file                            |
-| -------------- | -------- | ------------------------------------ |
-| `scripting.py` | 100%     | `test_scripting.py`                  |
-| `migration.py` | 100%     | `test_migration.py`                  |
-| `repl.py`      | 98%      | `test_engine.py`, `test_repl_cfg.py` |
-| `plugins.py`   | 99%      | `test_plugins.py`                    |
-| `config.py`    | 87%      | `test_app_config.py`                 |
+| Module            | Coverage | Test file                            |
+| ----------------- | -------- | ------------------------------------ |
+| `scripting.py`    | 100%     | `test_scripting.py`                  |
+| `migration.py`    | 100%     | `test_migration.py`                  |
+| `hex_view.py`     | 100%     | `test_protocol.py`                   |
+| `text_view.py`    | 97%      | `test_protocol.py`                   |
+| `plugins.py`      | 99%      | `test_plugins.py`                    |
+| `repl.py`         | 96%      | `test_engine.py`, `test_repl_cfg.py` |
+| `protocol.py`     | 88%      | `test_protocol.py`                   |
+| `config.py`       | 78%      | `test_app_config.py`                 |
 
 ### What's excluded from coverage and why
 
 The modules below are **excluded from coverage metrics** because they cannot be meaningfully unit-tested without a running Textual application or a live import loader:
 
-| Excluded module | Lines | Why excluded                                                                                          | How tested                    |
-| --------------- | ----- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `app.py`        | ~1350 | Textual UI layer — widgets, serial I/O, button handlers, async workers. Requires a running TUI app    | Manual testing                |
-| `dialogs.py`    | ~575  | Modal dialog screens (config editor, pickers, confirmations). Extracted from `app.py`, same situation | Manual testing                |
-| `builtins/*.py` | ~200  | Loaded dynamically via `importlib`; coverage cannot map them back to source files                     | `test_builtins.py` (indirect) |
+| Excluded module  | Lines | Why excluded                                                                                       | How tested                    |
+| ---------------- | ----- | -------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `app.py`         | ~1500 | Textual UI layer — widgets, serial I/O, button handlers, async workers. Requires a running TUI app | Manual testing                |
+| `proto_debug.py` | ~575  | Modal debug screen with Textual widgets. Requires a running TUI app                                | Manual testing                |
+| `builtins/*.py`  | ~200  | Loaded dynamically via `importlib`; coverage cannot map them back to source files                   | `test_builtins.py` (indirect) |
 
-This separation is deliberate: pure logic lives in testable modules (`config.py`, `repl.py`, `plugins.py`, `scripting.py`, `migration.py`) with 96% coverage, while UI code lives in `app.py` and `dialogs.py` where it is tested manually.
+This separation is deliberate: pure logic lives in testable modules (`protocol.py`, `config.py`, `repl.py`, `plugins.py`, `scripting.py`, `migration.py`) with high coverage, while UI code lives in `app.py` and `proto_debug.py` where it is tested manually.

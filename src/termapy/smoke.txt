@@ -5,33 +5,33 @@
 !print === Smoke test started {starttime} ===
 
 # Section 1: device info
-!clr
+!cls
 rev
 !delay 500ms
 !ss_svg s{seq2+}_{seq1+}_rev
 !ss_txt s{seq2}_{seq1}_rev
 
-!clr
+!cls
 help
 !delay 500ms
 !ss_svg s{seq2}_{seq1+}_help
 !ss_txt s{seq2}_{seq1}_help
 
 # Section 2: memory
-!clr
+!cls
 mem 0x1000 64
 !delay 1s
 !ss_svg s{seq2+}_{seq1+}_mem64
 !ss_txt s{seq2}_{seq1}_mem64
 
-!clr
+!cls
 mem 0x1000 256
 !delay 1s
 !ss_svg s{seq2}_{seq1+}_mem256
 !ss_txt s{seq2}_{seq1}_mem256
 
 # Section 3: status
-!clr
+!cls
 blink
 !delay 500ms
 !ss_svg s{seq2+}_{seq1+}_blink

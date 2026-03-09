@@ -31,6 +31,7 @@ from termapy.config import (
     load_config,
     open_serial,
     open_with_system,
+    setup_demo_config,
 )
 from rich.text import Text
 from textual import on, work
@@ -39,6 +40,7 @@ from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
     ConfigPicker,
+    ConfirmDialog,
     HelpViewer,
     LogViewer,
     NamePicker,
@@ -69,6 +71,132 @@ PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
 # Dim ANSI markers for visible EOL display (show_eol mode)
 _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
+
+
+
+def _build_info_tree(config_path: str, cfg: dict) -> tuple[str, str]:
+    """Generate a directory-tree view of the project.
+
+    No stat() or resolve() calls — just glob for filenames.
+    Avoids expensive Windows Defender filesystem scans.
+
+    Args:
+        config_path: Path to the config JSON file.
+        cfg: Loaded config dict.
+
+    Returns:
+        Tree string suitable for terminal output or markdown code block.
+    """
+    import json
+
+    config_p = Path(config_path)
+    data_dir = config_p.parent if config_p.is_absolute() else config_p.resolve().parent
+    config_name = config_p.stem
+
+    def _names(directory: Path, pattern: str) -> list[str]:
+        """Return sorted filenames matching pattern in directory."""
+        if pattern == "*":
+            return sorted(f.name for f in directory.glob(pattern) if f.is_file())
+        return sorted(f.name for f in directory.glob(pattern))
+
+    # Gather file lists
+    sections: list[tuple[str, list[str]]] = [
+        (f"{config_name}.json", []),
+        (f"{config_name}.log", []),
+        ("scripts/", _names(data_dir / "scripts", "*.run")),
+        ("proto/", _names(data_dir / "proto", "*.pro")),
+        ("plugins/", _names(data_dir / "plugins", "*.py")),
+        ("ss/", _names(data_dir / "ss", "*")),
+        ("viz/", _names(data_dir / "viz", "*.py")),
+    ]
+
+    # Global plugins
+    global_names = _names(global_plugins_dir(), "*.py")
+
+    # Colors for Rich markup (terminal output)
+    _DIR = "cyan"
+    _TREE = "dim"
+    _FILE = "blue"
+
+    # Build tree — plain lines for markdown, colored for terminal
+    plain_lines: list[str] = [f"{config_name}/"]
+    color_lines: list[str] = [f"[{_DIR}]{config_name}/[/]"]
+
+    # Filter to non-empty entries and standalone files
+    entries: list[tuple[str, list[str]]] = []
+    for name, files in sections:
+        if name.endswith("/"):
+            entries.append((name, files))
+        elif (data_dir / name).exists():
+            entries.append((name, []))
+
+    for i, (name, files) in enumerate(entries):
+        is_last_entry = i == len(entries) - 1
+        connector = "└── " if is_last_entry else "├── "
+        child_prefix = "    " if is_last_entry else "│   "
+
+        if not name.endswith("/"):
+            # Standalone file (config json, log)
+            plain_lines.append(f"{connector}{name}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{name}[/]")
+        elif files:
+            plain_lines.append(f"{connector}{name}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
+            for j, fname in enumerate(files):
+                child_conn = "└── " if j == len(files) - 1 else "├── "
+                plain_lines.append(f"{child_prefix}{child_conn}{fname}")
+                color_lines.append(
+                    f"[{_TREE}]{child_prefix}{child_conn}[/][{_FILE}]{fname}[/]"
+                )
+        else:
+            # Empty directory
+            plain_lines.append(f"{connector}{name}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
+
+    # Global plugins section (separate root)
+    if global_names:
+        plain_lines.append("")
+        plain_lines.append("plugins/ (global)")
+        color_lines.append("")
+        color_lines.append(f"[{_DIR}]plugins/ (global)[/]")
+        for i, fname in enumerate(global_names):
+            connector = "└── " if i == len(global_names) - 1 else "├── "
+            plain_lines.append(f"{connector}{fname}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{fname}[/]")
+
+    tree = "\n".join(plain_lines)
+    colored_tree = "\n".join(color_lines)
+
+    # Build markdown report with tree + config JSON
+    cfg_display = {k: v for k, v in cfg.items() if k != "custom_buttons"}
+    buttons = cfg.get("custom_buttons", [])
+    active = [b for b in buttons if b.get("enabled")]
+
+    md_lines: list[str] = [
+        f"# Project: {config_name}",
+        "",
+        "```text",
+        tree,
+        "```",
+        "",
+        "## Config",
+        "",
+        "```json",
+        json.dumps(cfg_display, indent=4),
+        "```",
+        "",
+    ]
+    if active:
+        md_lines.extend([
+            f"## Custom Buttons ({len(active)} active)",
+            "",
+            "```json",
+            json.dumps(active, indent=4),
+            "```",
+            "",
+        ])
+
+    return colored_tree, "\n".join(md_lines)
 
 
 def _eol_label(line_ending: str) -> str:
@@ -216,7 +344,8 @@ class SerialTerminal(App):
         ("Edit Config", "_palette_edit_config"),
         ("Load Config...", "_palette_load_config"),
         ("New Config", "_palette_new_config"),
-        ("View Log", "_palette_view_log"),
+        ("View Log File", "_palette_view_log"),
+        ("Delete Log File", "_palette_delete_log"),
         ("Clear Screen", "_palette_clear"),
         ("Save SVG Screenshot", "_palette_ss_svg"),
         ("Save Text Screenshot", "_palette_ss_txt"),
@@ -414,10 +543,12 @@ class SerialTerminal(App):
             set_hex_mode=self._set_hex_mode,
             set_proto_active=lambda active: setattr(self, "_proto_active", active),
             open_proto_debug=lambda path, script: self.call_later(
-                self._open_proto_debug, path, script),
+                self._open_proto_debug, path, script
+            ),
         )
         ctx = PluginContext(
             write=self._status,
+            write_markup=self._write_output_markup,
             cfg=self.cfg,
             config_path=self.config_path,
             is_connected=lambda: self.is_connected,
@@ -428,6 +559,7 @@ class SerialTerminal(App):
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
             proto_dir=self.repl.proto_dir,
+            confirm=self._confirm,
             notify=lambda text, **kw: self.notify(text, **kw),
             clear_screen=self._clear_output,
             save_screenshot=self.save_screenshot,
@@ -459,7 +591,7 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
-            "clr",
+            "cls",
             "",
             "Clear the terminal screen.",
             lambda ctx, args: self._clear_output(),
@@ -487,10 +619,17 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "demo",
+            "{--force}",
+            "Switch to the built-in demo device. --force overwrites existing config.",
+            lambda ctx, args: self._start_demo(args),
+            source="app",
+        )
+        self.repl.register_hook(
             "connect",
-            "",
-            "Connect to the serial port.",
-            lambda ctx, args: self._connect(),
+            "{port}",
+            "Connect to the serial port (optional port override).",
+            lambda ctx, args: self._connect(args.strip() if args.strip() else None),
             source="app",
         )
         self.repl.register_hook(
@@ -505,6 +644,13 @@ class SerialTerminal(App):
             "<on|off>",
             "Toggle line numbers on or off.",
             self._hook_line_no,
+            source="app",
+        )
+        self.repl.register_hook(
+            "info",
+            "{--display}",
+            "Show project summary. --display opens full report in system viewer.",
+            self._hook_info,
             source="app",
         )
         # Load external plugins: global first, then per-config (can override)
@@ -539,9 +685,11 @@ class SerialTerminal(App):
             self.log_fh.close()
             self.log_fh = None
 
-    def _connect(self) -> None:
+    def _connect(self, port: str | None = None) -> None:
         if self.is_connected:
             return
+        if port:
+            self.repl._cfg_data["port"] = port
         # Wait for any previous reader thread to finish
         self.reader_stopped.wait(timeout=1.0)
         self.stop_event.clear()
@@ -557,7 +705,7 @@ class SerialTerminal(App):
             )
             self._set_conn_status("Connected")
             inp = self.query_one("#cmd", Input)
-            inp.placeholder = "Type command, Enter to send"
+            inp.placeholder = "REPL:type command, Enter to send"
             inp.focus()
             self._sync_hw_buttons()
             self.read_serial()
@@ -613,7 +761,8 @@ class SerialTerminal(App):
         if self.config_path:
             viz_dir = cfg_data_dir(self.config_path) / "viz"
             visualizers += load_visualizers_from_dir(
-                viz_dir, Path(self.config_path).stem)
+                viz_dir, Path(self.config_path).stem
+            )
 
         # Deduplicate by name (later wins), sort by sort_order
         by_name = {v.name: v for v in visualizers}
@@ -734,6 +883,37 @@ class SerialTerminal(App):
         except Exception:
             pass  # widgets gone during shutdown
 
+    def _confirm(self, message: str) -> bool:
+        """Show a Yes/Cancel dialog and block until the user responds.
+
+        Must be called from a background thread (e.g. ``@work(thread=True)``).
+        Uses ``call_from_thread`` to push the dialog on the main thread and
+        a ``threading.Event`` to synchronize the result back.
+
+        Args:
+            message: Text to display in the confirmation dialog.
+
+        Returns:
+            True if the user clicked Yes, False otherwise.
+        """
+        result: list[bool] = [False]
+        event = Event()
+
+        def _show() -> None:
+            def _on_result(confirmed: bool) -> None:
+                result[0] = confirmed
+                event.set()
+
+            self.push_screen(ConfirmDialog(message), callback=_on_result)
+
+        try:
+            self.call_from_thread(_show)
+        except RuntimeError:
+            self._status("!confirm can only be used in scripts.", "yellow")
+            return True
+        event.wait()
+        return result[0]
+
     def _write_output_markup(self, text: str) -> None:
         self.query_one("#output", RichLog).write(text)
 
@@ -755,15 +935,10 @@ class SerialTerminal(App):
         self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
 
     def _disconnect(self) -> None:
+        was_open = self.is_connected
         self.stop_event.set()
+        self.reader_stopped.wait(timeout=2.0)
         try:
-            was_open = self.is_connected
-            if self.ser:
-                try:
-                    self.ser.close()
-                except Exception as e:
-                    self._report_exception(e)
-                self.ser = None
             if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
             self._set_conn_status("Disconnected")
@@ -804,6 +979,21 @@ class SerialTerminal(App):
         self._open_log()
         if was_connected or cfg.get("autoconnect"):
             self._connect()
+
+    def _start_demo(self, args: str = "") -> None:
+        """Set up and switch to the built-in demo device config.
+
+        Args:
+            args: Optional ``--force`` to overwrite existing demo config.
+        """
+        force = "--force" in args.lower()
+        config_path = setup_demo_config(cfg_dir(), force=force)
+        cfg = load_config(str(config_path))
+        self._switch_config(cfg, str(config_path))
+        msg = "Switched to demo device"
+        if force:
+            msg += " (config reset)"
+        self._status(msg, "green")
 
     def _on_config_picked(self, result: tuple | None) -> None:
         if result is None:
@@ -956,12 +1146,8 @@ class SerialTerminal(App):
         if idx >= len(buttons):
             return
         raw = buttons[idx].get("command", "").strip()
-        if not raw:
-            return
-        for cmd in raw.split("\\n"):
-            cmd = cmd.strip()
-            if cmd:
-                self._execute_command(cmd)
+        if raw:
+            self._execute_command(raw)
 
     def _show_port_picker(self) -> None:
         self.push_screen(PortPicker(), callback=self._on_port_picked)
@@ -1020,6 +1206,31 @@ class SerialTerminal(App):
     def _palette_view_log(self) -> None:
         self.push_screen(LogViewer(self._log_path()))
 
+    def _palette_delete_log(self) -> None:
+        """Delete the current session log file after confirmation."""
+        log_path = self._log_path()
+        if not log_path or not Path(log_path).exists():
+            self._status("No log file to delete.", "yellow")
+            return
+
+        def on_confirmed(confirmed: bool) -> None:
+            if not confirmed:
+                return
+            # Close the open file handle first
+            if self.log_fh:
+                self.log_fh.close()
+                self.log_fh = None
+            try:
+                Path(log_path).unlink()
+                self._status(f"Deleted {log_path}", "green")
+            except OSError as e:
+                self._status(f"Delete failed: {e}", "red")
+
+        self.push_screen(
+            ConfirmDialog(f"Delete {Path(log_path).name}?"),
+            callback=on_confirmed,
+        )
+
     def _palette_clear(self) -> None:
         self.query_one("#output", RichLog).clear()
 
@@ -1045,7 +1256,15 @@ class SerialTerminal(App):
                 try:
                     waiting = self.ser.in_waiting or 1
                     data = self.ser.read(min(waiting, 4096))
-                except (serial.SerialException, OSError, AttributeError):
+                except (serial.SerialException, OSError, AttributeError) as exc:
+                    detail = f"{exc.__class__.__name__}: {exc}"
+                    if self.cfg.get("exception_traceback", False):
+                        detail += f"\n{traceback.format_exc()}"
+                    self.call_from_thread(
+                        self._status,
+                        f"Serial read error: {detail}",
+                        "red",
+                    )
                     self.call_from_thread(
                         self.notify,
                         "Serial disconnected",
@@ -1135,8 +1354,12 @@ class SerialTerminal(App):
                 ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                 prefix += f"[{ts}] "
             if hex_mode:
-                hex_str = " ".join(f"{b:02X}" for b in text.encode(
-                    self.cfg.get("encoding", "utf-8"), errors="replace"))
+                hex_str = " ".join(
+                    f"{b:02X}"
+                    for b in text.encode(
+                        self.cfg.get("encoding", "utf-8"), errors="replace"
+                    )
+                )
                 log.write(Text.from_ansi(f"{prefix}{hex_str}"))
             else:
                 log.write(Text.from_ansi(f"{prefix}{text}"))
@@ -1167,7 +1390,49 @@ class SerialTerminal(App):
         self.query_one("#cmd", Input).value = ""
 
     def _execute_command(self, cmd: str) -> None:
-        """Dispatch a single command: REPL prefix goes to REPL, otherwise serial."""
+        """Dispatch a command string, which may contain multiple commands.
+
+        Splits on literal ``\\n`` and real newlines. If multiple commands
+        are found, they are executed one per refresh cycle via
+        ``call_after_refresh`` so UI updates (like ``!cls``) complete
+        before the next command runs.
+
+        Args:
+            cmd: Command string (REPL or serial). May contain ``\\n``
+                 separators for multi-command sequences.
+        """
+        # Normalize literal \n and real newlines, then split
+        parts = [c.strip() for c in cmd.replace("\\n", "\n").split("\n") if c.strip()]
+        if not parts:
+            return
+        if len(parts) > 1:
+            self._execute_sequence(parts)
+            return
+        self._dispatch_single(parts[0])
+
+    def _execute_sequence(self, cmds: list[str], idx: int = 0) -> None:
+        """Execute commands one per refresh cycle.
+
+        Yields control between commands so UI updates are rendered
+        and the reader thread's ``call_from_thread`` callbacks can
+        be processed before the next command runs.
+
+        Args:
+            cmds: List of command strings to execute.
+            idx: Current index into the list.
+        """
+        if idx >= len(cmds):
+            return
+        self._dispatch_single(cmds[idx])
+        if idx + 1 < len(cmds):
+            self.call_after_refresh(self._execute_sequence, cmds, idx + 1)
+
+    def _dispatch_single(self, cmd: str) -> None:
+        """Dispatch a single command: REPL prefix goes to REPL, otherwise serial.
+
+        Args:
+            cmd: A single command string (no ``\\n`` separators).
+        """
         prefix = self.cfg.get("repl_prefix", "!")
         if cmd.startswith(prefix):
             if self.repl.echo:
@@ -1186,15 +1451,10 @@ class SerialTerminal(App):
         if not self.is_connected:
             self._status("Not connected — command not sent", "red")
             return
-        # Split on literal \n for multi-command input
-        parts = cmd.replace("\\n", "\n").split("\n")
-        if len(parts) > 1:
-            self._run_lines(parts)
-        else:
-            line_ending = self.cfg.get("line_ending", "\r")
-            self.ser.write(
-                (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-            )
+        line_ending = self.cfg.get("line_ending", "\r")
+        self.ser.write(
+            (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+        )
 
         # Clear input
         inp = self.query_one("#cmd", Input)
@@ -1434,6 +1694,46 @@ class SerialTerminal(App):
         else:
             self._status("Usage: line_no on|off", "yellow")
 
+    def _hook_info(self, ctx, args: str) -> None:
+        """Generate project info report and print summary to output.
+
+        Writes ``<config_name>.md`` to the config data directory
+        and prints non-zero file counts to the output window.
+        With ``--display``, opens the full report in the system viewer.
+
+        Args:
+            ctx: Plugin context.
+            args: ``"--display"`` to open report externally.
+        """
+        if not self.config_path:
+            self._status("No config loaded.", "red")
+            return
+
+        self.notify("Generating project tree…", timeout=1)
+        self._do_info_work(args)
+
+    @work(thread=True)
+    def _do_info_work(self, args: str) -> None:
+        """Build project info tree in a background thread.
+
+        Uses ``@work(thread=True)`` so the toast renders immediately
+        while filesystem I/O runs off the event loop.
+
+        Args:
+            args: Original args from ``!info`` (e.g. ``"--display"``).
+        """
+        config_name = Path(self.config_path).stem
+        data_dir = cfg_data_dir(self.config_path)
+        report_path = data_dir / f"{config_name}.md"
+
+        tree, markdown = _build_info_tree(self.config_path, self.cfg)
+        report_path.write_text(markdown, encoding="utf-8")
+
+        self.call_from_thread(self._write_output_markup, tree)
+
+        if "--display" in args.lower():
+            self.call_from_thread(open_with_system, str(report_path))
+
     def _hook_port(self, ctx, args: str) -> None:
         arg = args.strip().lower()
         if not arg or arg == "list":
@@ -1548,6 +1848,7 @@ class SerialTerminal(App):
     @work(thread=True)
     def _run_script(self, path: Path) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
+
         def thread_safe_write(text: str, color: str = "dim") -> None:
             self.call_from_thread(self._status, text, color)
 
@@ -1587,10 +1888,24 @@ def main():
         default=None,
         help=f"Config directory (default: {CFG_DIR})",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Start with simulated demo device (no hardware needed)",
+    )
     args = parser.parse_args()
 
     if args.cfg_dir:
         _cfg_mod.CFG_DIR = args.cfg_dir
+
+    if args.demo:
+        from termapy.config import setup_demo_config
+
+        config_path = setup_demo_config(cfg_dir())
+        cfg = load_config(str(config_path))
+        app = SerialTerminal(cfg, config_path=str(config_path))
+        app.run()
+        return
 
     if args.config:
         cfg = load_config(args.config)

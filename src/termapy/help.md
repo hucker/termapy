@@ -31,7 +31,7 @@ plugins) is stored alongside its JSON file in a subfolder:
 termapy_cfg/
 ├── iot_device/
 │   ├── iot_device.json        # config file
-│   ├── iot_device.txt         # session log
+│   ├── iot_device.log         # session log
 │   ├── .cmd_history.txt       # command history
 │   ├── ss/                    # screenshots
 │   ├── scripts/               # script files
@@ -105,7 +105,8 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 - Select Port
 - Connect / Disconnect
 - Edit, Load, or Create a Config
-- View Log
+- View Log File
+- Delete Log File
 - Clear Screen
 - Save Screenshots
 - Open Screenshot Folder
@@ -125,17 +126,20 @@ Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead 
 | `!ss_svg [name]` | Save an SVG screenshot |
 | `!ss_txt [name]` | Save a text screenshot |
 | `!ss_dir [path]` | Show or set the screenshot folder |
-| `!clr` | Clear the terminal |
+| `!cls` | Clear the terminal |
 | `!run <file>` | Run a script file |
 | `!delay <duration>` | Pause for a duration (e.g. `500ms`, `1.5s`) |
+| `!confirm {message}` | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`) |
 | `!stop` | Abort a running script |
 | `!seq [reset]` | Show or reset sequence counters |
 | `!print <text>` | Print a message to the terminal |
+| `!rprint <text>` | Print Rich markup text (e.g. `[bold red]Warning![/]`) |
 | `!show <name>` | Show a file (`$cfg` for current config) |
 | `!echo [on\|off]` | Toggle command echo |
 | `!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
 | `!grep <pattern>` | Search scrollback for regex matches (case-insensitive, skips own output) |
 | `!show_eol {on\|off}` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
+| `!info {--display}` | Show project summary; `--display` opens full report in system viewer |
 | `!proto send <hex>` | Send raw hex bytes and display response |
 | `!proto run <file>` | Run a binary protocol test script (.pro) |
 | `!proto debug <file>` | Open interactive protocol debug screen for a .pro script |
@@ -176,6 +180,7 @@ Here is an example config for a device called `iot_device`:
     "max_lines": 10000,
     "repl_prefix": "!",
     "os_cmd_enabled": false,
+    "exception_traceback": false,
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
         {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200", "tooltip": "Reset and set baud"}
@@ -203,7 +208,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `autoconnect_cmd` | ` ` | Commands to send after connecting, separated by `\n` (waits for idle between each) |
 | `echo_cmd` | `false` | Show sent commands in the terminal output |
 | `echo_cmd_fmt` | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text) |
-| `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.txt` in the config subfolder) |
+| `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.log` in the config subfolder) |
 | `show_timestamps` | `false` | Prefix each line in the terminal display with `[HH:MM:SS.mmm]` |
 | `max_grep_lines` | `100` | Maximum number of matching lines shown by `!grep` |
 | `command_history_items` | `30` | Number of command history entries saved per config |
@@ -213,6 +218,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `max_lines` | `10000` | Maximum number of lines kept in the scrollback buffer |
 | `repl_prefix` | `!` | Prefix that identifies local REPL commands (e.g. `!help`) |
 | `os_cmd_enabled` | `false` | Allow the `!os` command to run shell commands (disabled by default for safety) |
+| `exception_traceback` | `false` | Include full stack trace in serial exception output (for debugging) |
 | `custom_buttons` | `[]` | Array of custom button objects (see Custom Buttons below) |
 
 ## Config Management
@@ -337,3 +343,38 @@ Run with `!proto run modbus_test.pro`. Each step reports PASS/FAIL.
 ### Hex Display Mode
 
 Toggle hex display for all serial I/O with `!proto hex on` / `!proto hex off`.
+
+## Demo Mode
+
+Try termapy without hardware using the built-in simulated device:
+
+```sh
+termapy --demo
+```
+
+This creates a `termapy_cfg/demo/` config that auto-connects to a simulated serial device. You can also set `"port": "DEMO"` in any config file.
+
+### Available Commands
+
+| Command | Response |
+| ------- | -------- |
+| `AT` | `OK` |
+| `AT+INFO` | Device info, uptime, free memory |
+| `AT+TEMP` | Simulated temperature reading |
+| `AT+LED on\|off` | Toggle LED state |
+| `AT+STATUS` | LED state, uptime, connections |
+| `AT+NAME` / `AT+NAME=val` | Query or set device name |
+| `AT+BAUD` / `AT+BAUD=val` | Query or set baud rate |
+| `AT+PROD-ID` | Returns product ID (`BASSOMATIC-77`) |
+| `AT+RESET` | Simulated reboot sequence |
+| `mem <addr> [len]` | Hex memory dump |
+| `help` | List available commands |
+
+### Bundled Files
+
+The demo config includes example scripts and protocol tests:
+
+- **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`
+- **Proto:** `at_test.pro` (AT command tests), `modbus_test.pro` (Modbus RTU tests)
+
+The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.

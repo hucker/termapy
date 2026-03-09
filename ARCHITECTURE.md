@@ -136,7 +136,7 @@ termapy_cfg/
 ├── plugins/              # global plugins
 └── <name>/
     ├── <name>.json       # config file
-    ├── <name>.txt        # session log
+    ├── <name>.log        # session log
     ├── .cmd_history.txt  # command history (last 10)
     ├── plugins/          # per-config plugins
     ├── ss/               # screenshots (SVG + TXT)

@@ -1,0 +1,56 @@
+# AT Command Demo — walks through all demo device commands
+!print ─── AT Command Demo ───
+
+!print
+!print [1] Connection test
+AT
+!delay 300ms
+
+!print
+!print [2] Device information
+AT+INFO
+!delay 500ms
+
+!print
+!print [3] Temperature readings (3 samples)
+AT+TEMP
+!delay 200ms
+AT+TEMP
+!delay 200ms
+AT+TEMP
+!delay 300ms
+
+!print
+!print [4] LED control
+AT+LED on
+!delay 200ms
+AT+STATUS
+!delay 300ms
+AT+LED off
+!delay 200ms
+AT+STATUS
+!delay 300ms
+
+!print
+!print [5] Memory dump (32 bytes at 0x1000)
+mem 0x1000 32
+!delay 500ms
+
+!print
+!print [6] Help listing
+help
+!delay 500ms
+
+!print
+!print [7] Unknown command handling
+BOGUS
+!delay 300ms
+
+!confirm Reset device?
+!print
+!print [8] Device reset
+AT+RESET
+!delay 1s
+
+!print
+!print ─── Demo complete ───

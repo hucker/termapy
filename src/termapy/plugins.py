@@ -64,6 +64,9 @@ class PluginContext:
     Attributes:
         write: Output text to the terminal. Signature: ``write(text, color="dim")``.
             Color can be any Rich color name (e.g. ``"red"``, ``"green"``, ``"dim"``).
+        write_markup: Output Rich markup text to the terminal. Signature:
+            ``write_markup(text)``. Supports Rich markup tags like
+            ``[bold red]text[/]``.
         cfg: Read-only config dict (``MappingProxyType``). Access any config
             field with ``ctx.cfg.get("key", default)``. Do not mutate.
         config_path: Absolute path to the current JSON config file on disk.
@@ -78,6 +81,10 @@ class PluginContext:
         ss_dir: Path to the per-config screenshots directory (auto-created).
         scripts_dir: Path to the per-config scripts directory (auto-created).
         proto_dir: Path to the per-config protocol test scripts directory (auto-created).
+        confirm: Show a Yes/Cancel confirmation dialog and return the result.
+            Signature: ``confirm(message) -> bool``. **Must be called from a
+            background thread** (e.g. inside a ``@work(thread=True)`` handler).
+            Blocks the calling thread until the user responds.
         notify: Show a toast notification. Signature: ``notify(text, **kw)``.
             Keyword args are passed to Textual's ``App.notify()``.
         clear_screen: Clear the terminal output and reset the line counter.
@@ -89,6 +96,7 @@ class PluginContext:
 
     # Core I/O
     write: Callable             # write(text, color="dim") -> None
+    write_markup: Callable = lambda text: None  # write(text) with Rich markup
     cfg: MappingProxyType | dict = field(default_factory=dict)
     config_path: str = ""
 
@@ -105,6 +113,7 @@ class PluginContext:
     proto_dir: Path = field(default_factory=lambda: Path("."))
 
     # UI
+    confirm: Callable = lambda message: False  # confirm(msg) -> bool (worker thread only)
     notify: Callable = lambda text, **kw: None
     clear_screen: Callable = lambda: None
     save_screenshot: Callable = lambda path: None

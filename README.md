@@ -1,8 +1,8 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-263%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-301%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
-*Pronounced "ter-ma-pi"*
+*Pronounced "ter-map-ee"*
 
 A full-featured serial terminal that runs anywhere Python does. ANSI color rendering, session logging, screenshots, scripting, binary protocol testing, and a plugin system — all in a terminal UI that installs in seconds.
 
@@ -31,6 +31,45 @@ Press `Cfg` to edit your COM port parameters:
 
 Press the connection button at the top and type commands at the bottom input box.
 ![termapy screenshot](img/screenshot_iot_dev.svg)
+
+## Demo Mode
+
+No hardware? Try termapy with a built-in simulated serial device:
+
+```sh
+termapy --demo
+```
+
+This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts and proto test files are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
+
+![Demo project tree](img/demo_tree.svg)
+
+**AT commands:**
+
+| Command | Description |
+| --- | --- |
+| `AT` | Connection test (returns `OK`) |
+| `AT+PROD-ID` | Product identifier (returns `BASSOMATIC-77`) |
+| `AT+INFO` | Device info (version, uptime, free memory) |
+| `AT+TEMP` | Read temperature sensor |
+| `AT+LED on\|off` | Control LED |
+| `AT+NAME?` | Query device name |
+| `AT+NAME=val` | Set device name (max 32 chars) |
+| `AT+BAUD?` | Query baud rate |
+| `AT+BAUD=val` | Set baud rate (9600, 19200, 38400, 57600, 115200) |
+| `AT+STATUS` | Device status (LED, uptime, connections) |
+| `AT+RESET` | Reset device (simulates boot sequence) |
+| `mem <addr> [len]` | Hex memory dump (deterministic, max 256 bytes) |
+| `help` | List all commands |
+
+**Modbus RTU:**
+
+| Function | Description |
+| --- | --- |
+| `0x03` | Read holding registers (up to 125 registers) |
+| `0x06` | Write single register (echo-back) |
+
+CRC16 validation is enforced on all frames. Invalid CRC or unsupported function codes return Modbus exception responses.
 
 ## Install
 
@@ -75,7 +114,7 @@ termapy_cfg/
 │   └── hello.py
 ├── iot_dev/
 │   ├── iot_dev.json                    # config file
-│   ├── iot_dev.txt                     # session log
+│   ├── iot_dev.log                     # session log
 │   ├── .cmd_history.txt                # command history
 │   ├── ss/                             # screenshots
 │   │   ├── screenshot_20260306_141523.svg
@@ -88,7 +127,7 @@ termapy_cfg/
 │       └── modbus_view.py
 └── sensor_b/
     ├── sensor_b.json
-    ├── sensor_b.txt
+    ├── sensor_b.log
     ├── .cmd_history.txt
     ├── ss/
     ├── scripts/
@@ -156,17 +195,20 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!ss_svg [name]`          | Save SVG screenshot                                                              |
 | `!ss_txt [name]`          | Save text screenshot                                                             |
 | `!ss_dir [path]`          | Set or show the screenshot folder                                                |
-| `!clr`                    | Clear the terminal screen                                                        |
+| `!cls`                    | Clear the terminal screen                                                        |
 | `!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
 | `!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
+| `!confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)        |
 | `!stop`                   | Abort a running script                                                           |
 | `!seq [reset]`            | Show or reset sequence counters                                                  |
 | `!print <text>`           | Print a message to the terminal                                                  |
+| `!rprint <text>`          | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
 | `!show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
 | `!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
+| `!info {--display}`       | Show project summary; `--display` opens full report in system viewer             |
 | `!proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
 | `!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
 | `!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
@@ -228,6 +270,7 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
     "max_lines": 10000,
     "repl_prefix": "!",
     "os_cmd_enabled": false,
+    "exception_traceback": false,
     "custom_buttons": [
         {"enabled": false, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
         {"enabled": false, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
@@ -256,17 +299,18 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
 | `autoconnect_cmd`       | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
 | `echo_cmd`              | `false`                | Echo sent commands locally                                                                               |
 | `echo_cmd_fmt`          | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
-| `log_file`              | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
+| `log_file`              | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
 | `show_timestamps`       | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
 | `show_eol`              | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
 | `max_grep_lines`        | `100`                  | Maximum number of matching lines shown by `!grep`                                                        |
-| `command_history_items` | `30`                   | Number of commands to keep in the per-config command history                                              |
+| `command_history_items` | `30`                   | Number of commands to keep in the per-config command history                                             |
 | `proto_frame_gap_ms`    | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`                 | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`      | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`             | `10000`                | Maximum lines in the scrollback buffer                                                                   |
-| `repl_prefix`           | `"!"`                  | Prefix for local REPL commands (e.g. `!help`, `!clr`)                                                    |
+| `repl_prefix`           | `"!"`                  | Prefix for local REPL commands (e.g. `!help`, `!cls`)                                                    |
 | `os_cmd_enabled`        | `false`                | Enable the `!os` REPL command to run shell commands                                                      |
+| `exception_traceback`   | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`        | `[]`                   | Array of custom button objects (see Custom Buttons below)                                                |
 
 **Note on `show_eol`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output — turn `show_eol` off when not actively debugging.
@@ -397,20 +441,23 @@ The user types `!acme.flash firmware.bin`, and `!help` groups it under the "acme
 
 The `ctx` object passed to every handler. This is the stable public API for external plugins:
 
-| Method / Attribute          | Description                               |
-| --------------------------- | ----------------------------------------- |
-| `ctx.write(text, color)`    | Print to the terminal (color is optional) |
-| `ctx.cfg`                   | Current config dict (read-only access)    |
-| `ctx.config_path`           | Path to the current `.json` config file   |
-| `ctx.is_connected()`        | Check if the serial port is open          |
-| `ctx.serial_write(data)`    | Send bytes to the serial port             |
-| `ctx.serial_wait_idle()`    | Wait until serial output settles          |
-| `ctx.ss_dir`                | Screenshot directory (`Path`)             |
-| `ctx.scripts_dir`           | Scripts directory (`Path`)                |
-| `ctx.notify(text)`          | Show a toast notification                 |
-| `ctx.clear_screen()`        | Clear the terminal output                 |
-| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file          |
-| `ctx.get_screen_text()`     | Get terminal content as plain text        |
+| Method / Attribute          | Description                                           |
+| --------------------------- | ----------------------------------------------------- |
+| `ctx.write(text, color)`    | Print to the terminal (color is optional)             |
+| `ctx.write_markup(text)`    | Print Rich markup text (e.g. `[bold red]Warning![/]`) |
+| `ctx.cfg`                   | Current config dict (read-only access)                |
+| `ctx.config_path`           | Path to the current `.json` config file               |
+| `ctx.is_connected()`        | Check if the serial port is open                      |
+| `ctx.serial_write(data)`    | Send bytes to the serial port                         |
+| `ctx.serial_wait_idle()`    | Wait until serial output settles                      |
+| `ctx.serial_read_raw()`     | Read raw bytes with timeout framing (returns `bytes`) |
+| `ctx.ss_dir`                | Screenshot directory (`Path`)                         |
+| `ctx.scripts_dir`           | Scripts directory (`Path`)                            |
+| `ctx.confirm(message)`      | Show Yes/Cancel dialog, return `bool` (scripts only)  |
+| `ctx.notify(text)`          | Show a toast notification                             |
+| `ctx.clear_screen()`        | Clear the terminal output                             |
+| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file                      |
+| `ctx.get_screen_text()`     | Get terminal content as plain text                    |
 
 Plugins can use anything from the Python standard library or third-party packages. They interact with `termapy` only through `ctx`.
 
@@ -560,7 +607,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-263 tests across 8 test files. Run with `uv run pytest`.
+301 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

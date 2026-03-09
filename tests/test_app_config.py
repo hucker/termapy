@@ -71,7 +71,7 @@ class TestCfgHelpers:
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
         actual = cfg_log_path(str(config_path))
-        assert actual.endswith("dev.txt")  # log named after config
+        assert actual.endswith("dev.log")  # log named after config
 
     def test_cfg_history_path(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.json"
@@ -96,9 +96,17 @@ class TestDefaultCfg:
         assert isinstance(DEFAULT_CFG["custom_buttons"], list)  # is a list
         assert len(DEFAULT_CFG["custom_buttons"]) >= 4  # at least 4 button placeholders
 
-    def test_custom_buttons_all_disabled(self):
-        for btn in DEFAULT_CFG["custom_buttons"]:
-            assert btn["enabled"] is False  # all disabled by default
+    def test_custom_buttons_info_enabled(self):
+        """First default button is the Info button (enabled)."""
+        info_btn = DEFAULT_CFG["custom_buttons"][0]
+        assert info_btn["enabled"] is True  # Info button enabled
+        assert info_btn["name"] == "Info"  # named Info
+        assert info_btn["command"] == "!info"  # runs !info
+
+    def test_custom_buttons_placeholders_disabled(self):
+        """Remaining default buttons are disabled placeholders."""
+        for btn in DEFAULT_CFG["custom_buttons"][1:]:
+            assert btn["enabled"] is False  # placeholder disabled
 
     def test_custom_buttons_have_required_fields(self):
         for btn in DEFAULT_CFG["custom_buttons"]:

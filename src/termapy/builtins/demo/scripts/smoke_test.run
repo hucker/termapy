@@ -1,0 +1,62 @@
+# Smoke test for demo device
+# Exercises all ASCII commands with screenshots
+!ss_dir demo_smoke_{starttime}
+!print === Demo smoke test started {starttime} ===
+
+# Section 1: basic commands
+!clr
+help
+!delay 500ms
+!ss_svg s{seq2+}_{seq1+}_help
+!ss_txt s{seq2}_{seq1}_help
+
+!clr
+AT
+!delay 200ms
+AT+INFO
+!delay 500ms
+!ss_svg s{seq2}_{seq1+}_info
+!ss_txt s{seq2}_{seq1}_info
+
+# Section 2: sensors and LED
+!clr
+AT+TEMP
+!delay 200ms
+AT+TEMP
+!delay 200ms
+AT+TEMP
+!delay 500ms
+!ss_svg s{seq2+}_{seq1+}_temp
+!ss_txt s{seq2}_{seq1}_temp
+
+!clr
+AT+LED on
+!delay 200ms
+AT+STATUS
+!delay 500ms
+!ss_svg s{seq2}_{seq1+}_led_on
+!ss_txt s{seq2}_{seq1}_led_on
+
+AT+LED off
+!delay 200ms
+AT+STATUS
+!delay 500ms
+!ss_svg s{seq2}_{seq1+}_led_off
+!ss_txt s{seq2}_{seq1}_led_off
+
+# Section 3: memory dump
+!clr
+mem 0x1000 64
+!delay 500ms
+!ss_svg s{seq2+}_{seq1+}_mem64
+!ss_txt s{seq2}_{seq1}_mem64
+
+# Section 4: reset
+!clr
+AT+RESET
+!delay 1s
+!ss_svg s{seq2+}_{seq1+}_reset
+!ss_txt s{seq2}_{seq1}_reset
+
+!print === Demo smoke test done ===
+!seq

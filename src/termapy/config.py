@@ -89,8 +89,11 @@ DEFAULT_CFG = {
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     # Logging
     "log_file": "",
+    # Diagnostics
+    "exception_traceback": False,
     # Display
     "show_timestamps": False,
+    "show_eol": False,
     "max_grep_lines": 100,
     "command_history_items": 30,
     # Custom buttons
@@ -163,7 +166,22 @@ def open_with_system(path: str) -> None:
 
 
 def open_serial(cfg: dict) -> serial.Serial:
-    """Open serial port from config dict."""
+    """Open serial port from config dict.
+
+    If port is ``"DEMO"``, returns a ``FakeSerial`` simulated device
+    instead of a real serial connection.
+
+    Args:
+        cfg: Config dict with serial settings.
+
+    Returns:
+        A serial port object (real or simulated).
+    """
+    if cfg["port"].upper() == "DEMO":
+        from termapy.demo import FakeSerial
+
+        return FakeSerial(baudrate=cfg["baudrate"])
+
     fc = cfg.get("flow_control", "none")
     return serial.Serial(
         port=cfg["port"],
@@ -175,3 +193,58 @@ def open_serial(cfg: dict) -> serial.Serial:
         xonxoff=(fc == "xonxoff"),
         timeout=0.05,
     )
+
+
+def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
+    """Copy bundled demo config files to the target directory.
+
+    Creates ``<target_path>/demo/`` with config, scripts, and proto files.
+    Does not overwrite existing files unless *force* is True.
+
+    Args:
+        target_path: Parent directory for the demo config folder.
+        force: Overwrite existing files with bundled templates.
+
+    Returns:
+        Path to the demo config JSON file.
+    """
+    import importlib.resources
+
+    demo_dir = target_path / "demo"
+    demo_dir.mkdir(parents=True, exist_ok=True)
+
+    config_path = demo_dir / "demo.json"
+
+    # Source package
+    pkg = importlib.resources.files("termapy.builtins.demo")
+
+    # Copy config file
+    if force or not config_path.exists():
+        src = pkg / "demo.json"
+        config_path.write_bytes(src.read_bytes())
+
+    # Copy scripts
+    scripts_dir = demo_dir / "scripts"
+    scripts_dir.mkdir(exist_ok=True)
+    scripts_pkg = pkg / "scripts"
+    for name in ("at_demo.run", "smoke_test.run", "status_check.run"):
+        dest = scripts_dir / name
+        if force or not dest.exists():
+            src = scripts_pkg / name
+            dest.write_bytes(src.read_bytes())
+
+    # Copy proto files
+    proto_dir = demo_dir / "proto"
+    proto_dir.mkdir(exist_ok=True)
+    proto_pkg = pkg / "proto"
+    for name in ("at_test.pro", "modbus_test.pro"):
+        dest = proto_dir / name
+        if force or not dest.exists():
+            src = proto_pkg / name
+            dest.write_bytes(src.read_bytes())
+
+    # Create standard subdirs
+    for sub in ("plugins", "ss", "viz"):
+        (demo_dir / sub).mkdir(exist_ok=True)
+
+    return config_path

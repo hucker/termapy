@@ -1,8 +1,8 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-263%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-301%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
-*Pronounced "ter-ma-pi"*
+*Pronounced "ter-map-ee"*
 
 A full-featured serial terminal that runs anywhere Python does. ANSI color rendering, session logging, screenshots, scripting, binary protocol testing, and a plugin system — all in a terminal UI that installs in seconds.
 
@@ -31,6 +31,43 @@ Press `Cfg` to edit your COM port parameters:
 
 Press the connection button at the top and type commands at the bottom input box.
 ![termapy screenshot](img/screenshot_iot_dev.svg)
+
+## Demo Mode
+
+No hardware? Try termapy with a built-in simulated serial device:
+
+```sh
+termapy --demo
+```
+
+This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts and proto test files are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
+
+**AT commands:**
+
+| Command | Description |
+| --- | --- |
+| `AT` | Connection test (returns `OK`) |
+| `AT+PROD-ID` | Product identifier (returns `BASSOMATIC-77`) |
+| `AT+INFO` | Device info (version, uptime, free memory) |
+| `AT+TEMP` | Read temperature sensor |
+| `AT+LED on\|off` | Control LED |
+| `AT+NAME?` | Query device name |
+| `AT+NAME=val` | Set device name (max 32 chars) |
+| `AT+BAUD?` | Query baud rate |
+| `AT+BAUD=val` | Set baud rate (9600, 19200, 38400, 57600, 115200) |
+| `AT+STATUS` | Device status (LED, uptime, connections) |
+| `AT+RESET` | Reset device (simulates boot sequence) |
+| `mem <addr> [len]` | Hex memory dump (deterministic, max 256 bytes) |
+| `help` | List all commands |
+
+**Modbus RTU:**
+
+| Function | Description |
+| --- | --- |
+| `0x03` | Read holding registers (up to 125 registers) |
+| `0x06` | Write single register (echo-back) |
+
+CRC16 validation is enforced on all frames. Invalid CRC or unsupported function codes return Modbus exception responses.
 
 ## Install
 
@@ -167,6 +204,7 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
 | `!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
+| `!info {--display}`       | Show project summary; `--display` opens full report in system viewer             |
 | `!proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
 | `!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
 | `!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
@@ -228,6 +266,7 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
     "max_lines": 10000,
     "repl_prefix": "!",
     "os_cmd_enabled": false,
+    "exception_traceback": false,
     "custom_buttons": [
         {"enabled": false, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
         {"enabled": false, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
@@ -260,13 +299,14 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
 | `show_timestamps`       | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
 | `show_eol`              | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
 | `max_grep_lines`        | `100`                  | Maximum number of matching lines shown by `!grep`                                                        |
-| `command_history_items` | `30`                   | Number of commands to keep in the per-config command history                                              |
+| `command_history_items` | `30`                   | Number of commands to keep in the per-config command history                                             |
 | `proto_frame_gap_ms`    | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`                 | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`      | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`             | `10000`                | Maximum lines in the scrollback buffer                                                                   |
 | `repl_prefix`           | `"!"`                  | Prefix for local REPL commands (e.g. `!help`, `!clr`)                                                    |
 | `os_cmd_enabled`        | `false`                | Enable the `!os` REPL command to run shell commands                                                      |
+| `exception_traceback`   | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`        | `[]`                   | Array of custom button objects (see Custom Buttons below)                                                |
 
 **Note on `show_eol`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output — turn `show_eol` off when not actively debugging.
@@ -560,7 +600,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-263 tests across 8 test files. Run with `uv run pytest`.
+301 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

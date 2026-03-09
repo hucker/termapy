@@ -303,7 +303,7 @@ def match_response(expected: bytes, actual: bytes, mask: bytes) -> bool:
     """Compare actual response against expected, respecting wildcard mask.
 
     Mask byte ``0xFF`` = must match, ``0x00`` = any value accepted.
-    Length must match exactly (no partial matches).
+    Length must match exactly — overflow (extra bytes) is a failure.
 
     Args:
         expected: Expected byte pattern.
@@ -733,23 +733,24 @@ def load_proto_script(text: str) -> tuple[str, ProtoScript | tuple[dict, list[St
 def diff_bytes(expected: bytes, actual: bytes, mask: bytes) -> list[str]:
     """Compare expected and actual bytes with mask, returning per-byte status.
 
+    Only compares up to ``len(expected)`` bytes. Extra bytes in actual
+    are not included in the diff list — use ``overflow_count()`` to
+    detect overflow.
+
     Args:
         expected: Expected byte pattern.
         actual: Actual received bytes.
         mask: Wildcard mask (0xFF=must match, 0x00=any).
 
     Returns:
-        List of status strings, one per byte position in the longer
-        of expected/actual: ``"match"``, ``"wildcard"``, ``"mismatch"``,
-        ``"extra"`` (actual longer), ``"missing"`` (actual shorter).
+        List of status strings, one per byte position up to
+        ``len(expected)``: ``"match"``, ``"wildcard"``, ``"mismatch"``,
+        ``"missing"`` (actual shorter than expected).
     """
-    max_len = max(len(expected), len(actual))
     result: list[str] = []
-    for i in range(max_len):
+    for i in range(len(expected)):
         if i >= len(actual):
             result.append("missing")
-        elif i >= len(expected):
-            result.append("extra")
         elif i < len(mask) and mask[i] == 0x00:
             result.append("wildcard")
         elif expected[i] == actual[i]:
@@ -757,6 +758,19 @@ def diff_bytes(expected: bytes, actual: bytes, mask: bytes) -> list[str]:
         else:
             result.append("mismatch")
     return result
+
+
+def overflow_count(expected: bytes, actual: bytes) -> int:
+    """Return the number of extra bytes in actual beyond expected length.
+
+    Args:
+        expected: Expected byte pattern.
+        actual: Actual received bytes.
+
+    Returns:
+        Number of overflow bytes (0 if actual <= expected length).
+    """
+    return max(0, len(actual) - len(expected))
 
 
 # Rich markup styles for diff coloring in visualizers
@@ -779,7 +793,8 @@ def format_diff_markup(
     """Build Rich-markup diff string for a visualizer.
 
     Shared helper used by built-in hex and text visualizers.
-    Each byte is styled according to its diff status.
+    Each byte is styled according to its diff status. If actual
+    has more bytes than expected, appends ``OVR+N`` in yellow.
 
     Args:
         actual: Actual received bytes.
@@ -801,6 +816,10 @@ def format_diff_markup(
     # Strip trailing space inside the last markup tag
     if result.endswith(" [/]"):
         result = result[:-4] + "[/]"
+    # Append overflow indicator if actual has extra bytes
+    ovr = overflow_count(expected, actual)
+    if ovr > 0:
+        result += f" [bold yellow]OVR+{ovr}[/]"
     return result
 
 

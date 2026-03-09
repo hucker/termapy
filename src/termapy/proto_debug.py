@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, ScrollableContainer, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button, Checkbox, Input, RichLog, Rule, SelectionList, Static,
@@ -208,6 +208,7 @@ class ProtoDebugScreen(ModalScreen[None]):
     }}
     #proto-debug-detail {{
         height: auto;
+        width: auto;
     }}
     #proto-debug-controls {{
         height: 1;
@@ -271,7 +272,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                             type="integer", compact=True)
                 yield Checkbox("Stop on Error", value=False, id="chk-stop-err")
             yield Rule()
-            with VerticalScroll(id="proto-debug-detail-scroll"):
+            with ScrollableContainer(id="proto-debug-detail-scroll"):
                 yield Static("", id="proto-debug-detail")
             yield Static("", id="proto-debug-status")
             yield Rule()

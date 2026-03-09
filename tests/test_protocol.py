@@ -8,7 +8,9 @@ from termapy.protocol import (
     VisualizerInfo,
     builtins_viz_dir,
     diff_bytes,
+    format_diff_markup,
     format_hex,
+    overflow_count,
     format_hex_dump,
     load_proto_script,
     load_visualizers_from_dir,
@@ -183,10 +185,10 @@ class TestPatternMatching:
         actual = b"\x01\x03"
         assert match_response(data, actual, mask) is False
 
-    def test_length_mismatch_too_long(self):
+    def test_overflow_is_fail(self):
         data, mask = parse_pattern("01 03")
         actual = b"\x01\x03\x05"
-        assert match_response(data, actual, mask) is False
+        assert match_response(data, actual, mask) is False  # extra bytes = fail
 
     def test_quoted_text_pattern(self):
         data, mask = parse_pattern('"OK\\r"')
@@ -753,13 +755,13 @@ class TestDiffBytes:
         assert result == ["match", "missing", "missing"]
 
     def test_actual_longer(self):
-        """Extra bytes in actual → 'extra'."""
+        """Extra bytes in actual → only expected bytes diffed, overflow ignored."""
         expected = b"\x01"
         actual = b"\x01\x02\x03"
         mask = b"\xff"
         result = diff_bytes(expected, actual, mask)
 
-        assert result == ["match", "extra", "extra"]
+        assert result == ["match"]  # extra bytes not in diff list
 
     def test_empty_both(self):
         """Empty expected and actual → empty result."""
@@ -768,13 +770,56 @@ class TestDiffBytes:
         assert result == []
 
     def test_mixed(self):
-        """Mix of match, mismatch, wildcard, extra."""
+        """Mix of match, mismatch, wildcard with overflow."""
         expected = b"\x01\x00\x03"
         actual = b"\x01\xFF\x04\x05"
         mask = b"\xff\x00\xff"
         result = diff_bytes(expected, actual, mask)
 
-        assert result == ["match", "wildcard", "mismatch", "extra"]
+        assert result == ["match", "wildcard", "mismatch"]  # extra byte not in diff
+
+
+# ── overflow_count ────────────────────────────────────────────────────
+
+
+class TestOverflowCount:
+    def test_no_overflow(self):
+        actual = overflow_count(b"\x01\x02\x03", b"\x01\x02\x03")
+        assert actual == 0  # same length, no overflow
+
+    def test_actual_shorter(self):
+        actual = overflow_count(b"\x01\x02\x03", b"\x01")
+        assert actual == 0  # shorter is not overflow
+
+    def test_overflow(self):
+        actual = overflow_count(b"\x01", b"\x01\x02\x03")
+        assert actual == 2  # 2 extra bytes
+
+    def test_empty_expected(self):
+        actual = overflow_count(b"", b"\x01\x02")
+        assert actual == 2  # all bytes are overflow
+
+
+class TestFormatDiffMarkupOverflow:
+    def test_no_overflow_no_ovr_tag(self):
+        result = format_diff_markup(
+            actual=b"\x01\x02",
+            expected=b"\x01\x02",
+            mask=b"\xff\xff",
+            token_fn=lambda b: f"{b:02X} ",
+            missing_token="?? ",
+        )
+        assert "OVR" not in result  # no overflow indicator
+
+    def test_overflow_appends_ovr_tag(self):
+        result = format_diff_markup(
+            actual=b"\x01\x02\x03\x04",
+            expected=b"\x01\x02",
+            mask=b"\xff\xff",
+            token_fn=lambda b: f"{b:02X} ",
+            missing_token="?? ",
+        )
+        assert "OVR+2" in result  # overflow indicator present
 
 
 # ── Packet Visualizer Tests ──────────────────────────────────────────

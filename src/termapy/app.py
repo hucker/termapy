@@ -728,20 +728,23 @@ class SerialTerminal(App):
     @work(thread=True)
     def _auto_reconnect(self) -> None:
         """Background thread: retry connecting every second until success or stop."""
-        while not self.stop_event.is_set():
-            time.sleep(1.0)
-            if self.stop_event.is_set():
-                break
-            self.call_from_thread(self._set_conn_status, "Retrying...")
-            try:
-                ser = open_serial(self.cfg)
-                # Success — hand off to the main thread to finish setup
-                ser.close()
-                self.call_from_thread(self._try_open_port)
-                return
-            except (serial.SerialException, OSError):
-                self.call_from_thread(self._set_conn_status, "Disconnected")
-                continue
+        try:
+            while not self.stop_event.is_set():
+                time.sleep(1.0)
+                if self.stop_event.is_set():
+                    break
+                self.call_from_thread(self._set_conn_status, "Retrying...")
+                try:
+                    ser = open_serial(self.cfg)
+                    # Success — hand off to the main thread to finish setup
+                    ser.close()
+                    self.call_from_thread(self._try_open_port)
+                    return
+                except (serial.SerialException, OSError):
+                    self.call_from_thread(self._set_conn_status, "Disconnected")
+                    continue
+        except RuntimeError:
+            pass  # call_from_thread fails during app shutdown
 
     def _set_hex_mode(self, enabled: bool) -> None:
         """Toggle hex display mode for serial I/O."""
@@ -864,19 +867,22 @@ class SerialTerminal(App):
         line_ending = self.cfg.get("line_ending", "\r")
         enc = self.cfg.get("encoding", "utf-8")
         delay_s = self.cfg.get("inter_cmd_delay_ms", 0) / 1000.0
-        for cmd in lines:
-            cmd = cmd.strip()
-            if not cmd or not self.ser or not self.ser.is_open:
-                continue
-            if echo_prefix:
-                self.call_from_thread(self._status, f"{echo_prefix}{cmd}")
-            try:
-                self.ser.write((cmd + line_ending).encode(enc))
-            except (serial.SerialException, OSError):
-                return
-            if delay_s > 0:
-                time.sleep(delay_s)
-            self._wait_for_idle(400)
+        try:
+            for cmd in lines:
+                cmd = cmd.strip()
+                if not cmd or not self.ser or not self.ser.is_open:
+                    continue
+                if echo_prefix:
+                    self.call_from_thread(self._status, f"{echo_prefix}{cmd}")
+                try:
+                    self.ser.write((cmd + line_ending).encode(enc))
+                except (serial.SerialException, OSError):
+                    return
+                if delay_s > 0:
+                    time.sleep(delay_s)
+                self._wait_for_idle(400)
+        except RuntimeError:
+            pass  # call_from_thread fails during app shutdown
 
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting."""
@@ -1356,12 +1362,14 @@ class SerialTerminal(App):
                 if lines:
                     self.call_from_thread(self._write_output_batch, lines)
                     self.call_from_thread(self._write_log_batch, lines)
+        except RuntimeError:
+            pass  # call_from_thread fails during app shutdown
         finally:
             if self.ser:
                 try:
                     self.ser.close()
-                except Exception as e:
-                    self.call_from_thread(self._report_exception, e)
+                except Exception:
+                    pass  # port already closed or inaccessible
                 self.ser = None
             self.reader_stopped.set()
 
@@ -1762,13 +1770,21 @@ class SerialTerminal(App):
         data_dir = cfg_data_dir(self.config_path)
         report_path = data_dir / f"{config_name}.md"
 
-        tree, markdown = _build_info_tree(self.config_path, self.cfg)
-        report_path.write_text(markdown, encoding="utf-8")
+        try:
+            tree, markdown = _build_info_tree(self.config_path, self.cfg)
+            report_path.write_text(markdown, encoding="utf-8")
 
-        self.call_from_thread(self._write_output_markup, tree)
+            self.call_from_thread(self._write_output_markup, tree)
 
-        if "--display" in args.lower():
-            self.call_from_thread(open_with_system, str(report_path))
+            if "--display" in args.lower():
+                self.call_from_thread(open_with_system, str(report_path))
+        except RuntimeError:
+            pass  # call_from_thread fails during app shutdown
+        except Exception as e:
+            try:
+                self.call_from_thread(self._status, f"Info error: {e}", "red")
+            except RuntimeError:
+                pass
 
     def _hook_port(self, ctx, args: str) -> None:
         arg = args.strip().lower()
@@ -1888,7 +1904,10 @@ class SerialTerminal(App):
         def thread_safe_write(text: str, color: str = "dim") -> None:
             self.call_from_thread(self._status, text, color)
 
-        self.repl.run_script(path, write=thread_safe_write)
+        try:
+            self.repl.run_script(path, write=thread_safe_write)
+        except RuntimeError:
+            pass  # call_from_thread fails during app shutdown
 
 
 def _find_config() -> tuple[str | None, bool]:

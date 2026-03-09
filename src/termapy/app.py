@@ -906,7 +906,11 @@ class SerialTerminal(App):
 
             self.push_screen(ConfirmDialog(message), callback=_on_result)
 
-        self.call_from_thread(_show)
+        try:
+            self.call_from_thread(_show)
+        except RuntimeError:
+            self._status("!confirm can only be used in scripts.", "yellow")
+            return True
         event.wait()
         return result[0]
 

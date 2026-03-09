@@ -198,7 +198,7 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!cls`                    | Clear the terminal screen                                                        |
 | `!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
 | `!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
-| `!confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                            |
+| `!confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)        |
 | `!stop`                   | Abort a running script                                                           |
 | `!seq [reset]`            | Show or reset sequence counters                                                  |
 | `!print <text>`           | Print a message to the terminal                                                  |
@@ -441,20 +441,23 @@ The user types `!acme.flash firmware.bin`, and `!help` groups it under the "acme
 
 The `ctx` object passed to every handler. This is the stable public API for external plugins:
 
-| Method / Attribute          | Description                               |
-| --------------------------- | ----------------------------------------- |
-| `ctx.write(text, color)`    | Print to the terminal (color is optional) |
-| `ctx.cfg`                   | Current config dict (read-only access)    |
-| `ctx.config_path`           | Path to the current `.json` config file   |
-| `ctx.is_connected()`        | Check if the serial port is open          |
-| `ctx.serial_write(data)`    | Send bytes to the serial port             |
-| `ctx.serial_wait_idle()`    | Wait until serial output settles          |
-| `ctx.ss_dir`                | Screenshot directory (`Path`)             |
-| `ctx.scripts_dir`           | Scripts directory (`Path`)                |
-| `ctx.notify(text)`          | Show a toast notification                 |
-| `ctx.clear_screen()`        | Clear the terminal output                 |
-| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file          |
-| `ctx.get_screen_text()`     | Get terminal content as plain text        |
+| Method / Attribute          | Description                                           |
+| --------------------------- | ----------------------------------------------------- |
+| `ctx.write(text, color)`    | Print to the terminal (color is optional)             |
+| `ctx.write_markup(text)`    | Print Rich markup text (e.g. `[bold red]Warning![/]`) |
+| `ctx.cfg`                   | Current config dict (read-only access)                |
+| `ctx.config_path`           | Path to the current `.json` config file               |
+| `ctx.is_connected()`        | Check if the serial port is open                      |
+| `ctx.serial_write(data)`    | Send bytes to the serial port                         |
+| `ctx.serial_wait_idle()`    | Wait until serial output settles                      |
+| `ctx.serial_read_raw()`     | Read raw bytes with timeout framing (returns `bytes`) |
+| `ctx.ss_dir`                | Screenshot directory (`Path`)                         |
+| `ctx.scripts_dir`           | Scripts directory (`Path`)                            |
+| `ctx.confirm(message)`      | Show Yes/Cancel dialog, return `bool` (scripts only)  |
+| `ctx.notify(text)`          | Show a toast notification                             |
+| `ctx.clear_screen()`        | Clear the terminal output                             |
+| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file                      |
+| `ctx.get_screen_text()`     | Get terminal content as plain text                    |
 
 Plugins can use anything from the Python standard library or third-party packages. They interact with `termapy` only through `ctx`.
 

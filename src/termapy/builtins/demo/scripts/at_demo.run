@@ -46,6 +46,7 @@ help
 BOGUS
 !delay 300ms
 
+!confirm Reset device?
 !print
 !print [8] Device reset
 AT+RESET

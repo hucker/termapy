@@ -112,7 +112,10 @@ class ReplEngine:
         )
         plugin = self._plugins.get(name)
         if plugin:
-            plugin.handler(self.ctx, args)
+            try:
+                plugin.handler(self.ctx, args)
+            except Exception as e:
+                self.write(f"Plugin error ({name}): {e}", "red")
         else:
             self.write(f"Unknown REPL command: {name}", "red")
 

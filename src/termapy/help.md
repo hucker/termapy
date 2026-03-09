@@ -129,7 +129,7 @@ Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead 
 | `!cls` | Clear the terminal |
 | `!run <file>` | Run a script file |
 | `!delay <duration>` | Pause for a duration (e.g. `500ms`, `1.5s`) |
-| `!confirm {message}` | Show Yes/Cancel dialog; Cancel stops a running script |
+| `!confirm {message}` | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`) |
 | `!stop` | Abort a running script |
 | `!seq [reset]` | Show or reset sequence counters |
 | `!print <text>` | Print a message to the terminal |

@@ -21,4 +21,4 @@ expect = '"OK\r\n"'
 [[test]]
 name = "Unknown command"
 send = '"INVALID\r"'
-expect = '"ERROR: Unknown command \'INVALID\'\r\n"'
+expect = "\"ERROR: Unknown command 'INVALID'\\r\\n\""

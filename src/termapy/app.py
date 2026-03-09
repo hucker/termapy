@@ -40,6 +40,7 @@ from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
     ConfigPicker,
+    ConfirmDialog,
     HelpViewer,
     LogViewer,
     NamePicker,
@@ -72,149 +73,130 @@ _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
 
 
-def _human_size(nbytes: int | float) -> str:
-    """Format byte count as human-readable string.
+
+def _build_info_tree(config_path: str, cfg: dict) -> tuple[str, str]:
+    """Generate a directory-tree view of the project.
+
+    No stat() or resolve() calls — just glob for filenames.
+    Avoids expensive Windows Defender filesystem scans.
 
     Args:
-        nbytes: Size in bytes.
-
-    Returns:
-        Human-readable size string (e.g. ``"1.2 KB"``).
-    """
-    for unit in ("B", "KB", "MB", "GB"):
-        if nbytes < 1024:
-            return f"{nbytes:.0f} {unit}" if unit == "B" else f"{nbytes:.1f} {unit}"
-        nbytes /= 1024
-    return f"{nbytes:.1f} TB"
-
-
-def _build_info_report(config_path: str, cfg: dict) -> tuple[str, dict[str, int]]:
-    """Generate markdown project info report.
-
-    Args:
-        config_path: Absolute path to the config JSON file.
+        config_path: Path to the config JSON file.
         cfg: Loaded config dict.
 
     Returns:
-        Tuple of (markdown string, counts dict with non-zero file counts).
+        Tree string suitable for terminal output or markdown code block.
     """
-    from datetime import datetime
-
-    data_dir = cfg_data_dir(config_path).resolve()
-    config_name = Path(config_path).stem
-
-    # Linkable extensions — relative to the report file in data_dir
-    _LINKABLE = {".run", ".pro", ".py", ".txt", ".svg", ".json", ".md"}
-
-    def _rel_link(filepath: Path) -> str:
-        """Return a markdown link if the file extension is linkable.
-
-        Args:
-            filepath: Absolute path to the file.
-
-        Returns:
-            Markdown link or plain name.
-        """
-        try:
-            rel = filepath.resolve().relative_to(data_dir)
-        except ValueError:
-            # File is not under data_dir (e.g. global plugins)
-            return filepath.name
-        if filepath.suffix.lower() in _LINKABLE:
-            # Use forward slashes for markdown compatibility
-            return f"[{filepath.name}]({rel.as_posix()})"
-        return filepath.name
-
-    lines: list[str] = []
-    lines.append(f"# Project: {config_name}")
-    lines.append("")
-    config_p = Path(config_path)
-    lines.append(f"**Config:** [{config_p.name}]({config_p.name})")
-    lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    lines.append("")
-
-    def _file_table(directory: Path, pattern: str, heading: str) -> int:
-        """Append a markdown table of matching files with relative links.
-
-        Args:
-            directory: Directory to search.
-            pattern: Glob pattern (e.g. ``"*.run"``).
-            heading: Section heading text.
-
-        Returns:
-            Number of files found.
-        """
-        files = sorted(f for f in directory.glob(pattern) if f.is_file())
-        lines.append(f"## {heading} ({len(files)})")
-        lines.append("")
-        if files:
-            lines.append("| File | Size | Modified |")
-            lines.append("| --- | --- | --- |")
-            for f in files:
-                stat = f.stat()
-                size = _human_size(stat.st_size)
-                mtime = datetime.fromtimestamp(stat.st_mtime).strftime(
-                    "%Y-%m-%d %H:%M"
-                )
-                link = _rel_link(f)
-                lines.append(f"| {link} | {size} | {mtime} |")
-        lines.append("")
-        return len(files)
-
-    counts: dict[str, int] = {}
-    counts["scripts"] = _file_table(data_dir / "scripts", "*.run", "Scripts")
-    counts["proto"] = _file_table(data_dir / "proto", "*.pro", "Protocol Files")
-    counts["plugins_local"] = _file_table(
-        data_dir / "plugins", "*.py", "Plugins (local)"
-    )
-    counts["plugins_global"] = _file_table(
-        global_plugins_dir(), "*.py", "Plugins (global)"
-    )
-    counts["screenshots"] = _file_table(data_dir / "ss", "*", "Screenshots")
-
-    # Log file
-    lines.append("## Log File")
-    lines.append("")
-    log_path = Path(cfg_log_path(config_path))
-    if log_path.exists():
-        stat = log_path.stat()
-        log_size = _human_size(stat.st_size)
-        log_mtime = datetime.fromtimestamp(stat.st_mtime).strftime(
-            "%Y-%m-%d %H:%M"
-        )
-        link = _rel_link(log_path)
-        lines.append("| File | Size | Modified |")
-        lines.append("| --- | --- | --- |")
-        lines.append(f"| {link} | {log_size} | {log_mtime} |")
-        counts["log"] = 1
-    else:
-        counts["log"] = 0
-    lines.append("")
-
-    # Config summary as JSON
     import json
 
-    cfg_display = {k: v for k, v in cfg.items() if k != "custom_buttons"}
-    lines.append("## Config Summary")
-    lines.append("")
-    lines.append("```json")
-    lines.append(json.dumps(cfg_display, indent=4))
-    lines.append("```")
-    lines.append("")
+    config_p = Path(config_path)
+    data_dir = config_p.parent if config_p.is_absolute() else config_p.resolve().parent
+    config_name = config_p.stem
 
-    # Custom buttons as JSON
+    def _names(directory: Path, pattern: str) -> list[str]:
+        """Return sorted filenames matching pattern in directory."""
+        if pattern == "*":
+            return sorted(f.name for f in directory.glob(pattern) if f.is_file())
+        return sorted(f.name for f in directory.glob(pattern))
+
+    # Gather file lists
+    sections: list[tuple[str, list[str]]] = [
+        (f"{config_name}.json", []),
+        (f"{config_name}.log", []),
+        ("scripts/", _names(data_dir / "scripts", "*.run")),
+        ("proto/", _names(data_dir / "proto", "*.pro")),
+        ("plugins/", _names(data_dir / "plugins", "*.py")),
+        ("ss/", _names(data_dir / "ss", "*")),
+        ("viz/", _names(data_dir / "viz", "*.py")),
+    ]
+
+    # Global plugins
+    global_names = _names(global_plugins_dir(), "*.py")
+
+    # Colors for Rich markup (terminal output)
+    _DIR = "cyan"
+    _TREE = "dim"
+    _FILE = "blue"
+
+    # Build tree — plain lines for markdown, colored for terminal
+    plain_lines: list[str] = [f"{config_name}/"]
+    color_lines: list[str] = [f"[{_DIR}]{config_name}/[/]"]
+
+    # Filter to non-empty entries and standalone files
+    entries: list[tuple[str, list[str]]] = []
+    for name, files in sections:
+        if name.endswith("/"):
+            entries.append((name, files))
+        elif (data_dir / name).exists():
+            entries.append((name, []))
+
+    for i, (name, files) in enumerate(entries):
+        is_last_entry = i == len(entries) - 1
+        connector = "└── " if is_last_entry else "├── "
+        child_prefix = "    " if is_last_entry else "│   "
+
+        if not name.endswith("/"):
+            # Standalone file (config json, log)
+            plain_lines.append(f"{connector}{name}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{name}[/]")
+        elif files:
+            plain_lines.append(f"{connector}{name}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
+            for j, fname in enumerate(files):
+                child_conn = "└── " if j == len(files) - 1 else "├── "
+                plain_lines.append(f"{child_prefix}{child_conn}{fname}")
+                color_lines.append(
+                    f"[{_TREE}]{child_prefix}{child_conn}[/][{_FILE}]{fname}[/]"
+                )
+        else:
+            # Empty directory
+            plain_lines.append(f"{connector}{name}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
+
+    # Global plugins section (separate root)
+    if global_names:
+        plain_lines.append("")
+        plain_lines.append("plugins/ (global)")
+        color_lines.append("")
+        color_lines.append(f"[{_DIR}]plugins/ (global)[/]")
+        for i, fname in enumerate(global_names):
+            connector = "└── " if i == len(global_names) - 1 else "├── "
+            plain_lines.append(f"{connector}{fname}")
+            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{fname}[/]")
+
+    tree = "\n".join(plain_lines)
+    colored_tree = "\n".join(color_lines)
+
+    # Build markdown report with tree + config JSON
+    cfg_display = {k: v for k, v in cfg.items() if k != "custom_buttons"}
     buttons = cfg.get("custom_buttons", [])
     active = [b for b in buttons if b.get("enabled")]
-    counts["buttons"] = len(active)
-    lines.append(f"## Custom Buttons ({len(active)} active)")
-    lines.append("")
-    if active:
-        lines.append("```json")
-        lines.append(json.dumps(active, indent=4))
-        lines.append("```")
-    lines.append("")
 
-    return "\n".join(lines), {k: v for k, v in counts.items() if v}
+    md_lines: list[str] = [
+        f"# Project: {config_name}",
+        "",
+        "```text",
+        tree,
+        "```",
+        "",
+        "## Config",
+        "",
+        "```json",
+        json.dumps(cfg_display, indent=4),
+        "```",
+        "",
+    ]
+    if active:
+        md_lines.extend([
+            f"## Custom Buttons ({len(active)} active)",
+            "",
+            "```json",
+            json.dumps(active, indent=4),
+            "```",
+            "",
+        ])
+
+    return colored_tree, "\n".join(md_lines)
 
 
 def _eol_label(line_ending: str) -> str:
@@ -362,7 +344,8 @@ class SerialTerminal(App):
         ("Edit Config", "_palette_edit_config"),
         ("Load Config...", "_palette_load_config"),
         ("New Config", "_palette_new_config"),
-        ("View Log", "_palette_view_log"),
+        ("View Log File", "_palette_view_log"),
+        ("Delete Log File", "_palette_delete_log"),
         ("Clear Screen", "_palette_clear"),
         ("Save SVG Screenshot", "_palette_ss_svg"),
         ("Save Text Screenshot", "_palette_ss_txt"),
@@ -565,6 +548,7 @@ class SerialTerminal(App):
         )
         ctx = PluginContext(
             write=self._status,
+            write_markup=self._write_output_markup,
             cfg=self.cfg,
             config_path=self.config_path,
             is_connected=lambda: self.is_connected,
@@ -575,6 +559,7 @@ class SerialTerminal(App):
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
             proto_dir=self.repl.proto_dir,
+            confirm=self._confirm,
             notify=lambda text, **kw: self.notify(text, **kw),
             clear_screen=self._clear_output,
             save_screenshot=self.save_screenshot,
@@ -606,7 +591,7 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
-            "clr",
+            "cls",
             "",
             "Clear the terminal screen.",
             lambda ctx, args: self._clear_output(),
@@ -897,6 +882,33 @@ class SerialTerminal(App):
             )
         except Exception:
             pass  # widgets gone during shutdown
+
+    def _confirm(self, message: str) -> bool:
+        """Show a Yes/Cancel dialog and block until the user responds.
+
+        Must be called from a background thread (e.g. ``@work(thread=True)``).
+        Uses ``call_from_thread`` to push the dialog on the main thread and
+        a ``threading.Event`` to synchronize the result back.
+
+        Args:
+            message: Text to display in the confirmation dialog.
+
+        Returns:
+            True if the user clicked Yes, False otherwise.
+        """
+        result: list[bool] = [False]
+        event = Event()
+
+        def _show() -> None:
+            def _on_result(confirmed: bool) -> None:
+                result[0] = confirmed
+                event.set()
+
+            self.push_screen(ConfirmDialog(message), callback=_on_result)
+
+        self.call_from_thread(_show)
+        event.wait()
+        return result[0]
 
     def _write_output_markup(self, text: str) -> None:
         self.query_one("#output", RichLog).write(text)
@@ -1190,6 +1202,31 @@ class SerialTerminal(App):
     def _palette_view_log(self) -> None:
         self.push_screen(LogViewer(self._log_path()))
 
+    def _palette_delete_log(self) -> None:
+        """Delete the current session log file after confirmation."""
+        log_path = self._log_path()
+        if not log_path or not Path(log_path).exists():
+            self._status("No log file to delete.", "yellow")
+            return
+
+        def on_confirmed(confirmed: bool) -> None:
+            if not confirmed:
+                return
+            # Close the open file handle first
+            if self.log_fh:
+                self.log_fh.close()
+                self.log_fh = None
+            try:
+                Path(log_path).unlink()
+                self._status(f"Deleted {log_path}", "green")
+            except OSError as e:
+                self._status(f"Delete failed: {e}", "red")
+
+        self.push_screen(
+            ConfirmDialog(f"Delete {Path(log_path).name}?"),
+            callback=on_confirmed,
+        )
+
     def _palette_clear(self) -> None:
         self.query_one("#output", RichLog).clear()
 
@@ -1353,7 +1390,7 @@ class SerialTerminal(App):
 
         Splits on literal ``\\n`` and real newlines. If multiple commands
         are found, they are executed one per refresh cycle via
-        ``call_after_refresh`` so UI updates (like ``!clr``) complete
+        ``call_after_refresh`` so UI updates (like ``!cls``) complete
         before the next command runs.
 
         Args:
@@ -1668,24 +1705,30 @@ class SerialTerminal(App):
             self._status("No config loaded.", "red")
             return
 
-        data_dir = cfg_data_dir(self.config_path)
+        self.notify("Generating project tree…", timeout=1)
+        self._do_info_work(args)
+
+    @work(thread=True)
+    def _do_info_work(self, args: str) -> None:
+        """Build project info tree in a background thread.
+
+        Uses ``@work(thread=True)`` so the toast renders immediately
+        while filesystem I/O runs off the event loop.
+
+        Args:
+            args: Original args from ``!info`` (e.g. ``"--display"``).
+        """
         config_name = Path(self.config_path).stem
+        data_dir = cfg_data_dir(self.config_path)
         report_path = data_dir / f"{config_name}.md"
 
-        content, counts = _build_info_report(self.config_path, self.cfg)
-        report_path.write_text(content, encoding="utf-8")
+        tree, markdown = _build_info_tree(self.config_path, self.cfg)
+        report_path.write_text(markdown, encoding="utf-8")
 
-        # Print non-zero stats to output
-        name = Path(self.config_path).stem
-        self._status(f"Project: {name}", "bright_white")
-        self._status(f"  Config: {Path(self.config_path).resolve()}")
-        for key, count in counts.items():
-            label = key.replace("_", " ").title()
-            self._status(f"  {label}: {count}")
-        self._status(f"  Report: {report_path}")
+        self.call_from_thread(self._write_output_markup, tree)
 
         if "--display" in args.lower():
-            open_with_system(str(report_path))
+            self.call_from_thread(open_with_system, str(report_path))
 
     def _hook_port(self, ctx, args: str) -> None:
         arg = args.strip().lower()

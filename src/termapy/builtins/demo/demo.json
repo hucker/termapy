@@ -26,9 +26,9 @@
     "max_grep_lines": 100,
     "command_history_items": 30,
     "custom_buttons": [
-        {"enabled": true, "name": "Demo Help", "command": "!clr\\nHELP", "tooltip": "Clear screen and show device commands"},
-        {"enabled": true, "name": "AT Demo", "command": "!clr\\n!run at_demo.run", "tooltip": "Run all AT commands with delays"},
-        {"enabled": false, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
+        {"enabled": true, "name": "Demo Help", "command": "!cls\\nHELP", "tooltip": "Clear screen and show device commands"},
+        {"enabled": true, "name": "AT Demo", "command": "!cls\\n!run at_demo.run", "tooltip": "Run all AT commands with delays"},
+        {"enabled": true, "name": "Info", "command": "!info", "tooltip": "Project info"},
         {"enabled": false, "name": "Btn4", "command": "", "tooltip": "Custom button 4"}
     ]
 }

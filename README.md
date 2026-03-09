@@ -42,6 +42,8 @@ termapy --demo
 
 This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts and proto test files are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
 
+![Demo project tree](img/demo_tree.svg)
+
 **AT commands:**
 
 | Command | Description |
@@ -112,7 +114,7 @@ termapy_cfg/
 │   └── hello.py
 ├── iot_dev/
 │   ├── iot_dev.json                    # config file
-│   ├── iot_dev.txt                     # session log
+│   ├── iot_dev.log                     # session log
 │   ├── .cmd_history.txt                # command history
 │   ├── ss/                             # screenshots
 │   │   ├── screenshot_20260306_141523.svg
@@ -125,7 +127,7 @@ termapy_cfg/
 │       └── modbus_view.py
 └── sensor_b/
     ├── sensor_b.json
-    ├── sensor_b.txt
+    ├── sensor_b.log
     ├── .cmd_history.txt
     ├── ss/
     ├── scripts/
@@ -193,12 +195,14 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!ss_svg [name]`          | Save SVG screenshot                                                              |
 | `!ss_txt [name]`          | Save text screenshot                                                             |
 | `!ss_dir [path]`          | Set or show the screenshot folder                                                |
-| `!clr`                    | Clear the terminal screen                                                        |
+| `!cls`                    | Clear the terminal screen                                                        |
 | `!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
 | `!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
+| `!confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                            |
 | `!stop`                   | Abort a running script                                                           |
 | `!seq [reset]`            | Show or reset sequence counters                                                  |
 | `!print <text>`           | Print a message to the terminal                                                  |
+| `!rprint <text>`          | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
 | `!show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
@@ -295,7 +299,7 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
 | `autoconnect_cmd`       | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
 | `echo_cmd`              | `false`                | Echo sent commands locally                                                                               |
 | `echo_cmd_fmt`          | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
-| `log_file`              | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
+| `log_file`              | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
 | `show_timestamps`       | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
 | `show_eol`              | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
 | `max_grep_lines`        | `100`                  | Maximum number of matching lines shown by `!grep`                                                        |
@@ -304,7 +308,7 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
 | `title`                 | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`      | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`             | `10000`                | Maximum lines in the scrollback buffer                                                                   |
-| `repl_prefix`           | `"!"`                  | Prefix for local REPL commands (e.g. `!help`, `!clr`)                                                    |
+| `repl_prefix`           | `"!"`                  | Prefix for local REPL commands (e.g. `!help`, `!cls`)                                                    |
 | `os_cmd_enabled`        | `false`                | Enable the `!os` REPL command to run shell commands                                                      |
 | `exception_traceback`   | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`        | `[]`                   | Array of custom button objects (see Custom Buttons below)                                                |

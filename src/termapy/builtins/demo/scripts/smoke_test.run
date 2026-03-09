@@ -4,13 +4,13 @@
 !print === Demo smoke test started {starttime} ===
 
 # Section 1: basic commands
-!clr
+!cls
 help
 !delay 500ms
 !ss_svg s{seq2+}_{seq1+}_help
 !ss_txt s{seq2}_{seq1}_help
 
-!clr
+!cls
 AT
 !delay 200ms
 AT+INFO
@@ -19,7 +19,7 @@ AT+INFO
 !ss_txt s{seq2}_{seq1}_info
 
 # Section 2: sensors and LED
-!clr
+!cls
 AT+TEMP
 !delay 200ms
 AT+TEMP
@@ -29,7 +29,7 @@ AT+TEMP
 !ss_svg s{seq2+}_{seq1+}_temp
 !ss_txt s{seq2}_{seq1}_temp
 
-!clr
+!cls
 AT+LED on
 !delay 200ms
 AT+STATUS
@@ -45,14 +45,14 @@ AT+STATUS
 !ss_txt s{seq2}_{seq1}_led_off
 
 # Section 3: memory dump
-!clr
+!cls
 mem 0x1000 64
 !delay 500ms
 !ss_svg s{seq2+}_{seq1+}_mem64
 !ss_txt s{seq2}_{seq1}_mem64
 
 # Section 4: reset
-!clr
+!cls
 AT+RESET
 !delay 1s
 !ss_svg s{seq2+}_{seq1+}_reset

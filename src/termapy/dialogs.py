@@ -837,6 +837,48 @@ class CfgConfirm(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class ConfirmDialog(ModalScreen[bool]):
+    """Generic Yes/Cancel confirmation dialog.
+
+    Args:
+        message: Text to display in the dialog.
+    """
+
+    CSS = f"""
+    ConfirmDialog {{ align: center middle; }}
+    ConfirmDialog Button {{ {_MODAL_BTN_CSS} }}
+    #confirm-dialog {{
+        width: 50; height: 7;
+        border: thick $primary; background: $surface; padding: 1 2;
+    }}
+    #confirm-msg {{ height: 1; }}
+    #confirm-buttons {{ height: 1; align: right middle; }}
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self.message = message
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        with Vertical(id="confirm-dialog"):
+            yield Static(self.message, id="confirm-msg")
+            with Horizontal(id="confirm-buttons"):
+                yield Button("Yes", id="confirm-yes", variant="success")
+                yield Button("Cancel", id="confirm-no", variant="error")
+
+    @on(Button.Pressed, "#confirm-yes")
+    def confirm(self) -> None:
+        """Dismiss with True."""
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#confirm-no")
+    def cancel(self) -> None:
+        """Dismiss with False."""
+        self.dismiss(False)
+
+
 class PortPicker(ModalScreen[str | None]):
     """Modal dialog to select an available serial port."""
 

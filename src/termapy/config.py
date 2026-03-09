@@ -41,7 +41,7 @@ def cfg_path_for_name(name: str) -> Path:
 
 def cfg_log_path(config_path: str) -> str:
     """Return the default log file path for a config."""
-    name = Path(config_path).stem + ".txt"
+    name = Path(config_path).stem + ".log"
     return str((cfg_data_dir(config_path) / name).resolve())
 
 
@@ -98,7 +98,7 @@ DEFAULT_CFG = {
     "command_history_items": 30,
     # Custom buttons
     "custom_buttons": [
-        {"enabled": False, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
+        {"enabled": True, "name": "Info", "command": "!info", "tooltip": "Project info"},
         {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
         {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
         {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},

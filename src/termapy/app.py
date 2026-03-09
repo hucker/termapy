@@ -31,6 +31,7 @@ from termapy.config import (
     load_config,
     open_serial,
     open_with_system,
+    setup_demo_config,
 )
 from rich.text import Text
 from textual import on, work
@@ -69,6 +70,151 @@ PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
 # Dim ANSI markers for visible EOL display (show_eol mode)
 _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
+
+
+def _human_size(nbytes: int | float) -> str:
+    """Format byte count as human-readable string.
+
+    Args:
+        nbytes: Size in bytes.
+
+    Returns:
+        Human-readable size string (e.g. ``"1.2 KB"``).
+    """
+    for unit in ("B", "KB", "MB", "GB"):
+        if nbytes < 1024:
+            return f"{nbytes:.0f} {unit}" if unit == "B" else f"{nbytes:.1f} {unit}"
+        nbytes /= 1024
+    return f"{nbytes:.1f} TB"
+
+
+def _build_info_report(config_path: str, cfg: dict) -> tuple[str, dict[str, int]]:
+    """Generate markdown project info report.
+
+    Args:
+        config_path: Absolute path to the config JSON file.
+        cfg: Loaded config dict.
+
+    Returns:
+        Tuple of (markdown string, counts dict with non-zero file counts).
+    """
+    from datetime import datetime
+
+    data_dir = cfg_data_dir(config_path).resolve()
+    config_name = Path(config_path).stem
+
+    # Linkable extensions — relative to the report file in data_dir
+    _LINKABLE = {".run", ".pro", ".py", ".txt", ".svg", ".json", ".md"}
+
+    def _rel_link(filepath: Path) -> str:
+        """Return a markdown link if the file extension is linkable.
+
+        Args:
+            filepath: Absolute path to the file.
+
+        Returns:
+            Markdown link or plain name.
+        """
+        try:
+            rel = filepath.resolve().relative_to(data_dir)
+        except ValueError:
+            # File is not under data_dir (e.g. global plugins)
+            return filepath.name
+        if filepath.suffix.lower() in _LINKABLE:
+            # Use forward slashes for markdown compatibility
+            return f"[{filepath.name}]({rel.as_posix()})"
+        return filepath.name
+
+    lines: list[str] = []
+    lines.append(f"# Project: {config_name}")
+    lines.append("")
+    config_p = Path(config_path)
+    lines.append(f"**Config:** [{config_p.name}]({config_p.name})")
+    lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("")
+
+    def _file_table(directory: Path, pattern: str, heading: str) -> int:
+        """Append a markdown table of matching files with relative links.
+
+        Args:
+            directory: Directory to search.
+            pattern: Glob pattern (e.g. ``"*.run"``).
+            heading: Section heading text.
+
+        Returns:
+            Number of files found.
+        """
+        files = sorted(f for f in directory.glob(pattern) if f.is_file())
+        lines.append(f"## {heading} ({len(files)})")
+        lines.append("")
+        if files:
+            lines.append("| File | Size | Modified |")
+            lines.append("| --- | --- | --- |")
+            for f in files:
+                stat = f.stat()
+                size = _human_size(stat.st_size)
+                mtime = datetime.fromtimestamp(stat.st_mtime).strftime(
+                    "%Y-%m-%d %H:%M"
+                )
+                link = _rel_link(f)
+                lines.append(f"| {link} | {size} | {mtime} |")
+        lines.append("")
+        return len(files)
+
+    counts: dict[str, int] = {}
+    counts["scripts"] = _file_table(data_dir / "scripts", "*.run", "Scripts")
+    counts["proto"] = _file_table(data_dir / "proto", "*.pro", "Protocol Files")
+    counts["plugins_local"] = _file_table(
+        data_dir / "plugins", "*.py", "Plugins (local)"
+    )
+    counts["plugins_global"] = _file_table(
+        global_plugins_dir(), "*.py", "Plugins (global)"
+    )
+    counts["screenshots"] = _file_table(data_dir / "ss", "*", "Screenshots")
+
+    # Log file
+    lines.append("## Log File")
+    lines.append("")
+    log_path = Path(cfg_log_path(config_path))
+    if log_path.exists():
+        stat = log_path.stat()
+        log_size = _human_size(stat.st_size)
+        log_mtime = datetime.fromtimestamp(stat.st_mtime).strftime(
+            "%Y-%m-%d %H:%M"
+        )
+        link = _rel_link(log_path)
+        lines.append("| File | Size | Modified |")
+        lines.append("| --- | --- | --- |")
+        lines.append(f"| {link} | {log_size} | {log_mtime} |")
+        counts["log"] = 1
+    else:
+        counts["log"] = 0
+    lines.append("")
+
+    # Config summary as JSON
+    import json
+
+    cfg_display = {k: v for k, v in cfg.items() if k != "custom_buttons"}
+    lines.append("## Config Summary")
+    lines.append("")
+    lines.append("```json")
+    lines.append(json.dumps(cfg_display, indent=4))
+    lines.append("```")
+    lines.append("")
+
+    # Custom buttons as JSON
+    buttons = cfg.get("custom_buttons", [])
+    active = [b for b in buttons if b.get("enabled")]
+    counts["buttons"] = len(active)
+    lines.append(f"## Custom Buttons ({len(active)} active)")
+    lines.append("")
+    if active:
+        lines.append("```json")
+        lines.append(json.dumps(active, indent=4))
+        lines.append("```")
+    lines.append("")
+
+    return "\n".join(lines), {k: v for k, v in counts.items() if v}
 
 
 def _eol_label(line_ending: str) -> str:
@@ -414,7 +560,8 @@ class SerialTerminal(App):
             set_hex_mode=self._set_hex_mode,
             set_proto_active=lambda active: setattr(self, "_proto_active", active),
             open_proto_debug=lambda path, script: self.call_later(
-                self._open_proto_debug, path, script),
+                self._open_proto_debug, path, script
+            ),
         )
         ctx = PluginContext(
             write=self._status,
@@ -487,10 +634,17 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "demo",
+            "{--force}",
+            "Switch to the built-in demo device. --force overwrites existing config.",
+            lambda ctx, args: self._start_demo(args),
+            source="app",
+        )
+        self.repl.register_hook(
             "connect",
-            "",
-            "Connect to the serial port.",
-            lambda ctx, args: self._connect(),
+            "{port}",
+            "Connect to the serial port (optional port override).",
+            lambda ctx, args: self._connect(args.strip() if args.strip() else None),
             source="app",
         )
         self.repl.register_hook(
@@ -505,6 +659,13 @@ class SerialTerminal(App):
             "<on|off>",
             "Toggle line numbers on or off.",
             self._hook_line_no,
+            source="app",
+        )
+        self.repl.register_hook(
+            "info",
+            "{--display}",
+            "Show project summary. --display opens full report in system viewer.",
+            self._hook_info,
             source="app",
         )
         # Load external plugins: global first, then per-config (can override)
@@ -539,9 +700,11 @@ class SerialTerminal(App):
             self.log_fh.close()
             self.log_fh = None
 
-    def _connect(self) -> None:
+    def _connect(self, port: str | None = None) -> None:
         if self.is_connected:
             return
+        if port:
+            self.repl._cfg_data["port"] = port
         # Wait for any previous reader thread to finish
         self.reader_stopped.wait(timeout=1.0)
         self.stop_event.clear()
@@ -557,7 +720,7 @@ class SerialTerminal(App):
             )
             self._set_conn_status("Connected")
             inp = self.query_one("#cmd", Input)
-            inp.placeholder = "Type command, Enter to send"
+            inp.placeholder = "REPL:type command, Enter to send"
             inp.focus()
             self._sync_hw_buttons()
             self.read_serial()
@@ -613,7 +776,8 @@ class SerialTerminal(App):
         if self.config_path:
             viz_dir = cfg_data_dir(self.config_path) / "viz"
             visualizers += load_visualizers_from_dir(
-                viz_dir, Path(self.config_path).stem)
+                viz_dir, Path(self.config_path).stem
+            )
 
         # Deduplicate by name (later wins), sort by sort_order
         by_name = {v.name: v for v in visualizers}
@@ -755,15 +919,10 @@ class SerialTerminal(App):
         self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
 
     def _disconnect(self) -> None:
+        was_open = self.is_connected
         self.stop_event.set()
+        self.reader_stopped.wait(timeout=2.0)
         try:
-            was_open = self.is_connected
-            if self.ser:
-                try:
-                    self.ser.close()
-                except Exception as e:
-                    self._report_exception(e)
-                self.ser = None
             if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
             self._set_conn_status("Disconnected")
@@ -804,6 +963,21 @@ class SerialTerminal(App):
         self._open_log()
         if was_connected or cfg.get("autoconnect"):
             self._connect()
+
+    def _start_demo(self, args: str = "") -> None:
+        """Set up and switch to the built-in demo device config.
+
+        Args:
+            args: Optional ``--force`` to overwrite existing demo config.
+        """
+        force = "--force" in args.lower()
+        config_path = setup_demo_config(cfg_dir(), force=force)
+        cfg = load_config(str(config_path))
+        self._switch_config(cfg, str(config_path))
+        msg = "Switched to demo device"
+        if force:
+            msg += " (config reset)"
+        self._status(msg, "green")
 
     def _on_config_picked(self, result: tuple | None) -> None:
         if result is None:
@@ -956,12 +1130,8 @@ class SerialTerminal(App):
         if idx >= len(buttons):
             return
         raw = buttons[idx].get("command", "").strip()
-        if not raw:
-            return
-        for cmd in raw.split("\\n"):
-            cmd = cmd.strip()
-            if cmd:
-                self._execute_command(cmd)
+        if raw:
+            self._execute_command(raw)
 
     def _show_port_picker(self) -> None:
         self.push_screen(PortPicker(), callback=self._on_port_picked)
@@ -1045,7 +1215,15 @@ class SerialTerminal(App):
                 try:
                     waiting = self.ser.in_waiting or 1
                     data = self.ser.read(min(waiting, 4096))
-                except (serial.SerialException, OSError, AttributeError):
+                except (serial.SerialException, OSError, AttributeError) as exc:
+                    detail = f"{exc.__class__.__name__}: {exc}"
+                    if self.cfg.get("exception_traceback", False):
+                        detail += f"\n{traceback.format_exc()}"
+                    self.call_from_thread(
+                        self._status,
+                        f"Serial read error: {detail}",
+                        "red",
+                    )
                     self.call_from_thread(
                         self.notify,
                         "Serial disconnected",
@@ -1135,8 +1313,12 @@ class SerialTerminal(App):
                 ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                 prefix += f"[{ts}] "
             if hex_mode:
-                hex_str = " ".join(f"{b:02X}" for b in text.encode(
-                    self.cfg.get("encoding", "utf-8"), errors="replace"))
+                hex_str = " ".join(
+                    f"{b:02X}"
+                    for b in text.encode(
+                        self.cfg.get("encoding", "utf-8"), errors="replace"
+                    )
+                )
                 log.write(Text.from_ansi(f"{prefix}{hex_str}"))
             else:
                 log.write(Text.from_ansi(f"{prefix}{text}"))
@@ -1167,7 +1349,49 @@ class SerialTerminal(App):
         self.query_one("#cmd", Input).value = ""
 
     def _execute_command(self, cmd: str) -> None:
-        """Dispatch a single command: REPL prefix goes to REPL, otherwise serial."""
+        """Dispatch a command string, which may contain multiple commands.
+
+        Splits on literal ``\\n`` and real newlines. If multiple commands
+        are found, they are executed one per refresh cycle via
+        ``call_after_refresh`` so UI updates (like ``!clr``) complete
+        before the next command runs.
+
+        Args:
+            cmd: Command string (REPL or serial). May contain ``\\n``
+                 separators for multi-command sequences.
+        """
+        # Normalize literal \n and real newlines, then split
+        parts = [c.strip() for c in cmd.replace("\\n", "\n").split("\n") if c.strip()]
+        if not parts:
+            return
+        if len(parts) > 1:
+            self._execute_sequence(parts)
+            return
+        self._dispatch_single(parts[0])
+
+    def _execute_sequence(self, cmds: list[str], idx: int = 0) -> None:
+        """Execute commands one per refresh cycle.
+
+        Yields control between commands so UI updates are rendered
+        and the reader thread's ``call_from_thread`` callbacks can
+        be processed before the next command runs.
+
+        Args:
+            cmds: List of command strings to execute.
+            idx: Current index into the list.
+        """
+        if idx >= len(cmds):
+            return
+        self._dispatch_single(cmds[idx])
+        if idx + 1 < len(cmds):
+            self.call_after_refresh(self._execute_sequence, cmds, idx + 1)
+
+    def _dispatch_single(self, cmd: str) -> None:
+        """Dispatch a single command: REPL prefix goes to REPL, otherwise serial.
+
+        Args:
+            cmd: A single command string (no ``\\n`` separators).
+        """
         prefix = self.cfg.get("repl_prefix", "!")
         if cmd.startswith(prefix):
             if self.repl.echo:
@@ -1186,15 +1410,10 @@ class SerialTerminal(App):
         if not self.is_connected:
             self._status("Not connected — command not sent", "red")
             return
-        # Split on literal \n for multi-command input
-        parts = cmd.replace("\\n", "\n").split("\n")
-        if len(parts) > 1:
-            self._run_lines(parts)
-        else:
-            line_ending = self.cfg.get("line_ending", "\r")
-            self.ser.write(
-                (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-            )
+        line_ending = self.cfg.get("line_ending", "\r")
+        self.ser.write(
+            (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+        )
 
         # Clear input
         inp = self.query_one("#cmd", Input)
@@ -1434,6 +1653,40 @@ class SerialTerminal(App):
         else:
             self._status("Usage: line_no on|off", "yellow")
 
+    def _hook_info(self, ctx, args: str) -> None:
+        """Generate project info report and print summary to output.
+
+        Writes ``<config_name>.md`` to the config data directory
+        and prints non-zero file counts to the output window.
+        With ``--display``, opens the full report in the system viewer.
+
+        Args:
+            ctx: Plugin context.
+            args: ``"--display"`` to open report externally.
+        """
+        if not self.config_path:
+            self._status("No config loaded.", "red")
+            return
+
+        data_dir = cfg_data_dir(self.config_path)
+        config_name = Path(self.config_path).stem
+        report_path = data_dir / f"{config_name}.md"
+
+        content, counts = _build_info_report(self.config_path, self.cfg)
+        report_path.write_text(content, encoding="utf-8")
+
+        # Print non-zero stats to output
+        name = Path(self.config_path).stem
+        self._status(f"Project: {name}", "bright_white")
+        self._status(f"  Config: {Path(self.config_path).resolve()}")
+        for key, count in counts.items():
+            label = key.replace("_", " ").title()
+            self._status(f"  {label}: {count}")
+        self._status(f"  Report: {report_path}")
+
+        if "--display" in args.lower():
+            open_with_system(str(report_path))
+
     def _hook_port(self, ctx, args: str) -> None:
         arg = args.strip().lower()
         if not arg or arg == "list":
@@ -1548,6 +1801,7 @@ class SerialTerminal(App):
     @work(thread=True)
     def _run_script(self, path: Path) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
+
         def thread_safe_write(text: str, color: str = "dim") -> None:
             self.call_from_thread(self._status, text, color)
 
@@ -1587,10 +1841,24 @@ def main():
         default=None,
         help=f"Config directory (default: {CFG_DIR})",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Start with simulated demo device (no hardware needed)",
+    )
     args = parser.parse_args()
 
     if args.cfg_dir:
         _cfg_mod.CFG_DIR = args.cfg_dir
+
+    if args.demo:
+        from termapy.config import setup_demo_config
+
+        config_path = setup_demo_config(cfg_dir())
+        cfg = load_config(str(config_path))
+        app = SerialTerminal(cfg, config_path=str(config_path))
+        app.run()
+        return
 
     if args.config:
         cfg = load_config(args.config)

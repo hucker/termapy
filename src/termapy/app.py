@@ -409,9 +409,12 @@ class SerialTerminal(App):
 
     def _save_history(self) -> None:
         n = self.cfg.get("command_history_items", 30)
-        Path(self._history_path()).write_text(
-            "\n".join(self.history[-n:]), encoding="utf-8"
-        )
+        try:
+            Path(self._history_path()).write_text(
+                "\n".join(self.history[-n:]), encoding="utf-8"
+            )
+        except OSError:
+            pass  # non-critical — history will be lost but app continues
 
     def compose(self) -> ComposeResult:
         title = self.cfg.get("title", "") or self.config_path
@@ -1118,16 +1121,25 @@ class SerialTerminal(App):
                 )
         elif event.button.id == "btn-dtr":
             if self.is_connected:
-                self.ser.dtr = not self.ser.dtr
-                event.button.label = f"DTR:{int(self.ser.dtr)}"
+                try:
+                    self.ser.dtr = not self.ser.dtr
+                    event.button.label = f"DTR:{int(self.ser.dtr)}"
+                except (OSError, serial.SerialException) as e:
+                    self._status(f"DTR error: {e}", "red")
         elif event.button.id == "btn-rts":
             if self.is_connected:
-                self.ser.rts = not self.ser.rts
-                event.button.label = f"RTS:{int(self.ser.rts)}"
+                try:
+                    self.ser.rts = not self.ser.rts
+                    event.button.label = f"RTS:{int(self.ser.rts)}"
+                except (OSError, serial.SerialException) as e:
+                    self._status(f"RTS error: {e}", "red")
         elif event.button.id == "btn-break":
             if self.is_connected:
-                self.ser.send_break(duration=0.25)
-                self.notify("Break sent", timeout=1.5)
+                try:
+                    self.ser.send_break(duration=0.25)
+                    self.notify("Break sent", timeout=1.5)
+                except (OSError, serial.SerialException) as e:
+                    self._status(f"Break error: {e}", "red")
         elif event.button.id == "btn-cmds":
             self._show_commands()
         elif event.button.id == "btn-help":
@@ -1174,8 +1186,12 @@ class SerialTerminal(App):
         cfg = dict(self.cfg)
         cfg["port"] = port
         if self.config_path:
-            with open(self.config_path, "w") as f:
-                json.dump(cfg, f, indent=4)
+            try:
+                with open(self.config_path, "w") as f:
+                    json.dump(cfg, f, indent=4)
+            except OSError as e:
+                self._status(f"Failed to save config: {e}", "red")
+                return
         self._switch_config(cfg, self.config_path)
         self._status(f"Port changed to {port}", "green")
 
@@ -1469,9 +1485,12 @@ class SerialTerminal(App):
             self._status("Not connected — command not sent", "red")
             return
         line_ending = self.cfg.get("line_ending", "\r")
-        self.ser.write(
-            (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-        )
+        try:
+            self.ser.write(
+                (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+            )
+        except (OSError, serial.SerialException) as e:
+            self._status(f"Send error: {e}", "red")
 
         # Clear input
         inp = self.query_one("#cmd", Input)

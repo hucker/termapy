@@ -1,27 +1,32 @@
 """Interactive protocol debug screen.
 
-Loads a TOML .pro script and presents test cases in a dropdown.
-Select a test to see send/expected, click Send to execute and see
-the actual response with per-byte color-coded comparison.
+Loads a TOML .pro script and presents test cases in a checkbox list.
+Check tests to include them in a run, click Run to execute all checked
+tests and see actual responses with per-byte color-coded comparison.
 """
 
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Checkbox, Input, Rule, Select, Static
+from textual.widgets import (
+    Button, Checkbox, Input, RichLog, Rule, SelectionList, Static,
+)
 
+from termapy.config import cfg_data_dir
 from termapy.protocol import (
     ProtoScript,
     TestCase,
     VisualizerInfo,
+    format_hex,
     match_response,
     strip_ansi,
 )
@@ -34,6 +39,127 @@ _BTN_CSS = """
     min-width: 0; width: auto; height: 1; min-height: 1;
     border: none; margin: 0 0 0 1;
 """
+
+
+def _colorize_log(content: str) -> Text:
+    """Parse proto debug log text and return a colorized Rich Text object.
+
+    Color rules:
+        - ``=`` separator lines → dim
+        - ``-`` separator lines → dim
+        - ``[PASS]`` lines → bold green
+        - ``[FAIL]`` lines → bold red
+        - ``TX:`` / ``EXP:`` / ``RX:`` / ``Time:`` lines → styled
+        - ``Summary:`` lines → bold (green if all pass, red otherwise)
+        - ``setup:`` / ``teardown:`` lines → dim italic
+        - ``--- Repeat`` lines → dim
+        - Everything else → default
+
+    Args:
+        content: Raw log file text.
+
+    Returns:
+        Styled Rich Text object.
+    """
+    result = Text()
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("===") or stripped.startswith("---"):
+            result.append(line, style="dim")
+        elif "[PASS]" in line:
+            result.append(line, style="bold bright_green")
+        elif "[FAIL]" in line:
+            result.append(line, style="bold red")
+        elif stripped.startswith("TX:"):
+            result.append(line, style="cyan")
+        elif stripped.startswith("EXP:"):
+            result.append(line, style="dim")
+        elif stripped.startswith("RX:"):
+            if "(timeout)" in line:
+                result.append(line, style="bold red")
+            else:
+                result.append(line, style="yellow")
+        elif stripped.startswith("Time:"):
+            result.append(line, style="dim")
+        elif stripped.startswith("Summary:"):
+            # Green if no failures, red otherwise
+            has_fail = "stopped on error" in stripped
+            # Parse "X/Y PASS" — fail if X != Y
+            parts = stripped.split("PASS")[0].split()
+            if parts:
+                ratio = parts[-1]  # e.g. "3/5"
+                nums = ratio.split("/")
+                if len(nums) == 2 and nums[0] != nums[1]:
+                    has_fail = True
+            style = "bold red" if has_fail else "bold bright_green"
+            result.append(line, style=style)
+        elif stripped.startswith("setup:") or stripped.startswith("teardown:"):
+            result.append(line, style="dim italic")
+        elif stripped.startswith("["):
+            # Timestamp lines like [2026-03-08 ...]
+            result.append(line, style="bold")
+        else:
+            result.append(line)
+        result.append("\n")
+    return result
+
+
+class ProtoLogViewer(ModalScreen[None]):
+    """Modal viewer for the proto debug log with color-coded output."""
+
+    CSS = f"""
+    ProtoLogViewer {{ align: center middle; }}
+    ProtoLogViewer Button {{ {_BTN_CSS} }}
+    #plog-dialog {{
+        width: 95%; height: 95%;
+        border: thick $primary; background: $surface; padding: 1 2;
+    }}
+    #plog-title {{ height: 1; text-align: center; text-style: bold; }}
+    #plog-content {{ height: 1fr; }}
+    #plog-buttons {{ height: 1; align: right middle; }}
+    """
+
+    def __init__(self, log_path: str) -> None:
+        super().__init__()
+        self.log_path = log_path
+
+    def compose(self) -> ComposeResult:
+        """Build the log viewer layout."""
+        with Vertical(id="plog-dialog"):
+            yield Static("Proto Debug Log", id="plog-title")
+            yield RichLog(id="plog-content", wrap=False)
+            with Horizontal(id="plog-buttons"):
+                open_btn = Button("Open in OS", id="plog-open")
+                open_btn.styles.background = "dodgerblue"
+                yield open_btn
+                yield Button("Close", id="plog-close", variant="error")
+
+    def on_mount(self) -> None:
+        """Load and colorize the log content on mount, scrolled to bottom."""
+        log = self.query_one("#plog-content", RichLog)
+        try:
+            content = Path(self.log_path).read_text(encoding="utf-8")
+        except FileNotFoundError:
+            content = ""
+
+        if content:
+            colored = _colorize_log(content)
+            log.write(colored)
+        else:
+            log.write(Text("(no log file yet)", style="dim"))
+
+    @on(Button.Pressed, "#plog-open")
+    def _open_external(self) -> None:
+        """Open the log file with the system default application."""
+        from termapy.config import open_with_system
+
+        if Path(self.log_path).exists():
+            open_with_system(self.log_path)
+
+    @on(Button.Pressed, "#plog-close")
+    def _close(self) -> None:
+        """Close the log viewer."""
+        self.dismiss(None)
 
 
 class ProtoDebugScreen(ModalScreen[None]):
@@ -73,11 +199,15 @@ class ProtoDebugScreen(ModalScreen[None]):
     }}
     #proto-debug-select {{
         width: 100%;
+        height: auto;
+        max-height: 8;
         margin: 1 0;
     }}
-    #proto-debug-detail {{
+    #proto-debug-detail-scroll {{
         height: 1fr;
-        overflow-y: auto;
+    }}
+    #proto-debug-detail {{
+        height: auto;
     }}
     #proto-debug-controls {{
         height: 1;
@@ -116,13 +246,12 @@ class ProtoDebugScreen(ModalScreen[None]):
         script = self._script
         title = script.name or self._path.name
 
-        options = [
-            (tc.name, tc.index) for tc in script.tests
-        ]
-
         with Vertical(id="proto-debug-dialog"):
             yield Static(f"Protocol Debug: {title}", id="proto-debug-title")
-            yield Select(options, id="proto-debug-select", prompt="Select a test…")
+            sl = SelectionList[int](id="proto-debug-select")
+            for tc in script.tests:
+                sl.add_option((tc.name, tc.index))
+            yield sl
             with Horizontal(id="proto-debug-controls"):
                 yield Static("Format:", classes="input-label")
                 for i, viz in enumerate(self._visualizers):
@@ -138,34 +267,55 @@ class ProtoDebugScreen(ModalScreen[None]):
                 yield Input(value="1", id="input-repeat",
                             type="integer", compact=True)
                 yield Static("Delay (ms):", classes="input-label")
-                yield Input(value="0", id="input-delay",
+                yield Input(value="10", id="input-delay",
                             type="integer", compact=True)
                 yield Checkbox("Stop on Error", value=False, id="chk-stop-err")
             yield Rule()
-            yield Static("", id="proto-debug-detail")
+            with VerticalScroll(id="proto-debug-detail-scroll"):
+                yield Static("", id="proto-debug-detail")
             yield Static("", id="proto-debug-status")
             yield Rule()
             with Horizontal(id="proto-debug-buttons"):
                 yield Button("Setup", id="btn-dbg-setup", variant="primary")
-                yield Button("Run Test", id="btn-dbg-send", variant="success")
+                yield Button("Run", id="btn-dbg-send", variant="success")
                 yield Button("Teardown", id="btn-dbg-teardown", variant="warning")
+                log_btn = Button("Log", id="btn-dbg-log")
+                log_btn.styles.background = "dodgerblue"
+                yield log_btn
                 yield Button("Close", id="btn-dbg-close", variant="error")
 
-    def _get_selected_test(self) -> TestCase | None:
-        """Get the currently selected test case."""
-        sel = self.query_one("#proto-debug-select", Select)
-        if sel.value is Select.BLANK:
-            return None
-        idx = sel.value
-        for tc in self._script.tests:
-            if tc.index == idx:
-                return tc
+    def _get_checked_tests(self) -> list[TestCase]:
+        """Get all test cases whose checkboxes are checked.
+
+        Returns:
+            List of checked TestCase objects in script order.
+        """
+        sl = self.query_one("#proto-debug-select", SelectionList)
+        checked_indices = set(sl.selected)
+        return [tc for tc in self._script.tests
+                if tc.index in checked_indices]
+
+    def _get_highlighted_test(self) -> TestCase | None:
+        """Get the test case at the current cursor position.
+
+        Returns:
+            The highlighted TestCase, or None.
+        """
+        sl = self.query_one("#proto-debug-select", SelectionList)
+        if sl.highlighted is not None:
+            option = sl.get_option_at_index(sl.highlighted)
+            idx = option.value
+            for tc in self._script.tests:
+                if tc.index == idx:
+                    return tc
         return None
 
-    @on(Select.Changed, "#proto-debug-select")
-    def _on_test_selected(self, event: Select.Changed) -> None:
-        """Update detail panel when a test is selected."""
-        tc = self._get_selected_test()
+    @on(SelectionList.SelectionHighlighted, "#proto-debug-select")
+    def _on_test_highlighted(
+        self, event: SelectionList.SelectionHighlighted
+    ) -> None:
+        """Update detail panel when cursor moves to a test."""
+        tc = self._get_highlighted_test()
         if tc is None:
             self.query_one("#proto-debug-detail", Static).update("")
             return
@@ -183,7 +333,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             return
 
         # Refresh display
-        tc = self._get_selected_test()
+        tc = self._get_highlighted_test()
         if tc is not None:
             self._show_test_detail(tc)
 
@@ -423,14 +573,30 @@ class ProtoDebugScreen(ModalScreen[None]):
         """Get the stop-on-error checkbox state."""
         return self.query_one("#chk-stop-err", Checkbox).value
 
+    def _highlight_test(self, tc: TestCase) -> None:
+        """Move the SelectionList cursor to a specific test case.
+
+        Args:
+            tc: Test case to highlight.
+        """
+        sl = self.query_one("#proto-debug-select", SelectionList)
+        for i, script_tc in enumerate(self._script.tests):
+            if script_tc.index == tc.index:
+                sl.highlighted = i
+                break
+
     @on(Button.Pressed, "#btn-dbg-send")
     def _on_send(self) -> None:
-        """Send the selected test."""
-        tc = self._get_selected_test()
-        if tc is None:
-            self._set_status("No test selected", "bold red")
-            return
-        self._send_test(tc)
+        """Run all checked tests, or the highlighted test if none checked."""
+        tests = self._get_checked_tests()
+        if not tests:
+            # Fall back to highlighted test
+            tc = self._get_highlighted_test()
+            if tc is None:
+                self._set_status("No tests selected", "bold red")
+                return
+            tests = [tc]
+        self._run_tests(tests)
 
     @on(Button.Pressed, "#btn-dbg-setup")
     def _on_setup(self) -> None:
@@ -448,10 +614,85 @@ class ProtoDebugScreen(ModalScreen[None]):
             return
         self._run_cmds(self._script.teardown, "Teardown")
 
+    @on(Button.Pressed, "#btn-dbg-log")
+    def _on_log(self) -> None:
+        """Open the debug log in the colorized log viewer."""
+        self.app.push_screen(ProtoLogViewer(str(self._log_path)))
+
     @on(Button.Pressed, "#btn-dbg-close")
     def _on_close(self) -> None:
         """Close the debug screen."""
         self.dismiss(None)
+
+    @property
+    def _log_path(self) -> Path:
+        """Path to the proto debug log file."""
+        return cfg_data_dir(self._ctx.config_path) / "proto" / "debug.log"
+
+    def _log(self, line: str) -> None:
+        """Append a line to the debug log file.
+
+        Args:
+            line: Text to write (newline appended automatically).
+        """
+        with open(self._log_path, "a") as f:
+            f.write(line + "\n")
+
+    def _log_session_header(self, tests: list[TestCase],
+                            repeat: int) -> None:
+        """Write a session header to the log.
+
+        Args:
+            tests: Test cases to be executed.
+            repeat: Number of repeat iterations.
+        """
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        title = self._script.name or self._path.name
+        sep = "=" * 80
+        self._log(sep)
+        self._log(f"[{ts}] Script: {title} | "
+                  f"Tests: {len(tests)} | Repeat: {repeat}")
+        self._log(sep)
+
+    def _log_test_result(self, tc: TestCase, passed: bool,
+                         response: bytes | None,
+                         elapsed_ms: float) -> None:
+        """Write a single test result line to the log.
+
+        Args:
+            tc: Test case that was executed.
+            passed: Whether the test passed.
+            response: Actual response bytes, or None on timeout.
+            elapsed_ms: Round-trip time in milliseconds.
+        """
+        tag = "PASS" if passed else "FAIL"
+        tx = format_hex(tc.send_data)
+        exp = format_hex(tc.expect_data)
+        rx = format_hex(response) if response else "(timeout)"
+        self._log(f"  [{tag}]  {tc.name}")
+        self._log(f"         TX:  {tx}")
+        self._log(f"         EXP: {exp}")
+        self._log(f"         RX:  {rx}")
+        self._log(f"         Time: {elapsed_ms:.0f}ms")
+
+    def _log_summary(self, tests: list[TestCase], pass_count: int,
+                     fail_count: int, stopped: bool) -> None:
+        """Write a run summary to the log.
+
+        Args:
+            tests: Test cases that were executed.
+            pass_count: Total passing iterations.
+            fail_count: Total failing iterations.
+            stopped: Whether the run was stopped early on error.
+        """
+        total = pass_count + fail_count
+        n = len(tests)
+        line = f"Summary: {pass_count}/{total} PASS ({n} test{'s' if n > 1 else ''})"
+        if stopped:
+            line += " -- stopped on error"
+        self._log(line)
+        self._log("-" * 80)
+        self._log("")
 
     def _set_status(self, text: str, style: str = "") -> None:
         """Update the status bar text.
@@ -516,47 +757,48 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         return passed
 
-    def _post_run_status(
-        self, tc: TestCase, repeat: int, pass_count: int, fail_count: int
-    ) -> None:
-        """Update the status bar and detail panel after all iterations.
+    def _show_run_summary(self, tests: list[TestCase],
+                          pass_count: int, fail_count: int) -> None:
+        """Update the status bar with a summary after running tests.
 
         Args:
-            tc: Test case that was executed.
-            repeat: Total number of iterations requested.
-            pass_count: Number of passing iterations.
-            fail_count: Number of failing iterations.
+            tests: Test cases that were executed.
+            pass_count: Total passing iterations across all tests.
+            fail_count: Total failing iterations across all tests.
         """
-        if repeat > 1:
-            total = pass_count + fail_count
-            summary = f"{pass_count}/{total} PASS"
-            style = "bold bright_green" if fail_count == 0 else "bold red"
-            self.app.call_from_thread(self._set_status, summary, style)
-        else:
-            self.app.call_from_thread(self._set_status, "")
-        self.app.call_from_thread(self._show_test_detail, tc)
+        total = pass_count + fail_count
+        n_tests = len(tests)
+        label = f"{n_tests} test{'s' if n_tests > 1 else ''}"
+        summary = f"{pass_count}/{total} PASS ({label})"
+        style = "bold bright_green" if fail_count == 0 else "bold red"
+        self.app.call_from_thread(self._set_status, summary, style)
+        # Show detail for last test
+        self.app.call_from_thread(self._show_test_detail, tests[-1])
 
     @work(thread=True)
-    def _send_test(self, tc: TestCase) -> None:
-        """Execute a single test case in a background thread.
+    def _run_tests(self, tests: list[TestCase]) -> None:
+        """Execute one or more test cases in a background thread.
 
-        Runs test-level setup, sends data, reads response, runs
-        test-level teardown. Supports repeat count, start delay,
-        and stop-on-error.
+        Runs each test's setup, sends data, reads response, runs
+        teardown. Supports repeat count, start delay, and stop-on-error.
 
         Args:
-            tc: Test case to execute.
+            tests: List of test cases to execute.
         """
         repeat = self.app.call_from_thread(self._get_repeat_count)
         delay_s = self.app.call_from_thread(self._get_start_delay)
         stop_on_error = self.app.call_from_thread(self._get_stop_on_error)
 
+        self._log_session_header(tests, repeat)
         self._ctx.engine.set_proto_active(True)
+        total_pass = 0
+        total_fail = 0
+        stopped = False
         try:
-            pass_count = 0
-            fail_count = 0
-
             for run_num in range(1, repeat + 1):
+                if repeat > 1:
+                    self._log(f"--- Repeat {run_num}/{repeat} ---")
+
                 if run_num > 1 and delay_s > 0:
                     self.app.call_from_thread(
                         self._set_status,
@@ -564,27 +806,46 @@ class ProtoDebugScreen(ModalScreen[None]):
                         f"({run_num}/{repeat})...", "bold yellow")
                     time.sleep(delay_s)
 
-                status = (f"Running... ({run_num}/{repeat})"
-                          if repeat > 1 else "Running...")
-                self.app.call_from_thread(
-                    self._set_status, status, "bold yellow")
+                for ti, tc in enumerate(tests):
+                    self.app.call_from_thread(
+                        self._highlight_test, tc)
+                    prefix = (f"[{run_num}/{repeat}] "
+                              if repeat > 1 else "")
+                    status = (f"{prefix}{tc.name} "
+                              f"({ti + 1}/{len(tests)})...")
+                    self.app.call_from_thread(
+                        self._set_status, status, "bold yellow")
 
-                self._send_proto_cmds(tc.setup)
-                passed = self._execute_one(tc)
-                self.app.call_from_thread(self._show_test_detail, tc)
-                self._send_proto_cmds(tc.teardown)
+                    if tc.setup:
+                        self._log(f"  setup: {', '.join(tc.setup)}")
+                    self._send_proto_cmds(tc.setup)
+                    passed = self._execute_one(tc)
 
-                if passed:
-                    pass_count += 1
-                else:
-                    fail_count += 1
+                    # Log the result
+                    response, elapsed_ms, _ = self._results[tc.index]
+                    self._log_test_result(tc, passed, response, elapsed_ms)
 
-                if not passed and stop_on_error:
+                    self.app.call_from_thread(self._show_test_detail, tc)
+                    if tc.teardown:
+                        self._log(f"  teardown: {', '.join(tc.teardown)}")
+                    self._send_proto_cmds(tc.teardown)
+
+                    if passed:
+                        total_pass += 1
+                    else:
+                        total_fail += 1
+
+                    if not passed and stop_on_error:
+                        stopped = True
+                        break
+
+                if stopped:
                     break
         finally:
             self._ctx.engine.set_proto_active(False)
 
-        self._post_run_status(tc, repeat, pass_count, fail_count)
+        self._log_summary(tests, total_pass, total_fail, stopped)
+        self._show_run_summary(tests, total_pass, total_fail)
 
     @work(thread=True)
     def _run_cmds(self, cmds: list[str], label: str) -> None:
@@ -594,6 +855,9 @@ class ProtoDebugScreen(ModalScreen[None]):
             cmds: List of command strings.
             label: Label for status display (e.g. "Setup", "Teardown").
         """
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._log(f"[{ts}] {label}: {', '.join(cmds)}")
+
         self.app.call_from_thread(
             self._set_status,
             f"{label}: running...", "bold yellow")
@@ -604,6 +868,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         finally:
             self._ctx.engine.set_proto_active(False)
 
+        self._log(f"{label}: done ({len(cmds)} commands)")
         self.app.call_from_thread(
             self._set_status,
             f"{label}: done ({len(cmds)} commands)", "dim")

@@ -7,7 +7,7 @@ Each is a self-contained ModalScreen with no dependency on SerialTerminal.
 import json
 from pathlib import Path
 
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
@@ -297,14 +297,13 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 ol.add_option(Option(f.stem, id=str(f)))
                 if str(f) == self.current_path:
                     highlight_idx = i
-            if highlight_idx is not None:
-                ol.highlighted = highlight_idx
+            ol.highlighted = highlight_idx if highlight_idx is not None else 0
             yield ol
             with Horizontal(id="picker-buttons"):
                 yield Button("Load", id="picker-load", variant="success")
                 yield Button("Edit", id="picker-edit", variant="primary")
                 new_btn = Button("New", id="picker-new")
-                new_btn.styles.background = "#8e44ad"
+                new_btn.styles.background = "darkorchid"
                 yield new_btn
                 yield Button("Cancel", id="picker-cancel", variant="error")
 
@@ -326,6 +325,18 @@ class ConfigPicker(ModalScreen[tuple | None]):
 
     @on(Button.Pressed, "#picker-load")
     def load_config_btn(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("load", path))
+
+    def on_key(self, event: events.Key) -> None:
+        """Load the highlighted config when Enter is pressed in the list."""
+        if event.key != "enter":
+            return
+        if not isinstance(self.focused, OptionList):
+            return
+        event.prevent_default()
+        event.stop()
         path = self._selected_path()
         if path:
             self.dismiss(("load", path))
@@ -364,12 +375,14 @@ class ScriptPicker(ModalScreen[tuple | None]):
             ol = OptionList(id="script-list")
             for f in scripts:
                 ol.add_option(Option(f.name, id=str(f)))
+            if scripts:
+                ol.highlighted = 0
             yield ol
             with Horizontal(id="script-buttons"):
                 yield Button("Run", id="script-run", variant="success")
                 yield Button("Edit", id="script-edit", variant="primary")
                 new_btn = Button("New", id="script-new")
-                new_btn.styles.background = "#8e44ad"
+                new_btn.styles.background = "darkorchid"
                 yield new_btn
                 yield Button("Cancel", id="script-cancel", variant="error")
 
@@ -395,8 +408,238 @@ class ScriptPicker(ModalScreen[tuple | None]):
         if path:
             self.dismiss(("run", path))
 
+    def on_key(self, event: events.Key) -> None:
+        """Run the highlighted script when Enter is pressed in the list."""
+        if event.key != "enter":
+            return
+        if not isinstance(self.focused, OptionList):
+            return
+        event.prevent_default()
+        event.stop()
+        path = self._selected_path()
+        if path:
+            self.dismiss(("run", path))
+
     @on(Button.Pressed, "#script-cancel")
     def cancel_picker(self) -> None:
+        self.dismiss(None)
+
+
+class ProtoPicker(ModalScreen[tuple | None]):
+    """Modal dialog to pick a .pro protocol script to run, edit, or create new."""
+
+    CSS = f"""
+    ProtoPicker {{ align: center middle; }}
+    ProtoPicker Button {{ {_MODAL_BTN_CSS} }}
+    #proto-dialog {{
+        width: 50; height: 18;
+        border: thick $primary; background: $surface; padding: 1 2;
+    }}
+    #proto-title {{ height: 1; text-style: bold; }}
+    #proto-list {{ height: 1fr; }}
+    #proto-buttons {{ height: 1; align: right middle; }}
+    """
+
+    def __init__(self, proto_dir: Path) -> None:
+        super().__init__()
+        self.proto_dir = proto_dir
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        protos = sorted(f for f in self.proto_dir.glob("*.pro") if f.is_file())
+        with Vertical(id="proto-dialog"):
+            yield Static("Select Protocol Script", id="proto-title")
+            ol = OptionList(id="proto-list")
+            for f in protos:
+                ol.add_option(Option(f.name, id=str(f)))
+            if protos:
+                ol.highlighted = 0
+            yield ol
+            with Horizontal(id="proto-buttons"):
+                yield Button("Run", id="proto-run", variant="success")
+                yield Button("Debug", id="proto-debug", variant="warning")
+                yield Button("Edit", id="proto-edit", variant="primary")
+                new_btn = Button("New", id="proto-new")
+                new_btn.styles.background = "darkorchid"
+                yield new_btn
+                yield Button("Cancel", id="proto-cancel", variant="error")
+
+    def _selected_path(self) -> str | None:
+        """Return the path of the currently highlighted option.
+
+        Returns:
+            Absolute path string, or None if nothing is highlighted.
+        """
+        ol = self.query_one("#proto-list", OptionList)
+        if ol.highlighted is not None:
+            return str(ol.get_option_at_index(ol.highlighted).id)
+        return None
+
+    @on(Button.Pressed, "#proto-new")
+    def new_proto(self) -> None:
+        self.dismiss(("new",))
+
+    @on(Button.Pressed, "#proto-edit")
+    def edit_proto(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("edit", path))
+
+    @on(Button.Pressed, "#proto-run")
+    def run_proto(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("run", path))
+
+    @on(Button.Pressed, "#proto-debug")
+    def debug_proto(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("debug", path))
+
+    def on_key(self, event: events.Key) -> None:
+        """Run the highlighted proto script when Enter is pressed in the list."""
+        if event.key != "enter":
+            return
+        if not isinstance(self.focused, OptionList):
+            return
+        event.prevent_default()
+        event.stop()
+        path = self._selected_path()
+        if path:
+            self.dismiss(("run", path))
+
+    @on(Button.Pressed, "#proto-cancel")
+    def cancel_picker(self) -> None:
+        self.dismiss(None)
+
+
+_PROTO_TEMPLATE = """\
+# Protocol Test Script
+# Rename this file to something meaningful, e.g. read_registers.pro
+#
+# Directives (optional):
+#   timeout = "1000ms"     # default expect timeout
+#   frame_gap = "50ms"     # silence gap to detect end of frame
+#   strip_ansi = true      # strip ANSI escapes from responses
+#
+# Each [[test]] section is one send/expect step:
+#
+# [[test]]
+# label = "Read holding registers"
+# send = "01 03 00 00 00 0A C5 CD"
+# expect = "01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **"
+#
+# [[test]]
+# label = "AT query"
+# send = '"AT+VERSION?\\r"'
+# expect = '"V1." ** ** "\\r"'
+#
+# Use ** for wildcard bytes (match anything).
+# Use "quoted strings" for text with optional \\r \\n \\t escapes.
+# Per-step overrides: timeout, delay, flush, cmd
+
+[settings]
+timeout = "1000ms"
+frame_gap = "50ms"
+
+[[test]]
+label = "Example step"
+send = "01 02 03"
+expect = "01 02 03"
+"""
+
+
+class ProtoEditor(ModalScreen[str | None]):
+    """Modal editor for .pro protocol script files with TOML highlighting."""
+
+    CSS = f"""
+    ProtoEditor {{ align: center middle; }}
+    ProtoEditor Button {{ {_MODAL_BTN_CSS} }}
+    #ped-dialog {{
+        width: 90%; height: 90%;
+        border: thick $primary; background: $surface; padding: 1 2;
+    }}
+    #ped-title {{ height: 1; text-style: bold; }}
+    #ped-editor {{ height: 1fr; }}
+    #ped-name-row {{ height: 1; }}
+    #ped-name {{ width: 1fr; height: 1; border: none; }}
+    #ped-error {{ height: 1; color: $error; display: none; }}
+    #ped-error.visible {{ display: block; }}
+    #ped-buttons {{ height: 1; align: right middle; }}
+    """
+
+    def __init__(self, proto_dir: Path, path: str | None = None) -> None:
+        super().__init__()
+        self.proto_dir = proto_dir
+        self.edit_path = path
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        if self.edit_path:
+            name = Path(self.edit_path).stem
+            try:
+                content = Path(self.edit_path).read_text(encoding="utf-8")
+            except OSError:
+                content = f"# Error: could not read {self.edit_path}\n"
+            title = f"Edit: {Path(self.edit_path).name}"
+        else:
+            name = ""
+            content = _PROTO_TEMPLATE
+            title = "New Protocol Script"
+
+        with Vertical(id="ped-dialog"):
+            yield Static(title, id="ped-title")
+            yield TextArea(
+                content,
+                language="toml",
+                show_line_numbers=True,
+                id="ped-editor",
+            )
+            with Horizontal(id="ped-name-row"):
+                yield Input(
+                    placeholder="script name (without .pro)",
+                    value=name,
+                    id="ped-name",
+                )
+            yield Static("", id="ped-error")
+            with Horizontal(id="ped-buttons"):
+                yield Button("Save", id="ped-save", variant="success")
+                yield Button("Cancel", id="ped-cancel", variant="error")
+
+    def _show_error(self, msg: str) -> None:
+        """Display an error message in the editor.
+
+        Args:
+            msg: Error text to show.
+        """
+        from textual.widgets import Static
+
+        err = self.query_one("#ped-error", Static)
+        err.update(msg)
+        err.add_class("visible")
+
+    @on(Button.Pressed, "#ped-save")
+    def save_proto(self) -> None:
+        name = self.query_one("#ped-name", Input).value.strip()
+        if not name:
+            self._show_error("Enter a script name")
+            return
+        if not name.endswith(".pro"):
+            name += ".pro"
+        content = self.query_one("#ped-editor", TextArea).text
+        path = self.proto_dir / name
+        path.write_text(content, encoding="utf-8")
+        self.dismiss(str(path))
+
+    @on(Input.Submitted, "#ped-name")
+    def save_on_enter(self) -> None:
+        self.save_proto()
+
+    @on(Button.Pressed, "#ped-cancel")
+    def cancel_editor(self) -> None:
         self.dismiss(None)
 
 

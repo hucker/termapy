@@ -43,6 +43,8 @@ from termapy.dialogs import (
     LogViewer,
     NamePicker,
     PortPicker,
+    ProtoEditor,
+    ProtoPicker,
     ScriptEditor,
     ScriptPicker,
     _SCRIPT_TEMPLATE,
@@ -109,13 +111,6 @@ class SerialTerminal(App):
         padding: 0;
         background: $primary;
     }
-    #btn-lineno {
-        width: 3;
-        min-width: 3;
-        text-align: center;
-        padding: 0;
-        background: $primary;
-    }
     #btn-cmds {
         width: 4;
         min-width: 4;
@@ -139,7 +134,10 @@ class SerialTerminal(App):
         background: red;
     }
     #btn-cfg {
-        background: #3498db;
+        background: dodgerblue;
+    }
+    #btn-proto {
+        background: dodgerblue;
     }
     RichLog {
         height: 1fr;
@@ -166,28 +164,28 @@ class SerialTerminal(App):
         margin: 0 0 0 1;
     }
     #btn-dtr {
-        background: #607d8b;
+        background: slategray;
     }
     #btn-rts {
-        background: #78909c;
+        background: lightslategray;
     }
     #btn-break {
-        background: #546e7a;
+        background: darkslategray;
     }
     .custom-btn {
-        background: #6c5ce7;
+        background: mediumpurple;
     }
     #btn-log {
-        background: #9b59b6;
+        background: mediumorchid;
     }
     #btn-ss-dir {
-        background: #3498db;
+        background: dodgerblue;
     }
     #btn-scripts {
-        background: #3498db;
+        background: dodgerblue;
     }
     #btn-exit {
-        background: #e74c3c;
+        background: crimson;
     }
     Toast {
         min-width: 50;
@@ -207,7 +205,7 @@ class SerialTerminal(App):
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit"),
-        Binding("ctrl+p", "show_palette", "Command Palette", show=False),
+        Binding("ctrl+p", "show_palette", "Command Palette", show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
     ]
@@ -294,15 +292,15 @@ class SerialTerminal(App):
             help_btn = Button("?", id="btn-help")
             help_btn.tooltip = "Show help guide."
             yield help_btn
-            lineno_btn = Button("#", id="btn-lineno")
-            lineno_btn.tooltip = "Toggle line numbers."
-            yield lineno_btn
             cfg_btn = Button("Cfg", id="btn-cfg")
             cfg_btn.tooltip = "New / Edit / Load config."
             yield cfg_btn
             run_btn = Button("Run", id="btn-scripts")
             run_btn.tooltip = "Run a script."
             yield run_btn
+            proto_btn = Button("Proto", id="btn-proto")
+            proto_btn.tooltip = "Protocol test scripts."
+            yield proto_btn
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
             center.tooltip = "Click to load a config."
@@ -501,6 +499,13 @@ class SerialTerminal(App):
             lambda ctx, args: self._disconnect(),
             source="app",
         )
+        self.repl.register_hook(
+            "line_no",
+            "<on|off>",
+            "Toggle line numbers on or off.",
+            self._hook_line_no,
+            source="app",
+        )
         # Load external plugins: global first, then per-config (can override)
         for info in load_plugins_from_dir(global_plugins_dir(), "global"):
             self.repl.register_plugin(info)
@@ -514,6 +519,7 @@ class SerialTerminal(App):
         self._open_log()
         self._sync_ss_button()
         self._sync_scripts_button()
+        self._sync_proto_button()
         if self.show_picker_on_start:
             self.push_screen(
                 ConfigPicker(self.config_path), callback=self._on_config_picked
@@ -720,9 +726,12 @@ class SerialTerminal(App):
 
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting."""
-        self.query_one("#output", RichLog).write(
-            Text(text, style=f"bold italic {color}")
-        )
+        try:
+            self.query_one("#output", RichLog).write(
+                Text(text, style=f"bold italic {color}")
+            )
+        except Exception:
+            pass  # widgets gone during shutdown
 
     def _write_output_markup(self, text: str) -> None:
         self.query_one("#output", RichLog).write(text)
@@ -757,8 +766,11 @@ class SerialTerminal(App):
             if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
             self._set_conn_status("Disconnected")
-            inp = self.query_one("#cmd", Input)
-            inp.placeholder = "!! for REPL commands, Ctrl+P: palette"
+            try:
+                inp = self.query_one("#cmd", Input)
+                inp.placeholder = "!! for REPL commands, Ctrl+P: palette"
+            except Exception:
+                pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
         except Exception as e:
             self._report_exception(e)
@@ -786,6 +798,7 @@ class SerialTerminal(App):
         self._sync_hw_visibility()
         self._sync_ss_button()
         self._sync_scripts_button()
+        self._sync_proto_button()
         self.run_worker(self._sync_custom_buttons())
         self._open_log()
         if was_connected or cfg.get("autoconnect"):
@@ -852,12 +865,15 @@ class SerialTerminal(App):
         self.query_one("#title-left", Button).label = self._port_info_str()
 
     def _set_conn_status(self, text: str) -> None:
-        color = "green" if text == "Connected" else "red"
-        widget = self.query_one("#title-right", Button)
-        widget.label = text
-        widget.styles.background = color
-        self.query_one("#title-left", Button).styles.background = color
-        self.query_one("#title-center", Button).styles.background = color
+        try:
+            color = "green" if text == "Connected" else "red"
+            widget = self.query_one("#title-right", Button)
+            widget.label = text
+            widget.styles.background = color
+            self.query_one("#title-left", Button).styles.background = color
+            self.query_one("#title-center", Button).styles.background = color
+        except Exception:
+            pass  # widgets gone during shutdown
 
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
@@ -906,16 +922,6 @@ class SerialTerminal(App):
                 self.notify("Break sent", timeout=1.5)
         elif event.button.id == "btn-cmds":
             self._show_commands()
-        elif event.button.id == "btn-lineno":
-            self._show_line_numbers = not self._show_line_numbers
-            btn = event.button
-            # Green when active, theme primary when off
-            if self._show_line_numbers:
-                btn.styles.background = "#27ae60"
-                self._status("Line numbers ON")
-            else:
-                btn.styles.background = self.get_css_variables()["primary"]
-                self._status("Line numbers OFF")
         elif event.button.id == "btn-help":
             self.push_screen(HelpViewer())
         elif event.button.id == "btn-log":
@@ -926,6 +932,11 @@ class SerialTerminal(App):
             self.push_screen(
                 ScriptPicker(self.repl.scripts_dir),
                 callback=self._on_script_picked,
+            )
+        elif event.button.id == "btn-proto":
+            self.push_screen(
+                ProtoPicker(self.repl.proto_dir),
+                callback=self._on_proto_picked,
             )
         elif event.button.id == "btn-cfg":
             self.push_screen(
@@ -1258,7 +1269,7 @@ class SerialTerminal(App):
         if self._popup_mode == "palette" and opt_id.startswith("palette:"):
             idx = int(opt_id.split(":")[1])
             _, method_name = self.PALETTE_CMDS[idx]
-            self.call_after_refresh(getattr(self, method_name))
+            self.set_timer(0.1, getattr(self, method_name))
         elif opt_id.startswith("run:"):
             name = opt_id.split(":")[1]
             self.call_after_refresh(self.repl.dispatch, name)
@@ -1348,6 +1359,16 @@ class SerialTerminal(App):
         else:
             btn.tooltip = "Run a script (empty)."
 
+    def _sync_proto_button(self) -> None:
+        """Update the Proto button tooltip with file counts."""
+        btn = self.query_one("#btn-proto", Button)
+        proto_dir = self.repl.proto_dir
+        if proto_dir.exists():
+            count = len(list(proto_dir.glob("*.pro")))
+            btn.tooltip = f"Protocol test scripts ({count} available)."
+        else:
+            btn.tooltip = "Protocol test scripts (empty)."
+
     async def _sync_custom_buttons(self) -> None:
         """Remove old custom buttons and create new ones from config."""
         old_buttons = list(self.query(".custom-btn"))
@@ -1399,6 +1420,18 @@ class SerialTerminal(App):
             self._status(str(e), "red")
             return
         self.set_timer(seconds, lambda: self._status(f"Delay {args} done."))
+
+    def _hook_line_no(self, ctx, args: str) -> None:
+        """Toggle line numbers on or off."""
+        arg = args.strip().lower()
+        if arg == "on":
+            self._show_line_numbers = True
+            self._status("Line numbers ON")
+        elif arg == "off":
+            self._show_line_numbers = False
+            self._status("Line numbers OFF")
+        else:
+            self._status("Usage: line_no on|off", "yellow")
 
     def _hook_port(self, ctx, args: str) -> None:
         arg = args.strip().lower()
@@ -1468,6 +1501,43 @@ class SerialTerminal(App):
         if path:
             self._status(f"Script saved: {Path(path).name}", "green")
             self._sync_scripts_button()
+        self._sync_proto_button()
+
+    def _on_proto_picked(self, result: tuple | None) -> None:
+        """Handle result from the ProtoPicker dialog.
+
+        Args:
+            result: Tuple action from picker, or None if cancelled.
+        """
+        if result is None:
+            return
+        action = result[0]
+        if action == "run":
+            filename = Path(result[1]).name
+            self.repl.dispatch(f"proto run {filename}")
+        elif action == "debug":
+            filename = Path(result[1]).name
+            self.repl.dispatch(f"proto debug {filename}")
+        elif action == "new":
+            self.push_screen(
+                ProtoEditor(self.repl.proto_dir),
+                callback=self._on_proto_saved,
+            )
+        elif action == "edit":
+            self.push_screen(
+                ProtoEditor(self.repl.proto_dir, result[1]),
+                callback=self._on_proto_saved,
+            )
+
+    def _on_proto_saved(self, path: str | None) -> None:
+        """Handle result from the ProtoEditor dialog.
+
+        Args:
+            path: Saved file path, or None if cancelled.
+        """
+        if path:
+            self._status(f"Proto script saved: {Path(path).name}", "green")
+            self._sync_proto_button()
 
     def _hook_run(self, ctx, args: str) -> None:
         path = self.repl.start_script(args)

@@ -759,6 +759,51 @@ def diff_bytes(expected: bytes, actual: bytes, mask: bytes) -> list[str]:
     return result
 
 
+# Rich markup styles for diff coloring in visualizers
+DIFF_STYLES: dict[str, str] = {
+    "match": "bold bright_green",
+    "wildcard": "dim",
+    "mismatch": "bold red",
+    "extra": "bold red",
+    "missing": "bold red",
+}
+
+
+def format_diff_markup(
+    actual: bytes,
+    expected: bytes,
+    mask: bytes,
+    token_fn: Callable[[int], str],
+    missing_token: str,
+) -> str:
+    """Build Rich-markup diff string for a visualizer.
+
+    Shared helper used by built-in hex and text visualizers.
+    Each byte is styled according to its diff status.
+
+    Args:
+        actual: Actual received bytes.
+        expected: Expected bytes for comparison.
+        mask: Wildcard mask (0x00 = wildcard position).
+        token_fn: Callable that formats a single byte value to a display token.
+        missing_token: Token string to show for missing bytes.
+
+    Returns:
+        Rich-markup string with per-byte diff colors.
+    """
+    statuses = diff_bytes(expected, actual, mask)
+    parts: list[str] = []
+    for i, status in enumerate(statuses):
+        style = DIFF_STYLES.get(status, "")
+        token = missing_token if status == "missing" else token_fn(actual[i])
+        parts.append(f"[{style}]{token}[/]")
+    result = "".join(parts)
+    # Strip trailing space inside the last markup tag
+    if result.endswith(" [/]"):
+        result = result[:-4] + "[/]"
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Packet visualizer discovery
 # ---------------------------------------------------------------------------

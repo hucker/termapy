@@ -13,7 +13,16 @@ HELP = "Abort a running script."
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Abort a running script if one is executing."""
+    """Abort a running script if one is executing.
+
+    Signals the script runner's stop event, which is checked between
+    each line of the script. The script will stop at the next line
+    boundary. Has no effect if no script is running.
+
+    Args:
+        ctx: Plugin context for engine state and output.
+        args: Ignored (no arguments accepted).
+    """
     if ctx.engine.in_script():
         ctx.engine.script_stop()
         ctx.write("Stopping script...")

@@ -13,7 +13,16 @@ HELP = "Set a config key immediately (no confirmation)."
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Set a config key immediately without confirmation dialog."""
+    """Set a config key immediately without confirmation dialog.
+
+    Validates the key exists and coerces the value to match the
+    existing type, then applies and saves in one step. Useful in
+    scripts where interactive confirmation is not possible.
+
+    Args:
+        ctx: Plugin context for config access and output.
+        args: ``"key value"`` string (both required).
+    """
     parts = args.strip().split(None, 1)
     if not parts or len(parts) < 2:
         ctx.write("Usage: !!cfg_auto <key> <value>", "red")

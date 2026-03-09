@@ -10,10 +10,12 @@ To add a migration:
     3. Add it to MIGRATIONS: {N: _migrate_vN_to_vN1}
 """
 
-CURRENT_CONFIG_VERSION = 2
+from typing import Callable
+
+CURRENT_CONFIG_VERSION = 3
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
-MIGRATIONS: dict[int, callable] = {}
+MIGRATIONS: dict[int, Callable] = {}
 
 
 def _migrate_v1_to_v2(cfg: dict) -> dict:
@@ -23,7 +25,15 @@ def _migrate_v1_to_v2(cfg: dict) -> dict:
     return cfg
 
 
+def _migrate_v2_to_v3(cfg: dict) -> dict:
+    """Add command_history_items with default of 30."""
+    if "command_history_items" not in cfg:
+        cfg["command_history_items"] = 30
+    return cfg
+
+
 MIGRATIONS[1] = _migrate_v1_to_v2
+MIGRATIONS[2] = _migrate_v2_to_v3
 
 
 def migrate_config(cfg: dict) -> dict:

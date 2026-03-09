@@ -137,7 +137,7 @@ class PluginInfo:
 
 def builtins_dir() -> Path:
     """Return the path to the built-in plugins directory shipped with termapy."""
-    return Path(__file__).parent / "builtins"
+    return Path(__file__).parent / "builtins" / "plugins"
 
 
 def load_plugins_from_dir(folder: Path, source: str = "global") -> list[PluginInfo]:

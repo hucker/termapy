@@ -14,7 +14,16 @@ HELP = "Run a shell command and show output (10s timeout). e.g. !!os dir"
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Run a shell command and display its output."""
+    """Run a shell command and display its output.
+
+    Requires ``os_cmd_enabled: true`` in the config. Runs the command
+    via ``subprocess.run()`` with a 10-second timeout. Stdout is
+    displayed in white, stderr in red.
+
+    Args:
+        ctx: Plugin context for config access and output.
+        args: Shell command string to execute.
+    """
     if not ctx.cfg.get("os_cmd_enabled"):
         ctx.write("!!os is disabled. Set os_cmd_enabled: true in config.", "red")
         return

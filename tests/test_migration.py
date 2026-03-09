@@ -81,3 +81,21 @@ def test_v1_to_v2_without_old_key():
     assert "add_date_to_cmd" not in result  # assert old key not introduced
     assert "show_timestamps" not in result  # assert new key not added by migration
     assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v2_to_v3_adds_command_history_items():
+    """Migration v2→v3 adds command_history_items with default 30."""
+    cfg = {"config_version": 2, "port": "COM4"}
+    result = migrate_config(cfg)
+
+    assert result["command_history_items"] == 30  # assert default value added
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v2_to_v3_preserves_existing_value():
+    """Migration v2→v3 does not overwrite existing command_history_items."""
+    cfg = {"config_version": 2, "port": "COM4", "command_history_items": 50}
+    result = migrate_config(cfg)
+
+    assert result["command_history_items"] == 50  # assert existing value preserved
+    assert result["config_version"] == CURRENT_CONFIG_VERSION

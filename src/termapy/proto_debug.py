@@ -466,6 +466,76 @@ class ProtoDebugScreen(ModalScreen[None]):
         else:
             status.update(text)
 
+    def _send_proto_cmds(self, cmds: list[str]) -> None:
+        """Send a list of protocol commands over serial.
+
+        Each command is encoded, sent, and followed by a read to
+        consume any response before the next command.
+
+        Args:
+            cmds: Command strings to send.
+        """
+        ctx = self._ctx
+        line_ending = ctx.cfg.get("line_ending", "\r")
+        enc = ctx.cfg.get("encoding", "utf-8")
+        for cmd_text in cmds:
+            ctx.serial_write((cmd_text + line_ending).encode(enc))
+            ctx.serial_read_raw(1000, self._script.frame_gap_ms)
+
+    def _execute_one(self, tc: TestCase) -> bool:
+        """Execute a single send/receive cycle for a test case.
+
+        Drains the RX queue, sends test data, reads the response,
+        and stores the result.
+
+        Args:
+            tc: Test case to execute.
+
+        Returns:
+            True if the response matched expectations.
+        """
+        ctx = self._ctx
+        script = self._script
+
+        ctx.serial_drain()
+        ctx.serial_write(tc.send_data)
+
+        t0 = time.monotonic()
+        response = ctx.serial_read_raw(tc.timeout_ms, script.frame_gap_ms)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+
+        if script.strip_ansi:
+            response = strip_ansi(response)
+
+        if response:
+            passed = match_response(tc.expect_data, response, tc.expect_mask)
+            self._results[tc.index] = (response, elapsed_ms, passed)
+        else:
+            passed = False
+            self._results[tc.index] = (None, elapsed_ms, False)
+
+        return passed
+
+    def _post_run_status(
+        self, tc: TestCase, repeat: int, pass_count: int, fail_count: int
+    ) -> None:
+        """Update the status bar and detail panel after all iterations.
+
+        Args:
+            tc: Test case that was executed.
+            repeat: Total number of iterations requested.
+            pass_count: Number of passing iterations.
+            fail_count: Number of failing iterations.
+        """
+        if repeat > 1:
+            total = pass_count + fail_count
+            summary = f"{pass_count}/{total} PASS"
+            style = "bold bright_green" if fail_count == 0 else "bold red"
+            self.app.call_from_thread(self._set_status, summary, style)
+        else:
+            self.app.call_from_thread(self._set_status, "")
+        self.app.call_from_thread(self._show_test_detail, tc)
+
     @work(thread=True)
     def _send_test(self, tc: TestCase) -> None:
         """Execute a single test case in a background thread.
@@ -477,21 +547,16 @@ class ProtoDebugScreen(ModalScreen[None]):
         Args:
             tc: Test case to execute.
         """
-        ctx = self._ctx
-        script = self._script
         repeat = self.app.call_from_thread(self._get_repeat_count)
         delay_s = self.app.call_from_thread(self._get_start_delay)
         stop_on_error = self.app.call_from_thread(self._get_stop_on_error)
 
-        ctx.engine.set_proto_active(True)
+        self._ctx.engine.set_proto_active(True)
         try:
-            line_ending = ctx.cfg.get("line_ending", "\r")
-            enc = ctx.cfg.get("encoding", "utf-8")
             pass_count = 0
             fail_count = 0
 
             for run_num in range(1, repeat + 1):
-                # Delay between iterations (not before the first)
                 if run_num > 1 and delay_s > 0:
                     self.app.call_from_thread(
                         self._set_status,
@@ -504,57 +569,22 @@ class ProtoDebugScreen(ModalScreen[None]):
                 self.app.call_from_thread(
                     self._set_status, status, "bold yellow")
 
-                # Run per-test setup commands
-                for cmd_text in tc.setup:
-                    ctx.serial_write((cmd_text + line_ending).encode(enc))
-                    ctx.serial_read_raw(1000, script.frame_gap_ms)
-
-                ctx.serial_drain()
-                ctx.serial_write(tc.send_data)
-
-                t0 = time.monotonic()
-                response = ctx.serial_read_raw(
-                    tc.timeout_ms, script.frame_gap_ms)
-                elapsed_ms = (time.monotonic() - t0) * 1000
-
-                if script.strip_ansi:
-                    response = strip_ansi(response)
-
-                if response:
-                    passed = match_response(
-                        tc.expect_data, response, tc.expect_mask)
-                    self._results[tc.index] = (response, elapsed_ms, passed)
-                else:
-                    passed = False
-                    self._results[tc.index] = (None, elapsed_ms, False)
+                self._send_proto_cmds(tc.setup)
+                passed = self._execute_one(tc)
+                self.app.call_from_thread(self._show_test_detail, tc)
+                self._send_proto_cmds(tc.teardown)
 
                 if passed:
                     pass_count += 1
                 else:
                     fail_count += 1
 
-                # Update detail panel after each iteration
-                self.app.call_from_thread(self._show_test_detail, tc)
-
-                # Run per-test teardown commands
-                for cmd_text in tc.teardown:
-                    ctx.serial_write((cmd_text + line_ending).encode(enc))
-                    ctx.serial_read_raw(1000, script.frame_gap_ms)
-
                 if not passed and stop_on_error:
                     break
         finally:
-            ctx.engine.set_proto_active(False)
+            self._ctx.engine.set_proto_active(False)
 
-        # Final status with summary for repeat runs
-        if repeat > 1:
-            total = pass_count + fail_count
-            summary = f"{pass_count}/{total} PASS"
-            style = "bold bright_green" if fail_count == 0 else "bold red"
-            self.app.call_from_thread(self._set_status, summary, style)
-        else:
-            self.app.call_from_thread(self._set_status, "")
-        self.app.call_from_thread(self._show_test_detail, tc)
+        self._post_run_status(tc, repeat, pass_count, fail_count)
 
     @work(thread=True)
     def _run_cmds(self, cmds: list[str], label: str) -> None:
@@ -564,22 +594,15 @@ class ProtoDebugScreen(ModalScreen[None]):
             cmds: List of command strings.
             label: Label for status display (e.g. "Setup", "Teardown").
         """
-        ctx = self._ctx
-        script = self._script
-
         self.app.call_from_thread(
             self._set_status,
             f"{label}: running...", "bold yellow")
 
-        ctx.engine.set_proto_active(True)
+        self._ctx.engine.set_proto_active(True)
         try:
-            line_ending = ctx.cfg.get("line_ending", "\r")
-            enc = ctx.cfg.get("encoding", "utf-8")
-            for cmd_text in cmds:
-                ctx.serial_write((cmd_text + line_ending).encode(enc))
-                ctx.serial_read_raw(1000, script.frame_gap_ms)
+            self._send_proto_cmds(cmds)
         finally:
-            ctx.engine.set_proto_active(False)
+            self._ctx.engine.set_proto_active(False)
 
         self.app.call_from_thread(
             self._set_status,

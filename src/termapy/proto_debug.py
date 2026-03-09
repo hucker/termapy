@@ -636,8 +636,11 @@ class ProtoDebugScreen(ModalScreen[None]):
         Args:
             line: Text to write (newline appended automatically).
         """
-        with open(self._log_path, "a") as f:
-            f.write(line + "\n")
+        try:
+            with open(self._log_path, "a") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass
 
     def _log_session_header(self, tests: list[TestCase],
                             repeat: int) -> None:
@@ -786,67 +789,76 @@ class ProtoDebugScreen(ModalScreen[None]):
         Args:
             tests: List of test cases to execute.
         """
-        repeat = self.app.call_from_thread(self._get_repeat_count)
-        delay_s = self.app.call_from_thread(self._get_start_delay)
-        stop_on_error = self.app.call_from_thread(self._get_stop_on_error)
-
-        self._log_session_header(tests, repeat)
-        self._ctx.engine.set_proto_active(True)
-        total_pass = 0
-        total_fail = 0
-        stopped = False
         try:
-            for run_num in range(1, repeat + 1):
-                if repeat > 1:
-                    self._log(f"--- Repeat {run_num}/{repeat} ---")
+            repeat = self.app.call_from_thread(self._get_repeat_count)
+            delay_s = self.app.call_from_thread(self._get_start_delay)
+            stop_on_error = self.app.call_from_thread(self._get_stop_on_error)
 
-                if run_num > 1 and delay_s > 0:
-                    self.app.call_from_thread(
-                        self._set_status,
-                        f"Delay {delay_s * 1000:.0f}ms "
-                        f"({run_num}/{repeat})...", "bold yellow")
-                    time.sleep(delay_s)
+            self._log_session_header(tests, repeat)
+            self._ctx.engine.set_proto_active(True)
+            total_pass = 0
+            total_fail = 0
+            stopped = False
+            try:
+                for run_num in range(1, repeat + 1):
+                    if repeat > 1:
+                        self._log(f"--- Repeat {run_num}/{repeat} ---")
 
-                for ti, tc in enumerate(tests):
-                    self.app.call_from_thread(
-                        self._highlight_test, tc)
-                    prefix = (f"[{run_num}/{repeat}] "
-                              if repeat > 1 else "")
-                    status = (f"{prefix}{tc.name} "
-                              f"({ti + 1}/{len(tests)})...")
-                    self.app.call_from_thread(
-                        self._set_status, status, "bold yellow")
+                    if run_num > 1 and delay_s > 0:
+                        self.app.call_from_thread(
+                            self._set_status,
+                            f"Delay {delay_s * 1000:.0f}ms "
+                            f"({run_num}/{repeat})...", "bold yellow")
+                        time.sleep(delay_s)
 
-                    if tc.setup:
-                        self._log(f"  setup: {', '.join(tc.setup)}")
-                    self._send_proto_cmds(tc.setup)
-                    passed = self._execute_one(tc)
+                    for ti, tc in enumerate(tests):
+                        self.app.call_from_thread(
+                            self._highlight_test, tc)
+                        prefix = (f"[{run_num}/{repeat}] "
+                                  if repeat > 1 else "")
+                        status = (f"{prefix}{tc.name} "
+                                  f"({ti + 1}/{len(tests)})...")
+                        self.app.call_from_thread(
+                            self._set_status, status, "bold yellow")
 
-                    # Log the result
-                    response, elapsed_ms, _ = self._results[tc.index]
-                    self._log_test_result(tc, passed, response, elapsed_ms)
+                        if tc.setup:
+                            self._log(f"  setup: {', '.join(tc.setup)}")
+                        self._send_proto_cmds(tc.setup)
+                        passed = self._execute_one(tc)
 
-                    self.app.call_from_thread(self._show_test_detail, tc)
-                    if tc.teardown:
-                        self._log(f"  teardown: {', '.join(tc.teardown)}")
-                    self._send_proto_cmds(tc.teardown)
+                        # Log the result
+                        response, elapsed_ms, _ = self._results[tc.index]
+                        self._log_test_result(tc, passed, response, elapsed_ms)
 
-                    if passed:
-                        total_pass += 1
-                    else:
-                        total_fail += 1
+                        self.app.call_from_thread(
+                            self._show_test_detail, tc)
+                        if tc.teardown:
+                            self._log(
+                                f"  teardown: {', '.join(tc.teardown)}")
+                        self._send_proto_cmds(tc.teardown)
 
-                    if not passed and stop_on_error:
-                        stopped = True
+                        if passed:
+                            total_pass += 1
+                        else:
+                            total_fail += 1
+
+                        if not passed and stop_on_error:
+                            stopped = True
+                            break
+
+                    if stopped:
                         break
+            finally:
+                self._ctx.engine.set_proto_active(False)
 
-                if stopped:
-                    break
-        finally:
+            self._log_summary(tests, total_pass, total_fail, stopped)
+            self._show_run_summary(tests, total_pass, total_fail)
+        except RuntimeError:
+            # call_from_thread fails during app shutdown — exit silently
             self._ctx.engine.set_proto_active(False)
-
-        self._log_summary(tests, total_pass, total_fail, stopped)
-        self._show_run_summary(tests, total_pass, total_fail)
+        except Exception as e:
+            self._ctx.engine.set_proto_active(False)
+            self._log(f"Test runner error: {e}")
 
     @work(thread=True)
     def _run_cmds(self, cmds: list[str], label: str) -> None:
@@ -856,20 +868,27 @@ class ProtoDebugScreen(ModalScreen[None]):
             cmds: List of command strings.
             label: Label for status display (e.g. "Setup", "Teardown").
         """
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._log(f"[{ts}] {label}: {', '.join(cmds)}")
-
-        self.app.call_from_thread(
-            self._set_status,
-            f"{label}: running...", "bold yellow")
-
-        self._ctx.engine.set_proto_active(True)
         try:
-            self._send_proto_cmds(cmds)
-        finally:
-            self._ctx.engine.set_proto_active(False)
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self._log(f"[{ts}] {label}: {', '.join(cmds)}")
 
-        self._log(f"{label}: done ({len(cmds)} commands)")
-        self.app.call_from_thread(
-            self._set_status,
-            f"{label}: done ({len(cmds)} commands)", "dim")
+            self.app.call_from_thread(
+                self._set_status,
+                f"{label}: running...", "bold yellow")
+
+            self._ctx.engine.set_proto_active(True)
+            try:
+                self._send_proto_cmds(cmds)
+            finally:
+                self._ctx.engine.set_proto_active(False)
+
+            self._log(f"{label}: done ({len(cmds)} commands)")
+            self.app.call_from_thread(
+                self._set_status,
+                f"{label}: done ({len(cmds)} commands)", "dim")
+        except RuntimeError:
+            # call_from_thread fails during app shutdown — exit silently
+            self._ctx.engine.set_proto_active(False)
+        except Exception as e:
+            self._ctx.engine.set_proto_active(False)
+            self._log(f"Command runner error: {e}")

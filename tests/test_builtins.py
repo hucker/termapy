@@ -28,12 +28,12 @@ def repl_env(tmp_path):
 
     engine = ReplEngine(cfg, str(config_path), write)
     engine_api = EngineAPI(
-        prefix="!!",
+        prefix="!",
         plugins=engine._plugins,
         get_echo=lambda: engine._echo,
-        set_echo=lambda val: setattr(engine, '_echo', val),
+        set_echo=lambda val: setattr(engine, "_echo", val),
         get_seq_counters=lambda: engine._seq_counters,
-        set_seq_counters=lambda val: setattr(engine, '_seq_counters', val),
+        set_seq_counters=lambda val: setattr(engine, "_seq_counters", val),
         reset_seq=engine._reset_seq,
         in_script=lambda: engine._in_script,
         script_stop=lambda: engine._script_stop.set(),
@@ -50,7 +50,7 @@ def repl_env(tmp_path):
     return engine, cfg, config_path, output
 
 
-# -- !!echo ----------------------------------------------------------------
+# -- !echo ----------------------------------------------------------------
 
 
 class TestEcho:
@@ -91,7 +91,7 @@ class TestEcho:
         assert engine._echo is True  # toggled back on
 
 
-# -- !!print ---------------------------------------------------------------
+# -- !print ---------------------------------------------------------------
 
 
 class TestPrint:
@@ -106,7 +106,7 @@ class TestPrint:
         assert ("", None) in output  # empty string printed
 
 
-# -- !!seq -----------------------------------------------------------------
+# -- !seq -----------------------------------------------------------------
 
 
 class TestSeq:
@@ -140,7 +140,7 @@ class TestSeq:
         assert any("reset" in t.lower() for t, _ in output)  # confirmation shown
 
 
-# -- !!stop ----------------------------------------------------------------
+# -- !stop ----------------------------------------------------------------
 
 
 class TestStop:
@@ -162,7 +162,7 @@ class TestStop:
         assert any("Stopping" in t for t, _ in output)  # confirmation shown
 
 
-# -- !!help ----------------------------------------------------------------
+# -- !help ----------------------------------------------------------------
 
 
 class TestHelp:
@@ -201,7 +201,7 @@ class TestHelp:
         assert output[-1][1] == "red"  # shown in red
 
 
-# -- !!show ----------------------------------------------------------------
+# -- !show ----------------------------------------------------------------
 
 
 class TestShow:
@@ -253,7 +253,7 @@ class TestShow:
         assert any("Unknown special" in t for t, _ in output)  # error for bad $name
 
 
-# -- !!os ------------------------------------------------------------------
+# -- !os ------------------------------------------------------------------
 
 
 class TestOs:
@@ -308,7 +308,7 @@ class TestDispatch:
         assert engine._echo is False  # uppercase command works
 
 
-# -- !!grep ----------------------------------------------------------------
+# -- !grep ----------------------------------------------------------------
 
 _SCREEN_TEXT = """\
 Hello world
@@ -374,7 +374,7 @@ class TestGrep:
             "real error line\n"
             "  grep: 'error' — 1 match(es)\n"
             "  grep:     1 | real error line\n"
-            "> !!grep error"
+            "> !grep error"
         )
         self._set_screen_text(engine, text)
 

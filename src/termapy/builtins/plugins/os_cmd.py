@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 NAME = "os"
 ARGS = "<cmd>"
-HELP = "Run a shell command and show output (10s timeout). e.g. !!os dir"
+HELP = "Run a shell command and show output (10s timeout). e.g. !os dir"
 
 
 def handler(ctx: PluginContext, args: str) -> None:
@@ -25,10 +25,10 @@ def handler(ctx: PluginContext, args: str) -> None:
         args: Shell command string to execute.
     """
     if not ctx.cfg.get("os_cmd_enabled"):
-        ctx.write("!!os is disabled. Set os_cmd_enabled: true in config.", "red")
+        ctx.write("!os is disabled. Set os_cmd_enabled: true in config.", "red")
         return
     if not args.strip():
-        ctx.write("Usage: !!os <command>", "red")
+        ctx.write("Usage: !os <command>", "red")
         return
     try:
         result = subprocess.run(

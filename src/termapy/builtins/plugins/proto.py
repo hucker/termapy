@@ -119,7 +119,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
         args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
     """
     if not args.strip():
-        ctx.write("Usage: !!proto send <hex bytes or \"text\">", "red")
+        ctx.write("Usage: !proto send <hex bytes or \"text\">", "red")
         return
     if not ctx.is_connected():
         ctx.write("Not connected.", "red")
@@ -370,7 +370,7 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: !!proto run <file.pro>", "red")
+        ctx.write("Usage: !proto run <file.pro>", "red")
         return
 
     path = _resolve_proto_file(ctx, filename)
@@ -411,7 +411,7 @@ def _cmd_debug(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: !!proto debug <file.pro>", "red")
+        ctx.write("Usage: !proto debug <file.pro>", "red")
         return
 
     path = _resolve_proto_file(ctx, filename)

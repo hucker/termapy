@@ -66,9 +66,9 @@ The bottom bar contains a text input for sending commands to the serial device.
 
 - Type a command and press **Enter** to send it over serial.
 - Press **Up** to recall previous commands (default 30 per config, configurable via `command_history_items`).
-- Prefix a command with `!!` to run a local REPL command instead of sending it to the device.
+- Prefix a command with `!` to run a local REPL command instead of sending it to the device.
 
-Type `!!help` to see all available REPL commands.
+Type `!help` to see all available REPL commands.
 
 ## Toolbar Buttons
 
@@ -76,7 +76,7 @@ The bottom bar also has buttons. Some appear based on context:
 
 | Button | When Visible | Action |
 |--------|-------------|--------|
-| **!!** | Always | Show REPL command picker |
+| **!** | Always | Show REPL command picker |
 | **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line |
 | **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line |
 | **Break** | `flow_control` is `"manual"` | Send a 250ms serial break signal |
@@ -112,41 +112,41 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 
 ## REPL Commands
 
-Commands prefixed with `!!` (configurable via `repl_prefix`) run locally instead of being sent to the serial device.
+Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead of being sent to the serial device.
 
 | Command | Description |
 |---------|-------------|
-| `!!help [cmd]` | List commands or get help for one |
-| `!!connect` | Connect to the serial port |
-| `!!disconnect` | Disconnect from the serial port |
-| `!!port [name\|list]` | Switch port or list available ports |
-| `!!cfg [key [value]]` | View or change config values |
-| `!!cfg_auto <key> <val>` | Set a config key without confirmation |
-| `!!ss_svg [name]` | Save an SVG screenshot |
-| `!!ss_txt [name]` | Save a text screenshot |
-| `!!ss_dir [path]` | Show or set the screenshot folder |
-| `!!clr` | Clear the terminal |
-| `!!run <file>` | Run a script file |
-| `!!delay <duration>` | Pause for a duration (e.g. `500ms`, `1.5s`) |
-| `!!stop` | Abort a running script |
-| `!!seq [reset]` | Show or reset sequence counters |
-| `!!print <text>` | Print a message to the terminal |
-| `!!show <name>` | Show a file (`$cfg` for current config) |
-| `!!echo [on\|off]` | Toggle command echo |
-| `!!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
-| `!!grep <pattern>` | Search scrollback for regex matches (case-insensitive, skips own output) |
-| `!!show_eol {on\|off}` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
-| `!!proto send <hex>` | Send raw hex bytes and display response |
-| `!!proto run <file>` | Run a binary protocol test script (.pro) |
-| `!!proto debug <file>` | Open interactive protocol debug screen for a .pro script |
-| `!!proto hex [on\|off]` | Toggle hex display mode for serial I/O |
-| `!!proto status` | Show current protocol mode state |
+| `!help [cmd]` | List commands or get help for one |
+| `!connect` | Connect to the serial port |
+| `!disconnect` | Disconnect from the serial port |
+| `!port [name\|list]` | Switch port or list available ports |
+| `!cfg [key [value]]` | View or change config values |
+| `!cfg_auto <key> <val>` | Set a config key without confirmation |
+| `!ss_svg [name]` | Save an SVG screenshot |
+| `!ss_txt [name]` | Save a text screenshot |
+| `!ss_dir [path]` | Show or set the screenshot folder |
+| `!clr` | Clear the terminal |
+| `!run <file>` | Run a script file |
+| `!delay <duration>` | Pause for a duration (e.g. `500ms`, `1.5s`) |
+| `!stop` | Abort a running script |
+| `!seq [reset]` | Show or reset sequence counters |
+| `!print <text>` | Print a message to the terminal |
+| `!show <name>` | Show a file (`$cfg` for current config) |
+| `!echo [on\|off]` | Toggle command echo |
+| `!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
+| `!grep <pattern>` | Search scrollback for regex matches (case-insensitive, skips own output) |
+| `!show_eol {on\|off}` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
+| `!proto send <hex>` | Send raw hex bytes and display response |
+| `!proto run <file>` | Run a binary protocol test script (.pro) |
+| `!proto debug <file>` | Open interactive protocol debug screen for a .pro script |
+| `!proto hex [on\|off]` | Toggle hex display mode for serial I/O |
+| `!proto status` | Show current protocol mode state |
 
 ## JSON Config File
 
 Each configuration is stored as a JSON file at `termapy_cfg/<name>/<name>.json`.
 On first run, termapy creates a default config for you. You can edit it
-from within the app by clicking the center title bar button or using `!!cfg`.
+from within the app by clicking the center title bar button or using `!cfg`.
 
 Here is an example config for a device called `iot_device`:
 
@@ -174,7 +174,7 @@ Here is an example config for a device called `iot_device`:
     "title": "IoT Device",
     "app_border_color": "blue",
     "max_lines": 10000,
-    "repl_prefix": "!!",
+    "repl_prefix": "!",
     "os_cmd_enabled": false,
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
@@ -205,14 +205,14 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `echo_cmd_fmt` | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text) |
 | `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.txt` in the config subfolder) |
 | `show_timestamps` | `false` | Prefix each line in the terminal display with `[HH:MM:SS.mmm]` |
-| `max_grep_lines` | `100` | Maximum number of matching lines shown by `!!grep` |
+| `max_grep_lines` | `100` | Maximum number of matching lines shown by `!grep` |
 | `command_history_items` | `30` | Number of command history entries saved per config |
 | `proto_frame_gap_ms` | `50` | Silence gap (ms) to detect end of a binary protocol frame |
 | `title` | ` ` | Text shown in the center of the title bar (defaults to the config filename) |
 | `app_border_color` | ` ` | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`) |
 | `max_lines` | `10000` | Maximum number of lines kept in the scrollback buffer |
-| `repl_prefix` | `!!` | Prefix that identifies local REPL commands (e.g. `!!help`) |
-| `os_cmd_enabled` | `false` | Allow the `!!os` command to run shell commands (disabled by default for safety) |
+| `repl_prefix` | `!` | Prefix that identifies local REPL commands (e.g. `!help`) |
+| `os_cmd_enabled` | `false` | Allow the `!os` command to run shell commands (disabled by default for safety) |
 | `custom_buttons` | `[]` | Array of custom button objects (see Custom Buttons below) |
 
 ## Config Management
@@ -252,16 +252,16 @@ Each button object has these fields:
 **Command format:**
 
 - Plain text is sent to the serial device (e.g. `"ATZ"`)
-- Commands starting with `!!` run as REPL commands (e.g. `"!!run test.run"`)
+- Commands starting with `!` run as REPL commands (e.g. `"!run test.run"`)
 - Use `\n` to chain multiple commands (e.g. `"ATZ\nAT+INFO"`)
-- Mixed serial and REPL commands work: `"ATZ\n!!sleep 500ms\nAT+INFO"`
+- Mixed serial and REPL commands work: `"ATZ\n!sleep 500ms\nAT+INFO"`
 
 Custom buttons appear in the toolbar between the hardware buttons and the
 system buttons (Log, SS, Scripts, Exit), with a small gap separating them.
 
 ## Scripting
 
-Click the **Scripts** button or use `!!run <filename>` to work with scripts.
+Click the **Scripts** button or use `!run <filename>` to work with scripts.
 The script picker has four actions:
 
 - **New** — create a new script (opens the editor with a template)
@@ -276,23 +276,23 @@ and a name field. Scripts are saved with a `.run` extension in the per-config
 Script files support:
 
 - Serial commands (sent to the device)
-- `!!` prefixed REPL commands (delays, screenshots, print, etc.)
+- `!` prefixed REPL commands (delays, screenshots, print, etc.)
 - Comments (lines starting with `#`)
 - Blank lines (ignored)
 - Sequence counters with `{+counter}` for auto-incrementing values
 
 ## Binary Protocol Testing
 
-The `!!proto` command provides binary protocol testing for request-response serial protocols.
+The `!proto` command provides binary protocol testing for request-response serial protocols.
 
 ### Interactive Send
 
 Send raw hex bytes and see the response:
 
 ```
-!!proto send 01 03 00 00 00 0A C5 CD
-!!proto send "HELLO\r"
-!!proto send 02 "DATA" 03
+!proto send 01 03 00 00 00 0A C5 CD
+!proto send "HELLO\r"
+!proto send 02 "DATA" 03
 ```
 
 ### Protocol Test Scripts
@@ -319,7 +319,7 @@ send: "AT+VERSION?\r"
 expect: "V1." ** ** "\r"
 ```
 
-Run with `!!proto run modbus_test.pro`. Each step reports PASS/FAIL.
+Run with `!proto run modbus_test.pro`. Each step reports PASS/FAIL.
 
 **Script directives:**
 
@@ -336,4 +336,4 @@ Run with `!!proto run modbus_test.pro`. Each step reports PASS/FAIL.
 
 ### Hex Display Mode
 
-Toggle hex display for all serial I/O with `!!proto hex on` / `!!proto hex off`.
+Toggle hex display for all serial I/O with `!proto hex on` / `!proto hex off`.

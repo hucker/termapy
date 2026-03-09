@@ -25,7 +25,7 @@ def handler(ctx: PluginContext, args: str) -> None:
     """
     parts = args.strip().split(None, 1)
     if not parts or len(parts) < 2:
-        ctx.write("Usage: !!cfg_auto <key> <value>", "red")
+        ctx.write("Usage: !cfg_auto <key> <value>", "red")
         return
     key, value_str = parts[0], parts[1]
     if key not in ctx.cfg:

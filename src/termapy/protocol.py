@@ -1,7 +1,7 @@
 """Binary protocol utilities — hex parsing, framing, pattern matching, script parsing.
 
 Pure functions and classes with no Textual or pyserial dependencies.
-Used by the ``!!proto`` builtin plugin for binary serial protocol testing.
+Used by the ``!proto`` builtin plugin for binary serial protocol testing.
 """
 
 from __future__ import annotations

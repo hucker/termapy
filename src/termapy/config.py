@@ -68,7 +68,7 @@ DEFAULT_CFG = {
     "title": "",
     "app_border_color": "",
     "max_lines": 10000,
-    "repl_prefix": "!!",
+    "repl_prefix": "!",
     "os_cmd_enabled": False,
     # Serial
     "port": "COM4",

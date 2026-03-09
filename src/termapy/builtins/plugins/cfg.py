@@ -25,7 +25,7 @@ def handler(ctx: PluginContext, args: str) -> None:
         args: Optional ``"key"`` or ``"key value"`` string.
     """
     parts = args.strip().split(None, 1)
-    # !!cfg — show all
+    # !cfg — show all
     if not parts:
         for k, v in ctx.cfg.items():
             ctx.write(f"  {k}: {v!r}")
@@ -34,11 +34,11 @@ def handler(ctx: PluginContext, args: str) -> None:
     if key not in ctx.cfg:
         ctx.write(f"Unknown config key: {key}", "red")
         return
-    # !!cfg key — show value
+    # !cfg key — show value
     if len(parts) == 1:
         ctx.write(f"  {key}: {ctx.cfg[key]!r}")
         return
-    # !!cfg key value — validate and delegate for confirmation
+    # !cfg key value — validate and delegate for confirmation
     value_str = parts[1]
     try:
         new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])

@@ -28,7 +28,7 @@ def handler(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip()
     if not name:
-        ctx.write("Usage: !!show <name>  ($cfg for config, or a filename)", "red")
+        ctx.write("Usage: !show <name>  ($cfg for config, or a filename)", "red")
         return
     key = name.lower()
     if key == "$cfg":

@@ -52,9 +52,7 @@ def cfg_history_path(config_path: str) -> str:
 
 def cfg_plugins_dir(config_path: str) -> Path:
     """Return the plugins directory for a config, creating it if needed."""
-    d = cfg_data_dir(config_path) / "plugins"
-    d.mkdir(exist_ok=True)
-    return d
+    return cfg_data_dir(config_path) / "plugins"
 
 
 def global_plugins_dir() -> Path:
@@ -94,6 +92,7 @@ DEFAULT_CFG = {
     # Display
     "show_timestamps": False,
     "max_grep_lines": 100,
+    "command_history_items": 30,
     # Custom buttons
     "custom_buttons": [
         {"enabled": False, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},

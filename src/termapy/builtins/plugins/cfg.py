@@ -13,7 +13,17 @@ HELP = "No args: show config. Key only: show value. Key+value: confirm dialog."
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Show all config, a single key, or set a key with confirmation."""
+    """Show all config, a single key, or set a key with confirmation.
+
+    With no arguments, prints every key/value pair. With a key only,
+    prints that key's current value. With key and value, validates the
+    type against the existing value and delegates to the confirmation
+    dialog (or applies directly if no dialog is configured).
+
+    Args:
+        ctx: Plugin context for config access and output.
+        args: Optional ``"key"`` or ``"key value"`` string.
+    """
     parts = args.strip().split(None, 1)
     # !!cfg — show all
     if not parts:

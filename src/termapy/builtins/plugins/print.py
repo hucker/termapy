@@ -13,5 +13,13 @@ HELP = "Print a message to the terminal."
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Write a message to the terminal output."""
+    """Write a message to the terminal output.
+
+    Prints the argument text directly to the terminal. Useful in
+    scripts for status messages or visual separators.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Text to print.
+    """
     ctx.write(args)

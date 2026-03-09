@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from termapy.protocol import diff_bytes
+from termapy.protocol import format_diff_markup
 
 NAME = "Text"
 DESCRIPTION = "ASCII text with escape sequences"
@@ -10,15 +10,6 @@ SORT_ORDER = 20
 
 # Escape sequence display map
 _ESCAPES = {ord("\r"): "\\r", ord("\n"): "\\n", ord("\t"): "\\t", 0: "\\0"}
-
-# Rich markup styles matching proto_debug _DIFF_STYLE
-_STYLES = {
-    "match": "bold bright_green",
-    "wildcard": "dim",
-    "mismatch": "bold red",
-    "extra": "bold red",
-    "missing": "bold red",
-}
 
 
 def _token(b: int) -> str:
@@ -50,8 +41,7 @@ def format_bytes(data: bytes) -> str:
     Returns:
         Spaced text string, e.g. ``"H e l l o \\r\\n"``.
     """
-    tokens = [_token(b) for b in data]
-    return "".join(tokens).rstrip()
+    return "".join(_token(b) for b in data).rstrip()
 
 
 def format_diff(actual: bytes, expected: bytes, mask: bytes) -> str:
@@ -65,17 +55,4 @@ def format_diff(actual: bytes, expected: bytes, mask: bytes) -> str:
     Returns:
         Rich-markup string with per-byte colors.
     """
-    statuses = diff_bytes(expected, actual, mask)
-    parts: list[str] = []
-    for i, status in enumerate(statuses):
-        style = _STYLES.get(status, "")
-        if status == "missing":
-            token = ". "
-        else:
-            token = _token(actual[i])
-        parts.append(f"[{style}]{token}[/]")
-    result = "".join(parts)
-    # Strip trailing space inside the last markup tag
-    if result.endswith(" [/]"):
-        result = result[:-4] + "[/]"
-    return result
+    return format_diff_markup(actual, expected, mask, _token, ". ")

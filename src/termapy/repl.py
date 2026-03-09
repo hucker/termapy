@@ -206,16 +206,27 @@ class ReplEngine:
         self.write(f"Running script: {filename}")
         return path
 
-    def run_script(self, path: Path) -> None:
+    def run_script(self, path: Path, write: Callable | None = None) -> None:
         """Execute a script file line by line (call from a background thread).
 
         Parses the script into serial commands, REPL commands, and delays.
         Supports !!stop to abort mid-execution. Serial commands are sent with
         the configured line ending and encoding.
 
+        This method is called from a ``@work(thread=True)`` background thread
+        in ``app.py``. The default ``self.write`` callback writes directly to
+        the Textual UI, which is not thread-safe. Callers pass a thread-safe
+        ``write`` override (typically wrapping ``call_from_thread``) so that
+        status messages are posted safely to the main event loop. This avoids
+        monkey-patching ``self.write`` and keeps the override scoped to the
+        call stack.
+
         Args:
             path: Path to the script file to execute.
+            write: Optional write callback override for thread-safe output.
+                Falls back to ``self.write`` when None (e.g. in tests).
         """
+        w = write or self.write
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
             prefix = self.prefix
@@ -224,7 +235,7 @@ class ReplEngine:
             parsed = parse_script_lines(lines, prefix)
             for kind, content in parsed:
                 if self._script_stop.is_set():
-                    self.write("Script stopped.")
+                    w("Script stopped.")
                     break
                 if kind == "skip":
                     continue
@@ -237,10 +248,10 @@ class ReplEngine:
                         try:
                             seconds = parse_duration(expanded)
                         except ValueError as e:
-                            self.write(str(e), "red")
+                            w(str(e), "red")
                             break
                         time.sleep(seconds)
-                        self.write(f"Delay {expanded} done.")
+                        w(f"Delay {expanded} done.")
                     else:
                         self.dispatch(content)
                         time.sleep(0.1)
@@ -251,9 +262,9 @@ class ReplEngine:
                         )
                         self.ctx.serial_wait_idle()
             else:
-                self.write("Script finished.")
+                w("Script finished.")
         except Exception as e:
-            self.write(f"Script error: {e}", "red")
+            w(f"Script error: {e}", "red")
         finally:
             self._in_script = False
 

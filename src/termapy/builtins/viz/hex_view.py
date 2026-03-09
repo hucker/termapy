@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from termapy.protocol import diff_bytes
+from termapy.protocol import format_diff_markup
 
 NAME = "Hex"
 DESCRIPTION = "Raw hexadecimal byte values"
 SORT_ORDER = 10
 
-# Rich markup styles matching proto_debug _DIFF_STYLE
-_STYLES = {
-    "match": "bold bright_green",
-    "wildcard": "dim",
-    "mismatch": "bold red",
-    "extra": "bold red",
-    "missing": "bold red",
-}
+
+def _hex_token(b: int) -> str:
+    """Format a single byte as a 3-char hex token (``XX ``).
+
+    Args:
+        b: Byte value.
+
+    Returns:
+        Uppercase hex pair followed by a space.
+    """
+    return f"{b:02X} "
 
 
 def format_bytes(data: bytes) -> str:
@@ -30,8 +33,7 @@ def format_bytes(data: bytes) -> str:
     Returns:
         Spaced hex string, e.g. ``"01 FF 0A"``.
     """
-    tokens = [f"{b:02X} " for b in data]
-    return "".join(tokens).rstrip()
+    return "".join(_hex_token(b) for b in data).rstrip()
 
 
 def format_diff(actual: bytes, expected: bytes, mask: bytes) -> str:
@@ -45,17 +47,4 @@ def format_diff(actual: bytes, expected: bytes, mask: bytes) -> str:
     Returns:
         Rich-markup string with per-byte colors.
     """
-    statuses = diff_bytes(expected, actual, mask)
-    parts: list[str] = []
-    for i, status in enumerate(statuses):
-        style = _STYLES.get(status, "")
-        if status == "missing":
-            token = "-- "
-        else:
-            token = f"{actual[i]:02X} "
-        parts.append(f"[{style}]{token}[/]")
-    result = "".join(parts)
-    # Strip trailing space inside the last markup tag
-    if result.endswith(" [/]"):
-        result = result[:-4] + "[/]"
-    return result
+    return format_diff_markup(actual, expected, mask, _hex_token, "-- ")

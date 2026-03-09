@@ -17,7 +17,16 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Search the scrollback for lines matching a regex pattern."""
+    """Search the scrollback for lines matching a regex pattern.
+
+    Performs a case-insensitive regex search across all visible terminal
+    output. Skips its own output and echoed grep commands to avoid
+    recursive matches. Results are limited by ``max_grep_lines`` config.
+
+    Args:
+        ctx: Plugin context for screen text access and output.
+        args: Regex pattern string to search for.
+    """
     pattern = args.strip()
     if not pattern:
         ctx.write("Usage: !!grep <pattern>", "red")
@@ -33,8 +42,15 @@ def handler(ctx: PluginContext, args: str) -> None:
     text = ctx.get_screen_text()
     lines = text.splitlines()
 
-    def _is_grep_noise(line):
-        """Skip grep output lines and echoed grep commands."""
+    def _is_grep_noise(line: str) -> bool:
+        """Check if a line is grep's own output to avoid recursive matches.
+
+        Args:
+            line: Terminal output line to check.
+
+        Returns:
+            True if the line is grep output or an echoed grep command.
+        """
         stripped = line.lstrip()
         return stripped.startswith("grep:") or grep_cmd in line
 

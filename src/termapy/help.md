@@ -35,6 +35,8 @@ termapy_cfg/
 │   ├── .cmd_history.txt       # command history
 │   ├── ss/                    # screenshots
 │   ├── scripts/               # script files
+│   ├── proto/                 # protocol test scripts (.pro)
+│   ├── viz/                   # per-config packet visualizers
 │   └── plugins/               # per-config plugins
 └── plugins/                   # global plugins (all configs)
 ```
@@ -63,7 +65,7 @@ The scrollback buffer holds up to `max_lines` lines (default 10,000).
 The bottom bar contains a text input for sending commands to the serial device.
 
 - Type a command and press **Enter** to send it over serial.
-- Press **Up** to recall previous commands (last 10 are saved per config).
+- Press **Up** to recall previous commands (default 30 per config, configurable via `command_history_items`).
 - Prefix a command with `!!` to run a local REPL command instead of sending it to the device.
 
 Type `!!help` to see all available REPL commands.
@@ -133,8 +135,10 @@ Commands prefixed with `!!` (configurable via `repl_prefix`) run locally instead
 | `!!echo [on\|off]` | Toggle command echo |
 | `!!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
 | `!!grep <pattern>` | Search scrollback for regex matches (case-insensitive, skips own output) |
+| `!!show_eol {on\|off}` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
 | `!!proto send <hex>` | Send raw hex bytes and display response |
 | `!!proto run <file>` | Run a binary protocol test script (.pro) |
+| `!!proto debug <file>` | Open interactive protocol debug screen for a .pro script |
 | `!!proto hex [on\|off]` | Toggle hex display mode for serial I/O |
 | `!!proto status` | Show current protocol mode state |
 
@@ -148,6 +152,7 @@ Here is an example config for a device called `iot_device`:
 
 ```json
 {
+    "config_version": 3,
     "port": "COM4",
     "baudrate": 115200,
     "bytesize": 8,
@@ -165,6 +170,7 @@ Here is an example config for a device called `iot_device`:
     "log_file": "",
     "show_timestamps": false,
     "max_grep_lines": 100,
+    "command_history_items": 30,
     "title": "IoT Device",
     "app_border_color": "blue",
     "max_lines": 10000,
@@ -200,6 +206,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.txt` in the config subfolder) |
 | `show_timestamps` | `false` | Prefix each line in the terminal display with `[HH:MM:SS.mmm]` |
 | `max_grep_lines` | `100` | Maximum number of matching lines shown by `!!grep` |
+| `command_history_items` | `30` | Number of command history entries saved per config |
 | `proto_frame_gap_ms` | `50` | Silence gap (ms) to detect end of a binary protocol frame |
 | `title` | ` ` | Text shown in the center of the title bar (defaults to the config filename) |
 | `app_border_color` | ` ` | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`) |

@@ -12,6 +12,7 @@ import json
 import queue
 import re
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from threading import Event
@@ -62,6 +63,22 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 CLEAR_SCREEN_RE = re.compile(r"(\x1b\[H)?\x1b\[2J")
 # Incomplete ANSI escape at end of buffer: ESC, or ESC[ with optional digits/semicolons
 PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
+
+# Dim ANSI markers for visible EOL display (show_eol mode)
+_EOL_CR = "\x1b[2m\\r\x1b[0m"
+_EOL_LF = "\x1b[2m\\n\x1b[0m"
+
+
+def _eol_label(line_ending: str) -> str:
+    """Return a dim ANSI label for a line ending string.
+
+    Args:
+        line_ending: The line ending characters (e.g. "\\r", "\\n", "\\r\\n").
+
+    Returns:
+        Dim ANSI string showing the ending, e.g. ``\\r\\n`` for CR+LF.
+    """
+    return line_ending.replace("\r", _EOL_CR).replace("\n", _EOL_LF)
 
 
 class SerialTerminal(App):
@@ -256,14 +273,16 @@ class SerialTerminal(App):
 
     def _load_history(self) -> list[str]:
         try:
+            n = self.cfg.get("command_history_items", 30)
             lines = Path(self._history_path()).read_text(encoding="utf-8").splitlines()
-            return lines[-15:]
+            return lines[-n:]
         except FileNotFoundError:
             return []
 
     def _save_history(self) -> None:
+        n = self.cfg.get("command_history_items", 30)
         Path(self._history_path()).write_text(
-            "\n".join(self.history[-15:]), encoding="utf-8"
+            "\n".join(self.history[-n:]), encoding="utf-8"
         )
 
     def compose(self) -> ComposeResult:
@@ -537,7 +556,7 @@ class SerialTerminal(App):
             self.read_serial()
             auto_cmd = self.cfg.get("autoconnect_cmd", "")
             if auto_cmd:
-                self._run_autoconnect(auto_cmd)
+                self._run_lines(auto_cmd.split("\n"), echo_prefix="auto> ", delay=0.2)
             return True
         except serial.SerialException as e:
             self.reader_stopped.set()
@@ -663,15 +682,22 @@ class SerialTerminal(App):
             time.sleep(0.01)
 
     @work(thread=True)
-    def _run_autoconnect(self, auto_cmd: str) -> None:
-        """Send autoconnect commands, waiting for idle between each."""
-        time.sleep(0.2)
-        self._send_lines(auto_cmd.split("\n"), echo_prefix="auto> ")
+    def _run_lines(
+        self,
+        cmds: list[str],
+        echo_prefix: str = "",
+        delay: float = 0,
+    ) -> None:
+        """Send multiple commands in a background thread.
 
-    @work(thread=True)
-    def _run_multi_cmd(self, cmds: list[str]) -> None:
-        """Send multiple commands from CLI input with inter-command delay."""
-        self._send_lines(cmds)
+        Args:
+            cmds: Command strings to send.
+            echo_prefix: Optional prefix for echoed output.
+            delay: Seconds to wait before sending the first command.
+        """
+        if delay:
+            time.sleep(delay)
+        self._send_lines(cmds, echo_prefix=echo_prefix)
 
     def _send_lines(self, lines: list[str], echo_prefix: str = "") -> None:
         """Send multiple commands with inter_cmd_delay_ms between each."""
@@ -701,6 +727,23 @@ class SerialTerminal(App):
     def _write_output_markup(self, text: str) -> None:
         self.query_one("#output", RichLog).write(text)
 
+    def _report_exception(self, e: Exception) -> None:
+        """Write exception details to the terminal output in red.
+
+        Displays the exception type, message, filename, and line number
+        so that silently swallowed errors become visible during development.
+
+        Args:
+            e: The caught exception to report.
+        """
+        tb = traceback.extract_tb(e.__traceback__)
+        if tb:
+            last = tb[-1]
+            location = f"{last.filename}:{last.lineno}"
+        else:
+            location = "unknown"
+        self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
+
     def _disconnect(self) -> None:
         self.stop_event.set()
         try:
@@ -708,8 +751,8 @@ class SerialTerminal(App):
             if self.ser:
                 try:
                     self.ser.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self._report_exception(e)
                 self.ser = None
             if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
@@ -717,8 +760,8 @@ class SerialTerminal(App):
             inp = self.query_one("#cmd", Input)
             inp.placeholder = "!! for REPL commands, Ctrl+P: palette"
             self._sync_hw_buttons(reset=True)
-        except Exception:
-            pass
+        except Exception as e:
+            self._report_exception(e)
 
     def _sync_hw_visibility(self) -> None:
         """Show or hide DTR/RTS/Break buttons based on flow_control config."""
@@ -827,8 +870,8 @@ class SerialTerminal(App):
             elif self.is_connected:
                 dtr_btn.label = f"DTR:{int(self.ser.dtr)}"
                 rts_btn.label = f"RTS:{int(self.ser.rts)}"
-        except Exception:
-            pass
+        except Exception as e:
+            self._report_exception(e)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "title-right":
@@ -1024,6 +1067,12 @@ class SerialTerminal(App):
 
                 last_rx = time.monotonic()
                 text = data.decode(self.cfg.get("encoding", "utf-8"), errors="replace")
+
+                # Insert visible EOL markers before line splitting consumes them
+                if self.cfg.get("show_eol", False):
+                    text = text.replace("\r", _EOL_CR + "\r")
+                    text = text.replace("\n", _EOL_LF + "\n")
+
                 buf += text
 
                 # Check for clear screen in raw buffer before line splitting
@@ -1047,8 +1096,8 @@ class SerialTerminal(App):
             if self.ser:
                 try:
                     self.ser.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.call_from_thread(self._report_exception, e)
                 self.ser = None
             self.reader_stopped.set()
 
@@ -1117,14 +1166,18 @@ class SerialTerminal(App):
         # Echo serial command locally if enabled
         if self.cfg.get("echo_cmd"):
             fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
-            self._write_output_markup(fmt.replace("{cmd}", cmd))
+            echo_text = cmd
+            if self.cfg.get("show_eol", False):
+                le = self.cfg.get("line_ending", "\r")
+                echo_text += _eol_label(le)
+            self._write_output_markup(fmt.replace("{cmd}", echo_text))
         if not self.is_connected:
             self._status("Not connected — command not sent", "red")
             return
         # Split on literal \n for multi-command input
         parts = cmd.replace("\\n", "\n").split("\n")
         if len(parts) > 1:
-            self._run_multi_cmd(parts)
+            self._run_lines(parts)
         else:
             line_ending = self.cfg.get("line_ending", "\r")
             self.ser.write(
@@ -1424,14 +1477,10 @@ class SerialTerminal(App):
     @work(thread=True)
     def _run_script(self, path: Path) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
-        saved_write = self.repl.write
-        self.repl.write = lambda text, color="dim": self.call_from_thread(
-            self._status, text, color
-        )
-        try:
-            self.repl.run_script(path)
-        finally:
-            self.repl.write = saved_write
+        def thread_safe_write(text: str, color: str = "dim") -> None:
+            self.call_from_thread(self._status, text, color)
+
+        self.repl.run_script(path, write=thread_safe_write)
 
 
 def _find_config() -> tuple[str | None, bool]:

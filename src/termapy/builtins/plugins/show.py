@@ -16,7 +16,16 @@ _SHOW_SPECIAL = {"$cfg"}
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Display file contents in the terminal."""
+    """Display file contents in the terminal.
+
+    Reads a file and prints each line to the terminal output.
+    Supports special names: ``$cfg`` shows the current config file.
+    Regular filenames are resolved relative to the working directory.
+
+    Args:
+        ctx: Plugin context for config path and output.
+        args: Filename or special name (e.g. ``"$cfg"``).
+    """
     name = args.strip()
     if not name:
         ctx.write("Usage: !!show <name>  ($cfg for config, or a filename)", "red")

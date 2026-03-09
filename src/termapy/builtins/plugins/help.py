@@ -13,7 +13,16 @@ HELP = "List REPL commands, or show help for one command."
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """List all REPL commands or show detailed help for one."""
+    """List all REPL commands or show detailed help for one.
+
+    With no arguments, lists all registered commands grouped by source
+    (built-in, global, per-config) with aligned columns. With a command
+    name, shows that command's usage and help text.
+
+    Args:
+        ctx: Plugin context for engine plugin registry and output.
+        args: Optional command name to get help for.
+    """
     name = args.strip().lower() if isinstance(args, str) else ""
     prefix = ctx.engine.prefix
     if name:

@@ -38,7 +38,16 @@ _SUBCMDS: dict[str, str] = {
 
 
 def handler(ctx: PluginContext, args: str) -> None:
-    """Dispatch proto subcommands for binary protocol testing."""
+    """Dispatch proto subcommands for binary protocol testing.
+
+    Routes to ``send``, ``run``, ``debug``, ``hex``, or ``status``
+    subcommands. With no arguments, prints usage showing all
+    available subcommands.
+
+    Args:
+        ctx: Plugin context for serial I/O and output.
+        args: Subcommand and its arguments, e.g. ``"send 01 02 03"``.
+    """
     parts = args.strip().split(None, 1)
     if not parts:
         _show_usage(ctx)
@@ -63,7 +72,11 @@ def handler(ctx: PluginContext, args: str) -> None:
 
 
 def _show_usage(ctx: PluginContext) -> None:
-    """Display proto subcommand help."""
+    """Display proto subcommand help.
+
+    Args:
+        ctx: Plugin context for output.
+    """
     prefix = ctx.engine.prefix
     ctx.write(f"Usage: {prefix}proto <subcommand>")
     for name, desc in _SUBCMDS.items():
@@ -449,7 +462,13 @@ def _cmd_hex(ctx: PluginContext, args: str) -> None:
 
 
 def _cmd_status(ctx: PluginContext) -> None:
-    """Show current proto state."""
+    """Show current protocol mode state.
+
+    Displays hex display mode and connection status.
+
+    Args:
+        ctx: Plugin context for engine state and output.
+    """
     hex_mode = ctx.engine.get_hex_mode()
     connected = ctx.is_connected()
     ctx.write(f"Hex mode: {'on' if hex_mode else 'off'}")

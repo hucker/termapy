@@ -112,8 +112,8 @@ class SerialTerminal(App):
         background: $primary;
     }
     #btn-cmds {
-        width: 4;
-        min-width: 4;
+        width: auto;
+        min-width: 3;
         text-align: center;
         padding: 0;
     }
@@ -245,7 +245,7 @@ class SerialTerminal(App):
             cfg,
             config_path,
             write=self._status,
-            prefix=cfg.get("repl_prefix", "!!"),
+            prefix=cfg.get("repl_prefix", "!"),
         )
         self.history: list[str] = self._load_history()
         self._popup_mode: str = "history"
@@ -319,11 +319,12 @@ class SerialTerminal(App):
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
-                cmd_btn = Button("!!", id="btn-cmds")
-                cmd_btn.tooltip = "Show REPL !! commands."
+                prefix = self.cfg.get("repl_prefix", "!")
+                cmd_btn = Button(prefix, id="btn-cmds")
+                cmd_btn.tooltip = f"Show REPL {prefix} commands."
                 yield cmd_btn
                 yield Input(
-                    placeholder="!! for REPL commands, Ctrl+P: palette", id="cmd"
+                    placeholder="! for REPL commands, Ctrl+P: palette", id="cmd"
                 )
 
                 def _btn(label, id, tip, variant="default", display=True):
@@ -397,7 +398,7 @@ class SerialTerminal(App):
         self._apply_border_color()
         # Build plugin context — the stable API for all plugins
         engine = EngineAPI(
-            prefix=self.cfg.get("repl_prefix", "!!"),
+            prefix=self.cfg.get("repl_prefix", "!"),
             plugins=self.repl._plugins,
             get_echo=lambda: self.repl._echo,
             set_echo=lambda val: setattr(self.repl, "_echo", val),
@@ -768,7 +769,7 @@ class SerialTerminal(App):
             self._set_conn_status("Disconnected")
             try:
                 inp = self.query_one("#cmd", Input)
-                inp.placeholder = "!! for REPL commands, Ctrl+P: palette"
+                inp.placeholder = "! for REPL commands, Ctrl+P: palette"
             except Exception:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
@@ -1057,7 +1058,7 @@ class SerialTerminal(App):
                     break
 
                 if data:
-                    # Feed raw bytes to protocol queue for !!proto
+                    # Feed raw bytes to protocol queue for !proto
                     self._raw_rx_queue.put(data)
 
                 # Suppress normal display while proto script is running
@@ -1167,7 +1168,7 @@ class SerialTerminal(App):
 
     def _execute_command(self, cmd: str) -> None:
         """Dispatch a single command: REPL prefix goes to REPL, otherwise serial."""
-        prefix = self.cfg.get("repl_prefix", "!!")
+        prefix = self.cfg.get("repl_prefix", "!")
         if cmd.startswith(prefix):
             if self.repl.echo:
                 fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
@@ -1218,13 +1219,13 @@ class SerialTerminal(App):
         """Show the REPL command picker with smart arg handling."""
         popup = self.query_one("#history-popup", OptionList)
         popup.clear_options()
-        prefix = self.cfg.get("repl_prefix", "!!")
+        prefix = self.cfg.get("repl_prefix", "!")
         groups: dict[str, list] = {}
         for name, plugin in self.repl._plugins.items():
             groups.setdefault(plugin.source, []).append((name, plugin))
         for source, plugins in groups.items():
             popup.add_option(Option(f"── {source} ──", disabled=True))
-            for name, plugin in plugins:
+            for name, plugin in sorted(plugins, key=lambda p: p[0]):
                 has_required = "<" in plugin.args if plugin.args else False
                 has_optional = "{" in plugin.args if plugin.args else False
                 if not plugin.args or (has_optional and not has_required):
@@ -1275,7 +1276,7 @@ class SerialTerminal(App):
             self.call_after_refresh(self.repl.dispatch, name)
         elif opt_id.startswith("repl:"):
             name = opt_id.split(":")[1]
-            prefix = self.cfg.get("repl_prefix", "!!")
+            prefix = self.cfg.get("repl_prefix", "!")
             inp = self.query_one("#cmd", Input)
             inp.value = f"{prefix}{name} "
             inp.action_end()

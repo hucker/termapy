@@ -80,7 +80,7 @@ termapy_cfg/
 │   ├── ss/                             # screenshots
 │   │   ├── screenshot_20260306_141523.svg
 │   │   └── screenshot_20260306_141530.txt
-│   ├── scripts/                        # script files for !!run
+│   ├── scripts/                        # script files for !run
 │   │   └── init_sequence.txt
 │   ├── plugins/                        # per-config plugins
 │   │   └── custom_init.py
@@ -115,7 +115,7 @@ termapy_cfg/
 - **Session logging** -- timestamped plain-text log stored per-config, with optional date-stamped commands
 - **Screenshots** -- save the terminal view as SVG (Ctrl+S) or plain text (Ctrl+T)
 - **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
-- **REPL commands** -- type `!!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
+- **REPL commands** -- type `!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
 - **Binary protocol testing** -- send raw hex bytes, run scripted send/expect test sequences with pass/fail reporting, wildcard pattern matching, and hex display mode; supports both hex and quoted text in `.pro` script files; interactive debug screen with repeat, delay, and stop-on-error controls
 - **Plugins** -- drop `.py` files into `plugins/` folders to add custom REPL commands; all built-in commands use the same plugin architecture
 - **Pluggable packet visualizers** -- hex and text views are built-in; drop a `.py` file into `viz/` to add custom packet visualizers (e.g. Modbus field decoding, bit-level views) without modifying core code
@@ -135,7 +135,6 @@ termapy_cfg/
 | Button | Action                                                              |
 | ------ | ------------------------------------------------------------------- |
 | `?`    | Open the help guide                                                 |
-| `#`    | Toggle line numbers on new output (turns green when active)         |
 | `Cfg`  | Open the config picker                                              |
 | `Run`  | Open the script picker                                              |
 | Center | Click to edit the current config                                    |
@@ -144,53 +143,53 @@ termapy_cfg/
 
 ## REPL Commands
 
-Type commands prefixed with `!!` (configurable via `repl_prefix`) to run local actions instead of sending to the serial device.
+Type commands prefixed with `!` (configurable via `repl_prefix`) to run local actions instead of sending to the serial device.
 
-| Command                    | Description                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| `!!help [cmd]`             | List all REPL commands, or show help for one                                     |
-| `!!connect`                | Connect to the serial port                                                       |
-| `!!disconnect`             | Disconnect from the serial port                                                  |
-| `!!port [name \| list]`    | Open a port by name, or list available ports                                     |
-| `!!cfg [key [value]]`      | Show config, show a key, or change a value (with confirmation)                   |
-| `!!cfg_auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
-| `!!ss_svg [name]`          | Save SVG screenshot                                                              |
-| `!!ss_txt [name]`          | Save text screenshot                                                             |
-| `!!ss_dir [path]`          | Set or show the screenshot folder                                                |
-| `!!clr`                    | Clear the terminal screen                                                        |
-| `!!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
-| `!!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
-| `!!stop`                   | Abort a running script                                                           |
-| `!!seq [reset]`            | Show or reset sequence counters                                                  |
-| `!!print <text>`           | Print a message to the terminal                                                  |
-| `!!show <name>`            | Show a file (`$cfg` for current config)                                          |
-| `!!echo [on \| off]`       | Toggle REPL command echo                                                         |
-| `!!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
-| `!!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
-| `!!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
-| `!!proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
-| `!!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
-| `!!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
-| `!!proto status`           | Show current protocol mode state                                                 |
+| Command                   | Description                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `!help [cmd]`             | List all REPL commands, or show help for one                                     |
+| `!connect`                | Connect to the serial port                                                       |
+| `!disconnect`             | Disconnect from the serial port                                                  |
+| `!port [name \| list]`    | Open a port by name, or list available ports                                     |
+| `!cfg [key [value]]`      | Show config, show a key, or change a value (with confirmation)                   |
+| `!cfg_auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
+| `!ss_svg [name]`          | Save SVG screenshot                                                              |
+| `!ss_txt [name]`          | Save text screenshot                                                             |
+| `!ss_dir [path]`          | Set or show the screenshot folder                                                |
+| `!clr`                    | Clear the terminal screen                                                        |
+| `!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
+| `!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
+| `!stop`                   | Abort a running script                                                           |
+| `!seq [reset]`            | Show or reset sequence counters                                                  |
+| `!print <text>`           | Print a message to the terminal                                                  |
+| `!show <name>`            | Show a file (`$cfg` for current config)                                          |
+| `!echo [on \| off]`       | Toggle REPL command echo                                                         |
+| `!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
+| `!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
+| `!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
+| `!proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
+| `!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
+| `!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
+| `!proto status`           | Show current protocol mode state                                                 |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
 ### Sending and Receiving Binary Data
 
-Use `!!proto send` to send raw bytes and see the response. Mix hex bytes and quoted strings:
+Use `!proto send` to send raw bytes and see the response. Mix hex bytes and quoted strings:
 
 ```text
-!!proto send 01 03 00 00 00 0A
+!proto send 01 03 00 00 00 0A
   TX: 01 03 00 00 00 0A
   RX: 01 03 14 00 64 00 C8 01 2C ...
   (24 bytes, 12ms)
 
-!!proto send "AT+RST\r\n"
+!proto send "AT+RST\r\n"
   TX: 41 54 2B 52 53 54 0D 0A
   RX: 4F 4B 0D 0A
   (4 bytes, 85ms)
 
-!!proto send FF 00 "hello" 0D 0A
+!proto send FF 00 "hello" 0D 0A
   TX: FF 00 68 65 6C 6C 6F 0D 0A
   RX: 41 43 4B
   (3 bytes, 7ms)
@@ -198,7 +197,7 @@ Use `!!proto send` to send raw bytes and see the response. Mix hex bytes and quo
 
 No line ending is appended — you send exactly the bytes you specify. Responses are collected using timeout-based framing (configurable via `proto_frame_gap_ms`). For longer packets (>16 bytes), output switches to a hex dump with offsets and ASCII sidebar.
 
-Toggle `!!proto hex` to show all normal serial I/O as hex bytes instead of decoded text — useful for understanding line endings, looking at binary protocols and knowing what is happening on the wire.
+Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decoded text — useful for understanding line endings, looking at binary protocols and knowing what is happening on the wire.
 
 ## Config Reference
 
@@ -227,7 +226,7 @@ Toggle `!!proto hex` to show all normal serial I/O as hex bytes instead of decod
     "title": "",
     "app_border_color": "",
     "max_lines": 10000,
-    "repl_prefix": "!!",
+    "repl_prefix": "!",
     "os_cmd_enabled": false,
     "custom_buttons": [
         {"enabled": false, "name": "Btn1", "command": "", "tooltip": "Custom button 1"},
@@ -260,14 +259,14 @@ Toggle `!!proto hex` to show all normal serial I/O as hex bytes instead of decod
 | `log_file`              | `""`                   | Session log path. If empty, uses `<name>.txt` in the config's subfolder                                  |
 | `show_timestamps`       | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
 | `show_eol`              | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
-| `max_grep_lines`        | `100`                  | Maximum number of matching lines shown by `!!grep`                                                       |
+| `max_grep_lines`        | `100`                  | Maximum number of matching lines shown by `!grep`                                                        |
 | `command_history_items` | `30`                   | Number of commands to keep in the per-config command history                                              |
 | `proto_frame_gap_ms`    | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`                 | `""`                   | Title bar center text. Defaults to the config filename                                                   |
 | `app_border_color`      | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`             | `10000`                | Maximum lines in the scrollback buffer                                                                   |
-| `repl_prefix`           | `"!!"`                 | Prefix for local REPL commands (e.g. `!!help`, `!!clr`)                                                  |
-| `os_cmd_enabled`        | `false`                | Enable the `!!os` REPL command to run shell commands                                                     |
+| `repl_prefix`           | `"!"`                  | Prefix for local REPL commands (e.g. `!help`, `!clr`)                                                    |
+| `os_cmd_enabled`        | `false`                | Enable the `!os` REPL command to run shell commands                                                      |
 | `custom_buttons`        | `[]`                   | Array of custom button objects (see Custom Buttons below)                                                |
 
 **Note on `show_eol`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output — turn `show_eol` off when not actively debugging.
@@ -323,14 +322,14 @@ With `flow_control` set to `"manual"`, three extra buttons appear in the toolbar
 
 ### Custom Buttons
 
-Add custom buttons to the toolbar. The default config includes 4 disabled placeholders — enable them and fill in the fields, or add more entries. Each button has `enabled`, `name`, `command`, and `tooltip` fields. Commands starting with `!!` run as REPL commands; everything else is sent to the serial device. Use `\n` to chain multiple commands or use `!!run` to run a script file.
+Add custom buttons to the toolbar. The default config includes 4 disabled placeholders — enable them and fill in the fields, or add more entries. Each button has `enabled`, `name`, `command`, and `tooltip` fields. Commands starting with `!` run as REPL commands; everything else is sent to the serial device. Use `\n` to chain multiple commands or use `!run` to run a script file.
 
 ```json
 {
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
-        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n!!sleep 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
-        {"enabled": true, "name": "Status", "command": "!!run status_check.run", "tooltip": "Run status script"}
+        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n!sleep 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
+        {"enabled": true, "name": "Status", "command": "!run status_check.run", "tooltip": "Run status script"}
     ]
 }
 ```
@@ -375,7 +374,7 @@ No classes to subclass, no registration — the file is discovered automatically
 
 ### Namespacing with PACKAGE
 
-To avoid name collisions, add an optional `PACKAGE` field. The command becomes `!!package.name`:
+To avoid name collisions, add an optional `PACKAGE` field. The command becomes `!package.name`:
 
 ```python
 # flash.py
@@ -392,7 +391,7 @@ def handler(ctx: PluginContext, args: str):
     ctx.serial_wait_idle()
 ```
 
-The user types `!!acme.flash firmware.bin`, and `!!help` groups it under the "acme" package.
+The user types `!acme.flash firmware.bin`, and `!help` groups it under the "acme" package.
 
 ### PluginContext API
 

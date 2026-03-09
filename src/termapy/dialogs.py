@@ -646,11 +646,11 @@ class ProtoEditor(ModalScreen[str | None]):
 _SCRIPT_TEMPLATE = """\
 # Script: {name}
 # Lines starting with # are comments
-# Lines starting with !! are REPL commands
+# Lines starting with ! are REPL commands
 # All other lines are sent to the serial device
 #
 # Example:
-# !!sleep 500ms
+# !sleep 500ms
 # AT+INFO
 """
 

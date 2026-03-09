@@ -64,9 +64,9 @@ def parse_duration(text: str) -> float:
 
 
 def parse_script_lines(
-    lines: list[str], prefix: str = "!!"
+    lines: list[str], prefix: str = "!"
 ) -> list[tuple[str, str]]:
-    """Classify script lines for the !!run command.
+    """Classify script lines for the !run command.
 
     Args:
         lines: Raw lines from a script file.

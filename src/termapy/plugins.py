@@ -35,7 +35,7 @@ class EngineAPI:
     Access via ctx.engine from built-in command handlers.
     """
 
-    prefix: str = "!!"
+    prefix: str = "!"
     plugins: dict = field(default_factory=dict)
     get_echo: Callable = lambda: True
     set_echo: Callable = lambda val: None
@@ -119,10 +119,10 @@ class PluginInfo:
     """Metadata and handler for a single plugin command.
 
     Attributes:
-        name: Command name (lowercase). Users type ``!!name`` to invoke.
+        name: Command name (lowercase). Users type ``!name`` to invoke.
         args: Argument spec for help display. ``""`` = no args,
             ``"{opt}"`` = optional, ``"<required>"`` = required.
-        help: One-line description shown by ``!!help``.
+        help: One-line description shown by ``!help``.
         handler: The command function. Signature: ``handler(ctx: PluginContext, args: str) -> None``.
         source: Where the plugin was loaded from (``"built-in"``, ``"global"``,
             or the config name).

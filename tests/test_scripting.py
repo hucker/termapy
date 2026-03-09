@@ -177,11 +177,11 @@ class TestParseScriptLines:
         assert actual == [("serial", "rev")]  # plain text is serial
 
     def test_repl_command(self):
-        actual = parse_script_lines(["!!delay 500ms"])
+        actual = parse_script_lines(["!delay 500ms"])
         assert actual == [("repl", "delay 500ms")]  # prefix stripped
 
     def test_repl_command_with_leading_space(self):
-        actual = parse_script_lines(["  !!ss_svg test"])
+        actual = parse_script_lines(["  !ss_svg test"])
         assert actual == [("repl", "ss_svg test")]  # leading space stripped
 
     def test_custom_prefix(self):
@@ -194,8 +194,8 @@ class TestParseScriptLines:
             "# smoke test",
             "",
             "rev",
-            "!!delay 500ms",
-            "!!ss_svg test_{seq1+}",
+            "!delay 500ms",
+            "!ss_svg test_{seq1+}",
             "help",
         ]
         expected = [

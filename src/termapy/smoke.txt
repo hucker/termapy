@@ -1,41 +1,41 @@
-# Smoke test for !!run
+# Smoke test for !run
 # Creates a folder per run, takes svg + txt screenshots at each step
 # seq2 = section, seq1 = step within section (resets on new section)
-!!ss_dir smoke_{starttime}
-!!print === Smoke test started {starttime} ===
+!ss_dir smoke_{starttime}
+!print === Smoke test started {starttime} ===
 
 # Section 1: device info
-!!clr
+!clr
 rev
-!!delay 500ms
-!!ss_svg s{seq2+}_{seq1+}_rev
-!!ss_txt s{seq2}_{seq1}_rev
+!delay 500ms
+!ss_svg s{seq2+}_{seq1+}_rev
+!ss_txt s{seq2}_{seq1}_rev
 
-!!clr
+!clr
 help
-!!delay 500ms
-!!ss_svg s{seq2}_{seq1+}_help
-!!ss_txt s{seq2}_{seq1}_help
+!delay 500ms
+!ss_svg s{seq2}_{seq1+}_help
+!ss_txt s{seq2}_{seq1}_help
 
 # Section 2: memory
-!!clr
+!clr
 mem 0x1000 64
-!!delay 1s
-!!ss_svg s{seq2+}_{seq1+}_mem64
-!!ss_txt s{seq2}_{seq1}_mem64
+!delay 1s
+!ss_svg s{seq2+}_{seq1+}_mem64
+!ss_txt s{seq2}_{seq1}_mem64
 
-!!clr
+!clr
 mem 0x1000 256
-!!delay 1s
-!!ss_svg s{seq2}_{seq1+}_mem256
-!!ss_txt s{seq2}_{seq1}_mem256
+!delay 1s
+!ss_svg s{seq2}_{seq1+}_mem256
+!ss_txt s{seq2}_{seq1}_mem256
 
 # Section 3: status
-!!clr
+!clr
 blink
-!!delay 500ms
-!!ss_svg s{seq2+}_{seq1+}_blink
-!!ss_txt s{seq2}_{seq1}_blink
+!delay 500ms
+!ss_svg s{seq2+}_{seq1+}_blink
+!ss_txt s{seq2}_{seq1}_blink
 
-!!print === Smoke test done: {seq2} sections, seq1 reset each section ===
-!!seq
+!print === Smoke test done: {seq2} sections, seq1 reset each section ===
+!seq

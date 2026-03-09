@@ -11,6 +11,7 @@ import argparse
 import json
 import queue
 import re
+import sys
 import time
 import traceback
 from datetime import datetime
@@ -988,7 +989,11 @@ class SerialTerminal(App):
         """
         force = "--force" in args.lower()
         config_path = setup_demo_config(cfg_dir(), force=force)
-        cfg = load_config(str(config_path))
+        try:
+            cfg = load_config(str(config_path))
+        except Exception as e:
+            self._status(f"Failed to load demo config: {e}", "red")
+            return
         self._switch_config(cfg, str(config_path))
         msg = "Switched to demo device"
         if force:
@@ -1000,13 +1005,21 @@ class SerialTerminal(App):
             return
         action = result[0]
         if action == "load":
-            cfg = load_config(result[1])
+            try:
+                cfg = load_config(result[1])
+            except Exception as e:
+                self._status(f"Failed to load config: {e}", "red")
+                return
             self._switch_config(cfg, result[1])
             self._status(f"Loaded config: {result[1]}", "green")
         elif action == "new":
             self._new_config()
         elif action == "edit":
-            cfg = load_config(result[1])
+            try:
+                cfg = load_config(result[1])
+            except Exception as e:
+                self._status(f"Failed to load config: {e}", "red")
+                return
             self.push_screen(
                 ConfigEditor(cfg, result[1]),
                 callback=self._on_config_result,
@@ -1090,7 +1103,11 @@ class SerialTerminal(App):
             self._show_port_picker()
         elif event.button.id == "title-center":
             if self.config_path:
-                cfg = load_config(self.config_path)
+                try:
+                    cfg = load_config(self.config_path)
+                except Exception as e:
+                    self._status(f"Failed to load config: {e}", "red")
+                    return
                 self.push_screen(
                     ConfigEditor(cfg, self.config_path),
                     callback=self._on_config_result,
@@ -1902,13 +1919,21 @@ def main():
         from termapy.config import setup_demo_config
 
         config_path = setup_demo_config(cfg_dir())
-        cfg = load_config(str(config_path))
+        try:
+            cfg = load_config(str(config_path))
+        except Exception as e:
+            print(f"termapy: failed to load demo config: {e}", file=sys.stderr)
+            sys.exit(1)
         app = SerialTerminal(cfg, config_path=str(config_path))
         app.run()
         return
 
     if args.config:
-        cfg = load_config(args.config)
+        try:
+            cfg = load_config(args.config)
+        except Exception as e:
+            print(f"termapy: failed to load config '{args.config}': {e}", file=sys.stderr)
+            sys.exit(1)
         app = SerialTerminal(cfg, config_path=args.config)
         app.run()
         return
@@ -1916,7 +1941,11 @@ def main():
     config_path, show_picker = _find_config()
 
     if config_path:
-        cfg = load_config(config_path)
+        try:
+            cfg = load_config(config_path)
+        except Exception as e:
+            print(f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr)
+            sys.exit(1)
         app = SerialTerminal(cfg, config_path=config_path)
         app.run()
     elif show_picker:

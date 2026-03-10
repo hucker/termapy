@@ -146,7 +146,7 @@ termapy_cfg/
 - **Auto-connect and auto-reconnect** -- reconnects on port drop with retry
 - **Auto-login commands** -- send a sequence of commands on connect (separated by `\n` in config)
 - **Hardware line control** -- toggle DTR/RTS and send Break when `flow_control` is `"manual"` (see example below)
-- **Command history** -- press Up to recall recent commands (default 30, configurable via `command_history_items`), persisted per-config
+- **Command history** -- press Up to recall recent commands (default 30, configurable via `command_history_items`), persisted per-config; Enter executes, F2 edits
 - **Local echo** -- optionally echo sent commands with configurable Rich markup formatting
 - **Custom buttons** -- add up to 4 configurable toolbar buttons that send serial commands, run REPL commands, or execute multi-command sequences
 - **JSON config files** -- create, load, edit, and switch configs from within the app; each config gets its own subfolder
@@ -161,13 +161,14 @@ termapy_cfg/
 
 ## Keyboard Shortcuts
 
-| Key    | Action               |
-| ------ | -------------------- |
-| Ctrl+C | Quit                 |
-| Ctrl+S | Save SVG screenshot  |
-| Ctrl+T | Save text screenshot |
-| Ctrl+P | Command palette      |
-| Up     | Command history      |
+| Key       | Action                       |
+| --------- | ---------------------------- |
+| Ctrl+Q    | Quit                         |
+| Ctrl+S    | Save SVG screenshot          |
+| Ctrl+T    | Save text screenshot         |
+| Ctrl+P    | Command palette              |
+| Up        | Command history              |
+| F2        | Edit selected history command |
 
 ## Title Bar Buttons
 

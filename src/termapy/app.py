@@ -333,10 +333,11 @@ class SerialTerminal(App):
     """
 
     BINDINGS = [
-        Binding("ctrl+c", "quit", "Quit"),
+        Binding("ctrl+q", "quit", "Quit"),
         Binding("ctrl+p", "show_palette", "Command Palette", show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
+        Binding("f2", "edit_history", "Edit History", show=False),
     ]
 
     PALETTE_CMDS = [
@@ -655,6 +656,13 @@ class SerialTerminal(App):
             "{--display}",
             "Show project summary. --display opens full report in system viewer.",
             self._hook_info,
+            source="app",
+        )
+        self.repl.register_hook(
+            "exit",
+            "",
+            "Exit termapy.",
+            self._hook_exit,
             source="app",
         )
         # Load external plugins: global first, then per-config (can override)
@@ -1585,9 +1593,12 @@ class SerialTerminal(App):
             inp.value = f"{prefix}{name} "
             inp.action_end()
         else:
-            inp = self.query_one("#cmd", Input)
-            inp.value = str(event.option.prompt)
-            inp.action_end()
+            # History item — execute immediately (Shift+Enter edits instead)
+            cmd = str(event.option.prompt)
+            if not self.history or self.history[-1] != cmd:
+                self.history.append(cmd)
+                self._save_history()
+            self._execute_command(cmd)
 
     def on_key(self, event) -> None:
         """Handle Up arrow to show history, Escape to dismiss."""
@@ -1616,6 +1627,30 @@ class SerialTerminal(App):
                 # Down from input while popup is showing — focus the popup
                 popup.focus()
                 event.prevent_default()
+
+    def action_edit_history(self) -> None:
+        """Place selected history item in input for editing (F2).
+
+        Dismisses the history popup, places the highlighted command in
+        the input box with the cursor at the end, ready to edit.
+        """
+        popup = self.query_one("#history-popup", OptionList)
+        if not popup.has_class("visible") or popup.highlighted is None:
+            return
+        text = str(popup.get_option_at_index(popup.highlighted).prompt)
+        popup.remove_class("visible")
+        inp = self.query_one("#cmd", Input)
+        inp.select_on_focus = False
+        inp.value = text
+        inp.focus()
+
+        def _position_cursor() -> None:
+            """Set cursor to end after Textual processes the focus event."""
+            from textual.widgets._input import Selection
+            inp.selection = Selection.cursor(len(inp.value))
+            inp.select_on_focus = True
+
+        self.set_timer(0.05, _position_cursor)
 
     def action_clear_log(self) -> None:
         self.query_one("#output", RichLog).clear()
@@ -1737,6 +1772,15 @@ class SerialTerminal(App):
             self._status("Line numbers OFF")
         else:
             self._status("Usage: line_no on|off", "yellow")
+
+    def _hook_exit(self, ctx, args: str) -> None:
+        """Exit the application.
+
+        Args:
+            ctx: Plugin context.
+            args: Ignored.
+        """
+        self.exit()
 
     def _hook_info(self, ctx, args: str) -> None:
         """Generate project info report and print summary to output.
@@ -1929,12 +1973,23 @@ def _find_config() -> tuple[str | None, bool]:
 def _reset_terminal() -> None:
     """Reset terminal to normal mode after TUI exit.
 
-    Sends standard escape sequences to disable application keypad mode,
-    application cursor keys, and bracketed paste, preventing leftover
-    ANSI state (e.g. ``^[[A`` for arrow keys) in the parent shell.
+    Sends escape sequences to disable application cursor keys and other
+    modes that Textual may have left on.  On Unix/MSYS, also restores
+    cooked terminal mode via ``stty sane``.
     """
-    sys.stdout.write("\033[?1l\033>\033[?2004l")
+    sys.stdout.write(
+        "\033[?1l"       # disable application cursor keys
+        "\033>"          # disable application keypad
+        "\033[?2004l"    # disable bracketed paste
+        "\033[?1000l"    # disable mouse tracking
+        "\033[!p"        # soft terminal reset (DECSTR)
+    )
     sys.stdout.flush()
+    try:
+        import subprocess
+        subprocess.run(["stty", "sane"], timeout=1, capture_output=True)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
 
 
 def main():

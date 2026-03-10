@@ -128,6 +128,7 @@ optionally provide `format_header(data)` to display field name headers above dat
 - **scripting.py is pure functions** — no state, no I/O, fully testable.
 - **repl.py bridges plugins and app** — owns command dispatch and script execution, but delegates UI actions back to app.py through `PluginContext` callbacks.
 - **Plugin API boundary** — external plugins interact only through `PluginContext` (write, serial_write, cfg, etc.). `EngineAPI` exists for built-ins but is marked unstable.
+- **Plugins all the way down** — built-in commands are regular plugins loaded from `builtins/`. The same API that implements `!help` and `!grep` is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device simulators — no compilation or registration required.
 
 ## Config & Filesystem
 

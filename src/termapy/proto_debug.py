@@ -23,6 +23,7 @@ from textual.widgets import (
 
 from termapy.config import cfg_data_dir
 from termapy.protocol import (
+    DIFF_STYLES,
     ProtoScript,
     TestCase,
     VisualizerInfo,
@@ -380,9 +381,10 @@ class ProtoDebugScreen(ModalScreen[None]):
         if tc.index in self._results:
             actual_data, elapsed_ms, passed = self._results[tc.index]
 
-        # Render a table for each active visualizer
+        # Render column tables for each active visualizer
         for viz in self._get_active_visualizers():
-            self._build_table(lines, tc, viz, actual_data, elapsed_ms, passed)
+            self._build_column_table(
+                lines, tc, viz, actual_data, elapsed_ms, passed)
             lines.append("")
 
         # Result line (once, after all tables)
@@ -404,31 +406,16 @@ class ProtoDebugScreen(ModalScreen[None]):
             combined.append("\n")
         detail.update(combined)
 
-    def _max_line_width(self, markup: str) -> int:
-        """Measure the max display width across lines of a markup string.
+    def _build_column_table(
+        self, lines: list[Text | str], tc: TestCase,
+        viz: VisualizerInfo, actual_data: bytes | None,
+        elapsed_ms: float, passed: bool | None,
+    ) -> None:
+        """Build a multi-column bordered table for one visualizer.
 
-        Handles multi-line strings (newlines) by measuring each line
-        individually and returning the widest.
-
-        Args:
-            markup: Plain text or Rich-markup string, possibly multi-line.
-
-        Returns:
-            Maximum display width in terminal cells.
-        """
-        return max(
-            (Text.from_markup(line).cell_len
-             for line in markup.split("\n")),
-            default=0,
-        )
-
-    def _build_table(self, lines: list[Text | str], tc: TestCase,
-                     viz: VisualizerInfo, actual_data: bytes | None,
-                     elapsed_ms: float, passed: bool | None) -> None:
-        """Build a bordered two-column table for one visualizer.
-
-        Supports multi-line output from visualizers — newlines in
-        ``format_bytes`` or ``format_diff`` produce continuation rows.
+        Renders TX as one table, and Expected+Actual as a second table
+        when the column layouts differ. Per-column diff coloring on
+        the Actual row.
 
         Args:
             lines: List to append table lines to.
@@ -438,121 +425,163 @@ class ProtoDebugScreen(ModalScreen[None]):
             elapsed_ms: Round-trip time.
             passed: True/False/None.
         """
-        tx_str = viz.format_bytes(tc.send_data)
-        exp_str = viz.format_bytes(tc.expect_data)
+        # Get column data for TX
+        tx_headers, tx_values = viz.format_columns(tc.send_data)
 
-        # Optional header row from visualizer
-        header_str = ""
-        if viz.format_header is not None:
-            header_str = viz.format_header(tc.send_data) or ""
+        # Get column data for Expected
+        exp_headers, exp_values = viz.format_columns(tc.expect_data)
 
-        # Measure display widths (handles multi-line)
-        data_widths = [self._max_line_width(tx_str),
-                       self._max_line_width(exp_str)]
-        if header_str:
-            data_widths.append(self._max_line_width(header_str))
-        actual_str = ""
+        # Get diff data for Actual (if available)
+        act_headers: list[str] = []
+        act_exp_values: list[str] = []
+        act_values: list[str] = []
+        act_statuses: list[str] = []
         if actual_data is not None:
-            actual_str = viz.format_diff(actual_data, tc.expect_data,
-                                         tc.expect_mask)
-            data_widths.append(self._max_line_width(actual_str))
+            act_headers, act_exp_values, act_values, act_statuses = (
+                viz.diff_columns(actual_data, tc.expect_data, tc.expect_mask)
+            )
 
+        # Check if TX and RX have same column layout
+        same_layout = tx_headers == exp_headers
+
+        if same_layout:
+            # Single table with all rows
+            self._render_unified_table(
+                lines, viz.name, tx_headers,
+                [("TX", tx_values, "bold cyan", [])],
+                exp_values, act_values, act_statuses,
+                has_actual=(actual_data is not None),
+                is_timeout=(tc.index in self._results and actual_data is None),
+            )
+        else:
+            # Separate TX table
+            self._render_unified_table(
+                lines, f"{viz.name} TX", tx_headers,
+                [("TX", tx_values, "bold cyan", [])],
+                [], [], [],
+                has_actual=False, is_timeout=False,
+            )
+            lines.append("")
+            # Separate RX table
+            self._render_unified_table(
+                lines, f"{viz.name} RX", exp_headers,
+                [],
+                exp_values, act_values, act_statuses,
+                has_actual=(actual_data is not None),
+                is_timeout=(tc.index in self._results and actual_data is None),
+            )
+
+    def _render_unified_table(
+        self, lines: list[Text | str], title: str,
+        headers: list[str],
+        extra_rows: list[tuple[str, list[str], str, list[str]]],
+        exp_values: list[str], act_values: list[str],
+        act_statuses: list[str],
+        has_actual: bool, is_timeout: bool,
+    ) -> None:
+        """Render a bordered multi-column table.
+
+        Args:
+            lines: List to append table lines to.
+            title: Table title (visualizer name).
+            headers: Column headers.
+            extra_rows: Additional rows as (label, values, style, statuses).
+            exp_values: Expected row values (empty to skip).
+            act_values: Actual row values (empty to skip).
+            act_statuses: Per-column status for actual row.
+            has_actual: Whether actual data exists.
+            is_timeout: Whether this is a timeout result.
+        """
         label_w = 10
-        max_data_w = max(data_widths, default=0)
-        border_l = "─" * (label_w + 2)
-        border_r = "─" * (max_data_w + 2)
+        n_cols = len(headers)
+        if n_cols == 0:
+            return
 
-        # Top border + header
-        lines.append(Text(f"  ┌{border_l}┬{border_r}┐", style="dim"))
+        # Calculate column widths: max of header, all row values
+        col_widths = [len(h) for h in headers]
+        for _, values, _, _ in extra_rows:
+            for i, v in enumerate(values):
+                if i < n_cols:
+                    col_widths[i] = max(col_widths[i], len(v))
+        for i, v in enumerate(exp_values):
+            if i < n_cols:
+                col_widths[i] = max(col_widths[i], len(v))
+        for i, v in enumerate(act_values):
+            if i < n_cols:
+                col_widths[i] = max(col_widths[i], len(v))
+
+        # Build border strings
+        def border_line(left: str, mid: str, sep: str, right: str) -> str:
+            parts = [left, "─" * (label_w + 2)]
+            for w in col_widths:
+                parts.append(sep)
+                parts.append("─" * (w + 2))
+            parts.append(right)
+            return "".join(parts)
+
+        # Top border
+        lines.append(Text(
+            "  " + border_line("┌", "─", "┬", "┐"), style="dim"))
+
+        # Header row
         hdr = Text("  │ ")
-        hdr.append("".ljust(label_w), style="dim")
-        hdr.append(Text(" │ ", style="dim"))
-        hdr.append(viz.name.center(max_data_w), style="bold")
+        hdr.append(title.ljust(label_w), style="bold")
+        for i, h in enumerate(headers):
+            hdr.append(Text(" │ ", style="dim"))
+            hdr.append(h.center(col_widths[i]), style="bold")
         hdr.append(Text(" │", style="dim"))
         lines.append(hdr)
-        lines.append(Text(f"  ├{border_l}┼{border_r}┤", style="dim"))
 
-        # Optional field header row(s) from visualizer
-        if header_str:
-            self._append_markup_rows(
-                lines, "", label_w, header_str, max_data_w)
+        # Header separator
+        lines.append(Text(
+            "  " + border_line("├", "─", "┼", "┤"), style="dim"))
 
-        # TX row(s)
-        self._append_table_rows(
-            lines, "TX", label_w, tx_str, max_data_w, "bold cyan")
+        # Extra rows (TX)
+        for label, values, style, _ in extra_rows:
+            row = Text("  │ ")
+            row.append(label.ljust(label_w), style="bold")
+            for i in range(n_cols):
+                row.append(Text(" │ ", style="dim"))
+                val = values[i] if i < len(values) else ""
+                row.append(val.ljust(col_widths[i]), style=style)
+            row.append(Text(" │", style="dim"))
+            lines.append(row)
 
-        # Expected row(s)
-        self._append_table_rows(
-            lines, "Expected", label_w, exp_str, max_data_w, "dim")
+        # Expected row
+        if exp_values:
+            row = Text("  │ ")
+            row.append("Expected".ljust(label_w), style="bold")
+            for i in range(n_cols):
+                row.append(Text(" │ ", style="dim"))
+                val = exp_values[i] if i < len(exp_values) else ""
+                row.append(val.ljust(col_widths[i]), style="dim")
+            row.append(Text(" │", style="dim"))
+            lines.append(row)
 
-        # Actual row(s)
-        if actual_data is not None:
-            self._append_markup_rows(
-                lines, "Actual", label_w, actual_str, max_data_w)
-        elif tc.index in self._results:
-            self._append_table_rows(
-                lines, "Actual", label_w, "(timeout)", max_data_w,
-                "bold red")
+        # Actual row with per-column coloring
+        if has_actual and act_values:
+            row = Text("  │ ")
+            row.append("Actual".ljust(label_w), style="bold")
+            for i in range(n_cols):
+                row.append(Text(" │ ", style="dim"))
+                val = act_values[i] if i < len(act_values) else ""
+                status = act_statuses[i] if i < len(act_statuses) else "match"
+                style = DIFF_STYLES.get(status, "")
+                row.append(val.ljust(col_widths[i]), style=style)
+            row.append(Text(" │", style="dim"))
+            lines.append(row)
+        elif is_timeout:
+            row = Text("  │ ")
+            row.append("Actual".ljust(label_w), style="bold")
+            for i in range(n_cols):
+                row.append(Text(" │ ", style="dim"))
+                row.append("---".ljust(col_widths[i]), style="bold red")
+            row.append(Text(" │", style="dim"))
+            lines.append(row)
 
         # Bottom border
-        lines.append(Text(f"  └{border_l}┴{border_r}┘", style="dim"))
-
-    def _append_table_rows(self, lines: list[Text | str], label: str,
-                           label_w: int, data: str, data_w: int,
-                           style: str) -> None:
-        """Append bordered table rows for plain-text data.
-
-        Splits on newlines — the label appears on the first row only,
-        continuation rows have an empty label column.
-
-        Args:
-            lines: List to append to.
-            label: Row label (e.g. "TX", "Expected").
-            label_w: Width of the label column.
-            data: Formatted data string, possibly multi-line.
-            data_w: Width of the data column.
-            style: Rich style for the data portion.
-        """
-        data_lines = data.split("\n")
-        for i, line_text in enumerate(data_lines):
-            row = Text("  │ ")
-            row_label = label if i == 0 else ""
-            row.append(row_label.ljust(label_w), style="bold")
-            row.append(Text(" │ ", style="dim"))
-            row.append(line_text.ljust(data_w), style=style)
-            row.append(Text(" │", style="dim"))
-            lines.append(row)
-
-    def _append_markup_rows(self, lines: list[Text | str], label: str,
-                            label_w: int, markup: str,
-                            data_w: int) -> None:
-        """Append bordered table rows from Rich-markup content.
-
-        Splits on newlines — the label appears on the first row only.
-        Used for the Actual row where the visualizer provides
-        Rich-markup strings with embedded colors.
-
-        Args:
-            lines: List to append to.
-            label: Row label (e.g. "Actual").
-            label_w: Width of the label column.
-            markup: Rich-markup formatted string, possibly multi-line.
-            data_w: Width of the data column.
-        """
-        markup_lines = markup.split("\n")
-        for i, line_markup in enumerate(markup_lines):
-            row = Text("  │ ")
-            row_label = label if i == 0 else ""
-            row.append(row_label.ljust(label_w), style="bold")
-            row.append(Text(" │ ", style="dim"))
-
-            content = Text.from_markup(line_markup)
-            pad = data_w - content.cell_len
-            if pad > 0:
-                content.append(" " * pad)
-            row.append_text(content)
-            row.append(Text(" │", style="dim"))
-            lines.append(row)
+        lines.append(Text(
+            "  " + border_line("└", "─", "┴", "┘"), style="dim"))
 
     def _get_repeat_count(self) -> int:
         """Get the repeat count from the input field.

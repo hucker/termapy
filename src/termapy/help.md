@@ -347,6 +347,31 @@ Run with `!proto run modbus_test.pro`. Each step reports PASS/FAIL.
 
 Toggle hex display for all serial I/O with `!proto hex on` / `!proto hex off`.
 
+### Packet Visualizers
+
+The proto debug screen uses pluggable visualizers to decode packet bytes into
+named columns. Built-in visualizers (Hex, Text) ship with termapy. Add your
+own by dropping a `.py` file into `termapy_cfg/<config>/viz/`.
+
+Visualizers use a format spec language to map bytes to columns:
+
+```text
+Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le
+```
+
+Type codes: `H` (hex), `D` (decimal), `+D` (signed), `S` (string), `F` (float),
+`B` (bit), `crc*` (CRC verify). Byte indices are 1-based; byte order determines
+endianness (`D3-4` = big-endian, `D4-3` = little-endian). Use `H7-*` for
+variable-length fields.
+
+61 named CRC algorithms are built in (from the reveng catalogue): `crc16-modbus`,
+`crc16-xmodem`, `crc16-ccitt-false`, `crc8`, `crc32`, `crc32-iscsi`, and many more.
+Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`. Checksum plugins
+(`sum8`, `sum16`) and custom plugins in `termapy_cfg/<name>/crc/`. Endianness
+suffix: `_le` or `_be`.
+
+See README.md for full format spec reference and visualizer examples.
+
 ## Demo Mode
 
 Try termapy without hardware using the built-in simulated device:

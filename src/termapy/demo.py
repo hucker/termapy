@@ -438,7 +438,11 @@ class FakeSerial:
             # Read holding registers
             return self._modbus_read_registers(slave_id, frame)
         elif func_code == 0x06:
-            # Write single register — echo back
+            # Write single register — store value and echo back
+            if len(frame) >= 6:
+                reg_addr = struct.unpack(">H", frame[2:4])[0]
+                reg_val = struct.unpack(">H", frame[4:6])[0]
+                self._registers[reg_addr] = reg_val
             return _modbus_add_crc(frame[:-2])
         else:
             # Unsupported function — exception code 0x01

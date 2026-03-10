@@ -1,50 +1,49 @@
-"""Built-in visualizer: raw hexadecimal byte values."""
+"""Built-in visualizer: raw hexadecimal byte values.
+
+Single-column layout using ``H1-*`` — all bytes displayed as
+spaced hex in one column.
+"""
 
 from __future__ import annotations
 
-from termapy.protocol import format_diff_markup
+from termapy.protocol import apply_format, parse_format_spec
+from termapy.protocol import diff_columns as proto_diff_columns
 
 NAME = "Hex"
 DESCRIPTION = "Raw hexadecimal byte values"
 SORT_ORDER = 10
 
-
-def _hex_token(b: int) -> str:
-    """Format a single byte as a 3-char hex token (``XX ``).
-
-    Args:
-        b: Byte value.
-
-    Returns:
-        Uppercase hex pair followed by a space.
-    """
-    return f"{b:02X} "
+_SPEC = "Hex:H1-*"
 
 
-def format_bytes(data: bytes) -> str:
-    """Format bytes as spaced hex values.
-
-    Each byte produces a 3-character token (``XX ``), with the
-    trailing space stripped from the last byte.
+def format_columns(data: bytes) -> tuple[list[str], list[str]]:
+    """Format bytes as a single hex column.
 
     Args:
         data: Raw bytes to format.
 
     Returns:
-        Spaced hex string, e.g. ``"01 FF 0A"``.
+        Tuple of (headers, values).
     """
-    return "".join(_hex_token(b) for b in data).rstrip()
+    if not data:
+        return ["Hex"], [""]
+    return apply_format(data, parse_format_spec(_SPEC))
 
 
-def format_diff(actual: bytes, expected: bytes, mask: bytes) -> str:
-    """Format actual bytes with diff coloring as Rich markup.
+def diff_columns(
+    actual: bytes, expected: bytes, mask: bytes,
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Compare actual vs expected as hex columns.
 
     Args:
         actual: Actual received bytes.
         expected: Expected bytes for comparison.
-        mask: Wildcard mask (0x00 = wildcard position).
+        mask: Wildcard mask (0xFF=must match, 0x00=any).
 
     Returns:
-        Rich-markup string with per-byte colors.
+        Tuple of (headers, expected_values, actual_values, statuses).
     """
-    return format_diff_markup(actual, expected, mask, _hex_token, "-- ")
+    if not expected and not actual:
+        return ["Hex"], [""], [""], ["match"]
+    cols = parse_format_spec(_SPEC)
+    return proto_diff_columns(actual, expected, mask, cols)

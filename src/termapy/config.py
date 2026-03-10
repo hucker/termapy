@@ -257,7 +257,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     viz_dir = demo_dir / "viz"
     viz_dir.mkdir(exist_ok=True)
     viz_pkg = pkg / "viz"
-    for name in ("at_view.py",):
+    for name in ("at_view.py", "modbus_view.py"):
         dest = viz_dir / name
         if force or not dest.exists():
             src = viz_pkg / name

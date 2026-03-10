@@ -41,7 +41,7 @@ Linear sequences of serial commands, delays, and REPL commands. Comparable to
 Tera Term macros or Docklight send sequences. No programming required — they
 look like what you'd type by hand, just automated.
 
-```
+```text
 # smoke_test.run
 AT
 !delay 300ms
@@ -73,7 +73,11 @@ def handler(ctx, args):
 
 No equivalent exists in the other tools. Tera Term has DLL extensions but
 those require C/C++ and a compiler. Docklight has VBScript but it's limited
-to their API. Termapy plugins are plain Python files dropped into a folder.
+to their API. Termapy plugins are plain Python files dropped into a folder —
+including the built-in commands themselves. The design is loosely inspired by
+the "extensions all the way down" approach: drop a `.py` file in a folder and
+you can add commands, override builtins, implement protocol handlers, or build
+a full device simulator. No compilation, no registration, no restart.
 
 This is also where AI-assisted development works well — the plugin API surface
 is small enough (6 core functions) that an LLM can generate a working plugin

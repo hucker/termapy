@@ -65,7 +65,7 @@ The scrollback buffer holds up to `max_lines` lines (default 10,000).
 The bottom bar contains a text input for sending commands to the serial device.
 
 - Type a command and press **Enter** to send it over serial.
-- Press **Up** to recall previous commands (default 30 per config, configurable via `command_history_items`).
+- Press **Up** to recall previous commands (default 30 per config, configurable via `command_history_items`). Press **Enter** to execute immediately, or **F2** to place in the input for editing.
 - Prefix a command with `!` to run a local REPL command instead of sending it to the device.
 
 Type `!help` to see all available REPL commands.
@@ -90,13 +90,15 @@ The bottom bar also has buttons. Some appear based on context:
 
 | Key | Action |
 |-----|--------|
-| **Ctrl+C** | Quit |
+| **Ctrl+Q** | Quit |
 | **Ctrl+L** | Clear screen |
 | **Ctrl+P** | Open command palette |
 | **F5** | Save SVG screenshot |
 | **F6** | Open screenshot folder |
 | **F7** | Save text screenshot |
 | **Up** | Recall previous command |
+| **Enter** | Execute selected history command |
+| **F2** | Edit selected history command |
 
 ## Command Palette
 

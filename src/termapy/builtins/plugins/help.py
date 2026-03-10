@@ -32,6 +32,9 @@ def handler(ctx: PluginContext, args: str) -> None:
             return
         arg_str = f" {plugin.args}" if plugin.args else ""
         ctx.write(f"{prefix}{name}{arg_str} — {plugin.help}")
+        if plugin.long_help:
+            for line in plugin.long_help.strip().splitlines():
+                ctx.write(f"  {line}")
         if plugin.source != "built-in":
             ctx.write(f"  (source: {plugin.source})", "dim")
     else:

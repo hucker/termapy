@@ -12,6 +12,17 @@ if TYPE_CHECKING:
 NAME = "grep"
 ARGS = "<pattern>"
 HELP = "Search the scrollback for lines matching a pattern (case-insensitive regex)."
+LONG_HELP = """\
+Searches all visible terminal output using Python regex syntax.
+Matching is case-insensitive. ANSI escape codes are stripped
+before display. Grep's own output is excluded from results.
+
+Max results controlled by max_grep_lines config (default 100).
+
+Examples:
+  !grep error          — find lines containing 'error'
+  !grep ^OK            — lines starting with 'OK'
+  !grep temp.*\\d+      — 'temp' followed by digits"""
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 

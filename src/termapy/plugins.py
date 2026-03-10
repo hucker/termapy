@@ -90,6 +90,7 @@ class PluginContext:
         clear_screen: Clear the terminal output and reset the line counter.
         save_screenshot: Save the terminal view. Signature: ``save_screenshot(path)``.
         get_screen_text: Return all visible terminal output as a plain-text string.
+        exit_app: Exit the application.
         engine: Internal engine API (``EngineAPI``). **Built-in plugins only** —
             this is unstable and may change between versions.
     """
@@ -118,6 +119,7 @@ class PluginContext:
     clear_screen: Callable = lambda: None
     save_screenshot: Callable = lambda path: None
     get_screen_text: Callable = lambda: ""
+    exit_app: Callable = lambda: None
 
     # Engine internals — used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
@@ -132,6 +134,8 @@ class PluginInfo:
         args: Argument spec for help display. ``""`` = no args,
             ``"{opt}"`` = optional, ``"<required>"`` = required.
         help: One-line description shown by ``!help``.
+        long_help: Extended help shown by ``!help <cmd>``. May span multiple
+            lines. When empty, the one-line ``help`` is shown instead.
         handler: The command function. Signature: ``handler(ctx: PluginContext, args: str) -> None``.
         source: Where the plugin was loaded from (``"built-in"``, ``"global"``,
             or the config name).
@@ -141,6 +145,7 @@ class PluginInfo:
     args: str
     help: str
     handler: Callable   # handler(ctx: PluginContext, args: str) -> None
+    long_help: str = ""
     source: str = "built-in"
 
 
@@ -211,6 +216,7 @@ def _load_plugin_file(path: Path, source: str) -> PluginInfo | None:
         name=full_name,
         args=getattr(mod, "ARGS", ""),
         help=getattr(mod, "HELP", ""),
+        long_help=getattr(mod, "LONG_HELP", ""),
         handler=handler,
         source=source,
     )

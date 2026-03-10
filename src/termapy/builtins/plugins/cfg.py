@@ -10,6 +10,17 @@ if TYPE_CHECKING:
 NAME = "cfg"
 ARGS = "{key {value}}"
 HELP = "No args: show config. Key only: show value. Key+value: confirm dialog."
+LONG_HELP = """\
+Three modes:
+  !cfg              — show all config key/value pairs
+  !cfg baudrate     — show current value of 'baudrate'
+  !cfg baudrate 115200 — change with confirmation dialog
+
+Type is auto-detected from the existing value (int, float,
+bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
+Changes are saved to the JSON config file.
+
+Use !cfg_auto for the same thing without confirmation."""
 
 
 def handler(ctx: PluginContext, args: str) -> None:

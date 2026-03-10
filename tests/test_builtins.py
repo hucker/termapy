@@ -200,6 +200,44 @@ class TestHelp:
         assert any("Unknown" in t for t, _ in output)  # error message
         assert output[-1][1] == "red"  # shown in red
 
+    def test_help_shows_long_help(self, repl_env):
+        """!help <cmd> shows LONG_HELP lines when present."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="testcmd", args="<arg>", help="Short help.",
+            long_help="Line one.\nLine two.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        engine.dispatch("help testcmd")
+
+        # Assert — long help lines appear indented
+        texts = [t for t, _ in output]
+        assert any("Line one." in t for t in texts)  # first long_help line
+        assert any("Line two." in t for t in texts)  # second long_help line
+
+    def test_help_no_long_help_omits_extra(self, repl_env):
+        """!help <cmd> with empty LONG_HELP shows only the one-liner."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="briefcmd", args="", help="Just brief.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        engine.dispatch("help briefcmd")
+
+        # Assert — only one output line (the usage line)
+        texts = [t for t, _ in output]
+        actual = len(texts)
+        expected = 1  # just the "!briefcmd — Just brief." line
+        assert actual == expected
+
 
 # -- !show ----------------------------------------------------------------
 

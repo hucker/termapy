@@ -4,7 +4,7 @@
 
 Run termapy from the command line:
 
-```
+```text
 termapy                          # auto-detect config
 termapy my_device.json           # load a specific config file
 termapy --cfg-dir /path/to/cfgs  # use a custom config directory
@@ -27,7 +27,7 @@ for example a shared network folder or a project-specific directory.
 All data for each config (logs, screenshots, scripts, command history,
 plugins) is stored alongside its JSON file in a subfolder:
 
-```
+```text
 termapy_cfg/
 ├── iot_device/
 │   ├── iot_device.json        # config file
@@ -74,31 +74,31 @@ Type `!help` to see all available REPL commands.
 
 The bottom bar also has buttons. Some appear based on context:
 
-| Button | When Visible | Action |
-|--------|-------------|--------|
-| **!** | Always | Show REPL command picker |
-| **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line |
-| **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line |
-| **Break** | `flow_control` is `"manual"` | Send a 250ms serial break signal |
-| **Log** | Always | View the current session log |
-| **SS** | Always | Open the screenshot folder |
-| **Scripts** | Always | Pick, run, create, or edit a script |
-| **Custom** | `custom_buttons` enabled | User-defined command buttons |
-| **Exit** | Always | Close the connection and quit |
+| Button      | When Visible                 | Action                              |
+| ----------- | ---------------------------- | ----------------------------------- |
+| **!**       | Always                       | Show REPL command picker            |
+| **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line        |
+| **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line        |
+| **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal    |
+| **Log**     | Always                       | View the current session log        |
+| **SS**      | Always                       | Open the screenshot folder          |
+| **Scripts** | Always                       | Pick, run, create, or edit a script |
+| **Custom**  | `custom_buttons` enabled     | User-defined command buttons        |
+| **Exit**    | Always                       | Close the connection and quit       |
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| **Ctrl+Q** | Quit |
-| **Ctrl+L** | Clear screen |
-| **Ctrl+P** | Open command palette |
-| **F5** | Save SVG screenshot |
-| **F6** | Open screenshot folder |
-| **F7** | Save text screenshot |
-| **Up** | Recall previous command |
-| **Enter** | Execute selected history command |
-| **F2** | Edit selected history command |
+| Key        | Action                           |
+| ---------- | -------------------------------- |
+| **Ctrl+Q** | Quit                             |
+| **Ctrl+L** | Clear screen                     |
+| **Ctrl+P** | Open command palette             |
+| **F5**     | Save SVG screenshot              |
+| **F6**     | Open screenshot folder           |
+| **F7**     | Save text screenshot             |
+| **Up**     | Recall previous command          |
+| **Enter**  | Execute selected history command |
+| **F2**     | Edit selected history command    |
 
 ## Command Palette
 
@@ -117,36 +117,37 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 
 Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead of being sent to the serial device.
 
-| Command | Description |
-|---------|-------------|
-| `!help [cmd]` | List commands or get help for one |
-| `!connect` | Connect to the serial port |
-| `!disconnect` | Disconnect from the serial port |
-| `!port [name\|list]` | Switch port or list available ports |
-| `!cfg [key [value]]` | View or change config values |
-| `!cfg_auto <key> <val>` | Set a config key without confirmation |
-| `!ss_svg [name]` | Save an SVG screenshot |
-| `!ss_txt [name]` | Save a text screenshot |
-| `!ss_dir [path]` | Show or set the screenshot folder |
-| `!cls` | Clear the terminal |
-| `!run <file>` | Run a script file |
-| `!delay <duration>` | Pause for a duration (e.g. `500ms`, `1.5s`) |
-| `!confirm {message}` | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`) |
-| `!stop` | Abort a running script |
-| `!seq [reset]` | Show or reset sequence counters |
-| `!print <text>` | Print a message to the terminal |
-| `!rprint <text>` | Print Rich markup text (e.g. `[bold red]Warning![/]`) |
-| `!show <name>` | Show a file (`$cfg` for current config) |
-| `!echo [on\|off]` | Toggle command echo |
-| `!os <cmd>` | Run a shell command (requires `os_cmd_enabled`) |
-| `!grep <pattern>` | Search scrollback for regex matches (case-insensitive, skips own output) |
-| `!show_eol {on\|off}` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
-| `!info {--display}` | Show project summary; `--display` opens full report in system viewer |
-| `!proto send <hex>` | Send raw hex bytes and display response |
-| `!proto run <file>` | Run a binary protocol test script (.pro) |
-| `!proto debug <file>` | Open interactive protocol debug screen for a .pro script |
-| `!proto hex [on\|off]` | Toggle hex display mode for serial I/O |
-| `!proto status` | Show current protocol mode state |
+| Command                 | Description                                                                 |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `!help [cmd]`           | List commands, or show extended help for one                                |
+| `!connect`              | Connect to the serial port                                                  |
+| `!disconnect`           | Disconnect from the serial port                                             |
+| `!port [name\|list]`    | Switch port or list available ports                                         |
+| `!cfg [key [value]]`    | View or change config values                                                |
+| `!cfg_auto <key> <val>` | Set a config key without confirmation                                       |
+| `!ss_svg [name]`        | Save an SVG screenshot                                                      |
+| `!ss_txt [name]`        | Save a text screenshot                                                      |
+| `!ss_dir [path]`        | Show or set the screenshot folder                                           |
+| `!cls`                  | Clear the terminal                                                          |
+| `!run <file>`           | Run a script file                                                           |
+| `!delay <duration>`     | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
+| `!confirm {message}`    | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)   |
+| `!stop`                 | Abort a running script                                                      |
+| `!seq [reset]`          | Show or reset sequence counters                                             |
+| `!print <text>`         | Print a message to the terminal                                             |
+| `!rprint <text>`        | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
+| `!show <name>`          | Show a file (`$cfg` for current config)                                     |
+| `!echo [on\|off]`       | Toggle command echo                                                         |
+| `!os <cmd>`             | Run a shell command (requires `os_cmd_enabled`)                             |
+| `!grep <pattern>`       | Search scrollback for regex matches (case-insensitive, skips own output)    |
+| `!show_eol {on\|off}`   | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
+| `!info {--display}`     | Show project summary; `--display` opens full report in system viewer        |
+| `!proto send <hex>`     | Send raw hex bytes and display response                                     |
+| `!proto run <file>`     | Run a binary protocol test script (.pro)                                    |
+| `!proto debug <file>`   | Open interactive protocol debug screen for a .pro script                    |
+| `!proto hex [on\|off]`  | Toggle hex display mode for serial I/O                                      |
+| `!proto status`         | Show current protocol mode state                                            |
+| `!exit`                 | Exit termapy                                                                |
 
 ## JSON Config File
 
@@ -194,34 +195,34 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 
 ### Config Field Reference
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `port` | `COM4` | Serial port name (e.g. COM4, /dev/ttyUSB0) |
-| `baudrate` | `115200` | Serial baud rate |
-| `bytesize` | `8` | Number of data bits per byte (5, 6, 7, or 8) |
-| `parity` | `N` | Parity checking: None, Even, Odd, Mark, or Space |
-| `stopbits` | `1` | Number of stop bits (1, 1.5, or 2) |
-| `flow_control` | `none` | Flow control mode: `none`, `rtscts` (hardware), `xonxoff` (software), or `manual` (shows DTR/RTS/Break buttons) |
-| `encoding` | `utf-8` | Character encoding for serial data (utf-8, latin-1, ascii, cp437) |
-| `inter_cmd_delay_ms` | `0` | Milliseconds to wait between commands in autoconnect sequences and multi-command input |
-| `line_ending` | `\r` | String appended to each sent command: `\r` (CR), `\r\n` (CRLF), or `\n` (LF) |
-| `autoconnect` | `false` | Automatically connect to the port when the app starts |
-| `autoreconnect` | `false` | Automatically retry the connection every second if the port drops |
-| `autoconnect_cmd` | ` ` | Commands to send after connecting, separated by `\n` (waits for idle between each) |
-| `echo_cmd` | `false` | Show sent commands in the terminal output |
-| `echo_cmd_fmt` | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text) |
-| `log_file` | ` ` | Path to the session log file (if empty, defaults to `<name>.log` in the config subfolder) |
-| `show_timestamps` | `false` | Prefix each line in the terminal display with `[HH:MM:SS.mmm]` |
-| `max_grep_lines` | `100` | Maximum number of matching lines shown by `!grep` |
-| `command_history_items` | `30` | Number of command history entries saved per config |
-| `proto_frame_gap_ms` | `50` | Silence gap (ms) to detect end of a binary protocol frame |
-| `title` | ` ` | Text shown in the center of the title bar (defaults to the config filename) |
-| `app_border_color` | ` ` | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`) |
-| `max_lines` | `10000` | Maximum number of lines kept in the scrollback buffer |
-| `repl_prefix` | `!` | Prefix that identifies local REPL commands (e.g. `!help`) |
-| `os_cmd_enabled` | `false` | Allow the `!os` command to run shell commands (disabled by default for safety) |
-| `exception_traceback` | `false` | Include full stack trace in serial exception output (for debugging) |
-| `custom_buttons` | `[]` | Array of custom button objects (see Custom Buttons below) |
+| Field                   | Default              | Description                                                                                                     |
+| ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `port`                  | `COM4`               | Serial port name (e.g. COM4, /dev/ttyUSB0)                                                                      |
+| `baudrate`              | `115200`             | Serial baud rate                                                                                                |
+| `bytesize`              | `8`                  | Number of data bits per byte (5, 6, 7, or 8)                                                                    |
+| `parity`                | `N`                  | Parity checking: None, Even, Odd, Mark, or Space                                                                |
+| `stopbits`              | `1`                  | Number of stop bits (1, 1.5, or 2)                                                                              |
+| `flow_control`          | `none`               | Flow control mode: `none`, `rtscts` (hardware), `xonxoff` (software), or `manual` (shows DTR/RTS/Break buttons) |
+| `encoding`              | `utf-8`              | Character encoding for serial data (utf-8, latin-1, ascii, cp437)                                               |
+| `inter_cmd_delay_ms`    | `0`                  | Milliseconds to wait between commands in autoconnect sequences and multi-command input                          |
+| `line_ending`           | `\r`                 | String appended to each sent command: `\r` (CR), `\r\n` (CRLF), or `\n` (LF)                                    |
+| `autoconnect`           | `false`              | Automatically connect to the port when the app starts                                                           |
+| `autoreconnect`         | `false`              | Automatically retry the connection every second if the port drops                                               |
+| `autoconnect_cmd`       | ` `                  | Commands to send after connecting, separated by `\n` (waits for idle between each)                              |
+| `echo_cmd`              | `false`              | Show sent commands in the terminal output                                                                       |
+| `echo_cmd_fmt`          | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text)                       |
+| `log_file`              | ` `                  | Path to the session log file (if empty, defaults to `<name>.log` in the config subfolder)                       |
+| `show_timestamps`       | `false`              | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                                  |
+| `max_grep_lines`        | `100`                | Maximum number of matching lines shown by `!grep`                                                               |
+| `command_history_items` | `30`                 | Number of command history entries saved per config                                                              |
+| `proto_frame_gap_ms`    | `50`                 | Silence gap (ms) to detect end of a binary protocol frame                                                       |
+| `title`                 | ` `                  | Text shown in the center of the title bar (defaults to the config filename)                                     |
+| `app_border_color`      | ` `                  | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`)                      |
+| `max_lines`             | `10000`              | Maximum number of lines kept in the scrollback buffer                                                           |
+| `repl_prefix`           | `!`                  | Prefix that identifies local REPL commands (e.g. `!help`)                                                       |
+| `os_cmd_enabled`        | `false`              | Allow the `!os` command to run shell commands (disabled by default for safety)                                  |
+| `exception_traceback`   | `false`              | Include full stack trace in serial exception output (for debugging)                                             |
+| `custom_buttons`        | `[]`                 | Array of custom button objects (see Custom Buttons below)                                                       |
 
 ## Config Management
 
@@ -250,12 +251,12 @@ enable them and fill in the fields, or add more entries.
 
 Each button object has these fields:
 
-| Field | Description |
-| ----- | ----------- |
+| Field     | Description                                   |
+| --------- | --------------------------------------------- |
 | `enabled` | `true` to show the button, `false` to hide it |
-| `name` | Label displayed on the button |
-| `command` | Command to execute when clicked |
-| `tooltip` | Hover text for the button |
+| `name`    | Label displayed on the button                 |
+| `command` | Command to execute when clicked               |
+| `tooltip` | Hover text for the button                     |
 
 **Command format:**
 
@@ -297,7 +298,7 @@ The `!proto` command provides binary protocol testing for request-response seria
 
 Send raw hex bytes and see the response:
 
-```
+```text
 !proto send 01 03 00 00 00 0A C5 CD
 !proto send "HELLO\r"
 !proto send 02 "DATA" 03
@@ -307,7 +308,7 @@ Send raw hex bytes and see the response:
 
 Create `.pro` files in the per-config `proto/` folder with send/expect sequences:
 
-```
+```text
 # modbus_test.pro
 @timeout 1000ms
 @frame_gap 50ms
@@ -358,19 +359,19 @@ This creates a `termapy_cfg/demo/` config that auto-connects to a simulated seri
 
 ### Available Commands
 
-| Command | Response |
-| ------- | -------- |
-| `AT` | `OK` |
-| `AT+INFO` | Device info, uptime, free memory |
-| `AT+TEMP` | Simulated temperature reading |
-| `AT+LED on\|off` | Toggle LED state |
-| `AT+STATUS` | LED state, uptime, connections |
-| `AT+NAME` / `AT+NAME=val` | Query or set device name |
-| `AT+BAUD` / `AT+BAUD=val` | Query or set baud rate |
-| `AT+PROD-ID` | Returns product ID (`BASSOMATIC-77`) |
-| `AT+RESET` | Simulated reboot sequence |
-| `mem <addr> [len]` | Hex memory dump |
-| `help` | List available commands |
+| Command                   | Response                             |
+| ------------------------- | ------------------------------------ |
+| `AT`                      | `OK`                                 |
+| `AT+INFO`                 | Device info, uptime, free memory     |
+| `AT+TEMP`                 | Simulated temperature reading        |
+| `AT+LED on\|off`          | Toggle LED state                     |
+| `AT+STATUS`               | LED state, uptime, connections       |
+| `AT+NAME` / `AT+NAME=val` | Query or set device name             |
+| `AT+BAUD` / `AT+BAUD=val` | Query or set baud rate               |
+| `AT+PROD-ID`              | Returns product ID (`BASSOMATIC-77`) |
+| `AT+RESET`                | Simulated reboot sequence            |
+| `mem <addr> [len]`        | Hex memory dump                      |
+| `help`                    | List available commands              |
 
 ### Bundled Files
 

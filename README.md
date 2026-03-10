@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-302%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-304%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -187,7 +187,7 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 
 | Command                   | Description                                                                      |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| `!help [cmd]`             | List all REPL commands, or show help for one                                     |
+| `!help [cmd]`             | List all REPL commands, or show extended help for one                             |
 | `!connect`                | Connect to the serial port                                                       |
 | `!disconnect`             | Disconnect from the serial port                                                  |
 | `!port [name \| list]`    | Open a port by name, or list available ports                                     |
@@ -214,6 +214,7 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
 | `!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
 | `!proto status`           | Show current protocol mode state                                                 |
+| `!exit`                   | Exit termapy                                                                     |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
@@ -608,7 +609,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-301 tests across 9 test files. Run with `uv run pytest`.
+304 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

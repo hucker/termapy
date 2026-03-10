@@ -243,8 +243,18 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
             src = proto_pkg / name
             dest.write_bytes(src.read_bytes())
 
+    # Copy demo plugins
+    plugins_dir = demo_dir / "plugins"
+    plugins_dir.mkdir(exist_ok=True)
+    plugins_pkg = pkg / "plugins"
+    for name in ("probe.py",):
+        dest = plugins_dir / name
+        if force or not dest.exists():
+            src = plugins_pkg / name
+            dest.write_bytes(src.read_bytes())
+
     # Create standard subdirs
-    for sub in ("plugins", "ss", "viz"):
+    for sub in ("ss", "viz"):
         (demo_dir / sub).mkdir(exist_ok=True)
 
     return config_path

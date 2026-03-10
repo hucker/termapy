@@ -561,6 +561,8 @@ class SerialTerminal(App):
             serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
             serial_read_raw=self._serial_read_raw,
             serial_drain=self._drain_rx_queue,
+            serial_claim=lambda: setattr(self, "_proto_active", True),
+            serial_release=lambda: setattr(self, "_proto_active", False),
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
             proto_dir=self.repl.proto_dir,
@@ -967,6 +969,7 @@ class SerialTerminal(App):
         self.repl.ctx.ss_dir = self.repl.ss_dir
         self.repl.ctx.scripts_dir = self.repl.scripts_dir
         self.repl.ctx.proto_dir = self.repl.proto_dir
+        self._reload_config_plugins(path)
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
@@ -977,6 +980,28 @@ class SerialTerminal(App):
         self._open_log()
         if was_connected or cfg.get("autoconnect"):
             self._connect()
+
+    def _reload_config_plugins(self, config_path: str) -> None:
+        """Remove old per-config plugins and load plugins for the new config.
+
+        Built-in, global, and app-hook plugins are kept. Only plugins whose
+        source is a config name (not "built-in", "global", or "app") are
+        removed and replaced with those from the new config's plugins/ dir.
+
+        Args:
+            config_path: Path to the new config JSON file.
+        """
+        keep_sources = {"built-in", "global", "app"}
+        to_remove = [
+            name for name, p in self.repl._plugins.items()
+            if p.source not in keep_sources
+        ]
+        for name in to_remove:
+            del self.repl._plugins[name]
+        for info in load_plugins_from_dir(
+            cfg_plugins_dir(config_path), Path(config_path).stem,
+        ):
+            self.repl.register_plugin(info)
 
     def _start_demo(self, args: str = "") -> None:
         """Set up and switch to the built-in demo device config.

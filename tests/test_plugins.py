@@ -1,8 +1,8 @@
-"""Tests for plugin loading and PACKAGE namespacing."""
+"""Tests for plugin loading, PACKAGE namespacing, and PluginContext."""
 
 import pytest
 
-from termapy.plugins import PluginInfo, load_plugins_from_dir
+from termapy.plugins import PluginContext, PluginInfo, load_plugins_from_dir
 
 
 @pytest.fixture
@@ -155,3 +155,41 @@ def handler(ctx, args): pass
         actual = load_plugins_from_dir(plugin_dir, "test")
         assert actual[0].args == ""  # missing ARGS defaults to ""
         assert actual[0].help == ""  # missing HELP defaults to ""
+
+
+# -- serial_io context manager ------------------------------------------------
+
+
+class TestSerialIo:
+    def test_calls_claim_and_release(self):
+        # Arrange
+        calls = []
+        ctx = PluginContext(
+            write=lambda t, c=None: None,
+            serial_claim=lambda: calls.append("claim"),
+            serial_release=lambda: calls.append("release"),
+        )
+
+        # Act
+        with ctx.serial_io():
+            calls.append("body")
+
+        # Assert
+        assert calls == ["claim", "body", "release"]  # claim before, release after
+
+    def test_releases_on_exception(self):
+        # Arrange
+        calls = []
+        ctx = PluginContext(
+            write=lambda t, c=None: None,
+            serial_claim=lambda: calls.append("claim"),
+            serial_release=lambda: calls.append("release"),
+        )
+
+        # Act
+        with pytest.raises(ValueError):
+            with ctx.serial_io():
+                raise ValueError("boom")
+
+        # Assert
+        assert "release" in calls  # release called despite exception

@@ -16,6 +16,18 @@ SORT_ORDER = 10
 _SPEC = "Hex:H1-*"
 
 
+def format_spec(data: bytes) -> str:
+    """Return the format spec string for the given data.
+
+    Args:
+        data: Raw bytes (unused — spec is fixed).
+
+    Returns:
+        Format spec string.
+    """
+    return _SPEC
+
+
 def format_columns(data: bytes) -> tuple[list[str], list[str]]:
     """Format bytes as a single hex column.
 

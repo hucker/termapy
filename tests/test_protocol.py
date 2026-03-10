@@ -696,6 +696,82 @@ expect = '"FB8d\\r\\n"'
         assert script.tests[0].expect_raw == '"FB8d\\r\\n"'
 
 
+# ── viz field parsing ────────────────────────────────────────────────────
+
+
+class TestVizFields:
+    def test_script_viz_list(self):
+        """Script-level viz list is parsed from header."""
+        toml = '''\
+name = "Test"
+viz = ["Modbus", "Custom"]
+
+[[test]]
+send = "01"
+expect = "02"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.viz == ["Modbus", "Custom"]
+
+    def test_script_viz_default_empty(self):
+        """Script-level viz defaults to empty list when omitted."""
+        toml = '''\
+[[test]]
+send = "01"
+expect = "02"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.viz == []
+
+    def test_test_viz_string(self):
+        """Per-test viz field is parsed as a string."""
+        toml = '''\
+[[test]]
+name = "Read regs"
+viz = "Modbus"
+send = "01 03 00 00 00 01 84 0A"
+expect = "01 03 02 00 07 F9 86"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].viz == "Modbus"
+
+    def test_test_viz_default_empty(self):
+        """Per-test viz defaults to empty string when omitted."""
+        toml = '''\
+[[test]]
+send = "01"
+expect = "02"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.tests[0].viz == ""
+
+    def test_mixed_viz_and_no_viz(self):
+        """Some tests have viz, others don't."""
+        toml = '''\
+viz = ["Modbus"]
+
+[[test]]
+name = "With viz"
+viz = "Modbus"
+send = "01"
+expect = "02"
+
+[[test]]
+name = "Without viz"
+send = "03"
+expect = "04"
+'''
+        script = parse_toml_script(toml)
+
+        assert script.viz == ["Modbus"]
+        assert script.tests[0].viz == "Modbus"
+        assert script.tests[1].viz == ""
+
+
 # ── load_proto_script (format detection) ─────────────────────────────────
 
 

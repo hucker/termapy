@@ -88,17 +88,17 @@ The bottom bar also has buttons. Some appear based on context:
 
 ## Keyboard Shortcuts
 
-| Key        | Action                           |
-| ---------- | -------------------------------- |
-| **Ctrl+Q** | Quit                             |
-| **Ctrl+L** | Clear screen                     |
-| **Ctrl+P** | Open command palette             |
-| **F5**     | Save SVG screenshot              |
-| **F6**     | Open screenshot folder           |
-| **F7**     | Save text screenshot             |
-| **Up**     | Recall previous command          |
-| **Enter**  | Execute selected history command |
-| **F2**     | Edit selected history command    |
+| Key        | Action                               |
+| ---------- | ------------------------------------ |
+| **Ctrl+Q** | Quit (also closes any open dialog)   |
+| **Ctrl+L** | Clear screen                         |
+| **Ctrl+P** | Open command palette                 |
+| **F5**     | Save SVG screenshot                  |
+| **F6**     | Open screenshot folder               |
+| **F7**     | Save text screenshot                 |
+| **Up**     | Recall previous command              |
+| **Enter**  | Execute selected history command     |
+| **F2**     | Edit selected history command        |
 
 ## Command Palette
 
@@ -350,13 +350,34 @@ Toggle hex display for all serial I/O with `!proto hex on` / `!proto hex off`.
 ### Packet Visualizers
 
 The proto debug screen uses pluggable visualizers to decode packet bytes into
-named columns. Built-in visualizers (Hex, Text) ship with termapy. Add your
-own by dropping a `.py` file into `termapy_cfg/<config>/viz/`.
+named columns. Built-in visualizers (Hex, Text, Modbus) ship with termapy. Add
+your own by dropping a `.py` file into `termapy_cfg/<config>/viz/`.
+
+Multiple visualizers can be active at once via the checklist. Enable "Show viz
+string" to display the raw format spec above each table. Test results scroll
+into view as they run, and visualizer column data (format specs and decoded
+values) is written to the debug log file alongside raw hex.
+
+**Selecting visualizers in .pro files:**
+
+Use `viz` in the script header to limit which visualizers appear in the dropdown
+(Hex and Text are always available). Use `viz` in a `[[test]]` section to force
+that visualizer for the test:
+
+```toml
+viz = ["Modbus"]          # header: only show Hex, Text, Modbus in dropdown
+
+[[test]]
+name = "Read registers"
+viz = "Modbus"            # force Modbus view for this test
+send = "01 03 00 00 00 01 84 0A"
+expect = "01 03 02 00 07 F9 86"
+```
 
 Visualizers use a format spec language to map bytes to columns:
 
 ```text
-Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le
+Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16-modbus_le
 ```
 
 Type codes: `H` (hex), `D` (decimal), `+D` (signed), `S` (string), `F` (float),

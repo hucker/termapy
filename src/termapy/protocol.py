@@ -591,6 +591,7 @@ class TestCase:
         expect_raw: Original expect string from script (for display).
         binary: True if send value is hex (not quoted text).
         timeout_ms: Per-test timeout override.
+        viz: Visualizer name that must be displayed for this test.
     """
 
     index: int
@@ -604,6 +605,7 @@ class TestCase:
     expect_raw: str = ""
     binary: bool = False
     timeout_ms: int = 1000
+    viz: str = ""
 
 
 @dataclass
@@ -619,6 +621,7 @@ class ProtoScript:
         setup: List of command strings to run before tests.
         teardown: List of command strings to run after tests.
         tests: Ordered list of test cases.
+        viz: Allowed visualizer names (empty = all available).
     """
 
     name: str = ""
@@ -629,6 +632,7 @@ class ProtoScript:
     setup: list[str] = field(default_factory=list)
     teardown: list[str] = field(default_factory=list)
     tests: list[TestCase] = field(default_factory=list)
+    viz: list[str] = field(default_factory=list)
 
 
 def parse_toml_script(text: str) -> ProtoScript:
@@ -668,6 +672,7 @@ def parse_toml_script(text: str) -> ProtoScript:
         quiet=doc.get("quiet", False),
         setup=doc.get("setup", []),
         teardown=doc.get("teardown", []),
+        viz=doc.get("viz", []),
     )
 
     # Parse test cases
@@ -705,6 +710,7 @@ def parse_toml_script(text: str) -> ProtoScript:
             expect_raw=expect_raw,
             binary=is_binary,
             timeout_ms=timeout,
+            viz=entry.get("viz", ""),
         ))
 
     return script
@@ -1562,6 +1568,7 @@ class VisualizerInfo:
         sort_order: Controls checkbox ordering (lower = first).
         format_columns: Returns (headers, values) for data bytes.
         diff_columns: Returns (headers, exp_vals, act_vals, statuses).
+        format_spec: Returns the raw format spec string for data bytes.
         source: Where the visualizer was loaded from.
     """
 
@@ -1575,6 +1582,7 @@ class VisualizerInfo:
         [bytes, bytes, bytes],
         tuple[list[str], list[str], list[str], list[str]],
     ]
+    format_spec: Callable[[bytes], str] = lambda data: ""
     source: str = "built-in"
 
 
@@ -1653,11 +1661,13 @@ def _load_visualizer_file(path: Path, source: str) -> VisualizerInfo | None:
     ):
         return None
 
+    fmt_spec = getattr(mod, "format_spec", None)
     return VisualizerInfo(
         name=name,
         description=getattr(mod, "DESCRIPTION", ""),
         sort_order=getattr(mod, "SORT_ORDER", 50),
         format_columns=fmt_cols,
         diff_columns=diff_cols,
+        format_spec=fmt_spec if callable(fmt_spec) else lambda data: "",
         source=source,
     )

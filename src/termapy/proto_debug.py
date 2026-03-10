@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, ScrollableContainer, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button, Checkbox, Input, RichLog, Rule, SelectionList, Static,
@@ -72,7 +72,7 @@ def _colorize_log(content: str) -> Text:
         elif "[FAIL]" in line:
             result.append(line, style="bold red")
         elif stripped.startswith("TX:"):
-            result.append(line, style="cyan")
+            result.append(line, style="dim")
         elif stripped.startswith("EXP:"):
             result.append(line, style="dim")
         elif stripped.startswith("RX:"):
@@ -107,6 +107,12 @@ def _colorize_log(content: str) -> Text:
 
 class ProtoLogViewer(ModalScreen[None]):
     """Modal viewer for the proto debug log with color-coded output."""
+
+    BINDINGS = [("ctrl+q", "dismiss_modal", "Close")]
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     CSS = f"""
     ProtoLogViewer {{ align: center middle; }}
@@ -166,20 +172,26 @@ class ProtoLogViewer(ModalScreen[None]):
 class ProtoDebugScreen(ModalScreen[None]):
     """Interactive protocol debug screen for TOML .pro scripts."""
 
+    BINDINGS = [("ctrl+q", "dismiss_modal", "Close")]
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
+
     CSS = f"""
     ProtoDebugScreen {{ align: center middle; }}
     ProtoDebugScreen Button {{ {_BTN_CSS} }}
     ProtoDebugScreen Checkbox {{
-        min-width: 0; height: 1; margin: 0 0 0 1;
-        border: none; padding: 0;
+        min-width: 0; height: 1; margin: 0; padding: 0;
+        border: none;
     }}
     ProtoDebugScreen Input {{
-        width: 8; margin: 0 0 0 1;
+        width: 4; margin: 0;
         background: $primary-background;
     }}
     ProtoDebugScreen .input-label {{
-        width: auto; height: 1; margin: 0 0 0 1;
-        color: $text-muted;
+        width: 12; height: 1; margin: 0;
+        color: $text-muted; text-align: right;
     }}
     ProtoDebugScreen Rule {{
         height: 1;
@@ -192,30 +204,51 @@ class ProtoDebugScreen(ModalScreen[None]):
         height: 90%;
         border: thick $primary;
         background: $surface;
-        padding: 1 2;
+        padding: 0 2 1 2;
     }}
     #proto-debug-title {{
         height: 1;
         text-style: bold;
     }}
+    #proto-debug-top {{
+        height: auto;
+        margin: 1 0 0 0;
+    }}
+    #test-col {{
+        width: 50; height: auto;
+    }}
+    #test-label {{
+        width: auto; height: 1; margin: 0;
+        color: $text-muted;
+    }}
     #proto-debug-select {{
-        width: 100%;
+        width: 48;
         height: auto;
         max-height: 8;
-        margin: 1 0;
+        border: tall $primary;
     }}
-    #proto-debug-detail-scroll {{
-        height: 1fr;
+    #viz-label {{
+        width: auto; height: 1; margin: 0;
+        color: $text-muted;
+    }}
+    #sel-viz {{
+        width: 28; height: auto; max-height: 5;
+        margin: 0; border: tall $primary;
+    }}
+    #viz-col {{
+        width: 30; height: auto; margin: 0 0 0 2;
+    }}
+    #chk-col {{
+        width: auto; height: auto; margin: 1 0 0 2;
+    }}
+    #input-col {{
+        width: auto; height: auto; margin: 1 0 0 2;
+    }}
+    .input-row {{
+        height: 1; width: auto;
     }}
     #proto-debug-detail {{
-        height: auto;
-        width: auto;
-    }}
-    #proto-debug-controls {{
-        height: 1;
-    }}
-    #proto-debug-options {{
-        height: 1;
+        height: 1fr;
     }}
     #proto-debug-status {{
         height: 1;
@@ -240,7 +273,16 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._path = path
         self._ctx = ctx
         self._script = script
-        self._visualizers = visualizers
+        self._running = False
+        # Filter visualizers: if script specifies viz list, keep only those
+        # plus Hex and Text (always available)
+        if script.viz:
+            allowed = {n.lower() for n in script.viz} | {"hex", "text"}
+            self._visualizers = [
+                v for v in visualizers if v.name.lower() in allowed
+            ]
+        else:
+            self._visualizers = visualizers
         self._results: dict[int, tuple[bytes | None, float, bool | None]] = {}
 
     def compose(self) -> ComposeResult:
@@ -250,31 +292,48 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         with Vertical(id="proto-debug-dialog"):
             yield Static(f"Protocol Debug: {title}", id="proto-debug-title")
-            sl = SelectionList[int](id="proto-debug-select")
-            for tc in script.tests:
-                sl.add_option((tc.name, tc.index))
-            yield sl
-            with Horizontal(id="proto-debug-controls"):
-                yield Static("Format:", classes="input-label")
-                for i, viz in enumerate(self._visualizers):
-                    checked = (i == 0)
-                    chk = Checkbox(
-                        viz.name, value=checked,
-                        id=f"chk-viz-{i}", classes="viz-chk")
-                    if viz.description:
-                        chk.tooltip = viz.description
-                    yield chk
-            with Horizontal(id="proto-debug-options"):
-                yield Static("Repeat:", classes="input-label")
-                yield Input(value="1", id="input-repeat",
-                            type="integer", compact=True)
-                yield Static("Delay (ms):", classes="input-label")
-                yield Input(value="10", id="input-delay",
-                            type="integer", compact=True)
-                yield Checkbox("Stop on Error", value=False, id="chk-stop-err")
+            with Horizontal(id="proto-debug-top"):
+                with Vertical(id="test-col"):
+                    yield Static("Tests", id="test-label")
+                    sl = SelectionList[int](id="proto-debug-select")
+                    for tc in script.tests:
+                        label = (f"{tc.name} [{tc.viz}]"
+                                 if tc.viz else tc.name)
+                        sl.add_option((label, tc.index, True))
+                    yield sl
+                with Vertical(id="viz-col"):
+                    viz_label = Static("Visualizations", id="viz-label")
+                    viz_label.tooltip = "Visualizer selection"
+                    yield viz_label
+                    # Sort: custom visualizers first, then Hex/Text last
+                    always_last = {"hex", "text"}
+                    ordered = (
+                        [v for v in self._visualizers
+                         if v.name.lower() not in always_last]
+                        + [v for v in self._visualizers
+                           if v.name.lower() in always_last]
+                    )
+                    viz_sl = SelectionList[int](id="sel-viz")
+                    for viz in ordered:
+                        idx = self._visualizers.index(viz)
+                        viz_sl.add_option((viz.name, idx, idx == 0))
+                    yield viz_sl
+                with Vertical(id="chk-col"):
+                    yield Checkbox(
+                        "Stop on Error", value=False, id="chk-stop-err")
+                    yield Checkbox(
+                        "Show viz string", value=False, id="chk-show-viz")
+                with Vertical(id="input-col"):
+                    with Horizontal(classes="input-row"):
+                        yield Static("Repeat:", classes="input-label")
+                        yield Input(value="1", id="input-repeat",
+                                    type="integer", compact=True)
+                    with Horizontal(classes="input-row"):
+                        yield Static("Delay (ms):", classes="input-label")
+                        yield Input(value="10", id="input-delay",
+                                    type="integer", compact=True)
             yield Rule()
-            with ScrollableContainer(id="proto-debug-detail-scroll"):
-                yield Static("", id="proto-debug-detail")
+            yield RichLog(id="proto-debug-detail", wrap=False)
             yield Static("", id="proto-debug-status")
             yield Rule()
             with Horizontal(id="proto-debug-buttons"):
@@ -324,47 +383,71 @@ class ProtoDebugScreen(ModalScreen[None]):
     def _on_test_highlighted(
         self, event: SelectionList.SelectionHighlighted
     ) -> None:
-        """Update detail panel when cursor moves to a test."""
+        """Update detail panel when cursor moves to a test.
+
+        Suppressed while tests are running to preserve the scrolling log.
+        """
+        if self._running:
+            return
         tc = self._get_highlighted_test()
         if tc is None:
-            self.query_one("#proto-debug-detail", Static).update("")
+            self._clear_detail()
             return
         self._show_test_detail(tc)
 
-    @on(Checkbox.Changed, ".viz-chk")
-    def _on_view_toggle(self, event: Checkbox.Changed) -> None:
-        """Handle visualizer checkbox toggling — enforce at least one checked."""
-        any_checked = any(
-            self.query_one(f"#chk-viz-{i}", Checkbox).value
-            for i in range(len(self._visualizers))
-        )
-        if not any_checked:
-            event.checkbox.value = True
-            return
+    @on(SelectionList.SelectedChanged, "#sel-viz")
+    def _on_viz_changed(self, event: SelectionList.SelectedChanged) -> None:
+        """Refresh detail panel when visualizer selection changes.
 
-        # Refresh display
+        Enforces at least one visualizer checked.
+        """
+        viz_sl = self.query_one("#sel-viz", SelectionList)
+        if not viz_sl.selected:
+            # Re-check the first option if nothing is selected
+            viz_sl.select(self._visualizers[0].sort_order if self._visualizers else 0)
+            return
         tc = self._get_highlighted_test()
         if tc is not None:
             self._show_test_detail(tc)
 
-    def _get_active_visualizers(self) -> list[VisualizerInfo]:
+    def _get_active_visualizers(
+        self, tc: TestCase | None = None,
+    ) -> list[VisualizerInfo]:
         """Return visualizers whose checkboxes are checked.
 
-        Returns:
-            List of active VisualizerInfo instances.
-        """
-        active: list[VisualizerInfo] = []
-        for i, viz in enumerate(self._visualizers):
-            chk = self.query_one(f"#chk-viz-{i}", Checkbox)
-            if chk.value:
-                active.append(viz)
-        return active
-
-    def _show_test_detail(self, tc: TestCase) -> None:
-        """Render the detail panel for a test case.
+        Also includes any forced per-test visualizer.
 
         Args:
-            tc: The test case to display.
+            tc: Current test case (for per-test forced viz).
+
+        Returns:
+            List of active VisualizerInfo instances (deduplicated).
+        """
+        viz_sl = self.query_one("#sel-viz", SelectionList)
+        checked = set(viz_sl.selected)
+        active = [
+            v for i, v in enumerate(self._visualizers) if i in checked
+        ]
+
+        # Add forced per-test visualizer if not already checked
+        if tc and tc.viz:
+            active_names = {v.name.lower() for v in active}
+            if tc.viz.lower() not in active_names:
+                for viz in self._visualizers:
+                    if viz.name.lower() == tc.viz.lower():
+                        active.append(viz)
+                        break
+
+        return active
+
+    def _render_test_detail(self, tc: TestCase) -> Text:
+        """Build Rich Text for a test case's detail view.
+
+        Args:
+            tc: The test case to render.
+
+        Returns:
+            Combined Rich Text with tables, viz strings, and result.
         """
         lines: list[Text | str] = []
         lines.append(Text(tc.name, style="bold"))
@@ -381,8 +464,22 @@ class ProtoDebugScreen(ModalScreen[None]):
         if tc.index in self._results:
             actual_data, elapsed_ms, passed = self._results[tc.index]
 
+        # Show format spec strings above tables when checkbox is checked
+        active_vizs = self._get_active_visualizers(tc)
+        if self._get_show_viz():
+            for viz in active_vizs:
+                tx_spec = viz.format_spec(tc.send_data)
+                if tx_spec:
+                    lines.append(Text(
+                        f"  [{viz.name}] TX: {tx_spec}", style="cyan"))
+                rx_spec = viz.format_spec(tc.expect_data)
+                if rx_spec and rx_spec != tx_spec:
+                    lines.append(Text(
+                        f"  [{viz.name}] RX: {rx_spec}", style="cyan"))
+            lines.append("")
+
         # Render column tables for each active visualizer
-        for viz in self._get_active_visualizers():
+        for viz in active_vizs:
             self._build_column_table(
                 lines, tc, viz, actual_data, elapsed_ms, passed)
             lines.append("")
@@ -396,7 +493,6 @@ class ProtoDebugScreen(ModalScreen[None]):
             else:
                 lines.append(Text("  FAIL", style="bold italic red"))
 
-        detail = self.query_one("#proto-debug-detail", Static)
         combined = Text()
         for line in lines:
             if isinstance(line, str):
@@ -404,7 +500,34 @@ class ProtoDebugScreen(ModalScreen[None]):
             else:
                 combined.append_text(line)
             combined.append("\n")
-        detail.update(combined)
+        return combined
+
+    def _show_test_detail(self, tc: TestCase) -> None:
+        """Show a single test's detail (interactive click mode).
+
+        Clears the log and writes the test detail.
+
+        Args:
+            tc: The test case to display.
+        """
+        log = self.query_one("#proto-debug-detail", RichLog)
+        log.clear()
+        log.write(self._render_test_detail(tc))
+
+    def _append_test_detail(self, tc: TestCase) -> None:
+        """Append a test's detail to the scrolling log (run mode).
+
+        Adds the test detail without clearing.
+
+        Args:
+            tc: The test case to append.
+        """
+        log = self.query_one("#proto-debug-detail", RichLog)
+        log.write(self._render_test_detail(tc))
+
+    def _clear_detail(self) -> None:
+        """Clear the detail log panel."""
+        self.query_one("#proto-debug-detail", RichLog).clear()
 
     def _build_column_table(
         self, lines: list[Text | str], tc: TestCase,
@@ -524,7 +647,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             "  " + border_line("┌", "─", "┬", "┐"), style="dim"))
 
         # Header row
-        hdr = Text("  │ ")
+        hdr = Text("  │ ", style="dim")
         hdr.append(title.ljust(label_w), style="bold")
         for i, h in enumerate(headers):
             hdr.append(Text(" │ ", style="dim"))
@@ -538,7 +661,7 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         # Extra rows (TX)
         for label, values, style, _ in extra_rows:
-            row = Text("  │ ")
+            row = Text("  │ ", style="dim")
             row.append(label.ljust(label_w), style="bold")
             for i in range(n_cols):
                 row.append(Text(" │ ", style="dim"))
@@ -549,7 +672,7 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         # Expected row
         if exp_values:
-            row = Text("  │ ")
+            row = Text("  │ ", style="dim")
             row.append("Expected".ljust(label_w), style="bold")
             for i in range(n_cols):
                 row.append(Text(" │ ", style="dim"))
@@ -560,7 +683,7 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         # Actual row with per-column coloring
         if has_actual and act_values:
-            row = Text("  │ ")
+            row = Text("  │ ", style="dim")
             row.append("Actual".ljust(label_w), style="bold")
             for i in range(n_cols):
                 row.append(Text(" │ ", style="dim"))
@@ -571,7 +694,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             row.append(Text(" │", style="dim"))
             lines.append(row)
         elif is_timeout:
-            row = Text("  │ ")
+            row = Text("  │ ", style="dim")
             row.append("Actual".ljust(label_w), style="bold")
             for i in range(n_cols):
                 row.append(Text(" │ ", style="dim"))
@@ -610,6 +733,10 @@ class ProtoDebugScreen(ModalScreen[None]):
     def _get_stop_on_error(self) -> bool:
         """Get the stop-on-error checkbox state."""
         return self.query_one("#chk-stop-err", Checkbox).value
+
+    def _get_show_viz(self) -> bool:
+        """Get the Show Viz checkbox state."""
+        return self.query_one("#chk-show-viz", Checkbox).value
 
     def _highlight_test(self, tc: TestCase) -> None:
         """Move the SelectionList cursor to a specific test case.
@@ -695,9 +822,11 @@ class ProtoDebugScreen(ModalScreen[None]):
                   f"Tests: {len(tests)} | Repeat: {repeat}")
         self._log(sep)
 
-    def _log_test_result(self, tc: TestCase, passed: bool,
-                         response: bytes | None,
-                         elapsed_ms: float) -> None:
+    def _log_test_result(
+        self, tc: TestCase, passed: bool,
+        response: bytes | None, elapsed_ms: float,
+        vizs: list[VisualizerInfo],
+    ) -> None:
         """Write a single test result line to the log.
 
         Args:
@@ -705,6 +834,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             passed: Whether the test passed.
             response: Actual response bytes, or None on timeout.
             elapsed_ms: Round-trip time in milliseconds.
+            vizs: Active visualizers for formatted output.
         """
         tag = "PASS" if passed else "FAIL"
         tx = format_hex(tc.send_data)
@@ -715,6 +845,23 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._log(f"         EXP: {exp}")
         self._log(f"         RX:  {rx}")
         self._log(f"         Time: {elapsed_ms:.0f}ms")
+        # Log visualizer column data
+        for viz in vizs:
+            tx_spec = viz.format_spec(tc.send_data)
+            if tx_spec:
+                self._log(f"         [{viz.name}] TX spec: {tx_spec}")
+            tx_hdrs, tx_vals = viz.format_columns(tc.send_data)
+            self._log(f"         [{viz.name}] TX: " + "  ".join(
+                f"{h}={v}" for h, v in zip(tx_hdrs, tx_vals)))
+            if response:
+                rx_spec = viz.format_spec(response)
+                if rx_spec:
+                    self._log(
+                        f"         [{viz.name}] RX spec: {rx_spec}")
+                hdrs, _, act_vals, _ = viz.diff_columns(
+                    response, tc.expect_data, tc.expect_mask)
+                self._log(f"         [{viz.name}] RX: " + "  ".join(
+                    f"{h}={v}" for h, v in zip(hdrs, act_vals)))
 
     def _log_summary(self, tests: list[TestCase], pass_count: int,
                      fail_count: int, stopped: bool) -> None:
@@ -813,8 +960,6 @@ class ProtoDebugScreen(ModalScreen[None]):
         summary = f"{pass_count}/{total} PASS ({label})"
         style = "bold bright_green" if fail_count == 0 else "bold red"
         self.app.call_from_thread(self._set_status, summary, style)
-        # Show detail for last test
-        self.app.call_from_thread(self._show_test_detail, tests[-1])
 
     @work(thread=True)
     def _run_tests(self, tests: list[TestCase]) -> None:
@@ -830,8 +975,9 @@ class ProtoDebugScreen(ModalScreen[None]):
             repeat = self.app.call_from_thread(self._get_repeat_count)
             delay_s = self.app.call_from_thread(self._get_start_delay)
             stop_on_error = self.app.call_from_thread(self._get_stop_on_error)
-
             self._log_session_header(tests, repeat)
+            self._running = True
+            self.app.call_from_thread(self._clear_detail)
             self._ctx.engine.set_proto_active(True)
             total_pass = 0
             total_fail = 0
@@ -865,10 +1011,13 @@ class ProtoDebugScreen(ModalScreen[None]):
 
                         # Log the result
                         response, elapsed_ms, _ = self._results[tc.index]
-                        self._log_test_result(tc, passed, response, elapsed_ms)
+                        vizs = self.app.call_from_thread(
+                            self._get_active_visualizers, tc)
+                        self._log_test_result(
+                            tc, passed, response, elapsed_ms, vizs)
 
                         self.app.call_from_thread(
-                            self._show_test_detail, tc)
+                            self._append_test_detail, tc)
                         if tc.teardown:
                             self._log(
                                 f"  teardown: {', '.join(tc.teardown)}")
@@ -887,14 +1036,17 @@ class ProtoDebugScreen(ModalScreen[None]):
                         break
             finally:
                 self._ctx.engine.set_proto_active(False)
+                self._running = False
 
             self._log_summary(tests, total_pass, total_fail, stopped)
             self._show_run_summary(tests, total_pass, total_fail)
         except RuntimeError:
             # call_from_thread fails during app shutdown — exit silently
             self._ctx.engine.set_proto_active(False)
+            self._running = False
         except Exception as e:
             self._ctx.engine.set_proto_active(False)
+            self._running = False
             self._log(f"Test runner error: {e}")
 
     @work(thread=True)

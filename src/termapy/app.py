@@ -1926,6 +1926,17 @@ def _find_config() -> tuple[str | None, bool]:
     return None, False
 
 
+def _reset_terminal() -> None:
+    """Reset terminal to normal mode after TUI exit.
+
+    Sends standard escape sequences to disable application keypad mode,
+    application cursor keys, and bracketed paste, preventing leftover
+    ANSI state (e.g. ``^[[A`` for arrow keys) in the parent shell.
+    """
+    sys.stdout.write("\033[?1l\033>\033[?2004l")
+    sys.stdout.flush()
+
+
 def main():
     import termapy.config as _cfg_mod
 
@@ -1964,6 +1975,7 @@ def main():
             sys.exit(1)
         app = SerialTerminal(cfg, config_path=str(config_path))
         app.run()
+        _reset_terminal()
         return
 
     if args.config:
@@ -1974,6 +1986,7 @@ def main():
             sys.exit(1)
         app = SerialTerminal(cfg, config_path=args.config)
         app.run()
+        _reset_terminal()
         return
 
     config_path, show_picker = _find_config()
@@ -1986,16 +1999,19 @@ def main():
             sys.exit(1)
         app = SerialTerminal(cfg, config_path=config_path)
         app.run()
+        _reset_terminal()
     elif show_picker:
         # Multiple json files — start with defaults, show picker on load
         cfg = dict(DEFAULT_CFG)
         app = SerialTerminal(cfg, config_path="", show_picker=True)
         app.run()
+        _reset_terminal()
     else:
         # No json files — start with defaults and open editor
         cfg = dict(DEFAULT_CFG)
         app = SerialTerminal(cfg, config_path="", open_editor=True)
         app.run()
+        _reset_terminal()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-422%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-487%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -213,6 +213,9 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
 | `!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
 | `!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
+| `!proto crc list {pat}`   | List available CRC algorithms (optional glob filter)                             |
+| `!proto crc help <name>`  | Show CRC algorithm parameters and description                                    |
+| `!proto crc calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
 | `!proto status`           | Show current protocol mode state                                                 |
 | `!exit`                   | Exit termapy                                                                     |
 
@@ -581,7 +584,7 @@ No classes, no Textual dependency. The `parse_format_spec()` and `apply_format()
 
 ### CRC Algorithms
 
-Termapy ships with a built-in catalogue of 61 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (29), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout).
+Termapy ships with a built-in catalogue of 62 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (30), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout). Each algorithm includes a description of its typical usage (e.g. "Modbus RTU serial protocol", "iSCSI, SCTP, Castagnoli"). Use `!proto crc list` to browse algorithms, `!proto crc help <name>` for full parameters, and `!proto crc calc` to compute CRCs interactively. `calc` auto-detects hex bytes vs plain text, accepts a file path to CRC file contents, and with no data runs the standard check string "123456789" with pass/fail verification.
 
 Use readable names directly in format specs:
 
@@ -650,7 +653,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-422 tests across 9 test files. Run with `uv run pytest`.
+487 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

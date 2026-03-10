@@ -6,12 +6,16 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import fnmatch
+
 from termapy.protocol import (
+    CRC_CATALOGUE,
     ProtoScript,
     format_hex,
     format_hex_dump,
     format_smart,
     format_spaced,
+    get_crc_registry,
     load_proto_script,
     match_response,
     parse_data,
@@ -25,19 +29,28 @@ if TYPE_CHECKING:
 
 NAME = "proto"
 ARGS = "<subcommand> [args]"
-HELP = "Binary protocol tools: send, run, hex, status."
+HELP = "Binary protocol tools: send, run, hex, crc, status."
 LONG_HELP = """\
 Subcommands:
   send <hex|"text">   Send raw bytes, show response
   run <file.pro>      Run a protocol test script
   debug <file.pro>    Open interactive protocol debug screen
   hex {on|off}        Toggle hex display for all serial I/O
+  crc list {pattern}  List available CRC algorithms (glob filter)
+  crc help <name>     Show algorithm parameters and description
+  crc calc <name> <data>  Compute CRC over hex bytes or "text"
   status              Show current protocol state
 
 Send examples:
   !proto send 01 02 03         — send three hex bytes
   !proto send "AT\\r"           — send text with carriage return
   !proto send 0x01 "hello" 0D  — mix hex and text
+
+CRC examples:
+  !proto crc list              — list all 61+ algorithms
+  !proto crc list *modbus*     — filter by glob pattern
+  !proto crc help crc16-modbus — show parameters for Modbus CRC
+  !proto crc calc crc16-modbus 01 03 00 00 00 01  — compute CRC
 
 Script files (.pro) support TOML format with [[test]] sections
 or flat format with send:/expect: directives. Scripts are found
@@ -49,6 +62,7 @@ _SUBCMDS: dict[str, str] = {
     "run": "run <file.pro>      — run a protocol test script",
     "debug": "debug <file.pro>    — interactive protocol debug screen",
     "hex": "hex {on|off}        — toggle hex display mode",
+    "crc": "crc list|help|calc  — browse and compute CRC algorithms",
     "status": "status              — show current proto state",
 }
 
@@ -80,6 +94,8 @@ def handler(ctx: PluginContext, args: str) -> None:
         _cmd_debug(ctx, sub_args)
     elif subcmd == "hex":
         _cmd_hex(ctx, sub_args)
+    elif subcmd == "crc":
+        _cmd_crc(ctx, sub_args)
     elif subcmd == "status":
         _cmd_status(ctx)
     else:
@@ -489,3 +505,253 @@ def _cmd_status(ctx: PluginContext) -> None:
     connected = ctx.is_connected()
     ctx.write(f"Hex mode: {'on' if hex_mode else 'off'}")
     ctx.write(f"Connected: {'yes' if connected else 'no'}")
+
+
+def _cmd_crc(ctx: PluginContext, args: str) -> None:
+    """Browse and compute CRC algorithms.
+
+    Subcommands:
+        list {pattern}  — list available algorithms (optional glob filter)
+        help <name>     — show algorithm parameters and description
+        calc <name> <data>  — compute CRC over hex bytes or quoted text
+
+    Args:
+        ctx: Plugin context for output.
+        args: CRC subcommand and arguments.
+    """
+    parts = args.strip().split(None, 1)
+    if not parts:
+        _crc_show_usage(ctx)
+        return
+
+    sub = parts[0].lower()
+    sub_args = parts[1] if len(parts) > 1 else ""
+
+    if sub == "list":
+        _crc_list(ctx, sub_args)
+    elif sub == "help":
+        _crc_help(ctx, sub_args)
+    elif sub == "calc":
+        _crc_calc(ctx, sub_args)
+    else:
+        ctx.write(f"Unknown crc subcommand: {sub}", "red")
+        _crc_show_usage(ctx)
+
+
+def _crc_show_usage(ctx: PluginContext) -> None:
+    """Display CRC subcommand help.
+
+    Args:
+        ctx: Plugin context for output.
+    """
+    prefix = ctx.engine.prefix
+    ctx.write(f"Usage: {prefix}proto crc <subcommand>")
+    ctx.write("  list {pattern}       — list algorithms (glob filter)")
+    ctx.write("  help <name>          — show parameters and description")
+    ctx.write("  calc <name> <data>   — compute CRC over hex/text data")
+
+
+def _crc_list(ctx: PluginContext, args: str) -> None:
+    """List available CRC algorithms, optionally filtered by glob pattern.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Optional glob pattern (e.g. ``"*modbus*"``).
+    """
+    registry = get_crc_registry()
+    pattern = args.strip().lower() if args.strip() else ""
+
+    # Skip backward-compat aliases (crc16m, crc16x)
+    aliases = {"crc16m", "crc16x"}
+    names = sorted(n for n in registry if n not in aliases)
+    if pattern:
+        names = [n for n in names if fnmatch.fnmatch(n, pattern)]
+
+    if not names:
+        ctx.write(f"No algorithms matching '{pattern}'", "red")
+        return
+
+    # Group by width
+    groups: dict[int, list[str]] = {}
+    for name in names:
+        entry = CRC_CATALOGUE.get(name)
+        width = entry["width"] if entry else registry[name].width * 8
+        groups.setdefault(width, []).append(name)
+
+    for width in sorted(groups):
+        ctx.write(f"  CRC-{width} ({len(groups[width])} algorithms):", "bold")
+        for name in groups[width]:
+            entry = CRC_CATALOGUE.get(name)
+            desc = entry.get("desc", "") if entry else "(plugin)"
+            ctx.write(f"    {name:<30s} {desc}", "dim")
+
+    total = sum(len(g) for g in groups.values())
+    ctx.write(f"  {total} algorithms available")
+
+
+def _crc_help(ctx: PluginContext, args: str) -> None:
+    """Show detailed parameters for a named CRC algorithm.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Algorithm name (e.g. ``"crc16-modbus"``).
+    """
+    name = args.strip().lower()
+    if not name:
+        ctx.write("Usage: !proto crc help <name>", "red")
+        return
+
+    entry = CRC_CATALOGUE.get(name)
+    if entry is None:
+        # Check if it's a plugin-only algorithm
+        registry = get_crc_registry()
+        if name in registry:
+            alg = registry[name]
+            ctx.write(f"  {name} (plugin, {alg.width * 8}-bit)")
+            ctx.write("  No catalogue parameters — loaded from plugin file.")
+            return
+        ctx.write(f"Unknown algorithm: {name}", "red")
+        ctx.write("Use '!proto crc list' to see available algorithms.")
+        return
+
+    w = entry["width"]
+    hex_w = w // 4
+    ctx.write(f"  {name}", "bold")
+    desc = entry.get("desc", "")
+    if desc:
+        ctx.write(f"  {desc}")
+    ctx.write(f"  Width:   {w} bits ({w // 8} bytes)")
+    ctx.write(f"  Poly:    0x{entry['poly']:0{hex_w}X}")
+    ctx.write(f"  Init:    0x{entry['init']:0{hex_w}X}")
+    ctx.write(f"  RefIn:   {entry['refin']}")
+    ctx.write(f"  RefOut:  {entry['refout']}")
+    ctx.write(f"  XorOut:  0x{entry['xorout']:0{hex_w}X}")
+    ctx.write(f"  Check:   0x{entry['check']:0{hex_w}X}  (CRC of '123456789')")
+    # Show format spec usage
+    if w == 8:
+        ctx.write(f"  Spec:    CRC:{name}")
+    else:
+        ctx.write(f"  Spec:    CRC:{name}_le  or  CRC:{name}_be")
+
+
+def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
+    """Auto-detect hex bytes vs plain text.
+
+    If every whitespace-separated token is a valid two-character hex pair,
+    the input is treated as hex bytes. Otherwise the entire string is
+    encoded as UTF-8 text.
+
+    Args:
+        data_str: Raw data string from the user.
+
+    Returns:
+        Tuple of (data bytes, True if parsed as hex).
+    """
+    tokens = data_str.split()
+    is_hex = bool(tokens) and all(
+        len(t) == 2 and all(c in "0123456789abcdefABCDEF" for c in t)
+        for t in tokens
+    )
+    if is_hex:
+        return bytes(int(t, 16) for t in tokens), True
+    return data_str.encode("utf-8"), False
+
+
+def _crc_calc(ctx: PluginContext, args: str) -> None:
+    """Compute a CRC over the provided data.
+
+    Auto-detects hex bytes vs plain text: if every token is a valid
+    two-character hex pair the input is treated as hex bytes, otherwise
+    the entire string is encoded as UTF-8 text.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Algorithm name followed by data (hex bytes or text).
+    """
+    parts = args.strip().split(None, 1)
+    if not parts:
+        ctx.write(
+            "Usage: !proto crc calc <name> {hex bytes or text}", "red"
+        )
+        return
+
+    name = parts[0].lower()
+
+    registry = get_crc_registry()
+    alg = registry.get(name)
+    if alg is None:
+        ctx.write(f"Unknown algorithm: {name}", "red")
+        ctx.write("Use '!proto crc list' to see available algorithms.")
+        return
+
+    # No data provided — use the standard check string "123456789"
+    check_mode = len(parts) < 2
+    file_path: Path | None = None
+    if check_mode:
+        data = b"123456789"
+        data_str = "123456789"
+        is_hex = False
+    else:
+        data_str = parts[1]
+        # Check if the data argument is a file path
+        candidate = Path(data_str)
+        if candidate.is_file():
+            file_path = candidate
+            try:
+                data = file_path.read_bytes()
+                is_hex = False
+            except OSError as e:
+                ctx.write(f"Cannot read file: {e}", "red")
+                return
+        else:
+            data, is_hex = _parse_crc_data(data_str)
+
+    if not data:
+        ctx.write("No data to compute CRC over.", "red")
+        return
+
+    crc_val = alg.compute(data)
+    hex_w = alg.width * 2
+    crc_hex = f"0x{crc_val:0{hex_w}X}"
+
+    # Show LE/BE byte representations
+    crc_bytes = crc_val.to_bytes(alg.width, "big")
+    crc_le = " ".join(f"{b:02X}" for b in reversed(crc_bytes))
+    crc_be = " ".join(f"{b:02X}" for b in crc_bytes)
+
+    ctx.write(f"  Algorithm: {name}")
+    if file_path is not None:
+        ctx.write(f"  Source:    file '{file_path}'")
+        ctx.write(f"  Size:      {len(data)} bytes")
+    elif is_hex:
+        data_hex = " ".join(f"{b:02X}" for b in data)
+        ctx.write(f"  Data:      {data_hex}  ({len(data)} bytes)")
+    else:
+        ctx.write(
+            f"  Data:      {data_str!r}  ({len(data_str)} chars, "
+            f"{len(data)} bytes)"
+        )
+    ctx.write(f"  CRC:       {crc_hex}")
+    if alg.width > 1:
+        ctx.write(f"  Bytes LE:  {crc_le}")
+        ctx.write(f"  Bytes BE:  {crc_be}")
+    else:
+        ctx.write(f"  Byte:      {crc_be}")
+
+    # In check mode, verify against the catalogue's expected value
+    if check_mode:
+        entry = CRC_CATALOGUE.get(name)
+        if entry and "check" in entry:
+            expected = entry["check"]
+            if crc_val == expected:
+                ctx.write(
+                    f"  Check:     PASS — matches expected "
+                    f"0x{expected:0{hex_w}X}",
+                    "green",
+                )
+            else:
+                ctx.write(
+                    f"  Check:     FAIL — expected "
+                    f"0x{expected:0{hex_w}X}",
+                    "red",
+                )

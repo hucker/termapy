@@ -1011,6 +1011,36 @@ class TestGenericCrcEngine:
         assert actual == expected  # {name}: {actual:#x} != {expected:#x}
 
 
+class TestCrcCatalogue:
+    """Verify CRC catalogue metadata."""
+
+    @pytest.mark.parametrize("name", _CANONICAL_NAMES)
+    def test_every_entry_has_desc(self, name):
+        """Every catalogue entry has a non-empty desc string."""
+        entry = CRC_CATALOGUE[name]
+        assert "desc" in entry  # missing desc field
+        assert isinstance(entry["desc"], str)  # desc must be a string
+        assert len(entry["desc"]) > 0  # desc must not be empty
+
+    def test_aliases_inherit_desc(self):
+        """Backward-compatible aliases point to entries with desc."""
+        for alias in ("crc16m", "crc16x"):
+            entry = CRC_CATALOGUE[alias]
+            assert "desc" in entry  # alias entry has desc
+
+    def test_catalogue_count(self):
+        """Catalogue has expected number of canonical algorithms (20+30+12)."""
+        actual = len(_CANONICAL_NAMES)
+        expected = 62
+        assert actual == expected  # catalogue size changed
+
+    def test_desc_is_short(self):
+        """Description strings should be concise one-liners."""
+        for name in _CANONICAL_NAMES:
+            desc = CRC_CATALOGUE[name]["desc"]
+            assert len(desc) <= 80  # desc too long: {name}
+
+
 # ── Format Spec Parsing ──────────────────────────────────────────────────
 
 

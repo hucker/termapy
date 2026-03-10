@@ -21,10 +21,11 @@ Later plugins can override earlier ones by using the same NAME.
 
 import importlib.util
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable
+from typing import Callable, Generator
 
 
 @dataclass
@@ -78,6 +79,11 @@ class PluginContext:
         serial_read_raw: Collect raw bytes from the serial port with timeout-based
             framing. Signature: ``serial_read_raw(timeout_ms=1000) -> bytes``.
             Returns a complete frame (bytes) or ``b""`` on timeout.
+        serial_claim: Suppress normal terminal display and claim exclusive access
+            to incoming serial bytes. Low-level primitive — prefer ``serial_io()``
+            context manager instead.
+        serial_release: Resume normal terminal display. Low-level primitive —
+            prefer ``serial_io()`` context manager instead.
         ss_dir: Path to the per-config screenshots directory (auto-created).
         scripts_dir: Path to the per-config scripts directory (auto-created).
         proto_dir: Path to the per-config protocol test scripts directory (auto-created).
@@ -107,6 +113,8 @@ class PluginContext:
     serial_wait_idle: Callable = lambda timeout_ms=400: None
     serial_read_raw: Callable = lambda timeout_ms=1000, frame_gap_ms=0: b""
     serial_drain: Callable = lambda: 0
+    serial_claim: Callable = lambda: None    # suppress terminal display, claim raw bytes
+    serial_release: Callable = lambda: None  # resume normal terminal display
 
     # Filesystem
     ss_dir: Path = field(default_factory=lambda: Path("."))
@@ -123,6 +131,27 @@ class PluginContext:
 
     # Engine internals — used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
+
+    @contextmanager
+    def serial_io(self) -> Generator[None, None, None]:
+        """Claim exclusive serial access, suppressing terminal display.
+
+        While active, incoming bytes are queued for ``serial_read_raw()``
+        instead of being displayed in the terminal.  Use this around any
+        drain → write → read cycle so responses are captured reliably.
+
+        Usage::
+
+            with ctx.serial_io():
+                ctx.serial_drain()
+                ctx.serial_write(payload)
+                response = ctx.serial_read_raw()
+        """
+        self.serial_claim()
+        try:
+            yield
+        finally:
+            self.serial_release()
 
 
 @dataclass

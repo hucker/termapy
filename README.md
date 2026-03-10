@@ -40,7 +40,7 @@ No hardware? Try termapy with a built-in simulated serial device:
 termapy --demo
 ```
 
-This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts and proto test files are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
+This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts, proto test files, and a demo plugin (`!probe`) are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
 
 ![Demo project tree](img/demo_tree.svg)
 
@@ -453,6 +453,7 @@ The `ctx` object passed to every handler. This is the stable public API for exte
 | `ctx.serial_write(data)`    | Send bytes to the serial port                         |
 | `ctx.serial_wait_idle()`    | Wait until serial output settles                      |
 | `ctx.serial_read_raw()`     | Read raw bytes with timeout framing (returns `bytes`) |
+| `ctx.serial_io()`           | Context manager for exclusive serial I/O (`with ctx.serial_io():`) |
 | `ctx.ss_dir`                | Screenshot directory (`Path`)                         |
 | `ctx.scripts_dir`           | Scripts directory (`Path`)                            |
 | `ctx.confirm(message)`      | Show Yes/Cancel dialog, return `bool` (scripts only)  |
@@ -473,6 +474,8 @@ See `examples/plugins/` for working examples:
 - **at_test.py** -- send AT commands over serial
 - **timestamp.py** -- print the current date/time
 - **ping.py** -- send a command and measure response time
+
+A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_cfg/demo/plugins/` demonstrates the drain → write → read → parse cycle for device interaction. Run `!help probe` or `!help --dev probe` to see its documentation.
 
 ## Packet Visualizers
 
@@ -609,7 +612,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-307 tests across 9 test files. Run with `uv run pytest`.
+312 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

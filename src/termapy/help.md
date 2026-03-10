@@ -379,5 +379,6 @@ The demo config includes example scripts and protocol tests:
 
 - **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`
 - **Proto:** `at_test.pro` (AT command tests), `modbus_test.pro` (Modbus RTU tests)
+- **Plugin:** `probe.py` — demo plugin showing serial I/O (drain → write → read → parse). Try `!probe` to run a device survey, or `!help --dev probe` to see the annotated source as a plugin-writing guide.
 
 The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.

@@ -277,9 +277,17 @@ class ProtoDebugScreen(ModalScreen[None]):
             yield Static("", id="proto-debug-status")
             yield Rule()
             with Horizontal(id="proto-debug-buttons"):
-                yield Button("Setup", id="btn-dbg-setup", variant="primary")
+                setup_btn = Button("Setup", id="btn-dbg-setup", variant="primary",
+                                   disabled=not script.setup)
+                setup_btn.tooltip = ("Run setup commands" if script.setup
+                                     else "No setup commands in script")
+                yield setup_btn
                 yield Button("Run", id="btn-dbg-send", variant="success")
-                yield Button("Teardown", id="btn-dbg-teardown", variant="warning")
+                td_btn = Button("Teardown", id="btn-dbg-teardown", variant="warning",
+                                disabled=not script.teardown)
+                td_btn.tooltip = ("Run teardown commands" if script.teardown
+                                  else "No teardown commands in script")
+                yield td_btn
                 log_btn = Button("Log", id="btn-dbg-log")
                 log_btn.styles.background = "dodgerblue"
                 yield log_btn

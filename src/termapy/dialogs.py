@@ -353,9 +353,12 @@ class ConfigPicker(ModalScreen[tuple | None]):
                     highlight_idx = i
             ol.highlighted = highlight_idx if highlight_idx is not None else 0
             yield ol
+            has_configs = bool(json_files)
             with Horizontal(id="picker-buttons"):
-                yield Button("Load", id="picker-load", variant="success")
-                yield Button("Edit", id="picker-edit", variant="primary")
+                yield Button("Load", id="picker-load", variant="success",
+                             disabled=not has_configs)
+                yield Button("Edit", id="picker-edit", variant="primary",
+                             disabled=not has_configs)
                 new_btn = Button("New", id="picker-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
@@ -432,9 +435,12 @@ class ScriptPicker(ModalScreen[tuple | None]):
             if scripts:
                 ol.highlighted = 0
             yield ol
+            has_scripts = bool(scripts)
             with Horizontal(id="script-buttons"):
-                yield Button("Run", id="script-run", variant="success")
-                yield Button("Edit", id="script-edit", variant="primary")
+                yield Button("Run", id="script-run", variant="success",
+                             disabled=not has_scripts)
+                yield Button("Edit", id="script-edit", variant="primary",
+                             disabled=not has_scripts)
                 new_btn = Button("New", id="script-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
@@ -510,10 +516,14 @@ class ProtoPicker(ModalScreen[tuple | None]):
             if protos:
                 ol.highlighted = 0
             yield ol
+            has_protos = bool(protos)
             with Horizontal(id="proto-buttons"):
-                yield Button("Run", id="proto-run", variant="success")
-                yield Button("Debug", id="proto-debug", variant="warning")
-                yield Button("Edit", id="proto-edit", variant="primary")
+                yield Button("Run", id="proto-run", variant="success",
+                             disabled=not has_protos)
+                yield Button("Debug", id="proto-debug", variant="warning",
+                             disabled=not has_protos)
+                yield Button("Edit", id="proto-edit", variant="primary",
+                             disabled=not has_protos)
                 new_btn = Button("New", id="proto-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn

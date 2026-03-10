@@ -11,6 +11,18 @@ if TYPE_CHECKING:
 NAME = "os"
 ARGS = "<cmd>"
 HELP = "Run a shell command and show output (10s timeout). e.g. !os dir"
+LONG_HELP = """\
+Runs a shell command via the system shell and displays its output.
+Stdout is shown in white, stderr in red.
+
+Requires os_cmd_enabled: true in your config (disabled by default
+for safety). Commands time out after 10 seconds.
+
+Examples:
+  !os dir                — list files (Windows)
+  !os ls -la             — list files (Unix)
+  !os python --version   — check Python version
+  !os ping -c 1 host     — network test"""
 
 
 def handler(ctx: PluginContext, args: str) -> None:

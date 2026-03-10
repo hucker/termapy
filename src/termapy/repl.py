@@ -70,7 +70,8 @@ class ReplEngine:
         self._plugins[info.name] = info
 
     def register_hook(self, name: str, args: str, help_text: str,
-                      handler: Callable, source: str = "built-in") -> None:
+                      handler: Callable, source: str = "built-in",
+                      long_help: str = "") -> None:
         """Register an app-coupled command as a plugin.
 
         Bridge for commands that need Textual access (screenshots, connect,
@@ -82,10 +83,11 @@ class ReplEngine:
             help_text: One-line description for !help output.
             handler: Callable(ctx, args) invoked when the command runs.
             source: Label for origin (default "built-in").
+            long_help: Extended help for ``!help <cmd>`` (default "").
         """
         self._plugins[name] = PluginInfo(
             name=name, args=args, help=help_text,
-            handler=handler, source=source,
+            handler=handler, long_help=long_help, source=source,
         )
 
     # -- Dispatch -------------------------------------------------------------

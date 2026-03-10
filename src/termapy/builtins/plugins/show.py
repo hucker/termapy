@@ -11,6 +11,18 @@ if TYPE_CHECKING:
 NAME = "show"
 ARGS = "<name>"
 HELP = "Show a file. $cfg for current config, or a filename."
+LONG_HELP = """\
+Reads a file and prints its contents to the terminal.
+
+Special names:
+  $cfg  — show the current JSON config file
+
+Regular filenames are resolved relative to the working directory.
+
+Examples:
+  !show $cfg             — view current config
+  !show my_script.run    — view a script file
+  !show ../notes.txt     — relative path"""
 
 _SHOW_SPECIAL = {"$cfg"}
 

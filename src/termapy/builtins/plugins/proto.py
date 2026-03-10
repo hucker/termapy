@@ -26,6 +26,22 @@ if TYPE_CHECKING:
 NAME = "proto"
 ARGS = "<subcommand> [args]"
 HELP = "Binary protocol tools: send, run, hex, status."
+LONG_HELP = """\
+Subcommands:
+  send <hex|"text">   Send raw bytes, show response
+  run <file.pro>      Run a protocol test script
+  debug <file.pro>    Open interactive protocol debug screen
+  hex {on|off}        Toggle hex display for all serial I/O
+  status              Show current protocol state
+
+Send examples:
+  !proto send 01 02 03         — send three hex bytes
+  !proto send "AT\\r"           — send text with carriage return
+  !proto send 0x01 "hello" 0D  — mix hex and text
+
+Script files (.pro) support TOML format with [[test]] sections
+or flat format with send:/expect: directives. Scripts are found
+in the proto/ subfolder of your config directory."""
 
 # Subcommand dispatch table (populated at module level)
 _SUBCMDS: dict[str, str] = {

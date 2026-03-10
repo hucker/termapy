@@ -569,6 +569,7 @@ class SerialTerminal(App):
             clear_screen=self._clear_output,
             save_screenshot=self.save_screenshot,
             get_screen_text=self._get_screen_text,
+            exit_app=self.exit,
             engine=engine,
         )
         self.repl.set_context(ctx)
@@ -586,20 +587,6 @@ class SerialTerminal(App):
             "{name}",
             "Save text screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_txt,
-            source="app",
-        )
-        self.repl.register_hook(
-            "ss_dir",
-            "",
-            "Show the screenshot folder path.",
-            self._hook_ss_dir,
-            source="app",
-        )
-        self.repl.register_hook(
-            "cls",
-            "",
-            "Clear the terminal screen.",
-            lambda ctx, args: self._clear_output(),
             source="app",
         )
         self.repl.register_hook(
@@ -656,13 +643,6 @@ class SerialTerminal(App):
             "{--display}",
             "Show project summary. --display opens full report in system viewer.",
             self._hook_info,
-            source="app",
-        )
-        self.repl.register_hook(
-            "exit",
-            "",
-            "Exit termapy.",
-            self._hook_exit,
             source="app",
         )
         # Load external plugins: global first, then per-config (can override)
@@ -1750,9 +1730,6 @@ class SerialTerminal(App):
         self._status(f"Text screenshot saved: {path}", "green")
         self._sync_ss_button()
 
-    def _hook_ss_dir(self, ctx, args: str) -> None:
-        self._status(f"Screenshot dir: {self.repl.ss_dir.resolve()}")
-
     def _hook_delay(self, ctx, args: str) -> None:
         try:
             seconds = parse_duration(args)
@@ -1772,15 +1749,6 @@ class SerialTerminal(App):
             self._status("Line numbers OFF")
         else:
             self._status("Usage: line_no on|off", "yellow")
-
-    def _hook_exit(self, ctx, args: str) -> None:
-        """Exit the application.
-
-        Args:
-            ctx: Plugin context.
-            args: Ignored.
-        """
-        self.exit()
 
     def _hook_info(self, ctx, args: str) -> None:
         """Generate project info report and print summary to output.

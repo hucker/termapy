@@ -110,6 +110,20 @@ def _pick_spec(data: bytes) -> str:
     return "Slave:H1 Func:H2 Data:H3-* CRC:crc16-modbus_le"
 
 
+def format_spec(data: bytes) -> str:
+    """Return the format spec string for the given data.
+
+    Args:
+        data: Raw Modbus RTU frame bytes.
+
+    Returns:
+        Format spec string.
+    """
+    if not data:
+        return ""
+    return _pick_spec(data)
+
+
 def format_columns(data: bytes) -> tuple[list[str], list[str]]:
     """Format Modbus RTU frame bytes as structured columns.
 

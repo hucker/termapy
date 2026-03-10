@@ -22,9 +22,14 @@ _MODAL_BTN_CSS = """
     border: none; margin: 0 0 0 1;
 """
 
+# Ctrl+Q binding shared by all modal dialogs
+_CTRL_Q_BINDING = [("ctrl+q", "dismiss_modal", "Close")]
+
 
 class ConfigEditor(ModalScreen[tuple | None]):
     """Modal dialog to edit JSON config. Returns (cfg_dict, path) or None."""
+
+    BINDINGS = _CTRL_Q_BINDING
 
     CSS = f"""
     ConfigEditor {{ align: center middle; }}
@@ -42,6 +47,10 @@ class ConfigEditor(ModalScreen[tuple | None]):
     #save-as-input {{ width: 1fr; height: 1; border: none; }}
     #config-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, cfg: dict, config_path: str) -> None:
         super().__init__()
@@ -159,6 +168,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
 class HelpViewer(ModalScreen[None]):
     """Modal dialog to display the UI help guide."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     HelpViewer {{ align: center middle; }}
     HelpViewer Button {{ {_MODAL_BTN_CSS} }}
@@ -169,6 +180,10 @@ class HelpViewer(ModalScreen[None]):
     #help-content {{ height: 1fr; overflow-y: auto; }}
     #help-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         from importlib.resources import files as pkg_files
@@ -188,6 +203,8 @@ class HelpViewer(ModalScreen[None]):
 class MarkdownViewer(ModalScreen[None]):
     """Modal dialog to display a markdown file with an option to open externally."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     MarkdownViewer {{ align: center middle; }}
     MarkdownViewer Button {{ {_MODAL_BTN_CSS} }}
@@ -199,6 +216,10 @@ class MarkdownViewer(ModalScreen[None]):
     #mdv-content {{ height: 1fr; }}
     #mdv-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, content: str, title: str = "", file_path: str = "") -> None:
         """Init markdown viewer.
@@ -242,6 +263,8 @@ class MarkdownViewer(ModalScreen[None]):
 class LogViewer(ModalScreen[None]):
     """Modal dialog to view the log file."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     LogViewer {{ align: center middle; }}
     LogViewer Button {{ {_MODAL_BTN_CSS} }}
@@ -253,6 +276,10 @@ class LogViewer(ModalScreen[None]):
     #log-viewer {{ height: 1fr; }}
     #log-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, log_path: str) -> None:
         super().__init__()
@@ -286,6 +313,8 @@ class LogViewer(ModalScreen[None]):
 class NamePicker(ModalScreen[str | None]):
     """Modal dialog to enter a name for a new config."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     NamePicker {{ align: center middle; }}
     NamePicker Button {{ {_MODAL_BTN_CSS} }}
@@ -296,6 +325,10 @@ class NamePicker(ModalScreen[str | None]):
     #name-label {{ height: 1; text-style: bold; }}
     #name-buttons {{ height: 1; margin-top: 1; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -323,6 +356,8 @@ class NamePicker(ModalScreen[str | None]):
 class ConfigPicker(ModalScreen[tuple | None]):
     """Modal dialog to select a JSON config: load, edit, or create new."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     ConfigPicker {{ align: center middle; }}
     ConfigPicker Button {{ {_MODAL_BTN_CSS} }}
@@ -334,6 +369,10 @@ class ConfigPicker(ModalScreen[tuple | None]):
     #picker-list {{ height: 1fr; }}
     #picker-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, current_path: str = "") -> None:
         super().__init__()
@@ -406,6 +445,8 @@ class ConfigPicker(ModalScreen[tuple | None]):
 class ScriptPicker(ModalScreen[tuple | None]):
     """Modal dialog to pick a script file to run, edit, or create new."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     ScriptPicker {{ align: center middle; }}
     ScriptPicker Button {{ {_MODAL_BTN_CSS} }}
@@ -417,6 +458,10 @@ class ScriptPicker(ModalScreen[tuple | None]):
     #script-list {{ height: 1fr; }}
     #script-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, scripts_dir: Path) -> None:
         super().__init__()
@@ -488,6 +533,8 @@ class ScriptPicker(ModalScreen[tuple | None]):
 class ProtoPicker(ModalScreen[tuple | None]):
     """Modal dialog to pick a .pro protocol script to run, edit, or create new."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     ProtoPicker {{ align: center middle; }}
     ProtoPicker Button {{ {_MODAL_BTN_CSS} }}
@@ -499,6 +546,10 @@ class ProtoPicker(ModalScreen[tuple | None]):
     #proto-list {{ height: 1fr; }}
     #proto-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, proto_dir: Path) -> None:
         super().__init__()
@@ -618,6 +669,8 @@ expect = "01 02 03"
 class ProtoEditor(ModalScreen[str | None]):
     """Modal editor for .pro protocol script files with TOML highlighting."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     ProtoEditor {{ align: center middle; }}
     ProtoEditor Button {{ {_MODAL_BTN_CSS} }}
@@ -633,6 +686,10 @@ class ProtoEditor(ModalScreen[str | None]):
     #ped-error.visible {{ display: block; }}
     #ped-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, proto_dir: Path, path: str | None = None) -> None:
         super().__init__()
@@ -722,6 +779,8 @@ _SCRIPT_TEMPLATE = """\
 class ScriptEditor(ModalScreen[str | None]):
     """Modal editor for .run script files with bash syntax highlighting."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     ScriptEditor {{ align: center middle; }}
     ScriptEditor Button {{ {_MODAL_BTN_CSS} }}
@@ -737,6 +796,10 @@ class ScriptEditor(ModalScreen[str | None]):
     #sed-error.visible {{ display: block; }}
     #sed-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def __init__(self, scripts_dir: Path, path: str | None = None) -> None:
         super().__init__()
@@ -809,6 +872,8 @@ class ScriptEditor(ModalScreen[str | None]):
 class CfgConfirm(ModalScreen[bool]):
     """Modal dialog to confirm a config change."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     CfgConfirm {{ align: center middle; }}
     CfgConfirm Button {{ {_MODAL_BTN_CSS} }}
@@ -819,6 +884,10 @@ class CfgConfirm(ModalScreen[bool]):
     #cfg-confirm-msg {{ height: 1; }}
     #cfg-confirm-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(False)
 
     def __init__(self, key: str, old_val, new_val) -> None:
         super().__init__()
@@ -854,6 +923,8 @@ class ConfirmDialog(ModalScreen[bool]):
         message: Text to display in the dialog.
     """
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     ConfirmDialog {{ align: center middle; }}
     ConfirmDialog Button {{ {_MODAL_BTN_CSS} }}
@@ -864,6 +935,10 @@ class ConfirmDialog(ModalScreen[bool]):
     #confirm-msg {{ height: 1; }}
     #confirm-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(False)
 
     def __init__(self, message: str) -> None:
         super().__init__()
@@ -892,6 +967,8 @@ class ConfirmDialog(ModalScreen[bool]):
 class PortPicker(ModalScreen[str | None]):
     """Modal dialog to select an available serial port."""
 
+    BINDINGS = _CTRL_Q_BINDING
+
     CSS = f"""
     PortPicker {{ align: center middle; }}
     PortPicker Button {{ {_MODAL_BTN_CSS} }}
@@ -903,6 +980,10 @@ class PortPicker(ModalScreen[str | None]):
     #port-list {{ height: 1fr; }}
     #port-buttons {{ height: 1; align: right middle; }}
     """
+
+    def action_dismiss_modal(self) -> None:
+        """Close the modal on Ctrl+Q."""
+        self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         from serial.tools.list_ports import comports

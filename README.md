@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-398%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-422%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -155,20 +155,20 @@ termapy_cfg/
 - **Screenshots** -- save the terminal view as SVG (Ctrl+S) or plain text (Ctrl+T)
 - **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
 - **REPL commands** -- type `!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
-- **Binary protocol testing** -- send raw hex bytes, run scripted send/expect test sequences with pass/fail reporting, wildcard pattern matching, and hex display mode; supports both hex and quoted text in `.pro` script files; interactive debug screen with repeat, delay, and stop-on-error controls
+- **Binary protocol testing** -- send raw hex bytes, run scripted send/expect test sequences with pass/fail reporting, wildcard pattern matching, and hex display mode; supports both hex and quoted text in `.pro` script files; interactive debug screen with repeat, delay, stop-on-error, scrolling results log, and per-test visualizer column data in log files
 - **Plugins** -- drop `.py` files into `plugins/` folders to add custom REPL commands; all built-in commands use the same plugin architecture
-- **Pluggable packet visualizers** -- hex and text views are built-in; drop a `.py` file into `viz/` to add custom packet visualizers (e.g. Modbus field decoding, bit-level views) without modifying core code
+- **Pluggable packet visualizers** -- hex and text views are built-in; drop a `.py` file into `viz/` to add custom packet visualizers (e.g. Modbus field decoding, bit-level views) without modifying core code; selectable via checklist in the debug screen with optional format spec string display
 
 ## Keyboard Shortcuts
 
-| Key       | Action                       |
-| --------- | ---------------------------- |
-| Ctrl+Q    | Quit                         |
-| Ctrl+S    | Save SVG screenshot          |
-| Ctrl+T    | Save text screenshot         |
-| Ctrl+P    | Command palette              |
-| Up        | Command history              |
-| F2        | Edit selected history command |
+| Key       | Action                               |
+| --------- | ------------------------------------ |
+| Ctrl+Q    | Quit (also closes any open dialog)   |
+| Ctrl+S    | Save SVG screenshot                  |
+| Ctrl+T    | Save text screenshot                 |
+| Ctrl+P    | Command palette                      |
+| Up        | Command history                      |
+| F2        | Edit selected history command        |
 
 ## Title Bar Buttons
 
@@ -479,14 +479,14 @@ A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_c
 
 ## Packet Visualizers
 
-The proto debug screen displays packet data using pluggable visualizers. Two are built-in (Hex, Text), and you can add your own by dropping a `.py` file into a `viz/` folder.
+The proto debug screen displays packet data using pluggable visualizers. Three are built-in (Hex, Text, Modbus), and you can add your own by dropping a `.py` file into a `viz/` folder.
 
 **Visualizer locations** (loaded in order, later overrides earlier by name):
 
 1. **Built-in** -- shipped with `termapy` in `src/termapy/builtins/viz/`
 2. **Per-config** -- `termapy_cfg/<name>/viz/*.py`, specific to one config
 
-Each visualizer appears as a checkbox in the proto debug screen. Multiple can be active at once.
+A checklist in the proto debug screen selects the active visualizers (multiple can be active at once). A "Show viz string" checkbox displays the raw format spec string above each table. Proto scripts can control which visualizers appear via the `viz` header field (Hex and Text are always included), and individual tests can force a specific visualizer with a per-test `viz` field. Test results scroll into view as they run, and visualizer column data is written to the debug log file alongside raw hex.
 
 ### Format Spec Language
 
@@ -615,6 +615,7 @@ Plugins override catalogue entries of the same name.
 | `NAME`                                          | yes      | —       | Checkbox label and table header                             |
 | `format_columns(data)`                          | yes      | —       | Return `(headers, values)` lists for TX/Expected rows       |
 | `diff_columns(actual, expected, mask)`          | yes      | —       | Return `(headers, exp_vals, act_vals, statuses)` for diffs  |
+| `format_spec(data)`                             | no       | `""`    | Return the raw format spec string for display               |
 | `DESCRIPTION`                                   | no       | `""`    | Tooltip text for the checkbox                               |
 | `SORT_ORDER`                                    | no       | `50`    | Checkbox ordering (lower = first, built-ins use 10/20)      |
 
@@ -649,7 +650,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-321 tests across 9 test files. Run with `uv run pytest`.
+422 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |
@@ -669,7 +670,7 @@ The modules below are **excluded from coverage metrics** because they cannot be 
 | Excluded module  | Lines | Why excluded                                                                                       | How tested                    |
 | ---------------- | ----- | -------------------------------------------------------------------------------------------------- | ----------------------------- |
 | `app.py`         | ~1500 | Textual UI layer — widgets, serial I/O, button handlers, async workers. Requires a running TUI app | Manual testing                |
-| `proto_debug.py` | ~575  | Modal debug screen with Textual widgets. Requires a running TUI app                                | Manual testing                |
+| `proto_debug.py` | ~1080 | Modal debug screen with Textual widgets. Requires a running TUI app                                | Manual testing                |
 | `builtins/*.py`  | ~200  | Loaded dynamically via `importlib`; coverage cannot map them back to source files                  | `test_builtins.py` (indirect) |
 
 This separation is deliberate: pure logic lives in testable modules (`protocol.py`, `config.py`, `repl.py`, `plugins.py`, `scripting.py`, `migration.py`) with high coverage, while UI code lives in `app.py` and `proto_debug.py` where it is tested manually.

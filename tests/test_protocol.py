@@ -1080,3 +1080,65 @@ class TestLoadVisualizersFromDir:
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
         assert vizs == []
+
+
+# -- Demo AT visualizer -------------------------------------------------------
+
+
+class TestAtViewVisualizer:
+    """Tests for the demo AT response visualizer."""
+
+    @pytest.fixture
+    def at_view(self):
+        from termapy.builtins.demo.viz import at_view
+        return at_view
+
+    def test_key_value_response(self, at_view):
+        data = b"+PROD-ID:BASSOMATIC-77\r\n"
+        actual = at_view.format_bytes(data)
+        assert actual == "PROD-ID=BASSOMATIC-77"  # key=value format
+
+    def test_ok_response(self, at_view):
+        data = b"OK\r\n"
+        actual = at_view.format_bytes(data)
+        assert actual == "OK"  # simple OK
+
+    def test_error_response(self, at_view):
+        data = b"ERROR: Unknown command\r\n"
+        actual = at_view.format_bytes(data)
+        assert "ERROR" in actual  # error preserved
+
+    def test_multiline_status(self, at_view):
+        data = b"LED: OFF\r\nUptime: 0h 0m 6s\r\nConnections: 1\r\n"
+        actual = at_view.format_bytes(data)
+        assert "LED" in actual  # LED field present
+        assert "Uptime" in actual  # Uptime field present
+        assert "|" in actual  # fields joined with pipe
+
+    def test_temp_response(self, at_view):
+        data = b"+TEMP: 23.5C\r\n"
+        actual = at_view.format_bytes(data)
+        assert "TEMP" in actual  # key extracted
+        assert "23.5C" in actual  # value preserved
+
+    def test_empty_data(self, at_view):
+        actual = at_view.format_bytes(b"")
+        assert actual == "(empty)"  # empty data handled
+
+    def test_format_diff_match(self, at_view):
+        data = b"OK\r\n"
+        mask = b"\xff" * len(data)
+        actual = at_view.format_diff(data, data, mask)
+        assert "bright_green" in actual  # match shown in green
+
+    def test_format_diff_mismatch(self, at_view):
+        actual_data = b"OK\r\n"
+        expected_data = b"NO\r\n"
+        mask = b"\xff" * len(expected_data)
+        actual = at_view.format_diff(actual_data, expected_data, mask)
+        assert "red" in actual  # mismatch shown in red
+
+    def test_metadata(self, at_view):
+        assert at_view.NAME == "AT"  # visualizer name
+        assert at_view.SORT_ORDER == 30  # sorts after Hex(10) and Text(20)
+        assert len(at_view.DESCRIPTION) > 0  # has description

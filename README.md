@@ -40,7 +40,7 @@ No hardware? Try termapy with a built-in simulated serial device:
 termapy --demo
 ```
 
-This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts, proto test files, and a demo plugin (`!probe`) are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
+This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts, proto test files, a demo plugin (`!probe`), and a demo visualizer (`AT`) are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
 
 ![Demo project tree](img/demo_tree.svg)
 
@@ -612,7 +612,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-312 tests across 9 test files. Run with `uv run pytest`.
+321 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

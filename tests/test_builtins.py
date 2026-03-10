@@ -40,8 +40,12 @@ def repl_env(tmp_path):
         apply_cfg=engine._apply_cfg,
         coerce_type=ReplEngine._coerce_type,
     )
+    def write_markup(text):
+        output.append((text, "markup"))
+
     ctx = PluginContext(
         write=write,
+        write_markup=write_markup,
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
@@ -218,6 +222,153 @@ class TestHelp:
         texts = [t for t, _ in output]
         assert any("Line one." in t for t in texts)  # first long_help line
         assert any("Line two." in t for t in texts)  # second long_help line
+
+    def test_help_dev_shows_docstring(self, repl_env):
+        """!help --dev <cmd> shows the handler's Python docstring."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def my_handler(ctx, args):
+            """This is the dev docstring.
+
+            Args:
+                ctx: Plugin context.
+                args: Command arguments.
+            """
+
+        engine.register_plugin(PluginInfo(
+            name="devtest", args="", help="A test command.",
+            handler=my_handler,
+        ))
+
+        # Act
+        engine.dispatch("help --dev devtest")
+
+        # Assert — docstring lines appear
+        texts = [t for t, _ in output]
+        assert any("dev docstring" in t for t in texts)  # docstring content shown
+        assert any("developer docstring" in t for t in texts)  # header shown
+
+    def test_help_dev_summary_bold(self, repl_env):
+        """!help --dev renders summary line bold when followed by blank line."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def handler_with_summary(ctx, args):
+            """Summary line here.
+
+            Body text follows.
+            """
+
+        engine.register_plugin(PluginInfo(
+            name="boldsummary", args="", help="Test.",
+            handler=handler_with_summary,
+        ))
+
+        # Act
+        engine.dispatch("help --dev boldsummary")
+
+        # Assert — summary rendered via write_markup with bold tags
+        markup_lines = [t for t, c in output if c == "markup"]
+        assert any("[bold]Summary line here.[/]" in t for t in markup_lines)  # bold summary
+
+    def test_help_dev_section_headers_bold(self, repl_env):
+        """!help --dev renders Google-style section headers (Args:, Returns:) bold."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def handler_with_sections(ctx, args):
+            """Do something.
+
+            Args:
+                ctx: Context.
+
+            Returns:
+                Nothing.
+            """
+
+        engine.register_plugin(PluginInfo(
+            name="sections", args="", help="Test.",
+            handler=handler_with_sections,
+        ))
+
+        # Act
+        engine.dispatch("help --dev sections")
+
+        # Assert — Args: and Returns: rendered bold via write_markup
+        markup_lines = [t for t, c in output if c == "markup"]
+        assert any("[bold]Args:[/]" in t for t in markup_lines)  # Args header bold
+        assert any("[bold]Returns:[/]" in t for t in markup_lines)  # Returns header bold
+
+    def test_help_dev_param_labels_bold(self, repl_env):
+        """!help --dev renders 'param: description' with param: bold."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def handler_with_params(ctx, args):
+            """Do a thing.
+
+            Args:
+                ctx: Plugin context for output.
+                args: Command arguments string.
+            """
+
+        engine.register_plugin(PluginInfo(
+            name="params", args="", help="Test.",
+            handler=handler_with_params,
+        ))
+
+        # Act
+        engine.dispatch("help --dev params")
+
+        # Assert — param names bold, descriptions not in bold tags
+        markup_lines = [t for t, c in output if c == "markup"]
+        assert any("[bold]ctx:[/] Plugin context" in t for t in markup_lines)  # ctx: bold
+        assert any("[bold]args:[/] Command arguments" in t for t in markup_lines)  # args: bold
+
+    def test_help_dev_no_docstring(self, repl_env):
+        """!help --dev <cmd> with no docstring shows a message."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="nodoc", args="", help="No doc.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        engine.dispatch("help --dev nodoc")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("no docstring" in t for t in texts)  # no-doc message shown
+
+    def test_help_dev_skips_long_help(self, repl_env):
+        """!help --dev shows docstring instead of LONG_HELP."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def documented_handler(ctx, args):
+            """Handler docstring here."""
+
+        engine.register_plugin(PluginInfo(
+            name="both", args="", help="Has both.",
+            long_help="This is the long help.",
+            handler=documented_handler,
+        ))
+
+        # Act
+        engine.dispatch("help --dev both")
+
+        # Assert — docstring shown, LONG_HELP not shown
+        texts = [t for t, _ in output]
+        assert any("Handler docstring" in t for t in texts)  # docstring shown
+        assert not any("long help" in t.lower() for t in texts)  # LONG_HELP not shown
 
     def test_help_no_long_help_omits_extra(self, repl_env):
         """!help <cmd> with empty LONG_HELP shows only the one-liner."""

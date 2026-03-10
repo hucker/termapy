@@ -119,7 +119,7 @@ Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead 
 
 | Command                 | Description                                                                 |
 | ----------------------- | --------------------------------------------------------------------------- |
-| `!help [cmd]`           | List commands, or show extended help for one                                |
+| `!help [cmd] [--dev]`   | List commands, show extended help, or `--dev` for handler docstring         |
 | `!connect`              | Connect to the serial port                                                  |
 | `!disconnect`           | Disconnect from the serial port                                             |
 | `!port [name\|list]`    | Switch port or list available ports                                         |

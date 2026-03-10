@@ -243,8 +243,18 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
             src = proto_pkg / name
             dest.write_bytes(src.read_bytes())
 
+    # Copy visualizers
+    viz_dir = demo_dir / "viz"
+    viz_dir.mkdir(exist_ok=True)
+    viz_pkg = pkg / "viz"
+    for name in ("modbus_view.py",):
+        dest = viz_dir / name
+        if force or not dest.exists():
+            src = viz_pkg / name
+            dest.write_bytes(src.read_bytes())
+
     # Create standard subdirs
-    for sub in ("plugins", "ss", "viz"):
+    for sub in ("plugins", "ss"):
         (demo_dir / sub).mkdir(exist_ok=True)
 
     return config_path

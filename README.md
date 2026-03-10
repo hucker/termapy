@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-301%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-398%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -483,108 +483,145 @@ The proto debug screen displays packet data using pluggable visualizers. Two are
 
 Each visualizer appears as a checkbox in the proto debug screen. Multiple can be active at once.
 
+### Format Spec Language
+
+Visualizers use a compact format spec language to map packet bytes to named columns. Each column spec is space-separated:
+
+```text
+Name:TypeStart-End
+```
+
+**Type codes:**
+
+| Code | Meaning | Example | Output |
+|------|---------|---------|--------|
+| `H`  | Hex (unsigned) | `H1` (1 byte), `H3-4` (2 bytes) | `0A`, `01FF` |
+| `D`  | Decimal unsigned | `D1` (1 byte), `D3-4` (2 bytes BE) | `10`, `256` |
+| `+D` | Decimal signed | `+D1` (signed byte) | `-1`, `+127` |
+| `S`  | ASCII string | `S5-12` (bytes 5-12 as chars) | `Hello...` |
+| `F`  | IEEE 754 float | `F1-4` (4-byte float BE) | `3.14` |
+| `B`  | Single bit | `B1.0` (bit 0 of byte 1) | `0` or `1` |
+| `crc*` | CRC verify | `crc16m_le` | `C5CD` (green/red) |
+
+**Byte indexing** is 1-based. Endianness is expressed by byte order:
+
+- `D3-4` or `D3D4` -- big-endian (byte 3 is MSB)
+- `D4-3` or `D4D3` -- little-endian (byte 4 is MSB)
+- `H7-*` -- wildcard, byte 7 to end of packet
+
+**CRC columns** use plugin-based algorithms with `_le`/`_be` endianness suffix. CRCs are always at the end of the packet; width comes from the plugin's `WIDTH`:
+
+- `CRC:crc16m_le` -- Modbus CRC-16, little-endian, all preceding bytes
+- `CRC:crc16m_le(1-6)` -- explicit data range (bytes 1-6 only)
+- `CRC:crc8` -- single-byte CRC (no endianness suffix needed)
+
 ### Writing a Visualizer
 
-Create a `.py` file with a name, and two formatting functions. Here's an example for a simple sensor protocol: 8-char serial number (ASCII), 16-bit counter (big-endian), three 8-bit sensor values, and a 16-bit CRC:
+Create a `.py` file that exports `format_columns` and `diff_columns`. Here's an example for a sensor protocol: 8-char serial number, 16-bit counter (big-endian), three sensor values, and a CRC-16:
 
 ```python
 # sensor_view.py — drop into termapy_cfg/<config>/viz/
-import struct
-from termapy.protocol import diff_bytes
+from termapy.protocol import apply_format, parse_format_spec
+from termapy.protocol import diff_columns as proto_diff_columns
 
 NAME = "Sensor"
 DESCRIPTION = "Sensor protocol — serial, counter, sensors, CRC"
 SORT_ORDER = 30                           # optional, default 50
 
-# Field layout: serial(8) + counter(2) + sensors(3) + crc(2) = 15 bytes
-_SERIAL_LEN = 8
-_FIELDS = [
-    ("Serial",  _SERIAL_LEN),   # 8 bytes ASCII
-    ("Counter", 2),              # uint16 big-endian
-    ("Temp",    1),              # uint8
-    ("Humid",   1),              # uint8
-    ("Press",   1),              # uint8
-    ("CRC",     2),              # uint16 big-endian
-]
+_SPEC = "Serial:S1-8 Counter:D9-10 Temp:D11 Humid:D12 Press:D13 CRC:crc16x_be"
 
-def format_header(data: bytes) -> str:
-    """Column headers showing field names."""
-    return "[bold]Serial    Counter  Temp  Humid  Press  CRC [/]"
+def format_columns(data: bytes) -> tuple[list[str], list[str]]:
+    """Return (headers, values) for display."""
+    if not data:
+        return ["Sensor"], [""]
+    return apply_format(data, parse_format_spec(_SPEC))
 
-def _decode(data: bytes) -> tuple[str, int, int, int, int, int]:
-    """Unpack fields from raw bytes."""
-    serial = data[0:8].decode("ascii", errors="replace")
-    counter = int.from_bytes(data[8:10], "big")
-    temp, humid, press = data[10], data[11], data[12]
-    crc = int.from_bytes(data[13:15], "big")
-    return serial, counter, temp, humid, press, crc
-
-def format_bytes(data: bytes) -> str:
-    """Decode raw bytes into human-readable field values."""
-    if len(data) < 15:
-        return " ".join(f"{b:02X}" for b in data)
-    serial, counter, temp, humid, press, crc = _decode(data)
-    return f"{serial}  {counter:5d}    {temp:3d}   {humid:3d}    {press:3d}   {crc:04X}"
-
-def format_diff(actual: bytes, expected: bytes, mask: bytes) -> str:
-    """Decode with per-field diff coloring."""
-    statuses = diff_bytes(expected, actual, mask)
-    if len(actual) < 15:
-        return " ".join(_styled_hex(actual[i], statuses[i]) for i in range(len(statuses)))
-    serial, counter, temp, humid, press, crc = _decode(actual)
-    # Determine field-level pass/fail (any mismatch in field → red)
-    fields = [
-        (f"{serial}",    0, 8),
-        (f"{counter:5d}",  8, 10),
-        (f"{temp:3d}",    10, 11),
-        (f"{humid:3d}",   11, 12),
-        (f"{press:3d}",   12, 13),
-        (f"{crc:04X}",    13, 15),
-    ]
-    parts = []
-    for text, start, end in fields:
-        field_statuses = statuses[start:end]
-        if any(s in ("mismatch", "extra", "missing") for s in field_statuses):
-            parts.append(f"[bold red]{text}[/]")
-        else:
-            parts.append(f"[bright_green]{text}[/]")
-    return "  ".join(parts)
-
-def _styled_hex(byte_val: int, status: str) -> str:
-    style = {"match": "bright_green", "mismatch": "bold red",
-             "wildcard": "dim", "extra": "bold red"}.get(status, "")
-    return f"[{style}]{byte_val:02X}[/]"
+def diff_columns(
+    actual: bytes, expected: bytes, mask: bytes
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Return (headers, expected_values, actual_values, statuses)."""
+    if not expected and not actual:
+        return ["Sensor"], [""], [""], ["match"]
+    return proto_diff_columns(actual, expected, mask, parse_format_spec(_SPEC))
 ```
 
-This produces output like:
+This produces a multi-column table with per-column diff coloring:
 
 ```text
            Sensor
- ┌────────────┬──────────────────────────────────────────────┐
- │            │  Serial    Counter  Temp  Humid  Press  CRC  │
- ├────────────┼──────────────────────────────────────────────┤
- │ TX         │  SN001234      42    31    72   101   A3B7   │
- │ Expected   │  SN001234      42    31    72   101   A3B7   │
- │ Actual     │  SN001234      42    32    72   101   A3B7   │
- └────────────┴──────────────────────────────────────────────┘
+ ┌──────────┬──────────┬─────────┬──────┬───────┬───────┬──────┐
+ │          │ Serial   │ Counter │ Temp │ Humid │ Press │ CRC  │
+ ├──────────┼──────────┼─────────┼──────┼───────┼───────┼──────┤
+ │ TX       │ SN001234 │ 42      │ 31   │ 72    │ 101   │ A3B7 │
+ │ Expected │ SN001234 │ 42      │ 31   │ 72    │ 101   │ A3B7 │
+ │ Actual   │ SN001234 │ 42      │ 32   │ 72    │ 101   │ A3B7 │
+ └──────────┴──────────┴─────────┴──────┴───────┴───────┴──────┘
 ```
 
-The Temp field (32 vs 31) would appear in red while matching fields show green. Users can enable the Hex visualizer simultaneously to see raw bytes alongside decoded values.
+The Temp column (32 vs 31) appears in red while matching columns show green. For variable-length protocols, Python logic can build the format spec dynamically:
 
-No classes, no Textual dependency — visualizers return plain strings or strings with Rich markup (`[red]...[/]` is just text). Multi-line output is supported via `\n` in the returned string.
+```python
+def _read_resp_spec(data: bytes) -> str:
+    """Generate one column per register in a Modbus read response."""
+    n_regs = data[2] // 2 if len(data) > 2 else 0
+    cols = "Slave:H1 Func:H2 Bytes:D3"
+    for i in range(n_regs):
+        s = 4 + i * 2
+        cols += f" R{i}:D{s}-{s + 1}"
+    cols += " CRC:crc16m_le"
+    return cols
+```
+
+No classes, no Textual dependency. The `parse_format_spec()` and `apply_format()` utilities from `termapy.protocol` handle all the byte extraction and formatting.
+
+### CRC Algorithms
+
+Termapy ships with a built-in catalogue of 61 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (29), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout).
+
+Use readable names directly in format specs:
+
+```text
+CRC:crc16-modbus_le          # Modbus CRC-16, little-endian
+CRC:crc16-xmodem_be          # XMODEM CRC-16, big-endian
+CRC:crc16-ccitt-false_be     # CCITT-FALSE — same poly as XMODEM, different init
+CRC:crc32-iscsi_be           # CRC-32C / Castagnoli
+CRC:crc8-maxim               # 1-byte CRC, no endianness suffix needed
+```
+
+Backward-compatible aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.
+
+**Custom plugins** for non-standard checksums (sum8, sum16, or user-custom algorithms) are `.py` files in `builtins/crc/` or `termapy_cfg/<name>/crc/`:
+
+```python
+NAME = "sum8"             # algorithm identifier
+WIDTH = 1                 # width in bytes (1, 2, or 4)
+
+def compute(data: bytes) -> int:
+    """Compute checksum over data bytes."""
+    return sum(data) & 0xFF
+```
+
+Plugins override catalogue entries of the same name.
 
 ### Visualizer API Reference
 
-| Export                                | Required | Default | Description                                            |
-| ------------------------------------- | -------- | ------- | ------------------------------------------------------ |
-| `NAME`                                | yes      | —       | Checkbox label and table header                        |
-| `format_bytes(data)`                  | yes      | —       | Format raw bytes for TX/Expected rows                  |
-| `format_diff(actual, expected, mask)` | yes      | —       | Format actual bytes with diff coloring (Rich markup)   |
-| `DESCRIPTION`                         | no       | `""`    | Tooltip text for the checkbox                          |
-| `SORT_ORDER`                          | no       | `50`    | Checkbox ordering (lower = first, built-ins use 10/20) |
-| `format_header(data)`                 | no       | —       | Header row with field names, displayed above data rows |
+| Export                                          | Required | Default | Description                                                 |
+| ----------------------------------------------- | -------- | ------- | ----------------------------------------------------------- |
+| `NAME`                                          | yes      | —       | Checkbox label and table header                             |
+| `format_columns(data)`                          | yes      | —       | Return `(headers, values)` lists for TX/Expected rows       |
+| `diff_columns(actual, expected, mask)`          | yes      | —       | Return `(headers, exp_vals, act_vals, statuses)` for diffs  |
+| `DESCRIPTION`                                   | no       | `""`    | Tooltip text for the checkbox                               |
+| `SORT_ORDER`                                    | no       | `50`    | Checkbox ordering (lower = first, built-ins use 10/20)      |
 
-The `diff_bytes()` utility from `termapy.protocol` is available for per-byte comparison, returning statuses: `match`, `wildcard`, `mismatch`, `extra`, `missing`.
+**Utilities from `termapy.protocol`:**
+
+| Function | Description |
+| -------- | ----------- |
+| `parse_format_spec(spec)` | Parse a format spec string into `list[ColumnSpec]` |
+| `apply_format(data, columns)` | Apply column specs to data, return `(headers, values)` |
+| `diff_columns(actual, expected, mask, columns)` | Compare with per-column status: `match`, `mismatch`, `extra`, `missing` |
+| `diff_bytes(expected, actual, mask)` | Per-byte comparison returning status list |
+| `get_crc_registry()` | Get loaded CRC algorithms dict |
 
 ## Threading Model
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import struct
 import sys
 import time
 import tomllib
@@ -824,6 +825,724 @@ def format_diff_markup(
 
 
 # ---------------------------------------------------------------------------
+# Generic CRC engine — Rocksoft/Williams parameterization
+# ---------------------------------------------------------------------------
+
+
+def _reflect(value: int, width: int) -> int:
+    """Bit-reverse a value within the given bit width.
+
+    Args:
+        value: Integer to reflect.
+        width: Number of bits to reverse.
+
+    Returns:
+        Bit-reversed value.
+    """
+    result = 0
+    for _ in range(width):
+        result = (result << 1) | (value & 1)
+        value >>= 1
+    return result
+
+
+def _generic_crc(
+    data: bytes,
+    width: int,
+    poly: int,
+    init: int,
+    refin: bool,
+    refout: bool,
+    xorout: int,
+) -> int:
+    """Compute CRC using Rocksoft/Williams parameterization.
+
+    Args:
+        data: Payload bytes.
+        width: CRC bit width (8, 16, 32, etc.).
+        poly: Generator polynomial in normal (MSB-first) form.
+        init: Initial register value.
+        refin: True to reflect each input byte.
+        refout: True to reflect the final CRC value.
+        xorout: XOR applied to the final CRC value.
+
+    Returns:
+        Computed CRC value.
+    """
+    crc = init
+    if refin:
+        # Reflected algorithm: process LSB-first with reflected polynomial.
+        # Init must also be reflected to match the reversed register layout.
+        ref_poly = _reflect(poly, width)
+        crc = _reflect(init, width)
+        for byte in data:
+            crc ^= byte
+            for _ in range(8):
+                if crc & 1:
+                    crc = (crc >> 1) ^ ref_poly
+                else:
+                    crc >>= 1
+    else:
+        # Normal algorithm: process MSB-first
+        msb_mask = 1 << (width - 1)
+        for byte in data:
+            crc ^= byte << (width - 8)
+            for _ in range(8):
+                if crc & msb_mask:
+                    crc = (crc << 1) ^ poly
+                else:
+                    crc <<= 1
+            crc &= (1 << width) - 1
+    if refout != refin:
+        crc = _reflect(crc, width)
+    return crc ^ xorout
+
+
+# ---------------------------------------------------------------------------
+# CRC catalogue — named algorithms from the reveng catalogue
+# ---------------------------------------------------------------------------
+# Source: https://reveng.sourceforge.io/crc-catalogue/all.htm
+# Each entry: width, poly (normal form), init, refin, refout, xorout, check.
+# check = CRC of b"123456789" — used as test vectors.
+
+CRC_CATALOGUE: dict[str, dict] = {
+    # ---- CRC-8 (20 algorithms) ----
+    "crc8":             {"width": 8, "poly": 0x07, "init": 0x00, "refin": False, "refout": False, "xorout": 0x00, "check": 0xF4},
+    "crc8-autosar":     {"width": 8, "poly": 0x2F, "init": 0xFF, "refin": False, "refout": False, "xorout": 0xFF, "check": 0xDF},
+    "crc8-bluetooth":   {"width": 8, "poly": 0xA7, "init": 0x00, "refin": True,  "refout": True,  "xorout": 0x00, "check": 0x26},
+    "crc8-cdma2000":    {"width": 8, "poly": 0x9B, "init": 0xFF, "refin": False, "refout": False, "xorout": 0x00, "check": 0xDA},
+    "crc8-darc":        {"width": 8, "poly": 0x39, "init": 0x00, "refin": True,  "refout": True,  "xorout": 0x00, "check": 0x15},
+    "crc8-dvb-s2":      {"width": 8, "poly": 0xD5, "init": 0x00, "refin": False, "refout": False, "xorout": 0x00, "check": 0xBC},
+    "crc8-gsm-a":       {"width": 8, "poly": 0x1D, "init": 0x00, "refin": False, "refout": False, "xorout": 0x00, "check": 0x37},
+    "crc8-gsm-b":       {"width": 8, "poly": 0x49, "init": 0x00, "refin": False, "refout": False, "xorout": 0xFF, "check": 0x94},
+    "crc8-hitag":       {"width": 8, "poly": 0x1D, "init": 0xFF, "refin": False, "refout": False, "xorout": 0x00, "check": 0xB4},
+    "crc8-i-432-1":     {"width": 8, "poly": 0x07, "init": 0x00, "refin": False, "refout": False, "xorout": 0x55, "check": 0xA1},
+    "crc8-i-code":      {"width": 8, "poly": 0x1D, "init": 0xFD, "refin": False, "refout": False, "xorout": 0x00, "check": 0x7E},
+    "crc8-lte":         {"width": 8, "poly": 0x9B, "init": 0x00, "refin": False, "refout": False, "xorout": 0x00, "check": 0xEA},
+    "crc8-maxim":       {"width": 8, "poly": 0x31, "init": 0x00, "refin": True,  "refout": True,  "xorout": 0x00, "check": 0xA1},
+    "crc8-mifare-mad":  {"width": 8, "poly": 0x1D, "init": 0xC7, "refin": False, "refout": False, "xorout": 0x00, "check": 0x99},
+    "crc8-nrsc-5":      {"width": 8, "poly": 0x31, "init": 0xFF, "refin": False, "refout": False, "xorout": 0x00, "check": 0xF7},
+    "crc8-opensafety":  {"width": 8, "poly": 0x2F, "init": 0x00, "refin": False, "refout": False, "xorout": 0x00, "check": 0x3E},
+    "crc8-rohc":        {"width": 8, "poly": 0x07, "init": 0xFF, "refin": True,  "refout": True,  "xorout": 0x00, "check": 0xD0},
+    "crc8-sae-j1850":   {"width": 8, "poly": 0x1D, "init": 0xFF, "refin": False, "refout": False, "xorout": 0xFF, "check": 0x4B},
+    "crc8-tech-3250":   {"width": 8, "poly": 0x1D, "init": 0xFF, "refin": True,  "refout": True,  "xorout": 0x00, "check": 0x97},
+    "crc8-wcdma":       {"width": 8, "poly": 0x9B, "init": 0x00, "refin": True,  "refout": True,  "xorout": 0x00, "check": 0x25},
+    # ---- CRC-16 (29 algorithms) ----
+    "crc16-arc":            {"width": 16, "poly": 0x8005, "init": 0x0000, "refin": True,  "refout": True,  "xorout": 0x0000, "check": 0xBB3D},
+    "crc16-cdma2000":       {"width": 16, "poly": 0xC867, "init": 0xFFFF, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x4C06},
+    "crc16-cms":            {"width": 16, "poly": 0x8005, "init": 0xFFFF, "refin": False, "refout": False, "xorout": 0x0000, "check": 0xAEE7},
+    "crc16-dds-110":        {"width": 16, "poly": 0x8005, "init": 0x800D, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x9ECF},
+    "crc16-dect-r":         {"width": 16, "poly": 0x0589, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0001, "check": 0x007E},
+    "crc16-dect-x":         {"width": 16, "poly": 0x0589, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x007F},
+    "crc16-dnp":            {"width": 16, "poly": 0x3D65, "init": 0x0000, "refin": True,  "refout": True,  "xorout": 0xFFFF, "check": 0xEA82},
+    "crc16-en-13757":       {"width": 16, "poly": 0x3D65, "init": 0x0000, "refin": False, "refout": False, "xorout": 0xFFFF, "check": 0xC2B7},
+    "crc16-genibus":        {"width": 16, "poly": 0x1021, "init": 0xFFFF, "refin": False, "refout": False, "xorout": 0xFFFF, "check": 0xD64E},
+    "crc16-gsm":            {"width": 16, "poly": 0x1021, "init": 0x0000, "refin": False, "refout": False, "xorout": 0xFFFF, "check": 0xCE3C},
+    "crc16-ibm-3740":       {"width": 16, "poly": 0x1021, "init": 0xFFFF, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x29B1},
+    "crc16-ibm-sdlc":       {"width": 16, "poly": 0x1021, "init": 0xFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFF, "check": 0x906E},
+    "crc16-iso-iec-14443-3-a": {"width": 16, "poly": 0x1021, "init": 0xC6C6, "refin": True, "refout": True, "xorout": 0x0000, "check": 0xBF05},
+    "crc16-kermit":         {"width": 16, "poly": 0x1021, "init": 0x0000, "refin": True,  "refout": True,  "xorout": 0x0000, "check": 0x2189},
+    "crc16-lj1200":         {"width": 16, "poly": 0x6F63, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0xBDF4},
+    "crc16-m17":            {"width": 16, "poly": 0x5935, "init": 0xFFFF, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x772B},
+    "crc16-maxim":          {"width": 16, "poly": 0x8005, "init": 0x0000, "refin": True,  "refout": True,  "xorout": 0xFFFF, "check": 0x44C2},
+    "crc16-mcrf4xx":        {"width": 16, "poly": 0x1021, "init": 0xFFFF, "refin": True,  "refout": True,  "xorout": 0x0000, "check": 0x6F91},
+    "crc16-modbus":         {"width": 16, "poly": 0x8005, "init": 0xFFFF, "refin": True,  "refout": True,  "xorout": 0x0000, "check": 0x4B37},
+    "crc16-nrsc-5":         {"width": 16, "poly": 0x080B, "init": 0xFFFF, "refin": True,  "refout": True,  "xorout": 0x0000, "check": 0xA066},
+    "crc16-opensafety-a":   {"width": 16, "poly": 0x5935, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x5D38},
+    "crc16-opensafety-b":   {"width": 16, "poly": 0x755B, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x20FE},
+    "crc16-profibus":       {"width": 16, "poly": 0x1DCF, "init": 0xFFFF, "refin": False, "refout": False, "xorout": 0xFFFF, "check": 0xA819},
+    "crc16-riello":         {"width": 16, "poly": 0x1021, "init": 0xB2AA, "refin": True,  "refout": True,  "xorout": 0x0000, "check": 0x63D0},
+    "crc16-spi-fujitsu":    {"width": 16, "poly": 0x1021, "init": 0x1D0F, "refin": False, "refout": False, "xorout": 0x0000, "check": 0xE5CC},
+    "crc16-t10-dif":        {"width": 16, "poly": 0x8BB7, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0xD0DB},
+    "crc16-teledisk":       {"width": 16, "poly": 0xA097, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x0FB3},
+    "crc16-tms37157":       {"width": 16, "poly": 0x1021, "init": 0x89EC, "refin": True,  "refout": True,  "xorout": 0x0000, "check": 0x26B1},
+    "crc16-umts":           {"width": 16, "poly": 0x8005, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0xFEE8},
+    "crc16-xmodem":         {"width": 16, "poly": 0x1021, "init": 0x0000, "refin": False, "refout": False, "xorout": 0x0000, "check": 0x31C3},
+    # ---- CRC-32 (12 algorithms) ----
+    "crc32":            {"width": 32, "poly": 0x04C11DB7, "init": 0xFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFFFFFF, "check": 0xCBF43926},
+    "crc32-aixm":       {"width": 32, "poly": 0x814141AB, "init": 0x00000000, "refin": False, "refout": False, "xorout": 0x00000000, "check": 0x3010BF7F},
+    "crc32-autosar":    {"width": 32, "poly": 0xF4ACFB13, "init": 0xFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFFFFFF, "check": 0x1697D06A},
+    "crc32-base91-d":   {"width": 32, "poly": 0xA833982B, "init": 0xFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFFFFFF, "check": 0x87315576},
+    "crc32-bzip2":      {"width": 32, "poly": 0x04C11DB7, "init": 0xFFFFFFFF, "refin": False, "refout": False, "xorout": 0xFFFFFFFF, "check": 0xFC891918},
+    "crc32-cd-rom-edc": {"width": 32, "poly": 0x8001801B, "init": 0x00000000, "refin": True,  "refout": True,  "xorout": 0x00000000, "check": 0x6EC2EDC4},
+    "crc32-cksum":      {"width": 32, "poly": 0x04C11DB7, "init": 0x00000000, "refin": False, "refout": False, "xorout": 0xFFFFFFFF, "check": 0x765E7680},
+    "crc32-iscsi":      {"width": 32, "poly": 0x1EDC6F41, "init": 0xFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFFFFFF, "check": 0xE3069283},
+    "crc32-jamcrc":     {"width": 32, "poly": 0x04C11DB7, "init": 0xFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0x00000000, "check": 0x340BC6D9},
+    "crc32-mef":        {"width": 32, "poly": 0x741B8CD7, "init": 0xFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0x00000000, "check": 0xD2C22F51},
+    "crc32-mpeg-2":     {"width": 32, "poly": 0x04C11DB7, "init": 0xFFFFFFFF, "refin": False, "refout": False, "xorout": 0x00000000, "check": 0x0376E6E7},
+    "crc32-xfer":       {"width": 32, "poly": 0x000000AF, "init": 0x00000000, "refin": False, "refout": False, "xorout": 0x00000000, "check": 0xBD0BE338},
+}
+
+# Backward-compatible aliases for old short names
+CRC_CATALOGUE["crc16m"] = CRC_CATALOGUE["crc16-modbus"]
+CRC_CATALOGUE["crc16x"] = CRC_CATALOGUE["crc16-xmodem"]
+
+
+def _make_crc_compute(entry: dict) -> Callable[[bytes], int]:
+    """Create a compute closure for a catalogue entry.
+
+    Args:
+        entry: Catalogue dict with width, poly, init, refin, refout, xorout.
+
+    Returns:
+        Function ``(data: bytes) -> int``.
+    """
+    w, p, i, ri, ro, xo = (
+        entry["width"], entry["poly"], entry["init"],
+        entry["refin"], entry["refout"], entry["xorout"],
+    )
+    return lambda data: _generic_crc(data, w, p, i, ri, ro, xo)
+
+
+# ---------------------------------------------------------------------------
+# CRC plugin discovery
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CrcAlgorithm:
+    """Loaded CRC algorithm plugin.
+
+    Attributes:
+        name: Algorithm identifier (e.g. ``"crc16m"``).
+        width: CRC width in bytes (1, 2, or 4).
+        compute: Function that computes the CRC value.
+    """
+
+    name: str
+    width: int
+    compute: Callable[[bytes], int]
+
+
+def builtins_crc_dir() -> Path:
+    """Return the path to the built-in CRC plugin directory."""
+    return Path(__file__).parent / "builtins" / "crc"
+
+
+def load_crc_plugins(
+    *dirs: Path,
+) -> dict[str, CrcAlgorithm]:
+    """Discover and load CRC algorithm plugins from directories.
+
+    Each .py file must define ``NAME`` (str), ``WIDTH`` (int),
+    and ``compute(data: bytes) -> int``.
+
+    Args:
+        *dirs: Directories to scan. Later entries override earlier.
+
+    Returns:
+        Dict of algorithm name → CrcAlgorithm.
+    """
+    algorithms: dict[str, CrcAlgorithm] = {}
+    for folder in dirs:
+        if not folder.is_dir():
+            continue
+        for py_file in sorted(folder.glob("*.py")):
+            if py_file.name.startswith("_"):
+                continue
+            try:
+                module_name = f"termapy_crc_{py_file.stem}"
+                spec = importlib.util.spec_from_file_location(module_name, py_file)
+                if spec is None or spec.loader is None:
+                    continue
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+
+                name = getattr(mod, "NAME", None)
+                width = getattr(mod, "WIDTH", None)
+                compute_fn = getattr(mod, "compute", None)
+                if (
+                    isinstance(name, str)
+                    and isinstance(width, int)
+                    and callable(compute_fn)
+                ):
+                    algorithms[name] = CrcAlgorithm(
+                        name=name, width=width, compute=compute_fn
+                    )
+            except Exception as e:
+                print(
+                    f"termapy: failed to load CRC plugin {py_file.name}: {e}",
+                    file=sys.stderr,
+                )
+    return algorithms
+
+
+# Module-level CRC registry — populated on first use
+_crc_registry: dict[str, CrcAlgorithm] | None = None
+
+
+def get_crc_registry() -> dict[str, CrcAlgorithm]:
+    """Get the CRC algorithm registry, loading catalogue + plugins on first call.
+
+    Build order: catalogue entries first, then plugin files. Plugins override
+    catalogue entries of the same name.
+
+    Returns:
+        Dict of algorithm name → CrcAlgorithm.
+    """
+    global _crc_registry
+    if _crc_registry is None:
+        # 1. Build from catalogue
+        registry: dict[str, CrcAlgorithm] = {}
+        for name, entry in CRC_CATALOGUE.items():
+            width_bytes = (entry["width"] + 7) // 8
+            registry[name] = CrcAlgorithm(
+                name=name, width=width_bytes, compute=_make_crc_compute(entry),
+            )
+        # 2. Overlay plugins (sum8, sum16, user-custom)
+        registry.update(load_crc_plugins(builtins_crc_dir()))
+        _crc_registry = registry
+    return _crc_registry
+
+
+def reset_crc_registry() -> None:
+    """Reset the CRC registry, forcing reload on next access."""
+    global _crc_registry
+    _crc_registry = None
+
+
+# ---------------------------------------------------------------------------
+# Format spec language — column-based packet visualization
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ColumnSpec:
+    """Parsed column specification from a format spec string.
+
+    Attributes:
+        name: Column header label.
+        type_code: Type code (``"H"``, ``"D"``, ``"+D"``, ``"S"``, ``"F"``,
+            ``"B"``, or a CRC algorithm name like ``"crc16m"``).
+        byte_indices: 0-based byte indices in the specified order.
+            For ascending ranges the first index is MSB (big-endian).
+        bit: Bit index for ``B`` type (0-7), or None.
+        wildcard: True if the spec ends with ``-*`` (variable length).
+        crc_algo: CRC algorithm name (without ``_le``/``_be`` suffix), or None.
+        crc_little_endian: True if CRC uses ``_le`` suffix.
+        crc_data_range: Explicit ``(start, end)`` 0-based inclusive range
+            for CRC computation, or None for auto-range.
+    """
+
+    name: str
+    type_code: str
+    byte_indices: list[int] = field(default_factory=list)
+    bit: int | None = None
+    wildcard: bool = False
+    crc_algo: str | None = None
+    crc_little_endian: bool = True
+    crc_data_range: tuple[int, int] | None = None
+
+
+# Regex for parsing a single byte reference like "1", "12"
+_BYTE_NUM = re.compile(r"\d+")
+
+# Regex for CRC spec: algorithm_endian(data_range) or algorithm_endian
+# Algo names may contain hyphens (e.g. "crc16-modbus", "crc16-ccitt-false").
+# The _le/_be suffix uses underscore, so hyphens are unambiguous.
+_CRC_SPEC = re.compile(
+    r"(?P<algo>[\w-]+?)(?:_(?P<endian>le|be))?"
+    r"(?:\((?P<range>\d+-\d+)\))?"
+    r"$"
+)
+
+
+def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
+    """Parse byte index references from a type spec body.
+
+    Handles single bytes (``"1"``), ascending ranges (``"3-4"``),
+    descending ranges (``"4-1"``), explicit sequences (``"1234"`` parsed
+    as individual digits when each is a single digit, or ``"12"`` as
+    byte 12), and wildcards (``"7-*"``).
+
+    All indices are converted from 1-based (user-facing) to 0-based.
+
+    Args:
+        text: The byte reference portion of a column spec.
+
+    Returns:
+        Tuple of (0-based byte indices, is_wildcard).
+    """
+    wildcard = False
+
+    # Wildcard: "7-*" or "1-*"
+    if text.endswith("-*"):
+        prefix = text[:-2]
+        start = int(prefix) - 1
+        return [start], True
+
+    # Range: "3-4" or "4-1"
+    if "-" in text:
+        parts = text.split("-", 1)
+        start = int(parts[0])
+        end = int(parts[1])
+        if start <= end:
+            indices = list(range(start - 1, end))
+        else:
+            indices = list(range(start - 1, end - 2, -1))
+        return indices, False
+
+    # Explicit multi-byte sequence: check for concatenated numbers
+    # "1234" with all single digits → bytes 1,2,3,4
+    # But "12" could be byte 12. We use a heuristic:
+    # If all characters are digits and length > 1, try to parse as
+    # concatenated single-digit refs first (each char is a byte index 1-9)
+    if text.isdigit():
+        if len(text) == 1:
+            return [int(text) - 1], False
+        # Could be a single number like "12" or concatenated like "1234"
+        # If any digit is 0, it's not valid as a 1-based index, so treat
+        # the whole thing as a single number
+        if "0" not in text and len(text) > 2:
+            # Concatenated single-digit refs: "1234" → [0,1,2,3]
+            return [int(ch) - 1 for ch in text], False
+        # Single number: "12" → [11]
+        return [int(text) - 1], False
+
+    return [], False
+
+
+def _parse_crc_spec(type_body: str) -> ColumnSpec:
+    """Parse a CRC type specification.
+
+    Formats:
+    - ``crc16m_le`` — algorithm + endianness
+    - ``crc16m_le(1-6)`` — with explicit data range
+    - ``crc8`` — no endianness needed for 1-byte CRC
+
+    Args:
+        type_body: Everything after ``Name:`` in the column spec.
+
+    Returns:
+        ColumnSpec configured for CRC verification.
+    """
+    m = _CRC_SPEC.match(type_body)
+    if not m:
+        return ColumnSpec(name="", type_code="crc", crc_algo=type_body)
+
+    algo = m.group("algo")
+    endian = m.group("endian")
+    data_range_str = m.group("range")
+
+    little_endian = endian != "be"  # default to LE
+
+    data_range: tuple[int, int] | None = None
+    if data_range_str:
+        parts = data_range_str.split("-")
+        data_range = (int(parts[0]) - 1, int(parts[1]) - 1)
+
+    return ColumnSpec(
+        name="",
+        type_code="crc",
+        crc_algo=algo,
+        crc_little_endian=little_endian,
+        crc_data_range=data_range,
+    )
+
+
+def parse_format_spec(spec: str) -> list[ColumnSpec]:
+    """Parse a format spec string into column definitions.
+
+    Format: space-separated ``Name:TypeBytesRefs`` tokens.
+    See plan for full syntax documentation.
+
+    Args:
+        spec: Format spec string, e.g.
+            ``"Slave:H1 Func:H2 Addr:D3-4 CRC:crc16m_le"``.
+
+    Returns:
+        List of ColumnSpec, one per column.
+    """
+    columns: list[ColumnSpec] = []
+    for token in spec.split():
+        colon = token.index(":")
+        name = token[:colon]
+        type_body = token[colon + 1:]
+
+        # Bit field: B1.3
+        if type_body.startswith("B") and "." in type_body:
+            parts = type_body[1:].split(".")
+            byte_idx = int(parts[0]) - 1
+            bit_idx = int(parts[1])
+            columns.append(ColumnSpec(
+                name=name, type_code="B",
+                byte_indices=[byte_idx], bit=bit_idx,
+            ))
+            continue
+
+        # CRC: starts with known CRC prefix or contains _le/_be
+        if "_le" in type_body or "_be" in type_body or (
+            not type_body[0].isupper() and type_body[0].isalpha()
+        ):
+            col = _parse_crc_spec(type_body)
+            col.name = name
+            columns.append(col)
+            continue
+
+        # Standard types: H, D, +D, S, F
+        if type_body.startswith("+D"):
+            type_code = "+D"
+            refs_str = type_body[2:]
+        elif type_body[0] in "HDSF":
+            type_code = type_body[0]
+            refs_str = type_body[1:]
+        else:
+            # Unknown — treat as hex
+            type_code = "H"
+            refs_str = type_body
+
+        byte_indices, wildcard = _parse_byte_refs(refs_str)
+        columns.append(ColumnSpec(
+            name=name, type_code=type_code,
+            byte_indices=byte_indices, wildcard=wildcard,
+        ))
+
+    return columns
+
+
+def _resolve_wildcards(
+    columns: list[ColumnSpec], data_len: int,
+) -> list[ColumnSpec]:
+    """Resolve wildcard columns and CRC byte positions for a given data length.
+
+    Wildcards expand to cover all remaining bytes (minus any trailing CRC).
+    CRC columns get their byte_indices set based on the plugin WIDTH.
+
+    Args:
+        columns: Parsed column specs (may contain wildcards and CRCs).
+        data_len: Length of the actual data bytes.
+
+    Returns:
+        New list of ColumnSpec with wildcards and CRCs resolved.
+    """
+    registry = get_crc_registry()
+
+    # Calculate total CRC bytes at end of packet
+    crc_width = 0
+    for col in columns:
+        if col.crc_algo and col.crc_algo in registry:
+            crc_width = registry[col.crc_algo].width
+            break
+
+    resolved: list[ColumnSpec] = []
+    for col in columns:
+        if col.wildcard:
+            # Expand wildcard: start_index to (data_len - crc_width - 1)
+            start = col.byte_indices[0] if col.byte_indices else 0
+            end = data_len - crc_width
+            new_col = ColumnSpec(
+                name=col.name, type_code=col.type_code,
+                byte_indices=list(range(start, end)),
+                wildcard=False,
+            )
+            resolved.append(new_col)
+        elif col.crc_algo:
+            # CRC: bytes are at the end of the packet
+            algo = registry.get(col.crc_algo)
+            if algo:
+                width = algo.width
+                crc_start = data_len - width
+                indices = list(range(crc_start, data_len))
+                # Reverse for little-endian
+                if col.crc_little_endian:
+                    indices = list(reversed(indices))
+                new_col = ColumnSpec(
+                    name=col.name, type_code="crc",
+                    byte_indices=indices,
+                    crc_algo=col.crc_algo,
+                    crc_little_endian=col.crc_little_endian,
+                    crc_data_range=col.crc_data_range,
+                )
+                resolved.append(new_col)
+            else:
+                resolved.append(col)
+        else:
+            resolved.append(col)
+    return resolved
+
+
+def _format_column_value(
+    data: bytes, col: ColumnSpec,
+) -> str:
+    """Format a single column's value from raw data bytes.
+
+    Args:
+        data: Full packet bytes.
+        col: Resolved column specification.
+
+    Returns:
+        Formatted string value for this column.
+    """
+    indices = col.byte_indices
+
+    # Bit field
+    if col.type_code == "B" and col.bit is not None:
+        if not indices or indices[0] >= len(data):
+            return "?"
+        byte_val = data[indices[0]]
+        return str((byte_val >> col.bit) & 1)
+
+    # Gather bytes in specified order
+    raw = bytearray()
+    for idx in indices:
+        if idx < len(data):
+            raw.append(data[idx])
+        else:
+            raw.append(0)
+
+    if not raw:
+        return ""
+
+    # CRC — show hex value
+    if col.type_code == "crc":
+        registry = get_crc_registry()
+        algo = registry.get(col.crc_algo or "")
+        if algo:
+            # Format the CRC value from packet bytes
+            val = int.from_bytes(raw, "big")
+            width = algo.width
+            return f"{val:0{width * 2}X}"
+        return raw.hex().upper()
+
+    # Hex
+    if col.type_code == "H":
+        return " ".join(f"{b:02X}" for b in raw)
+
+    # Decimal unsigned
+    if col.type_code == "D":
+        val = int.from_bytes(raw, "big")
+        return str(val)
+
+    # Decimal signed
+    if col.type_code == "+D":
+        val = int.from_bytes(raw, "big", signed=True)
+        return f"{val:+d}"
+
+    # ASCII string
+    if col.type_code == "S":
+        return "".join(chr(b) if 32 <= b < 127 else "." for b in raw)
+
+    # Float
+    if col.type_code == "F":
+        if len(raw) == 4:
+            val = struct.unpack(">f", bytes(raw))[0]
+            return f"{val:.4g}"
+        elif len(raw) == 8:
+            val = struct.unpack(">d", bytes(raw))[0]
+            return f"{val:.6g}"
+        return raw.hex().upper()
+
+    return raw.hex().upper()
+
+
+def apply_format(
+    data: bytes, columns: list[ColumnSpec],
+) -> tuple[list[str], list[str]]:
+    """Apply column specs to data bytes, returning headers and values.
+
+    Resolves wildcards and CRC positions based on actual data length.
+
+    Args:
+        data: Raw packet bytes.
+        columns: Parsed column specs (from ``parse_format_spec``).
+
+    Returns:
+        Tuple of (headers, values) — parallel lists of strings.
+    """
+    resolved = _resolve_wildcards(columns, len(data))
+    headers: list[str] = []
+    values: list[str] = []
+    for col in resolved:
+        headers.append(col.name)
+        values.append(_format_column_value(data, col))
+    return headers, values
+
+
+def diff_columns(
+    actual: bytes, expected: bytes, mask: bytes,
+    columns: list[ColumnSpec],
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Compare actual vs expected using column specs.
+
+    Each column's status is determined by comparing the underlying
+    bytes at the column's byte indices. If any byte in the range
+    mismatches (respecting the wildcard mask), the column is marked
+    as ``"mismatch"``.
+
+    For CRC columns, the status is determined by computing the CRC
+    over the data range and comparing against the packet's CRC bytes.
+
+    Args:
+        actual: Actual received bytes.
+        expected: Expected bytes for comparison.
+        mask: Wildcard mask (0xFF=must match, 0x00=any).
+        columns: Parsed column specs (from ``parse_format_spec``).
+
+    Returns:
+        Tuple of (headers, expected_values, actual_values, statuses).
+        Status per column: ``"match"``, ``"mismatch"``, ``"wildcard"``,
+        ``"missing"``.
+    """
+    # Resolve wildcards using expected length (for consistent column count)
+    resolved = _resolve_wildcards(columns, len(expected))
+
+    headers: list[str] = []
+    exp_values: list[str] = []
+    act_values: list[str] = []
+    statuses: list[str] = []
+
+    registry = get_crc_registry()
+
+    for col in resolved:
+        headers.append(col.name)
+        exp_values.append(_format_column_value(expected, col))
+        act_values.append(_format_column_value(actual, col))
+
+        # Determine per-column status
+        if col.type_code == "crc" and col.crc_algo:
+            # CRC verification: compute and compare
+            algo = registry.get(col.crc_algo)
+            if algo:
+                # Determine data range
+                if col.crc_data_range:
+                    start, end = col.crc_data_range
+                    crc_data = actual[start:end + 1]
+                else:
+                    # Auto-range: all bytes before CRC
+                    crc_end = len(actual) - algo.width
+                    crc_data = actual[:crc_end]
+
+                computed = algo.compute(crc_data)
+                # Extract actual CRC from packet (in byte order)
+                crc_bytes = bytearray()
+                for idx in col.byte_indices:
+                    if idx < len(actual):
+                        crc_bytes.append(actual[idx])
+                packet_crc = int.from_bytes(crc_bytes, "big")
+                statuses.append("match" if computed == packet_crc else "mismatch")
+            else:
+                statuses.append("match")
+        else:
+            # Regular column: compare each byte
+            col_status = "match"
+            for idx in col.byte_indices:
+                if idx >= len(actual):
+                    col_status = "missing"
+                    break
+                if idx >= len(expected):
+                    col_status = "extra"
+                    break
+                if idx < len(mask) and mask[idx] == 0x00:
+                    continue  # wildcard byte, skip
+                if idx < len(expected) and actual[idx] != expected[idx]:
+                    col_status = "mismatch"
+                    break
+            statuses.append(col_status)
+
+    return headers, exp_values, act_values, statuses
+
+
+# ---------------------------------------------------------------------------
 # Packet visualizer discovery
 # ---------------------------------------------------------------------------
 
@@ -832,22 +1551,30 @@ def format_diff_markup(
 class VisualizerInfo:
     """Metadata and formatting functions for a packet visualizer.
 
+    Visualizers use the column-based API:
+    - ``format_columns(data)`` returns ``(headers, values)``
+    - ``diff_columns(actual, expected, mask)`` returns
+      ``(headers, expected_values, actual_values, statuses)``
+
     Attributes:
         name: Display label for checkbox / table header.
         description: Tooltip text describing the visualizer.
         sort_order: Controls checkbox ordering (lower = first).
-        format_bytes: Formats raw bytes into a display string.
-        format_diff: Formats actual bytes with diff coloring (Rich markup).
-        format_header: Optional header row generator for protocol-aware views.
+        format_columns: Returns (headers, values) for data bytes.
+        diff_columns: Returns (headers, exp_vals, act_vals, statuses).
         source: Where the visualizer was loaded from.
     """
 
     name: str
     description: str
     sort_order: int
-    format_bytes: Callable[[bytes], str]
-    format_diff: Callable[[bytes, bytes, bytes], str]
-    format_header: Callable[[bytes], str] | None = None
+    format_columns: Callable[
+        [bytes], tuple[list[str], list[str]]
+    ]
+    diff_columns: Callable[
+        [bytes, bytes, bytes],
+        tuple[list[str], list[str], list[str], list[str]],
+    ]
     source: str = "built-in"
 
 
@@ -861,8 +1588,8 @@ def load_visualizers_from_dir(
 ) -> list[VisualizerInfo]:
     """Discover and load visualizer .py files from a directory.
 
-    Each file must define ``NAME`` (str), ``format_bytes(data)``, and
-    ``format_diff(actual, expected, mask)``. ``SORT_ORDER`` (int) and
+    Each file must define ``NAME`` (str), ``format_columns(data)``, and
+    ``diff_columns(actual, expected, mask)``. ``SORT_ORDER`` (int) and
     ``DESCRIPTION`` (str) are optional.
 
     Files starting with ``_`` are skipped. Files that fail to load
@@ -897,7 +1624,7 @@ def _load_visualizer_file(path: Path, source: str) -> VisualizerInfo | None:
     """Import a single visualizer file and extract its VisualizerInfo.
 
     A valid visualizer module must define ``NAME`` (str),
-    ``format_bytes`` (callable), and ``format_diff`` (callable).
+    ``format_columns`` (callable), and ``diff_columns`` (callable).
     Optional: ``SORT_ORDER`` (int, default 50), ``DESCRIPTION``
     (str, default ``""``).
 
@@ -916,22 +1643,21 @@ def _load_visualizer_file(path: Path, source: str) -> VisualizerInfo | None:
     spec.loader.exec_module(mod)
 
     name = getattr(mod, "NAME", None)
-    fmt_bytes = getattr(mod, "format_bytes", None)
-    fmt_diff = getattr(mod, "format_diff", None)
+    fmt_cols = getattr(mod, "format_columns", None)
+    diff_cols = getattr(mod, "diff_columns", None)
 
-    if not isinstance(name, str) or not callable(fmt_bytes) or not callable(fmt_diff):
+    if (
+        not isinstance(name, str)
+        or not callable(fmt_cols)
+        or not callable(diff_cols)
+    ):
         return None
-
-    fmt_header = getattr(mod, "format_header", None)
-    if fmt_header is not None and not callable(fmt_header):
-        fmt_header = None
 
     return VisualizerInfo(
         name=name,
         description=getattr(mod, "DESCRIPTION", ""),
         sort_order=getattr(mod, "SORT_ORDER", 50),
-        format_bytes=fmt_bytes,
-        format_diff=fmt_diff,
-        format_header=fmt_header,
+        format_columns=fmt_cols,
+        diff_columns=diff_cols,
         source=source,
     )

@@ -1,25 +1,38 @@
 """Tests for termapy.protocol — hex utilities, framing, matching, script parsing."""
 
+import struct
+
 import pytest
 
 from termapy.protocol import (
+    CRC_CATALOGUE,
+    ColumnSpec,
+    CrcAlgorithm,
     FrameCollector,
     Step,
     VisualizerInfo,
+    _generic_crc,
+    apply_format,
+    builtins_crc_dir,
     builtins_viz_dir,
     diff_bytes,
+    diff_columns,
     format_diff_markup,
     format_hex,
-    overflow_count,
-    format_hex_dump,
+    get_crc_registry,
+    load_crc_plugins,
     load_proto_script,
     load_visualizers_from_dir,
     match_response,
+    overflow_count,
+    format_hex_dump,
     parse_data,
+    parse_format_spec,
     parse_hex,
     parse_pattern,
     parse_proto_script,
     parse_toml_script,
+    reset_crc_registry,
 )
 
 
@@ -825,127 +838,529 @@ class TestFormatDiffMarkupOverflow:
 # ── Packet Visualizer Tests ──────────────────────────────────────────
 
 
-class TestHexViewFormatBytes:
-    """Tests for hex_view.format_bytes."""
+# ── CRC Plugins ──────────────────────────────────────────────────────────
 
-    def test_empty(self):
-        """Empty bytes produce empty string."""
-        from termapy.builtins.viz.hex_view import format_bytes
 
-        assert format_bytes(b"") == ""
+class TestCrcPlugins:
+    """Tests for CRC plugin loading, catalogue, and computation."""
 
-    def test_single_byte(self):
-        """Single byte formatted without trailing space."""
-        from termapy.builtins.viz.hex_view import format_bytes
+    def test_plugins_load_sum_only(self):
+        """Built-in CRC plugin directory loads only sum8 and sum16."""
+        algos = load_crc_plugins(builtins_crc_dir())
 
-        assert format_bytes(b"\xff") == "FF"
+        expected_names = {"sum8", "sum16"}
+        assert set(algos.keys()) == expected_names
 
-    def test_multiple_bytes(self):
-        """Multiple bytes spaced with trailing space stripped."""
-        from termapy.builtins.viz.hex_view import format_bytes
-
-        actual = format_bytes(b"\x01\x02\x0a")
-        expected = "01 02 0A"
+    def test_sum8_compute(self):
+        """Sum8 checksum computes correctly."""
+        algos = load_crc_plugins(builtins_crc_dir())
+        actual = algos["sum8"].compute(b"\x01\x02\x03")
+        expected = 6
         assert actual == expected
 
-    def test_printable_ascii(self):
-        """Printable ASCII shows as hex, not characters."""
-        from termapy.builtins.viz.hex_view import format_bytes
+    def test_registry_has_catalogue_and_plugins(self):
+        """Registry includes catalogue entries + plugin entries."""
+        reset_crc_registry()
+        registry = get_crc_registry()
 
-        actual = format_bytes(b"AB")
-        expected = "41 42"
+        # Catalogue entries
+        assert "crc16-modbus" in registry
+        assert "crc16-xmodem" in registry
+        assert "crc32" in registry
+        assert "crc8" in registry
+        # Backward-compat aliases
+        assert "crc16m" in registry
+        assert "crc16x" in registry
+        # Plugin entries
+        assert "sum8" in registry
+        assert "sum16" in registry
+        assert isinstance(registry["crc16-modbus"], CrcAlgorithm)
+
+    def test_crc16_modbus_width(self):
+        """CRC-16/Modbus catalogue entry has width=2 bytes."""
+        reset_crc_registry()
+        registry = get_crc_registry()
+        assert registry["crc16-modbus"].width == 2
+
+    def test_crc16_modbus_compute(self):
+        """CRC-16/Modbus via catalogue matches known Modbus frame CRC."""
+        reset_crc_registry()
+        registry = get_crc_registry()
+        # Modbus read request: slave=1, func=3, addr=0, count=10
+        data = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
+        actual = registry["crc16-modbus"].compute(data)
+        expected = 0xCDC5  # known CRC for this frame
         assert actual == expected
 
+    def test_alias_matches_canonical(self):
+        """Backward-compat alias crc16m produces same result as crc16-modbus."""
+        reset_crc_registry()
+        registry = get_crc_registry()
+        data = b"123456789"
+        actual_alias = registry["crc16m"].compute(data)
+        actual_canonical = registry["crc16-modbus"].compute(data)
+        assert actual_alias == actual_canonical
 
-class TestHexViewFormatDiff:
-    """Tests for hex_view.format_diff with Rich markup."""
+    def test_empty_dir(self, tmp_path):
+        """Empty directory returns no plugin algorithms."""
+        algos = load_crc_plugins(tmp_path)
+        assert algos == {}
 
-    def test_all_match(self):
-        """All matching bytes produce green markup."""
-        from termapy.builtins.viz.hex_view import format_diff
 
-        actual = format_diff(b"\x01\x02", b"\x01\x02", b"\xff\xff")
-        # Each byte should be green
-        assert "[bold bright_green]01 [/]" in actual
-        assert "[bold bright_green]02[/]" in actual
+# ── Generic CRC engine — reveng catalogue check values ─────────────────
 
-    def test_mismatch(self):
-        """Mismatched bytes produce red markup."""
-        from termapy.builtins.viz.hex_view import format_diff
 
-        actual = format_diff(b"\x01\xFF", b"\x01\x02", b"\xff\xff")
-        assert "[bold bright_green]01 [/]" in actual
-        assert "[bold red]FF[/]" in actual
+# Canonical names only (exclude aliases which are duplicate entries)
+_CANONICAL_NAMES = [n for n in CRC_CATALOGUE if n not in ("crc16m", "crc16x")]
+_CHECK_DATA = b"123456789"
 
-    def test_missing(self):
-        """Missing bytes produce red placeholder."""
-        from termapy.builtins.viz.hex_view import format_diff
 
-        # Last token has trailing space stripped
-        actual = format_diff(b"\x01", b"\x01\x02", b"\xff\xff")
-        assert "[bold red]--[/]" in actual
+class TestGenericCrcEngine:
+    """Verify generic CRC engine against all 61 reveng catalogue check values."""
+
+    @pytest.mark.parametrize("name", _CANONICAL_NAMES)
+    def test_catalogue_check_value(self, name):
+        """Generic engine matches reveng catalogue check value."""
+        entry = CRC_CATALOGUE[name]
+        actual = _generic_crc(
+            _CHECK_DATA,
+            entry["width"],
+            entry["poly"],
+            entry["init"],
+            entry["refin"],
+            entry["refout"],
+            entry["xorout"],
+        )
+        expected = entry["check"]
+        assert actual == expected  # {name}: {actual:#x} != {expected:#x}
+
+
+# ── Format Spec Parsing ──────────────────────────────────────────────────
+
+
+class TestParseFormatSpec:
+    """Tests for format spec language parsing."""
+
+    def test_single_hex_byte(self):
+        """Single hex byte: H1."""
+        cols = parse_format_spec("Slave:H1")
+        assert len(cols) == 1
+        assert cols[0].name == "Slave"
+        assert cols[0].type_code == "H"
+        assert cols[0].byte_indices == [0]  # 1-based → 0-based
+
+    def test_hex_range(self):
+        """Hex range: H3-4 (ascending = big-endian)."""
+        cols = parse_format_spec("Addr:H3-4")
+        assert cols[0].byte_indices == [2, 3]
+
+    def test_hex_descending_range(self):
+        """Hex descending range: H4-1 (little-endian)."""
+        cols = parse_format_spec("Val:H4-1")
+        assert cols[0].byte_indices == [3, 2, 1, 0]
+
+    def test_decimal(self):
+        """Decimal type: D3-4."""
+        cols = parse_format_spec("Count:D3-4")
+        assert cols[0].type_code == "D"
+        assert cols[0].byte_indices == [2, 3]
+
+    def test_signed_decimal(self):
+        """Signed decimal: +D1-4."""
+        cols = parse_format_spec("Temp:+D1-4")
+        assert cols[0].type_code == "+D"
+        assert cols[0].byte_indices == [0, 1, 2, 3]
+
+    def test_string_type(self):
+        """String type: S5-12."""
+        cols = parse_format_spec("Name:S5-12")
+        assert cols[0].type_code == "S"
+        assert cols[0].byte_indices == list(range(4, 12))
+
+    def test_float_type(self):
+        """Float type: F1-4."""
+        cols = parse_format_spec("Temp:F1-4")
+        assert cols[0].type_code == "F"
+        assert cols[0].byte_indices == [0, 1, 2, 3]
+
+    def test_bit_field(self):
+        """Bit field: B1.3."""
+        cols = parse_format_spec("Enable:B1.3")
+        assert cols[0].type_code == "B"
+        assert cols[0].byte_indices == [0]
+        assert cols[0].bit == 3
 
     def test_wildcard(self):
-        """Wildcard positions produce dim markup."""
-        from termapy.builtins.viz.hex_view import format_diff
+        """Wildcard: H7-*."""
+        cols = parse_format_spec("Data:H7-*")
+        assert cols[0].wildcard is True
+        assert cols[0].byte_indices == [6]  # start index
 
-        actual = format_diff(b"\x01\xFF", b"\x01\x02", b"\xff\x00")
-        assert "[dim]FF[/]" in actual
+    def test_crc_le(self):
+        """CRC with little-endian: crc16m_le."""
+        cols = parse_format_spec("CRC:crc16m_le")
+        assert cols[0].type_code == "crc"
+        assert cols[0].crc_algo == "crc16m"
+        assert cols[0].crc_little_endian is True
+
+    def test_crc_be(self):
+        """CRC with big-endian: crc16x_be."""
+        cols = parse_format_spec("CRC:crc16x_be")
+        assert cols[0].crc_algo == "crc16x"
+        assert cols[0].crc_little_endian is False
+
+    def test_crc_with_range(self):
+        """CRC with explicit data range: crc16m_le(1-6)."""
+        cols = parse_format_spec("CRC:crc16m_le(1-6)")
+        assert cols[0].crc_algo == "crc16m"
+        assert cols[0].crc_data_range == (0, 5)  # 1-based → 0-based
+
+    def test_crc_hyphenated_name_le(self):
+        """CRC with hyphenated catalogue name: crc16-modbus_le."""
+        cols = parse_format_spec("CRC:crc16-modbus_le")
+        assert cols[0].type_code == "crc"
+        assert cols[0].crc_algo == "crc16-modbus"
+        assert cols[0].crc_little_endian is True
+
+    def test_crc_hyphenated_multi_dash_be(self):
+        """CRC with multi-hyphen name: crc16-ccitt-false_be."""
+        cols = parse_format_spec("CRC:crc16-ccitt-false_be")
+        assert cols[0].crc_algo == "crc16-ccitt-false"
+        assert cols[0].crc_little_endian is False
+
+    def test_crc_hyphenated_with_range(self):
+        """CRC with hyphenated name and data range."""
+        cols = parse_format_spec("CRC:crc16-modbus_le(1-6)")
+        assert cols[0].crc_algo == "crc16-modbus"
+        assert cols[0].crc_data_range == (0, 5)
+
+    def test_multi_column(self):
+        """Full Modbus spec parses multiple columns."""
+        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        cols = parse_format_spec(spec)
+        assert len(cols) == 5
+        actual_names = [c.name for c in cols]
+        expected_names = ["Slave", "Func", "Addr", "Count", "CRC"]
+        assert actual_names == expected_names
 
 
-class TestTextViewFormatBytes:
-    """Tests for text_view.format_bytes."""
+# ── apply_format ─────────────────────────────────────────────────────────
+
+
+def _modbus_crc(data: bytes) -> int:
+    """Helper: compute Modbus CRC-16 for test frame construction."""
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            if crc & 1:
+                crc = (crc >> 1) ^ 0xA001
+            else:
+                crc >>= 1
+    return crc
+
+
+def _modbus_frame(payload: bytes) -> bytes:
+    """Helper: build a complete Modbus frame with CRC."""
+    crc = _modbus_crc(payload)
+    return payload + struct.pack("<H", crc)
+
+
+class TestApplyFormat:
+    """Tests for applying format specs to raw data."""
+
+    def test_hex_single_byte(self):
+        """Single byte formats as 2-char hex."""
+        cols = parse_format_spec("Slave:H1")
+        headers, values = apply_format(b"\x01", cols)
+        assert headers == ["Slave"]
+        assert values == ["01"]
+
+    def test_decimal_two_bytes(self):
+        """Two-byte decimal big-endian."""
+        cols = parse_format_spec("Addr:D1-2")
+        headers, values = apply_format(b"\x00\x0A", cols)
+        assert values == ["10"]  # 0x000A = 10
+
+    def test_signed_negative(self):
+        """Signed decimal shows sign."""
+        cols = parse_format_spec("Temp:+D1-2")
+        headers, values = apply_format(b"\xFF\xFE", cols)
+        assert values == ["-2"]
+
+    def test_signed_positive(self):
+        """Signed decimal shows + for positive."""
+        cols = parse_format_spec("Temp:+D1")
+        headers, values = apply_format(b"\x7F", cols)
+        assert values == ["+127"]
+
+    def test_string_printable(self):
+        """String type shows printable chars, dots for unprintable."""
+        cols = parse_format_spec("Name:S1-5")
+        headers, values = apply_format(b"Hi\x00AB", cols)
+        assert values == ["Hi.AB"]
+
+    def test_float_value(self):
+        """Float type decodes IEEE 754."""
+        val_bytes = struct.pack(">f", 3.14)
+        cols = parse_format_spec("Temp:F1-4")
+        _, values = apply_format(val_bytes, cols)
+        assert float(values[0]) == pytest.approx(3.14, abs=0.01)
+
+    def test_bit_field(self):
+        """Bit field extracts single bit."""
+        cols = parse_format_spec("Enable:B1.0 Error:B1.7")
+        # byte 0 = 0x81 = 10000001
+        _, values = apply_format(b"\x81", cols)
+        assert values == ["1", "1"]  # bit 0 = 1, bit 7 = 1
+
+    def test_wildcard_expands(self):
+        """Wildcard H1-* expands to cover all bytes."""
+        cols = parse_format_spec("Data:H1-*")
+        _, values = apply_format(b"\x01\x02\x03", cols)
+        assert values == ["01 02 03"]
+
+    def test_modbus_read_request(self):
+        """Full Modbus read request decodes correctly."""
+        # Slave=1, Func=3, Addr=0, Count=10
+        payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        cols = parse_format_spec(spec)
+        reset_crc_registry()
+        headers, values = apply_format(frame, cols)
+        assert headers == ["Slave", "Func", "Addr", "Count", "CRC"]
+        assert values[0] == "01"  # Slave
+        assert values[1] == "03"  # Func
+        assert values[2] == "0"   # Addr
+        assert values[3] == "10"  # Count
+        # CRC should be a 4-char hex string
+        assert len(values[4]) == 4
+
+    def test_wildcard_with_crc(self):
+        """Wildcard excludes CRC bytes at end."""
+        # 6 data bytes + 2 CRC bytes = 8 total
+        payload = b"\x01\x02ABCD"
+        frame = _modbus_frame(payload)
+        spec = "Data:H1-* CRC:crc16m_le"
+        cols = parse_format_spec(spec)
+        reset_crc_registry()
+        headers, values = apply_format(frame, cols)
+        # Data should be first 6 bytes, not including CRC
+        assert "01 02 41 42 43 44" == values[0]
+
+
+# ── diff_columns ──────────────────────────────────────────────────────────
+
+
+class TestDiffColumns:
+    """Tests for column-based diff comparison."""
+
+    def test_all_match(self):
+        """All bytes match → all column statuses are 'match'."""
+        data = b"\x01\x03\x00\x0A"
+        mask = b"\xff\xff\xff\xff"
+        cols = parse_format_spec("Slave:H1 Func:H2 Addr:D3-4")
+        headers, exp_vals, act_vals, statuses = diff_columns(
+            data, data, mask, cols)
+        assert all(s == "match" for s in statuses)
+
+    def test_mismatch_column(self):
+        """Byte mismatch in a column → that column is 'mismatch'."""
+        expected = b"\x01\x03\x00\x0A"
+        actual = b"\x01\x04\x00\x0A"
+        mask = b"\xff\xff\xff\xff"
+        cols = parse_format_spec("Slave:H1 Func:H2 Addr:D3-4")
+        _, _, _, statuses = diff_columns(actual, expected, mask, cols)
+        assert statuses[0] == "match"      # Slave matches
+        assert statuses[1] == "mismatch"   # Func differs
+        assert statuses[2] == "match"      # Addr matches
+
+    def test_wildcard_column(self):
+        """Wildcard mask bytes → column status is 'match' (wildcards skip)."""
+        expected = b"\x01\x00\x03"
+        actual = b"\x01\xFF\x03"
+        mask = b"\xff\x00\xff"
+        cols = parse_format_spec("A:H1 B:H2 C:H3")
+        _, _, _, statuses = diff_columns(actual, expected, mask, cols)
+        assert statuses[1] == "match"  # wildcard byte, always match
+
+    def test_crc_verify_pass(self):
+        """CRC column shows 'match' when CRC is valid."""
+        payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        mask = b"\xff" * len(frame)
+        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        cols = parse_format_spec(spec)
+        reset_crc_registry()
+        _, _, _, statuses = diff_columns(frame, frame, mask, cols)
+        assert statuses[-1] == "match"  # CRC valid
+
+    def test_crc_verify_fail(self):
+        """CRC column shows 'mismatch' when CRC is corrupt."""
+        payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        # Corrupt the CRC
+        corrupted = bytearray(frame)
+        corrupted[-1] ^= 0xFF
+        corrupted = bytes(corrupted)
+        mask = b"\xff" * len(frame)
+        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        cols = parse_format_spec(spec)
+        reset_crc_registry()
+        _, _, _, statuses = diff_columns(corrupted, frame, mask, cols)
+        assert statuses[-1] == "mismatch"  # CRC invalid
+
+
+# ── Hex View Column API ──────────────────────────────────────────────────
+
+
+class TestHexViewColumns:
+    """Tests for hex_view column-based API."""
+
+    def test_empty(self):
+        """Empty bytes produce empty value."""
+        from termapy.builtins.viz.hex_view import format_columns
+
+        headers, values = format_columns(b"")
+        assert headers == ["Hex"]
+        assert values == [""]
+
+    def test_multiple_bytes(self):
+        """Multiple bytes as spaced hex."""
+        from termapy.builtins.viz.hex_view import format_columns
+
+        reset_crc_registry()
+        headers, values = format_columns(b"\x01\x02\x0A")
+        assert headers == ["Hex"]
+        assert values == ["01 02 0A"]
+
+    def test_diff_match(self):
+        """All matching bytes → match status."""
+        from termapy.builtins.viz.hex_view import diff_columns
+
+        reset_crc_registry()
+        _, _, _, statuses = diff_columns(
+            b"\x01\x02", b"\x01\x02", b"\xff\xff")
+        assert statuses == ["match"]
+
+    def test_diff_mismatch(self):
+        """Mismatched bytes → mismatch status."""
+        from termapy.builtins.viz.hex_view import diff_columns
+
+        reset_crc_registry()
+        _, _, _, statuses = diff_columns(
+            b"\x01\xFF", b"\x01\x02", b"\xff\xff")
+        assert statuses == ["mismatch"]
+
+
+# ── Text View Column API ─────────────────────────────────────────────────
+
+
+class TestTextViewColumns:
+    """Tests for text_view column-based API."""
+
+    def test_empty(self):
+        """Empty bytes produce empty value."""
+        from termapy.builtins.viz.text_view import format_columns
+
+        headers, values = format_columns(b"")
+        assert headers == ["Text"]
+        assert values == [""]
 
     def test_printable(self):
-        """Printable ASCII characters with space after each."""
-        from termapy.builtins.viz.text_view import format_bytes
+        """Printable ASCII shows as characters."""
+        from termapy.builtins.viz.text_view import format_columns
 
-        actual = format_bytes(b"Hi")
-        expected = "H i"
-        assert actual == expected
-
-    def test_escapes(self):
-        """Escape sequences rendered as backslash codes."""
-        from termapy.builtins.viz.text_view import format_bytes
-
-        actual = format_bytes(b"\r\n")
-        expected = "\\r\\n"
-        assert actual == expected
+        reset_crc_registry()
+        headers, values = format_columns(b"Hi")
+        assert values == ["Hi"]
 
     def test_unprintable(self):
-        """Non-printable, non-escape bytes shown as dots."""
-        from termapy.builtins.viz.text_view import format_bytes
+        """Unprintable bytes show as dots."""
+        from termapy.builtins.viz.text_view import format_columns
 
-        actual = format_bytes(b"\x80\x81")
-        expected = ". ."
-        assert actual == expected
-
-    def test_mixed(self):
-        """Mix of printable, escape, and unprintable."""
-        from termapy.builtins.viz.text_view import format_bytes
-
-        actual = format_bytes(b"A\r\x80")
-        expected = "A \\r."
-        assert actual == expected
+        reset_crc_registry()
+        _, values = format_columns(b"\x80\x81")
+        assert values == [".."]
 
 
-class TestTextViewFormatDiff:
-    """Tests for text_view.format_diff with Rich markup."""
+# ── Modbus View Column API ───────────────────────────────────────────────
 
-    def test_match(self):
-        """Matching printable bytes produce green markup."""
-        from termapy.builtins.viz.text_view import format_diff
 
-        actual = format_diff(b"AB", b"AB", b"\xff\xff")
-        assert "[bold bright_green]A [/]" in actual
-        assert "[bold bright_green]B[/]" in actual
+class TestModbusViewColumns:
+    """Tests for modbus_view column-based format spec API."""
 
-    def test_mismatch_escape(self):
-        """Mismatched escape produces red markup."""
-        from termapy.builtins.viz.text_view import format_diff
+    def test_read_request(self):
+        """Modbus read request decodes to named columns."""
+        from termapy.builtins.demo.viz.modbus_view import format_columns
 
-        actual = format_diff(b"\r", b"\n", b"\xff")
-        assert "[bold red]\\r[/]" in actual
+        payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        reset_crc_registry()
+        headers, values = format_columns(frame)
+        assert "Slave" in headers
+        assert "Func" in headers
+        assert "Addr" in headers
+        assert "Count" in headers
+        assert "CRC" in headers
+        # Slave = 0x01
+        actual_slave = values[headers.index("Slave")]
+        assert actual_slave == "01"
+
+    def test_read_response(self):
+        """Modbus read response generates dynamic register columns."""
+        from termapy.builtins.demo.viz.modbus_view import format_columns
+
+        # Response: slave=1, func=3, byte_count=4, reg0=7, reg1=20
+        payload = bytes([0x01, 0x03, 0x04, 0x00, 0x07, 0x00, 0x14])
+        frame = _modbus_frame(payload)
+        reset_crc_registry()
+        headers, values = format_columns(frame)
+        assert "R0" in headers
+        assert "R1" in headers
+        actual_r0 = values[headers.index("R0")]
+        assert actual_r0 == "7"  # 0x0007 = 7
+
+    def test_write_single_register(self):
+        """Write single register decodes correctly."""
+        from termapy.builtins.demo.viz.modbus_view import format_columns
+
+        payload = bytes([0x01, 0x06, 0x00, 0x05, 0x04, 0xD2])
+        frame = _modbus_frame(payload)
+        reset_crc_registry()
+        headers, values = format_columns(frame)
+        assert "Reg" in headers
+        assert "Value" in headers
+        actual_value = values[headers.index("Value")]
+        assert actual_value == "1234"  # 0x04D2 = 1234
+
+    def test_exception_response(self):
+        """Modbus exception response decodes correctly."""
+        from termapy.builtins.demo.viz.modbus_view import format_columns
+
+        payload = bytes([0x01, 0x83, 0x02])
+        frame = _modbus_frame(payload)
+        reset_crc_registry()
+        headers, values = format_columns(frame)
+        assert "ErrFunc" in headers
+        assert "Code" in headers
+        actual_code = values[headers.index("Code")]
+        assert actual_code == "2"  # exception code 2
+
+    def test_diff_match(self):
+        """Matching frames produce all 'match' statuses."""
+        from termapy.builtins.demo.viz.modbus_view import diff_columns
+
+        payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
+        frame = _modbus_frame(payload)
+        mask = b"\xff" * len(frame)
+        reset_crc_registry()
+        _, _, _, statuses = diff_columns(frame, frame, mask)
+        assert all(s == "match" for s in statuses)
+
+
+# ── Visualizer Loader ────────────────────────────────────────────────────
 
 
 class TestLoadVisualizersFromDir:
@@ -990,21 +1405,21 @@ class TestLoadVisualizersFromDir:
         """Files starting with _ are skipped."""
         (tmp_path / "_hidden.py").write_text(
             'NAME = "Hidden"\n'
-            'def format_bytes(d): return ""\n'
-            'def format_diff(a, e, m): return ""\n'
+            'def format_columns(d): return ["Col"], ["val"]\n'
+            'def diff_columns(a, e, m): return ["Col"], ["e"], ["a"], ["match"]\n'
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
         assert vizs == []
 
     def test_custom_visualizer(self, tmp_path):
-        """Custom .py file with valid exports loads correctly."""
+        """Custom .py file with valid column exports loads correctly."""
         (tmp_path / "custom.py").write_text(
             'NAME = "Custom"\n'
             'DESCRIPTION = "A test visualizer"\n'
             'SORT_ORDER = 99\n'
-            'def format_bytes(d): return "custom"\n'
-            'def format_diff(a, e, m): return "diff"\n'
+            'def format_columns(d): return ["Col"], ["custom"]\n'
+            'def diff_columns(a, e, m): return ["Col"], ["e"], ["a"], ["match"]\n'
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
@@ -1013,66 +1428,40 @@ class TestLoadVisualizersFromDir:
         assert vizs[0].description == "A test visualizer"
         assert vizs[0].sort_order == 99
         assert vizs[0].source == "test"
-        assert vizs[0].format_bytes(b"") == "custom"
+        actual_headers, actual_values = vizs[0].format_columns(b"")
+        assert actual_values == ["custom"]
 
     def test_missing_name_skipped(self, tmp_path):
         """File without NAME is skipped."""
         (tmp_path / "bad.py").write_text(
-            'def format_bytes(d): return ""\n'
-            'def format_diff(a, e, m): return ""\n'
+            'def format_columns(d): return [], []\n'
+            'def diff_columns(a, e, m): return [], [], [], []\n'
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
         assert vizs == []
 
-    def test_missing_format_bytes_skipped(self, tmp_path):
-        """File without format_bytes is skipped."""
+    def test_missing_format_columns_skipped(self, tmp_path):
+        """File without format_columns is skipped."""
         (tmp_path / "bad.py").write_text(
             'NAME = "Bad"\n'
-            'def format_diff(a, e, m): return ""\n'
+            'def diff_columns(a, e, m): return [], [], [], []\n'
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
         assert vizs == []
 
     def test_defaults(self, tmp_path):
-        """SORT_ORDER defaults to 50, DESCRIPTION to empty, format_header to None."""
+        """SORT_ORDER defaults to 50, DESCRIPTION to empty."""
         (tmp_path / "minimal.py").write_text(
             'NAME = "Min"\n'
-            'def format_bytes(d): return ""\n'
-            'def format_diff(a, e, m): return ""\n'
+            'def format_columns(d): return [], []\n'
+            'def diff_columns(a, e, m): return [], [], [], []\n'
         )
         vizs = load_visualizers_from_dir(tmp_path, "test")
 
         assert vizs[0].sort_order == 50
         assert vizs[0].description == ""
-        assert vizs[0].format_header is None  # assert optional, not required
-
-    def test_format_header_loaded(self, tmp_path):
-        """format_header is loaded when defined in visualizer file."""
-        (tmp_path / "with_header.py").write_text(
-            'NAME = "Hdr"\n'
-            'def format_bytes(d): return ""\n'
-            'def format_diff(a, e, m): return ""\n'
-            'def format_header(d): return "Field1  Field2"\n'
-        )
-        vizs = load_visualizers_from_dir(tmp_path, "test")
-
-        actual = vizs[0].format_header(b"\x01\x02")
-        expected = "Field1  Field2"
-        assert actual == expected  # assert header function returns expected string
-
-    def test_format_header_non_callable_ignored(self, tmp_path):
-        """Non-callable format_header is treated as None."""
-        (tmp_path / "bad_header.py").write_text(
-            'NAME = "BadHdr"\n'
-            'def format_bytes(d): return ""\n'
-            'def format_diff(a, e, m): return ""\n'
-            'format_header = "not a function"\n'
-        )
-        vizs = load_visualizers_from_dir(tmp_path, "test")
-
-        assert vizs[0].format_header is None  # assert non-callable ignored
 
     def test_broken_file_skipped(self, tmp_path):
         """File with syntax error is skipped without crashing."""

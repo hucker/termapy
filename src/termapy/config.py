@@ -253,8 +253,18 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
             src = plugins_pkg / name
             dest.write_bytes(src.read_bytes())
 
+    # Copy demo visualizers
+    viz_dir = demo_dir / "viz"
+    viz_dir.mkdir(exist_ok=True)
+    viz_pkg = pkg / "viz"
+    for name in ("at_view.py",):
+        dest = viz_dir / name
+        if force or not dest.exists():
+            src = viz_pkg / name
+            dest.write_bytes(src.read_bytes())
+
     # Create standard subdirs
-    for sub in ("ss", "viz"):
+    for sub in ("ss",):
         (demo_dir / sub).mkdir(exist_ok=True)
 
     return config_path

@@ -128,6 +128,8 @@ The most common ones:
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
 | `/show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `/echo [on \| off]`       | Toggle REPL command echo                                                         |
+| `/echo.quiet <on \| off>` | Set echo on/off silently (for scripts and auto_connect_cmd)                      |
+| `/edit <file>`            | Edit a project file (`$cfg`, `$log`, `$info`, or `scripts/`/`proto/` path)       |
 | `/show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
 | `/os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |

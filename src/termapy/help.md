@@ -142,9 +142,11 @@ Commands prefixed with `/` (configurable via `repl_prefix`) run locally instead 
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `/show <name>`            | Show a file (`$cfg` for current config)                                     |
 | `/echo [on\|off]`         | Toggle command echo                                                         |
+| `/echo.quiet <on\|off>`   | Set echo on/off silently (for scripts and auto_connect_cmd)                 |
 | `/os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)    |
 | `/show_eol {on\|off}`     | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
+| `/edit <file>`            | Edit a project file (`$cfg`, `$log`, `$info`, or `scripts/`/`proto/` path)  |
 | `/info {--display}`       | Show project summary; `--display` opens full report in system viewer        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |

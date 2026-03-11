@@ -13,22 +13,22 @@ honest about that.
 | **Command scripting**       | `.run` files with delays, sequences, confirmations                                                        | Batch/COM automation                    | macOS only (AppleScript)   | Full macro language (TTL)    | VBScript engine                       | No                   |
 | **Programmable extensions** | Python plugins (drop-in `.py` files)                                                                      | No (COM API for external tools)         | No                         | DLL extensions (C/C++)       | No                                    | No                   |
 | **Binary protocol testing** | `.pro` scripts with hex send/expect, interactive debug screen, scrolling results, visualizer data in logs | Strong — hex/dec/binary send            | Send hex strings only      | Hex display only             | Strong — visual send/expect sequences | Hex/dec/binary send  |
-| **CRC tools**               | 62 named algorithms, `!proto crc` list/help/calc with hex, text, or file input, check-string verification | No built-in                             | No                         | No                           | CRC auto-calculation in sequences     | No                   |
+| **CRC tools**               | 62 named algorithms, `/proto crc` list/help/calc with hex, text, or file input, check-string verification | No built-in                             | No                         | No                           | CRC auto-calculation in sequences     | No                   |
 | **Packet visualizers**      | Pluggable — Hex, Text, Modbus built-in; drop `.py` for custom decoders with per-column diff coloring      | No                                      | No                         | No                           | Predefined protocol decoders          | No                   |
-| **In-line tool commands**   | Yes — `!grep`, `!cfg`, `!proto`, `!seq` from the input bar                                                | No                                      | No                         | No                           | No                                    | No                   |
+| **In-line tool commands**   | Yes — `/grep`, `/cfg`, `/proto`, `/seq` from the input bar                                                | No                                      | No                         | No                           | No                                    | No                   |
 | **Config management**       | JSON files with per-config dirs (scripts, plugins, screenshots, logs)                                     | Minimal                                 | Save/load connection files | INI file with GUI dialogs    | Project files                         | XML files            |
-| **Command history**         | Per-config, configurable depth, up-arrow recall                                                           | Basic                                   | Basic                      | Basic                        | N/A                                   | N/A                  |
+| **Command history**         | Per-config, Up/Down arrow cycling with type-ahead                                                           | Basic                                   | Basic                      | Basic                        | N/A                                   | N/A                  |
 | **Custom buttons**          | Configurable toolbar — serial, REPL, or script commands                                                   | No                                      | No                         | No                           | Predefined send sequences             | No                   |
 | **Screenshots**             | Built-in SVG + text capture                                                                               | No                                      | No                         | Unknown                      | No                                    | No                   |
-| **Search scrollback**       | `!grep` with regex                                                                                        | 200-line buffer, no search              | Hex view search only       | Unknown                      | Find Sequence                         | No                   |
+| **Search scrollback**       | `/grep` with regex                                                                                        | 200-line buffer, no search              | Hex view search only       | Unknown                      | Find Sequence                         | No                   |
 | **Auto-reconnect**          | Yes, with autoconnect command sequences                                                                   | Yes                                     | Yes, configurable delay    | Yes (USB replug detect)      | Yes (hotplug recovery)                | No                   |
 | **Session logging**         | Auto per-config log file                                                                                  | Yes, timestamped                        | Yes, text/binary           | Yes                          | Yes                                   | Yes                  |
-| **Hex display mode**        | Toggle with `!proto hex`                                                                                  | Multiple formats (hex/dec/binary/float) | Side-by-side hex/text      | Hex format                   | HEX/dec/binary                        | HEX/dec/binary/ASCII |
+| **Hex display mode**        | Toggle with `/proto hex`                                                                                  | Multiple formats (hex/dec/binary/float) | Side-by-side hex/text      | Hex format                   | HEX/dec/binary                        | HEX/dec/binary/ASCII |
 | **Terminal emulation**      | ANSI color rendering                                                                                      | Basic                                   | Limited ANSI               | Full VT100–VT382             | No — protocol analyzer                | No — raw display     |
 | **Cross-platform**          | Win/Mac/Linux (Python TUI)                                                                                | Windows only                            | Win/Mac/Linux (native GUI) | Windows only                 | Windows only                          | Win/Linux            |
 | **Cost**                    | Free, open source                                                                                         | Free, open source                       | Free (donationware)        | Free, open source            | ~$190 (free eval)                     | Free                 |
 | **Line ending control**     | CR/LF/CRLF configurable                                                                                   | Yes                                     | Yes                        | Yes                          | Full byte control                     | Yes                  |
-| **Demo/simulation mode**    | `--demo` or `!demo` — simulated device, no hardware needed                                                | No                                      | No                         | No                           | No                                    | No                   |
+| **Demo/simulation mode**    | `--demo` or `/demo` — simulated device, no hardware needed                                                | No                                      | No                         | No                           | No                                    | No                   |
 | **Maturity**                | New (2025)                                                                                                | ~15 years                               | ~10 years                  | 25+ years                    | ~15 years                             | ~10 years            |
 | **Community**               | None                                                                                                      | SourceForge forums                      | User forums                | Active open-source community | Commercial support                    | Minimal              |
 | **Installer**               | Requires Python + uv                                                                                      | Windows .exe                            | Native installer           | Windows .exe                 | Windows installer                     | Standalone binary    |
@@ -46,13 +46,13 @@ look like what you'd type by hand, just automated.
 ```text
 # smoke_test.run
 AT
-!delay 300ms
+/delay 300ms
 AT+INFO
-!delay 500ms
+/delay 500ms
 AT+TEMP
-!confirm Reset device?
+/confirm Reset device?
 AT+RESET
-!delay 1s
+/delay 1s
 ```
 
 ### Python plugins (`.py`) — for engineers
@@ -82,7 +82,7 @@ And here it is in the shell reporting 31C3 as the CRC...which matches the XMODEM
 This is TRIVIAL for LLMs (and people) to write code for.
 
 ```shell
-> !crcsend 123456789
+> /crcsend 123456789
 Sent: '123456789' 31C3  
 ```
 

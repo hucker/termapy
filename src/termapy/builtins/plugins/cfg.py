@@ -23,7 +23,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Optional ``"key"`` or ``"key value"`` string.
     """
     parts = args.strip().split(None, 1)
-    # !cfg — show all
+    # /cfg — show all
     if not parts:
         for k, v in ctx.cfg.items():
             ctx.write(f"  {k}: {v!r}")
@@ -32,11 +32,11 @@ def _handler(ctx: PluginContext, args: str) -> None:
     if key not in ctx.cfg:
         ctx.write(f"Unknown config key: {key}", "red")
         return
-    # !cfg key — show value
+    # /cfg key — show value
     if len(parts) == 1:
         ctx.write(f"  {key}: {ctx.cfg[key]!r}")
         return
-    # !cfg key value — validate and delegate for confirmation
+    # /cfg key value — validate and delegate for confirmation
     value_str = parts[1]
     try:
         new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])
@@ -66,7 +66,7 @@ def _handler_auto(ctx: PluginContext, args: str) -> None:
     """
     parts = args.strip().split(None, 1)
     if not parts or len(parts) < 2:
-        ctx.write("Usage: !cfg.auto <key> <value>", "red")
+        ctx.write("Usage: /cfg.auto <key> <value>", "red")
         return
     key, value_str = parts[0], parts[1]
     if key not in ctx.cfg:
@@ -87,15 +87,15 @@ COMMAND = Command(
     help="Show or change config values.",
     long_help="""\
 Three modes:
-  !cfg              — show all config key/value pairs
-  !cfg baudrate     — show current value of 'baudrate'
-  !cfg baudrate 115200 — change with confirmation dialog
+  /cfg              — show all config key/value pairs
+  /cfg baudrate     — show current value of 'baudrate'
+  /cfg baudrate 115200 — change with confirmation dialog
 
 Type is auto-detected from the existing value (int, float,
 bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
 Changes are saved to the JSON config file.
 
-Use !cfg.auto to set values without confirmation (for scripts).""",
+Use /cfg.auto to set values without confirmation (for scripts).""",
     handler=_handler,
     sub_commands={
         "auto": Command(

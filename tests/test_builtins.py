@@ -28,7 +28,7 @@ def repl_env(tmp_path):
 
     engine = ReplEngine(cfg, str(config_path), write)
     engine_api = EngineAPI(
-        prefix="!",
+        prefix="/",
         plugins=engine._plugins,
         get_echo=lambda: engine._echo,
         set_echo=lambda val: setattr(engine, "_echo", val),
@@ -54,7 +54,7 @@ def repl_env(tmp_path):
     return engine, cfg, config_path, output
 
 
-# -- !echo ----------------------------------------------------------------
+# -- /echo ----------------------------------------------------------------
 
 
 class TestEcho:
@@ -95,7 +95,7 @@ class TestEcho:
         assert engine._echo is True  # toggled back on
 
 
-# -- !print ---------------------------------------------------------------
+# -- /print ---------------------------------------------------------------
 
 
 class TestPrint:
@@ -110,7 +110,7 @@ class TestPrint:
         assert ("", None) in output  # empty string printed
 
 
-# -- !seq -----------------------------------------------------------------
+# -- /seq -----------------------------------------------------------------
 
 
 class TestSeq:
@@ -144,7 +144,7 @@ class TestSeq:
         assert any("reset" in t.lower() for t, _ in output)  # confirmation shown
 
 
-# -- !stop ----------------------------------------------------------------
+# -- /stop ----------------------------------------------------------------
 
 
 class TestStop:
@@ -166,7 +166,7 @@ class TestStop:
         assert any("Stopping" in t for t, _ in output)  # confirmation shown
 
 
-# -- !help ----------------------------------------------------------------
+# -- /help ----------------------------------------------------------------
 
 
 class TestHelp:
@@ -205,7 +205,7 @@ class TestHelp:
         assert output[-1][1] == "red"  # shown in red
 
     def test_help_shows_long_help(self, repl_env):
-        """!help <cmd> shows LONG_HELP lines when present."""
+        """/help <cmd> shows LONG_HELP lines when present."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -224,7 +224,7 @@ class TestHelp:
         assert any("Line two." in t for t in texts)  # second long_help line
 
     def test_help_dev_shows_docstring(self, repl_env):
-        """!help.dev <cmd> shows the handler's Python docstring."""
+        """/help.dev <cmd> shows the handler's Python docstring."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -251,7 +251,7 @@ class TestHelp:
         assert any("developer docstring" in t for t in texts)  # header shown
 
     def test_help_dev_summary_bold(self, repl_env):
-        """!help.dev renders summary line bold when followed by blank line."""
+        """/help.dev renders summary line bold when followed by blank line."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -275,7 +275,7 @@ class TestHelp:
         assert any("[bold]Summary line here.[/]" in t for t in markup_lines)  # bold summary
 
     def test_help_dev_section_headers_bold(self, repl_env):
-        """!help.dev renders Google-style section headers (Args:, Returns:) bold."""
+        """/help.dev renders Google-style section headers (Args:, Returns:) bold."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -304,7 +304,7 @@ class TestHelp:
         assert any("[bold]Returns:[/]" in t for t in markup_lines)  # Returns header bold
 
     def test_help_dev_param_labels_bold(self, repl_env):
-        """!help.dev renders 'param: description' with param: bold."""
+        """/help.dev renders 'param: description' with param: bold."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -331,7 +331,7 @@ class TestHelp:
         assert any("[bold]args:[/] Command arguments" in t for t in markup_lines)  # args: bold
 
     def test_help_dev_no_docstring(self, repl_env):
-        """!help.dev <cmd> with no docstring shows a message."""
+        """/help.dev <cmd> with no docstring shows a message."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -348,7 +348,7 @@ class TestHelp:
         assert any("no docstring" in t for t in texts)  # no-doc message shown
 
     def test_help_dev_skips_long_help(self, repl_env):
-        """!help.dev shows docstring instead of LONG_HELP."""
+        """/help.dev shows docstring instead of LONG_HELP."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -371,7 +371,7 @@ class TestHelp:
         assert not any("long help" in t.lower() for t in texts)  # LONG_HELP not shown
 
     def test_help_no_long_help_omits_extra(self, repl_env):
-        """!help <cmd> with empty LONG_HELP shows only the one-liner."""
+        """/help <cmd> with empty LONG_HELP shows only the one-liner."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -386,11 +386,11 @@ class TestHelp:
         # Assert — only one output line (the usage line)
         texts = [t for t, _ in output]
         actual = len(texts)
-        expected = 1  # just the "!briefcmd — Just brief." line
+        expected = 1  # just the "/briefcmd — Just brief." line
         assert actual == expected
 
 
-# -- !show ----------------------------------------------------------------
+# -- /show ----------------------------------------------------------------
 
 
 class TestShow:
@@ -442,7 +442,7 @@ class TestShow:
         assert any("Unknown special" in t for t, _ in output)  # error for bad $name
 
 
-# -- !os ------------------------------------------------------------------
+# -- /os ------------------------------------------------------------------
 
 
 class TestOs:
@@ -497,7 +497,7 @@ class TestDispatch:
         assert engine._echo is False  # uppercase command works
 
 
-# -- !grep ----------------------------------------------------------------
+# -- /grep ----------------------------------------------------------------
 
 _SCREEN_TEXT = """\
 Hello world
@@ -563,7 +563,7 @@ class TestGrep:
             "real error line\n"
             "  grep: 'error' — 1 match(es)\n"
             "  grep:     1 | real error line\n"
-            "> !grep error"
+            "> /grep error"
         )
         self._set_screen_text(engine, text)
 

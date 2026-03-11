@@ -1,9 +1,9 @@
 {
-    "config_version": 3,
+    "config_version": 4,
     "title": "Demo Device",
     "app_border_color": "",
     "max_lines": 10000,
-    "repl_prefix": "!",
+    "repl_prefix": "/",
     "os_cmd_enabled": false,
     "port": "DEMO",
     "baudrate": 115200,
@@ -24,11 +24,10 @@
     "show_eol": false,
     "exception_traceback": true,
     "max_grep_lines": 100,
-    "command_history_items": 30,
     "custom_buttons": [
-        {"enabled": true, "name": "Demo Help", "command": "!cls\\nHELP", "tooltip": "Clear screen and show device commands"},
-        {"enabled": true, "name": "AT Demo", "command": "!cls\\n!run at_demo.run", "tooltip": "Run all AT commands with delays"},
-        {"enabled": true, "name": "Info", "command": "!info", "tooltip": "Project info"},
-        {"enabled": true, "name": "Probe", "command": "!probe", "tooltip": "Demo plugin: query the device"}
+        {"enabled": true, "name": "Demo Help", "command": "/cls\\nHELP", "tooltip": "Clear screen and show device commands"},
+        {"enabled": true, "name": "AT Demo", "command": "/cls\\n/run at_demo.run", "tooltip": "Run all AT commands with delays"},
+        {"enabled": true, "name": "Info", "command": "/info", "tooltip": "Project info"},
+        {"enabled": true, "name": "Probe", "command": "/probe", "tooltip": "Demo plugin: query the device"}
     ]
 }

@@ -40,34 +40,34 @@ No hardware? Try termapy with a built-in simulated serial device:
 termapy --demo
 ```
 
-This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts, proto test files, a demo plugin (`!probe`), and a demo visualizer (`AT`) are included to exercise all features. You can also switch to demo mode at runtime with `!demo`, or set `"port": "DEMO"` in any config file.
+This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts, proto test files, a demo plugin (`/probe`), and a demo visualizer (`AT`) are included to exercise all features. You can also switch to demo mode at runtime with `/demo`, or set `"port": "DEMO"` in any config file.
 
 ![Demo project tree](img/demo_tree.svg)
 
 **AT commands:**
 
-| Command | Description |
-| --- | --- |
-| `AT` | Connection test (returns `OK`) |
-| `AT+PROD-ID` | Product identifier (returns `BASSOMATIC-77`) |
-| `AT+INFO` | Device info (version, uptime, free memory) |
-| `AT+TEMP` | Read temperature sensor |
-| `AT+LED on\|off` | Control LED |
-| `AT+NAME?` | Query device name |
-| `AT+NAME=val` | Set device name (max 32 chars) |
-| `AT+BAUD?` | Query baud rate |
-| `AT+BAUD=val` | Set baud rate (9600, 19200, 38400, 57600, 115200) |
-| `AT+STATUS` | Device status (LED, uptime, connections) |
-| `AT+RESET` | Reset device (simulates boot sequence) |
-| `mem <addr> [len]` | Hex memory dump (deterministic, max 256 bytes) |
-| `help` | List all commands |
+| Command            | Description                                       |
+| ------------------ | ------------------------------------------------- |
+| `AT`               | Connection test (returns `OK`)                    |
+| `AT+PROD-ID`       | Product identifier (returns `BASSOMATIC-77`)      |
+| `AT+INFO`          | Device info (version, uptime, free memory)        |
+| `AT+TEMP`          | Read temperature sensor                           |
+| `AT+LED on\|off`   | Control LED                                       |
+| `AT+NAME?`         | Query device name                                 |
+| `AT+NAME=val`      | Set device name (max 32 chars)                    |
+| `AT+BAUD?`         | Query baud rate                                   |
+| `AT+BAUD=val`      | Set baud rate (9600, 19200, 38400, 57600, 115200) |
+| `AT+STATUS`        | Device status (LED, uptime, connections)          |
+| `AT+RESET`         | Reset device (simulates boot sequence)            |
+| `mem <addr> [len]` | Hex memory dump (deterministic, max 256 bytes)    |
+| `help`             | List all commands                                 |
 
 **Modbus RTU:**
 
-| Function | Description |
-| --- | --- |
-| `0x03` | Read holding registers (up to 125 registers) |
-| `0x06` | Write single register (echo-back) |
+| Function | Description                                  |
+| -------- | -------------------------------------------- |
+| `0x03`   | Read holding registers (up to 125 registers) |
+| `0x06`   | Write single register (echo-back)            |
 
 CRC16 validation is enforced on all frames. Invalid CRC or unsupported function codes return Modbus exception responses.
 
@@ -119,7 +119,7 @@ termapy_cfg/
 │   ├── ss/                             # screenshots
 │   │   ├── screenshot_20260306_141523.svg
 │   │   └── screenshot_20260306_141530.txt
-│   ├── scripts/                        # script files for !run
+│   ├── scripts/                        # script files for /run
 │   │   └── init_sequence.txt
 │   ├── plugins/                        # per-config plugins
 │   │   └── custom_init.py
@@ -146,7 +146,7 @@ termapy_cfg/
 - **Auto-connect and auto-reconnect** -- reconnects on port drop with retry
 - **Auto-login commands** -- send a sequence of commands on connect (separated by `\n` in config)
 - **Hardware line control** -- toggle DTR/RTS and send Break when `flow_control` is `"manual"` (see example below)
-- **Command history** -- press Up to recall recent commands (default 30, configurable via `command_history_items`), persisted per-config; Enter executes, F2 edits
+- **Command history** -- Up/Down arrows cycle through recent commands (last 30 per config); type-ahead suggestions from REPL commands and device history
 - **Local echo** -- optionally echo sent commands with configurable Rich markup formatting
 - **Custom buttons** -- add up to 4 configurable toolbar buttons that send serial commands, run REPL commands, or execute multi-command sequences
 - **JSON config files** -- create, load, edit, and switch configs from within the app; each config gets its own subfolder
@@ -154,21 +154,22 @@ termapy_cfg/
 - **Session logging** -- timestamped plain-text log stored per-config, with optional date-stamped commands
 - **Screenshots** -- save the terminal view as SVG (Ctrl+S) or plain text (Ctrl+T)
 - **Scripting** -- create, edit, and run script files from the UI; supports serial commands, delays, REPL commands, and sequence counters with auto-increment; scripts are stored in the per-config `scripts/` folder
-- **REPL commands** -- type `!help` for local commands: screenshots, clear screen, run shell commands, inline config editing
+- **REPL commands** -- type `/help` for local commands: screenshots, clear screen, run shell commands, inline config editing
 - **Binary protocol testing** -- send raw hex bytes, run scripted send/expect test sequences with pass/fail reporting, wildcard pattern matching, and hex display mode; supports both hex and quoted text in `.pro` script files; interactive debug screen with repeat, delay, stop-on-error, scrolling results log, and per-test visualizer column data in log files
 - **Plugins** -- drop `.py` files into `plugins/` folders to add custom REPL commands; all built-in commands use the same plugin architecture
 - **Pluggable packet visualizers** -- hex and text views are built-in; drop a `.py` file into `viz/` to add custom packet visualizers (e.g. Modbus field decoding, bit-level views) without modifying core code; selectable via checklist in the debug screen with optional format spec string display
 
 ## Keyboard Shortcuts
 
-| Key       | Action                               |
-| --------- | ------------------------------------ |
-| Ctrl+Q    | Quit (also closes any open dialog)   |
-| Ctrl+S    | Save SVG screenshot                  |
-| Ctrl+T    | Save text screenshot                 |
-| Ctrl+P    | Command palette                      |
-| Up        | Command history                      |
-| F2        | Edit selected history command        |
+| Key     | Action                              |
+| ------- | ----------------------------------- |
+| Ctrl+Q  | Quit (also closes any open dialog)  |
+| Ctrl+S  | Save SVG screenshot                 |
+| Ctrl+T  | Save text screenshot                |
+| Ctrl+P  | Command palette                     |
+| Up/Down | Cycle through command history       |
+| Escape  | Clear input / exit history browsing |
+| Right   | Accept type-ahead suggestion        |
 
 ## Title Bar Buttons
 
@@ -183,62 +184,62 @@ termapy_cfg/
 
 ## REPL Commands
 
-Type commands prefixed with `!` (configurable via `repl_prefix`) to run local actions instead of sending to the serial device.
+Type commands prefixed with `/` (configurable via `repl_prefix`) to run local actions instead of sending to the serial device.
 
 | Command                   | Description                                                                      |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| `!help [cmd]`             | List commands or show extended help for one                                       |
-| `!help.dev <cmd>`         | Show a command handler's Python docstring                                         |
-| `!port [name]`            | Open a port by name, or show subcommands                                         |
-| `!port.list`              | List available serial ports                                                      |
-| `!port.open {name}`       | Connect to the serial port (optional port override)                              |
-| `!port.close`             | Disconnect from the serial port                                                  |
-| `!cfg [key [value]]`      | Show config, show a key, or change a value (with confirmation)                   |
-| `!cfg.auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
-| `!ss.svg [name]`          | Save SVG screenshot                                                              |
-| `!ss.txt [name]`          | Save text screenshot                                                             |
-| `!ss.dir`                 | Show the screenshot folder                                                       |
-| `!cls`                    | Clear the terminal screen                                                        |
-| `!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
-| `!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
-| `!confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)        |
-| `!stop`                   | Abort a running script                                                           |
-| `!seq [reset]`            | Show or reset sequence counters                                                  |
-| `!print <text>`           | Print a message to the terminal                                                  |
-| `!print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
-| `!show <name>`            | Show a file (`$cfg` for current config)                                          |
-| `!echo [on \| off]`       | Toggle REPL command echo                                                         |
-| `!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
-| `!os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
-| `!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
-| `!info {--display}`       | Show project summary; `--display` opens full report in system viewer             |
-| `!proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
-| `!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
-| `!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
-| `!proto crc list {pat}`   | List available CRC algorithms (optional glob filter)                             |
-| `!proto crc help <name>`  | Show CRC algorithm parameters and description                                    |
-| `!proto crc calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
-| `!proto status`           | Show current protocol mode state                                                 |
-| `!exit`                   | Exit termapy                                                                     |
+| `/help [cmd]`             | List commands or show extended help for one                                      |
+| `/help.dev <cmd>`         | Show a command handler's Python docstring                                        |
+| `/port [name]`            | Open a port by name, or show subcommands                                         |
+| `/port.list`              | List available serial ports                                                      |
+| `/port.open {name}`       | Connect to the serial port (optional port override)                              |
+| `/port.close`             | Disconnect from the serial port                                                  |
+| `/cfg [key [value]]`      | Show config, show a key, or change a value (with confirmation)                   |
+| `/cfg.auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
+| `/ss.svg [name]`          | Save SVG screenshot                                                              |
+| `/ss.txt [name]`          | Save text screenshot                                                             |
+| `/ss.dir`                 | Show the screenshot folder                                                       |
+| `/cls`                    | Clear the terminal screen                                                        |
+| `/run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
+| `/delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
+| `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)        |
+| `/stop`                   | Abort a running script                                                           |
+| `/seq [reset]`            | Show or reset sequence counters                                                  |
+| `/print <text>`           | Print a message to the terminal                                                  |
+| `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
+| `/show <name>`            | Show a file (`$cfg` for current config)                                          |
+| `/echo [on \| off]`       | Toggle REPL command echo                                                         |
+| `/show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
+| `/os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
+| `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
+| `/info {--display}`       | Show project summary; `--display` opens full report in system viewer             |
+| `/proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
+| `/proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
+| `/proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
+| `/proto crc list {pat}`   | List available CRC algorithms (optional glob filter)                             |
+| `/proto crc help <name>`  | Show CRC algorithm parameters and description                                    |
+| `/proto crc calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
+| `/proto status`           | Show current protocol mode state                                                 |
+| `/exit`                   | Exit termapy                                                                     |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
 ### Sending and Receiving Binary Data
 
-Use `!proto send` to send raw bytes and see the response. Mix hex bytes and quoted strings:
+Use `/proto send` to send raw bytes and see the response. Mix hex bytes and quoted strings:
 
 ```text
-!proto send 01 03 00 00 00 0A
+/proto send 01 03 00 00 00 0A
   TX: 01 03 00 00 00 0A
   RX: 01 03 14 00 64 00 C8 01 2C ...
   (24 bytes, 12ms)
 
-!proto send "AT+RST\r\n"
+/proto send "AT+RST\r\n"
   TX: 41 54 2B 52 53 54 0D 0A
   RX: 4F 4B 0D 0A
   (4 bytes, 85ms)
 
-!proto send FF 00 "hello" 0D 0A
+/proto send FF 00 "hello" 0D 0A
   TX: FF 00 68 65 6C 6C 6F 0D 0A
   RX: 41 43 4B
   (3 bytes, 7ms)
@@ -246,13 +247,13 @@ Use `!proto send` to send raw bytes and see the response. Mix hex bytes and quot
 
 No line ending is appended — you send exactly the bytes you specify. Responses are collected using timeout-based framing (configurable via `proto_frame_gap_ms`). For longer packets (>16 bytes), output switches to a hex dump with offsets and ASCII sidebar.
 
-Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decoded text — useful for understanding line endings, looking at binary protocols and knowing what is happening on the wire.
+Toggle `/proto hex` to show all normal serial I/O as hex bytes instead of decoded text — useful for understanding line endings, looking at binary protocols and knowing what is happening on the wire.
 
 ## Config Reference
 
 ```json
 {
-    "config_version": 3,
+    "config_version": 4,
     "port": "COM4",
     "baudrate": 115200,
     "bytesize": 8,
@@ -271,11 +272,10 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
     "show_timestamps": false,
     "show_eol": false,
     "max_grep_lines": 100,
-    "command_history_items": 30,
     "title": "",
     "app_border_color": "",
     "max_lines": 10000,
-    "repl_prefix": "!",
+    "repl_prefix": "/",
     "os_cmd_enabled": false,
     "exception_traceback": false,
     "custom_buttons": [
@@ -289,36 +289,35 @@ Toggle `!proto hex` to show all normal serial I/O as hex bytes instead of decode
 
 ### Config Fields
 
-| Field                   | Default                | Description                                                                                              |
-| ----------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| `config_version`        | `3`                    | Schema version — managed automatically by the migration system, do not edit                              |
-| `port`                  | `"COM4"`               | Serial port name                                                                                         |
-| `baudrate`              | `115200`               | Baud rate                                                                                                |
-| `bytesize`              | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
-| `parity`                | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
-| `stopbits`              | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
-| `flow_control`          | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
-| `encoding`              | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
-| `inter_cmd_delay_ms`    | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
-| `line_ending`           | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
-| `autoconnect`           | `false`                | Connect to the port on startup                                                                           |
-| `autoreconnect`         | `false`                | Retry every second if the port drops or fails to open                                                    |
-| `autoconnect_cmd`       | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
-| `echo_cmd`              | `false`                | Echo sent commands locally                                                                               |
-| `echo_cmd_fmt`          | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
-| `log_file`              | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
-| `show_timestamps`       | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
-| `show_eol`              | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
-| `max_grep_lines`        | `100`                  | Maximum number of matching lines shown by `!grep`                                                        |
-| `command_history_items` | `30`                   | Number of commands to keep in the per-config command history                                             |
-| `proto_frame_gap_ms`    | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
-| `title`                 | `""`                   | Title bar center text. Defaults to the config filename                                                   |
-| `app_border_color`      | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
-| `max_lines`             | `10000`                | Maximum lines in the scrollback buffer                                                                   |
-| `repl_prefix`           | `"!"`                  | Prefix for local REPL commands (e.g. `!help`, `!cls`)                                                    |
-| `os_cmd_enabled`        | `false`                | Enable the `!os` REPL command to run shell commands                                                      |
-| `exception_traceback`   | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
-| `custom_buttons`        | `[]`                   | Array of custom button objects (see Custom Buttons below)                                                |
+| Field                 | Default                | Description                                                                                              |
+| --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| `config_version`      | `4`                    | Schema version — managed automatically by the migration system, do not edit                              |
+| `port`                | `"COM4"`               | Serial port name                                                                                         |
+| `baudrate`            | `115200`               | Baud rate                                                                                                |
+| `bytesize`            | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
+| `parity`              | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
+| `stopbits`            | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
+| `flow_control`        | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
+| `encoding`            | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
+| `inter_cmd_delay_ms`  | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
+| `line_ending`         | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
+| `autoconnect`         | `false`                | Connect to the port on startup                                                                           |
+| `autoreconnect`       | `false`                | Retry every second if the port drops or fails to open                                                    |
+| `autoconnect_cmd`     | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
+| `echo_cmd`            | `false`                | Echo sent commands locally                                                                               |
+| `echo_cmd_fmt`        | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
+| `log_file`            | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
+| `show_timestamps`     | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
+| `show_eol`            | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
+| `max_grep_lines`      | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
+| `proto_frame_gap_ms`  | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
+| `title`               | `""`                   | Title bar center text. Defaults to the config filename                                                   |
+| `app_border_color`    | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
+| `max_lines`           | `10000`                | Maximum lines in the scrollback buffer                                                                   |
+| `repl_prefix`         | `"/"`                  | Prefix for local REPL commands (e.g. `/help`, `/cls`)                                                    |
+| `os_cmd_enabled`      | `false`                | Enable the `/os` REPL command to run shell commands                                                      |
+| `exception_traceback` | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
+| `custom_buttons`      | `[]`                   | Array of custom button objects (see Custom Buttons below)                                                |
 
 **Note on `show_eol`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output — turn `show_eol` off when not actively debugging.
 
@@ -373,14 +372,14 @@ With `flow_control` set to `"manual"`, three extra buttons appear in the toolbar
 
 ### Custom Buttons
 
-Add custom buttons to the toolbar. The default config includes 4 disabled placeholders — enable them and fill in the fields, or add more entries. Each button has `enabled`, `name`, `command`, and `tooltip` fields. Commands starting with `!` run as REPL commands; everything else is sent to the serial device. Use `\n` to chain multiple commands or use `!run` to run a script file.
+Add custom buttons to the toolbar. The default config includes 4 disabled placeholders — enable them and fill in the fields, or add more entries. Each button has `enabled`, `name`, `command`, and `tooltip` fields. Commands starting with `/` run as REPL commands; everything else is sent to the serial device. Use `\n` to chain multiple commands or use `/run` to run a script file.
 
 ```json
 {
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
-        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n!sleep 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
-        {"enabled": true, "name": "Status", "command": "!run status_check.run", "tooltip": "Run status script"}
+        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n/sleep 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
+        {"enabled": true, "name": "Status", "command": "/run status_check.run", "tooltip": "Run status script"}
     ]
 }
 ```
@@ -429,7 +428,7 @@ No classes to subclass, no registration — the file is discovered automatically
 
 ### Subcommands
 
-Use `sub_commands` for related operations. Users invoke them with dot notation (`!tool.run`):
+Use `sub_commands` for related operations. Users invoke them with dot notation (`/tool.run`):
 
 ```python
 from termapy.plugins import Command
@@ -451,30 +450,30 @@ COMMAND = Command(
 )
 ```
 
-The user types `!tool.run myfile` or `!tool.status`. Interior nodes without a handler get a synthetic handler that lists their subcommands.
+The user types `/tool.run myfile` or `/tool.status`. Interior nodes without a handler get a synthetic handler that lists their subcommands.
 
 ### PluginContext API
 
 The `ctx` object passed to every handler. This is the stable public API for external plugins:
 
-| Method / Attribute          | Description                                           |
-| --------------------------- | ----------------------------------------------------- |
-| `ctx.write(text, color)`    | Print to the terminal (color is optional)             |
-| `ctx.write_markup(text)`    | Print Rich markup text (e.g. `[bold red]Warning![/]`) |
-| `ctx.cfg`                   | Current config dict (read-only access)                |
-| `ctx.config_path`           | Path to the current `.json` config file               |
-| `ctx.is_connected()`        | Check if the serial port is open                      |
-| `ctx.serial_write(data)`    | Send bytes to the serial port                         |
-| `ctx.serial_wait_idle()`    | Wait until serial output settles                      |
-| `ctx.serial_read_raw()`     | Read raw bytes with timeout framing (returns `bytes`) |
+| Method / Attribute          | Description                                                        |
+| --------------------------- | ------------------------------------------------------------------ |
+| `ctx.write(text, color)`    | Print to the terminal (color is optional)                          |
+| `ctx.write_markup(text)`    | Print Rich markup text (e.g. `[bold red]Warning![/]`)              |
+| `ctx.cfg`                   | Current config dict (read-only access)                             |
+| `ctx.config_path`           | Path to the current `.json` config file                            |
+| `ctx.is_connected()`        | Check if the serial port is open                                   |
+| `ctx.serial_write(data)`    | Send bytes to the serial port                                      |
+| `ctx.serial_wait_idle()`    | Wait until serial output settles                                   |
+| `ctx.serial_read_raw()`     | Read raw bytes with timeout framing (returns `bytes`)              |
 | `ctx.serial_io()`           | Context manager for exclusive serial I/O (`with ctx.serial_io():`) |
-| `ctx.ss_dir`                | Screenshot directory (`Path`)                         |
-| `ctx.scripts_dir`           | Scripts directory (`Path`)                            |
-| `ctx.confirm(message)`      | Show Yes/Cancel dialog, return `bool` (scripts only)  |
-| `ctx.notify(text)`          | Show a toast notification                             |
-| `ctx.clear_screen()`        | Clear the terminal output                             |
-| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file                      |
-| `ctx.get_screen_text()`     | Get terminal content as plain text                    |
+| `ctx.ss_dir`                | Screenshot directory (`Path`)                                      |
+| `ctx.scripts_dir`           | Scripts directory (`Path`)                                         |
+| `ctx.confirm(message)`      | Show Yes/Cancel dialog, return `bool` (scripts only)               |
+| `ctx.notify(text)`          | Show a toast notification                                          |
+| `ctx.clear_screen()`        | Clear the terminal output                                          |
+| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file                                   |
+| `ctx.get_screen_text()`     | Get terminal content as plain text                                 |
 
 Plugins can use anything from the Python standard library or third-party packages. They interact with `termapy` only through `ctx`.
 
@@ -489,7 +488,7 @@ See `examples/plugins/` for working examples:
 - **timestamp.py** -- print the current date/time
 - **ping.py** -- send a command and measure response time
 
-A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_cfg/demo/plugins/` demonstrates the drain → write → read → parse cycle for device interaction. Run `!help probe` or `!help.dev probe` to see its documentation.
+A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_cfg/demo/plugins/` demonstrates the drain → write → read → parse cycle for device interaction. Run `/help probe` or `/help.dev probe` to see its documentation.
 
 ## Packet Visualizers
 
@@ -512,15 +511,15 @@ Name:TypeStart-End
 
 **Type codes:**
 
-| Code | Meaning | Example | Output |
-|------|---------|---------|--------|
-| `H`  | Hex (unsigned) | `H1` (1 byte), `H3-4` (2 bytes) | `0A`, `01FF` |
-| `D`  | Decimal unsigned | `D1` (1 byte), `D3-4` (2 bytes BE) | `10`, `256` |
-| `+D` | Decimal signed | `+D1` (signed byte) | `-1`, `+127` |
-| `S`  | ASCII string | `S5-12` (bytes 5-12 as chars) | `Hello...` |
-| `F`  | IEEE 754 float | `F1-4` (4-byte float BE) | `3.14` |
-| `B`  | Single bit | `B1.0` (bit 0 of byte 1) | `0` or `1` |
-| `crc*` | CRC verify | `crc16m_le` | `C5CD` (green/red) |
+| Code   | Meaning          | Example                            | Output             |
+| ------ | ---------------- | ---------------------------------- | ------------------ |
+| `H`    | Hex (unsigned)   | `H1` (1 byte), `H3-4` (2 bytes)    | `0A`, `01FF`       |
+| `D`    | Decimal unsigned | `D1` (1 byte), `D3-4` (2 bytes BE) | `10`, `256`        |
+| `+D`   | Decimal signed   | `+D1` (signed byte)                | `-1`, `+127`       |
+| `S`    | ASCII string     | `S5-12` (bytes 5-12 as chars)      | `Hello...`         |
+| `F`    | IEEE 754 float   | `F1-4` (4-byte float BE)           | `3.14`             |
+| `B`    | Single bit       | `B1.0` (bit 0 of byte 1)           | `0` or `1`         |
+| `crc*` | CRC verify       | `crc16m_le`                        | `C5CD` (green/red) |
 
 **Byte indexing** is 1-based. Endianness is expressed by byte order:
 
@@ -595,7 +594,7 @@ No classes, no Textual dependency. The `parse_format_spec()` and `apply_format()
 
 ### CRC Algorithms
 
-Termapy ships with a built-in catalogue of 62 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (30), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout). Each algorithm includes a description of its typical usage (e.g. "Modbus RTU serial protocol", "iSCSI, SCTP, Castagnoli"). Use `!proto crc list` to browse algorithms, `!proto crc help <name>` for full parameters, and `!proto crc calc` to compute CRCs interactively. `calc` auto-detects hex bytes vs plain text, accepts a file path to CRC file contents, and with no data runs the standard check string "123456789" with pass/fail verification.
+Termapy ships with a built-in catalogue of 62 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (30), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout). Each algorithm includes a description of its typical usage (e.g. "Modbus RTU serial protocol", "iSCSI, SCTP, Castagnoli"). Use `/proto crc list` to browse algorithms, `/proto crc help <name>` for full parameters, and `/proto crc calc` to compute CRCs interactively. `calc` auto-detects hex bytes vs plain text, accepts a file path to CRC file contents, and with no data runs the standard check string "123456789" with pass/fail verification.
 
 Use readable names directly in format specs:
 
@@ -624,24 +623,24 @@ Plugins override catalogue entries of the same name.
 
 ### Visualizer API Reference
 
-| Export                                          | Required | Default | Description                                                 |
-| ----------------------------------------------- | -------- | ------- | ----------------------------------------------------------- |
-| `NAME`                                          | yes      | —       | Checkbox label and table header                             |
-| `format_columns(data)`                          | yes      | —       | Return `(headers, values)` lists for TX/Expected rows       |
-| `diff_columns(actual, expected, mask)`          | yes      | —       | Return `(headers, exp_vals, act_vals, statuses)` for diffs  |
-| `format_spec(data)`                             | no       | `""`    | Return the raw format spec string for display               |
-| `DESCRIPTION`                                   | no       | `""`    | Tooltip text for the checkbox                               |
-| `SORT_ORDER`                                    | no       | `50`    | Checkbox ordering (lower = first, built-ins use 10/20)      |
+| Export                                 | Required | Default | Description                                                |
+| -------------------------------------- | -------- | ------- | ---------------------------------------------------------- |
+| `NAME`                                 | yes      | —       | Checkbox label and table header                            |
+| `format_columns(data)`                 | yes      | —       | Return `(headers, values)` lists for TX/Expected rows      |
+| `diff_columns(actual, expected, mask)` | yes      | —       | Return `(headers, exp_vals, act_vals, statuses)` for diffs |
+| `format_spec(data)`                    | no       | `""`    | Return the raw format spec string for display              |
+| `DESCRIPTION`                          | no       | `""`    | Tooltip text for the checkbox                              |
+| `SORT_ORDER`                           | no       | `50`    | Checkbox ordering (lower = first, built-ins use 10/20)     |
 
 **Utilities from `termapy.protocol`:**
 
-| Function | Description |
-| -------- | ----------- |
-| `parse_format_spec(spec)` | Parse a format spec string into `list[ColumnSpec]` |
-| `apply_format(data, columns)` | Apply column specs to data, return `(headers, values)` |
+| Function                                        | Description                                                             |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| `parse_format_spec(spec)`                       | Parse a format spec string into `list[ColumnSpec]`                      |
+| `apply_format(data, columns)`                   | Apply column specs to data, return `(headers, values)`                  |
 | `diff_columns(actual, expected, mask, columns)` | Compare with per-column status: `match`, `mismatch`, `extra`, `missing` |
-| `diff_bytes(expected, actual, mask)` | Per-byte comparison returning status list |
-| `get_crc_registry()` | Get loaded CRC algorithms dict |
+| `diff_bytes(expected, actual, mask)`            | Per-byte comparison returning status list                               |
+| `get_crc_registry()`                            | Get loaded CRC algorithms dict                                          |
 
 ## Threading Model
 
@@ -691,4 +690,4 @@ This separation is deliberate: pure logic lives in testable modules (`protocol.p
 
 ## How Does Termapy Compare?
 
-See [COMPARISON.md](COMPARISON.md) for an honest feature comparison against RealTerm, CoolTerm, Tera Term, Docklight, and HTerm.
+See [COMPARISON.md](COMPARISON.md) for an "honest" feature comparison against RealTerm, CoolTerm, Tera Term, Docklight, and HTerm.

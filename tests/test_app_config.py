@@ -101,7 +101,7 @@ class TestDefaultCfg:
         info_btn = DEFAULT_CFG["custom_buttons"][0]
         assert info_btn["enabled"] is True  # Info button enabled
         assert info_btn["name"] == "Info"  # named Info
-        assert info_btn["command"] == "!info"  # runs !info
+        assert info_btn["command"] == "/info"  # runs /info
 
     def test_custom_buttons_placeholders_disabled(self):
         """Remaining default buttons are disabled placeholders."""
@@ -192,7 +192,7 @@ class TestScriptTemplate:
 
     def test_has_example_commands(self):
         actual = _SCRIPT_TEMPLATE.format(name="x")
-        assert "!sleep" in actual  # contains REPL example
+        assert "/sleep" in actual  # contains REPL example
 
 
 # -- Custom button config validation ----------------------------------------
@@ -229,8 +229,8 @@ class TestCustomButtonConfig:
     def test_command_split(self):
         """Simulate the \\n split used in _run_custom_button."""
         # Arrange
-        raw = "ATZ\\nAT+INFO\\n!sleep 500ms"
-        expected = ["ATZ", "AT+INFO", "!sleep 500ms"]
+        raw = "ATZ\\nAT+INFO\\n/sleep 500ms"
+        expected = ["ATZ", "AT+INFO", "/sleep 500ms"]
 
         # Act
         actual = [c.strip() for c in raw.split("\\n") if c.strip()]
@@ -247,6 +247,6 @@ class TestCustomButtonConfig:
         assert actual == []  # empty string yields empty list
 
     def test_repl_prefix_detection(self):
-        prefix = "!"
-        assert "!run test.run".startswith(prefix)  # REPL command detected
+        prefix = "/"
+        assert "/run test.run".startswith(prefix)  # REPL command detected
         assert not "ATZ".startswith(prefix)  # serial command not matched

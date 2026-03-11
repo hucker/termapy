@@ -26,7 +26,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
 def _handler_rich(ctx: PluginContext, args: str) -> None:
     """Write Rich markup text to the terminal output.
 
-    Unlike ``!print`` which outputs plain text, ``!print.r`` passes
+    Unlike ``/print`` which outputs plain text, ``/print.r`` passes
     text through the Rich markup parser, enabling styled output
     with tags like ``[bold red]text[/]``.
 

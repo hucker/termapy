@@ -1,7 +1,7 @@
 """Example plugin: measure serial response time.
 
 Drop this file into termapy_cfg/plugins/ (global) or
-termapy_cfg/<config>/plugins/ (per-config) to make !ping available.
+termapy_cfg/<config>/plugins/ (per-config) to make /ping available.
 
 Demonstrates using serial_write, serial_wait_idle, and timing.
 """

@@ -281,7 +281,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
         args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
     """
     if not args.strip():
-        ctx.write("Usage: !proto.send <hex bytes or \"text\">", "red")
+        ctx.write("Usage: /proto.send <hex bytes or \"text\">", "red")
         return
     if not ctx.is_connected():
         ctx.write("Not connected.", "red")
@@ -321,7 +321,7 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: !proto.run <file.pro>", "red")
+        ctx.write("Usage: /proto.run <file.pro>", "red")
         return
 
     path = _resolve_proto_file(ctx, filename)
@@ -362,7 +362,7 @@ def _cmd_debug(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: !proto.debug <file.pro>", "red")
+        ctx.write("Usage: /proto.debug <file.pro>", "red")
         return
 
     path = _resolve_proto_file(ctx, filename)
@@ -476,7 +476,7 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip().lower()
     if not name:
-        ctx.write("Usage: !proto.crc.help <name>", "red")
+        ctx.write("Usage: /proto.crc.help <name>", "red")
         return
 
     entry = CRC_CATALOGUE.get(name)
@@ -489,7 +489,7 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
             ctx.write("  No catalogue parameters — loaded from plugin file.")
             return
         ctx.write(f"Unknown algorithm: {name}", "red")
-        ctx.write("Use '!proto.crc.list' to see available algorithms.")
+        ctx.write("Use '/proto.crc.list' to see available algorithms.")
         return
 
     w = entry["width"]
@@ -549,7 +549,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
     parts = args.strip().split(None, 1)
     if not parts:
         ctx.write(
-            "Usage: !proto.crc.calc <name> {hex bytes or text}", "red"
+            "Usage: /proto.crc.calc <name> {hex bytes or text}", "red"
         )
         return
 
@@ -559,7 +559,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
     alg = registry.get(name)
     if alg is None:
         ctx.write(f"Unknown algorithm: {name}", "red")
-        ctx.write("Use '!proto.crc.list' to see available algorithms.")
+        ctx.write("Use '/proto.crc.list' to see available algorithms.")
         return
 
     # No data provided — use the standard check string "123456789"
@@ -641,15 +641,15 @@ COMMAND = Command(
     help="Binary protocol tools: send, run, debug, hex, crc, status.",
     long_help="""\
 Send examples:
-  !proto.send 01 02 03         — send three hex bytes
-  !proto.send "AT\\r"           — send text with carriage return
-  !proto.send 0x01 "hello" 0D  — mix hex and text
+  /proto.send 01 02 03         — send three hex bytes
+  /proto.send "AT\\r"           — send text with carriage return
+  /proto.send 0x01 "hello" 0D  — mix hex and text
 
 CRC examples:
-  !proto.crc.list              — list all 62 algorithms
-  !proto.crc.list *modbus*     — filter by glob pattern
-  !proto.crc.help crc16-modbus — show parameters for Modbus CRC
-  !proto.crc.calc crc16-modbus 01 03 00 00 00 01  — compute CRC
+  /proto.crc.list              — list all 62 algorithms
+  /proto.crc.list *modbus*     — filter by glob pattern
+  /proto.crc.help crc16-modbus — show parameters for Modbus CRC
+  /proto.crc.calc crc16-modbus 01 03 00 00 00 01  — compute CRC
 
 Script files (.pro) support TOML format with [[test]] sections
 or flat format with send:/expect: directives. Scripts are found

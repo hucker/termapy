@@ -27,7 +27,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     """
     pattern = args.strip()
     if not pattern:
-        ctx.write("Usage: !grep <pattern>", "red")
+        ctx.write("Usage: /grep <pattern>", "red")
         return
     try:
         rx = re.compile(pattern, re.IGNORECASE)
@@ -35,7 +35,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         ctx.write(f"  grep: invalid pattern: {e}", "red")
         return
     max_matches = ctx.cfg.get("max_grep_lines", 100)
-    prefix = ctx.cfg.get("repl_prefix", "!")
+    prefix = ctx.cfg.get("repl_prefix", "/")
     grep_cmd = f"{prefix}grep"
     text = ctx.get_screen_text()
     lines = text.splitlines()
@@ -83,8 +83,8 @@ before display. Grep's own output is excluded from results.
 Max results controlled by max_grep_lines config (default 100).
 
 Examples:
-  !grep error          — find lines containing 'error'
-  !grep ^OK            — lines starting with 'OK'
-  !grep temp.*\\d+      — 'temp' followed by digits""",
+  /grep error          — find lines containing 'error'
+  /grep ^OK            — lines starting with 'OK'
+  /grep temp.*\\d+      — 'temp' followed by digits""",
     handler=_handler,
 )

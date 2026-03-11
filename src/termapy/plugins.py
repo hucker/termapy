@@ -26,7 +26,7 @@ Subcommands are declared with ``sub_commands``::
         },
     )
 
-Users invoke subcommands with dot notation: ``!tool.run myfile``.
+Users invoke subcommands with dot notation: ``/tool.run myfile``.
 
 The PluginContext provides a stable API for plugins to interact with
 the terminal, serial port, config, and filesystem without touching
@@ -54,12 +54,12 @@ class Command:
     from the dict key.
 
     Attributes:
-        help: One-line description shown by ``!help``.
+        help: One-line description shown by ``/help``.
         name: Command name (lowercase). Required at root level, empty
             for sub_commands entries (name comes from the dict key).
         args: Argument spec for help display. ``""`` = no args,
             ``"{opt}"`` = optional, ``"<required>"`` = required.
-        long_help: Extended help shown by ``!help <cmd>``.
+        long_help: Extended help shown by ``/help <cmd>``.
         handler: The command function. Required for leaf nodes.
             Signature: ``handler(ctx: PluginContext, args: str) -> None``.
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
@@ -96,7 +96,7 @@ class EngineAPI:
     Access via ctx.engine from built-in command handlers.
     """
 
-    prefix: str = "!"
+    prefix: str = "/"
     plugins: dict = field(default_factory=dict)
     get_echo: Callable = lambda: True
     set_echo: Callable = lambda val: None
@@ -219,12 +219,12 @@ class PluginInfo:
     """Metadata and handler for a single plugin command or subcommand.
 
     Attributes:
-        name: Dotted command path (lowercase). Users type ``!name`` or
-            ``!parent.child`` to invoke.
+        name: Dotted command path (lowercase). Users type ``/name`` or
+            ``/parent.child`` to invoke.
         args: Argument spec for help display. ``""`` = no args,
             ``"{opt}"`` = optional, ``"<required>"`` = required.
-        help: One-line description shown by ``!help``.
-        long_help: Extended help shown by ``!help <cmd>``. May span multiple
+        help: One-line description shown by ``/help``.
+        long_help: Extended help shown by ``/help <cmd>``. May span multiple
             lines. When empty, the one-line ``help`` is shown instead.
         handler: The command function. Signature:
             ``handler(ctx: PluginContext, args: str) -> None``.
@@ -366,7 +366,7 @@ def _make_interior_handler(
     """Create a synthetic handler for an interior command node.
 
     The handler lists available subcommands when the user invokes the
-    interior node directly (e.g. ``!proto`` with no subcommand).
+    interior node directly (e.g. ``/proto`` with no subcommand).
 
     Args:
         full_name: Dotted command path (e.g. "proto").

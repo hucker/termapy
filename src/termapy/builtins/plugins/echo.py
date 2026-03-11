@@ -32,10 +32,36 @@ def _handler(ctx: PluginContext, args: str) -> None:
     ctx.write(f"REPL echo {state}.", "green")
 
 
+def _handler_quiet(ctx: PluginContext, args: str) -> None:
+    """Set REPL echo on/off silently (no output).
+
+    Useful in auto_connect_cmd and scripts where you want to
+    suppress echo without printing a status message.
+
+    Args:
+        ctx: Plugin context for engine API.
+        args: ``"on"`` or ``"off"``.
+    """
+    arg = args.strip().lower()
+    if arg == "on":
+        ctx.engine.set_echo(True)
+    elif arg == "off":
+        ctx.engine.set_echo(False)
+    else:
+        ctx.write("Usage: /echo.quiet <on|off>", "red")
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="echo",
     args="{on | off}",
     help="Toggle REPL command echo, or set on/off. Output is not affected.",
     handler=_handler,
+    sub_commands={
+        "quiet": Command(
+            args="<on | off>",
+            help="Set echo on/off silently (no output message).",
+            handler=_handler_quiet,
+        ),
+    },
 )

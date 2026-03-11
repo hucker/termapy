@@ -324,6 +324,72 @@ class SerialTerminal(App):
         except OSError:
             pass  # non-critical — history will be lost but app continues
 
+    def _project_files(self) -> list[str]:
+        """Return suggestion names for all editable project files.
+
+        Scans scripts/ (.run) and proto/ (.pro), plus special names
+        $cfg, $log, $info. Skips ss/, plugins/, viz/, and .py files.
+        """
+        names = ["$cfg", "$log", "$info"]
+        for d, pattern in [
+            (self.repl.scripts_dir, "*.run"),
+            (self.repl.proto_dir, "*.pro"),
+        ]:
+            if d.exists():
+                for f in sorted(d.glob(pattern)):
+                    if f.is_file():
+                        names.append(f"{d.name}/{f.name}")
+        return names
+
+    def _resolve_project_file(self, name: str) -> Path | None:
+        """Resolve a user-supplied filename to an absolute path.
+
+        Handles special names ($cfg, $log, $info) and prefixed paths
+        (scripts/foo.run, proto/bar.pro). Falls back to extension-based
+        lookup for bare filenames.
+
+        Args:
+            name: User input (e.g. "$cfg", "scripts/demo.run", "test.pro").
+
+        Returns:
+            Resolved Path, or None if not found.
+        """
+        low = name.lower()
+        if low == "$cfg":
+            return Path(self.config_path) if self.config_path else None
+        if low == "$log":
+            log = self._log_path()
+            return Path(log) if log else None
+        if low == "$info":
+            if not self.config_path:
+                return None
+            stem = Path(self.config_path).stem
+            return Path(self.config_path).parent / f"{stem}.md"
+
+        # Prefixed path: "scripts/foo.run" or "proto/bar.pro"
+        dir_map = {
+            "scripts": self.repl.scripts_dir,
+            "proto": self.repl.proto_dir,
+        }
+        parts = Path(name).parts
+        if len(parts) == 2:
+            base = dir_map.get(parts[0].lower())
+            if base:
+                path = base / parts[1]
+                return path if path.exists() else None
+
+        # Bare filename fallback by extension
+        ext = Path(name).suffix.lower()
+        ext_map = {
+            ".run": self.repl.scripts_dir,
+            ".pro": self.repl.proto_dir,
+        }
+        base = ext_map.get(ext)
+        if base:
+            path = base / name
+            return path if path.exists() else None
+        return None
+
     def _update_suggester(self) -> None:
         """Rebuild type-ahead suggestions from REPL commands + device history."""
         prefix = self.cfg.get("repl_prefix", "/")
@@ -332,6 +398,8 @@ class SerialTerminal(App):
             commands.append(f"{prefix}{name}")
             if plugin.args:
                 commands.append(f"{prefix}{name} {plugin.args}")
+        for f in self._project_files():
+            commands.append(f"{prefix}edit {f}")
         self._suggester.update(commands, self.history, prefix)
 
     def compose(self) -> ComposeResult:
@@ -573,6 +641,13 @@ class SerialTerminal(App):
             self._hook_line_no,
             source="app",
         )
+        self.repl.register_hook(
+            "edit",
+            "<filename>",
+            "Edit a project file. $cfg/$log/$info or scripts/proto path.",
+            self._hook_edit,
+            source="app",
+        )
         # Load external plugins: global first, then per-config (can override)
         self._load_and_report(
             load_plugins_from_dir(global_plugins_dir(), "global"),
@@ -639,7 +714,7 @@ class SerialTerminal(App):
             self.read_serial()
             auto_cmd = self.cfg.get("auto_connect_cmd", "")
             if auto_cmd:
-                self._run_lines(auto_cmd.split("\n"), echo_prefix="auto> ", delay=0.2)
+                self._run_lines(auto_cmd.split("\n"), delay=0.2)
             return True
         except serial.SerialException as e:
             self.reader_stopped.set()
@@ -787,21 +862,20 @@ class SerialTerminal(App):
         self._send_lines(cmds, echo_prefix=echo_prefix)
 
     def _send_lines(self, lines: list[str], echo_prefix: str = "") -> None:
-        """Send multiple commands with inter_cmd_delay_ms between each."""
-        line_ending = self.cfg.get("line_ending", "\r")
-        enc = self.cfg.get("encoding", "utf-8")
+        """Send multiple commands with inter_cmd_delay_ms between each.
+
+        Routes each line through _dispatch_single, which handles REPL
+        prefix detection and serial sending.
+        """
         delay_s = self.cfg.get("inter_cmd_delay_ms", 0) / 1000.0
         try:
             for cmd in lines:
                 cmd = cmd.strip()
-                if not cmd or not self.ser or not self.ser.is_open:
+                if not cmd:
                     continue
                 if echo_prefix:
                     self.call_from_thread(self._status, f"{echo_prefix}{cmd}")
-                try:
-                    self.ser.write((cmd + line_ending).encode(enc))
-                except (serial.SerialException, OSError):
-                    return
+                self.call_from_thread(self._dispatch_single, cmd)
                 if delay_s > 0:
                     time.sleep(delay_s)
                 self._wait_for_idle(400)
@@ -1255,7 +1329,7 @@ class SerialTerminal(App):
 
     def _palette_edit_config(self) -> None:
         self.push_screen(
-            ConfigEditor(self.cfg, self.config_path),
+            ConfigEditor(dict(self.cfg), self.config_path),
             callback=self._on_config_result,
         )
 
@@ -1888,6 +1962,62 @@ class SerialTerminal(App):
         if path:
             self._status(f"Proto script saved: {Path(path).name}", "green")
             self._sync_proto_button()
+
+    def _hook_edit(self, ctx, args: str) -> None:
+        """Edit a project file using the same dialogs as the UI menus.
+
+        Routes to ConfigEditor ($cfg), LogViewer ($log/$info),
+        ScriptEditor (.run), or ProtoEditor (.pro).
+
+        Args:
+            ctx: Plugin context (unused).
+            args: Filename or special name ($cfg, $log, $info).
+        """
+        filename = args.strip()
+        if not filename:
+            self.repl.write("Usage: /edit <filename>", "red")
+            return
+        low = filename.lower()
+
+        # $cfg — same as Cfg menu → Edit
+        if low == "$cfg":
+            self.push_screen(
+                ConfigEditor(dict(self.cfg), self.config_path),
+                callback=self._on_config_result,
+            )
+            return
+
+        # $log — same as Palette → View Log
+        if low == "$log":
+            self.push_screen(LogViewer(self._log_path()))
+            return
+
+        # $info — view the generated info report
+        if low == "$info":
+            path = self._resolve_project_file("$info")
+            if path and path.exists():
+                self.push_screen(LogViewer(str(path)))
+            else:
+                self.repl.write("No info report yet. Run /info first.", "red")
+            return
+
+        # Resolve prefixed or bare filename
+        path = self._resolve_project_file(filename)
+        if path is None:
+            self.repl.write(f"File not found: {filename}", "red")
+            return
+
+        ext = path.suffix.lower()
+        if ext == ".run":
+            self.push_screen(
+                ScriptEditor(self.repl.scripts_dir, str(path)),
+                callback=self._on_script_saved,
+            )
+        elif ext == ".pro":
+            self.push_screen(
+                ProtoEditor(self.repl.proto_dir, str(path)),
+                callback=self._on_proto_saved,
+            )
 
     def _hook_run(self, ctx, args: str) -> None:
         path = self.repl.start_script(args)

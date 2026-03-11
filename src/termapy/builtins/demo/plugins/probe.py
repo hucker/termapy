@@ -22,9 +22,9 @@ if TYPE_CHECKING:
 _LONG_HELP = """\
 Send an AT command to the device, read the response, and display it.
 
-  !probe              — run a standard device survey (ID, temp, status)
-  !probe AT+TEMP      — send one command and show the response
-  !probe AT+INFO      — send any command the device supports
+  /probe              — run a standard device survey (ID, temp, status)
+  /probe AT+TEMP      — send one command and show the response
+  /probe AT+INFO      — send any command the device supports
 
 This is a demo plugin — read the source to learn how to write your own.
 Key concepts demonstrated:

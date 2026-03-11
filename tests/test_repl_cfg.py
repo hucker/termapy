@@ -1,4 +1,4 @@
-"""Tests for the !cfg and !cfg.auto REPL commands."""
+"""Tests for the /cfg and /cfg.auto REPL commands."""
 
 import json
 
@@ -28,7 +28,7 @@ def repl_env(tmp_path):
 
     engine = ReplEngine(cfg, str(config_path), write)
     engine_api = EngineAPI(
-        prefix="!",
+        prefix="/",
         plugins=engine._plugins,
         apply_cfg=engine._apply_cfg,
         coerce_type=ReplEngine._coerce_type,

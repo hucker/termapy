@@ -22,14 +22,14 @@ class ReplEngine:
     """Plugin-based REPL command engine."""
 
     def __init__(self, cfg: dict, config_path: str,
-                 write: Callable, prefix: str = "!") -> None:
+                 write: Callable, prefix: str = "/") -> None:
         """Initialize the REPL engine with config and plugin loading.
 
         Args:
             cfg: Config dict (owned by the engine, wrapped in MappingProxyType).
             config_path: Path to the JSON config file on disk.
             write: Callback for output — write(text, color="dim").
-            prefix: REPL command prefix (default "!").
+            prefix: REPL command prefix (default "/").
         """
         self._cfg_data = cfg
         self.cfg = MappingProxyType(self._cfg_data)
@@ -83,10 +83,10 @@ class ReplEngine:
         Args:
             name: Command name (e.g. ``"connect"`` or ``"ss.svg"``).
             args: Argument spec string for help display.
-            help_text: One-line description for !help output.
+            help_text: One-line description for /help output.
             handler: Callable(ctx, args) invoked when the command runs.
             source: Label for origin (default "built-in").
-            long_help: Extended help for ``!help <cmd>`` (default "").
+            long_help: Extended help for ``/help <cmd>`` (default "").
         """
         self._plugins[name] = PluginInfo(
             name=name, args=args, help=help_text,
@@ -190,14 +190,14 @@ class ReplEngine:
         that no script is already running, and resets sequence counters.
 
         Args:
-            args: Filename string from the !run command.
+            args: Filename string from the /run command.
 
         Returns:
             Resolved Path if ready to run, None if validation failed.
         """
         filename = args.strip()
         if not filename:
-            self.write("Usage: !run <filename>", "red")
+            self.write("Usage: /run <filename>", "red")
             return None
         path = Path(filename)
         if not path.exists():
@@ -211,7 +211,7 @@ class ReplEngine:
                     self.write(f"  (also checked {self.scripts_dir})", "dim")
                 return None
         if self._in_script:
-            self.write("Script already running. Use !stop first.", "red")
+            self.write("Script already running. Use /stop first.", "red")
             return None
         self._in_script = True
         self._script_stop.clear()
@@ -224,7 +224,7 @@ class ReplEngine:
         """Execute a script file line by line (call from a background thread).
 
         Parses the script into serial commands, REPL commands, and delays.
-        Supports !stop to abort mid-execution. Serial commands are sent with
+        Supports /stop to abort mid-execution. Serial commands are sent with
         the configured line ending and encoding.
 
         This method is called from a ``@work(thread=True)`` background thread

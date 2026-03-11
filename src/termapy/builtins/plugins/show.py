@@ -26,7 +26,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip()
     if not name:
-        ctx.write("Usage: !show <name>  ($cfg for config, or a filename)", "red")
+        ctx.write("Usage: /show <name>  ($cfg for config, or a filename)", "red")
         return
     key = name.lower()
     if key == "$cfg":
@@ -67,8 +67,8 @@ Special names:
 Regular filenames are resolved relative to the working directory.
 
 Examples:
-  !show $cfg             — view current config
-  !show my_script.run    — view a script file
-  !show ../notes.txt     — relative path""",
+  /show $cfg             — view current config
+  /show my_script.run    — view a script file
+  /show ../notes.txt     — relative path""",
     handler=_handler,
 )

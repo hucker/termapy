@@ -289,7 +289,7 @@ class TestRunScript:
 
     def test_repl_command(self, tmp_path):
         # Arrange
-        eng, output, writes, script = self._make_engine(tmp_path, "!print hello\n")
+        eng, output, writes, script = self._make_engine(tmp_path, "/print hello\n")
 
         # Act
         eng.run_script(script)
@@ -300,7 +300,7 @@ class TestRunScript:
 
     def test_delay_command(self, tmp_path):
         # Arrange
-        eng, output, writes, script = self._make_engine(tmp_path, "!delay 1ms\n")
+        eng, output, writes, script = self._make_engine(tmp_path, "/delay 1ms\n")
 
         # Act
         eng.run_script(script)
@@ -310,7 +310,7 @@ class TestRunScript:
 
     def test_invalid_delay(self, tmp_path):
         # Arrange
-        eng, output, writes, script = self._make_engine(tmp_path, "!delay badvalue\n")
+        eng, output, writes, script = self._make_engine(tmp_path, "/delay badvalue\n")
 
         # Act
         eng.run_script(script)

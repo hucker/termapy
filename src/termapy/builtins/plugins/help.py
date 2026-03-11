@@ -53,7 +53,7 @@ def _list_children(ctx: PluginContext, plugin, prefix: str,
     Args:
         ctx: Plugin context for output.
         plugin: PluginInfo for the parent command.
-        prefix: REPL prefix string (e.g. "!").
+        prefix: REPL prefix string (e.g. "/").
         cmd_w: Column width for the command name.
         arg_w: Column width for the arguments.
         depth: Indentation depth (0 for top-level).
@@ -174,7 +174,7 @@ def _handler_dev(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip().lower() if isinstance(args, str) else ""
     if not name:
-        ctx.write("Usage: !help.dev <cmd>", "red")
+        ctx.write("Usage: /help.dev <cmd>", "red")
         return
     _show_command_help(ctx, name, dev_mode=True)
 
@@ -186,10 +186,10 @@ COMMAND = Command(
     help="List REPL commands, or show help for one command.",
     long_help="""\
 Three modes:
-  !help              — list all commands with subcommands
-  !help <cmd>        — show usage, help text, and subcommands
-  !help proto.crc    — show help for a subcommand (dot notation)
-  !help.dev <cmd>    — show the handler's Python docstring (developer info)""",
+  /help              — list all commands with subcommands
+  /help <cmd>        — show usage, help text, and subcommands
+  /help proto.crc    — show help for a subcommand (dot notation)
+  /help.dev <cmd>    — show the handler's Python docstring (developer info)""",
     handler=_handler,
     sub_commands={
         "dev": Command(

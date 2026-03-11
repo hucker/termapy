@@ -68,7 +68,7 @@ DEFAULT_CFG = {
     "title": "",
     "app_border_color": "",
     "max_lines": 10000,
-    "repl_prefix": "!",
+    "repl_prefix": "/",
     "os_cmd_enabled": False,
     # Serial
     "port": "COM4",
@@ -95,10 +95,9 @@ DEFAULT_CFG = {
     "show_timestamps": False,
     "show_eol": False,
     "max_grep_lines": 100,
-    "command_history_items": 30,
     # Custom buttons
     "custom_buttons": [
-        {"enabled": True, "name": "Info", "command": "!info", "tooltip": "Project info"},
+        {"enabled": True, "name": "Info", "command": "/info", "tooltip": "Project info"},
         {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
         {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
         {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},

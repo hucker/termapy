@@ -56,9 +56,9 @@ Use cases:
     Test {seq1+}.{seq2+}   → Test 2.1 (seq2 resets on seq1 increment)
 
   Automatic file naming (e.g. screenshots in a script):
-    !ss.txt capture_{seq1+}  → capture_1.txt, capture_2.txt, ...
+    /ss.txt capture_{seq1+}  → capture_1.txt, capture_2.txt, ...
 
-!seq         — show current counter values
-!seq reset   — reset all counters to 0""",
+/seq         — show current counter values
+/seq reset   — reset all counters to 0""",
     handler=_handler,
 )

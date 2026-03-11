@@ -23,10 +23,10 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Shell command string to execute.
     """
     if not ctx.cfg.get("os_cmd_enabled"):
-        ctx.write("!os is disabled. Set os_cmd_enabled: true in config.", "red")
+        ctx.write("/os is disabled. Set os_cmd_enabled: true in config.", "red")
         return
     if not args.strip():
-        ctx.write("Usage: !os <command>", "red")
+        ctx.write("Usage: /os <command>", "red")
         return
     try:
         result = subprocess.run(
@@ -44,7 +44,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
 COMMAND = Command(
     name="os",
     args="<cmd>",
-    help="Run a shell command and show output (10s timeout). e.g. !os dir",
+    help="Run a shell command and show output (10s timeout). e.g. /os dir",
     long_help="""\
 Runs a shell command via the system shell and displays its output.
 Stdout is shown in white, stderr in red.
@@ -53,9 +53,9 @@ Requires os_cmd_enabled: true in your config (disabled by default
 for safety). Commands time out after 10 seconds.
 
 Examples:
-  !os dir                — list files (Windows)
-  !os ls -la             — list files (Unix)
-  !os python --version   — check Python version
-  !os ping -c 1 host     — network test""",
+  /os dir                — list files (Windows)
+  /os ls -la             — list files (Unix)
+  /os python --version   — check Python version
+  /os ping -c 1 host     — network test""",
     handler=_handler,
 )

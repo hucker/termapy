@@ -60,6 +60,32 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, OptionList, RichLog
 from textual.widgets.option_list import Option
+from textual.suggester import Suggester
+
+
+class CommandSuggester(Suggester):
+    """Type-ahead from REPL commands + device command history.
+
+    Combines REPL command names (e.g. ``/help``, ``/cfg``) with non-REPL
+    history entries (device commands like ``AT+CSQ``). Updated dynamically
+    as new commands are entered.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(use_cache=False, case_sensitive=False)
+        self._suggestions: list[str] = []
+
+    def update(self, commands: list[str], history: list[str], prefix: str = "/") -> None:
+        """Rebuild suggestions: REPL commands + non-REPL history (deduped)."""
+        device_cmds = [h for h in history if not h.startswith(prefix)]
+        self._suggestions = commands + device_cmds
+
+    async def get_suggestion(self, value: str) -> str | None:
+        """Return the first prefix match (case-insensitive)."""
+        for s in self._suggestions:
+            if s.casefold().startswith(value):
+                return s
+        return None
 
 
 # Regex to strip ANSI escape sequences for plain-text logging
@@ -337,7 +363,6 @@ class SerialTerminal(App):
         Binding("ctrl+p", "show_palette", "Command Palette", show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
-        Binding("f2", "edit_history", "Edit History", show=False),
     ]
 
     PALETTE_CMDS = [
@@ -376,10 +401,13 @@ class SerialTerminal(App):
             cfg,
             config_path,
             write=self._status,
-            prefix=cfg.get("repl_prefix", "!"),
+            prefix=cfg.get("repl_prefix", "/"),
         )
         self.history: list[str] = self._load_history()
-        self._popup_mode: str = "history"
+        self._history_idx: int = -1  # -1 = not browsing history
+        self._history_saved_input: str = ""  # input text before Up was pressed
+        self._suggester = CommandSuggester()
+        self._popup_mode: str = "commands"
         self._show_line_numbers: bool = False
         self._line_counter: int = 0
         self._proto_hex_mode: bool = False
@@ -400,22 +428,34 @@ class SerialTerminal(App):
             return cfg_history_path(self.config_path)
         return str(cfg_dir() / ".cmd_history.txt")
 
+    _HISTORY_LIMIT = 30
+
     def _load_history(self) -> list[str]:
+        """Load command history from disk (last _HISTORY_LIMIT entries)."""
         try:
-            n = self.cfg.get("command_history_items", 30)
             lines = Path(self._history_path()).read_text(encoding="utf-8").splitlines()
-            return lines[-n:]
+            return lines[-self._HISTORY_LIMIT:]
         except FileNotFoundError:
             return []
 
     def _save_history(self) -> None:
-        n = self.cfg.get("command_history_items", 30)
+        """Persist command history to disk (last _HISTORY_LIMIT entries)."""
         try:
             Path(self._history_path()).write_text(
-                "\n".join(self.history[-n:]), encoding="utf-8"
+                "\n".join(self.history[-self._HISTORY_LIMIT:]), encoding="utf-8"
             )
         except OSError:
             pass  # non-critical — history will be lost but app continues
+
+    def _update_suggester(self) -> None:
+        """Rebuild type-ahead suggestions from REPL commands + device history."""
+        prefix = self.cfg.get("repl_prefix", "/")
+        commands: list[str] = []
+        for name, plugin in self.repl._plugins.items():
+            commands.append(f"{prefix}{name}")
+            if plugin.args:
+                commands.append(f"{prefix}{name} {plugin.args}")
+        self._suggester.update(commands, self.history, prefix)
 
     def compose(self) -> ComposeResult:
         title = self.cfg.get("title", "") or self.config_path
@@ -453,12 +493,14 @@ class SerialTerminal(App):
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
-                prefix = self.cfg.get("repl_prefix", "!")
+                prefix = self.cfg.get("repl_prefix", "/")
                 cmd_btn = Button(prefix, id="btn-cmds")
                 cmd_btn.tooltip = f"Show REPL {prefix} commands."
                 yield cmd_btn
                 yield Input(
-                    placeholder="! for REPL commands, Ctrl+P: palette", id="cmd"
+                    placeholder="/ for REPL commands, Ctrl+P: palette",
+                    id="cmd",
+                    suggester=self._suggester,
                 )
 
                 def _btn(label, id, tip, variant="default", display=True):
@@ -532,7 +574,7 @@ class SerialTerminal(App):
         self._apply_border_color()
         # Build plugin context — the stable API for all plugins
         engine = EngineAPI(
-            prefix=self.cfg.get("repl_prefix", "!"),
+            prefix=self.cfg.get("repl_prefix", "/"),
             plugins=self.repl._plugins,
             get_echo=lambda: self.repl._echo,
             set_echo=lambda val: setattr(self.repl, "_echo", val),
@@ -672,6 +714,7 @@ class SerialTerminal(App):
                     Path(self.config_path).stem,
                 ),
             )
+        self._update_suggester()
         # Open log file (deferred if no config loaded yet)
         self._open_log()
         self._sync_ss_button()
@@ -925,7 +968,7 @@ class SerialTerminal(App):
         try:
             self.call_from_thread(_show)
         except RuntimeError:
-            self._status("!confirm can only be used in scripts.", "yellow")
+            self._status("/confirm can only be used in scripts.", "yellow")
             return True
         event.wait()
         return result[0]
@@ -960,7 +1003,7 @@ class SerialTerminal(App):
             self._set_conn_status("Disconnected")
             try:
                 inp = self.query_one("#cmd", Input)
-                inp.placeholder = "! for REPL commands, Ctrl+P: palette"
+                inp.placeholder = "/ for REPL commands, Ctrl+P: palette"
             except Exception:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
@@ -1051,6 +1094,7 @@ class SerialTerminal(App):
                 cfg_plugins_dir(config_path), Path(config_path).stem,
             ),
         )
+        self._update_suggester()
 
     def _start_demo(self, args: str = "") -> None:
         """Set up and switch to the built-in demo device config.
@@ -1378,7 +1422,7 @@ class SerialTerminal(App):
                     break
 
                 if data:
-                    # Feed raw bytes to protocol queue for !proto
+                    # Feed raw bytes to protocol queue for /proto
                     self._raw_rx_queue.put(data)
 
                 # Suppress normal display while proto script is running
@@ -1478,16 +1522,18 @@ class SerialTerminal(App):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Send command to serial port when Enter is pressed."""
         self._hide_history()
+        self._history_idx = -1
         cmd = event.value.strip()
         if not cmd:
             return
 
-        # Add to history (keep last 15, persist to disk)
+        # Add to history (skip consecutive duplicates)
         if not self.history or self.history[-1] != cmd:
             self.history.append(cmd)
-            if len(self.history) > 15:
+            if len(self.history) > self._HISTORY_LIMIT:
                 self.history.pop(0)
             self._save_history()
+            self._update_suggester()
 
         self._execute_command(cmd)
         self.query_one("#cmd", Input).value = ""
@@ -1497,7 +1543,7 @@ class SerialTerminal(App):
 
         Splits on literal ``\\n`` and real newlines. If multiple commands
         are found, they are executed one per refresh cycle via
-        ``call_after_refresh`` so UI updates (like ``!cls``) complete
+        ``call_after_refresh`` so UI updates (like ``/cls``) complete
         before the next command runs.
 
         Args:
@@ -1536,7 +1582,7 @@ class SerialTerminal(App):
         Args:
             cmd: A single command string (no ``\\n`` separators).
         """
-        prefix = self.cfg.get("repl_prefix", "!")
+        prefix = self.cfg.get("repl_prefix", "/")
         if cmd.startswith(prefix):
             if self.repl.echo:
                 fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
@@ -1566,26 +1612,11 @@ class SerialTerminal(App):
         inp = self.query_one("#cmd", Input)
         inp.value = ""
 
-    def _show_history(self) -> None:
-        """Show the history popup with only past commands."""
-        self.history = self._load_history()
-        popup = self.query_one("#history-popup", OptionList)
-        popup.clear_options()
-        if not self.history:
-            popup.add_option(Option("(no history yet)", disabled=True))
-        else:
-            for cmd in reversed(self.history):
-                popup.add_option(Option(cmd))
-        popup.add_class("visible")
-        popup.focus()
-        popup.highlighted = 0
-        self._popup_mode = "history"
-
     def _show_commands(self) -> None:
         """Show the REPL command picker with smart arg handling."""
         popup = self.query_one("#history-popup", OptionList)
         popup.clear_options()
-        prefix = self.cfg.get("repl_prefix", "!")
+        prefix = self.cfg.get("repl_prefix", "/")
         groups: dict[str, list] = {}
         for name, plugin in self.repl._plugins.items():
             groups.setdefault(plugin.source, []).append((name, plugin))
@@ -1628,7 +1659,7 @@ class SerialTerminal(App):
         self.query_one("#cmd", Input).focus()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        """Handle selection from history or palette popup."""
+        """Handle selection from command picker or palette popup."""
         if event.option_list.id != "history-popup":
             return
         self._hide_history()
@@ -1642,69 +1673,62 @@ class SerialTerminal(App):
             self.call_after_refresh(self.repl.dispatch, name)
         elif opt_id.startswith("repl:"):
             name = opt_id.split(":")[1]
-            prefix = self.cfg.get("repl_prefix", "!")
+            prefix = self.cfg.get("repl_prefix", "/")
             inp = self.query_one("#cmd", Input)
             inp.value = f"{prefix}{name} "
             inp.action_end()
-        else:
-            # History item — execute immediately (Shift+Enter edits instead)
-            cmd = str(event.option.prompt)
-            if not self.history or self.history[-1] != cmd:
-                self.history.append(cmd)
-                self._save_history()
-            self._execute_command(cmd)
 
     def on_key(self, event) -> None:
-        """Handle Up arrow to show history, Escape to dismiss."""
-        # Fast exit for normal typing — only handle special keys
+        """Handle Up/Down for history cycling, Escape to dismiss popup or clear."""
         if event.key not in ("up", "down", "escape"):
             return
 
+        inp = self.query_one("#cmd", Input)
+        popup = self.query_one("#history-popup", OptionList)
+        popup_visible = popup.has_class("visible")
+
         if event.key == "escape":
-            popup = self.query_one("#history-popup", OptionList)
-            if popup.has_class("visible"):
+            if popup_visible:
                 self._hide_history()
+                event.prevent_default()
+            elif self._history_idx != -1:
+                self._history_idx = -1
+                inp.value = ""
                 event.prevent_default()
             return
 
         if event.key == "up":
-            inp = self.query_one("#cmd", Input)
-            if inp.has_focus:
-                self._show_history()
-                event.prevent_default()
+            if not inp.has_focus or popup_visible:
+                return
+            if not self.history:
+                return
+            if self._history_idx == -1:
+                self._history_saved_input = inp.value
+                self._history_idx = len(self.history) - 1
+            elif self._history_idx > 0:
+                self._history_idx -= 1
+            inp.value = self.history[self._history_idx]
+            inp.action_end()
+            event.prevent_default()
             return
 
         if event.key == "down":
-            inp = self.query_one("#cmd", Input)
-            popup = self.query_one("#history-popup", OptionList)
-            if inp.has_focus and popup.has_class("visible"):
-                # Down from input while popup is showing — focus the popup
+            if not inp.has_focus:
+                return
+            if popup_visible:
                 popup.focus()
                 event.prevent_default()
-
-    def action_edit_history(self) -> None:
-        """Place selected history item in input for editing (F2).
-
-        Dismisses the history popup, places the highlighted command in
-        the input box with the cursor at the end, ready to edit.
-        """
-        popup = self.query_one("#history-popup", OptionList)
-        if not popup.has_class("visible") or popup.highlighted is None:
-            return
-        text = str(popup.get_option_at_index(popup.highlighted).prompt)
-        popup.remove_class("visible")
-        inp = self.query_one("#cmd", Input)
-        inp.select_on_focus = False
-        inp.value = text
-        inp.focus()
-
-        def _position_cursor() -> None:
-            """Set cursor to end after Textual processes the focus event."""
-            from textual.widgets._input import Selection
-            inp.selection = Selection.cursor(len(inp.value))
-            inp.select_on_focus = True
-
-        self.set_timer(0.05, _position_cursor)
+                return
+            if self._history_idx == -1:
+                return
+            self._history_idx += 1
+            if self._history_idx >= len(self.history):
+                self._history_idx = -1
+                inp.value = self._history_saved_input
+            else:
+                inp.value = self.history[self._history_idx]
+            inp.action_end()
+            event.prevent_default()
 
     def action_clear_log(self) -> None:
         self.query_one("#output", RichLog).clear()
@@ -1850,7 +1874,7 @@ class SerialTerminal(App):
         while filesystem I/O runs off the event loop.
 
         Args:
-            args: Original args from ``!info`` (e.g. ``"--display"``).
+            args: Original args from ``/info`` (e.g. ``"--display"``).
         """
         config_name = Path(self.config_path).stem
         data_dir = cfg_data_dir(self.config_path)
@@ -1876,10 +1900,10 @@ class SerialTerminal(App):
         """Open a port by name, or show subcommands if no name given."""
         name = args.strip()
         if not name:
-            ctx.write("Usage: !port <name> to switch, or use subcommands:")
-            ctx.write("  !port.list   — list available ports")
-            ctx.write("  !port.open   — connect (optional port override)")
-            ctx.write("  !port.close  — disconnect")
+            ctx.write("Usage: /port <name> to switch, or use subcommands:")
+            ctx.write("  /port.list   — list available ports")
+            ctx.write("  /port.open   — connect (optional port override)")
+            ctx.write("  /port.close  — disconnect")
             return
         self._update_port(name)
 

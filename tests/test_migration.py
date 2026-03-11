@@ -83,19 +83,28 @@ def test_v1_to_v2_without_old_key():
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
-def test_v2_to_v3_adds_command_history_items():
-    """Migration v2→v3 adds command_history_items with default 30."""
+def test_v2_to_v3_adds_then_v4_removes_command_history_items():
+    """Migration v2→v3 adds command_history_items, v3→v4 removes it."""
     cfg = {"config_version": 2, "port": "COM4"}
     result = migrate_config(cfg)
 
-    assert result["command_history_items"] == 30  # assert default value added
+    assert "command_history_items" not in result  # assert removed by v4
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
-def test_v2_to_v3_preserves_existing_value():
-    """Migration v2→v3 does not overwrite existing command_history_items."""
-    cfg = {"config_version": 2, "port": "COM4", "command_history_items": 50}
+def test_v3_to_v4_removes_command_history_items():
+    """Migration v3→v4 removes command_history_items from config."""
+    cfg = {"config_version": 3, "port": "COM4", "command_history_items": 50}
     result = migrate_config(cfg)
 
-    assert result["command_history_items"] == 50  # assert existing value preserved
+    assert "command_history_items" not in result  # assert key removed
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v3_to_v4_handles_missing_key():
+    """Migration v3→v4 handles configs without command_history_items."""
+    cfg = {"config_version": 3, "port": "COM4"}
+    result = migrate_config(cfg)
+
+    assert "command_history_items" not in result  # assert no error
     assert result["config_version"] == CURRENT_CONFIG_VERSION

@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 3
+CURRENT_CONFIG_VERSION = 4
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
@@ -32,8 +32,15 @@ def _migrate_v2_to_v3(cfg: dict) -> dict:
     return cfg
 
 
+def _migrate_v3_to_v4(cfg: dict) -> dict:
+    """Remove command_history_items (now a fixed limit, not configurable)."""
+    cfg.pop("command_history_items", None)
+    return cfg
+
+
 MIGRATIONS[1] = _migrate_v1_to_v2
 MIGRATIONS[2] = _migrate_v2_to_v3
+MIGRATIONS[3] = _migrate_v3_to_v4
 
 
 def migrate_config(cfg: dict) -> dict:

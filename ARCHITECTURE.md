@@ -15,17 +15,17 @@ src/termapy/
 ├── migration.py         # (48 lines)   Config schema migration
 ├── help.md              # In-app help guide (bundled in pip installs)
 ├── builtins/            # Built-in REPL commands (9 plugin files)
-│   ├── cfg.py           # !cfg — view/change config; !cfg.auto subcommand
-│   ├── echo.py          # !echo — toggle command echo
-│   ├── grep.py          # !grep — search scrollback
-│   ├── help.py          # !help — list commands
-│   ├── os_cmd.py        # !os — run shell commands
-│   ├── print.py         # !print — print to terminal; !print.r subcommand
-│   ├── proto.py         # !proto — binary protocol commands
-│   ├── seq.py           # !seq — sequence counters
-│   ├── show.py          # !show — display files
-│   ├── ss.py            # !ss — screenshots; !ss.dir subcommand
-│   └── stop.py          # !stop — abort scripts
+│   ├── cfg.py           # /cfg — view/change config; /cfg.auto subcommand
+│   ├── echo.py          # /echo — toggle command echo
+│   ├── grep.py          # /grep — search scrollback
+│   ├── help.py          # /help — list commands
+│   ├── os_cmd.py        # /os — run shell commands
+│   ├── print.py         # /print — print to terminal; /print.r subcommand
+│   ├── proto.py         # /proto — binary protocol commands
+│   ├── seq.py           # /seq — sequence counters
+│   ├── show.py          # /show — display files
+│   ├── ss.py            # /ss — screenshots; /ss.dir subcommand
+│   └── stop.py          # /stop — abort scripts
 └── builtins/viz/        # Built-in packet visualizers
     ├── hex_view.py      # Hex — raw hexadecimal byte values
     └── text_view.py     # Text — ASCII text with escape sequences
@@ -128,7 +128,7 @@ optionally provide `format_header(data)` to display field name headers above dat
 - **scripting.py is pure functions** — no state, no I/O, fully testable.
 - **repl.py bridges plugins and app** — owns command dispatch and script execution, but delegates UI actions back to app.py through `PluginContext` callbacks.
 - **Plugin API boundary** — external plugins interact only through `PluginContext` (write, serial_write, cfg, etc.). `EngineAPI` exists for built-ins but is marked unstable.
-- **Plugins all the way down** — built-in commands are regular plugins loaded from `builtins/`. The same API that implements `!help` and `!grep` is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device simulators — no compilation or registration required.
+- **Plugins all the way down** — built-in commands are regular plugins loaded from `builtins/`. The same API that implements `/help` and `/grep` is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device simulators — no compilation or registration required.
 
 ## Config & Filesystem
 

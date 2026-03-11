@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -26,9 +28,9 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "confirm",
-    "args": "{message}",
-    "help": "Show Yes/Cancel dialog; Cancel stops a running script.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    name="confirm",
+    args="{message}",
+    help="Show Yes/Cancel dialog; Cancel stops a running script.",
+    handler=_handler,
+)

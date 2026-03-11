@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -19,13 +21,13 @@ def _handler_dir(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "ss",
-    "help": "Screenshot tools: save SVG/text, show folder.",
-    "sub_commands": {
-        "dir": {
-            "help": "Show the screenshot folder path.",
-            "handler": _handler_dir,
-        },
+COMMAND = Command(
+    name="ss",
+    help="Screenshot tools: save SVG/text, show folder.",
+    sub_commands={
+        "dir": Command(
+            help="Show the screenshot folder path.",
+            handler=_handler_dir,
+        ),
     },
-}
+)

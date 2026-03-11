@@ -5,6 +5,8 @@ Demonstrates using the config and writing output.
 
 from datetime import datetime
 
+from termapy.plugins import Command
+
 
 def _handler(ctx, args):
     fmt = "%Y-%m-%d %H:%M:%S"
@@ -12,9 +14,8 @@ def _handler(ctx, args):
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "ts",
-    "args": "",
-    "help": "Print the current date and time.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    "Print the current date and time.",
+    name="ts",
+    handler=_handler,
+)

@@ -1,4 +1,4 @@
-"""Tests for plugin loading, COMMAND dict, and PluginContext."""
+"""Tests for plugin loading, COMMAND dataclass, and PluginContext."""
 
 import pytest
 
@@ -21,15 +21,17 @@ class TestLoadPlugins:
     def test_loads_valid_plugin(self, plugin_dir):
         # Arrange
         _write_plugin(plugin_dir, "hello.py", '''
+from termapy.plugins import Command
+
 def _handler(ctx, args):
     pass
 
-COMMAND = {
-    "name": "hello",
-    "args": "{name}",
-    "help": "Say hello.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    name="hello",
+    args="{name}",
+    help="Say hello.",
+    handler=_handler,
+)
 ''')
 
         # Act
@@ -52,7 +54,8 @@ def handler(ctx, args): pass
 
     def test_skips_files_without_name(self, plugin_dir):
         _write_plugin(plugin_dir, "bad.py", '''
-COMMAND = {"help": "Missing name."}
+from termapy.plugins import Command
+COMMAND = Command(help="Missing name.")
 ''')
         result = load_plugins_from_dir(plugin_dir, "test")
         assert len(result.plugins) == 0  # skipped — no name in COMMAND
@@ -60,8 +63,9 @@ COMMAND = {"help": "Missing name."}
 
     def test_skips_underscore_files(self, plugin_dir):
         _write_plugin(plugin_dir, "_private.py", '''
+from termapy.plugins import Command
 def _handler(ctx, args): pass
-COMMAND = {"name": "private", "help": "Should be skipped.", "handler": _handler}
+COMMAND = Command(name="private", help="Should be skipped.", handler=_handler)
 ''')
         _write_plugin(plugin_dir, "__init__.py", "")
         result = load_plugins_from_dir(plugin_dir, "test")
@@ -74,12 +78,14 @@ COMMAND = {"name": "private", "help": "Should be skipped.", "handler": _handler}
     def test_multiple_plugins_sorted(self, plugin_dir):
         # Arrange
         _write_plugin(plugin_dir, "beta.py", '''
+from termapy.plugins import Command
 def _handler(ctx, args): pass
-COMMAND = {"name": "beta", "help": "B", "handler": _handler}
+COMMAND = Command(name="beta", help="B", handler=_handler)
 ''')
         _write_plugin(plugin_dir, "alpha.py", '''
+from termapy.plugins import Command
 def _handler(ctx, args): pass
-COMMAND = {"name": "alpha", "help": "A", "handler": _handler}
+COMMAND = Command(name="alpha", help="A", handler=_handler)
 ''')
 
         # Act
@@ -94,8 +100,9 @@ COMMAND = {"name": "alpha", "help": "A", "handler": _handler}
         # Arrange
         _write_plugin(plugin_dir, "broken.py", "raise RuntimeError('boom')")
         _write_plugin(plugin_dir, "good.py", '''
+from termapy.plugins import Command
 def _handler(ctx, args): pass
-COMMAND = {"name": "good", "help": "Works.", "handler": _handler}
+COMMAND = Command(name="good", help="Works.", handler=_handler)
 ''')
 
         # Act
@@ -112,17 +119,19 @@ class TestSubCommands:
     def test_flattens_sub_commands(self, plugin_dir):
         # Arrange
         _write_plugin(plugin_dir, "tool.py", '''
+from termapy.plugins import Command
+
 def _run(ctx, args): pass
 def _status(ctx, args): pass
 
-COMMAND = {
-    "name": "tool",
-    "help": "A tool.",
-    "sub_commands": {
-        "run": {"args": "<file>", "help": "Run a file.", "handler": _run},
-        "status": {"help": "Show status.", "handler": _status},
+COMMAND = Command(
+    name="tool",
+    help="A tool.",
+    sub_commands={
+        "run": Command(args="<file>", help="Run a file.", handler=_run),
+        "status": Command(help="Show status.", handler=_status),
     },
-}
+)
 ''')
 
         # Act
@@ -138,17 +147,19 @@ COMMAND = {
     def test_root_has_children(self, plugin_dir):
         # Arrange
         _write_plugin(plugin_dir, "tool.py", '''
+from termapy.plugins import Command
+
 def _a(ctx, args): pass
 def _b(ctx, args): pass
 
-COMMAND = {
-    "name": "tool",
-    "help": "A tool.",
-    "sub_commands": {
-        "alpha": {"help": "First.", "handler": _a},
-        "beta": {"help": "Second.", "handler": _b},
+COMMAND = Command(
+    name="tool",
+    help="A tool.",
+    sub_commands={
+        "alpha": Command(help="First.", handler=_a),
+        "beta": Command(help="Second.", handler=_b),
     },
-}
+)
 ''')
 
         # Act
@@ -161,20 +172,22 @@ COMMAND = {
     def test_nested_sub_commands(self, plugin_dir):
         # Arrange
         _write_plugin(plugin_dir, "tool.py", '''
+from termapy.plugins import Command
+
 def _leaf(ctx, args): pass
 
-COMMAND = {
-    "name": "tool",
-    "help": "A tool.",
-    "sub_commands": {
-        "sub": {
-            "help": "Sub group.",
-            "sub_commands": {
-                "leaf": {"help": "A leaf.", "handler": _leaf},
+COMMAND = Command(
+    name="tool",
+    help="A tool.",
+    sub_commands={
+        "sub": Command(
+            help="Sub group.",
+            sub_commands={
+                "leaf": Command(help="A leaf.", handler=_leaf),
             },
-        },
+        ),
     },
-}
+)
 ''')
 
         # Act
@@ -190,15 +203,17 @@ COMMAND = {
     def test_interior_gets_synthetic_handler(self, plugin_dir):
         # Arrange
         _write_plugin(plugin_dir, "tool.py", '''
+from termapy.plugins import Command
+
 def _leaf(ctx, args): pass
 
-COMMAND = {
-    "name": "tool",
-    "help": "A tool.",
-    "sub_commands": {
-        "leaf": {"help": "A leaf.", "handler": _leaf},
+COMMAND = Command(
+    name="tool",
+    help="A tool.",
+    sub_commands={
+        "leaf": Command(help="A leaf.", handler=_leaf),
     },
-}
+)
 ''')
 
         # Act
@@ -211,8 +226,9 @@ COMMAND = {
 
     def test_defaults_for_missing_fields(self, plugin_dir):
         _write_plugin(plugin_dir, "bare.py", '''
+from termapy.plugins import Command
 def _handler(ctx, args): pass
-COMMAND = {"name": "bare", "help": "Bare.", "handler": _handler}
+COMMAND = Command(name="bare", help="Bare.", handler=_handler)
 ''')
         result = load_plugins_from_dir(plugin_dir, "test")
         assert result.plugins[0].args == ""  # missing args defaults to ""

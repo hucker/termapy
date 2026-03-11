@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -32,11 +34,11 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "seq",
-    "args": "{reset}",
-    "help": "Show sequence counters, or reset them.",
-    "long_help": """\
+COMMAND = Command(
+    name="seq",
+    args="{reset}",
+    help="Show sequence counters, or reset them.",
+    long_help="""\
 Sequence counters are used in script templates for auto-numbering.
 
 Placeholders:
@@ -58,5 +60,5 @@ Use cases:
 
 !seq         — show current counter values
 !seq reset   — reset all counters to 0""",
-    "handler": _handler,
-}
+    handler=_handler,
+)

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -79,11 +81,11 @@ def _handler_auto(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "cfg",
-    "args": "{key {value}}",
-    "help": "Show or change config values.",
-    "long_help": """\
+COMMAND = Command(
+    name="cfg",
+    args="{key {value}}",
+    help="Show or change config values.",
+    long_help="""\
 Three modes:
   !cfg              — show all config key/value pairs
   !cfg baudrate     — show current value of 'baudrate'
@@ -94,12 +96,12 @@ bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
 Changes are saved to the JSON config file.
 
 Use !cfg.auto to set values without confirmation (for scripts).""",
-    "handler": _handler,
-    "sub_commands": {
-        "auto": {
-            "args": "<key> <value>",
-            "help": "Set immediately (no confirmation).",
-            "handler": _handler_auto,
-        },
+    handler=_handler,
+    sub_commands={
+        "auto": Command(
+            args="<key> <value>",
+            help="Set immediately (no confirmation).",
+            handler=_handler_auto,
+        ),
     },
-}
+)

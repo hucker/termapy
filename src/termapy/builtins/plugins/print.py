@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -36,16 +38,16 @@ def _handler_rich(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "print",
-    "args": "<text>",
-    "help": "Print a message to the terminal.",
-    "handler": _handler,
-    "sub_commands": {
-        "r": {
-            "args": "<text>",
-            "help": "Print Rich markup text (e.g. [bold red]Warning![/]).",
-            "handler": _handler_rich,
-        },
+COMMAND = Command(
+    name="print",
+    args="<text>",
+    help="Print a message to the terminal.",
+    handler=_handler,
+    sub_commands={
+        "r": Command(
+            args="<text>",
+            help="Print Rich markup text (e.g. [bold red]Warning![/]).",
+            handler=_handler_rich,
+        ),
     },
-}
+)

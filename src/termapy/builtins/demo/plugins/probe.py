@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -131,10 +133,10 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "probe",
-    "args": "{command}",
-    "help": "Query the device and display the response.",
-    "long_help": _LONG_HELP,
-    "handler": _handler,
-}
+COMMAND = Command(
+    "Query the device and display the response.",
+    name="probe",
+    args="{command}",
+    long_help=_LONG_HELP,
+    handler=_handler,
+)

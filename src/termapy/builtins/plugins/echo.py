@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -31,9 +33,9 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "echo",
-    "args": "{on | off}",
-    "help": "Toggle REPL command echo, or set on/off. Output is not affected.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    name="echo",
+    args="{on | off}",
+    help="Toggle REPL command echo, or set on/off. Output is not affected.",
+    handler=_handler,
+)

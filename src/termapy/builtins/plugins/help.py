@@ -6,6 +6,8 @@ import inspect
 import re
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -178,22 +180,22 @@ def _handler_dev(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "help",
-    "args": "{cmd}",
-    "help": "List REPL commands, or show help for one command.",
-    "long_help": """\
+COMMAND = Command(
+    name="help",
+    args="{cmd}",
+    help="List REPL commands, or show help for one command.",
+    long_help="""\
 Three modes:
   !help              — list all commands with subcommands
   !help <cmd>        — show usage, help text, and subcommands
   !help proto.crc    — show help for a subcommand (dot notation)
   !help.dev <cmd>    — show the handler's Python docstring (developer info)""",
-    "handler": _handler,
-    "sub_commands": {
-        "dev": {
-            "args": "<cmd>",
-            "help": "Show a command handler's Python docstring.",
-            "handler": _handler_dev,
-        },
+    handler=_handler,
+    sub_commands={
+        "dev": Command(
+            args="<cmd>",
+            help="Show a command handler's Python docstring.",
+            handler=_handler_dev,
+        ),
     },
-}
+)

@@ -406,32 +406,34 @@ Later plugins can override earlier ones by using the same name.
 
 ### Writing a Plugin
 
-Create a `.py` file with a `COMMAND` dict at the end:
+Create a `.py` file with a `COMMAND` instance at the end:
 
 ```python
 # hello.py — drop into termapy_cfg/plugins/ or termapy_cfg/<config>/plugins/
-from termapy.plugins import PluginContext
+from termapy.plugins import Command, PluginContext
 
 def _handler(ctx: PluginContext, args: str):
     name = args.strip() or "world"
     ctx.write(f"Hello, {name}!")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "hello",
-    "args": "{name}",        # {braces} = optional, <angle> = required, "" = no args
-    "help": "Say hello.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    name="hello",
+    args="{name}",        # {braces} = optional, <angle> = required, "" = no args
+    help="Say hello.",
+    handler=_handler,
+)
 ```
 
-No classes to subclass, no registration — the file is discovered automatically when `termapy` starts. The `PluginContext` import is optional but gives your IDE autocomplete for `ctx`.
+No classes to subclass, no registration — the file is discovered automatically when `termapy` starts. The `Command` dataclass gives IDE autocomplete and catches typos at import time.
 
 ### Subcommands
 
 Use `sub_commands` for related operations. Users invoke them with dot notation (`!tool.run`):
 
 ```python
+from termapy.plugins import Command
+
 def _run(ctx, args):
     ctx.write(f"Running {args}...")
 
@@ -439,14 +441,14 @@ def _status(ctx, args):
     ctx.write("All good.")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "tool",
-    "help": "A tool with subcommands.",
-    "sub_commands": {
-        "run":    {"args": "<file>", "help": "Run a file.", "handler": _run},
-        "status": {"help": "Show status.", "handler": _status},
+COMMAND = Command(
+    name="tool",
+    help="A tool with subcommands.",
+    sub_commands={
+        "run":    Command(args="<file>", help="Run a file.", handler=_run),
+        "status": Command(help="Show status.", handler=_status),
     },
-}
+)
 ```
 
 The user types `!tool.run myfile` or `!tool.status`. Interior nodes without a handler get a synthetic handler that lists their subcommands.

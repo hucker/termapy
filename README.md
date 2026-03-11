@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-422%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-487%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -187,15 +187,17 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 
 | Command                   | Description                                                                      |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| `!help [cmd] [--dev]`     | List commands, show extended help, or `--dev` for handler docstring               |
-| `!connect`                | Connect to the serial port                                                       |
-| `!disconnect`             | Disconnect from the serial port                                                  |
-| `!port [name \| list]`    | Open a port by name, or list available ports                                     |
+| `!help [cmd]`             | List commands or show extended help for one                                       |
+| `!help.dev <cmd>`         | Show a command handler's Python docstring                                         |
+| `!port [name]`            | Open a port by name, or show subcommands                                         |
+| `!port.list`              | List available serial ports                                                      |
+| `!port.open {name}`       | Connect to the serial port (optional port override)                              |
+| `!port.close`             | Disconnect from the serial port                                                  |
 | `!cfg [key [value]]`      | Show config, show a key, or change a value (with confirmation)                   |
-| `!cfg_auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
-| `!ss_svg [name]`          | Save SVG screenshot                                                              |
-| `!ss_txt [name]`          | Save text screenshot                                                             |
-| `!ss_dir [path]`          | Set or show the screenshot folder                                                |
+| `!cfg.auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
+| `!ss.svg [name]`          | Save SVG screenshot                                                              |
+| `!ss.txt [name]`          | Save text screenshot                                                             |
+| `!ss.dir`                 | Show the screenshot folder                                                       |
 | `!cls`                    | Clear the terminal screen                                                        |
 | `!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
 | `!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
@@ -203,7 +205,7 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!stop`                   | Abort a running script                                                           |
 | `!seq [reset]`            | Show or reset sequence counters                                                  |
 | `!print <text>`           | Print a message to the terminal                                                  |
-| `!rprint <text>`          | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
+| `!print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
 | `!show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
@@ -213,6 +215,9 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
 | `!proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
 | `!proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
+| `!proto crc list {pat}`   | List available CRC algorithms (optional glob filter)                             |
+| `!proto crc help <name>`  | Show CRC algorithm parameters and description                                    |
+| `!proto crc calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
 | `!proto status`           | Show current protocol mode state                                                 |
 | `!exit`                   | Exit termapy                                                                     |
 
@@ -397,47 +402,54 @@ Extend `termapy` by dropping Python files into plugin folders. Every REPL comman
 3. **Per-config** -- `termapy_cfg/<name>/plugins/*.py`, specific to one config
 4. **App hooks** -- commands that need Textual access (screenshots, connect, etc.)
 
-Later plugins can override earlier ones by using the same `NAME`.
+Later plugins can override earlier ones by using the same name.
 
 ### Writing a Plugin
 
-Create a `.py` file with four things:
+Create a `.py` file with a `COMMAND` dict at the end:
 
 ```python
 # hello.py — drop into termapy_cfg/plugins/ or termapy_cfg/<config>/plugins/
 from termapy.plugins import PluginContext
 
-NAME = "hello"
-ARGS = "{name}"        # {braces} = optional, <angle> = required, "" = no args
-HELP = "Say hello."
-
-def handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str):
     name = args.strip() or "world"
     ctx.write(f"Hello, {name}!")
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "hello",
+    "args": "{name}",        # {braces} = optional, <angle> = required, "" = no args
+    "help": "Say hello.",
+    "handler": _handler,
+}
 ```
 
 No classes to subclass, no registration — the file is discovered automatically when `termapy` starts. The `PluginContext` import is optional but gives your IDE autocomplete for `ctx`.
 
-### Namespacing with PACKAGE
+### Subcommands
 
-To avoid name collisions, add an optional `PACKAGE` field. The command becomes `!package.name`:
+Use `sub_commands` for related operations. Users invoke them with dot notation (`!tool.run`):
 
 ```python
-# flash.py
-from termapy.plugins import PluginContext
+def _run(ctx, args):
+    ctx.write(f"Running {args}...")
 
-PACKAGE = "acme"
-NAME = "flash"
-ARGS = "<firmware>"
-HELP = "Flash firmware to the device."
+def _status(ctx, args):
+    ctx.write("All good.")
 
-def handler(ctx: PluginContext, args: str):
-    ctx.write(f"Flashing {args}...")
-    ctx.serial_write(b"FLASH\r\n")
-    ctx.serial_wait_idle()
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "tool",
+    "help": "A tool with subcommands.",
+    "sub_commands": {
+        "run":    {"args": "<file>", "help": "Run a file.", "handler": _run},
+        "status": {"help": "Show status.", "handler": _status},
+    },
+}
 ```
 
-The user types `!acme.flash firmware.bin`, and `!help` groups it under the "acme" package.
+The user types `!tool.run myfile` or `!tool.status`. Interior nodes without a handler get a synthetic handler that lists their subcommands.
 
 ### PluginContext API
 
@@ -475,7 +487,7 @@ See `examples/plugins/` for working examples:
 - **timestamp.py** -- print the current date/time
 - **ping.py** -- send a command and measure response time
 
-A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_cfg/demo/plugins/` demonstrates the drain → write → read → parse cycle for device interaction. Run `!help probe` or `!help --dev probe` to see its documentation.
+A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_cfg/demo/plugins/` demonstrates the drain → write → read → parse cycle for device interaction. Run `!help probe` or `!help.dev probe` to see its documentation.
 
 ## Packet Visualizers
 
@@ -581,7 +593,7 @@ No classes, no Textual dependency. The `parse_format_spec()` and `apply_format()
 
 ### CRC Algorithms
 
-Termapy ships with a built-in catalogue of 61 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (29), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout).
+Termapy ships with a built-in catalogue of 62 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (30), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout). Each algorithm includes a description of its typical usage (e.g. "Modbus RTU serial protocol", "iSCSI, SCTP, Castagnoli"). Use `!proto crc list` to browse algorithms, `!proto crc help <name>` for full parameters, and `!proto crc calc` to compute CRCs interactively. `calc` auto-detects hex bytes vs plain text, accepts a file path to CRC file contents, and with no data runs the standard check string "123456789" with pass/fail verification.
 
 Use readable names directly in format specs:
 
@@ -650,7 +662,7 @@ Thread-safe communication uses `call_from_thread()` for UI updates and `queue.Qu
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-422 tests across 9 test files. Run with `uv run pytest`.
+487 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

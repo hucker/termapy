@@ -1,4 +1,4 @@
-"""Tests for the !cfg and !cfg_auto REPL commands."""
+"""Tests for the !cfg and !cfg.auto REPL commands."""
 
 import json
 
@@ -119,7 +119,7 @@ class TestCfgAuto:
         engine, cfg, config_path, output = repl_env
 
         # Act
-        engine.dispatch("cfg_auto baudrate 9600")
+        engine.dispatch("cfg.auto baudrate 9600")
 
         # Assert
         assert cfg["baudrate"] == 9600  # in-memory config updated
@@ -129,35 +129,35 @@ class TestCfgAuto:
 
     def test_auto_bool(self, repl_env):
         engine, cfg, _, output = repl_env
-        engine.dispatch("cfg_auto echo_cmd true")
+        engine.dispatch("cfg.auto echo_cmd true")
         assert cfg["echo_cmd"] is True  # bool coerced and applied
 
     def test_auto_string(self, repl_env):
         engine, cfg, _, output = repl_env
-        engine.dispatch("cfg_auto port COM5")
+        engine.dispatch("cfg.auto port COM5")
         assert cfg["port"] == "COM5"  # string value applied
 
     def test_auto_float(self, repl_env):
         engine, cfg, _, output = repl_env
-        engine.dispatch("cfg_auto stopbits 2.0")
+        engine.dispatch("cfg.auto stopbits 2.0")
         assert cfg["stopbits"] == 2.0  # float coerced and applied
 
     def test_auto_unknown_key(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg_auto bogus 123")
+        engine.dispatch("cfg.auto bogus 123")
         assert any("Unknown" in t for t, _ in output)  # unknown key rejected
 
     def test_auto_bad_type(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg_auto baudrate abc")
+        engine.dispatch("cfg.auto baudrate abc")
         assert any("Type error" in t for t, _ in output)  # type mismatch error
 
     def test_auto_missing_args(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg_auto baudrate")
+        engine.dispatch("cfg.auto baudrate")
         assert any("Usage" in t for t, _ in output)  # missing value arg
 
     def test_auto_no_args(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg_auto")
+        engine.dispatch("cfg.auto")
         assert any("Usage" in t for t, _ in output)  # no args at all

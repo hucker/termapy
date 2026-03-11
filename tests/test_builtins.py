@@ -224,7 +224,7 @@ class TestHelp:
         assert any("Line two." in t for t in texts)  # second long_help line
 
     def test_help_dev_shows_docstring(self, repl_env):
-        """!help --dev <cmd> shows the handler's Python docstring."""
+        """!help.dev <cmd> shows the handler's Python docstring."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -243,7 +243,7 @@ class TestHelp:
         ))
 
         # Act
-        engine.dispatch("help --dev devtest")
+        engine.dispatch("help.dev devtest")
 
         # Assert — docstring lines appear
         texts = [t for t, _ in output]
@@ -251,7 +251,7 @@ class TestHelp:
         assert any("developer docstring" in t for t in texts)  # header shown
 
     def test_help_dev_summary_bold(self, repl_env):
-        """!help --dev renders summary line bold when followed by blank line."""
+        """!help.dev renders summary line bold when followed by blank line."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -268,14 +268,14 @@ class TestHelp:
         ))
 
         # Act
-        engine.dispatch("help --dev boldsummary")
+        engine.dispatch("help.dev boldsummary")
 
         # Assert — summary rendered via write_markup with bold tags
         markup_lines = [t for t, c in output if c == "markup"]
         assert any("[bold]Summary line here.[/]" in t for t in markup_lines)  # bold summary
 
     def test_help_dev_section_headers_bold(self, repl_env):
-        """!help --dev renders Google-style section headers (Args:, Returns:) bold."""
+        """!help.dev renders Google-style section headers (Args:, Returns:) bold."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -296,7 +296,7 @@ class TestHelp:
         ))
 
         # Act
-        engine.dispatch("help --dev sections")
+        engine.dispatch("help.dev sections")
 
         # Assert — Args: and Returns: rendered bold via write_markup
         markup_lines = [t for t, c in output if c == "markup"]
@@ -304,7 +304,7 @@ class TestHelp:
         assert any("[bold]Returns:[/]" in t for t in markup_lines)  # Returns header bold
 
     def test_help_dev_param_labels_bold(self, repl_env):
-        """!help --dev renders 'param: description' with param: bold."""
+        """!help.dev renders 'param: description' with param: bold."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -323,7 +323,7 @@ class TestHelp:
         ))
 
         # Act
-        engine.dispatch("help --dev params")
+        engine.dispatch("help.dev params")
 
         # Assert — param names bold, descriptions not in bold tags
         markup_lines = [t for t, c in output if c == "markup"]
@@ -331,7 +331,7 @@ class TestHelp:
         assert any("[bold]args:[/] Command arguments" in t for t in markup_lines)  # args: bold
 
     def test_help_dev_no_docstring(self, repl_env):
-        """!help --dev <cmd> with no docstring shows a message."""
+        """!help.dev <cmd> with no docstring shows a message."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -341,14 +341,14 @@ class TestHelp:
         ))
 
         # Act
-        engine.dispatch("help --dev nodoc")
+        engine.dispatch("help.dev nodoc")
 
         # Assert
         texts = [t for t, _ in output]
         assert any("no docstring" in t for t in texts)  # no-doc message shown
 
     def test_help_dev_skips_long_help(self, repl_env):
-        """!help --dev shows docstring instead of LONG_HELP."""
+        """!help.dev shows docstring instead of LONG_HELP."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -363,7 +363,7 @@ class TestHelp:
         ))
 
         # Act
-        engine.dispatch("help --dev both")
+        engine.dispatch("help.dev both")
 
         # Assert — docstring shown, LONG_HELP not shown
         texts = [t for t, _ in output]

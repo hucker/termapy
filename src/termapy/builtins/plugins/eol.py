@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "show_eol"
-ARGS = "{on | off}"
-HELP = "Toggle visible \\r \\n markers in serial output for line-ending troubleshooting."
 
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Toggle or set EOL marker visibility.
 
     When enabled, dim ``\\r`` and ``\\n`` markers appear inline in
@@ -36,3 +32,12 @@ def handler(ctx: PluginContext, args: str) -> None:
     else:
         new = not current
     ctx.engine.apply_cfg("show_eol", new)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "show_eol",
+    "args": "{on | off}",
+    "help": "Toggle visible \\r \\n markers in serial output for line-ending troubleshooting.",
+    "handler": _handler,
+}

@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "stop"
-ARGS = ""
-HELP = "Abort a running script."
 
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Abort a running script if one is executing.
 
     Signals the script runner's stop event, which is checked between
@@ -28,3 +24,11 @@ def handler(ctx: PluginContext, args: str) -> None:
         ctx.write("Stopping script...")
     else:
         ctx.write("No script running.")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "stop",
+    "help": "Abort a running script.",
+    "handler": _handler,
+}

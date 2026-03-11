@@ -7,23 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "cfg"
-ARGS = "{key {value}}"
-HELP = "No args: show config. Key only: show value. Key+value: confirm dialog."
-LONG_HELP = """\
-Three modes:
-  !cfg              — show all config key/value pairs
-  !cfg baudrate     — show current value of 'baudrate'
-  !cfg baudrate 115200 — change with confirmation dialog
 
-Type is auto-detected from the existing value (int, float,
-bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
-Changes are saved to the JSON config file.
-
-Use !cfg_auto for the same thing without confirmation."""
-
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Show all config, a single key, or set a key with confirmation.
 
     With no arguments, prints every key/value pair. With a key only,
@@ -64,3 +49,57 @@ def handler(ctx: PluginContext, args: str) -> None:
         ctx.engine.save_cfg(key, new_val)
     else:
         ctx.engine.apply_cfg(key, new_val)
+
+
+def _handler_auto(ctx: PluginContext, args: str) -> None:
+    """Set a config key immediately without confirmation dialog.
+
+    Validates the key exists and coerces the value to match the
+    existing type, then applies and saves in one step. Useful in
+    scripts where interactive confirmation is not possible.
+
+    Args:
+        ctx: Plugin context for config access and output.
+        args: ``"key value"`` string (both required).
+    """
+    parts = args.strip().split(None, 1)
+    if not parts or len(parts) < 2:
+        ctx.write("Usage: !cfg.auto <key> <value>", "red")
+        return
+    key, value_str = parts[0], parts[1]
+    if key not in ctx.cfg:
+        ctx.write(f"Unknown config key: {key}", "red")
+        return
+    try:
+        new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])
+    except (ValueError, TypeError) as e:
+        ctx.write(f"Type error: {e}", "red")
+        return
+    ctx.engine.apply_cfg(key, new_val)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "cfg",
+    "args": "{key {value}}",
+    "help": "Show or change config values.",
+    "long_help": """\
+Three modes:
+  !cfg              — show all config key/value pairs
+  !cfg baudrate     — show current value of 'baudrate'
+  !cfg baudrate 115200 — change with confirmation dialog
+
+Type is auto-detected from the existing value (int, float,
+bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
+Changes are saved to the JSON config file.
+
+Use !cfg.auto to set values without confirmation (for scripts).""",
+    "handler": _handler,
+    "sub_commands": {
+        "auto": {
+            "args": "<key> <value>",
+            "help": "Set immediately (no confirmation).",
+            "handler": _handler_auto,
+        },
+    },
+}

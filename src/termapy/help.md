@@ -117,37 +117,42 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 
 Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead of being sent to the serial device.
 
-| Command                 | Description                                                                 |
-| ----------------------- | --------------------------------------------------------------------------- |
-| `!help [cmd] [--dev]`   | List commands, show extended help, or `--dev` for handler docstring         |
-| `!connect`              | Connect to the serial port                                                  |
-| `!disconnect`           | Disconnect from the serial port                                             |
-| `!port [name\|list]`    | Switch port or list available ports                                         |
-| `!cfg [key [value]]`    | View or change config values                                                |
-| `!cfg_auto <key> <val>` | Set a config key without confirmation                                       |
-| `!ss_svg [name]`        | Save an SVG screenshot                                                      |
-| `!ss_txt [name]`        | Save a text screenshot                                                      |
-| `!ss_dir [path]`        | Show or set the screenshot folder                                           |
-| `!cls`                  | Clear the terminal                                                          |
-| `!run <file>`           | Run a script file                                                           |
-| `!delay <duration>`     | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
-| `!confirm {message}`    | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)   |
-| `!stop`                 | Abort a running script                                                      |
-| `!seq [reset]`          | Show or reset sequence counters                                             |
-| `!print <text>`         | Print a message to the terminal                                             |
-| `!rprint <text>`        | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
-| `!show <name>`          | Show a file (`$cfg` for current config)                                     |
-| `!echo [on\|off]`       | Toggle command echo                                                         |
-| `!os <cmd>`             | Run a shell command (requires `os_cmd_enabled`)                             |
-| `!grep <pattern>`       | Search scrollback for regex matches (case-insensitive, skips own output)    |
-| `!show_eol {on\|off}`   | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
-| `!info {--display}`     | Show project summary; `--display` opens full report in system viewer        |
-| `!proto send <hex>`     | Send raw hex bytes and display response                                     |
-| `!proto run <file>`     | Run a binary protocol test script (.pro)                                    |
-| `!proto debug <file>`   | Open interactive protocol debug screen for a .pro script                    |
-| `!proto hex [on\|off]`  | Toggle hex display mode for serial I/O                                      |
-| `!proto status`         | Show current protocol mode state                                            |
-| `!exit`                 | Exit termapy                                                                |
+| Command                   | Description                                                                 |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `!help [cmd]`             | List commands or show extended help for one                                 |
+| `!help.dev <cmd>`         | Show a command handler's Python docstring                                   |
+| `!port [name]`            | Open a port by name, or show subcommands                                    |
+| `!port.list`              | List available serial ports                                                 |
+| `!port.open {name}`       | Connect (optional port override)                                            |
+| `!port.close`             | Disconnect from the serial port                                             |
+| `!cfg [key [value]]`      | View or change config values                                                |
+| `!cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
+| `!ss.svg [name]`          | Save an SVG screenshot                                                      |
+| `!ss.txt [name]`          | Save a text screenshot                                                      |
+| `!ss.dir`                 | Show the screenshot folder                                                  |
+| `!cls`                    | Clear the terminal                                                          |
+| `!run <file>`             | Run a script file                                                           |
+| `!delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
+| `!confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)   |
+| `!stop`                   | Abort a running script                                                      |
+| `!seq [reset]`            | Show or reset sequence counters                                             |
+| `!print <text>`           | Print a message to the terminal                                             |
+| `!print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
+| `!show <name>`            | Show a file (`$cfg` for current config)                                     |
+| `!echo [on\|off]`         | Toggle command echo                                                         |
+| `!os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
+| `!grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)    |
+| `!show_eol {on\|off}`     | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
+| `!info {--display}`       | Show project summary; `--display` opens full report in system viewer        |
+| `!proto send <hex>`       | Send raw hex bytes and display response                                     |
+| `!proto run <file>`       | Run a binary protocol test script (.pro)                                    |
+| `!proto debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
+| `!proto hex [on\|off]`    | Toggle hex display mode for serial I/O                                      |
+| `!proto crc list {pat}`   | List CRC algorithms (optional glob filter, e.g. `*modbus*`)                 |
+| `!proto crc help <name>`  | Show CRC algorithm parameters, description, and format spec usage           |
+| `!proto crc calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string |
+| `!proto status`           | Show current protocol mode state                                            |
+| `!exit`                   | Exit termapy                                                                |
 
 ## JSON Config File
 
@@ -385,8 +390,12 @@ Type codes: `H` (hex), `D` (decimal), `+D` (signed), `S` (string), `F` (float),
 endianness (`D3-4` = big-endian, `D4-3` = little-endian). Use `H7-*` for
 variable-length fields.
 
-61 named CRC algorithms are built in (from the reveng catalogue): `crc16-modbus`,
+62 named CRC algorithms are built in (from the reveng catalogue): `crc16-modbus`,
 `crc16-xmodem`, `crc16-ccitt-false`, `crc8`, `crc32`, `crc32-iscsi`, and many more.
+Use `!proto crc list` to browse all algorithms with descriptions, `!proto crc help`
+to see parameters, and `!proto crc calc` to compute CRCs interactively. `calc`
+auto-detects hex bytes vs plain text, accepts a file path to CRC file contents,
+and with no data runs the standard check string "123456789" with pass/fail verification.
 Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`. Checksum plugins
 (`sum8`, `sum16`) and custom plugins in `termapy_cfg/<name>/crc/`. Endianness
 suffix: `_le` or `_be`.
@@ -425,7 +434,7 @@ The demo config includes example scripts and protocol tests:
 
 - **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`
 - **Proto:** `at_test.pro` (AT command tests), `modbus_test.pro` (Modbus RTU tests)
-- **Plugin:** `probe.py` — demo plugin showing serial I/O (drain → write → read → parse). Try `!probe` to run a device survey, or `!help --dev probe` to see the annotated source as a plugin-writing guide.
+- **Plugin:** `probe.py` — demo plugin showing serial I/O (drain → write → read → parse). Try `!probe` to run a device survey, or `!help.dev probe` to see the annotated source as a plugin-writing guide.
 - **Visualizer:** `at_view.py` — demo packet visualizer that decodes AT responses (`+KEY:VALUE`) into labeled fields. Visible in the proto debug screen alongside Hex and Text views.
 
 The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.

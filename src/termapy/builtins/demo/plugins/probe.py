@@ -17,10 +17,7 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-NAME = "probe"
-ARGS = "{command}"
-HELP = "Query the device and display the response."
-LONG_HELP = """\
+_LONG_HELP = """\
 Send an AT command to the device, read the response, and display it.
 
   !probe              — run a standard device survey (ID, temp, status)
@@ -97,7 +94,7 @@ def _survey(ctx: PluginContext) -> None:
     ctx.write("── end survey ──")
 
 
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Query a device over the serial port and display results.
 
     With no arguments, runs a survey of common device queries
@@ -131,3 +128,13 @@ def handler(ctx: PluginContext, args: str) -> None:
         else:
             for line in resp.splitlines():
                 ctx.write(f"  {line}")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "probe",
+    "args": "{command}",
+    "help": "Query the device and display the response.",
+    "long_help": _LONG_HELP,
+    "handler": _handler,
+}

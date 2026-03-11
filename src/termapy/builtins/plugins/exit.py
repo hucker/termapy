@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "exit"
-ARGS = ""
-HELP = "Exit termapy."
 
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Exit the application.
 
     Args:
@@ -20,3 +16,11 @@ def handler(ctx: PluginContext, args: str) -> None:
         args: Ignored.
     """
     ctx.exit_app()
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "exit",
+    "help": "Exit termapy.",
+    "handler": _handler,
+}

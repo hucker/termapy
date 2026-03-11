@@ -56,7 +56,8 @@ class ReplEngine:
 
     def _load_builtins(self) -> None:
         """Load built-in command plugins from the builtins/ package directory."""
-        for info in load_plugins_from_dir(builtins_dir(), "built-in"):
+        result = load_plugins_from_dir(builtins_dir(), "built-in")
+        for info in result.plugins:
             self._plugins[info.name] = info
 
     # -- Plugin management ----------------------------------------------------
@@ -75,10 +76,12 @@ class ReplEngine:
         """Register an app-coupled command as a plugin.
 
         Bridge for commands that need Textual access (screenshots, connect,
-        etc.). The handler receives (ctx, args) like any plugin.
+        etc.). The handler receives (ctx, args) like any plugin. If *name*
+        is dotted (e.g. ``"ss.svg"``), the parent's children list is updated
+        automatically.
 
         Args:
-            name: Command name (e.g. "connect").
+            name: Command name (e.g. ``"connect"`` or ``"ss.svg"``).
             args: Argument spec string for help display.
             help_text: One-line description for !help output.
             handler: Callable(ctx, args) invoked when the command runs.
@@ -89,6 +92,12 @@ class ReplEngine:
             name=name, args=args, help=help_text,
             handler=handler, long_help=long_help, source=source,
         )
+        # Auto-update parent's children list for dotted names
+        if "." in name:
+            parent_name = name.rsplit(".", 1)[0]
+            parent = self._plugins.get(parent_name)
+            if parent and name not in parent.children:
+                parent.children.append(name)
 
     # -- Dispatch -------------------------------------------------------------
 

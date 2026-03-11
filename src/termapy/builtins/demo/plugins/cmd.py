@@ -1,0 +1,41 @@
+"""Demo plugin: send text with XMODEM CRC-16 appended.
+
+This plugin demonstrates using termapy's CRC registry to compute
+a checksum and append it to outgoing serial data.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
+
+from termapy.protocol import get_crc_registry
+
+
+def _handler(ctx: PluginContext, args: str) -> None:
+    """Send text with an XMODEM CRC-16 appended.
+
+    Computes the CRC over the argument bytes and transmits
+    ``<text> <CRC>\\n`` to the serial port.
+
+    Args:
+        ctx: Plugin context for serial I/O and output.
+        args: Text to send.
+    """
+    if not args.strip():
+        ctx.write("Usage: !crcsend <text>", "red")
+        return
+    crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
+    ctx.serial_write(f"{args} {crc:04X}\n".encode())
+    ctx.write(f"Sent: {args} {crc:04X}", "green")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "crcsend",
+    "args": "<text>",
+    "help": "Send text with XMODEM CRC-16 appended.",
+    "handler": _handler,
+}

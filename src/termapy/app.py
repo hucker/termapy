@@ -52,7 +52,7 @@ from termapy.dialogs import (
     ScriptPicker,
     _SCRIPT_TEMPLATE,
 )
-from termapy.plugins import EngineAPI, PluginContext, load_plugins_from_dir
+from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_from_dir
 from termapy.repl import ReplEngine
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
@@ -578,14 +578,14 @@ class SerialTerminal(App):
         self.repl._after_cfg = self._refresh_after_cfg
         # Register app-coupled commands as plugins
         self.repl.register_hook(
-            "ss_svg",
+            "ss.svg",
             "{name}",
             "Save SVG screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_svg,
             source="app",
         )
         self.repl.register_hook(
-            "ss_txt",
+            "ss.txt",
             "{name}",
             "Save text screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_txt,
@@ -600,9 +600,30 @@ class SerialTerminal(App):
         )
         self.repl.register_hook(
             "port",
-            "{name | list}",
-            "Open a port by name, or 'list' to show available ports.",
+            "{name}",
+            "Serial port tools: open, close, list.",
             self._hook_port,
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.list",
+            "",
+            "List available serial ports.",
+            self._hook_port_list,
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.open",
+            "{name}",
+            "Connect to the serial port (optional port override).",
+            lambda ctx, args: self._connect(args.strip() if args.strip() else None),
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.close",
+            "",
+            "Disconnect from the serial port.",
+            lambda ctx, args: self._disconnect(),
             source="app",
         )
         self.repl.register_hook(
@@ -614,23 +635,16 @@ class SerialTerminal(App):
         )
         self.repl.register_hook(
             "demo",
-            "{--force}",
-            "Switch to the built-in demo device. --force overwrites existing config.",
+            "",
+            "Switch to the built-in demo device.",
             lambda ctx, args: self._start_demo(args),
             source="app",
         )
         self.repl.register_hook(
-            "connect",
-            "{port}",
-            "Connect to the serial port (optional port override).",
-            lambda ctx, args: self._connect(args.strip() if args.strip() else None),
-            source="app",
-        )
-        self.repl.register_hook(
-            "disconnect",
+            "demo.force",
             "",
-            "Disconnect from the serial port.",
-            lambda ctx, args: self._disconnect(),
+            "Switch to demo device, overwriting existing config.",
+            lambda ctx, args: self._start_demo("--force"),
             source="app",
         )
         self.repl.register_hook(
@@ -648,14 +662,16 @@ class SerialTerminal(App):
             source="app",
         )
         # Load external plugins: global first, then per-config (can override)
-        for info in load_plugins_from_dir(global_plugins_dir(), "global"):
-            self.repl.register_plugin(info)
+        self._load_and_report(
+            load_plugins_from_dir(global_plugins_dir(), "global"),
+        )
         if self.config_path:
-            for info in load_plugins_from_dir(
-                cfg_plugins_dir(self.config_path),
-                Path(self.config_path).stem,
-            ):
-                self.repl.register_plugin(info)
+            self._load_and_report(
+                load_plugins_from_dir(
+                    cfg_plugins_dir(self.config_path),
+                    Path(self.config_path).stem,
+                ),
+            )
         # Open log file (deferred if no config loaded yet)
         self._open_log()
         self._sync_ss_button()
@@ -981,6 +997,32 @@ class SerialTerminal(App):
         if was_connected or cfg.get("autoconnect"):
             self._connect()
 
+    def _load_and_report(self, result: LoadResult) -> None:
+        """Register loaded plugins and report status to the terminal.
+
+        Shows loaded plugin names, warnings for skipped files (no COMMAND
+        dict), and errors for files that raised exceptions.
+
+        Args:
+            result: LoadResult from load_plugins_from_dir.
+        """
+        loaded = []
+        for info in result.plugins:
+            self.repl.register_plugin(info)
+            loaded.append(info.name)
+        if loaded:
+            self._status(
+                f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),
+                "dim",
+            )
+        for name in result.skipped:
+            self._status(
+                f"Skipped {name} — no COMMAND dict (see plugin docs)",
+                "yellow",
+            )
+        for err in result.errors:
+            self._status(f"Plugin error: {err}", "red")
+
     def _reload_config_plugins(self, config_path: str) -> None:
         """Remove old per-config plugins and load plugins for the new config.
 
@@ -998,10 +1040,17 @@ class SerialTerminal(App):
         ]
         for name in to_remove:
             del self.repl._plugins[name]
-        for info in load_plugins_from_dir(
-            cfg_plugins_dir(config_path), Path(config_path).stem,
-        ):
-            self.repl.register_plugin(info)
+        if to_remove:
+            self._status(
+                f"Unloaded {len(to_remove)} plugin(s): "
+                + ", ".join(to_remove),
+                "dim",
+            )
+        self._load_and_report(
+            load_plugins_from_dir(
+                cfg_plugins_dir(config_path), Path(config_path).stem,
+            ),
+        )
 
     def _start_demo(self, args: str = "") -> None:
         """Set up and switch to the built-in demo device config.
@@ -1287,10 +1336,10 @@ class SerialTerminal(App):
         self.query_one("#output", RichLog).clear()
 
     def _palette_ss_svg(self) -> None:
-        self.repl.dispatch("ss_svg")
+        self.repl.dispatch("ss.svg")
 
     def _palette_ss_txt(self) -> None:
-        self.repl.dispatch("ss_txt")
+        self.repl.dispatch("ss.txt")
 
     def _palette_exit(self) -> None:
         self._disconnect()
@@ -1824,19 +1873,27 @@ class SerialTerminal(App):
                 pass
 
     def _hook_port(self, ctx, args: str) -> None:
-        arg = args.strip().lower()
-        if not arg or arg == "list":
-            from serial.tools.list_ports import comports
-
-            ports = sorted(comports(), key=lambda p: p.device)
-            if not ports:
-                self._status("No serial ports found", "yellow")
-                return
-            for p in ports:
-                desc = p.description or ""
-                self._status(f"  {p.device}  {desc}")
+        """Open a port by name, or show subcommands if no name given."""
+        name = args.strip()
+        if not name:
+            ctx.write("Usage: !port <name> to switch, or use subcommands:")
+            ctx.write("  !port.list   — list available ports")
+            ctx.write("  !port.open   — connect (optional port override)")
+            ctx.write("  !port.close  — disconnect")
             return
-        self._update_port(args.strip())
+        self._update_port(name)
+
+    def _hook_port_list(self, ctx, args: str) -> None:
+        """List available serial ports."""
+        from serial.tools.list_ports import comports
+
+        ports = sorted(comports(), key=lambda p: p.device)
+        if not ports:
+            self._status("No serial ports found", "yellow")
+            return
+        for p in ports:
+            desc = p.description or ""
+            self._status(f"  {p.device}  {desc}")
 
     _SERIAL_KEYS = {
         "port",

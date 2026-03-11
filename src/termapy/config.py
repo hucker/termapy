@@ -247,7 +247,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     plugins_dir = demo_dir / "plugins"
     plugins_dir.mkdir(exist_ok=True)
     plugins_pkg = pkg / "plugins"
-    for name in ("probe.py",):
+    for name in ("cmd.py", "probe.py"):
         dest = plugins_dir / name
         if force or not dest.exists():
             src = plugins_pkg / name

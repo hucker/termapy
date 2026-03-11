@@ -1,4 +1,4 @@
-"""Built-in plugin: print a message to the terminal."""
+"""Built-in plugin: print plain or Rich markup text to the terminal."""
 
 from __future__ import annotations
 
@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "print"
-ARGS = "<text>"
-HELP = "Print a message to the terminal."
 
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Write a message to the terminal output.
 
     Prints the argument text directly to the terminal. Useful in
@@ -23,3 +19,33 @@ def handler(ctx: PluginContext, args: str) -> None:
         args: Text to print.
     """
     ctx.write(args)
+
+
+def _handler_rich(ctx: PluginContext, args: str) -> None:
+    """Write Rich markup text to the terminal output.
+
+    Unlike ``!print`` which outputs plain text, ``!print.r`` passes
+    text through the Rich markup parser, enabling styled output
+    with tags like ``[bold red]text[/]``.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Rich markup text to render.
+    """
+    ctx.write_markup(args)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "print",
+    "args": "<text>",
+    "help": "Print a message to the terminal.",
+    "handler": _handler,
+    "sub_commands": {
+        "r": {
+            "args": "<text>",
+            "help": "Print Rich markup text (e.g. [bold red]Warning![/]).",
+            "handler": _handler_rich,
+        },
+    },
+}

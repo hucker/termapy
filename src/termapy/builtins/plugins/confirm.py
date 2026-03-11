@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "confirm"
-ARGS = "{message}"
-HELP = "Show Yes/Cancel dialog; Cancel stops a running script."
 
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Pause execution and show a Yes/Cancel confirmation dialog.
 
     If the user clicks Yes, execution continues. If Cancel, the
@@ -27,3 +23,12 @@ def handler(ctx: PluginContext, args: str) -> None:
     if not ctx.confirm(message):
         ctx.write("Cancelled.", "yellow")
         ctx.engine.script_stop()
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "confirm",
+    "args": "{message}",
+    "help": "Show Yes/Cancel dialog; Cancel stops a running script.",
+    "handler": _handler,
+}

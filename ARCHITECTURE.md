@@ -14,17 +14,17 @@ src/termapy/
 ├── scripting.py         # (90 lines)   Pure functions — template expansion, duration parsing
 ├── migration.py         # (48 lines)   Config schema migration
 ├── help.md              # In-app help guide (bundled in pip installs)
-├── builtins/            # Built-in REPL commands (11 plugins)
-│   ├── cfg.py           # !cfg — view/change config
-│   ├── cfg_auto.py      # !cfg_auto — set config without confirmation
+├── builtins/            # Built-in REPL commands (9 plugin files)
+│   ├── cfg.py           # !cfg — view/change config; !cfg.auto subcommand
 │   ├── echo.py          # !echo — toggle command echo
 │   ├── grep.py          # !grep — search scrollback
 │   ├── help.py          # !help — list commands
 │   ├── os_cmd.py        # !os — run shell commands
-│   ├── print.py         # !print — print to terminal
+│   ├── print.py         # !print — print to terminal; !print.r subcommand
 │   ├── proto.py         # !proto — binary protocol commands
 │   ├── seq.py           # !seq — sequence counters
 │   ├── show.py          # !show — display files
+│   ├── ss.py            # !ss — screenshots; !ss.dir subcommand
 │   └── stop.py          # !stop — abort scripts
 └── builtins/viz/        # Built-in packet visualizers
     ├── hex_view.py      # Hex — raw hexadecimal byte values

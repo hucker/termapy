@@ -14,16 +14,6 @@ _TITLE_FMT = "  [bold]{text}[/]"
 _LABEL_FMT = "  {indent}[bold]{label}[/]{rest}"
 
 
-NAME = "help"
-ARGS = "{cmd} {--dev}"
-HELP = "List REPL commands, or show help for one command."
-LONG_HELP = """\
-Three modes:
-  !help            — list all commands grouped by source
-  !help <cmd>      — show usage, help text, and extended help
-  !help --dev <cmd> — show the handler's Python docstring (developer info)"""
-
-
 def _write_docstring(ctx: PluginContext, docstring: str) -> None:
     """Format and write a Google-style docstring with markup.
 
@@ -54,56 +44,156 @@ def _write_docstring(ctx: PluginContext, docstring: str) -> None:
             ctx.write(f"  {text}")
 
 
-def handler(ctx: PluginContext, args: str) -> None:
+def _list_children(ctx: PluginContext, plugin, prefix: str,
+                   cmd_w: int, arg_w: int, depth: int) -> None:
+    """Recursively list a command's children with indentation.
+
+    Args:
+        ctx: Plugin context for output.
+        plugin: PluginInfo for the parent command.
+        prefix: REPL prefix string (e.g. "!").
+        cmd_w: Column width for the command name.
+        arg_w: Column width for the arguments.
+        depth: Indentation depth (0 for top-level).
+    """
+    plugins = ctx.engine.plugins
+    for child_name in plugin.children:
+        child = plugins.get(child_name)
+        if not child:
+            continue
+        indent = "  " * (depth + 1)
+        cmd_col = f"{indent}{prefix}{child_name}".ljust(cmd_w + 2)
+        arg_col = (child.args or "").ljust(arg_w)
+        ctx.write(f"{cmd_col}{arg_col}  {child.help}")
+        if child.children:
+            _list_children(ctx, child, prefix, cmd_w, arg_w, depth + 1)
+
+
+def _show_command_help(ctx: PluginContext, name: str,
+                      dev_mode: bool = False) -> None:
+    """Show help for a single command by name.
+
+    Args:
+        ctx: Plugin context for engine plugin registry and output.
+        name: Dotted command name to look up.
+        dev_mode: If True, show handler docstring instead of long_help.
+    """
+    prefix = ctx.engine.prefix
+    plugin = ctx.engine.plugins.get(name)
+    if not plugin:
+        ctx.write(f"Unknown command: {name}", "red")
+        return
+    arg_str = f" {plugin.args}" if plugin.args else ""
+    ctx.write(f"{prefix}{name}{arg_str} — {plugin.help}")
+    if dev_mode:
+        docstring = getattr(plugin.handler, "__doc__", None)
+        if docstring:
+            ctx.write("  ── developer docstring ──", "dim")
+            _write_docstring(ctx, docstring)
+        else:
+            ctx.write("  (no docstring)", "dim")
+    elif plugin.long_help:
+        for line in plugin.long_help.strip().splitlines():
+            ctx.write(f"  {line}")
+    # Show subcommands if any
+    if plugin.children:
+        ctx.write("  Subcommands:")
+        plugins = ctx.engine.plugins
+        for child_name in plugin.children:
+            child = plugins.get(child_name)
+            if child:
+                arg_str = f" {child.args}" if child.args else ""
+                suffix = "  ..." if child.children else ""
+                ctx.write(
+                    f"    {prefix}{child_name}{arg_str}"
+                    f" — {child.help}{suffix}"
+                )
+    if plugin.source not in ("built-in", "app"):
+        ctx.write(f"  (source: {plugin.source})", "dim")
+
+
+def _handler(ctx: PluginContext, args: str) -> None:
     """List all REPL commands or show detailed help for one.
 
     With no arguments, lists all registered commands grouped by source
-    (built-in, global, per-config) with aligned columns. With a command
-    name, shows that command's usage and help text.
+    (built-in, global, per-config) with aligned columns and indented
+    subcommands. With a command name (dotted for subcommands), shows
+    that command's usage, help text, and subcommand list.
 
     Args:
         ctx: Plugin context for engine plugin registry and output.
         args: Optional command name to get help for.
     """
-    raw = args.strip() if isinstance(args, str) else ""
-    parts = raw.split()
-    dev_mode = "--dev" in parts
-    if dev_mode:
-        parts.remove("--dev")
-    name = parts[0].lower() if parts else ""
+    name = args.strip().lower() if isinstance(args, str) else ""
     prefix = ctx.engine.prefix
     if name:
-        plugin = ctx.engine.plugins.get(name)
-        if not plugin:
-            ctx.write(f"Unknown command: {name}", "red")
-            return
-        arg_str = f" {plugin.args}" if plugin.args else ""
-        ctx.write(f"{prefix}{name}{arg_str} — {plugin.help}")
-        if dev_mode:
-            docstring = getattr(plugin.handler, "__doc__", None)
-            if docstring:
-                ctx.write("  ── developer docstring ──", "dim")
-                _write_docstring(ctx, docstring)
-            else:
-                ctx.write("  (no docstring)", "dim")
-        elif plugin.long_help:
-            for line in plugin.long_help.strip().splitlines():
-                ctx.write(f"  {line}")
-        if plugin.source != "built-in":
-            ctx.write(f"  (source: {plugin.source})", "dim")
+        _show_command_help(ctx, name)
+        return
     else:
-        groups = {}
-        for cmd_name, plugin in ctx.engine.plugins.items():
-            groups.setdefault(plugin.source, []).append((cmd_name, plugin))
+        # Group top-level commands by source
+        all_plugins = ctx.engine.plugins
+        groups: dict[str, list] = {}
+        for cmd_name, plugin in all_plugins.items():
+            # Only show top-level commands (no dots = root level)
+            if "." not in cmd_name:
+                groups.setdefault(plugin.source, []).append(
+                    (cmd_name, plugin)
+                )
 
-        # Measure columns: cmd width and args width across ALL plugins
-        all_plugins = list(ctx.engine.plugins.values())
-        cmd_w = max(len(prefix) + len(p.name) for p in all_plugins) + 2
-        arg_w = max((len(p.args) for p in all_plugins if p.args), default=0) + 2
+        # Measure column widths across ALL plugins (including children)
+        all_infos = list(all_plugins.values())
+        cmd_w = max(
+            (len(prefix) + len(p.name) + 2 * p.name.count(".")
+             for p in all_infos),
+            default=10,
+        ) + 2
+        arg_w = max(
+            (len(p.args) for p in all_infos if p.args), default=0
+        ) + 2
 
-        for source, plugins in groups.items():
+        for source, plugins_list in groups.items():
             ctx.write(f"── {source} ──")
-            for cmd_name, plugin in plugins:
+            for cmd_name, plugin in plugins_list:
                 cmd_col = f"  {prefix}{cmd_name}".ljust(cmd_w + 2)
                 arg_col = (plugin.args or "").ljust(arg_w)
                 ctx.write(f"{cmd_col}{arg_col}  {plugin.help}")
+                if plugin.children:
+                    _list_children(
+                        ctx, plugin, prefix, cmd_w, arg_w, depth=1
+                    )
+
+
+def _handler_dev(ctx: PluginContext, args: str) -> None:
+    """Show a command handler's Python docstring (developer info).
+
+    Args:
+        ctx: Plugin context for engine plugin registry and output.
+        args: Command name to inspect.
+    """
+    name = args.strip().lower() if isinstance(args, str) else ""
+    if not name:
+        ctx.write("Usage: !help.dev <cmd>", "red")
+        return
+    _show_command_help(ctx, name, dev_mode=True)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "help",
+    "args": "{cmd}",
+    "help": "List REPL commands, or show help for one command.",
+    "long_help": """\
+Three modes:
+  !help              — list all commands with subcommands
+  !help <cmd>        — show usage, help text, and subcommands
+  !help proto.crc    — show help for a subcommand (dot notation)
+  !help.dev <cmd>    — show the handler's Python docstring (developer info)""",
+    "handler": _handler,
+    "sub_commands": {
+        "dev": {
+            "args": "<cmd>",
+            "help": "Show a command handler's Python docstring.",
+            "handler": _handler_dev,
+        },
+    },
+}

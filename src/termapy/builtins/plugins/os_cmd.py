@@ -8,24 +8,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "os"
-ARGS = "<cmd>"
-HELP = "Run a shell command and show output (10s timeout). e.g. !os dir"
-LONG_HELP = """\
-Runs a shell command via the system shell and displays its output.
-Stdout is shown in white, stderr in red.
 
-Requires os_cmd_enabled: true in your config (disabled by default
-for safety). Commands time out after 10 seconds.
-
-Examples:
-  !os dir                — list files (Windows)
-  !os ls -la             — list files (Unix)
-  !os python --version   — check Python version
-  !os ping -c 1 host     — network test"""
-
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Run a shell command and display its output.
 
     Requires ``os_cmd_enabled: true`` in the config. Runs the command
@@ -52,3 +36,24 @@ def handler(ctx: PluginContext, args: str) -> None:
             ctx.write(line, "red")
     except subprocess.TimeoutExpired:
         ctx.write("Command timed out (10s limit)", "red")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "os",
+    "args": "<cmd>",
+    "help": "Run a shell command and show output (10s timeout). e.g. !os dir",
+    "long_help": """\
+Runs a shell command via the system shell and displays its output.
+Stdout is shown in white, stderr in red.
+
+Requires os_cmd_enabled: true in your config (disabled by default
+for safety). Commands time out after 10 seconds.
+
+Examples:
+  !os dir                — list files (Windows)
+  !os ls -la             — list files (Unix)
+  !os python --version   — check Python version
+  !os ping -c 1 host     — network test""",
+    "handler": _handler,
+}

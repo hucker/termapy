@@ -181,8 +181,8 @@ class TestParseScriptLines:
         assert actual == [("repl", "delay 500ms")]  # prefix stripped
 
     def test_repl_command_with_leading_space(self):
-        actual = parse_script_lines(["  !ss_svg test"])
-        assert actual == [("repl", "ss_svg test")]  # leading space stripped
+        actual = parse_script_lines(["  !ss.svg test"])
+        assert actual == [("repl", "ss.svg test")]  # leading space stripped
 
     def test_custom_prefix(self):
         actual = parse_script_lines(["@@delay 1s"], prefix="@@")
@@ -195,7 +195,7 @@ class TestParseScriptLines:
             "",
             "rev",
             "!delay 500ms",
-            "!ss_svg test_{seq1+}",
+            "!ss.svg test_{seq1+}",
             "help",
         ]
         expected = [
@@ -203,7 +203,7 @@ class TestParseScriptLines:
             ("skip", ""),
             ("serial", "rev"),
             ("repl", "delay 500ms"),
-            ("repl", "ss_svg test_{seq1+}"),
+            ("repl", "ss.svg test_{seq1+}"),
             ("serial", "help"),
         ]
 

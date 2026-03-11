@@ -8,26 +8,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "show"
-ARGS = "<name>"
-HELP = "Show a file. $cfg for current config, or a filename."
-LONG_HELP = """\
-Reads a file and prints its contents to the terminal.
-
-Special names:
-  $cfg  — show the current JSON config file
-
-Regular filenames are resolved relative to the working directory.
-
-Examples:
-  !show $cfg             — view current config
-  !show my_script.run    — view a script file
-  !show ../notes.txt     — relative path"""
-
 _SHOW_SPECIAL = {"$cfg"}
 
 
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Display file contents in the terminal.
 
     Reads a file and prints each line to the terminal output.
@@ -65,3 +49,24 @@ def handler(ctx: PluginContext, args: str) -> None:
         ctx.write("--- end ---")
     except Exception as e:
         ctx.write(f"Error reading {path}: {e}", "red")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "show",
+    "args": "<name>",
+    "help": "Show a file. $cfg for current config, or a filename.",
+    "long_help": """\
+Reads a file and prints its contents to the terminal.
+
+Special names:
+  $cfg  — show the current JSON config file
+
+Regular filenames are resolved relative to the working directory.
+
+Examples:
+  !show $cfg             — view current config
+  !show my_script.run    — view a script file
+  !show ../notes.txt     — relative path""",
+    "handler": _handler,
+}

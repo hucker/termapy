@@ -578,14 +578,14 @@ class SerialTerminal(App):
         self.repl._after_cfg = self._refresh_after_cfg
         # Register app-coupled commands as plugins
         self.repl.register_hook(
-            "ss_svg",
+            "ss.svg",
             "{name}",
             "Save SVG screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_svg,
             source="app",
         )
         self.repl.register_hook(
-            "ss_txt",
+            "ss.txt",
             "{name}",
             "Save text screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_txt,
@@ -600,9 +600,30 @@ class SerialTerminal(App):
         )
         self.repl.register_hook(
             "port",
-            "{name | list}",
-            "Open a port by name, or 'list' to show available ports.",
+            "{name}",
+            "Serial port tools: open, close, list.",
             self._hook_port,
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.list",
+            "",
+            "List available serial ports.",
+            self._hook_port_list,
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.open",
+            "{name}",
+            "Connect to the serial port (optional port override).",
+            lambda ctx, args: self._connect(args.strip() if args.strip() else None),
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.close",
+            "",
+            "Disconnect from the serial port.",
+            lambda ctx, args: self._disconnect(),
             source="app",
         )
         self.repl.register_hook(
@@ -614,23 +635,16 @@ class SerialTerminal(App):
         )
         self.repl.register_hook(
             "demo",
-            "{--force}",
-            "Switch to the built-in demo device. --force overwrites existing config.",
+            "",
+            "Switch to the built-in demo device.",
             lambda ctx, args: self._start_demo(args),
             source="app",
         )
         self.repl.register_hook(
-            "connect",
-            "{port}",
-            "Connect to the serial port (optional port override).",
-            lambda ctx, args: self._connect(args.strip() if args.strip() else None),
-            source="app",
-        )
-        self.repl.register_hook(
-            "disconnect",
+            "demo.force",
             "",
-            "Disconnect from the serial port.",
-            lambda ctx, args: self._disconnect(),
+            "Switch to demo device, overwriting existing config.",
+            lambda ctx, args: self._start_demo("--force"),
             source="app",
         )
         self.repl.register_hook(
@@ -1287,10 +1301,10 @@ class SerialTerminal(App):
         self.query_one("#output", RichLog).clear()
 
     def _palette_ss_svg(self) -> None:
-        self.repl.dispatch("ss_svg")
+        self.repl.dispatch("ss.svg")
 
     def _palette_ss_txt(self) -> None:
-        self.repl.dispatch("ss_txt")
+        self.repl.dispatch("ss.txt")
 
     def _palette_exit(self) -> None:
         self._disconnect()
@@ -1824,19 +1838,27 @@ class SerialTerminal(App):
                 pass
 
     def _hook_port(self, ctx, args: str) -> None:
-        arg = args.strip().lower()
-        if not arg or arg == "list":
-            from serial.tools.list_ports import comports
-
-            ports = sorted(comports(), key=lambda p: p.device)
-            if not ports:
-                self._status("No serial ports found", "yellow")
-                return
-            for p in ports:
-                desc = p.description or ""
-                self._status(f"  {p.device}  {desc}")
+        """Open a port by name, or show subcommands if no name given."""
+        name = args.strip()
+        if not name:
+            ctx.write("Usage: !port <name> to switch, or use subcommands:")
+            ctx.write("  !port.list   — list available ports")
+            ctx.write("  !port.open   — connect (optional port override)")
+            ctx.write("  !port.close  — disconnect")
             return
-        self._update_port(args.strip())
+        self._update_port(name)
+
+    def _hook_port_list(self, ctx, args: str) -> None:
+        """List available serial ports."""
+        from serial.tools.list_ports import comports
+
+        ports = sorted(comports(), key=lambda p: p.device)
+        if not ports:
+            self._status("No serial ports found", "yellow")
+            return
+        for p in ports:
+            desc = p.description or ""
+            self._status(f"  {p.device}  {desc}")
 
     _SERIAL_KEYS = {
         "port",

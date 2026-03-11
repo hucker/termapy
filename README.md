@@ -187,15 +187,17 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 
 | Command                   | Description                                                                      |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| `!help [cmd] [--dev]`     | List commands, show extended help, or `--dev` for handler docstring               |
-| `!connect`                | Connect to the serial port                                                       |
-| `!disconnect`             | Disconnect from the serial port                                                  |
-| `!port [name \| list]`    | Open a port by name, or list available ports                                     |
+| `!help [cmd]`             | List commands or show extended help for one                                       |
+| `!help.dev <cmd>`         | Show a command handler's Python docstring                                         |
+| `!port [name]`            | Open a port by name, or show subcommands                                         |
+| `!port.list`              | List available serial ports                                                      |
+| `!port.open {name}`       | Connect to the serial port (optional port override)                              |
+| `!port.close`             | Disconnect from the serial port                                                  |
 | `!cfg [key [value]]`      | Show config, show a key, or change a value (with confirmation)                   |
-| `!cfg_auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
-| `!ss_svg [name]`          | Save SVG screenshot                                                              |
-| `!ss_txt [name]`          | Save text screenshot                                                             |
-| `!ss_dir [path]`          | Set or show the screenshot folder                                                |
+| `!cfg.auto <key> <value>` | Set a config key immediately (no confirmation)                                   |
+| `!ss.svg [name]`          | Save SVG screenshot                                                              |
+| `!ss.txt [name]`          | Save text screenshot                                                             |
+| `!ss.dir`                 | Show the screenshot folder                                                       |
 | `!cls`                    | Clear the terminal screen                                                        |
 | `!run <filename>`         | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
 | `!delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
@@ -203,7 +205,7 @@ Type commands prefixed with `!` (configurable via `repl_prefix`) to run local ac
 | `!stop`                   | Abort a running script                                                           |
 | `!seq [reset]`            | Show or reset sequence counters                                                  |
 | `!print <text>`           | Print a message to the terminal                                                  |
-| `!rprint <text>`          | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
+| `!print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
 | `!show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `!echo [on \| off]`       | Toggle REPL command echo                                                         |
 | `!show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
@@ -478,7 +480,7 @@ See `examples/plugins/` for working examples:
 - **timestamp.py** -- print the current date/time
 - **ping.py** -- send a command and measure response time
 
-A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_cfg/demo/plugins/` demonstrates the drain → write → read → parse cycle for device interaction. Run `!help probe` or `!help --dev probe` to see its documentation.
+A more complete example ships with `--demo`: the `probe.py` plugin in `termapy_cfg/demo/plugins/` demonstrates the drain → write → read → parse cycle for device interaction. Run `!help probe` or `!help.dev probe` to see its documentation.
 
 ## Packet Visualizers
 

@@ -8,30 +8,30 @@ honest about that.
 
 ## Feature Comparison
 
-| Feature                     | Termapy                                                               | RealTerm                                | CoolTerm                   | Tera Term                    | Docklight                             | HTerm                |
-| --------------------------- | --------------------------------------------------------------------- | --------------------------------------- | -------------------------- | ---------------------------- | ------------------------------------- | -------------------- |
-| **Command scripting**       | `.run` files with delays, sequences, confirmations                    | Batch/COM automation                    | macOS only (AppleScript)   | Full macro language (TTL)    | VBScript engine                       | No                   |
-| **Programmable extensions** | Python plugins (drop-in `.py` files)                                  | No (COM API for external tools)         | No                         | DLL extensions (C/C++)       | No                                    | No                   |
+| Feature                     | Termapy                                                                                                   | RealTerm                                | CoolTerm                   | Tera Term                    | Docklight                             | HTerm                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------- | ---------------------------- | ------------------------------------- | -------------------- |
+| **Command scripting**       | `.run` files with delays, sequences, confirmations                                                        | Batch/COM automation                    | macOS only (AppleScript)   | Full macro language (TTL)    | VBScript engine                       | No                   |
+| **Programmable extensions** | Python plugins (drop-in `.py` files)                                                                      | No (COM API for external tools)         | No                         | DLL extensions (C/C++)       | No                                    | No                   |
 | **Binary protocol testing** | `.pro` scripts with hex send/expect, interactive debug screen, scrolling results, visualizer data in logs | Strong — hex/dec/binary send            | Send hex strings only      | Hex display only             | Strong — visual send/expect sequences | Hex/dec/binary send  |
 | **CRC tools**               | 62 named algorithms, `!proto crc` list/help/calc with hex, text, or file input, check-string verification | No built-in                             | No                         | No                           | CRC auto-calculation in sequences     | No                   |
-| **Packet visualizers**      | Pluggable — Hex, Text, Modbus built-in; drop `.py` for custom decoders with per-column diff coloring     | No                                      | No                         | No                           | Predefined protocol decoders          | No                   |
-| **In-line tool commands**   | Yes — `!grep`, `!cfg`, `!proto`, `!seq` from the input bar            | No                                      | No                         | No                           | No                                    | No                   |
-| **Config management**       | JSON files with per-config dirs (scripts, plugins, screenshots, logs) | Minimal                                 | Save/load connection files | INI file with GUI dialogs    | Project files                         | XML files            |
-| **Command history**         | Per-config, configurable depth, up-arrow recall                       | Basic                                   | Basic                      | Basic                        | N/A                                   | N/A                  |
-| **Custom buttons**          | Configurable toolbar — serial, REPL, or script commands               | No                                      | No                         | No                           | Predefined send sequences             | No                   |
-| **Screenshots**             | Built-in SVG + text capture                                           | No                                      | No                         | Unknown                      | No                                    | No                   |
-| **Search scrollback**       | `!grep` with regex                                                    | 200-line buffer, no search              | Hex view search only       | Unknown                      | Find Sequence                         | No                   |
-| **Auto-reconnect**          | Yes, with autoconnect command sequences                               | Yes                                     | Yes, configurable delay    | Yes (USB replug detect)      | Yes (hotplug recovery)                | No                   |
-| **Session logging**         | Auto per-config log file                                              | Yes, timestamped                        | Yes, text/binary           | Yes                          | Yes                                   | Yes                  |
-| **Hex display mode**        | Toggle with `!proto hex`                                              | Multiple formats (hex/dec/binary/float) | Side-by-side hex/text      | Hex format                   | HEX/dec/binary                        | HEX/dec/binary/ASCII |
-| **Terminal emulation**      | ANSI color rendering                                                  | Basic                                   | Limited ANSI               | Full VT100–VT382             | No — protocol analyzer                | No — raw display     |
-| **Cross-platform**          | Win/Mac/Linux (Python TUI)                                            | Windows only                            | Win/Mac/Linux (native GUI) | Windows only                 | Windows only                          | Win/Linux            |
-| **Cost**                    | Free, open source                                                     | Free, open source                       | Free (donationware)        | Free, open source            | ~$190 (free eval)                     | Free                 |
-| **Line ending control**     | CR/LF/CRLF configurable                                               | Yes                                     | Yes                        | Yes                          | Full byte control                     | Yes                  |
-| **Demo/simulation mode**    | `--demo` or `!demo` — simulated device, no hardware needed            | No                                      | No                         | No                           | No                                    | No                   |
-| **Maturity**                | New (2025)                                                            | ~15 years                               | ~10 years                  | 25+ years                    | ~15 years                             | ~10 years            |
-| **Community**               | None                                                                  | SourceForge forums                      | User forums                | Active open-source community | Commercial support                    | Minimal              |
-| **Installer**               | Requires Python + uv                                                  | Windows .exe                            | Native installer           | Windows .exe                 | Windows installer                     | Standalone binary    |
+| **Packet visualizers**      | Pluggable — Hex, Text, Modbus built-in; drop `.py` for custom decoders with per-column diff coloring      | No                                      | No                         | No                           | Predefined protocol decoders          | No                   |
+| **In-line tool commands**   | Yes — `!grep`, `!cfg`, `!proto`, `!seq` from the input bar                                                | No                                      | No                         | No                           | No                                    | No                   |
+| **Config management**       | JSON files with per-config dirs (scripts, plugins, screenshots, logs)                                     | Minimal                                 | Save/load connection files | INI file with GUI dialogs    | Project files                         | XML files            |
+| **Command history**         | Per-config, configurable depth, up-arrow recall                                                           | Basic                                   | Basic                      | Basic                        | N/A                                   | N/A                  |
+| **Custom buttons**          | Configurable toolbar — serial, REPL, or script commands                                                   | No                                      | No                         | No                           | Predefined send sequences             | No                   |
+| **Screenshots**             | Built-in SVG + text capture                                                                               | No                                      | No                         | Unknown                      | No                                    | No                   |
+| **Search scrollback**       | `!grep` with regex                                                                                        | 200-line buffer, no search              | Hex view search only       | Unknown                      | Find Sequence                         | No                   |
+| **Auto-reconnect**          | Yes, with autoconnect command sequences                                                                   | Yes                                     | Yes, configurable delay    | Yes (USB replug detect)      | Yes (hotplug recovery)                | No                   |
+| **Session logging**         | Auto per-config log file                                                                                  | Yes, timestamped                        | Yes, text/binary           | Yes                          | Yes                                   | Yes                  |
+| **Hex display mode**        | Toggle with `!proto hex`                                                                                  | Multiple formats (hex/dec/binary/float) | Side-by-side hex/text      | Hex format                   | HEX/dec/binary                        | HEX/dec/binary/ASCII |
+| **Terminal emulation**      | ANSI color rendering                                                                                      | Basic                                   | Limited ANSI               | Full VT100–VT382             | No — protocol analyzer                | No — raw display     |
+| **Cross-platform**          | Win/Mac/Linux (Python TUI)                                                                                | Windows only                            | Win/Mac/Linux (native GUI) | Windows only                 | Windows only                          | Win/Linux            |
+| **Cost**                    | Free, open source                                                                                         | Free, open source                       | Free (donationware)        | Free, open source            | ~$190 (free eval)                     | Free                 |
+| **Line ending control**     | CR/LF/CRLF configurable                                                                                   | Yes                                     | Yes                        | Yes                          | Full byte control                     | Yes                  |
+| **Demo/simulation mode**    | `--demo` or `!demo` — simulated device, no hardware needed                                                | No                                      | No                         | No                           | No                                    | No                   |
+| **Maturity**                | New (2025)                                                                                                | ~15 years                               | ~10 years                  | 25+ years                    | ~15 years                             | ~10 years            |
+| **Community**               | None                                                                                                      | SourceForge forums                      | User forums                | Active open-source community | Commercial support                    | Minimal              |
+| **Installer**               | Requires Python + uv                                                                                      | Windows .exe                            | Native installer           | Windows .exe                 | Windows installer                     | Standalone binary    |
 
 ## Two Layers of Scripting
 
@@ -74,13 +74,29 @@ def handler(ctx, args):
     ctx.write(f"Sent: {args} {crc:04X}", "green")
 ```
 
+And here it is in the shell reporting 31C3 as the CRC...which matches the XMODEM test case.
+This is TRIVIAL for LLMs (and people) to write code for.
+
+```shell
+> !crcsend 123456789
+Sent: '123456789' 31C3  
+```
+
 No equivalent exists in the other tools. Tera Term has DLL extensions but
-those require C/C++ and a compiler. Docklight has VBScript but it's limited
-to their API. Termapy plugins are plain Python files dropped into a folder —
-including the built-in commands themselves. The design is loosely inspired by
-the "extensions all the way down" approach: drop a `.py` file in a folder and
-you can add commands, override builtins, implement protocol handlers, or build
-a full device simulator. No compilation, no registration, no restart.
+those require C/C++ and a compiler. Docklight has VBScript but it's sandboxed
+to a small object model. Termapy plugins also work through a defined API
+(the `PluginContext`), but they're full Python — you can import any library,
+do file I/O, make network calls, or spin up threads. They're plain `.py`
+files dropped into a folder, including the built-in commands themselves.
+Drop a file in a folder and you can add commands, override builtins, implement
+protocol handlers, or build a full device simulator. No compilation, no
+registration, no restart.
+
+**Security note:** plugins are plain Python with no sandbox — the same trust
+model as pip packages or VS Code extensions. Only load plugins you wrote or
+reviewed. That said, this is true of any machine with Python installed; the
+plugin system doesn't create an attack surface that `python script.py`
+doesn't already have.
 
 This is also where AI-assisted development works well — the plugin API surface
 is small enough (6 core functions) that an LLM can generate a working plugin

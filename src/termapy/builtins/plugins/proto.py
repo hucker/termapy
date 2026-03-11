@@ -27,93 +27,8 @@ from termapy.protocol import (
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "proto"
-ARGS = "<subcommand> [args]"
-HELP = "Binary protocol tools: send, run, hex, crc, status."
-LONG_HELP = """\
-Subcommands:
-  send <hex|"text">   Send raw bytes, show response
-  run <file.pro>      Run a protocol test script
-  debug <file.pro>    Open interactive protocol debug screen
-  hex {on|off}        Toggle hex display for all serial I/O
-  crc list {pattern}  List available CRC algorithms (glob filter)
-  crc help <name>     Show algorithm parameters and description
-  crc calc <name> <data>  Compute CRC over hex bytes or "text"
-  status              Show current protocol state
 
-Send examples:
-  !proto send 01 02 03         — send three hex bytes
-  !proto send "AT\\r"           — send text with carriage return
-  !proto send 0x01 "hello" 0D  — mix hex and text
-
-CRC examples:
-  !proto crc list              — list all 61+ algorithms
-  !proto crc list *modbus*     — filter by glob pattern
-  !proto crc help crc16-modbus — show parameters for Modbus CRC
-  !proto crc calc crc16-modbus 01 03 00 00 00 01  — compute CRC
-
-Script files (.pro) support TOML format with [[test]] sections
-or flat format with send:/expect: directives. Scripts are found
-in the proto/ subfolder of your config directory."""
-
-# Subcommand dispatch table (populated at module level)
-_SUBCMDS: dict[str, str] = {
-    "send": "send <hex|\"text\">  — send raw bytes, show response",
-    "run": "run <file.pro>      — run a protocol test script",
-    "debug": "debug <file.pro>    — interactive protocol debug screen",
-    "hex": "hex {on|off}        — toggle hex display mode",
-    "crc": "crc list|help|calc  — browse and compute CRC algorithms",
-    "status": "status              — show current proto state",
-}
-
-
-def handler(ctx: PluginContext, args: str) -> None:
-    """Dispatch proto subcommands for binary protocol testing.
-
-    Routes to ``send``, ``run``, ``debug``, ``hex``, or ``status``
-    subcommands. With no arguments, prints usage showing all
-    available subcommands.
-
-    Args:
-        ctx: Plugin context for serial I/O and output.
-        args: Subcommand and its arguments, e.g. ``"send 01 02 03"``.
-    """
-    parts = args.strip().split(None, 1)
-    if not parts:
-        _show_usage(ctx)
-        return
-
-    subcmd = parts[0].lower()
-    sub_args = parts[1] if len(parts) > 1 else ""
-
-    if subcmd == "send":
-        _cmd_send(ctx, sub_args)
-    elif subcmd == "run":
-        _cmd_run(ctx, sub_args)
-    elif subcmd == "debug":
-        _cmd_debug(ctx, sub_args)
-    elif subcmd == "hex":
-        _cmd_hex(ctx, sub_args)
-    elif subcmd == "crc":
-        _cmd_crc(ctx, sub_args)
-    elif subcmd == "status":
-        _cmd_status(ctx)
-    else:
-        ctx.write(f"Unknown subcommand: {subcmd}", "red")
-        _show_usage(ctx)
-
-
-def _show_usage(ctx: PluginContext) -> None:
-    """Display proto subcommand help.
-
-    Args:
-        ctx: Plugin context for output.
-    """
-    prefix = ctx.engine.prefix
-    ctx.write(f"Usage: {prefix}proto <subcommand>")
-    for name, desc in _SUBCMDS.items():
-        ctx.write(f"  {desc}")
-
+# ---- Shared helpers --------------------------------------------------------
 
 def _display_bytes(ctx: PluginContext, direction: str, data: bytes,
                    binary: bool = False) -> None:
@@ -137,46 +52,6 @@ def _display_bytes(ctx: PluginContext, direction: str, data: bytes,
         ctx.write(f"  {direction} {len(data)} bytes:", color)
         for line in format_hex_dump(data):
             ctx.write(f"    {line}")
-
-
-def _cmd_send(ctx: PluginContext, args: str) -> None:
-    """Send raw bytes to the serial port and display the response.
-
-    Parses hex and/or quoted text into bytes, transmits them (no line
-    ending appended), then waits up to 1 second for a response frame.
-    Displays both TX and RX as hex with byte count and round-trip time.
-
-    Args:
-        ctx: Plugin context for serial I/O and output.
-        args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
-    """
-    if not args.strip():
-        ctx.write("Usage: !proto send <hex bytes or \"text\">", "red")
-        return
-    if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
-
-    try:
-        data = parse_data(args)
-    except ValueError as e:
-        ctx.write(f"Parse error: {e}", "red")
-        return
-
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
-    _display_bytes(ctx, "TX", data)
-    t0 = time.monotonic()
-    ctx.serial_write(data)
-    response = ctx.serial_read_raw(1000)
-    elapsed_ms = (time.monotonic() - t0) * 1000
-    ctx.engine.set_proto_active(False)
-
-    if response:
-        _display_bytes(ctx, "RX", response)
-        ctx.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
-    else:
-        ctx.write("  RX: (no response)", "red")
 
 
 def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
@@ -390,6 +265,48 @@ def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
         ctx.write(f"{'─' * 40}")
 
 
+# ---- Leaf handlers ---------------------------------------------------------
+
+def _cmd_send(ctx: PluginContext, args: str) -> None:
+    """Send raw bytes to the serial port and display the response.
+
+    Parses hex and/or quoted text into bytes, transmits them (no line
+    ending appended), then waits up to 1 second for a response frame.
+    Displays both TX and RX as hex with byte count and round-trip time.
+
+    Args:
+        ctx: Plugin context for serial I/O and output.
+        args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
+    """
+    if not args.strip():
+        ctx.write("Usage: !proto.send <hex bytes or \"text\">", "red")
+        return
+    if not ctx.is_connected():
+        ctx.write("Not connected.", "red")
+        return
+
+    try:
+        data = parse_data(args)
+    except ValueError as e:
+        ctx.write(f"Parse error: {e}", "red")
+        return
+
+    ctx.engine.set_proto_active(True)
+    ctx.serial_drain()
+    _display_bytes(ctx, "TX", data)
+    t0 = time.monotonic()
+    ctx.serial_write(data)
+    response = ctx.serial_read_raw(1000)
+    elapsed_ms = (time.monotonic() - t0) * 1000
+    ctx.engine.set_proto_active(False)
+
+    if response:
+        _display_bytes(ctx, "RX", response)
+        ctx.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
+    else:
+        ctx.write("  RX: (no response)", "red")
+
+
 def _cmd_run(ctx: PluginContext, args: str) -> None:
     """Execute a ``.pro`` test script (TOML or flat format).
 
@@ -402,7 +319,7 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: !proto run <file.pro>", "red")
+        ctx.write("Usage: !proto.run <file.pro>", "red")
         return
 
     path = _resolve_proto_file(ctx, filename)
@@ -443,7 +360,7 @@ def _cmd_debug(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: !proto debug <file.pro>", "red")
+        ctx.write("Usage: !proto.debug <file.pro>", "red")
         return
 
     path = _resolve_proto_file(ctx, filename)
@@ -493,13 +410,14 @@ def _cmd_hex(ctx: PluginContext, args: str) -> None:
         ctx.write(f"Hex display mode {state}.", "bright_green")
 
 
-def _cmd_status(ctx: PluginContext) -> None:
+def _cmd_status(ctx: PluginContext, args: str) -> None:
     """Show current protocol mode state.
 
     Displays hex display mode and connection status.
 
     Args:
         ctx: Plugin context for engine state and output.
+        args: Ignored.
     """
     hex_mode = ctx.engine.get_hex_mode()
     connected = ctx.is_connected()
@@ -507,49 +425,7 @@ def _cmd_status(ctx: PluginContext) -> None:
     ctx.write(f"Connected: {'yes' if connected else 'no'}")
 
 
-def _cmd_crc(ctx: PluginContext, args: str) -> None:
-    """Browse and compute CRC algorithms.
-
-    Subcommands:
-        list {pattern}  — list available algorithms (optional glob filter)
-        help <name>     — show algorithm parameters and description
-        calc <name> <data>  — compute CRC over hex bytes or quoted text
-
-    Args:
-        ctx: Plugin context for output.
-        args: CRC subcommand and arguments.
-    """
-    parts = args.strip().split(None, 1)
-    if not parts:
-        _crc_show_usage(ctx)
-        return
-
-    sub = parts[0].lower()
-    sub_args = parts[1] if len(parts) > 1 else ""
-
-    if sub == "list":
-        _crc_list(ctx, sub_args)
-    elif sub == "help":
-        _crc_help(ctx, sub_args)
-    elif sub == "calc":
-        _crc_calc(ctx, sub_args)
-    else:
-        ctx.write(f"Unknown crc subcommand: {sub}", "red")
-        _crc_show_usage(ctx)
-
-
-def _crc_show_usage(ctx: PluginContext) -> None:
-    """Display CRC subcommand help.
-
-    Args:
-        ctx: Plugin context for output.
-    """
-    prefix = ctx.engine.prefix
-    ctx.write(f"Usage: {prefix}proto crc <subcommand>")
-    ctx.write("  list {pattern}       — list algorithms (glob filter)")
-    ctx.write("  help <name>          — show parameters and description")
-    ctx.write("  calc <name> <data>   — compute CRC over hex/text data")
-
+# ---- CRC subcommand handlers ----------------------------------------------
 
 def _crc_list(ctx: PluginContext, args: str) -> None:
     """List available CRC algorithms, optionally filtered by glob pattern.
@@ -598,7 +474,7 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip().lower()
     if not name:
-        ctx.write("Usage: !proto crc help <name>", "red")
+        ctx.write("Usage: !proto.crc.help <name>", "red")
         return
 
     entry = CRC_CATALOGUE.get(name)
@@ -611,7 +487,7 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
             ctx.write("  No catalogue parameters — loaded from plugin file.")
             return
         ctx.write(f"Unknown algorithm: {name}", "red")
-        ctx.write("Use '!proto crc list' to see available algorithms.")
+        ctx.write("Use '!proto.crc.list' to see available algorithms.")
         return
 
     w = entry["width"]
@@ -671,7 +547,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
     parts = args.strip().split(None, 1)
     if not parts:
         ctx.write(
-            "Usage: !proto crc calc <name> {hex bytes or text}", "red"
+            "Usage: !proto.crc.calc <name> {hex bytes or text}", "red"
         )
         return
 
@@ -681,7 +557,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
     alg = registry.get(name)
     if alg is None:
         ctx.write(f"Unknown algorithm: {name}", "red")
-        ctx.write("Use '!proto crc list' to see available algorithms.")
+        ctx.write("Use '!proto.crc.list' to see available algorithms.")
         return
 
     # No data provided — use the standard check string "123456789"
@@ -755,3 +631,71 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
                     f"0x{expected:0{hex_w}X}",
                     "red",
                 )
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "proto",
+    "help": "Binary protocol tools: send, run, debug, hex, crc, status.",
+    "long_help": """\
+Send examples:
+  !proto.send 01 02 03         — send three hex bytes
+  !proto.send "AT\\r"           — send text with carriage return
+  !proto.send 0x01 "hello" 0D  — mix hex and text
+
+CRC examples:
+  !proto.crc.list              — list all 62 algorithms
+  !proto.crc.list *modbus*     — filter by glob pattern
+  !proto.crc.help crc16-modbus — show parameters for Modbus CRC
+  !proto.crc.calc crc16-modbus 01 03 00 00 00 01  — compute CRC
+
+Script files (.pro) support TOML format with [[test]] sections
+or flat format with send:/expect: directives. Scripts are found
+in the proto/ subfolder of your config directory.""",
+    "sub_commands": {
+        "send": {
+            "args": '<hex|"text">',
+            "help": "Send raw bytes, show response.",
+            "handler": _cmd_send,
+        },
+        "run": {
+            "args": "<file.pro>",
+            "help": "Run a protocol test script.",
+            "handler": _cmd_run,
+        },
+        "debug": {
+            "args": "<file.pro>",
+            "help": "Interactive protocol debug screen.",
+            "handler": _cmd_debug,
+        },
+        "hex": {
+            "args": "{on|off}",
+            "help": "Toggle hex display mode.",
+            "handler": _cmd_hex,
+        },
+        "crc": {
+            "help": "Browse and compute CRC algorithms.",
+            "sub_commands": {
+                "list": {
+                    "args": "{pattern}",
+                    "help": "List algorithms (optional glob filter).",
+                    "handler": _crc_list,
+                },
+                "help": {
+                    "args": "<name>",
+                    "help": "Show algorithm parameters and description.",
+                    "handler": _crc_help,
+                },
+                "calc": {
+                    "args": "<name> {data}",
+                    "help": "Compute CRC over hex bytes, text, or file.",
+                    "handler": _crc_calc,
+                },
+            },
+        },
+        "status": {
+            "help": "Show current protocol state.",
+            "handler": _cmd_status,
+        },
+    },
+}

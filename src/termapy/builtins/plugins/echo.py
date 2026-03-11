@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "echo"
-ARGS = "{on | off}"
-HELP = "Toggle REPL command echo, or set on/off. Output is not affected."
 
-
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Toggle or set REPL command echo on/off.
 
     When echo is on, ``!`` commands are printed to the terminal
@@ -32,3 +28,12 @@ def handler(ctx: PluginContext, args: str) -> None:
         ctx.engine.set_echo(not ctx.engine.get_echo())
     state = "on" if ctx.engine.get_echo() else "off"
     ctx.write(f"REPL echo {state}.", "green")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "echo",
+    "args": "{on | off}",
+    "help": "Toggle REPL command echo, or set on/off. Output is not affected.",
+    "handler": _handler,
+}

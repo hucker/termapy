@@ -9,25 +9,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-NAME = "grep"
-ARGS = "<pattern>"
-HELP = "Search the scrollback for lines matching a pattern (case-insensitive regex)."
-LONG_HELP = """\
-Searches all visible terminal output using Python regex syntax.
-Matching is case-insensitive. ANSI escape codes are stripped
-before display. Grep's own output is excluded from results.
-
-Max results controlled by max_grep_lines config (default 100).
-
-Examples:
-  !grep error          — find lines containing 'error'
-  !grep ^OK            — lines starting with 'OK'
-  !grep temp.*\\d+      — 'temp' followed by digits"""
-
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> None:
     """Search the scrollback for lines matching a regex pattern.
 
     Performs a case-insensitive regex search across all visible terminal
@@ -81,3 +66,23 @@ def handler(ctx: PluginContext, args: str) -> None:
     for lineno, line in shown:
         clean = _ANSI_RE.sub("", line)
         ctx.write(f"  grep: {lineno:>5} | {clean}")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "grep",
+    "args": "<pattern>",
+    "help": "Search the scrollback for lines matching a pattern (case-insensitive regex).",
+    "long_help": """\
+Searches all visible terminal output using Python regex syntax.
+Matching is case-insensitive. ANSI escape codes are stripped
+before display. Grep's own output is excluded from results.
+
+Max results controlled by max_grep_lines config (default 100).
+
+Examples:
+  !grep error          — find lines containing 'error'
+  !grep ^OK            — lines starting with 'OK'
+  !grep temp.*\\d+      — 'temp' followed by digits""",
+    "handler": _handler,
+}

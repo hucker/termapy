@@ -119,15 +119,17 @@ Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead 
 
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
-| `!help [cmd] [--dev]`     | List commands, show extended help, or `--dev` for handler docstring         |
-| `!connect`                | Connect to the serial port                                                  |
-| `!disconnect`             | Disconnect from the serial port                                             |
-| `!port [name\|list]`      | Switch port or list available ports                                         |
+| `!help [cmd]`             | List commands or show extended help for one                                 |
+| `!help.dev <cmd>`         | Show a command handler's Python docstring                                   |
+| `!port [name]`            | Open a port by name, or show subcommands                                    |
+| `!port.list`              | List available serial ports                                                 |
+| `!port.open {name}`       | Connect (optional port override)                                            |
+| `!port.close`             | Disconnect from the serial port                                             |
 | `!cfg [key [value]]`      | View or change config values                                                |
-| `!cfg_auto <key> <val>`   | Set a config key without confirmation                                       |
-| `!ss_svg [name]`          | Save an SVG screenshot                                                      |
-| `!ss_txt [name]`          | Save a text screenshot                                                      |
-| `!ss_dir [path]`          | Show or set the screenshot folder                                           |
+| `!cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
+| `!ss.svg [name]`          | Save an SVG screenshot                                                      |
+| `!ss.txt [name]`          | Save a text screenshot                                                      |
+| `!ss.dir`                 | Show the screenshot folder                                                  |
 | `!cls`                    | Clear the terminal                                                          |
 | `!run <file>`             | Run a script file                                                           |
 | `!delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
@@ -135,7 +137,7 @@ Commands prefixed with `!` (configurable via `repl_prefix`) run locally instead 
 | `!stop`                   | Abort a running script                                                      |
 | `!seq [reset]`            | Show or reset sequence counters                                             |
 | `!print <text>`           | Print a message to the terminal                                             |
-| `!rprint <text>`          | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
+| `!print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `!show <name>`            | Show a file (`$cfg` for current config)                                     |
 | `!echo [on\|off]`         | Toggle command echo                                                         |
 | `!os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
@@ -432,7 +434,7 @@ The demo config includes example scripts and protocol tests:
 
 - **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`
 - **Proto:** `at_test.pro` (AT command tests), `modbus_test.pro` (Modbus RTU tests)
-- **Plugin:** `probe.py` — demo plugin showing serial I/O (drain → write → read → parse). Try `!probe` to run a device survey, or `!help --dev probe` to see the annotated source as a plugin-writing guide.
+- **Plugin:** `probe.py` — demo plugin showing serial I/O (drain → write → read → parse). Try `!probe` to run a device survey, or `!help.dev probe` to see the annotated source as a plugin-writing guide.
 - **Visualizer:** `at_view.py` — demo packet visualizer that decodes AT responses (`+KEY:VALUE`) into labeled fields. Visible in the proto debug screen alongside Hex and Text views.
 
 The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.

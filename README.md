@@ -182,7 +182,19 @@ Because everything is in one folder, you can commit it to git alongside your fir
 termapy --cfg-dir ./termapy_cfg
 ```
 
-Clone on another machine, run the same command — all configs, scripts, and test files are ready to go. Add a `.gitignore` for session files you don't need to track:
+Clone on another machine, run the same command — all configs, scripts, and test files are ready to go.
+
+Since COM port names differ between machines, set `"pick_port": true` in shared configs. This shows a port picker on startup, and saves `"pick"` as the port in the config file so the picker appears again next session:
+
+```json
+{
+    "pick_port": true,
+    "port": "COM4",
+    "baud_rate": 115200
+}
+```
+
+Add a `.gitignore` for session files you don't need to track:
 
 ```gitignore
 # termapy_cfg — keep configs and scripts, ignore session files
@@ -272,6 +284,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 ```json
 {
     "config_version": 4,
+    "pick_port": false,
     "port": "COM4",
     "baud_rate": 115200,
     "byte_size": 8,
@@ -304,6 +317,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | Field                 | Default                | Description                                                                                              |
 | --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `config_version`      | `4`                    | Schema version — managed automatically by the migration system, do not edit                              |
+| `pick_port`           | `false`                | Show port picker on startup; saves `"pick"` as the port so it asks again next time                       |
 | `port`                | `"COM4"`               | Serial port name                                                                                         |
 | `baud_rate`           | `115200`               | Baud rate                                                                                                |
 | `byte_size`           | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |

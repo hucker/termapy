@@ -51,6 +51,8 @@ def _migrate_v3_to_v4(cfg: dict) -> dict:
     for old, new in _KEY_RENAMES_V4.items():
         if old in cfg:
             cfg[new] = cfg.pop(old)
+    if "pick" in cfg:
+        cfg["pick_port"] = cfg.pop("pick")
     return cfg
 
 

@@ -6,6 +6,7 @@
     "repl_prefix": "/",
     "read_only": false,
     "os_cmd_enabled": false,
+    "pick_port": false,
     "port": "DEMO",
     "baud_rate": 115200,
     "byte_size": 8,

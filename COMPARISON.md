@@ -62,6 +62,7 @@ API. Can implement arbitrary protocol logic, CRC calculations, state machines,
 auto-responders, or device simulators.
 
 ```python
+from termapy.plugins import Command
 from termapy.protocol import get_crc_registry
 
 def _handler(ctx, args):
@@ -69,12 +70,12 @@ def _handler(ctx, args):
     ctx.serial_write(f"{args} {crc:04X}\n".encode())
     ctx.write(f"Sent: {args} {crc:04X}", "green")
 
-COMMAND = {
-    "name": "crcsend",
-    "args": "<text>",
-    "help": "Send text with XMODEM CRC-16 appended.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    name="crcsend",
+    args="<text>",
+    help="Send text with XMODEM CRC-16 appended.",
+    handler=_handler,
+)
 ```
 
 And here it is in the shell reporting 31C3 as the CRC...which matches the XMODEM test case.

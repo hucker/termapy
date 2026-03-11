@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -39,11 +41,11 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "os",
-    "args": "<cmd>",
-    "help": "Run a shell command and show output (10s timeout). e.g. !os dir",
-    "long_help": """\
+COMMAND = Command(
+    name="os",
+    args="<cmd>",
+    help="Run a shell command and show output (10s timeout). e.g. !os dir",
+    long_help="""\
 Runs a shell command via the system shell and displays its output.
 Stdout is shown in white, stderr in red.
 
@@ -55,5 +57,5 @@ Examples:
   !os ls -la             — list files (Unix)
   !os python --version   — check Python version
   !os ping -c 1 host     — network test""",
-    "handler": _handler,
-}
+    handler=_handler,
+)

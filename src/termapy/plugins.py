@@ -1,28 +1,30 @@
 """Plugin system for termapy — discovery, loading, and context API.
 
-Plugins are .py files that export a ``COMMAND`` dict describing the
+Plugins are .py files that export a ``COMMAND`` instance describing the
 command hierarchy::
+
+    from termapy.plugins import Command
 
     def _handler(ctx, args):
         ctx.write("Hello from plugin!")
 
-    COMMAND = {
-        "name": "mycommand",
-        "args": "{arg1}",
-        "help": "What this command does.",
-        "handler": _handler,
-    }
+    COMMAND = Command(
+        name="mycommand",
+        args="{arg1}",
+        help="What this command does.",
+        handler=_handler,
+    )
 
 Subcommands are declared with ``sub_commands``::
 
-    COMMAND = {
-        "name": "tool",
-        "help": "A tool with subcommands.",
-        "sub_commands": {
-            "run": {"args": "<file>", "help": "Run a file.", "handler": _run},
-            "status": {"help": "Show status.", "handler": _status},
+    COMMAND = Command(
+        name="tool",
+        help="A tool with subcommands.",
+        sub_commands={
+            "run": Command(args="<file>", help="Run a file.", handler=_run),
+            "status": Command(help="Show status.", handler=_status),
         },
-    }
+    )
 
 Users invoke subcommands with dot notation: ``!tool.run myfile``.
 
@@ -44,12 +46,40 @@ from typing import Callable, Generator
 
 
 @dataclass
+class Command:
+    """Plugin command declaration.
+
+    Every plugin file must export a ``COMMAND`` instance at module level.
+    Root commands require ``name``; sub_commands entries get their name
+    from the dict key.
+
+    Attributes:
+        help: One-line description shown by ``!help``.
+        name: Command name (lowercase). Required at root level, empty
+            for sub_commands entries (name comes from the dict key).
+        args: Argument spec for help display. ``""`` = no args,
+            ``"{opt}"`` = optional, ``"<required>"`` = required.
+        long_help: Extended help shown by ``!help <cmd>``.
+        handler: The command function. Required for leaf nodes.
+            Signature: ``handler(ctx: PluginContext, args: str) -> None``.
+        sub_commands: Dict mapping subcommand names to ``Command`` instances.
+    """
+
+    help: str
+    name: str = ""
+    args: str = ""
+    long_help: str = ""
+    handler: Callable | None = None
+    sub_commands: dict[str, "Command"] | None = None
+
+
+@dataclass
 class LoadResult:
     """Result of loading plugins from a directory.
 
     Attributes:
         plugins: Successfully loaded PluginInfo entries.
-        skipped: File names that were skipped (no COMMAND dict).
+        skipped: File names that were skipped (no COMMAND instance).
         errors: File names that raised exceptions during loading.
     """
 
@@ -220,8 +250,8 @@ def builtins_dir() -> Path:
 def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     """Discover and load plugin .py files from a directory.
 
-    Each file must export a ``COMMAND`` dict. Files starting with '_'
-    are skipped.
+    Each file must export a ``COMMAND`` instance (a ``Command`` dataclass).
+    Files starting with '_' are skipped.
 
     Args:
         folder: Directory to scan for .py plugin files.
@@ -250,9 +280,9 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
 def _load_plugin_file(path: Path, source: str) -> list[PluginInfo]:
     """Import a single plugin file and extract PluginInfo entries.
 
-    A valid plugin module must export a ``COMMAND`` dict with at least
-    ``name`` and ``help``. Leaf commands need a ``handler``, interior
-    commands need ``sub_commands``.
+    A valid plugin module must export a ``COMMAND`` instance (a ``Command``
+    dataclass) with at least ``name`` and ``help``. Leaf commands need a
+    ``handler``, interior commands need ``sub_commands``.
 
     Args:
         path: Path to the .py plugin file.
@@ -270,46 +300,46 @@ def _load_plugin_file(path: Path, source: str) -> list[PluginInfo]:
     spec.loader.exec_module(mod)
 
     cmd = getattr(mod, "COMMAND", None)
-    if not isinstance(cmd, dict) or "name" not in cmd:
+    if not isinstance(cmd, Command) or not cmd.name:
         return []
 
     return _flatten_command(cmd, prefix="", source=source)
 
 
 def _flatten_command(
-    node: dict,
+    node: Command,
     prefix: str,
     source: str,
 ) -> list[PluginInfo]:
-    """Recursively flatten a COMMAND dict tree into PluginInfo entries.
+    """Recursively flatten a Command tree into PluginInfo entries.
 
     Each node in the tree becomes a PluginInfo. Interior nodes (those
     with ``sub_commands``) get a synthetic handler that lists their
     subcommands. Leaf nodes must have a ``handler`` callable.
 
     Args:
-        node: COMMAND dict node with keys like name/help/handler/sub_commands.
+        node: Command instance with name/help/handler/sub_commands.
         prefix: Dotted path prefix (empty for root).
         source: Plugin source label.
 
     Returns:
         List of PluginInfo for this node and all descendants.
     """
-    name = node.get("name", "")
+    name = node.name
     full_name = f"{prefix}.{name}".lower() if prefix else name.lower()
-    sub_commands = node.get("sub_commands", {})
+    sub_commands = node.sub_commands or {}
     children: list[str] = []
     result: list[PluginInfo] = []
 
     # Recurse into sub_commands first so we can build the children list
     for sub_name, sub_node in sub_commands.items():
-        # Inject name into sub-node so recursion works uniformly
-        sub_with_name = {**sub_node, "name": sub_name}
-        child_infos = _flatten_command(sub_with_name, full_name, source)
+        # Set name on sub-node so recursion works uniformly
+        sub_node.name = sub_name
+        child_infos = _flatten_command(sub_node, full_name, source)
         result.extend(child_infos)
         children.append(f"{full_name}.{sub_name}".lower())
 
-    handler = node.get("handler")
+    handler = node.handler
     if not handler and children:
         # Synthetic handler for interior nodes — lists subcommands
         handler = _make_interior_handler(full_name, children)
@@ -319,9 +349,9 @@ def _flatten_command(
 
     info = PluginInfo(
         name=full_name,
-        args=node.get("args", ""),
-        help=node.get("help", ""),
-        long_help=node.get("long_help", ""),
+        args=node.args,
+        help=node.help,
+        long_help=node.long_help,
         handler=handler,
         source=source,
         children=children,

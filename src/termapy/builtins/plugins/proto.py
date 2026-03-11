@@ -24,6 +24,8 @@ from termapy.protocol import (
     strip_ansi,
 )
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -634,10 +636,10 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "proto",
-    "help": "Binary protocol tools: send, run, debug, hex, crc, status.",
-    "long_help": """\
+COMMAND = Command(
+    name="proto",
+    help="Binary protocol tools: send, run, debug, hex, crc, status.",
+    long_help="""\
 Send examples:
   !proto.send 01 02 03         — send three hex bytes
   !proto.send "AT\\r"           — send text with carriage return
@@ -652,50 +654,50 @@ CRC examples:
 Script files (.pro) support TOML format with [[test]] sections
 or flat format with send:/expect: directives. Scripts are found
 in the proto/ subfolder of your config directory.""",
-    "sub_commands": {
-        "send": {
-            "args": '<hex|"text">',
-            "help": "Send raw bytes, show response.",
-            "handler": _cmd_send,
-        },
-        "run": {
-            "args": "<file.pro>",
-            "help": "Run a protocol test script.",
-            "handler": _cmd_run,
-        },
-        "debug": {
-            "args": "<file.pro>",
-            "help": "Interactive protocol debug screen.",
-            "handler": _cmd_debug,
-        },
-        "hex": {
-            "args": "{on|off}",
-            "help": "Toggle hex display mode.",
-            "handler": _cmd_hex,
-        },
-        "crc": {
-            "help": "Browse and compute CRC algorithms.",
-            "sub_commands": {
-                "list": {
-                    "args": "{pattern}",
-                    "help": "List algorithms (optional glob filter).",
-                    "handler": _crc_list,
-                },
-                "help": {
-                    "args": "<name>",
-                    "help": "Show algorithm parameters and description.",
-                    "handler": _crc_help,
-                },
-                "calc": {
-                    "args": "<name> {data}",
-                    "help": "Compute CRC over hex bytes, text, or file.",
-                    "handler": _crc_calc,
-                },
+    sub_commands={
+        "send": Command(
+            args='<hex|"text">',
+            help="Send raw bytes, show response.",
+            handler=_cmd_send,
+        ),
+        "run": Command(
+            args="<file.pro>",
+            help="Run a protocol test script.",
+            handler=_cmd_run,
+        ),
+        "debug": Command(
+            args="<file.pro>",
+            help="Interactive protocol debug screen.",
+            handler=_cmd_debug,
+        ),
+        "hex": Command(
+            args="{on|off}",
+            help="Toggle hex display mode.",
+            handler=_cmd_hex,
+        ),
+        "crc": Command(
+            help="Browse and compute CRC algorithms.",
+            sub_commands={
+                "list": Command(
+                    args="{pattern}",
+                    help="List algorithms (optional glob filter).",
+                    handler=_crc_list,
+                ),
+                "help": Command(
+                    args="<name>",
+                    help="Show algorithm parameters and description.",
+                    handler=_crc_help,
+                ),
+                "calc": Command(
+                    args="<name> {data}",
+                    help="Compute CRC over hex bytes, text, or file.",
+                    handler=_crc_calc,
+                ),
             },
-        },
-        "status": {
-            "help": "Show current protocol state.",
-            "handler": _cmd_status,
-        },
+        ),
+        "status": Command(
+            help="Show current protocol state.",
+            handler=_cmd_status,
+        ),
     },
-}
+)

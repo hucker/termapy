@@ -6,6 +6,8 @@ import re
 
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -69,11 +71,11 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "grep",
-    "args": "<pattern>",
-    "help": "Search the scrollback for lines matching a pattern (case-insensitive regex).",
-    "long_help": """\
+COMMAND = Command(
+    name="grep",
+    args="<pattern>",
+    help="Search the scrollback for lines matching a pattern (case-insensitive regex).",
+    long_help="""\
 Searches all visible terminal output using Python regex syntax.
 Matching is case-insensitive. ANSI escape codes are stripped
 before display. Grep's own output is excluded from results.
@@ -84,5 +86,5 @@ Examples:
   !grep error          — find lines containing 'error'
   !grep ^OK            — lines starting with 'OK'
   !grep temp.*\\d+      — 'temp' followed by digits""",
-    "handler": _handler,
-}
+    handler=_handler,
+)

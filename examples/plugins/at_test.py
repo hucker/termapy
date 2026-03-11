@@ -7,6 +7,9 @@ Demonstrates using the serial port through the plugin context.
 """
 
 
+from termapy.plugins import Command
+
+
 def _handler(ctx, args):
     cmd = args.strip() or "AT"
     if not ctx.is_connected():
@@ -18,9 +21,9 @@ def _handler(ctx, args):
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "at",
-    "args": "{cmd}",
-    "help": "Send an AT command (default: AT). Waits for response.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    "Send an AT command (default: AT). Waits for response.",
+    name="at",
+    args="{cmd}",
+    handler=_handler,
+)

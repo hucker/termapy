@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.plugins import Command
+
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
@@ -52,11 +54,11 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "show",
-    "args": "<name>",
-    "help": "Show a file. $cfg for current config, or a filename.",
-    "long_help": """\
+COMMAND = Command(
+    name="show",
+    args="<name>",
+    help="Show a file. $cfg for current config, or a filename.",
+    long_help="""\
 Reads a file and prints its contents to the terminal.
 
 Special names:
@@ -68,5 +70,5 @@ Examples:
   !show $cfg             — view current config
   !show my_script.run    — view a script file
   !show ../notes.txt     — relative path""",
-    "handler": _handler,
-}
+    handler=_handler,
+)

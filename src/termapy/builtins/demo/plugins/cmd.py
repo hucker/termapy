@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
+from termapy.plugins import Command
 from termapy.protocol import get_crc_registry
 
 
@@ -33,9 +34,9 @@ def _handler(ctx: PluginContext, args: str) -> None:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "crcsend",
-    "args": "<text>",
-    "help": "Send text with XMODEM CRC-16 appended.",
-    "handler": _handler,
-}
+COMMAND = Command(
+    "Send text with XMODEM CRC-16 appended.",
+    name="crcsend",
+    args="<text>",
+    handler=_handler,
+)

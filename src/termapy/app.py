@@ -1017,7 +1017,7 @@ class SerialTerminal(App):
             )
         for name in result.skipped:
             self._status(
-                f"Skipped {name} — no COMMAND dict (see plugin docs)",
+                f"Skipped {name} — no COMMAND (see plugin docs)",
                 "yellow",
             )
         for err in result.errors:

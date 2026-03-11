@@ -8,7 +8,7 @@ Demonstrates using serial_write, serial_wait_idle, and timing.
 
 import time
 
-from termapy.plugins import PluginContext
+from termapy.plugins import Command, PluginContext
 
 
 def _handler(ctx: PluginContext, args: str):
@@ -24,9 +24,9 @@ def _handler(ctx: PluginContext, args: str):
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = {
-    "name": "ping",
-    "args": "{cmd}",
-    "help": "Send a command and measure response time (default: AT).",
-    "handler": _handler,
-}
+COMMAND = Command(
+    "Send a command and measure response time (default: AT).",
+    name="ping",
+    args="{cmd}",
+    handler=_handler,
+)

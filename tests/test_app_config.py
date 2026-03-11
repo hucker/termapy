@@ -16,6 +16,7 @@ from termapy.config import (
     expand_env_cfg,
     expand_env_str,
     load_config,
+    migrate_json_to_cfg,
 )
 
 
@@ -25,7 +26,7 @@ from termapy.config import (
 class TestCfgDataDir:
     def test_creates_subdirs(self, tmp_path):
         # Arrange
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
 
         # Act
@@ -38,7 +39,7 @@ class TestCfgDataDir:
 
     def test_idempotent(self, tmp_path):
         # Arrange
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
 
         # Act
@@ -50,7 +51,7 @@ class TestCfgDataDir:
 
     def test_creates_parent_if_needed(self, tmp_path):
         # Arrange
-        config_path = tmp_path / "new" / "new.json"
+        config_path = tmp_path / "new" / "new.cfg"
 
         # Act
         actual = cfg_data_dir(str(config_path))
@@ -66,23 +67,23 @@ class TestCfgDataDir:
 class TestCfgHelpers:
     def test_cfg_path_for_name(self):
         actual = cfg_path_for_name("mydev")
-        assert actual.name == "mydev.json"  # filename matches
+        assert actual.name == "mydev.cfg"  # filename matches
         assert actual.parent.name == "mydev"  # parent dir matches
 
     def test_cfg_log_path(self, tmp_path):
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_log_path(str(config_path))
         assert actual.endswith("dev.log")  # log named after config
 
     def test_cfg_history_path(self, tmp_path):
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_history_path(str(config_path))
         assert actual.endswith(".cmd_history.txt")  # history file pattern
 
     def test_cfg_plugins_dir(self, tmp_path):
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_plugins_dir(str(config_path))
         assert actual.name == "plugins"  # correct subdir name
@@ -129,7 +130,7 @@ class TestLoadConfig:
     def test_creates_default_if_missing(self, tmp_path, monkeypatch):
         # Arrange
         monkeypatch.chdir(tmp_path)
-        config_path = tmp_path / "test" / "test.json"
+        config_path = tmp_path / "test" / "test.cfg"
 
         # Act
         actual = load_config(str(config_path))
@@ -141,7 +142,7 @@ class TestLoadConfig:
 
     def test_adds_missing_keys(self, tmp_path):
         # Arrange
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         minimal = {"port": "COM3", "baud_rate": 9600}
         config_path.write_text(json.dumps(minimal))
@@ -157,7 +158,7 @@ class TestLoadConfig:
 
     def test_does_not_overwrite_existing_keys(self, tmp_path):
         # Arrange
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         custom = {
             "port": "COM7",
@@ -329,7 +330,7 @@ class TestLoadConfigEnvExpansion:
     def test_expands_env_in_loaded_config(self, tmp_path, monkeypatch):
         # Arrange
         monkeypatch.setenv("LC_TEST_PORT", "COM8")
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         raw = {"port": "$(env.LC_TEST_PORT|COM1)", "baud_rate": 9600}
         config_path.write_text(json.dumps(raw))
@@ -343,7 +344,7 @@ class TestLoadConfigEnvExpansion:
     def test_disk_keeps_template(self, tmp_path, monkeypatch):
         # Arrange
         monkeypatch.setenv("LC_TEST_PORT2", "COM8")
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         template = "$(env.LC_TEST_PORT2|COM1)"
         raw = {"port": template, "baud_rate": 9600}
@@ -355,3 +356,53 @@ class TestLoadConfigEnvExpansion:
         # Assert
         actual_disk = json.loads(config_path.read_text())
         assert actual_disk["port"] == template  # disk keeps raw template
+
+
+# -- migrate_json_to_cfg -----------------------------------------------------
+
+
+class TestMigrateJsonToCfg:
+    def test_renames_json_to_cfg(self, tmp_path):
+        # Arrange
+        sub = tmp_path / "foo"
+        sub.mkdir()
+        json_file = sub / "foo.json"
+        json_file.write_text('{"port": "COM1"}')
+
+        # Act
+        migrate_json_to_cfg(tmp_path)
+
+        # Assert
+        assert (sub / "foo.cfg").exists()  # .cfg file created
+        assert not json_file.exists()  # .json file removed
+
+    def test_skips_when_cfg_exists(self, tmp_path):
+        # Arrange
+        sub = tmp_path / "bar"
+        sub.mkdir()
+        json_file = sub / "bar.json"
+        json_file.write_text('{"port": "COM1"}')
+        cfg_file = sub / "bar.cfg"
+        cfg_file.write_text('{"port": "COM2"}')
+
+        # Act
+        migrate_json_to_cfg(tmp_path)
+
+        # Assert
+        assert json_file.exists()  # .json not removed (conflict)
+        actual = json.loads(cfg_file.read_text())
+        assert actual["port"] == "COM2"  # .cfg not overwritten
+
+    def test_idempotent(self, tmp_path):
+        # Arrange
+        sub = tmp_path / "baz"
+        sub.mkdir()
+        json_file = sub / "baz.json"
+        json_file.write_text('{"port": "COM1"}')
+
+        # Act
+        migrate_json_to_cfg(tmp_path)
+        migrate_json_to_cfg(tmp_path)  # second call is no-op
+
+        # Assert
+        assert (sub / "baz.cfg").exists()  # .cfg still exists

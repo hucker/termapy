@@ -24,6 +24,7 @@ from termapy.config import (
     CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
+    migrate_json_to_cfg,
     cfg_history_path,
     cfg_log_path,
     cfg_path_for_name,
@@ -2031,14 +2032,15 @@ class SerialTerminal(App):
 
 
 def _find_config() -> tuple[str | None, bool]:
-    """Find config in termapy_cfg/<name>/<name>.json. Returns (path, show_picker).
+    """Find config in termapy_cfg/<name>/<name>.cfg. Returns (path, show_picker).
 
-    - 1 json file: (path, False) — auto-load
-    - 0 json files: (None, False) — show name picker for new config
-    - 2+ json files: (None, True) — show file picker
+    - 1 cfg file: (path, False) — auto-load
+    - 0 cfg files: (None, False) — show name picker for new config
+    - 2+ cfg files: (None, True) — show file picker
     """
     d = cfg_dir()
-    json_files = sorted(d.glob("*/*.json"))
+    migrate_json_to_cfg(d)
+    json_files = sorted(d.glob("*/*.cfg"))
     if len(json_files) == 1:
         return str(json_files[0]), False
     if len(json_files) > 1:
@@ -2079,7 +2081,7 @@ def main():
         "config",
         nargs="?",
         default=None,
-        help="Path to JSON config file (auto-detects single .json in termapy_cfg/)",
+        help="Path to config file (auto-detects single .cfg in termapy_cfg/)",
     )
     parser.add_argument(
         "--cfg-dir",

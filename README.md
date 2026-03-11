@@ -157,7 +157,7 @@ Everything termapy creates — configs, scripts, test files, plugins, logs — l
 termapy_cfg/
 ├── plugins/                            # global plugins (all configs)
 └── demo/
-    ├── demo.json                       # config file
+    ├── demo.cfg                        # config file
     ├── demo.log                        # session log
     ├── .cmd_history.txt                # command history
     ├── ss/                             # screenshots
@@ -230,7 +230,7 @@ termapy_cfg/*/ss/
 To specify a config file directly:
 
 ```sh
-termapy my_device.json
+termapy my_device.cfg
 ```
 
 To override the config directory:
@@ -506,7 +506,7 @@ The `ctx` object passed to every handler:
 | `ctx.write(text, color)`    | Print to the terminal (color is optional)                          |
 | `ctx.write_markup(text)`    | Print Rich markup text (e.g. `[bold red]Warning![/]`)              |
 | `ctx.cfg`                   | Current config dict (read-only access)                             |
-| `ctx.config_path`           | Path to the current `.json` config file                            |
+| `ctx.config_path`           | Path to the current `.cfg` config file                             |
 | `ctx.is_connected()`        | Check if the serial port is open                                   |
 | `ctx.serial_write(data)`    | Send bytes to the serial port                                      |
 | `ctx.serial_wait_idle()`    | Wait until serial output settles                                   |

@@ -14,7 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, OptionList, TextArea
 from textual.widgets.option_list import Option
 
-from termapy.config import cfg_dir, cfg_path_for_name, open_with_system
+from termapy.config import cfg_dir, cfg_path_for_name, migrate_json_to_cfg, open_with_system
 
 # Shared CSS for modal dialog buttons
 _MODAL_BTN_CSS = """
@@ -79,7 +79,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             yield Static("", id="config-error")
             with Horizontal(id="save-as-row"):
                 yield Input(
-                    placeholder="filename.json",
+                    placeholder="filename.cfg",
                     id="save-as-input",
                 )
             with Horizontal(id="config-buttons"):
@@ -139,16 +139,16 @@ class ConfigEditor(ModalScreen[tuple | None]):
             err.add_class("visible")
             return
         ext = Path(filename).suffix.lower()
-        if ext and ext != ".json":
+        if ext and ext != ".cfg":
             from textual.widgets import Static
 
             err = self.query_one("#config-error", Static)
-            err.update("File must have a .json extension")
+            err.update("File must have a .cfg extension")
             err.add_class("visible")
             return
         if not ext:
-            filename += ".json"
-        # Place in termapy_cfg/<name>/<name>.json
+            filename += ".cfg"
+        # Place in termapy_cfg/<name>/<name>.cfg
         p = Path(filename)
         if not p.parent or p.parent == Path("."):
             name = p.stem
@@ -349,9 +349,8 @@ class NamePicker(ModalScreen[str | None]):
     def submit_name(self) -> None:
         name = self.query_one("#name-input", Input).value.strip()
         if name:
-            # Strip .json if they typed it
-            if name.endswith(".json"):
-                name = name[:-5]
+            # Strip extension if they typed it
+            name = Path(name).stem
             self.dismiss(name)
 
     @on(Button.Pressed, "#name-cancel")
@@ -360,7 +359,7 @@ class NamePicker(ModalScreen[str | None]):
 
 
 class ConfigPicker(ModalScreen[tuple | None]):
-    """Modal dialog to select a JSON config: load, edit, or create new."""
+    """Modal dialog to select a config file: load, edit, or create new."""
 
     BINDINGS = _CTRL_Q_BINDING
 
@@ -388,7 +387,9 @@ class ConfigPicker(ModalScreen[tuple | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
 
-        json_files = sorted(cfg_dir().glob("*/*.json"))
+        d = cfg_dir()
+        migrate_json_to_cfg(d)
+        json_files = sorted(d.glob("*/*.cfg"))
         with Vertical(id="picker-dialog"):
             yield Static("Select Config", id="picker-title")
             ol = OptionList(id="picker-list")

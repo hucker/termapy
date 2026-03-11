@@ -24,7 +24,7 @@ def _build_info_tree(config_path: str, cfg: dict) -> tuple[str, str]:
     """Generate a directory-tree view of the project.
 
     Args:
-        config_path: Path to the config JSON file.
+        config_path: Path to the config file.
         cfg: Loaded config dict.
 
     Returns:
@@ -36,7 +36,7 @@ def _build_info_tree(config_path: str, cfg: dict) -> tuple[str, str]:
 
     # Gather file lists
     sections: list[tuple[str, list[str]]] = [
-        (f"{config_name}.json", []),
+        (f"{config_name}.cfg", []),
         (f"{config_name}.log", []),
         ("scripts/", _names(data_dir / "scripts", "*.run")),
         ("proto/", _names(data_dir / "proto", "*.pro")),

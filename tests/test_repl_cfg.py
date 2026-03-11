@@ -18,7 +18,7 @@ def repl_env(tmp_path):
         "line_ending": "\r",
         "stop_bits": 1.5,
     }
-    config_path = tmp_path / "test_cfg.json"
+    config_path = tmp_path / "test_cfg.cfg"
     config_path.write_text(json.dumps(cfg, indent=4))
 
     output = []

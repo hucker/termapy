@@ -40,11 +40,13 @@ No hardware? Try termapy with a built-in simulated serial device:
 termapy --demo
 ```
 
-This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts, proto test files, a demo plugin (`/probe`), and a demo visualizer (`AT`) are included to exercise all features. You can also switch to demo mode at runtime with `/demo`, or set `"port": "DEMO"` in any config file.
+This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simulated device. Bundled scripts, proto test files, a demo plugin (`/probe`), and a demo visualizer (`AT`) are included to exercise all features. You can also switch to demo mode at runtime with the`/demo` command.
 
 ![Demo project tree](img/demo_tree.svg)
 
 **AT commands:**
+
+Your fake device is the `BASSOMATIC-77` that you talk to with AT commands.
 
 | Command            | Description                                       |
 | ------------------ | ------------------------------------------------- |
@@ -64,12 +66,39 @@ This creates a demo config at `termapy_cfg/demo/` that auto-connects to a simula
 
 **Modbus RTU:**
 
+It also has a binary access that you can send commands to.
+
 | Function | Description                                  |
 | -------- | -------------------------------------------- |
 | `0x03`   | Read holding registers (up to 125 registers) |
 | `0x06`   | Write single register (echo-back)            |
 
 CRC16 validation is enforced on all frames. Invalid CRC or unsupported function codes return Modbus exception responses.
+
+**Try these commands:**
+
+You enter commands at the bottom of the screen from the REPL.
+
+```sh
+> AT                                                    
+OK                                                      
+> AT+INFO                                               
+Bassomatic v77 v1.0                                     
+Uptime: 0h 33m 48s                                      
+Free memory: 31987 bytes                                
+> AT+LED on                                             
+OK         
+```
+
+For Modbus binary commands, use `/proto.send` with hex bytes (CRC included).  The `/proto` commands allow precise control of sending
+bytes to the serial port.  These functions are used by the protocol engine.
+
+```sh
+> /proto.send 01 03 00 00 00 01 84 0A
+  TX: 01 03 00 00 00 01 84 0A           # <--- What you transmitted
+  RX: 01 03 02 00 07 F9 86              # <--- What came back
+  (7 bytes, 91ms) 
+```
 
 ## Install
 
@@ -213,33 +242,33 @@ Type commands prefixed with `/` (configurable via `repl_prefix`) to run local ac
 | `/os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
 | `/info {--display}`       | Show project summary; `--display` opens full report in system viewer             |
-| `/proto send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
-| `/proto run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
-| `/proto hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
-| `/proto crc list {pat}`   | List available CRC algorithms (optional glob filter)                             |
-| `/proto crc help <name>`  | Show CRC algorithm parameters and description                                    |
-| `/proto crc calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
-| `/proto status`           | Show current protocol mode state                                                 |
+| `/proto.send <hex>`       | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
+| `/proto.run <file>`       | Run a binary protocol test script (.pro) with pass/fail                          |
+| `/proto.hex [on \| off]`  | Toggle hex display mode for serial I/O                                           |
+| `/proto.crc.list {pat}`   | List available CRC algorithms (optional glob filter)                             |
+| `/proto.crc.help <name>`  | Show CRC algorithm parameters and description                                    |
+| `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
+| `/proto.status`           | Show current protocol mode state                                                 |
 | `/exit`                   | Exit termapy                                                                     |
 
 Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`).
 
 ### Sending and Receiving Binary Data
 
-Use `/proto send` to send raw bytes and see the response. Mix hex bytes and quoted strings:
+Use `/proto.send` to send raw bytes and see the response. Mix hex bytes and quoted strings:
 
 ```text
-/proto send 01 03 00 00 00 0A
+/proto.send 01 03 00 00 00 0A
   TX: 01 03 00 00 00 0A
   RX: 01 03 14 00 64 00 C8 01 2C ...
   (24 bytes, 12ms)
 
-/proto send "AT+RST\r\n"
+/proto.send "AT+RST\r\n"
   TX: 41 54 2B 52 53 54 0D 0A
   RX: 4F 4B 0D 0A
   (4 bytes, 85ms)
 
-/proto send FF 00 "hello" 0D 0A
+/proto.send FF 00 "hello" 0D 0A
   TX: FF 00 68 65 6C 6C 6F 0D 0A
   RX: 41 43 4B
   (3 bytes, 7ms)
@@ -247,7 +276,7 @@ Use `/proto send` to send raw bytes and see the response. Mix hex bytes and quot
 
 No line ending is appended — you send exactly the bytes you specify. Responses are collected using timeout-based framing (configurable via `proto_frame_gap_ms`). For longer packets (>16 bytes), output switches to a hex dump with offsets and ASCII sidebar.
 
-Toggle `/proto hex` to show all normal serial I/O as hex bytes instead of decoded text — useful for understanding line endings, looking at binary protocols and knowing what is happening on the wire.
+Toggle `/proto.hex` to show all normal serial I/O as hex bytes instead of decoded text — useful for understanding line endings, looking at binary protocols and knowing what is happening on the wire.
 
 ## Config Reference
 
@@ -255,17 +284,17 @@ Toggle `/proto hex` to show all normal serial I/O as hex bytes instead of decode
 {
     "config_version": 4,
     "port": "COM4",
-    "baudrate": 115200,
-    "bytesize": 8,
+    "baud_rate": 115200,
+    "byte_size": 8,
     "parity": "N",
-    "stopbits": 1,
+    "stop_bits": 1,
     "flow_control": "none",
     "encoding": "utf-8",
     "inter_cmd_delay_ms": 0,
     "line_ending": "\r",
-    "autoconnect": false,
-    "autoreconnect": false,
-    "autoconnect_cmd": "",
+    "auto_connect": false,
+    "auto_reconnect": false,
+    "auto_connect_cmd": "",
     "echo_cmd": false,
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
@@ -293,17 +322,17 @@ Toggle `/proto hex` to show all normal serial I/O as hex bytes instead of decode
 | --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `config_version`      | `4`                    | Schema version — managed automatically by the migration system, do not edit                              |
 | `port`                | `"COM4"`               | Serial port name                                                                                         |
-| `baudrate`            | `115200`               | Baud rate                                                                                                |
-| `bytesize`            | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
+| `baud_rate`           | `115200`               | Baud rate                                                                                                |
+| `byte_size`           | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
 | `parity`              | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
-| `stopbits`            | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
+| `stop_bits`           | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
 | `flow_control`        | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
 | `encoding`            | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
 | `inter_cmd_delay_ms`  | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
 | `line_ending`         | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
-| `autoconnect`         | `false`                | Connect to the port on startup                                                                           |
-| `autoreconnect`       | `false`                | Retry every second if the port drops or fails to open                                                    |
-| `autoconnect_cmd`     | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
+| `auto_connect`        | `false`                | Connect to the port on startup                                                                           |
+| `auto_reconnect`      | `false`                | Retry every second if the port drops or fails to open                                                    |
+| `auto_connect_cmd`    | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
 | `echo_cmd`            | `false`                | Echo sent commands locally                                                                               |
 | `echo_cmd_fmt`        | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
 | `log_file`            | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
@@ -328,8 +357,8 @@ Minimal config for a quick connection:
 ```json
 {
     "port": "COM4",
-    "baudrate": 115200,
-    "autoconnect": true
+    "baud_rate": 115200,
+    "auto_connect": true
 }
 ```
 
@@ -338,22 +367,22 @@ Two devices on different ports, color-coded so you can tell them apart at a glan
 ```json
 {
     "port": "COM4",
-    "baudrate": 115200,
+    "baud_rate": 115200,
     "title": "Sensor A",
     "app_border_color": "blue",
-    "autoconnect": true,
-    "autoreconnect": true,
-    "autoconnect_cmd": "rev \n help dev"
+    "auto_connect": true,
+    "auto_reconnect": true,
+    "auto_connect_cmd": "rev \n help dev"
 }
 ```
 
 ```json
 {
     "port": "COM7",
-    "baudrate": 9600,
+    "baud_rate": 9600,
     "title": "Sensor B",
     "app_border_color": "green",
-    "autoconnect": true
+    "auto_connect": true
 }
 ```
 
@@ -362,7 +391,7 @@ Manual hardware line control, with DTR/RTS toggle buttons and Break:
 ```json
 {
     "port": "COM4",
-    "baudrate": 115200,
+    "baud_rate": 115200,
     "flow_control": "manual",
     "title": "Hardware Debug"
 }
@@ -594,7 +623,7 @@ No classes, no Textual dependency. The `parse_format_spec()` and `apply_format()
 
 ### CRC Algorithms
 
-Termapy ships with a built-in catalogue of 62 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (30), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout). Each algorithm includes a description of its typical usage (e.g. "Modbus RTU serial protocol", "iSCSI, SCTP, Castagnoli"). Use `/proto crc list` to browse algorithms, `/proto crc help <name>` for full parameters, and `/proto crc calc` to compute CRCs interactively. `calc` auto-detects hex bytes vs plain text, accepts a file path to CRC file contents, and with no data runs the standard check string "123456789" with pass/fail verification.
+Termapy ships with a built-in catalogue of 62 named CRC algorithms from the [reveng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm), covering CRC-8 (20), CRC-16 (30), and CRC-32 (12) variants. A generic engine computes any CRC from standard Rocksoft/Williams parameters (poly, init, refin, refout, xorout). Each algorithm includes a description of its typical usage (e.g. "Modbus RTU serial protocol", "iSCSI, SCTP, Castagnoli"). Use `/proto.crc.list` to browse algorithms, `/proto.crc.help <name>` for full parameters, and `/proto.crc.calc` to compute CRCs interactively. `calc` auto-detects hex bytes vs plain text, accepts a file path to CRC file contents, and with no data runs the standard check string "123456789" with pass/fail verification.
 
 Use readable names directly in format specs:
 
@@ -641,6 +670,28 @@ Plugins override catalogue entries of the same name.
 | `diff_columns(actual, expected, mask, columns)` | Compare with per-column status: `match`, `mismatch`, `extra`, `missing` |
 | `diff_bytes(expected, actual, mask)`            | Per-byte comparison returning status list                               |
 | `get_crc_registry()`                            | Get loaded CRC algorithms dict                                          |
+
+
+## How to Use with Git
+
+Point `--cfg-dir` at a folder inside your repo and everything termapy creates — configs, scripts, proto files, plugins, visualizers — lives in version control:
+
+```sh
+# in your project repo
+mkdir termapy_cfg
+termapy --cfg-dir ./termapy_cfg
+```
+
+Create configs, scripts, and proto files through the UI as usual. They all land in `termapy_cfg/` and can be committed alongside your firmware source. On another machine, clone the repo and run the same command — all configs, scripts, and test files are ready to go.
+
+Session files (logs, command history, screenshots) are also written to the config subdirectory, so add gitignore rules for anything you don't want tracked:
+
+```gitignore
+# termapy_cfg — keep configs and scripts, ignore session files
+termapy_cfg/*/*.log
+termapy_cfg/*/.cmd_history.txt
+termapy_cfg/*/ss/
+```
 
 ## Threading Model
 

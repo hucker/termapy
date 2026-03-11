@@ -13,10 +13,10 @@ def repl_env(tmp_path):
     """Create a ReplEngine with a temp config file and capture output."""
     cfg = {
         "port": "COM4",
-        "baudrate": 115200,
+        "baud_rate": 115200,
         "echo_cmd": False,
         "line_ending": "\r",
-        "stopbits": 1.5,
+        "stop_bits": 1.5,
     }
     config_path = tmp_path / "test_cfg.json"
     config_path.write_text(json.dumps(cfg, indent=4))
@@ -60,7 +60,7 @@ class TestCfgShowAll:
 class TestCfgShowKey:
     def test_show_existing_key(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg baudrate")
+        engine.dispatch("cfg baud_rate")
         assert any("115200" in t for t, _ in output)  # value displayed
 
     def test_show_unknown_key(self, repl_env):
@@ -73,12 +73,12 @@ class TestCfgShowKey:
 class TestCfgChange:
     def test_same_value_no_change(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg baudrate 115200")
+        engine.dispatch("cfg baud_rate 115200")
         assert any("already" in t for t, _ in output)  # no-op message
 
     def test_bad_type_rejected(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg baudrate notanumber")
+        engine.dispatch("cfg baud_rate notanumber")
         assert any("Type error" in t for t, _ in output)  # type error shown
 
     def test_bad_bool_rejected(self, repl_env):
@@ -93,10 +93,10 @@ class TestCfgChange:
         engine.ctx.engine.save_cfg = lambda k, v: called_with.append((k, v))
 
         # Act
-        engine.dispatch("cfg baudrate 9600")
+        engine.dispatch("cfg baud_rate 9600")
 
         # Assert
-        expected = [("baudrate", 9600)]
+        expected = [("baud_rate", 9600)]
         assert called_with == expected  # hook called with key and coerced value
 
     def test_falls_back_to_apply_without_hook(self, repl_env):
@@ -104,12 +104,12 @@ class TestCfgChange:
         engine, cfg, config_path, output = repl_env
 
         # Act
-        engine.dispatch("cfg baudrate 9600")
+        engine.dispatch("cfg baud_rate 9600")
 
         # Assert
-        assert cfg["baudrate"] == 9600  # in-memory config updated
+        assert cfg["baud_rate"] == 9600  # in-memory config updated
         actual_saved = json.loads(config_path.read_text())
-        assert actual_saved["baudrate"] == 9600  # persisted to disk
+        assert actual_saved["baud_rate"] == 9600  # persisted to disk
         assert any("saved" in t for t, _ in output)  # confirmation shown
 
 
@@ -119,12 +119,12 @@ class TestCfgAuto:
         engine, cfg, config_path, output = repl_env
 
         # Act
-        engine.dispatch("cfg.auto baudrate 9600")
+        engine.dispatch("cfg.auto baud_rate 9600")
 
         # Assert
-        assert cfg["baudrate"] == 9600  # in-memory config updated
+        assert cfg["baud_rate"] == 9600  # in-memory config updated
         actual_saved = json.loads(config_path.read_text())
-        assert actual_saved["baudrate"] == 9600  # persisted to disk
+        assert actual_saved["baud_rate"] == 9600  # persisted to disk
         assert any("saved" in t for t, _ in output)  # confirmation shown
 
     def test_auto_bool(self, repl_env):
@@ -139,8 +139,8 @@ class TestCfgAuto:
 
     def test_auto_float(self, repl_env):
         engine, cfg, _, output = repl_env
-        engine.dispatch("cfg.auto stopbits 2.0")
-        assert cfg["stopbits"] == 2.0  # float coerced and applied
+        engine.dispatch("cfg.auto stop_bits 2.0")
+        assert cfg["stop_bits"] == 2.0  # float coerced and applied
 
     def test_auto_unknown_key(self, repl_env):
         engine, _, _, output = repl_env
@@ -149,15 +149,42 @@ class TestCfgAuto:
 
     def test_auto_bad_type(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg.auto baudrate abc")
+        engine.dispatch("cfg.auto baud_rate abc")
         assert any("Type error" in t for t, _ in output)  # type mismatch error
 
     def test_auto_missing_args(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg.auto baudrate")
+        engine.dispatch("cfg.auto baud_rate")
         assert any("Usage" in t for t, _ in output)  # missing value arg
 
     def test_auto_no_args(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("cfg.auto")
         assert any("Usage" in t for t, _ in output)  # no args at all
+
+
+class TestCfgReadOnly:
+    """read_only only blocks UI dialogs; /cfg commands still work."""
+
+    def test_cfg_set_allowed(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+        cfg["read_only"] = True
+
+        # Act
+        engine.dispatch("cfg.auto baud_rate 9600")
+
+        # Assert
+        assert cfg["baud_rate"] == 9600  # value changed despite read_only
+        assert any("saved" in t for t, _ in output)  # confirmation shown
+
+    def test_cfg_show_works(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+        cfg["read_only"] = True
+
+        # Act
+        engine.dispatch("cfg baud_rate")
+
+        # Assert
+        assert any("115200" in t for t, _ in output)  # value displayed

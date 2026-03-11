@@ -374,9 +374,10 @@ class ConfigPicker(ModalScreen[tuple | None]):
         """Close the modal on Ctrl+Q."""
         self.dismiss(None)
 
-    def __init__(self, current_path: str = "") -> None:
+    def __init__(self, current_path: str = "", read_only: bool = False) -> None:
         super().__init__()
         self.current_path = current_path
+        self.read_only = read_only
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -397,7 +398,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 yield Button("Load", id="picker-load", variant="success",
                              disabled=not has_configs)
                 yield Button("Edit", id="picker-edit", variant="primary",
-                             disabled=not has_configs)
+                             disabled=not has_configs or self.read_only)
                 new_btn = Button("New", id="picker-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
@@ -463,9 +464,10 @@ class ScriptPicker(ModalScreen[tuple | None]):
         """Close the modal on Ctrl+Q."""
         self.dismiss(None)
 
-    def __init__(self, scripts_dir: Path) -> None:
+    def __init__(self, scripts_dir: Path, read_only: bool = False) -> None:
         super().__init__()
         self.scripts_dir = scripts_dir
+        self.read_only = read_only
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -485,7 +487,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
                 yield Button("Run", id="script-run", variant="success",
                              disabled=not has_scripts)
                 yield Button("Edit", id="script-edit", variant="primary",
-                             disabled=not has_scripts)
+                             disabled=not has_scripts or self.read_only)
                 new_btn = Button("New", id="script-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
@@ -551,9 +553,10 @@ class ProtoPicker(ModalScreen[tuple | None]):
         """Close the modal on Ctrl+Q."""
         self.dismiss(None)
 
-    def __init__(self, proto_dir: Path) -> None:
+    def __init__(self, proto_dir: Path, read_only: bool = False) -> None:
         super().__init__()
         self.proto_dir = proto_dir
+        self.read_only = read_only
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -574,7 +577,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
                 yield Button("Debug", id="proto-debug", variant="warning",
                              disabled=not has_protos)
                 yield Button("Edit", id="proto-edit", variant="primary",
-                             disabled=not has_protos)
+                             disabled=not has_protos or self.read_only)
                 new_btn = Button("New", id="proto-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn

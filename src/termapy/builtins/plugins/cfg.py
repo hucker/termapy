@@ -88,8 +88,8 @@ COMMAND = Command(
     long_help="""\
 Three modes:
   /cfg              — show all config key/value pairs
-  /cfg baudrate     — show current value of 'baudrate'
-  /cfg baudrate 115200 — change with confirmation dialog
+  /cfg baud_rate    — show current value of 'baud_rate'
+  /cfg baud_rate 115200 — change with confirmation dialog
 
 Type is auto-detected from the existing value (int, float,
 bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.

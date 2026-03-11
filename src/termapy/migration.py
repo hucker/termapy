@@ -32,9 +32,25 @@ def _migrate_v2_to_v3(cfg: dict) -> dict:
     return cfg
 
 
+_KEY_RENAMES_V4 = {
+    "baudrate": "baud_rate",
+    "bytesize": "byte_size",
+    "stopbits": "stop_bits",
+    "autoconnect": "auto_connect",
+    "autoreconnect": "auto_reconnect",
+    "autoconnect_cmd": "auto_connect_cmd",
+}
+
+
 def _migrate_v3_to_v4(cfg: dict) -> dict:
-    """Remove command_history_items (now a fixed limit, not configurable)."""
+    """Remove command_history_items, add read_only, rename keys, prefix ! → /."""
     cfg.pop("command_history_items", None)
+    cfg.setdefault("read_only", False)
+    if cfg.get("repl_prefix") == "!":
+        cfg["repl_prefix"] = "/"
+    for old, new in _KEY_RENAMES_V4.items():
+        if old in cfg:
+            cfg[new] = cfg.pop(old)
     return cfg
 
 

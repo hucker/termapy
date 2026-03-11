@@ -71,6 +71,7 @@ DEFAULT_CFG = {
     "repl_prefix": "/",
     "read_only": False,
     "os_cmd_enabled": False,
+    "pick_port": False,
     # Serial
     "port": "COM4",
     "baud_rate": 115200,
@@ -140,6 +141,8 @@ def load_config(path: str) -> dict:
     old_version = cfg.get("config_version", 0)
     cfg = migrate_config(cfg)
     changed = old_version != CURRENT_CONFIG_VERSION
+    if changed:
+        cfg["_migrated_from"] = old_version
 
     for key, val in DEFAULT_CFG.items():
         if key not in cfg:

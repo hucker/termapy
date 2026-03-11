@@ -22,6 +22,7 @@ import serial
 from termapy.config import (
     CFG_DIR,
     DEFAULT_CFG,
+    CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
@@ -100,133 +101,6 @@ PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
 # Dim ANSI markers for visible EOL display (show_eol mode)
 _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
-
-
-def _build_info_tree(config_path: str, cfg: dict) -> tuple[str, str]:
-    """Generate a directory-tree view of the project.
-
-    No stat() or resolve() calls — just glob for filenames.
-    Avoids expensive Windows Defender filesystem scans.
-
-    Args:
-        config_path: Path to the config JSON file.
-        cfg: Loaded config dict.
-
-    Returns:
-        Tree string suitable for terminal output or markdown code block.
-    """
-    import json
-
-    config_p = Path(config_path)
-    data_dir = config_p.parent if config_p.is_absolute() else config_p.resolve().parent
-    config_name = config_p.stem
-
-    def _names(directory: Path, pattern: str) -> list[str]:
-        """Return sorted filenames matching pattern in directory."""
-        if pattern == "*":
-            return sorted(f.name for f in directory.glob(pattern) if f.is_file())
-        return sorted(f.name for f in directory.glob(pattern))
-
-    # Gather file lists
-    sections: list[tuple[str, list[str]]] = [
-        (f"{config_name}.json", []),
-        (f"{config_name}.log", []),
-        ("scripts/", _names(data_dir / "scripts", "*.run")),
-        ("proto/", _names(data_dir / "proto", "*.pro")),
-        ("plugins/", _names(data_dir / "plugins", "*.py")),
-        ("ss/", _names(data_dir / "ss", "*")),
-        ("viz/", _names(data_dir / "viz", "*.py")),
-    ]
-
-    # Global plugins
-    global_names = _names(global_plugins_dir(), "*.py")
-
-    # Colors for Rich markup (terminal output)
-    _DIR = "cyan"
-    _TREE = "dim"
-    _FILE = "blue"
-
-    # Build tree — plain lines for markdown, colored for terminal
-    plain_lines: list[str] = [f"{config_name}/"]
-    color_lines: list[str] = [f"[{_DIR}]{config_name}/[/]"]
-
-    # Filter to non-empty entries and standalone files
-    entries: list[tuple[str, list[str]]] = []
-    for name, files in sections:
-        if name.endswith("/"):
-            entries.append((name, files))
-        elif (data_dir / name).exists():
-            entries.append((name, []))
-
-    for i, (name, files) in enumerate(entries):
-        is_last_entry = i == len(entries) - 1
-        connector = "└── " if is_last_entry else "├── "
-        child_prefix = "    " if is_last_entry else "│   "
-
-        if not name.endswith("/"):
-            # Standalone file (config json, log)
-            plain_lines.append(f"{connector}{name}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{name}[/]")
-        elif files:
-            plain_lines.append(f"{connector}{name}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
-            for j, fname in enumerate(files):
-                child_conn = "└── " if j == len(files) - 1 else "├── "
-                plain_lines.append(f"{child_prefix}{child_conn}{fname}")
-                color_lines.append(
-                    f"[{_TREE}]{child_prefix}{child_conn}[/][{_FILE}]{fname}[/]"
-                )
-        else:
-            # Empty directory
-            plain_lines.append(f"{connector}{name}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
-
-    # Global plugins section (separate root)
-    if global_names:
-        plain_lines.append("")
-        plain_lines.append("plugins/ (global)")
-        color_lines.append("")
-        color_lines.append(f"[{_DIR}]plugins/ (global)[/]")
-        for i, fname in enumerate(global_names):
-            connector = "└── " if i == len(global_names) - 1 else "├── "
-            plain_lines.append(f"{connector}{fname}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{fname}[/]")
-
-    tree = "\n".join(plain_lines)
-    colored_tree = "\n".join(color_lines)
-
-    # Build markdown report with tree + config JSON
-    cfg_display = {k: v for k, v in cfg.items() if k != "custom_buttons"}
-    buttons = cfg.get("custom_buttons", [])
-    active = [b for b in buttons if b.get("enabled")]
-
-    md_lines: list[str] = [
-        f"# Project: {config_name}",
-        "",
-        "```text",
-        tree,
-        "```",
-        "",
-        "## Config",
-        "",
-        "```json",
-        json.dumps(cfg_display, indent=4),
-        "```",
-        "",
-    ]
-    if active:
-        md_lines.extend(
-            [
-                f"## Custom Buttons ({len(active)} active)",
-                "",
-                "```json",
-                json.dumps(active, indent=4),
-                "```",
-                "",
-            ]
-        )
-
-    return colored_tree, "\n".join(md_lines)
 
 
 def _eol_label(line_ending: str) -> str:
@@ -699,13 +573,6 @@ class SerialTerminal(App):
             self._hook_line_no,
             source="app",
         )
-        self.repl.register_hook(
-            "info",
-            "{--display}",
-            "Show project summary. --display opens full report in system viewer.",
-            self._hook_info,
-            source="app",
-        )
         # Load external plugins: global first, then per-config (can override)
         self._load_and_report(
             load_plugins_from_dir(global_plugins_dir(), "global"),
@@ -732,6 +599,8 @@ class SerialTerminal(App):
             )
         elif self.open_editor_on_start:
             self._new_config()
+        elif self.cfg.get("pick_port"):
+            self._show_port_picker()
         elif self.cfg.get("auto_connect"):
             self._connect()
         else:
@@ -1026,9 +895,15 @@ class SerialTerminal(App):
 
     def _switch_config(self, cfg: dict, path: str) -> None:
         """Apply a new config: disconnect, update state, refresh UI, reconnect."""
+        migrated_from = cfg.pop("_migrated_from", None)
         was_connected = self.is_connected
         if was_connected:
             self._disconnect()
+        if migrated_from is not None:
+            self._status(
+                f"Config migrated: v{migrated_from} → v{CURRENT_CONFIG_VERSION}",
+                "yellow",
+            )
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self.repl.ctx.config_path = path
@@ -1044,7 +919,9 @@ class SerialTerminal(App):
         self._sync_proto_button()
         self.run_worker(self._sync_custom_buttons())
         self._open_log()
-        if was_connected or cfg.get("auto_connect"):
+        if cfg.get("pick_port") and cfg.get("port", "").upper() == "PICK":
+            self._show_port_picker()
+        elif was_connected or cfg.get("auto_connect"):
             self._connect()
 
     def _load_and_report(self, result: LoadResult) -> None:
@@ -1309,16 +1186,35 @@ class SerialTerminal(App):
             self._execute_command(raw)
 
     def _show_port_picker(self) -> None:
+        if self.cfg.get("port", "").upper() == "DEMO":
+            self._status("pick_port ignored — port is DEMO", "yellow")
+            if self.cfg.get("auto_connect"):
+                self._connect()
+            return
+        from serial.tools.list_ports import comports
+
+        ports = sorted(comports(), key=lambda p: p.device)
+        if len(ports) == 1:
+            self._on_port_picked(ports[0].device)
+            return
         self.push_screen(PortPicker(), callback=self._on_port_picked)
 
     def _update_port(self, port: str) -> None:
-        """Change serial port, save config, and reconnect."""
+        """Change serial port, save config, and reconnect.
+
+        When ``pick_port`` is true in the config, the saved file keeps
+        ``"pick"`` as the port so the picker appears again next session.
+        The real port is only used in memory for this session.
+        """
         cfg = dict(self.cfg)
         cfg["port"] = port
         if self.config_path:
+            save_cfg = dict(cfg)
+            if save_cfg.get("pick_port"):
+                save_cfg["port"] = "pick"
             try:
                 with open(self.config_path, "w") as f:
-                    json.dump(cfg, f, indent=4)
+                    json.dump(save_cfg, f, indent=4)
             except OSError as e:
                 self._status(f"Failed to save config: {e}", "red")
                 return
@@ -1327,8 +1223,13 @@ class SerialTerminal(App):
 
     def _on_port_picked(self, port: str | None) -> None:
         if port is None:
+            if self.cfg.get("pick_port") and not self.is_connected:
+                self._status("No port selected — use the Port button to pick one")
             return
         self._update_port(port)
+        # In pick mode, always connect after selection (auto_connect may be off)
+        if self.cfg.get("pick_port") and not self.is_connected:
+            self._connect()
 
     # -- Palette action wrappers --
 
@@ -1604,8 +1505,7 @@ class SerialTerminal(App):
         prefix = self.cfg.get("repl_prefix", "/")
         if cmd.startswith(prefix):
             if self.repl.echo:
-                fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
-                self._write_output_markup(fmt.replace("{cmd}", cmd))
+                self._write_output_markup(f"[red]> {cmd}[/]")
             self.repl.dispatch(cmd[len(prefix) :].strip())
             return
         # Echo serial command locally if enabled
@@ -1866,54 +1766,6 @@ class SerialTerminal(App):
             self._status("Line numbers OFF")
         else:
             self._status("Usage: line_no on|off", "yellow")
-
-    def _hook_info(self, ctx, args: str) -> None:
-        """Generate project info report and print summary to output.
-
-        Writes ``<config_name>.md`` to the config data directory
-        and prints non-zero file counts to the output window.
-        With ``--display``, opens the full report in the system viewer.
-
-        Args:
-            ctx: Plugin context.
-            args: ``"--display"`` to open report externally.
-        """
-        if not self.config_path:
-            self._status("No config loaded.", "red")
-            return
-
-        self.notify("Generating project tree…", timeout=1)
-        self._do_info_work(args)
-
-    @work(thread=True)
-    def _do_info_work(self, args: str) -> None:
-        """Build project info tree in a background thread.
-
-        Uses ``@work(thread=True)`` so the toast renders immediately
-        while filesystem I/O runs off the event loop.
-
-        Args:
-            args: Original args from ``/info`` (e.g. ``"--display"``).
-        """
-        config_name = Path(self.config_path).stem
-        data_dir = cfg_data_dir(self.config_path)
-        report_path = data_dir / f"{config_name}.md"
-
-        try:
-            tree, markdown = _build_info_tree(self.config_path, self.cfg)
-            report_path.write_text(markdown, encoding="utf-8")
-
-            self.call_from_thread(self._write_output_markup, tree)
-
-            if "--display" in args.lower():
-                self.call_from_thread(open_with_system, str(report_path))
-        except RuntimeError:
-            pass  # call_from_thread fails during app shutdown
-        except Exception as e:
-            try:
-                self.call_from_thread(self._status, f"Info error: {e}", "red")
-            except RuntimeError:
-                pass
 
     def _hook_port(self, ctx, args: str) -> None:
         """Open a port by name, or show subcommands if no name given."""

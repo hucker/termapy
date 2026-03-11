@@ -4,6 +4,8 @@ Pure functions with no UI dependency. Used by app.py and tests.
 """
 
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -71,7 +73,6 @@ DEFAULT_CFG = {
     "repl_prefix": "/",
     "read_only": False,
     "os_cmd_enabled": False,
-    "pick_port": False,
     # Serial
     "port": "COM4",
     "baud_rate": 115200,
@@ -105,6 +106,48 @@ DEFAULT_CFG = {
         {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
     ],
 }
+
+_ENV_RE = re.compile(r"\$\(env\.(\w+)(?:\|([^)]*))?\)")
+
+
+def expand_env_str(text: str) -> str:
+    """Expand $(env.NAME) and $(env.NAME|fallback) placeholders using os.environ.
+
+    Unknown variables without a fallback are left unchanged (config must never
+    crash due to a missing environment variable).
+
+    Args:
+        text: String potentially containing $(env.NAME) placeholders.
+
+    Returns:
+        String with known placeholders replaced.
+    """
+    def _replace(m: re.Match) -> str:
+        val = os.environ.get(m.group(1))
+        if val is not None:
+            return val
+        if m.group(2) is not None:
+            return m.group(2)
+        return m.group(0)
+    return _ENV_RE.sub(_replace, text)
+
+
+def expand_env_cfg(cfg: dict) -> dict:
+    """Expand $(env.NAME) in all top-level string values of a config dict.
+
+    Mutates and returns *cfg*. Non-string values and nested structures
+    are left untouched.
+
+    Args:
+        cfg: Config dict to expand in place.
+
+    Returns:
+        The same dict with string values expanded.
+    """
+    for key, val in cfg.items():
+        if isinstance(val, str) and "$(" in val:
+            cfg[key] = expand_env_str(val)
+    return cfg
 
 
 def load_config(path: str) -> dict:
@@ -151,7 +194,7 @@ def load_config(path: str) -> dict:
     if changed:
         with open(path, "w") as f:
             json.dump(cfg, f, indent=4)
-    return cfg
+    return expand_env_cfg(cfg)
 
 
 def open_with_system(path: str) -> None:

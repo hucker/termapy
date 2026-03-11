@@ -13,6 +13,8 @@ from termapy.config import (
     cfg_log_path,
     cfg_path_for_name,
     cfg_plugins_dir,
+    expand_env_cfg,
+    expand_env_str,
     load_config,
 )
 
@@ -250,3 +252,106 @@ class TestCustomButtonConfig:
         prefix = "/"
         assert "/run test.run".startswith(prefix)  # REPL command detected
         assert not "ATZ".startswith(prefix)  # serial command not matched
+
+
+# -- expand_env_str / expand_env_cfg ----------------------------------------
+
+
+class TestExpandEnvStr:
+    def test_known_var(self, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("TEST_PORT_XYZ", "COM7")
+
+        # Act
+        actual = expand_env_str("$(env.TEST_PORT_XYZ)")
+
+        # Assert
+        expected = "COM7"
+        assert actual == expected  # known var expanded
+
+    def test_fallback_when_missing(self, monkeypatch):
+        # Arrange
+        monkeypatch.delenv("MISSING_CFG_VAR", raising=False)
+
+        # Act
+        actual = expand_env_str("$(env.MISSING_CFG_VAR|COM4)")
+
+        # Assert
+        expected = "COM4"
+        assert actual == expected  # fallback used
+
+    def test_unknown_without_fallback_unchanged(self, monkeypatch):
+        # Arrange
+        monkeypatch.delenv("NOPE_CFG_VAR", raising=False)
+
+        # Act
+        actual = expand_env_str("$(env.NOPE_CFG_VAR)")
+
+        # Assert
+        expected = "$(env.NOPE_CFG_VAR)"
+        assert actual == expected  # left unchanged (no crash)
+
+    def test_plain_string_unchanged(self):
+        # Act
+        actual = expand_env_str("COM4")
+
+        # Assert
+        expected = "COM4"
+        assert actual == expected  # no placeholder, unchanged
+
+
+class TestExpandEnvCfg:
+    def test_expands_string_values(self, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("CFG_PORT_TEST", "COM9")
+        cfg = {"port": "$(env.CFG_PORT_TEST|COM1)", "baud_rate": 115200}
+
+        # Act
+        actual = expand_env_cfg(cfg)
+
+        # Assert
+        assert actual["port"] == "COM9"  # string value expanded
+        assert actual["baud_rate"] == 115200  # non-string untouched
+
+    def test_skips_non_strings(self):
+        # Arrange
+        cfg = {"baud_rate": 9600, "auto_connect": True, "max_lines": 10000}
+
+        # Act
+        actual = expand_env_cfg(cfg)
+
+        # Assert
+        assert actual["baud_rate"] == 9600  # int unchanged
+        assert actual["auto_connect"] is True  # bool unchanged
+
+
+class TestLoadConfigEnvExpansion:
+    def test_expands_env_in_loaded_config(self, tmp_path, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("LC_TEST_PORT", "COM8")
+        config_path = tmp_path / "dev" / "dev.json"
+        config_path.parent.mkdir()
+        raw = {"port": "$(env.LC_TEST_PORT|COM1)", "baud_rate": 9600}
+        config_path.write_text(json.dumps(raw))
+
+        # Act
+        actual = load_config(str(config_path))
+
+        # Assert
+        assert actual["port"] == "COM8"  # env var expanded in memory
+
+    def test_disk_keeps_template(self, tmp_path, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("LC_TEST_PORT2", "COM8")
+        config_path = tmp_path / "dev" / "dev.json"
+        config_path.parent.mkdir()
+        template = "$(env.LC_TEST_PORT2|COM1)"
+        raw = {"port": template, "baud_rate": 9600}
+        config_path.write_text(json.dumps(raw))
+
+        # Act
+        load_config(str(config_path))
+
+        # Assert
+        actual_disk = json.loads(config_path.read_text())
+        assert actual_disk["port"] == template  # disk keeps raw template

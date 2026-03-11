@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 4
+CURRENT_CONFIG_VERSION = 5
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
@@ -56,9 +56,16 @@ def _migrate_v3_to_v4(cfg: dict) -> dict:
     return cfg
 
 
+def _migrate_v4_to_v5(cfg: dict) -> dict:
+    """Remove pick_port (superseded by $(env.NAME) config expansion)."""
+    cfg.pop("pick_port", None)
+    return cfg
+
+
 MIGRATIONS[1] = _migrate_v1_to_v2
 MIGRATIONS[2] = _migrate_v2_to_v3
 MIGRATIONS[3] = _migrate_v3_to_v4
+MIGRATIONS[4] = _migrate_v4_to_v5
 
 
 def migrate_config(cfg: dict) -> dict:

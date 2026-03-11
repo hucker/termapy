@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.plugins import PluginContext, PluginInfo
+from termapy.plugins import PluginContext, PluginInfo, TransformInfo
 from termapy.repl import ReplEngine
 
 
@@ -219,18 +219,7 @@ class TestApplyCfg:
         # Assert
         assert eng.cfg["baud_rate"] == 9600  # config value updated
         assert callback_calls == [("baud_rate", 9600)]  # callback invoked
-        assert any("saved" in t for t, _ in output)  # success message shown
-
-    def test_apply_cfg_write_error(self, engine):
-        # Arrange
-        eng, output = engine
-        eng.config_path = "/nonexistent/path/cfg.json"
-
-        # Act
-        eng._apply_cfg("baud_rate", 9600)
-
-        # Assert
-        assert any("Error" in t for t, _ in output)  # error message shown
+        assert any("session" in t for t, _ in output)  # success message shown
 
 
 # -- run_script --------------------------------------------------------------
@@ -352,3 +341,150 @@ class TestRunScript:
         # Assert
         assert any("error" in t.lower() for t, _ in output)  # error message shown
         assert eng._in_script is False  # script flag cleared on error
+
+
+# -- Transform chains -------------------------------------------------------
+
+
+class TestTransformChains:
+    def test_builtin_env_var_transform_loaded(self, engine):
+        # Arrange
+        eng, _ = engine
+
+        # Assert
+        assert eng.has_repl_transforms is True  # env_var REPL transform loaded
+        assert eng.has_serial_transforms is False  # no built-in serial transforms
+        names = [t.name for t in eng._transform_infos]
+        assert "env_var" in names  # env_var transform registered
+
+    def test_repl_transform_registered(self, engine):
+        # Arrange
+        eng, _ = engine
+
+        # Act
+        eng.register_transform(TransformInfo(
+            name="upper", help="test", repl=lambda s: s.upper(),
+        ))
+
+        # Assert
+        assert eng.has_repl_transforms is True  # REPL transform registered
+        assert eng.has_serial_transforms is False  # no serial transforms
+
+    def test_serial_transform_registered(self, engine):
+        # Arrange
+        eng, _ = engine
+
+        # Act
+        eng.register_transform(TransformInfo(
+            name="strip_atz", help="test",
+            serial=lambda s: s.replace("ATZ", "AT"),
+        ))
+
+        # Assert
+        assert eng.has_serial_transforms is True  # serial transform registered
+        assert eng.has_repl_transforms is True  # env_var REPL transform loaded
+
+    def test_repl_transform_applied(self, engine):
+        # Arrange
+        eng, _ = engine
+        eng.register_transform(TransformInfo(
+            name="upper", help="test", repl=lambda s: s.upper(),
+        ))
+
+        # Act
+        actual = eng.transform_repl("hello world")
+
+        # Assert
+        expected = "HELLO WORLD"
+        assert actual == expected  # REPL transform uppercased
+
+    def test_serial_transform_applied(self, engine):
+        # Arrange
+        eng, _ = engine
+        eng.register_transform(TransformInfo(
+            name="replacer", help="test",
+            serial=lambda s: s.replace("$port", "COM4"),
+        ))
+
+        # Act
+        actual = eng.transform_serial("connect $port")
+
+        # Assert
+        expected = "connect COM4"
+        assert actual == expected  # serial transform replaced $port
+
+    def test_chain_order_matches_registration(self, engine):
+        # Arrange
+        eng, _ = engine
+        eng.register_transform(TransformInfo(
+            name="first", help="test", repl=lambda s: s + " [A]",
+        ))
+        eng.register_transform(TransformInfo(
+            name="second", help="test", repl=lambda s: s + " [B]",
+        ))
+
+        # Act
+        actual = eng.transform_repl("cmd")
+
+        # Assert
+        expected = "cmd [A] [B]"
+        assert actual == expected  # transforms applied in registration order
+
+    def test_transforms_independent(self, engine):
+        # Arrange
+        eng, _ = engine
+        eng.register_transform(TransformInfo(
+            name="repl_only", help="test", repl=lambda s: "REPL:" + s,
+        ))
+        eng.register_transform(TransformInfo(
+            name="serial_only", help="test", serial=lambda s: "SER:" + s,
+        ))
+
+        # Act
+        actual_repl = eng.transform_repl("test")
+        actual_serial = eng.transform_serial("test")
+
+        # Assert
+        assert actual_repl == "REPL:test"  # only REPL transform applied
+        assert actual_serial == "SER:test"  # only serial transform applied
+
+    def test_identity_when_no_transforms(self, engine):
+        # Arrange
+        eng, _ = engine
+
+        # Act
+        actual_repl = eng.transform_repl("hello")
+        actual_serial = eng.transform_serial("hello")
+
+        # Assert
+        assert actual_repl == "hello"  # passthrough with no transforms
+        assert actual_serial == "hello"  # passthrough with no transforms
+
+    def test_both_chains_on_one_transform(self, engine):
+        # Arrange
+        eng, _ = engine
+        eng.register_transform(TransformInfo(
+            name="dual", help="test",
+            repl=lambda s: s.upper(),
+            serial=lambda s: s.lower(),
+        ))
+
+        # Act
+        actual_repl = eng.transform_repl("Hello")
+        actual_serial = eng.transform_serial("Hello")
+
+        # Assert
+        assert actual_repl == "HELLO"  # REPL uppercased
+        assert actual_serial == "hello"  # serial lowercased
+
+    def test_transform_infos_tracked(self, engine):
+        # Arrange
+        eng, _ = engine
+        before = len(eng._transform_infos)
+        eng.register_transform(TransformInfo(
+            name="vars", help="Expand variables.", repl=lambda s: s,
+        ))
+
+        # Assert
+        assert len(eng._transform_infos) == before + 1  # new transform added
+        assert eng._transform_infos[-1].name == "vars"  # correct name tracked

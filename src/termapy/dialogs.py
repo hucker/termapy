@@ -57,6 +57,12 @@ class ConfigEditor(ModalScreen[tuple | None]):
         self.cfg = cfg
         self.config_path = config_path
         self._save_as_mode = False
+        # Read raw JSON from disk so $(env.NAME) templates are visible
+        try:
+            with open(config_path) as f:
+                self._disk_cfg = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            self._disk_cfg = cfg
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -64,7 +70,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         with Vertical(id="config-dialog"):
             yield Static(f"JSON: {self.config_path}", id="config-title")
             yield TextArea(
-                json.dumps(self.cfg, indent=4),
+                json.dumps(self._disk_cfg, indent=4),
                 language="json",
                 theme="monokai",
                 show_line_numbers=True,

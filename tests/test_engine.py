@@ -14,7 +14,7 @@ from termapy.repl import ReplEngine
 def engine(tmp_path):
     """Create a basic ReplEngine with a temp config."""
     cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r"}
-    config_path = tmp_path / "sub" / "test.json"
+    config_path = tmp_path / "sub" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
     for sub in ("plugins", "ss", "scripts"):
@@ -229,7 +229,7 @@ class TestRunScript:
     def _make_engine(self, tmp_path, script_text, connected=True):
         """Create an engine with mock serial context and a script file."""
         cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r", "encoding": "utf-8"}
-        config_path = tmp_path / "dev" / "dev.json"
+        config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
         for sub in ("plugins", "ss", "scripts"):

@@ -6,7 +6,7 @@ Run termapy from the command line:
 
 ```text
 termapy                          # auto-detect config
-termapy my_device.json           # load a specific config file
+termapy my_device.cfg            # load a specific config file
 termapy --cfg-dir /path/to/cfgs  # use a custom config directory
 ```
 
@@ -30,7 +30,7 @@ plugins) is stored alongside its JSON file in a subfolder:
 ```text
 termapy_cfg/
 ├── iot_device/
-│   ├── iot_device.json        # config file
+│   ├── iot_device.cfg         # config file
 │   ├── iot_device.log         # session log
 │   ├── .cmd_history.txt       # command history
 │   ├── ss/                    # screenshots
@@ -160,7 +160,7 @@ Commands prefixed with `/` (configurable via `repl_prefix`) run locally instead 
 
 ## JSON Config File
 
-Each configuration is stored as a JSON file at `termapy_cfg/<name>/<name>.json`.
+Each configuration is stored as a JSON file at `termapy_cfg/<name>/<name>.cfg`.
 On first run, termapy creates a default config for you. You can edit it
 from within the app by clicking the center title bar button or using `/cfg`.
 
@@ -199,7 +199,7 @@ Here is an example config for a device called `iot_device`:
 }
 ```
 
-This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
+This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
 ### Config Field Reference
 

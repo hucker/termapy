@@ -23,10 +23,24 @@ def cfg_dir() -> Path:
     return d
 
 
+def migrate_json_to_cfg(directory: Path) -> None:
+    """Rename any *.json config files to *.cfg (one-time migration).
+
+    Safe to call repeatedly — skips if the .cfg file already exists.
+
+    Args:
+        directory: The config root directory to scan (e.g. termapy_cfg/).
+    """
+    for json_file in directory.glob("*/*.json"):
+        cfg_file = json_file.with_suffix(".cfg")
+        if not cfg_file.exists():
+            json_file.rename(cfg_file)
+
+
 def cfg_data_dir(config_path: str) -> Path:
     """Return the per-config data directory (for logs, screenshots, etc.).
 
-    Config files live at termapy_cfg/<name>/<name>.json, so the data dir
+    Config files live at termapy_cfg/<name>/<name>.cfg, so the data dir
     is just the parent directory of the config file.
     """
     d = Path(config_path).parent
@@ -37,8 +51,8 @@ def cfg_data_dir(config_path: str) -> Path:
 
 
 def cfg_path_for_name(name: str) -> Path:
-    """Return the config file path for a given name: termapy_cfg/<name>/<name>.json."""
-    return cfg_dir() / name / f"{name}.json"
+    """Return the config file path for a given name: termapy_cfg/<name>/<name>.cfg."""
+    return cfg_dir() / name / f"{name}.cfg"
 
 
 def cfg_log_path(config_path: str) -> str:
@@ -166,7 +180,7 @@ def load_config(path: str) -> dict:
     p = Path(path)
     if not p.exists():
         print(f"Config file not found: {path}", file=sys.stderr)
-        # Ensure it goes into termapy_cfg/<name>/<name>.json
+        # Ensure it goes into termapy_cfg/<name>/<name>.cfg
         if not p.parent or p.parent == Path("."):
             name = p.stem
             p = cfg_path_for_name(name)
@@ -259,14 +273,14 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     demo_dir = target_path / "demo"
     demo_dir.mkdir(parents=True, exist_ok=True)
 
-    config_path = demo_dir / "demo.json"
+    config_path = demo_dir / "demo.cfg"
 
     # Source package
     pkg = importlib.resources.files("termapy.builtins.demo")
 
     # Copy config file
     if force or not config_path.exists():
-        src = pkg / "demo.json"
+        src = pkg / "demo.cfg"
         config_path.write_bytes(src.read_bytes())
 
     # Copy scripts

@@ -10,12 +10,8 @@ import time
 
 from termapy.plugins import PluginContext
 
-NAME = "ping"
-ARGS = "{cmd}"
-HELP = "Send a command and measure response time (default: AT)."
 
-
-def handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str):
     cmd = args.strip() or "AT"
     if not ctx.is_connected():
         ctx.write("Not connected.", "red")
@@ -25,3 +21,12 @@ def handler(ctx: PluginContext, args: str):
     ctx.serial_wait_idle()
     ms = (time.perf_counter() - start) * 1000
     ctx.write(f"{cmd} — {ms:.0f}ms", "green")
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "ping",
+    "args": "{cmd}",
+    "help": "Send a command and measure response time (default: AT).",
+    "handler": _handler,
+}

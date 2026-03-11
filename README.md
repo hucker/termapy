@@ -402,47 +402,54 @@ Extend `termapy` by dropping Python files into plugin folders. Every REPL comman
 3. **Per-config** -- `termapy_cfg/<name>/plugins/*.py`, specific to one config
 4. **App hooks** -- commands that need Textual access (screenshots, connect, etc.)
 
-Later plugins can override earlier ones by using the same `NAME`.
+Later plugins can override earlier ones by using the same name.
 
 ### Writing a Plugin
 
-Create a `.py` file with four things:
+Create a `.py` file with a `COMMAND` dict at the end:
 
 ```python
 # hello.py — drop into termapy_cfg/plugins/ or termapy_cfg/<config>/plugins/
 from termapy.plugins import PluginContext
 
-NAME = "hello"
-ARGS = "{name}"        # {braces} = optional, <angle> = required, "" = no args
-HELP = "Say hello."
-
-def handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str):
     name = args.strip() or "world"
     ctx.write(f"Hello, {name}!")
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "hello",
+    "args": "{name}",        # {braces} = optional, <angle> = required, "" = no args
+    "help": "Say hello.",
+    "handler": _handler,
+}
 ```
 
 No classes to subclass, no registration — the file is discovered automatically when `termapy` starts. The `PluginContext` import is optional but gives your IDE autocomplete for `ctx`.
 
-### Namespacing with PACKAGE
+### Subcommands
 
-To avoid name collisions, add an optional `PACKAGE` field. The command becomes `!package.name`:
+Use `sub_commands` for related operations. Users invoke them with dot notation (`!tool.run`):
 
 ```python
-# flash.py
-from termapy.plugins import PluginContext
+def _run(ctx, args):
+    ctx.write(f"Running {args}...")
 
-PACKAGE = "acme"
-NAME = "flash"
-ARGS = "<firmware>"
-HELP = "Flash firmware to the device."
+def _status(ctx, args):
+    ctx.write("All good.")
 
-def handler(ctx: PluginContext, args: str):
-    ctx.write(f"Flashing {args}...")
-    ctx.serial_write(b"FLASH\r\n")
-    ctx.serial_wait_idle()
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "tool",
+    "help": "A tool with subcommands.",
+    "sub_commands": {
+        "run":    {"args": "<file>", "help": "Run a file.", "handler": _run},
+        "status": {"help": "Show status.", "handler": _status},
+    },
+}
 ```
 
-The user types `!acme.flash firmware.bin`, and `!help` groups it under the "acme" package.
+The user types `!tool.run myfile` or `!tool.status`. Interior nodes without a handler get a synthetic handler that lists their subcommands.
 
 ### PluginContext API
 

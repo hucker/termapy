@@ -6,12 +6,8 @@ termapy_cfg/<config>/plugins/ (per-config) to make !at available.
 Demonstrates using the serial port through the plugin context.
 """
 
-NAME = "at"
-ARGS = "{cmd}"
-HELP = "Send an AT command (default: AT). Waits for response."
 
-
-def handler(ctx, args):
+def _handler(ctx, args):
     cmd = args.strip() or "AT"
     if not ctx.is_connected():
         ctx.write("Not connected.", "red")
@@ -19,3 +15,12 @@ def handler(ctx, args):
     ctx.write(f"> {cmd}", "purple")
     ctx.serial_write((cmd + "\r\n").encode())
     ctx.serial_wait_idle()
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = {
+    "name": "at",
+    "args": "{cmd}",
+    "help": "Send an AT command (default: AT). Waits for response.",
+    "handler": _handler,
+}

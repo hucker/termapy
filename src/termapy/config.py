@@ -69,20 +69,21 @@ DEFAULT_CFG = {
     "app_border_color": "",
     "max_lines": 10000,
     "repl_prefix": "/",
+    "read_only": False,
     "os_cmd_enabled": False,
     # Serial
     "port": "COM4",
-    "baudrate": 115200,
-    "bytesize": 8,
+    "baud_rate": 115200,
+    "byte_size": 8,
     "parity": "N",
-    "stopbits": 1,
+    "stop_bits": 1,
     "flow_control": "none",
     "encoding": "utf-8",
     "inter_cmd_delay_ms": 0,
     # Connection
-    "autoconnect": False,
-    "autoreconnect": False,
-    "autoconnect_cmd": "",
+    "auto_connect": False,
+    "auto_reconnect": False,
+    "auto_connect_cmd": "",
     "line_ending": "\r",
     # Input echo
     "echo_cmd": False,
@@ -179,15 +180,15 @@ def open_serial(cfg: dict) -> serial.Serial:
     if cfg["port"].upper() == "DEMO":
         from termapy.demo import FakeSerial
 
-        return FakeSerial(baudrate=cfg["baudrate"])
+        return FakeSerial(baudrate=cfg["baud_rate"])
 
     fc = cfg.get("flow_control", "none")
     return serial.Serial(
         port=cfg["port"],
-        baudrate=cfg["baudrate"],
-        bytesize=cfg["bytesize"],
+        baudrate=cfg["baud_rate"],
+        bytesize=cfg["byte_size"],
         parity=cfg["parity"],
-        stopbits=cfg["stopbits"],
+        stopbits=cfg["stop_bits"],
         rtscts=(fc == "rtscts"),
         xonxoff=(fc == "xonxoff"),
         timeout=0.05,

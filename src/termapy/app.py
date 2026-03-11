@@ -75,7 +75,9 @@ class CommandSuggester(Suggester):
         super().__init__(use_cache=False, case_sensitive=False)
         self._suggestions: list[str] = []
 
-    def update(self, commands: list[str], history: list[str], prefix: str = "/") -> None:
+    def update(
+        self, commands: list[str], history: list[str], prefix: str = "/"
+    ) -> None:
         """Rebuild suggestions: REPL commands + non-REPL history (deduped)."""
         device_cmds = [h for h in history if not h.startswith(prefix)]
         self._suggestions = commands + device_cmds
@@ -98,7 +100,6 @@ PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
 # Dim ANSI markers for visible EOL display (show_eol mode)
 _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
-
 
 
 def _build_info_tree(config_path: str, cfg: dict) -> tuple[str, str]:
@@ -214,14 +215,16 @@ def _build_info_tree(config_path: str, cfg: dict) -> tuple[str, str]:
         "",
     ]
     if active:
-        md_lines.extend([
-            f"## Custom Buttons ({len(active)} active)",
-            "",
-            "```json",
-            json.dumps(active, indent=4),
-            "```",
-            "",
-        ])
+        md_lines.extend(
+            [
+                f"## Custom Buttons ({len(active)} active)",
+                "",
+                "```json",
+                json.dumps(active, indent=4),
+                "```",
+                "",
+            ]
+        )
 
     return colored_tree, "\n".join(md_lines)
 
@@ -434,7 +437,7 @@ class SerialTerminal(App):
         """Load command history from disk (last _HISTORY_LIMIT entries)."""
         try:
             lines = Path(self._history_path()).read_text(encoding="utf-8").splitlines()
-            return lines[-self._HISTORY_LIMIT:]
+            return lines[-self._HISTORY_LIMIT :]
         except FileNotFoundError:
             return []
 
@@ -442,7 +445,7 @@ class SerialTerminal(App):
         """Persist command history to disk (last _HISTORY_LIMIT entries)."""
         try:
             Path(self._history_path()).write_text(
-                "\n".join(self.history[-self._HISTORY_LIMIT:]), encoding="utf-8"
+                "\n".join(self.history[-self._HISTORY_LIMIT :]), encoding="utf-8"
             )
         except OSError:
             pass  # non-critical — history will be lost but app continues
@@ -498,7 +501,7 @@ class SerialTerminal(App):
                 cmd_btn.tooltip = f"Show REPL {prefix} commands."
                 yield cmd_btn
                 yield Input(
-                    placeholder="/ for REPL commands, Ctrl+P: palette",
+                    placeholder=f"{prefix} for REPL commands, Ctrl+P: palette",
                     id="cmd",
                     suggester=self._suggester,
                 )
@@ -722,11 +725,14 @@ class SerialTerminal(App):
         self._sync_proto_button()
         if self.show_picker_on_start:
             self.push_screen(
-                ConfigPicker(self.config_path), callback=self._on_config_picked
+                ConfigPicker(
+                    self.config_path, read_only=self.cfg.get("read_only", False)
+                ),
+                callback=self._on_config_picked,
             )
         elif self.open_editor_on_start:
             self._new_config()
-        elif self.cfg.get("autoconnect"):
+        elif self.cfg.get("auto_connect"):
             self._connect()
         else:
             self._status(f"{self._port_info_str()} — press Connect to start")
@@ -754,7 +760,7 @@ class SerialTerminal(App):
             self.reader_stopped.clear()
             self.ser = open_serial(self.cfg)
             self.notify(
-                f"Connected: {self.cfg['port']} @ {self.cfg['baudrate']}", timeout=0.75
+                f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", timeout=0.75
             )
             self._set_conn_status("Connected")
             inp = self.query_one("#cmd", Input)
@@ -762,7 +768,7 @@ class SerialTerminal(App):
             inp.focus()
             self._sync_hw_buttons()
             self.read_serial()
-            auto_cmd = self.cfg.get("autoconnect_cmd", "")
+            auto_cmd = self.cfg.get("auto_connect_cmd", "")
             if auto_cmd:
                 self._run_lines(auto_cmd.split("\n"), echo_prefix="auto> ", delay=0.2)
             return True
@@ -770,7 +776,7 @@ class SerialTerminal(App):
             self.reader_stopped.set()
             self._status(f"Serial error: {e}", "red")
             self._set_conn_status("Disconnected")
-            if self.cfg.get("autoreconnect"):
+            if self.cfg.get("auto_reconnect"):
                 self._auto_reconnect()
             return False
 
@@ -1003,7 +1009,8 @@ class SerialTerminal(App):
             self._set_conn_status("Disconnected")
             try:
                 inp = self.query_one("#cmd", Input)
-                inp.placeholder = "/ for REPL commands, Ctrl+P: palette"
+                prefix = self.cfg.get("repl_prefix", "/")
+                inp.placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
             except Exception:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
@@ -1037,7 +1044,7 @@ class SerialTerminal(App):
         self._sync_proto_button()
         self.run_worker(self._sync_custom_buttons())
         self._open_log()
-        if was_connected or cfg.get("autoconnect"):
+        if was_connected or cfg.get("auto_connect"):
             self._connect()
 
     def _load_and_report(self, result: LoadResult) -> None:
@@ -1078,20 +1085,21 @@ class SerialTerminal(App):
         """
         keep_sources = {"built-in", "global", "app"}
         to_remove = [
-            name for name, p in self.repl._plugins.items()
+            name
+            for name, p in self.repl._plugins.items()
             if p.source not in keep_sources
         ]
         for name in to_remove:
             del self.repl._plugins[name]
         if to_remove:
             self._status(
-                f"Unloaded {len(to_remove)} plugin(s): "
-                + ", ".join(to_remove),
+                f"Unloaded {len(to_remove)} plugin(s): " + ", ".join(to_remove),
                 "dim",
             )
         self._load_and_report(
             load_plugins_from_dir(
-                cfg_plugins_dir(config_path), Path(config_path).stem,
+                cfg_plugins_dir(config_path),
+                Path(config_path).stem,
             ),
         )
         self._update_suggester()
@@ -1149,11 +1157,11 @@ class SerialTerminal(App):
 
     def _port_info_str(self) -> str:
         """Format port info like 'COM4 115200 8N1'."""
-        sb = self.cfg.get("stopbits", 1)
+        sb = self.cfg.get("stop_bits", 1)
         sb_str = str(int(sb)) if sb == int(sb) else str(sb)
         return (
-            f"\\[{self.cfg['port']} {self.cfg['baudrate']}"
-            f" {self.cfg.get('parity', 'N')}{self.cfg.get('bytesize', 8)}{sb_str}]"
+            f"\\[{self.cfg['port']} {self.cfg['baud_rate']}"
+            f" {self.cfg.get('parity', 'N')}{self.cfg.get('byte_size', 8)}{sb_str}]"
         )
 
     def _update_title(self) -> None:
@@ -1165,7 +1173,7 @@ class SerialTerminal(App):
         if self.config_path:
             tip_lines.append(f"File: {self.config_path}")
         tip_lines.append(
-            f"Port: {self.cfg.get('port', '?')} @ {self.cfg.get('baudrate', '?')}"
+            f"Port: {self.cfg.get('port', '?')} @ {self.cfg.get('baud_rate', '?')}"
         )
         fc = self.cfg.get("flow_control", "none")
         if fc != "none":
@@ -1173,10 +1181,10 @@ class SerialTerminal(App):
         enc = self.cfg.get("encoding", "utf-8")
         if enc != "utf-8":
             tip_lines.append(f"Encoding: {enc}")
-        if self.cfg.get("autoconnect"):
+        if self.cfg.get("auto_connect"):
             tip_lines.append("Autoconnect: on")
-        if self.cfg.get("autoreconnect"):
-            tip_lines.append("Autoreconnect: on")
+        if self.cfg.get("auto_reconnect"):
+            tip_lines.append("Auto_reconnect: on")
         if self.cfg.get("os_cmd_enabled"):
             tip_lines.append("OS commands: enabled")
         tip_lines.append("Click to edit config")
@@ -1229,7 +1237,10 @@ class SerialTerminal(App):
                 )
             else:
                 self.push_screen(
-                    ConfigPicker(self.config_path), callback=self._on_config_picked
+                    ConfigPicker(
+                        self.config_path, read_only=self.cfg.get("read_only", False)
+                    ),
+                    callback=self._on_config_picked,
                 )
         elif event.button.id == "btn-dtr":
             if self.is_connected:
@@ -1262,17 +1273,24 @@ class SerialTerminal(App):
             self.action_open_screenshot()
         elif event.button.id == "btn-scripts":
             self.push_screen(
-                ScriptPicker(self.repl.scripts_dir),
+                ScriptPicker(
+                    self.repl.scripts_dir, read_only=self.cfg.get("read_only", False)
+                ),
                 callback=self._on_script_picked,
             )
         elif event.button.id == "btn-proto":
             self.push_screen(
-                ProtoPicker(self.repl.proto_dir),
+                ProtoPicker(
+                    self.repl.proto_dir, read_only=self.cfg.get("read_only", False)
+                ),
                 callback=self._on_proto_picked,
             )
         elif event.button.id == "btn-cfg":
             self.push_screen(
-                ConfigPicker(self.config_path), callback=self._on_config_picked
+                ConfigPicker(
+                    self.config_path, read_only=self.cfg.get("read_only", False)
+                ),
+                callback=self._on_config_picked,
             )
         elif event.button.id == "btn-exit":
             self._disconnect()
@@ -1342,7 +1360,8 @@ class SerialTerminal(App):
 
     def _palette_load_config(self) -> None:
         self.push_screen(
-            ConfigPicker(self.config_path), callback=self._on_config_picked
+            ConfigPicker(self.config_path, read_only=self.cfg.get("read_only", False)),
+            callback=self._on_config_picked,
         )
 
     def _palette_new_config(self) -> None:
@@ -1417,7 +1436,7 @@ class SerialTerminal(App):
                         timeout=1.5,
                     )
                     self.call_from_thread(self._set_conn_status, "Disconnected")
-                    if self.cfg.get("autoreconnect"):
+                    if self.cfg.get("auto_reconnect"):
                         self.call_from_thread(self._auto_reconnect)
                     break
 
@@ -1921,10 +1940,10 @@ class SerialTerminal(App):
 
     _SERIAL_KEYS = {
         "port",
-        "baudrate",
-        "bytesize",
+        "baud_rate",
+        "byte_size",
         "parity",
-        "stopbits",
+        "stop_bits",
         "flow_control",
     }
 
@@ -1935,6 +1954,14 @@ class SerialTerminal(App):
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
+        if key == "repl_prefix":
+            try:
+                self.query_one("#btn-cmds", Button).label = str(new_val)
+                inp = self.query_one("#cmd", Input)
+                inp.placeholder = f"{new_val} for REPL commands, Ctrl+P: palette"
+            except Exception:
+                pass
+            self.repl.ctx.engine.prefix = str(new_val)
         if key == "custom_buttons":
             self.run_worker(self._sync_custom_buttons())
         if key in self._SERIAL_KEYS and was_connected:
@@ -2052,15 +2079,16 @@ def _reset_terminal() -> None:
     cooked terminal mode via ``stty sane``.
     """
     sys.stdout.write(
-        "\033[?1l"       # disable application cursor keys
-        "\033>"          # disable application keypad
-        "\033[?2004l"    # disable bracketed paste
-        "\033[?1000l"    # disable mouse tracking
-        "\033[!p"        # soft terminal reset (DECSTR)
+        "\033[?1l"  # disable application cursor keys
+        "\033>"  # disable application keypad
+        "\033[?2004l"  # disable bracketed paste
+        "\033[?1000l"  # disable mouse tracking
+        "\033[!p"  # soft terminal reset (DECSTR)
     )
     sys.stdout.flush()
     try:
         import subprocess
+
         subprocess.run(["stty", "sane"], timeout=1, capture_output=True)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
@@ -2111,7 +2139,9 @@ def main():
         try:
             cfg = load_config(args.config)
         except Exception as e:
-            print(f"termapy: failed to load config '{args.config}': {e}", file=sys.stderr)
+            print(
+                f"termapy: failed to load config '{args.config}': {e}", file=sys.stderr
+            )
             sys.exit(1)
         app = SerialTerminal(cfg, config_path=args.config)
         app.run()
@@ -2124,7 +2154,9 @@ def main():
         try:
             cfg = load_config(config_path)
         except Exception as e:
-            print(f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr)
+            print(
+                f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
+            )
             sys.exit(1)
         app = SerialTerminal(cfg, config_path=config_path)
         app.run()

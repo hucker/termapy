@@ -13,7 +13,7 @@ def repl_env(tmp_path):
     """Create a ReplEngine with a temp config file and capture output."""
     cfg = {
         "port": "COM4",
-        "baudrate": 115200,
+        "baud_rate": 115200,
         "echo_cmd": False,
         "line_ending": "\r",
         "os_cmd_enabled": False,

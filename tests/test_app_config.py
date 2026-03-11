@@ -116,7 +116,7 @@ class TestDefaultCfg:
             assert "tooltip" in btn  # tooltip field present
 
     def test_has_essential_keys(self):
-        for key in ("port", "baudrate", "line_ending", "repl_prefix"):
+        for key in ("port", "baud_rate", "line_ending", "repl_prefix"):
             assert key in DEFAULT_CFG  # essential config key present
 
 
@@ -141,7 +141,7 @@ class TestLoadConfig:
         # Arrange
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
-        minimal = {"port": "COM3", "baudrate": 9600}
+        minimal = {"port": "COM3", "baud_rate": 9600}
         config_path.write_text(json.dumps(minimal))
 
         # Act
@@ -159,7 +159,7 @@ class TestLoadConfig:
         config_path.parent.mkdir()
         custom = {
             "port": "COM7",
-            "baudrate": 9600,
+            "baud_rate": 9600,
             "custom_buttons": [
                 {"enabled": True, "name": "Go", "command": "GO", "tooltip": "Run"},
             ],

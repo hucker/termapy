@@ -13,7 +13,7 @@ from termapy.repl import ReplEngine
 @pytest.fixture
 def engine(tmp_path):
     """Create a basic ReplEngine with a temp config."""
-    cfg = {"port": "COM4", "baudrate": 115200, "line_ending": "\r"}
+    cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r"}
     config_path = tmp_path / "sub" / "test.json"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -214,11 +214,11 @@ class TestApplyCfg:
         eng._after_cfg = lambda key, val: callback_calls.append((key, val))
 
         # Act
-        eng._apply_cfg("baudrate", 9600)
+        eng._apply_cfg("baud_rate", 9600)
 
         # Assert
-        assert eng.cfg["baudrate"] == 9600  # config value updated
-        assert callback_calls == [("baudrate", 9600)]  # callback invoked
+        assert eng.cfg["baud_rate"] == 9600  # config value updated
+        assert callback_calls == [("baud_rate", 9600)]  # callback invoked
         assert any("saved" in t for t, _ in output)  # success message shown
 
     def test_apply_cfg_write_error(self, engine):
@@ -227,7 +227,7 @@ class TestApplyCfg:
         eng.config_path = "/nonexistent/path/cfg.json"
 
         # Act
-        eng._apply_cfg("baudrate", 9600)
+        eng._apply_cfg("baud_rate", 9600)
 
         # Assert
         assert any("Error" in t for t, _ in output)  # error message shown
@@ -239,7 +239,7 @@ class TestApplyCfg:
 class TestRunScript:
     def _make_engine(self, tmp_path, script_text, connected=True):
         """Create an engine with mock serial context and a script file."""
-        cfg = {"port": "COM4", "baudrate": 115200, "line_ending": "\r", "encoding": "utf-8"}
+        cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r", "encoding": "utf-8"}
         config_path = tmp_path / "dev" / "dev.json"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))

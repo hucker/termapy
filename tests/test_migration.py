@@ -9,7 +9,7 @@ from termapy.migration import (
 
 def test_legacy_config_gets_version():
     """Config with no config_version gets stamped to current."""
-    cfg = {"port": "COM4", "baudrate": 115200}
+    cfg = {"port": "COM4", "baud_rate": 115200}
     result = migrate_config(cfg)
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
@@ -98,6 +98,7 @@ def test_v3_to_v4_removes_command_history_items():
     result = migrate_config(cfg)
 
     assert "command_history_items" not in result  # assert key removed
+    assert result["read_only"] is False  # assert read_only added
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
@@ -107,4 +108,59 @@ def test_v3_to_v4_handles_missing_key():
     result = migrate_config(cfg)
 
     assert "command_history_items" not in result  # assert no error
+    assert result["read_only"] is False  # assert read_only added
     assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v3_to_v4_preserves_existing_read_only():
+    """Migration v3→v4 does not overwrite existing read_only value."""
+    cfg = {"config_version": 3, "port": "COM4", "read_only": True}
+    result = migrate_config(cfg)
+
+    assert result["read_only"] is True  # assert existing value preserved
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v3_to_v4_changes_repl_prefix_bang_to_slash():
+    """Migration v3→v4 changes repl_prefix from ! to /."""
+    cfg = {"config_version": 3, "port": "COM4", "repl_prefix": "!"}
+    result = migrate_config(cfg)
+
+    assert result["repl_prefix"] == "/"  # assert prefix migrated
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v3_to_v4_preserves_custom_repl_prefix():
+    """Migration v3→v4 does not change non-! prefix values."""
+    cfg = {"config_version": 3, "port": "COM4", "repl_prefix": ">>"}
+    result = migrate_config(cfg)
+
+    assert result["repl_prefix"] == ">>"  # assert custom prefix unchanged
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v3_to_v4_renames_config_keys():
+    """Migration v3→v4 renames compound config keys to use underscores."""
+    cfg = {
+        "config_version": 3,
+        "baudrate": 9600,
+        "bytesize": 7,
+        "stopbits": 2,
+        "autoconnect": True,
+        "autoreconnect": True,
+        "autoconnect_cmd": "ATZ",
+    }
+    result = migrate_config(cfg)
+
+    assert result["baud_rate"] == 9600  # assert baudrate renamed
+    assert result["byte_size"] == 7  # assert bytesize renamed
+    assert result["stop_bits"] == 2  # assert stopbits renamed
+    assert result["auto_connect"] is True  # assert autoconnect renamed
+    assert result["auto_reconnect"] is True  # assert autoreconnect renamed
+    assert result["auto_connect_cmd"] == "ATZ"  # assert autoconnect_cmd renamed
+    assert "baudrate" not in result  # assert old key removed
+    assert "bytesize" not in result  # assert old key removed
+    assert "stopbits" not in result  # assert old key removed
+    assert "autoconnect" not in result  # assert old key removed
+    assert "autoreconnect" not in result  # assert old key removed
+    assert "autoconnect_cmd" not in result  # assert old key removed

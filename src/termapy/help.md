@@ -146,14 +146,14 @@ Commands prefixed with `/` (configurable via `repl_prefix`) run locally instead 
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)    |
 | `/show_eol {on\|off}`     | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
 | `/info {--display}`       | Show project summary; `--display` opens full report in system viewer        |
-| `/proto send <hex>`       | Send raw hex bytes and display response                                     |
-| `/proto run <file>`       | Run a binary protocol test script (.pro)                                    |
-| `/proto debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
-| `/proto hex [on\|off]`    | Toggle hex display mode for serial I/O                                      |
-| `/proto crc list {pat}`   | List CRC algorithms (optional glob filter, e.g. `*modbus*`)                 |
-| `/proto crc help <name>`  | Show CRC algorithm parameters, description, and format spec usage           |
-| `/proto crc calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string |
-| `/proto status`           | Show current protocol mode state                                            |
+| `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
+| `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
+| `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
+| `/proto.hex [on\|off]`    | Toggle hex display mode for serial I/O                                      |
+| `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter, e.g. `*modbus*`)                 |
+| `/proto.crc.help <name>`  | Show CRC algorithm parameters, description, and format spec usage           |
+| `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, text, or file; omit data to verify check string |
+| `/proto.status`           | Show current protocol mode state                                            |
 | `/exit`                   | Exit termapy                                                                |
 
 ## JSON Config File
@@ -168,17 +168,17 @@ Here is an example config for a device called `iot_device`:
 {
     "config_version": 3,
     "port": "COM4",
-    "baudrate": 115200,
-    "bytesize": 8,
+    "baud_rate": 115200,
+    "byte_size": 8,
     "parity": "N",
-    "stopbits": 1,
+    "stop_bits": 1,
     "flow_control": "none",
     "encoding": "utf-8",
     "inter_cmd_delay_ms": 0,
     "line_ending": "\r",
-    "autoconnect": true,
-    "autoreconnect": true,
-    "autoconnect_cmd": "status\nhelp",
+    "auto_connect": true,
+    "auto_reconnect": true,
+    "auto_connect_cmd": "status\nhelp",
     "echo_cmd": true,
     "echo_cmd_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
@@ -204,17 +204,17 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.json`.
 | Field                   | Default              | Description                                                                                                     |
 | ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `port`                  | `COM4`               | Serial port name (e.g. COM4, /dev/ttyUSB0)                                                                      |
-| `baudrate`              | `115200`             | Serial baud rate                                                                                                |
-| `bytesize`              | `8`                  | Number of data bits per byte (5, 6, 7, or 8)                                                                    |
+| `baud_rate`             | `115200`             | Serial baud rate                                                                                                |
+| `byte_size`             | `8`                  | Number of data bits per byte (5, 6, 7, or 8)                                                                    |
 | `parity`                | `N`                  | Parity checking: None, Even, Odd, Mark, or Space                                                                |
-| `stopbits`              | `1`                  | Number of stop bits (1, 1.5, or 2)                                                                              |
+| `stop_bits`             | `1`                  | Number of stop bits (1, 1.5, or 2)                                                                              |
 | `flow_control`          | `none`               | Flow control mode: `none`, `rtscts` (hardware), `xonxoff` (software), or `manual` (shows DTR/RTS/Break buttons) |
 | `encoding`              | `utf-8`              | Character encoding for serial data (utf-8, latin-1, ascii, cp437)                                               |
 | `inter_cmd_delay_ms`    | `0`                  | Milliseconds to wait between commands in autoconnect sequences and multi-command input                          |
 | `line_ending`           | `\r`                 | String appended to each sent command: `\r` (CR), `\r\n` (CRLF), or `\n` (LF)                                    |
-| `autoconnect`           | `false`              | Automatically connect to the port when the app starts                                                           |
-| `autoreconnect`         | `false`              | Automatically retry the connection every second if the port drops                                               |
-| `autoconnect_cmd`       | ` `                  | Commands to send after connecting, separated by `\n` (waits for idle between each)                              |
+| `auto_connect`          | `false`              | Automatically connect to the port when the app starts                                                           |
+| `auto_reconnect`        | `false`              | Automatically retry the connection every second if the port drops                                               |
+| `auto_connect_cmd`      | ` `                  | Commands to send after connecting, separated by `\n` (waits for idle between each)                              |
 | `echo_cmd`              | `false`              | Show sent commands in the terminal output                                                                       |
 | `echo_cmd_fmt`          | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text)                       |
 | `log_file`              | ` `                  | Path to the session log file (if empty, defaults to `<name>.log` in the config subfolder)                       |
@@ -304,9 +304,9 @@ The `/proto` command provides binary protocol testing for request-response seria
 Send raw hex bytes and see the response:
 
 ```text
-/proto send 01 03 00 00 00 0A C5 CD
-/proto send "HELLO\r"
-/proto send 02 "DATA" 03
+/proto.send 01 03 00 00 00 0A C5 CD
+/proto.send "HELLO\r"
+/proto.send 02 "DATA" 03
 ```
 
 ### Protocol Test Scripts
@@ -333,7 +333,7 @@ send: "AT+VERSION?\r"
 expect: "V1." ** ** "\r"
 ```
 
-Run with `/proto run modbus_test.pro`. Each step reports PASS/FAIL.
+Run with `/proto.run modbus_test.pro`. Each step reports PASS/FAIL.
 
 **Script directives:**
 
@@ -350,7 +350,7 @@ Run with `/proto run modbus_test.pro`. Each step reports PASS/FAIL.
 
 ### Hex Display Mode
 
-Toggle hex display for all serial I/O with `/proto hex on` / `/proto hex off`.
+Toggle hex display for all serial I/O with `/proto.hex on` / `/proto.hex off`.
 
 ### Packet Visualizers
 
@@ -392,8 +392,8 @@ variable-length fields.
 
 62 named CRC algorithms are built in (from the reveng catalogue): `crc16-modbus`,
 `crc16-xmodem`, `crc16-ccitt-false`, `crc8`, `crc32`, `crc32-iscsi`, and many more.
-Use `/proto crc list` to browse all algorithms with descriptions, `/proto crc help`
-to see parameters, and `/proto crc calc` to compute CRCs interactively. `calc`
+Use `/proto.crc.list` to browse all algorithms with descriptions, `/proto.crc.help`
+to see parameters, and `/proto.crc.calc` to compute CRCs interactively. `calc`
 auto-detects hex bytes vs plain text, accepts a file path to CRC file contents,
 and with no data runs the standard check string "123456789" with pass/fail verification.
 Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`. Checksum plugins
@@ -438,3 +438,21 @@ The demo config includes example scripts and protocol tests:
 - **Visualizer:** `at_view.py` — demo packet visualizer that decodes AT responses (`+KEY:VALUE`) into labeled fields. Visible in the proto debug screen alongside Hex and Text views.
 
 The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.
+
+### Try These Commands
+
+```sh
+AT                              # connection test → OK
+AT+INFO                         # device info
+AT+LED on                       # turn LED on
+AT+STATUS                       # check LED state, uptime
+mem 0x1000 32                   # hex memory dump
+```
+
+For Modbus binary commands, use `/proto.send` with hex bytes (CRC included):
+
+```sh
+/proto.send 01 03 00 00 00 01 84 0A       # read 1 register from addr 0
+/proto.send 01 06 00 05 04 D2 1B 56       # write register 5 = 1234
+/proto.send 01 03 00 05 00 01 94 0B       # read back register 5
+```

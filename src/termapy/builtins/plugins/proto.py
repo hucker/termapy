@@ -295,7 +295,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
 
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
-    _display_bytes(ctx, "TX", data)
+    _display_bytes(ctx, "TX", data, binary=True)
     t0 = time.monotonic()
     ctx.serial_write(data)
     response = ctx.serial_read_raw(1000)
@@ -303,7 +303,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
     ctx.engine.set_proto_active(False)
 
     if response:
-        _display_bytes(ctx, "RX", response)
+        _display_bytes(ctx, "RX", response, binary=True)
         ctx.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
         ctx.write("  RX: (no response)", "red")

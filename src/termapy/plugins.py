@@ -28,6 +28,16 @@ Subcommands are declared with ``sub_commands``::
 
 Users invoke subcommands with dot notation: ``/tool.run myfile``.
 
+Input transforms are declared with ``TRANSFORM``::
+
+    TRANSFORM = Transform(
+        name="vars",
+        help="Expand $variables in serial commands.",
+        serial=lambda s: expand_vars(s),
+    )
+
+A file may export both ``COMMAND`` and ``TRANSFORM``.
+
 The PluginContext provides a stable API for plugins to interact with
 the terminal, serial port, config, and filesystem without touching
 Textual or serial internals.
@@ -74,6 +84,47 @@ class Command:
 
 
 @dataclass
+class Transform:
+    """Input rewriter declaration.
+
+    Plugin files that rewrite command input export a ``TRANSFORM`` instance
+    at module level.  Transforms run in load order — built-ins first, then
+    global, then per-config.  A file may export both ``COMMAND`` and
+    ``TRANSFORM``.
+
+    Attributes:
+        name: Identifier for the transform (shown in /info listings).
+        help: One-line description of what the transform does.
+        repl: Rewriter for REPL commands.  ``(str) -> str``.
+        serial: Rewriter for device commands.  ``(str) -> str``.
+    """
+
+    name: str
+    help: str
+    repl: Callable | None = None    # (str) -> str, rewrites REPL commands
+    serial: Callable | None = None  # (str) -> str, rewrites device commands
+
+
+@dataclass
+class TransformInfo:
+    """Loaded transform with source metadata.
+
+    Attributes:
+        name: Identifier for the transform.
+        help: One-line description.
+        repl: REPL rewriter function, or None.
+        serial: Serial rewriter function, or None.
+        source: Where the transform was loaded from.
+    """
+
+    name: str
+    help: str
+    repl: Callable | None = None
+    serial: Callable | None = None
+    source: str = "built-in"
+
+
+@dataclass
 class LoadResult:
     """Result of loading plugins from a directory.
 
@@ -84,6 +135,7 @@ class LoadResult:
     """
 
     plugins: list = field(default_factory=list)
+    transforms: list = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -250,15 +302,16 @@ def builtins_dir() -> Path:
 def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     """Discover and load plugin .py files from a directory.
 
-    Each file must export a ``COMMAND`` instance (a ``Command`` dataclass).
-    Files starting with '_' are skipped.
+    Each file may export a ``COMMAND`` (Command dataclass) and/or a
+    ``TRANSFORM`` (Transform dataclass).  Files starting with '_' are
+    skipped.
 
     Args:
         folder: Directory to scan for .py plugin files.
         source: Label for where the plugin came from (e.g. "global", config name).
 
     Returns:
-        LoadResult with plugins, skipped file names, and error file names.
+        LoadResult with plugins, transforms, skipped file names, and error file names.
     """
     result = LoadResult()
     if not folder.is_dir():
@@ -267,43 +320,60 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         if py_file.name.startswith("_"):
             continue
         try:
-            infos = _load_plugin_file(py_file, source)
+            infos, xforms = _load_plugin_file(py_file, source)
             if infos:
                 result.plugins.extend(infos)
-            else:
+            if xforms:
+                result.transforms.extend(xforms)
+            if not infos and not xforms:
                 result.skipped.append(py_file.name)
         except Exception as e:
             result.errors.append(f"{py_file.name}: {e}")
     return result
 
 
-def _load_plugin_file(path: Path, source: str) -> list[PluginInfo]:
-    """Import a single plugin file and extract PluginInfo entries.
+def _load_plugin_file(
+    path: Path, source: str,
+) -> tuple[list[PluginInfo], list[TransformInfo]]:
+    """Import a single plugin file and extract commands and transforms.
 
-    A valid plugin module must export a ``COMMAND`` instance (a ``Command``
-    dataclass) with at least ``name`` and ``help``. Leaf commands need a
-    ``handler``, interior commands need ``sub_commands``.
+    A valid plugin module may export a ``COMMAND`` instance (a ``Command``
+    dataclass) and/or a ``TRANSFORM`` instance (a ``Transform`` dataclass).
 
     Args:
         path: Path to the .py plugin file.
         source: Label for the plugin's origin.
 
     Returns:
-        List of PluginInfo (one per node in the command tree).
+        Tuple of (PluginInfo list, TransformInfo list).
     """
     module_name = f"termapy_plugin_{path.stem}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
-        return []
+        return [], []
     mod = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
 
+    # Commands
+    plugins: list[PluginInfo] = []
     cmd = getattr(mod, "COMMAND", None)
-    if not isinstance(cmd, Command) or not cmd.name:
-        return []
+    if isinstance(cmd, Command) and cmd.name:
+        plugins = _flatten_command(cmd, prefix="", source=source)
 
-    return _flatten_command(cmd, prefix="", source=source)
+    # Transforms
+    transforms: list[TransformInfo] = []
+    xform = getattr(mod, "TRANSFORM", None)
+    if isinstance(xform, Transform) and xform.name:
+        transforms.append(TransformInfo(
+            name=xform.name,
+            help=xform.help,
+            repl=xform.repl,
+            serial=xform.serial,
+            source=source,
+        ))
+
+    return plugins, transforms
 
 
 def _flatten_command(

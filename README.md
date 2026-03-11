@@ -186,15 +186,37 @@ termapy --cfg-dir ./termapy_cfg
 
 Clone on another machine, run the same command — all configs, scripts, and test files are ready to go.
 
-Since COM port names differ between machines, set `"pick_port": true` in shared configs. This shows a port picker on startup, and saves `"pick"` as the port in the config file so the picker appears again next session:
+Since COM port names differ between machines, use `$(env.NAME)` placeholders in your config so the same file works everywhere. Set a `COMPORT` environment variable on each machine, and reference it with a fallback:
 
 ```json
 {
-    "pick_port": true,
-    "port": "COM4",
-    "baud_rate": 115200
+    "port": "$(env.COMPORT|COM4)",
+    "baud_rate": 115200,
+    "auto_connect": true
 }
 ```
+
+On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template — it's expanded in memory at load time, so your checked-in config stays portable.
+
+Environment variables work in any string config value, not just `port`:
+
+```json
+{
+    "port": "$(env.COMPORT|COM4)",
+    "title": "$(env.DEVICE_NAME|Dev Board)",
+    "log_file": "$(env.LOG_DIR|logs)/session.log"
+}
+```
+
+You can also manage environment variables at runtime with REPL commands:
+
+| Command                  | Description                                        |
+| ------------------------ | -------------------------------------------------- |
+| `/env.list {pattern}`    | List variables (all, by name, or glob like `COM*`) |
+| `/env.set <name> <val>`  | Set a session-scoped variable (in-memory only)     |
+| `/env.reload`            | Re-snapshot variables from the OS environment      |
+
+Variables set with `/env.set` are available immediately for `$(env.NAME)` expansion in REPL commands but do not modify the OS environment or the config file.
 
 Add a `.gitignore` for session files you don't need to track:
 
@@ -285,8 +307,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 
 ```json
 {
-    "config_version": 4,
-    "pick_port": false,
+    "config_version": 5,
     "port": "COM4",
     "baud_rate": 115200,
     "byte_size": 8,
@@ -318,9 +339,8 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 
 | Field                 | Default                | Description                                                                                              |
 | --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| `config_version`      | `4`                    | Schema version — managed automatically by the migration system, do not edit                              |
-| `pick_port`           | `false`                | Show port picker on startup; saves `"pick"` as the port so it asks again next time                       |
-| `port`                | `"COM4"`               | Serial port name                                                                                         |
+| `config_version`      | `5`                    | Schema version — managed automatically by the migration system, do not edit                              |
+| `port`                | `"COM4"`               | Serial port name (supports `$(env.NAME\|fallback)` expansion)                                            |
 | `baud_rate`           | `115200`               | Baud rate                                                                                                |
 | `byte_size`           | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
 | `parity`              | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |

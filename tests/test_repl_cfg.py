@@ -108,9 +108,7 @@ class TestCfgChange:
 
         # Assert
         assert cfg["baud_rate"] == 9600  # in-memory config updated
-        actual_saved = json.loads(config_path.read_text())
-        assert actual_saved["baud_rate"] == 9600  # persisted to disk
-        assert any("saved" in t for t, _ in output)  # confirmation shown
+        assert any("session" in t for t, _ in output)  # session-only confirmation
 
 
 class TestCfgAuto:
@@ -123,9 +121,7 @@ class TestCfgAuto:
 
         # Assert
         assert cfg["baud_rate"] == 9600  # in-memory config updated
-        actual_saved = json.loads(config_path.read_text())
-        assert actual_saved["baud_rate"] == 9600  # persisted to disk
-        assert any("saved" in t for t, _ in output)  # confirmation shown
+        assert any("session" in t for t, _ in output)  # session-only confirmation
 
     def test_auto_bool(self, repl_env):
         engine, cfg, _, output = repl_env
@@ -176,7 +172,7 @@ class TestCfgReadOnly:
 
         # Assert
         assert cfg["baud_rate"] == 9600  # value changed despite read_only
-        assert any("saved" in t for t, _ in output)  # confirmation shown
+        assert any("session" in t for t, _ in output)  # session-only confirmation
 
     def test_cfg_show_works(self, repl_env):
         # Arrange

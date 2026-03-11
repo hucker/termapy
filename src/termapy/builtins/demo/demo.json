@@ -1,12 +1,11 @@
 {
-    "config_version": 4,
+    "config_version": 5,
     "title": "Demo Device",
     "app_border_color": "",
     "max_lines": 10000,
     "repl_prefix": "/",
     "read_only": false,
     "os_cmd_enabled": false,
-    "pick_port": false,
     "port": "DEMO",
     "baud_rate": 115200,
     "byte_size": 8,

@@ -14,7 +14,10 @@ from threading import Event
 from types import MappingProxyType
 from typing import Callable
 
-from termapy.plugins import PluginContext, PluginInfo, builtins_dir, load_plugins_from_dir
+from termapy.plugins import (
+    PluginContext, PluginInfo, TransformInfo,
+    builtins_dir, load_plugins_from_dir,
+)
 from termapy.scripting import expand_template, parse_duration, parse_script_lines
 
 
@@ -51,6 +54,11 @@ class ReplEngine:
         # Config change callback (set by app.py)
         self._after_cfg = None  # callback: (key, new_val) -> None (post-apply refresh)
 
+        # Transform chains — populated during plugin/transform registration
+        self._repl_transforms: list[Callable] = []
+        self._serial_transforms: list[Callable] = []
+        self._transform_infos: list[TransformInfo] = []
+
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
 
@@ -58,7 +66,9 @@ class ReplEngine:
         """Load built-in command plugins from the builtins/ package directory."""
         result = load_plugins_from_dir(builtins_dir(), "built-in")
         for info in result.plugins:
-            self._plugins[info.name] = info
+            self.register_plugin(info)
+        for xform in result.transforms:
+            self.register_transform(xform)
 
     # -- Plugin management ----------------------------------------------------
 
@@ -69,6 +79,14 @@ class ReplEngine:
     def register_plugin(self, info: PluginInfo) -> None:
         """Register a plugin. Replaces any existing plugin with the same name."""
         self._plugins[info.name] = info
+
+    def register_transform(self, info: TransformInfo) -> None:
+        """Register an input transform. Appended in load order."""
+        self._transform_infos.append(info)
+        if info.repl:
+            self._repl_transforms.append(info.repl)
+        if info.serial:
+            self._serial_transforms.append(info.serial)
 
     def register_hook(self, name: str, args: str, help_text: str,
                       handler: Callable, source: str = "built-in",
@@ -165,21 +183,44 @@ class ReplEngine:
         self.config_path = path
 
     def _apply_cfg(self, key: str, new_val) -> None:
-        """Apply a config change, save to disk, and notify."""
+        """Apply a config change for this session (not saved to disk).
+
+        The config editor is the only path that persists changes to disk.
+        This keeps $(env.NAME) templates in the JSON file intact.
+        """
         self._cfg_data[key] = new_val
-        try:
-            with open(self.config_path, "w") as f:
-                json.dump(dict(self._cfg_data), f, indent=4)
-            self.write(f"{key} = {new_val!r}  (saved)", "green")
-            if self._after_cfg:
-                self._after_cfg(key, new_val)
-        except Exception as e:
-            self.write(f"Error saving config: {e}", "red")
+        self.write(f"{key} = {new_val!r}  (session)", "green")
+        if self._after_cfg:
+            self._after_cfg(key, new_val)
 
     def _reset_seq(self) -> None:
         """Reset sequence counters and start time."""
         self._seq_counters = {}
         self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # -- Transform chains ------------------------------------------------------
+
+    @property
+    def has_repl_transforms(self) -> bool:
+        """True if any plugin registered a REPL transform."""
+        return bool(self._repl_transforms)
+
+    @property
+    def has_serial_transforms(self) -> bool:
+        """True if any plugin registered a serial transform."""
+        return bool(self._serial_transforms)
+
+    def transform_repl(self, line: str) -> str:
+        """Run all REPL transforms in load order."""
+        for fn in self._repl_transforms:
+            line = fn(line)
+        return line
+
+    def transform_serial(self, line: str) -> str:
+        """Run all serial transforms in load order."""
+        for fn in self._serial_transforms:
+            line = fn(line)
+        return line
 
     # -- Scripting ------------------------------------------------------------
 

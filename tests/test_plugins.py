@@ -236,6 +236,75 @@ COMMAND = Command(name="bare", help="Bare.", handler=_handler)
         assert result.plugins[0].children == []  # no children for leaf
 
 
+class TestTransformLoading:
+    def test_transform_loaded(self, plugin_dir):
+        # Arrange
+        _write_plugin(plugin_dir, "xform.py", '''
+from termapy.plugins import Transform
+def _repl_xf(s): return s.upper()
+def _serial_xf(s): return s.lower()
+TRANSFORM = Transform(
+    name="vars", help="Expand variables.",
+    repl=_repl_xf, serial=_serial_xf,
+)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        assert len(result.transforms) == 1  # one transform loaded
+        assert result.transforms[0].name == "vars"  # correct name
+        assert result.transforms[0].repl("hello") == "HELLO"  # repl works
+        assert result.transforms[0].serial("HELLO") == "hello"  # serial works
+        assert result.transforms[0].source == "test"  # source propagated
+
+    def test_transform_only_file_not_skipped(self, plugin_dir):
+        # Arrange
+        _write_plugin(plugin_dir, "xonly.py", '''
+from termapy.plugins import Transform
+TRANSFORM = Transform(name="xonly", help="Transform only.", repl=lambda s: s)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        assert len(result.transforms) == 1  # transform loaded
+        assert len(result.plugins) == 0  # no commands
+        assert len(result.skipped) == 0  # not counted as skipped
+
+    def test_file_with_both_command_and_transform(self, plugin_dir):
+        # Arrange
+        _write_plugin(plugin_dir, "both.py", '''
+from termapy.plugins import Command, Transform
+def _handler(ctx, args): pass
+COMMAND = Command(name="both", help="A command.", handler=_handler)
+TRANSFORM = Transform(name="both_xf", help="A transform.", serial=lambda s: s)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        assert len(result.plugins) == 1  # command loaded
+        assert len(result.transforms) == 1  # transform loaded
+
+    def test_no_transforms_by_default(self, plugin_dir):
+        # Arrange
+        _write_plugin(plugin_dir, "plain.py", '''
+from termapy.plugins import Command
+def _handler(ctx, args): pass
+COMMAND = Command(name="plain", help="No transforms.", handler=_handler)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        assert len(result.transforms) == 0  # no transforms loaded
+
+
 # -- serial_io context manager ------------------------------------------------
 
 

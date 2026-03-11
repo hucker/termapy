@@ -8,7 +8,6 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
 import argparse
-import json
 import queue
 import re
 import sys
@@ -29,6 +28,7 @@ from termapy.config import (
     cfg_log_path,
     cfg_path_for_name,
     cfg_plugins_dir,
+    expand_env_cfg,
     global_plugins_dir,
     load_config,
     open_serial,
@@ -674,8 +674,6 @@ class SerialTerminal(App):
             )
         elif self.open_editor_on_start:
             self._new_config()
-        elif self.cfg.get("pick_port"):
-            self._show_port_picker()
         elif self.cfg.get("auto_connect"):
             self._connect()
         else:
@@ -993,16 +991,14 @@ class SerialTerminal(App):
         self._sync_proto_button()
         self.run_worker(self._sync_custom_buttons())
         self._open_log()
-        if cfg.get("pick_port") and cfg.get("port", "").upper() == "PICK":
-            self._show_port_picker()
-        elif was_connected or cfg.get("auto_connect"):
+        if was_connected or cfg.get("auto_connect"):
             self._connect()
 
     def _load_and_report(self, result: LoadResult) -> None:
-        """Register loaded plugins and report status to the terminal.
+        """Register loaded plugins/transforms and report status to the terminal.
 
         Shows loaded plugin names, warnings for skipped files (no COMMAND
-        dict), and errors for files that raised exceptions.
+        or TRANSFORM), and errors for files that raised exceptions.
 
         Args:
             result: LoadResult from load_plugins_from_dir.
@@ -1011,6 +1007,9 @@ class SerialTerminal(App):
         for info in result.plugins:
             self.repl.register_plugin(info)
             loaded.append(info.name)
+        for xform in result.transforms:
+            self.repl.register_transform(xform)
+            loaded.append(f"~{xform.name}")
         if loaded:
             self._status(
                 f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),
@@ -1018,7 +1017,7 @@ class SerialTerminal(App):
             )
         for name in result.skipped:
             self._status(
-                f"Skipped {name} — no COMMAND (see plugin docs)",
+                f"Skipped {name} — no COMMAND or TRANSFORM (see plugin docs)",
                 "yellow",
             )
         for err in result.errors:
@@ -1103,6 +1102,7 @@ class SerialTerminal(App):
         if result is None:
             return
         new_cfg, new_path = result
+        expand_env_cfg(new_cfg)
         self._switch_config(new_cfg, new_path)
         self._status(f"Config saved: {new_path}", "green")
 
@@ -1260,11 +1260,6 @@ class SerialTerminal(App):
             self._execute_command(raw)
 
     def _show_port_picker(self) -> None:
-        if self.cfg.get("port", "").upper() == "DEMO":
-            self._status("pick_port ignored — port is DEMO", "yellow")
-            if self.cfg.get("auto_connect"):
-                self._connect()
-            return
         from serial.tools.list_ports import comports
 
         ports = sorted(comports(), key=lambda p: p.device)
@@ -1274,36 +1269,20 @@ class SerialTerminal(App):
         self.push_screen(PortPicker(), callback=self._on_port_picked)
 
     def _update_port(self, port: str) -> None:
-        """Change serial port, save config, and reconnect.
+        """Change serial port for this session and reconnect.
 
-        When ``pick_port`` is true in the config, the saved file keeps
-        ``"pick"`` as the port so the picker appears again next session.
-        The real port is only used in memory for this session.
+        Does not write to disk — the config editor is the only path
+        that persists changes.  This keeps $(env.NAME) templates intact.
         """
         cfg = dict(self.cfg)
         cfg["port"] = port
-        if self.config_path:
-            save_cfg = dict(cfg)
-            if save_cfg.get("pick_port"):
-                save_cfg["port"] = "pick"
-            try:
-                with open(self.config_path, "w") as f:
-                    json.dump(save_cfg, f, indent=4)
-            except OSError as e:
-                self._status(f"Failed to save config: {e}", "red")
-                return
         self._switch_config(cfg, self.config_path)
-        self._status(f"Port changed to {port}", "green")
+        self._status(f"Port changed to {port} (session)", "green")
 
     def _on_port_picked(self, port: str | None) -> None:
         if port is None:
-            if self.cfg.get("pick_port") and not self.is_connected:
-                self._status("No port selected — use the Port button to pick one")
             return
         self._update_port(port)
-        # In pick mode, always connect after selection (auto_connect may be off)
-        if self.cfg.get("pick_port") and not self.is_connected:
-            self._connect()
 
     # -- Palette action wrappers --
 
@@ -1578,10 +1557,24 @@ class SerialTerminal(App):
         """
         prefix = self.cfg.get("repl_prefix", "/")
         if cmd.startswith(prefix):
+            repl_cmd = cmd[len(prefix):].strip()
             if self.repl.echo:
-                self._write_output_markup(f"[red]> {cmd}[/]")
-            self.repl.dispatch(cmd[len(prefix) :].strip())
+                self._write_output_markup(f"[red]> {prefix}{repl_cmd}[/]")
+            if self.repl.has_repl_transforms:
+                try:
+                    repl_cmd = self.repl.transform_repl(repl_cmd)
+                except ValueError as e:
+                    self._status(str(e), "red")
+                    return
+            self.repl.dispatch(repl_cmd)
             return
+        # Apply serial transforms
+        if self.repl.has_serial_transforms:
+            try:
+                cmd = self.repl.transform_serial(cmd)
+            except ValueError as e:
+                self._status(str(e), "red")
+                return
         # Echo serial command locally if enabled
         if self.cfg.get("echo_cmd"):
             fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")

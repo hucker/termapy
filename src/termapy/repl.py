@@ -56,7 +56,8 @@ class ReplEngine:
 
     def _load_builtins(self) -> None:
         """Load built-in command plugins from the builtins/ package directory."""
-        for info in load_plugins_from_dir(builtins_dir(), "built-in"):
+        result = load_plugins_from_dir(builtins_dir(), "built-in")
+        for info in result.plugins:
             self._plugins[info.name] = info
 
     # -- Plugin management ----------------------------------------------------

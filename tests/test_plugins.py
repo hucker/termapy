@@ -33,28 +33,30 @@ COMMAND = {
 ''')
 
         # Act
-        actual = load_plugins_from_dir(plugin_dir, "test")
+        result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(actual) == 1  # one plugin loaded
-        assert actual[0].name == "hello"  # correct name
-        assert actual[0].args == "{name}"  # correct args
-        assert actual[0].help == "Say hello."  # correct help text
-        assert actual[0].source == "test"  # source tag preserved
+        assert len(result.plugins) == 1  # one plugin loaded
+        assert result.plugins[0].name == "hello"  # correct name
+        assert result.plugins[0].args == "{name}"  # correct args
+        assert result.plugins[0].help == "Say hello."  # correct help text
+        assert result.plugins[0].source == "test"  # source tag preserved
 
     def test_skips_files_without_command(self, plugin_dir):
         _write_plugin(plugin_dir, "bad.py", '''
 def handler(ctx, args): pass
 ''')
-        actual = load_plugins_from_dir(plugin_dir, "test")
-        assert len(actual) == 0  # skipped — no COMMAND
+        result = load_plugins_from_dir(plugin_dir, "test")
+        assert len(result.plugins) == 0  # skipped — no COMMAND
+        assert result.skipped == ["bad.py"]  # file name reported
 
     def test_skips_files_without_name(self, plugin_dir):
         _write_plugin(plugin_dir, "bad.py", '''
 COMMAND = {"help": "Missing name."}
 ''')
-        actual = load_plugins_from_dir(plugin_dir, "test")
-        assert len(actual) == 0  # skipped — no name in COMMAND
+        result = load_plugins_from_dir(plugin_dir, "test")
+        assert len(result.plugins) == 0  # skipped — no name in COMMAND
+        assert result.skipped == ["bad.py"]  # file name reported
 
     def test_skips_underscore_files(self, plugin_dir):
         _write_plugin(plugin_dir, "_private.py", '''
@@ -62,12 +64,12 @@ def _handler(ctx, args): pass
 COMMAND = {"name": "private", "help": "Should be skipped.", "handler": _handler}
 ''')
         _write_plugin(plugin_dir, "__init__.py", "")
-        actual = load_plugins_from_dir(plugin_dir, "test")
-        assert len(actual) == 0  # underscore-prefixed files skipped
+        result = load_plugins_from_dir(plugin_dir, "test")
+        assert len(result.plugins) == 0  # underscore-prefixed files skipped
 
     def test_nonexistent_dir_returns_empty(self, tmp_path):
-        actual = load_plugins_from_dir(tmp_path / "nope", "test")
-        assert actual == []  # no directory = empty list
+        result = load_plugins_from_dir(tmp_path / "nope", "test")
+        assert result.plugins == []  # no directory = empty list
 
     def test_multiple_plugins_sorted(self, plugin_dir):
         # Arrange
@@ -81,14 +83,14 @@ COMMAND = {"name": "alpha", "help": "A", "handler": _handler}
 ''')
 
         # Act
-        actual = load_plugins_from_dir(plugin_dir, "test")
+        result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        actual_names = [p.name for p in actual]
+        actual_names = [p.name for p in result.plugins]
         expected_names = ["alpha", "beta"]
         assert actual_names == expected_names  # loaded in alphabetical order
 
-    def test_broken_plugin_skipped(self, plugin_dir):
+    def test_broken_plugin_reports_error(self, plugin_dir):
         # Arrange
         _write_plugin(plugin_dir, "broken.py", "raise RuntimeError('boom')")
         _write_plugin(plugin_dir, "good.py", '''
@@ -97,11 +99,13 @@ COMMAND = {"name": "good", "help": "Works.", "handler": _handler}
 ''')
 
         # Act
-        actual = load_plugins_from_dir(plugin_dir, "test")
+        result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(actual) == 1  # broken plugin skipped
-        assert actual[0].name == "good"  # good plugin still loaded
+        assert len(result.plugins) == 1  # broken plugin skipped
+        assert result.plugins[0].name == "good"  # good plugin still loaded
+        assert len(result.errors) == 1  # error reported
+        assert "broken.py" in result.errors[0]  # error mentions file
 
 
 class TestSubCommands:
@@ -122,14 +126,14 @@ COMMAND = {
 ''')
 
         # Act
-        actual = load_plugins_from_dir(plugin_dir, "test")
+        result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        names = [p.name for p in actual]
+        names = [p.name for p in result.plugins]
         assert "tool" in names  # root node registered
         assert "tool.run" in names  # sub_command registered with dot
         assert "tool.status" in names  # sub_command registered with dot
-        assert len(actual) == 3  # root + 2 subcommands
+        assert len(result.plugins) == 3  # root + 2 subcommands
 
     def test_root_has_children(self, plugin_dir):
         # Arrange
@@ -148,8 +152,8 @@ COMMAND = {
 ''')
 
         # Act
-        actual = load_plugins_from_dir(plugin_dir, "test")
-        root = [p for p in actual if p.name == "tool"][0]
+        result = load_plugins_from_dir(plugin_dir, "test")
+        root = [p for p in result.plugins if p.name == "tool"][0]
 
         # Assert
         assert root.children == ["tool.alpha", "tool.beta"]  # children tracked
@@ -174,14 +178,14 @@ COMMAND = {
 ''')
 
         # Act
-        actual = load_plugins_from_dir(plugin_dir, "test")
-        names = [p.name for p in actual]
+        result = load_plugins_from_dir(plugin_dir, "test")
+        names = [p.name for p in result.plugins]
 
         # Assert
         assert "tool" in names  # root
         assert "tool.sub" in names  # interior
         assert "tool.sub.leaf" in names  # leaf
-        assert len(actual) == 3  # root + interior + leaf
+        assert len(result.plugins) == 3  # root + interior + leaf
 
     def test_interior_gets_synthetic_handler(self, plugin_dir):
         # Arrange
@@ -198,8 +202,8 @@ COMMAND = {
 ''')
 
         # Act
-        actual = load_plugins_from_dir(plugin_dir, "test")
-        root = [p for p in actual if p.name == "tool"][0]
+        result = load_plugins_from_dir(plugin_dir, "test")
+        root = [p for p in result.plugins if p.name == "tool"][0]
 
         # Assert
         assert root.handler is not None  # synthetic handler created
@@ -210,10 +214,10 @@ COMMAND = {
 def _handler(ctx, args): pass
 COMMAND = {"name": "bare", "help": "Bare.", "handler": _handler}
 ''')
-        actual = load_plugins_from_dir(plugin_dir, "test")
-        assert actual[0].args == ""  # missing args defaults to ""
-        assert actual[0].long_help == ""  # missing long_help defaults to ""
-        assert actual[0].children == []  # no children for leaf
+        result = load_plugins_from_dir(plugin_dir, "test")
+        assert result.plugins[0].args == ""  # missing args defaults to ""
+        assert result.plugins[0].long_help == ""  # missing long_help defaults to ""
+        assert result.plugins[0].children == []  # no children for leaf
 
 
 # -- serial_io context manager ------------------------------------------------

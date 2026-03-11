@@ -44,6 +44,21 @@ from typing import Callable, Generator
 
 
 @dataclass
+class LoadResult:
+    """Result of loading plugins from a directory.
+
+    Attributes:
+        plugins: Successfully loaded PluginInfo entries.
+        skipped: File names that were skipped (no COMMAND dict).
+        errors: File names that raised exceptions during loading.
+    """
+
+    plugins: list = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
 class EngineAPI:
     """Engine internals exposed to built-in plugins only.
 
@@ -202,32 +217,34 @@ def builtins_dir() -> Path:
     return Path(__file__).parent / "builtins" / "plugins"
 
 
-def load_plugins_from_dir(folder: Path, source: str = "global") -> list[PluginInfo]:
+def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     """Discover and load plugin .py files from a directory.
 
     Each file must export a ``COMMAND`` dict. Files starting with '_'
-    are skipped. Files that fail to load print a warning to stderr.
+    are skipped.
 
     Args:
         folder: Directory to scan for .py plugin files.
         source: Label for where the plugin came from (e.g. "global", config name).
 
     Returns:
-        List of PluginInfo — one per command node (root, interior, and leaf).
+        LoadResult with plugins, skipped file names, and error file names.
     """
-    plugins: list[PluginInfo] = []
+    result = LoadResult()
     if not folder.is_dir():
-        return plugins
+        return result
     for py_file in sorted(folder.glob("*.py")):
         if py_file.name.startswith("_"):
             continue
         try:
             infos = _load_plugin_file(py_file, source)
-            plugins.extend(infos)
+            if infos:
+                result.plugins.extend(infos)
+            else:
+                result.skipped.append(py_file.name)
         except Exception as e:
-            print(f"termapy: failed to load plugin {py_file.name}: {e}",
-                  file=sys.stderr)
-    return plugins
+            result.errors.append(f"{py_file.name}: {e}")
+    return result
 
 
 def _load_plugin_file(path: Path, source: str) -> list[PluginInfo]:

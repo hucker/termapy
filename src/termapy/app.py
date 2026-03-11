@@ -52,7 +52,7 @@ from termapy.dialogs import (
     ScriptPicker,
     _SCRIPT_TEMPLATE,
 )
-from termapy.plugins import EngineAPI, PluginContext, load_plugins_from_dir
+from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_from_dir
 from termapy.repl import ReplEngine
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
@@ -662,14 +662,16 @@ class SerialTerminal(App):
             source="app",
         )
         # Load external plugins: global first, then per-config (can override)
-        for info in load_plugins_from_dir(global_plugins_dir(), "global"):
-            self.repl.register_plugin(info)
+        self._load_and_report(
+            load_plugins_from_dir(global_plugins_dir(), "global"),
+        )
         if self.config_path:
-            for info in load_plugins_from_dir(
-                cfg_plugins_dir(self.config_path),
-                Path(self.config_path).stem,
-            ):
-                self.repl.register_plugin(info)
+            self._load_and_report(
+                load_plugins_from_dir(
+                    cfg_plugins_dir(self.config_path),
+                    Path(self.config_path).stem,
+                ),
+            )
         # Open log file (deferred if no config loaded yet)
         self._open_log()
         self._sync_ss_button()
@@ -995,6 +997,32 @@ class SerialTerminal(App):
         if was_connected or cfg.get("autoconnect"):
             self._connect()
 
+    def _load_and_report(self, result: LoadResult) -> None:
+        """Register loaded plugins and report status to the terminal.
+
+        Shows loaded plugin names, warnings for skipped files (no COMMAND
+        dict), and errors for files that raised exceptions.
+
+        Args:
+            result: LoadResult from load_plugins_from_dir.
+        """
+        loaded = []
+        for info in result.plugins:
+            self.repl.register_plugin(info)
+            loaded.append(info.name)
+        if loaded:
+            self._status(
+                f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),
+                "dim",
+            )
+        for name in result.skipped:
+            self._status(
+                f"Skipped {name} — no COMMAND dict (see plugin docs)",
+                "yellow",
+            )
+        for err in result.errors:
+            self._status(f"Plugin error: {err}", "red")
+
     def _reload_config_plugins(self, config_path: str) -> None:
         """Remove old per-config plugins and load plugins for the new config.
 
@@ -1012,10 +1040,17 @@ class SerialTerminal(App):
         ]
         for name in to_remove:
             del self.repl._plugins[name]
-        for info in load_plugins_from_dir(
-            cfg_plugins_dir(config_path), Path(config_path).stem,
-        ):
-            self.repl.register_plugin(info)
+        if to_remove:
+            self._status(
+                f"Unloaded {len(to_remove)} plugin(s): "
+                + ", ".join(to_remove),
+                "dim",
+            )
+        self._load_and_report(
+            load_plugins_from_dir(
+                cfg_plugins_dir(config_path), Path(config_path).stem,
+            ),
+        )
 
     def _start_demo(self, args: str = "") -> None:
         """Set up and switch to the built-in demo device config.

@@ -62,15 +62,16 @@ API. Can implement arbitrary protocol logic, CRC calculations, state machines,
 auto-responders, or device simulators.
 
 ```python
-NAME = "crc16"
-ARGS = "<hex bytes>"
-HELP = "Compute Modbus CRC-16 and append to hex string."
+NAME = "crcsend"
+ARGS = "<text>"
+HELP = "Send text with XMODEM CRC-16 appended."
+
+from termapy.protocol import get_crc_registry
 
 def handler(ctx, args):
-    data = bytes.fromhex(args.replace(" ", ""))
-    crc = compute_crc16(data)
-    result = data + crc.to_bytes(2, "little")
-    ctx.write(" ".join(f"{b:02X}" for b in result), "green")
+    crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
+    ctx.serial_write(f"{args} {crc:04X}\n".encode())
+    ctx.write(f"Sent: {args} {crc:04X}", "green")
 ```
 
 No equivalent exists in the other tools. Tera Term has DLL extensions but

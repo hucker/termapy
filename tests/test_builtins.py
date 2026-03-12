@@ -14,7 +14,7 @@ def repl_env(tmp_path):
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
-        "echo_cmd": False,
+        "echo_input": False,
         "line_ending": "\r",
         "os_cmd_enabled": False,
     }

@@ -100,7 +100,7 @@ CLEAR_SCREEN_RE = re.compile(r"(\x1b\[H)?\x1b\[2J")
 # Incomplete ANSI escape at end of buffer: ESC, or ESC[ with optional digits/semicolons
 PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
 
-# Dim ANSI markers for visible EOL display (show_eol mode)
+# Dim ANSI markers for visible EOL display (show_line_endings mode)
 _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
 
@@ -283,7 +283,7 @@ class SerialTerminal(App):
             cfg,
             config_path,
             write=self._status,
-            prefix=cfg.get("repl_prefix", "/"),
+            prefix=cfg.get("cmd_prefix", "/"),
         )
         self.history: list[str] = self._load_history()
         self._history_idx: int = -1  # -1 = not browsing history
@@ -397,7 +397,7 @@ class SerialTerminal(App):
 
     def _update_suggester(self) -> None:
         """Rebuild type-ahead suggestions from REPL commands + device history."""
-        prefix = self.cfg.get("repl_prefix", "/")
+        prefix = self.cfg.get("cmd_prefix", "/")
         commands: list[str] = []
         for name, plugin in self.repl._plugins.items():
             commands.append(f"{prefix}{name}")
@@ -443,7 +443,7 @@ class SerialTerminal(App):
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
-                prefix = self.cfg.get("repl_prefix", "/")
+                prefix = self.cfg.get("cmd_prefix", "/")
                 cmd_btn = Button(prefix, id="btn-cmds")
                 cmd_btn.tooltip = f"Show REPL {prefix} commands."
                 yield cmd_btn
@@ -515,7 +515,7 @@ class SerialTerminal(App):
 
     def _apply_border_color(self) -> None:
         """Apply border_color from config to title bar and output border."""
-        color = self.cfg.get("app_border_color", "") or "blue"
+        color = self.cfg.get("border_color", "") or "blue"
         bar = self.query_one("#title-bar")
         bar.styles.background = color
         self.query_one("#output", RichLog).styles.border = ("solid", color)
@@ -524,7 +524,7 @@ class SerialTerminal(App):
         self._apply_border_color()
         # Build plugin context — the stable API for all plugins
         engine = EngineAPI(
-            prefix=self.cfg.get("repl_prefix", "/"),
+            prefix=self.cfg.get("cmd_prefix", "/"),
             plugins=self.repl._plugins,
             get_echo=lambda: self.repl._echo,
             set_echo=lambda val: setattr(self.repl, "_echo", val),
@@ -673,7 +673,7 @@ class SerialTerminal(App):
         if self.show_picker_on_start:
             self.push_screen(
                 ConfigPicker(
-                    self.config_path, read_only=self.cfg.get("read_only", False)
+                    self.config_path, read_only=self.cfg.get("config_read_only", False)
                 ),
                 callback=self._on_config_picked,
             )
@@ -715,7 +715,7 @@ class SerialTerminal(App):
             inp.focus()
             self._sync_hw_buttons()
             self.read_serial()
-            auto_cmd = self.cfg.get("auto_connect_cmd", "")
+            auto_cmd = self.cfg.get("on_connect_cmd", "")
             if auto_cmd:
                 self._run_lines(auto_cmd.split("\n"), delay=0.2)
             return True
@@ -862,12 +862,12 @@ class SerialTerminal(App):
         self._send_lines(cmds, echo_prefix=echo_prefix)
 
     def _send_lines(self, lines: list[str], echo_prefix: str = "") -> None:
-        """Send multiple commands with inter_cmd_delay_ms between each.
+        """Send multiple commands with cmd_delay_ms between each.
 
         Routes each line through _dispatch_single, which handles REPL
         prefix detection and serial sending.
         """
-        delay_s = self.cfg.get("inter_cmd_delay_ms", 0) / 1000.0
+        delay_s = self.cfg.get("cmd_delay_ms", 0) / 1000.0
         try:
             for cmd in lines:
                 cmd = cmd.strip()
@@ -952,7 +952,7 @@ class SerialTerminal(App):
             self._set_conn_status("Disconnected")
             try:
                 inp = self.query_one("#cmd", Input)
-                prefix = self.cfg.get("repl_prefix", "/")
+                prefix = self.cfg.get("cmd_prefix", "/")
                 inp.placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
             except Exception:
                 pass  # widgets gone during shutdown
@@ -988,6 +988,7 @@ class SerialTerminal(App):
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
+        self._sync_cmd_prefix()
         self._sync_ss_button()
         self._sync_scripts_button()
         self._sync_proto_button()
@@ -1191,7 +1192,7 @@ class SerialTerminal(App):
             else:
                 self.push_screen(
                     ConfigPicker(
-                        self.config_path, read_only=self.cfg.get("read_only", False)
+                        self.config_path, read_only=self.cfg.get("config_read_only", False)
                     ),
                     callback=self._on_config_picked,
                 )
@@ -1227,21 +1228,21 @@ class SerialTerminal(App):
         elif event.button.id == "btn-scripts":
             self.push_screen(
                 ScriptPicker(
-                    self.repl.scripts_dir, read_only=self.cfg.get("read_only", False)
+                    self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)
                 ),
                 callback=self._on_script_picked,
             )
         elif event.button.id == "btn-proto":
             self.push_screen(
                 ProtoPicker(
-                    self.repl.proto_dir, read_only=self.cfg.get("read_only", False)
+                    self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)
                 ),
                 callback=self._on_proto_picked,
             )
         elif event.button.id == "btn-cfg":
             self.push_screen(
                 ConfigPicker(
-                    self.config_path, read_only=self.cfg.get("read_only", False)
+                    self.config_path, read_only=self.cfg.get("config_read_only", False)
                 ),
                 callback=self._on_config_picked,
             )
@@ -1316,7 +1317,7 @@ class SerialTerminal(App):
 
     def _palette_load_config(self) -> None:
         self.push_screen(
-            ConfigPicker(self.config_path, read_only=self.cfg.get("read_only", False)),
+            ConfigPicker(self.config_path, read_only=self.cfg.get("config_read_only", False)),
             callback=self._on_config_picked,
         )
 
@@ -1378,7 +1379,7 @@ class SerialTerminal(App):
                     data = self.ser.read(min(waiting, 4096))
                 except (serial.SerialException, OSError, AttributeError) as exc:
                     detail = f"{exc.__class__.__name__}: {exc}"
-                    if self.cfg.get("exception_traceback", False):
+                    if self.cfg.get("show_traceback", False):
                         detail += f"\n{traceback.format_exc()}"
                     self.call_from_thread(
                         self._status,
@@ -1420,7 +1421,7 @@ class SerialTerminal(App):
                 text = data.decode(self.cfg.get("encoding", "utf-8"), errors="replace")
 
                 # Insert visible EOL markers before line splitting consumes them
-                if self.cfg.get("show_eol", False):
+                if self.cfg.get("show_line_endings", False):
                     text = text.replace("\r", _EOL_CR + "\r")
                     text = text.replace("\n", _EOL_LF + "\n")
 
@@ -1501,7 +1502,7 @@ class SerialTerminal(App):
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:
         """Color input red when typing a REPL command."""
-        prefix = self.cfg.get("repl_prefix", "/")
+        prefix = self.cfg.get("cmd_prefix", "/")
         if event.value.startswith(prefix):
             event.input.add_class("repl-mode")
         else:
@@ -1570,7 +1571,7 @@ class SerialTerminal(App):
         Args:
             cmd: A single command string (no ``\\n`` separators).
         """
-        prefix = self.cfg.get("repl_prefix", "/")
+        prefix = self.cfg.get("cmd_prefix", "/")
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix):].strip()
             if self.repl.echo:
@@ -1591,10 +1592,10 @@ class SerialTerminal(App):
                 self._status(str(e), "red")
                 return
         # Echo serial command locally if enabled
-        if self.cfg.get("echo_cmd"):
-            fmt = self.cfg.get("echo_cmd_fmt", "> {cmd}")
+        if self.cfg.get("echo_input"):
+            fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
             echo_text = cmd
-            if self.cfg.get("show_eol", False):
+            if self.cfg.get("show_line_endings", False):
                 le = self.cfg.get("line_ending", "\r")
                 echo_text += _eol_label(le)
             self._write_output_markup(fmt.replace("{cmd}", echo_text))
@@ -1617,7 +1618,7 @@ class SerialTerminal(App):
         """Show the REPL command picker with smart arg handling."""
         popup = self.query_one("#history-popup", OptionList)
         popup.clear_options()
-        prefix = self.cfg.get("repl_prefix", "/")
+        prefix = self.cfg.get("cmd_prefix", "/")
         groups: dict[str, list] = {}
         for name, plugin in self.repl._plugins.items():
             groups.setdefault(plugin.source, []).append((name, plugin))
@@ -1674,7 +1675,7 @@ class SerialTerminal(App):
             self.call_after_refresh(self.repl.dispatch, name)
         elif opt_id.startswith("repl:"):
             name = opt_id.split(":")[1]
-            prefix = self.cfg.get("repl_prefix", "/")
+            prefix = self.cfg.get("cmd_prefix", "/")
             inp = self.query_one("#cmd", Input)
             inp.value = f"{prefix}{name} "
             inp.action_end()
@@ -1756,6 +1757,18 @@ class SerialTerminal(App):
             self.notify("No config loaded", severity="warning")
             return
         open_with_system(str(self.repl.ss_dir.resolve()))
+
+    def _sync_cmd_prefix(self) -> None:
+        """Update the command prefix button and input placeholder."""
+        prefix = self.cfg.get("cmd_prefix", "/")
+        try:
+            self.query_one("#btn-cmds", Button).label = prefix
+            self.query_one("#cmd", Input).placeholder = (
+                f"{prefix} for REPL commands, Ctrl+P: palette"
+            )
+        except Exception:
+            pass
+        self.repl.ctx.engine.prefix = prefix
 
     def _sync_ss_button(self) -> None:
         """Update the SS button tooltip with file counts."""
@@ -1888,14 +1901,8 @@ class SerialTerminal(App):
         self._update_title()
         self._apply_border_color()
         self._sync_hw_visibility()
-        if key == "repl_prefix":
-            try:
-                self.query_one("#btn-cmds", Button).label = str(new_val)
-                inp = self.query_one("#cmd", Input)
-                inp.placeholder = f"{new_val} for REPL commands, Ctrl+P: palette"
-            except Exception:
-                pass
-            self.repl.ctx.engine.prefix = str(new_val)
+        if key == "cmd_prefix":
+            self._sync_cmd_prefix()
         if key == "custom_buttons":
             self.run_worker(self._sync_custom_buttons())
         if key in self._SERIAL_KEYS and was_connected:

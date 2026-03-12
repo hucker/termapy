@@ -702,11 +702,11 @@ expect = '"FB8d\\r\\n"'
 
 class TestInlineFmtFields:
     def test_script_level_fmt(self):
-        """Script-level send_fmt/recv_fmt are parsed and inherited by tests."""
+        """Script-level send_fmt/expect_fmt are parsed and inherited by tests."""
         # Arrange
         toml = '''\
 send_fmt = "Slave:H1 Func:H2"
-recv_fmt = "Slave:H1 Data:H2-*"
+expect_fmt = "Slave:H1 Data:H2-*"
 
 [[test]]
 name = "T1"
@@ -718,33 +718,33 @@ expect = "01 AA BB"
 
         # Assert
         assert script.send_fmt == "Slave:H1 Func:H2"  # script-level parsed
-        assert script.recv_fmt == "Slave:H1 Data:H2-*"  # script-level parsed
+        assert script.expect_fmt == "Slave:H1 Data:H2-*"  # script-level parsed
         assert script.tests[0].send_fmt == "Slave:H1 Func:H2"  # inherited
-        assert script.tests[0].recv_fmt == "Slave:H1 Data:H2-*"  # inherited
+        assert script.tests[0].expect_fmt == "Slave:H1 Data:H2-*"  # inherited
 
     def test_per_test_override(self):
-        """Per-test send_fmt/recv_fmt override script-level defaults."""
+        """Per-test send_fmt/expect_fmt override script-level defaults."""
         # Arrange
         toml = '''\
 send_fmt = "Default:H1-*"
-recv_fmt = "Default:H1-*"
+expect_fmt = "Default:H1-*"
 
 [[test]]
 name = "T1"
 send = "01 03"
 expect = "01 AA"
 send_fmt = "Custom:H1 Func:H2"
-recv_fmt = "Custom:H1 Data:H2"
+expect_fmt = "Custom:H1 Data:H2"
 '''
         # Act
         script = parse_toml_script(toml)
 
         # Assert
         assert script.tests[0].send_fmt == "Custom:H1 Func:H2"  # overridden
-        assert script.tests[0].recv_fmt == "Custom:H1 Data:H2"  # overridden
+        assert script.tests[0].expect_fmt == "Custom:H1 Data:H2"  # overridden
 
     def test_default_empty(self):
-        """Missing send_fmt/recv_fmt default to empty string."""
+        """Missing send_fmt/expect_fmt default to empty string."""
         # Arrange
         toml = '''\
 [[test]]
@@ -757,12 +757,12 @@ expect = "02"
 
         # Assert
         assert script.send_fmt == ""  # no script-level fmt
-        assert script.recv_fmt == ""  # no script-level fmt
+        assert script.expect_fmt == ""  # no script-level fmt
         assert script.tests[0].send_fmt == ""  # no per-test fmt
-        assert script.tests[0].recv_fmt == ""  # no per-test fmt
+        assert script.tests[0].expect_fmt == ""  # no per-test fmt
 
     def test_send_fmt_only(self):
-        """Only send_fmt set, recv_fmt defaults to empty."""
+        """Only send_fmt set, expect_fmt defaults to empty."""
         # Arrange
         toml = '''\
 send_fmt = "Addr:H1 Cmd:H2"
@@ -777,7 +777,7 @@ expect = "01 AA"
 
         # Assert
         assert script.tests[0].send_fmt == "Addr:H1 Cmd:H2"  # inherited
-        assert script.tests[0].recv_fmt == ""  # not set
+        assert script.tests[0].expect_fmt == ""  # not set
 
 
 # ── viz field parsing ────────────────────────────────────────────────────

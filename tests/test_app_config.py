@@ -118,7 +118,7 @@ class TestDefaultCfg:
             assert "tooltip" in btn  # tooltip field present
 
     def test_has_essential_keys(self):
-        for key in ("port", "baud_rate", "line_ending", "repl_prefix"):
+        for key in ("port", "baud_rate", "line_ending", "cmd_prefix"):
             assert key in DEFAULT_CFG  # essential config key present
 
 

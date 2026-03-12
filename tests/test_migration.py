@@ -98,7 +98,7 @@ def test_v3_to_v4_removes_command_history_items():
     result = migrate_config(cfg)
 
     assert "command_history_items" not in result  # assert key removed
-    assert result["read_only"] is False  # assert read_only added
+    assert result["config_read_only"] is False  # assert config_read_only added (via v4+v6)
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
@@ -108,7 +108,7 @@ def test_v3_to_v4_handles_missing_key():
     result = migrate_config(cfg)
 
     assert "command_history_items" not in result  # assert no error
-    assert result["read_only"] is False  # assert read_only added
+    assert result["config_read_only"] is False  # assert config_read_only added (via v4+v6)
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
@@ -117,7 +117,7 @@ def test_v3_to_v4_preserves_existing_read_only():
     cfg = {"config_version": 3, "port": "COM4", "read_only": True}
     result = migrate_config(cfg)
 
-    assert result["read_only"] is True  # assert existing value preserved
+    assert result["config_read_only"] is True  # assert existing value preserved (via v6 rename)
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
@@ -126,7 +126,7 @@ def test_v3_to_v4_changes_repl_prefix_bang_to_slash():
     cfg = {"config_version": 3, "port": "COM4", "repl_prefix": "!"}
     result = migrate_config(cfg)
 
-    assert result["repl_prefix"] == "/"  # assert prefix migrated
+    assert result["cmd_prefix"] == "/"  # assert prefix migrated (via v6 rename)
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
@@ -135,7 +135,7 @@ def test_v3_to_v4_preserves_custom_repl_prefix():
     cfg = {"config_version": 3, "port": "COM4", "repl_prefix": ">>"}
     result = migrate_config(cfg)
 
-    assert result["repl_prefix"] == ">>"  # assert custom prefix unchanged
+    assert result["cmd_prefix"] == ">>"  # assert custom prefix unchanged (via v6 rename)
     assert result["config_version"] == CURRENT_CONFIG_VERSION
 
 
@@ -157,10 +157,60 @@ def test_v3_to_v4_renames_config_keys():
     assert result["stop_bits"] == 2  # assert stopbits renamed
     assert result["auto_connect"] is True  # assert autoconnect renamed
     assert result["auto_reconnect"] is True  # assert autoreconnect renamed
-    assert result["auto_connect_cmd"] == "ATZ"  # assert autoconnect_cmd renamed
+    assert result["on_connect_cmd"] == "ATZ"  # assert autoconnect_cmd renamed (via v4+v6)
     assert "baudrate" not in result  # assert old key removed
     assert "bytesize" not in result  # assert old key removed
     assert "stopbits" not in result  # assert old key removed
     assert "autoconnect" not in result  # assert old key removed
     assert "autoreconnect" not in result  # assert old key removed
     assert "autoconnect_cmd" not in result  # assert old key removed
+
+
+def test_v5_to_v6_renames_config_keys():
+    """Migration v5→v6 renames config keys for clarity and consistency."""
+    # Arrange
+    cfg = {
+        "config_version": 5,
+        "echo_cmd": True,
+        "echo_cmd_fmt": "[purple]> {cmd}[/]",
+        "auto_connect_cmd": "ATZ",
+        "inter_cmd_delay_ms": 100,
+        "show_eol": True,
+        "exception_traceback": True,
+        "app_border_color": "green",
+        "repl_prefix": "/",
+        "read_only": True,
+    }
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert — new keys present with old values
+    assert result["echo_input"] is True  # assert echo_cmd renamed
+    assert result["echo_input_fmt"] == "[purple]> {cmd}[/]"  # assert echo_cmd_fmt renamed
+    assert result["on_connect_cmd"] == "ATZ"  # assert auto_connect_cmd renamed
+    assert result["cmd_delay_ms"] == 100  # assert inter_cmd_delay_ms renamed
+    assert result["show_line_endings"] is True  # assert show_eol renamed
+    assert result["show_traceback"] is True  # assert exception_traceback renamed
+    assert result["border_color"] == "green"  # assert app_border_color renamed
+    assert result["cmd_prefix"] == "/"  # assert repl_prefix renamed
+    assert result["config_read_only"] is True  # assert read_only renamed
+
+    # Assert — old keys removed
+    for old_key in ("echo_cmd", "echo_cmd_fmt", "auto_connect_cmd",
+                    "inter_cmd_delay_ms", "show_eol", "exception_traceback",
+                    "app_border_color", "repl_prefix", "read_only"):
+        assert old_key not in result  # assert old key removed
+
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v5_to_v6_handles_missing_keys():
+    """Migration v5→v6 handles configs that lack the old keys."""
+    cfg = {"config_version": 5, "port": "COM4"}
+    result = migrate_config(cfg)
+
+    # Assert — no old or new keys introduced
+    assert "echo_cmd" not in result
+    assert "echo_input" not in result
+    assert result["config_version"] == CURRENT_CONFIG_VERSION

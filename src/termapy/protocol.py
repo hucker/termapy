@@ -593,7 +593,7 @@ class TestCase:
         timeout_ms: Per-test timeout override.
         viz: Visualizer name that must be displayed for this test.
         send_fmt: Inline format spec for TX data (e.g. ``"Slave:H1 Func:H2"``).
-        recv_fmt: Inline format spec for RX data.
+        expect_fmt: Inline format spec for RX data.
     """
 
     index: int
@@ -609,7 +609,7 @@ class TestCase:
     timeout_ms: int = 1000
     viz: str = ""
     send_fmt: str = ""
-    recv_fmt: str = ""
+    expect_fmt: str = ""
 
 
 @dataclass
@@ -627,7 +627,7 @@ class ProtoScript:
         tests: Ordered list of test cases.
         viz: Allowed visualizer names (empty = all available).
         send_fmt: Default inline format spec for TX data.
-        recv_fmt: Default inline format spec for RX data.
+        expect_fmt: Default inline format spec for RX data.
     """
 
     name: str = ""
@@ -640,7 +640,7 @@ class ProtoScript:
     tests: list[TestCase] = field(default_factory=list)
     viz: list[str] = field(default_factory=list)
     send_fmt: str = ""
-    recv_fmt: str = ""
+    expect_fmt: str = ""
 
 
 def parse_toml_script(text: str) -> ProtoScript:
@@ -682,7 +682,7 @@ def parse_toml_script(text: str) -> ProtoScript:
         teardown=doc.get("teardown", []),
         viz=doc.get("viz", []),
         send_fmt=doc.get("send_fmt", ""),
-        recv_fmt=doc.get("recv_fmt", ""),
+        expect_fmt=doc.get("expect_fmt", doc.get("recv_fmt", "")),  # recv_fmt compat — remove after v7
     )
 
     # Parse test cases
@@ -722,7 +722,7 @@ def parse_toml_script(text: str) -> ProtoScript:
             timeout_ms=timeout,
             viz=entry.get("viz", ""),
             send_fmt=entry.get("send_fmt", script.send_fmt),
-            recv_fmt=entry.get("recv_fmt", script.recv_fmt),
+            expect_fmt=entry.get("expect_fmt", entry.get("recv_fmt", script.expect_fmt)),  # recv_fmt compat — remove after v7
         ))
 
     return script

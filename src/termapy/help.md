@@ -52,7 +52,7 @@ The title bar buttons (left to right):
 - **Port** — shows the port name and baud rate. Click to pick a different serial port.
 - **Status** — shows connection status: green **Connected** or red **Disconnected**. Click to toggle the connection.
 
-The title bar color can be set per config with `app_border_color` to visually distinguish multiple sessions.
+The title bar color can be set per config with `border_color` to visually distinguish multiple sessions.
 
 ## Terminal Output
 
@@ -117,7 +117,7 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 
 ## REPL Commands
 
-Commands prefixed with `/` (configurable via `repl_prefix`) run locally instead of being sent to the serial device.
+Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead of being sent to the serial device.
 
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
@@ -142,10 +142,10 @@ Commands prefixed with `/` (configurable via `repl_prefix`) run locally instead 
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `/show <name>`            | Show a file (`$cfg` for current config)                                     |
 | `/echo [on\|off]`         | Toggle command echo                                                         |
-| `/echo.quiet <on\|off>`   | Set echo on/off silently (for scripts and auto_connect_cmd)                 |
+| `/echo.quiet <on\|off>`   | Set echo on/off silently (for scripts and on_connect_cmd)                 |
 | `/os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)    |
-| `/show_eol {on\|off}`     | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
+| `/show_line_endings {on\|off}`     | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
 | `/edit <file>`            | Edit a project file (`$cfg`, `$log`, `$info`, or `scripts/`/`proto/` path)  |
 | `/info {--display}`       | Show project summary; `--display` opens full report in system viewer        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
@@ -176,22 +176,22 @@ Here is an example config for a device called `iot_device`:
     "stop_bits": 1,
     "flow_control": "none",
     "encoding": "utf-8",
-    "inter_cmd_delay_ms": 0,
+    "cmd_delay_ms": 0,
     "line_ending": "\r",
     "auto_connect": true,
     "auto_reconnect": true,
-    "auto_connect_cmd": "status\nhelp",
-    "echo_cmd": true,
-    "echo_cmd_fmt": "[purple]> {cmd}[/]",
+    "on_connect_cmd": "status\nhelp",
+    "echo_input": true,
+    "echo_input_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
     "show_timestamps": false,
     "max_grep_lines": 100,
     "title": "IoT Device",
-    "app_border_color": "blue",
+    "border_color": "blue",
     "max_lines": 10000,
-    "repl_prefix": "/",
+    "cmd_prefix": "/",
     "os_cmd_enabled": false,
-    "exception_traceback": false,
+    "show_traceback": false,
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
         {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200", "tooltip": "Reset and set baud"}
@@ -212,23 +212,23 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `stop_bits`             | `1`                  | Number of stop bits (1, 1.5, or 2)                                                                              |
 | `flow_control`          | `none`               | Flow control mode: `none`, `rtscts` (hardware), `xonxoff` (software), or `manual` (shows DTR/RTS/Break buttons) |
 | `encoding`              | `utf-8`              | Character encoding for serial data (utf-8, latin-1, ascii, cp437)                                               |
-| `inter_cmd_delay_ms`    | `0`                  | Milliseconds to wait between commands in autoconnect sequences and multi-command input                          |
+| `cmd_delay_ms`    | `0`                  | Milliseconds to wait between commands in autoconnect sequences and multi-command input                          |
 | `line_ending`           | `\r`                 | String appended to each sent command: `\r` (CR), `\r\n` (CRLF), or `\n` (LF)                                    |
 | `auto_connect`          | `false`              | Automatically connect to the port when the app starts                                                           |
 | `auto_reconnect`        | `false`              | Automatically retry the connection every second if the port drops                                               |
-| `auto_connect_cmd`      | ` `                  | Commands to send after connecting, separated by `\n` (waits for idle between each)                              |
-| `echo_cmd`              | `false`              | Show sent commands in the terminal output                                                                       |
-| `echo_cmd_fmt`          | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text)                       |
+| `on_connect_cmd`      | ` `                  | Commands to send after connecting, separated by `\n` (waits for idle between each)                              |
+| `echo_input`              | `false`              | Show sent commands in the terminal output                                                                       |
+| `echo_input_fmt`          | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text)                       |
 | `log_file`              | ` `                  | Path to the session log file (if empty, defaults to `<name>.log` in the config subfolder)                       |
 | `show_timestamps`       | `false`              | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                                  |
 | `max_grep_lines`        | `100`                | Maximum number of matching lines shown by `/grep`                                                               |
 | `proto_frame_gap_ms`    | `50`                 | Silence gap (ms) to detect end of a binary protocol frame                                                       |
 | `title`                 | ` `                  | Text shown in the center of the title bar (defaults to the config filename)                                     |
-| `app_border_color`      | ` `                  | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`)                      |
+| `border_color`      | ` `                  | Color for the title bar and output border (any CSS color name or hex value like `#ff6600`)                      |
 | `max_lines`             | `10000`              | Maximum number of lines kept in the scrollback buffer                                                           |
-| `repl_prefix`           | `/`                  | Prefix that identifies local REPL commands (e.g. `/help`)                                                       |
+| `cmd_prefix`           | `/`                  | Prefix that identifies local REPL commands (e.g. `/help`)                                                       |
 | `os_cmd_enabled`        | `false`              | Allow the `/os` command to run shell commands (disabled by default for safety)                                  |
-| `exception_traceback`   | `false`              | Include full stack trace in serial exception output (for debugging)                                             |
+| `show_traceback`   | `false`              | Include full stack trace in serial exception output (for debugging)                                             |
 | `custom_buttons`        | `[]`                 | Array of custom button objects (see Custom Buttons below)                                                       |
 
 ## Config Management

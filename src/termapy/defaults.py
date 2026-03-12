@@ -9,10 +9,10 @@ DEFAULT_CFG = {
     "config_version": CURRENT_CONFIG_VERSION,
     # App
     "title": "",
-    "app_border_color": "",
+    "border_color": "",
     "max_lines": 10000,
-    "repl_prefix": "/",
-    "read_only": False,
+    "cmd_prefix": "/",
+    "config_read_only": False,
     "os_cmd_enabled": False,
     # Serial
     "port": "COM4",
@@ -22,22 +22,22 @@ DEFAULT_CFG = {
     "stop_bits": 1,
     "flow_control": "none",
     "encoding": "utf-8",
-    "inter_cmd_delay_ms": 0,
+    "cmd_delay_ms": 0,
     # Connection
     "auto_connect": False,
     "auto_reconnect": False,
-    "auto_connect_cmd": "",
+    "on_connect_cmd": "",
     "line_ending": "\r",
     # Input echo
-    "echo_cmd": False,
-    "echo_cmd_fmt": "[purple]> {cmd}[/]",
+    "echo_input": False,
+    "echo_input_fmt": "[purple]> {cmd}[/]",
     # Logging
     "log_file": "",
     # Diagnostics
-    "exception_traceback": False,
+    "show_traceback": False,
     # Display
     "show_timestamps": False,
-    "show_eol": False,
+    "show_line_endings": False,
     "max_grep_lines": 100,
     # Custom buttons
     "custom_buttons": [
@@ -71,12 +71,12 @@ PROTO_TEMPLATE = """\
 # Each [[test]] section is one send/expect step:
 #
 # [[test]]
-# label = "Read holding registers"
+# name = "Read holding registers"
 # send = "01 03 00 00 00 0A C5 CD"
 # expect = "01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **"
 #
 # [[test]]
-# label = "AT query"
+# name = "AT query"
 # send = '"AT+VERSION?\\r"'
 # expect = '"V1." ** ** "\\r"'
 #
@@ -89,10 +89,10 @@ timeout = "1000ms"
 frame_gap = "50ms"
 
 [[test]]
-label = "Example step"
+name = "Example step"
 send = "01 02 03"
 expect = "01 02 03"
 # Inline format specs (optional, decode bytes into named columns):
 # send_fmt = "Addr:H1 Cmd:H2 Data:H3"
-# recv_fmt = "Addr:H1 Cmd:H2 Data:H3"
+# expect_fmt = "Addr:H1 Cmd:H2 Data:H3"
 """

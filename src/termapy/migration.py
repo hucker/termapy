@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 5
+CURRENT_CONFIG_VERSION = 6
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
@@ -62,10 +62,32 @@ def _migrate_v4_to_v5(cfg: dict) -> dict:
     return cfg
 
 
+_KEY_RENAMES_V6 = {
+    "echo_cmd": "echo_input",
+    "echo_cmd_fmt": "echo_input_fmt",
+    "auto_connect_cmd": "on_connect_cmd",
+    "inter_cmd_delay_ms": "cmd_delay_ms",
+    "show_eol": "show_line_endings",
+    "exception_traceback": "show_traceback",
+    "app_border_color": "border_color",
+    "repl_prefix": "cmd_prefix",
+    "read_only": "config_read_only",
+}
+
+
+def _migrate_v5_to_v6(cfg: dict) -> dict:
+    """Rename config fields for clarity and consistency."""
+    for old, new in _KEY_RENAMES_V6.items():
+        if old in cfg:
+            cfg[new] = cfg.pop(old)
+    return cfg
+
+
 MIGRATIONS[1] = _migrate_v1_to_v2
 MIGRATIONS[2] = _migrate_v2_to_v3
 MIGRATIONS[3] = _migrate_v3_to_v4
 MIGRATIONS[4] = _migrate_v4_to_v5
+MIGRATIONS[5] = _migrate_v5_to_v6
 
 
 def migrate_config(cfg: dict) -> dict:

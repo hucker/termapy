@@ -35,7 +35,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
 def _handler_quiet(ctx: PluginContext, args: str) -> None:
     """Set REPL echo on/off silently (no output).
 
-    Useful in auto_connect_cmd and scripts where you want to
+    Useful in on_connect_cmd and scripts where you want to
     suppress echo without printing a status message.
 
     Args:

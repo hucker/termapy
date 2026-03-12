@@ -14,7 +14,7 @@ def repl_env(tmp_path):
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
-        "echo_cmd": False,
+        "echo_input": False,
         "line_ending": "\r",
         "stop_bits": 1.5,
     }
@@ -83,7 +83,7 @@ class TestCfgChange:
 
     def test_bad_bool_rejected(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("cfg echo_cmd maybe")
+        engine.dispatch("cfg echo_input maybe")
         assert output[-1][1] == "red"  # error shown in red
 
     def test_calls_save_cfg_hook(self, repl_env):
@@ -125,8 +125,8 @@ class TestCfgAuto:
 
     def test_auto_bool(self, repl_env):
         engine, cfg, _, output = repl_env
-        engine.dispatch("cfg.auto echo_cmd true")
-        assert cfg["echo_cmd"] is True  # bool coerced and applied
+        engine.dispatch("cfg.auto echo_input true")
+        assert cfg["echo_input"] is True  # bool coerced and applied
 
     def test_auto_string(self, repl_env):
         engine, cfg, _, output = repl_env
@@ -160,24 +160,24 @@ class TestCfgAuto:
 
 
 class TestCfgReadOnly:
-    """read_only only blocks UI dialogs; /cfg commands still work."""
+    """config_read_only only blocks UI dialogs; /cfg commands still work."""
 
     def test_cfg_set_allowed(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["read_only"] = True
+        cfg["config_read_only"] = True
 
         # Act
         engine.dispatch("cfg.auto baud_rate 9600")
 
         # Assert
-        assert cfg["baud_rate"] == 9600  # value changed despite read_only
+        assert cfg["baud_rate"] == 9600  # value changed despite config_read_only
         assert any("session" in t for t, _ in output)  # session-only confirmation
 
     def test_cfg_show_works(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["read_only"] = True
+        cfg["config_read_only"] = True
 
         # Act
         engine.dispatch("cfg baud_rate")

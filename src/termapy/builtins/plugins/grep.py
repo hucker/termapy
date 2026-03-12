@@ -35,7 +35,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         ctx.write(f"  grep: invalid pattern: {e}", "red")
         return
     max_matches = ctx.cfg.get("max_grep_lines", 100)
-    prefix = ctx.cfg.get("repl_prefix", "/")
+    prefix = ctx.cfg.get("cmd_prefix", "/")
     grep_cmd = f"{prefix}grep"
     text = ctx.get_screen_text()
     lines = text.splitlines()

@@ -496,8 +496,8 @@ class ProtoDebugScreen(ModalScreen[None]):
             )
             if not compact:
                 lines.append("")
-        if tc.recv_fmt:
-            title, spec = extract_fmt_title(tc.recv_fmt)
+        if tc.expect_fmt:
+            title, spec = extract_fmt_title(tc.expect_fmt)
             cols = parse_format_spec(spec)
             _, exp_values = apply_format(tc.expect_data, cols)
             act_values: list[str] = []

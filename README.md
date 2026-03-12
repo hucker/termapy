@@ -135,9 +135,9 @@ The most common ones:
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
 | `/show <name>`            | Show a file (`$cfg` for current config)                                          |
 | `/echo [on \| off]`       | Toggle REPL command echo                                                         |
-| `/echo.quiet <on \| off>` | Set echo on/off silently (for scripts and auto_connect_cmd)                      |
+| `/echo.quiet <on \| off>` | Set echo on/off silently (for scripts and on_connect_cmd)                      |
 | `/edit <file>`            | Edit a project file (`$cfg`, `$log`, `$info`, or `scripts/`/`proto/` path)       |
-| `/show_eol [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
+| `/show_line_endings [on \| off]`   | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
 | `/os <cmd>`               | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, skips own output)         |
 | `/info {--display}`       | Show project summary; `--display` opens full report in system viewer             |
@@ -260,8 +260,8 @@ When you create a new config, termapy writes a complete `.cfg` file with all def
     "auto_connect": true,
     "auto_reconnect": true,
     "title": "Sensor A",
-    "app_border_color": "blue",
-    "auto_connect_cmd": "rev \n help dev"
+    "border_color": "blue",
+    "on_connect_cmd": "rev \n help dev"
 }
 ```
 
@@ -307,24 +307,24 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "stop_bits": 1,
     "flow_control": "none",
     "encoding": "utf-8",
-    "inter_cmd_delay_ms": 0,
+    "cmd_delay_ms": 0,
     "line_ending": "\r",
     "auto_connect": false,
     "auto_reconnect": false,
-    "auto_connect_cmd": "",
-    "echo_cmd": false,
-    "echo_cmd_fmt": "[purple]> {cmd}[/]",
+    "on_connect_cmd": "",
+    "echo_input": false,
+    "echo_input_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
     "show_timestamps": false,
-    "show_eol": false,
+    "show_line_endings": false,
     "max_grep_lines": 100,
     "title": "",
-    "app_border_color": "",
+    "border_color": "",
     "max_lines": 10000,
-    "repl_prefix": "/",
-    "read_only": false,
+    "cmd_prefix": "/",
+    "config_read_only": false,
     "os_cmd_enabled": false,
-    "exception_traceback": false,
+    "show_traceback": false,
     "custom_buttons": []
 }
 ```
@@ -339,28 +339,28 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `stop_bits`           | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
 | `flow_control`        | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
 | `encoding`            | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
-| `inter_cmd_delay_ms`  | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
+| `cmd_delay_ms`  | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
 | `line_ending`         | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
 | `auto_connect`        | `false`                | Connect to the port on startup                                                                           |
 | `auto_reconnect`      | `false`                | Retry every second if the port drops or fails to open                                                    |
-| `auto_connect_cmd`    | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
-| `echo_cmd`            | `false`                | Echo sent commands locally                                                                               |
-| `echo_cmd_fmt`        | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
+| `on_connect_cmd`    | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
+| `echo_input`            | `false`                | Echo sent commands locally                                                                               |
+| `echo_input_fmt`        | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
 | `log_file`            | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
 | `show_timestamps`     | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
-| `show_eol`            | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
+| `show_line_endings`            | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
 | `max_grep_lines`      | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
 | `proto_frame_gap_ms`  | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`               | `""`                   | Title bar center text. Defaults to the config filename                                                   |
-| `app_border_color`    | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
+| `border_color`    | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
 | `max_lines`           | `10000`                | Maximum lines in the scrollback buffer                                                                   |
-| `repl_prefix`         | `"/"`                  | Prefix for local REPL commands (e.g. `/help`, `/cls`)                                                    |
-| `read_only`           | `false`                | Disable the Edit button in config/script/proto pickers (`/cfg` still changes in-memory values)           |
+| `cmd_prefix`         | `"/"`                  | Prefix for local REPL commands (e.g. `/help`, `/cls`)                                                    |
+| `config_read_only`           | `false`                | Disable the Edit button in config/script/proto pickers (`/cfg` still changes in-memory values)           |
 | `os_cmd_enabled`      | `false`                | Enable the `/os` REPL command to run shell commands                                                      |
-| `exception_traceback` | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
+| `show_traceback` | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`      | `[]`                   | Array of custom button objects (see Custom Buttons above)                                                |
 
-**Note on `show_eol`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output — turn `show_eol` off when not actively debugging.
+**Note on `show_line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output — turn `show_line_endings` off when not actively debugging.
 
 </details>
 

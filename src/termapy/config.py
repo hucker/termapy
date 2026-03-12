@@ -155,17 +155,19 @@ def load_config(path: str) -> dict:
     # Run migrations before applying defaults
     old_version = cfg.get("config_version", 0)
     cfg = migrate_config(cfg)
-    changed = old_version != CURRENT_CONFIG_VERSION
-    if changed:
-        cfg["_migrated_from"] = old_version
+    migrated = old_version != CURRENT_CONFIG_VERSION
+    changed = migrated
 
     for key, val in DEFAULT_CFG.items():
         if key not in cfg:
             cfg[key] = val
             changed = True
+    cfg.pop("_migrated_from", None)  # clean up stale marker from older saves
     if changed:
         with open(path, "w") as f:
             json.dump(cfg, f, indent=4)
+    if migrated:
+        cfg["_migrated_from"] = old_version
     return expand_env_cfg(cfg)
 
 

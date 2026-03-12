@@ -1409,8 +1409,8 @@ class SerialTerminal(App):
                     # Flush partial line only after 200ms of silence
                     if buf and (time.monotonic() - last_rx) >= 0.2:
                         if not PARTIAL_ANSI_RE.search(buf):
-                            self.call_from_thread(self._write_output_batch, [buf])
-                            self.call_from_thread(self._write_log_batch, [buf])
+                            self.call_from_thread(
+                                self._write_batch, [buf])
                             buf = ""
                     continue
 
@@ -1439,8 +1439,7 @@ class SerialTerminal(App):
                     if line:
                         lines.append(line)
                 if lines:
-                    self.call_from_thread(self._write_output_batch, lines)
-                    self.call_from_thread(self._write_log_batch, lines)
+                    self.call_from_thread(self._write_batch, lines)
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
         finally:
@@ -1460,11 +1459,20 @@ class SerialTerminal(App):
         log = self.query_one("#output", RichLog)
         return "\n".join(strip.text for strip in log.lines)
 
-    def _write_output_batch(self, lines: list[str]) -> None:
+    def _write_batch(self, lines: list[str]) -> None:
+        """Write a batch of lines to the output log and optional log file.
+
+        Combines screen output and file logging in a single call to
+        minimize ``call_from_thread`` round-trips from the serial reader.
+
+        Args:
+            lines: Decoded text lines to display and log.
+        """
         log = self.query_one("#output", RichLog)
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
         hex_mode = self._proto_hex_mode
+        enc = self.cfg.get("encoding", "utf-8")
         for text in lines:
             self._line_counter += 1
             prefix = ""
@@ -1476,15 +1484,11 @@ class SerialTerminal(App):
             if hex_mode:
                 hex_str = " ".join(
                     f"{b:02X}"
-                    for b in text.encode(
-                        self.cfg.get("encoding", "utf-8"), errors="replace"
-                    )
+                    for b in text.encode(enc, errors="replace")
                 )
                 log.write(Text.from_ansi(f"{prefix}{hex_str}"))
             else:
                 log.write(Text.from_ansi(f"{prefix}{text}"))
-
-    def _write_log_batch(self, lines: list[str]) -> None:
         if self.log_fh:
             for text in lines:
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]

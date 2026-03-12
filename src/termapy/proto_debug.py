@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
+from io import TextIOWrapper
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -27,8 +28,12 @@ from termapy.protocol import (
     ProtoScript,
     TestCase,
     VisualizerInfo,
+    apply_format,
+    diff_columns as proto_diff_columns,
+    extract_fmt_title,
     format_hex,
     match_response,
+    parse_format_spec,
     strip_ansi,
 )
 
@@ -71,17 +76,13 @@ def _colorize_log(content: str) -> Text:
             result.append(line, style="bold bright_green")
         elif "[FAIL]" in line:
             result.append(line, style="bold red")
-        elif stripped.startswith("TX:"):
-            result.append(line, style="dim")
-        elif stripped.startswith("EXP:"):
+        elif stripped.startswith(("TX:", "EXP:", "Time:")):
             result.append(line, style="dim")
         elif stripped.startswith("RX:"):
             if "(timeout)" in line:
                 result.append(line, style="bold red")
             else:
                 result.append(line, style="yellow")
-        elif stripped.startswith("Time:"):
-            result.append(line, style="dim")
         elif stripped.startswith("Summary:"):
             # Green if no failures, red otherwise
             has_fail = "stopped on error" in stripped
@@ -274,6 +275,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._ctx = ctx
         self._script = script
         self._running = False
+        self._log_file: TextIOWrapper | None = None
         # Filter visualizers: if script specifies viz list, keep only those
         # plus Hex and Text (always available)
         if script.viz:
@@ -480,8 +482,40 @@ class ProtoDebugScreen(ModalScreen[None]):
                         f"  [{viz.name}] RX: {rx_spec}", style="cyan"))
             lines.append("")
 
-        # Render tables: TX then RX for each visualizer
+        # Render inline format tables (always on when present)
         compact = self._get_compact()
+        if tc.send_fmt:
+            title, spec = extract_fmt_title(tc.send_fmt)
+            cols = parse_format_spec(spec)
+            headers, values = apply_format(tc.send_data, cols)
+            self._render_unified_table(
+                lines, title or "Custom TX", headers,
+                [("TX", values, "bold cyan", [])],
+                [], [], [],
+                has_actual=False, is_timeout=False,
+            )
+            if not compact:
+                lines.append("")
+        if tc.recv_fmt:
+            title, spec = extract_fmt_title(tc.recv_fmt)
+            cols = parse_format_spec(spec)
+            _, exp_values = apply_format(tc.expect_data, cols)
+            act_values: list[str] = []
+            act_statuses: list[str] = []
+            if actual_data is not None:
+                _, _, act_values, act_statuses = proto_diff_columns(
+                    actual_data, tc.expect_data, tc.expect_mask, cols)
+            self._render_unified_table(
+                lines, title or "Custom RX", [c.name for c in cols],
+                [],
+                exp_values, act_values, act_statuses,
+                has_actual=(actual_data is not None),
+                is_timeout=(tc.index in self._results and actual_data is None),
+            )
+            if not compact:
+                lines.append("")
+
+        # Render tables: TX then RX for each visualizer
         for viz in active_vizs:
             self._build_tx_table(lines, tc, viz)
             if not compact:
@@ -604,7 +638,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             has_actual: Whether actual data exists.
             is_timeout: Whether this is a timeout result.
         """
-        label_w = 10
+        label_w = max(10, len(title))
         n_cols = len(headers)
         if n_cols == 0:
             return
@@ -793,11 +827,42 @@ class ProtoDebugScreen(ModalScreen[None]):
         Args:
             line: Text to write (newline appended automatically).
         """
+        self._log_lines([line])
+
+    def _log_lines(self, lines: list[str]) -> None:
+        """Append multiple lines to the debug log in a single write.
+
+        Uses a persistent file handle during test runs to avoid
+        repeated open/close overhead on Windows.
+
+        Args:
+            lines: Text lines to write (newlines appended automatically).
+        """
         try:
-            with open(self._log_path, "a") as f:
-                f.write(line + "\n")
+            if self._log_file is not None:
+                self._log_file.write("\n".join(lines) + "\n")
+                self._log_file.flush()
+            else:
+                with open(self._log_path, "a") as f:
+                    f.write("\n".join(lines) + "\n")
         except OSError:
             pass
+
+    def _open_log(self) -> None:
+        """Open the log file for the duration of a test run."""
+        try:
+            self._log_file = open(self._log_path, "a")  # noqa: SIM115
+        except OSError:
+            self._log_file = None
+
+    def _close_log(self) -> None:
+        """Close the persistent log file handle."""
+        if self._log_file is not None:
+            try:
+                self._log_file.close()
+            except OSError:
+                pass
+            self._log_file = None
 
     def _log_session_header(self, tests: list[TestCase],
                             repeat: int) -> None:
@@ -810,10 +875,12 @@ class ProtoDebugScreen(ModalScreen[None]):
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         title = self._script.name or self._path.name
         sep = "=" * 80
-        self._log(sep)
-        self._log(f"[{ts}] Script: {title} | "
-                  f"Tests: {len(tests)} | Repeat: {repeat}")
-        self._log(sep)
+        self._log_lines([
+            sep,
+            f"[{ts}] Script: {title} | "
+            f"Tests: {len(tests)} | Repeat: {repeat}",
+            sep,
+        ])
 
     def _log_test_result(
         self, tc: TestCase, passed: bool,
@@ -833,28 +900,31 @@ class ProtoDebugScreen(ModalScreen[None]):
         tx = format_hex(tc.send_data)
         exp = format_hex(tc.expect_data)
         rx = format_hex(response) if response else "(timeout)"
-        self._log(f"  [{tag}]  {tc.name}")
-        self._log(f"         TX:  {tx}")
-        self._log(f"         EXP: {exp}")
-        self._log(f"         RX:  {rx}")
-        self._log(f"         Time: {elapsed_ms:.0f}ms")
+        lines = [
+            f"  [{tag}]  {tc.name}",
+            f"         TX:  {tx}",
+            f"         EXP: {exp}",
+            f"         RX:  {rx}",
+            f"         Time: {elapsed_ms:.0f}ms",
+        ]
         # Log visualizer column data
         for viz in vizs:
             tx_spec = viz.format_spec(tc.send_data)
             if tx_spec:
-                self._log(f"         [{viz.name}] TX spec: {tx_spec}")
+                lines.append(f"         [{viz.name}] TX spec: {tx_spec}")
             tx_hdrs, tx_vals = viz.format_columns(tc.send_data)
-            self._log(f"         [{viz.name}] TX: " + "  ".join(
+            lines.append(f"         [{viz.name}] TX: " + "  ".join(
                 f"{h}={v}" for h, v in zip(tx_hdrs, tx_vals)))
             if response:
                 rx_spec = viz.format_spec(response)
                 if rx_spec:
-                    self._log(
+                    lines.append(
                         f"         [{viz.name}] RX spec: {rx_spec}")
                 hdrs, _, act_vals, _ = viz.diff_columns(
                     response, tc.expect_data, tc.expect_mask)
-                self._log(f"         [{viz.name}] RX: " + "  ".join(
+                lines.append(f"         [{viz.name}] RX: " + "  ".join(
                     f"{h}={v}" for h, v in zip(hdrs, act_vals)))
+        self._log_lines(lines)
 
     def _log_summary(self, tests: list[TestCase], pass_count: int,
                      fail_count: int, stopped: bool) -> None:
@@ -871,9 +941,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         line = f"Summary: {pass_count}/{total} PASS ({n} test{'s' if n > 1 else ''})"
         if stopped:
             line += " -- stopped on error"
-        self._log(line)
-        self._log("-" * 80)
-        self._log("")
+        self._log_lines([line, "-" * 80, ""])
 
     def _set_status(self, text: str, style: str = "") -> None:
         """Update the status bar text.
@@ -954,6 +1022,21 @@ class ProtoDebugScreen(ModalScreen[None]):
         style = "bold bright_green" if fail_count == 0 else "bold red"
         self.app.call_from_thread(self._set_status, summary, style)
 
+    def _update_test_ui(self, tc: TestCase, status: str) -> None:
+        """Batch UI update: highlight test, set status, append detail.
+
+        Combines three UI mutations into a single call so that
+        ``call_from_thread`` only crosses the thread boundary once
+        per test instead of four times.
+
+        Args:
+            tc: Test case to display.
+            status: Status bar text.
+        """
+        self._highlight_test(tc)
+        self._set_status(status, "bold yellow")
+        self._append_test_detail(tc)
+
     @work(thread=True)
     def _run_tests(self, tests: list[TestCase]) -> None:
         """Execute one or more test cases in a background thread.
@@ -968,6 +1051,9 @@ class ProtoDebugScreen(ModalScreen[None]):
             repeat = self.app.call_from_thread(self._get_repeat_count)
             delay_s = self.app.call_from_thread(self._get_start_delay)
             stop_on_error = self.app.call_from_thread(self._get_stop_on_error)
+            vizs = self.app.call_from_thread(
+                self._get_active_visualizers)
+            self._open_log()
             self._log_session_header(tests, repeat)
             self._running = True
             self.app.call_from_thread(self._clear_detail)
@@ -988,15 +1074,6 @@ class ProtoDebugScreen(ModalScreen[None]):
                         time.sleep(delay_s)
 
                     for ti, tc in enumerate(tests):
-                        self.app.call_from_thread(
-                            self._highlight_test, tc)
-                        prefix = (f"[{run_num}/{repeat}] "
-                                  if repeat > 1 else "")
-                        status = (f"{prefix}{tc.name} "
-                                  f"({ti + 1}/{len(tests)})...")
-                        self.app.call_from_thread(
-                            self._set_status, status, "bold yellow")
-
                         if tc.setup:
                             self._log(f"  setup: {', '.join(tc.setup)}")
                         self._send_proto_cmds(tc.setup)
@@ -1004,13 +1081,16 @@ class ProtoDebugScreen(ModalScreen[None]):
 
                         # Log the result
                         response, elapsed_ms, _ = self._results[tc.index]
-                        vizs = self.app.call_from_thread(
-                            self._get_active_visualizers, tc)
                         self._log_test_result(
                             tc, passed, response, elapsed_ms, vizs)
 
+                        prefix = (f"[{run_num}/{repeat}] "
+                                  if repeat > 1 else "")
+                        status = (f"{prefix}{tc.name} "
+                                  f"({ti + 1}/{len(tests)})...")
                         self.app.call_from_thread(
-                            self._append_test_detail, tc)
+                            self._update_test_ui, tc, status)
+
                         if tc.teardown:
                             self._log(
                                 f"  teardown: {', '.join(tc.teardown)}")
@@ -1034,13 +1114,14 @@ class ProtoDebugScreen(ModalScreen[None]):
             self._log_summary(tests, total_pass, total_fail, stopped)
             self._show_run_summary(tests, total_pass, total_fail)
         except RuntimeError:
-            # call_from_thread fails during app shutdown — exit silently
-            self._ctx.engine.set_proto_active(False)
-            self._running = False
+            # call_from_thread fails during app shutdown — ignore
+            pass
         except Exception as e:
+            self._log(f"Test runner error: {e}")
+        finally:
             self._ctx.engine.set_proto_active(False)
             self._running = False
-            self._log(f"Test runner error: {e}")
+            self._close_log()
 
     @work(thread=True)
     def _run_cmds(self, cmds: list[str], label: str) -> None:

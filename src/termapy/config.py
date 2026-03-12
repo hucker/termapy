@@ -255,7 +255,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     proto_dir = demo_dir / "proto"
     proto_dir.mkdir(exist_ok=True)
     proto_pkg = pkg / "proto"
-    for name in ("at_test.pro", "modbus_test.pro"):
+    for name in ("at_test.pro", "bitfield_inline.pro", "modbus_inline.pro", "modbus_test.pro"):
         dest = proto_dir / name
         if force or not dest.exists():
             src = proto_pkg / name

@@ -30,11 +30,11 @@ _FUNC_NAMES: dict[int, str] = {
 }
 
 # Format specs for fixed-length Modbus frames
-_READ_REQ = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16-modbus_le"
-_WRITE_SINGLE_REG = "Slave:H1 Func:H2 Reg:D3-4 Value:D5-6 CRC:crc16-modbus_le"
-_WRITE_COIL = "Slave:H1 Func:H2 Addr:D3-4 Value:H5-6 CRC:crc16-modbus_le"
-_WRITE_MULTI = "Slave:H1 Func:H2 Start:D3-4 Count:D5-6 CRC:crc16-modbus_le"
-_EXCEPTION = "Slave:H1 ErrFunc:H2 Code:D3 CRC:crc16-modbus_le"
+_READ_REQ = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
+_WRITE_SINGLE_REG = "Slave:H1 Func:H2 Reg:U3-4 Value:U5-6 CRC:crc16-modbus_le"
+_WRITE_COIL = "Slave:H1 Func:H2 Addr:U3-4 Value:H5-6 CRC:crc16-modbus_le"
+_WRITE_MULTI = "Slave:H1 Func:H2 Start:U3-4 Count:U5-6 CRC:crc16-modbus_le"
+_EXCEPTION = "Slave:H1 ErrFunc:H2 Code:U3 CRC:crc16-modbus_le"
 
 
 def _read_resp_spec(data: bytes) -> str:
@@ -52,15 +52,15 @@ def _read_resp_spec(data: bytes) -> str:
     if func in (0x03, 0x04) and byte_count >= 2:
         # 16-bit register values
         n_regs = byte_count // 2
-        spec = "Slave:H1 Func:H2 Bytes:D3"
+        spec = "Slave:H1 Func:H2 Bytes:U3"
         for i in range(n_regs):
             s = 4 + i * 2
-            spec += f" R{i}:D{s}-{s + 1}"
+            spec += f" R{i}:U{s}-{s + 1}"
         spec += " CRC:crc16-modbus_le"
         return spec
 
     # Coil/input bit responses or short responses
-    spec = "Slave:H1 Func:H2 Bytes:D3 Data:H4-* CRC:crc16-modbus_le"
+    spec = "Slave:H1 Func:H2 Bytes:U3 Data:H4-* CRC:crc16-modbus_le"
     return spec
 
 
@@ -76,7 +76,7 @@ def _pick_spec(data: bytes) -> str:
         Format spec string.
     """
     if len(data) < 4:
-        return "Raw:H1-*"
+        return "Raw:h1-*"
 
     func = data[1]
 
@@ -104,7 +104,7 @@ def _pick_spec(data: bytes) -> str:
             # Echo response (start + count + CRC)
             return _WRITE_MULTI
         # Request with data payload
-        return "Slave:H1 Func:H2 Start:D3-4 Count:D5-6 Bytes:D7 Data:H8-* CRC:crc16-modbus_le"
+        return "Slave:H1 Func:H2 Start:U3-4 Count:U5-6 Bytes:U7 Data:H8-* CRC:crc16-modbus_le"
 
     # Fallback
     return "Slave:H1 Func:H2 Data:H3-* CRC:crc16-modbus_le"

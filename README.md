@@ -603,7 +603,7 @@ NAME = "Sensor"
 DESCRIPTION = "Sensor protocol — serial, counter, sensors, CRC"
 SORT_ORDER = 30
 
-_SPEC = "Serial:S1-8 Counter:D9-10 Temp:D11 Humid:D12 Press:D13 CRC:crc16x_be"
+_SPEC = "Serial:S1-8 Counter:U9-10 Temp:U11 Humid:U12 Press:U13 CRC:crc16x_be"
 
 def format_columns(data: bytes) -> tuple[list[str], list[str]]:
     """Return (headers, values) for display."""
@@ -622,17 +622,18 @@ def diff_columns(
 
 **Format spec language** — maps packet bytes to named columns:
 
-| Code   | Meaning          | Example      | Output       |
-| ------ | ---------------- | ------------ | ------------ |
-| `H`    | Hex (unsigned)   | `H1`, `H3-4` | `0A`, `01FF` |
-| `D`    | Decimal unsigned | `D1`, `D3-4` | `10`, `256`  |
-| `+D`   | Decimal signed   | `+D1`        | `-1`, `+127` |
-| `S`    | ASCII string     | `S5-12`      | `Hello...`   |
-| `F`    | IEEE 754 float   | `F1-4`       | `3.14`       |
-| `B`    | Single bit       | `B1.0`       | `0` or `1`   |
-| `crc*` | CRC verify       | `crc16m_le`  | green/red    |
+| Code   | Meaning            | Example             | Output       |
+| ------ | ------------------ | ------------------- | ------------ |
+| `H`    | Hex bytes          | `H1`, `H3-4`       | `0A`, `01FF` |
+| `U`    | Unsigned decimal   | `U1`, `U3-4`       | `10`, `256`  |
+| `I`    | Signed decimal     | `I1`                | `-1`, `+127` |
+| `S`    | ASCII string       | `S5-12`             | `Hello...`   |
+| `F`    | IEEE 754 float     | `F1-4`              | `3.14`       |
+| `B`    | Bit / bit field    | `B1.0`, `B1-2.7-9` | `0`, `5`     |
+| `_`    | Padding (hidden)   | `_:_3-4`            | *(skipped)*  |
+| `crc*` | CRC verify         | `crc16m_le`         | green/red    |
 
-Byte indexing is 1-based. Endianness by byte order: `D3-4` = big-endian, `D4-3` = little-endian, `H7-*` = wildcard to end.
+Byte indexing is 1-based. Endianness by byte order: `U3-4` = big-endian, `U4-3` = little-endian, `H7-*` = wildcard to end. Bit fields: `B1.3` = single bit, `B1-2.7-9` = multi-byte bit range (LSB-0).
 
 CRC columns use `_le`/`_be` suffix: `CRC:crc16-modbus_le`, `CRC:crc16-xmodem_be`, `CRC:crc8-maxim`.
 

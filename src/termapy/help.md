@@ -384,13 +384,15 @@ expect = "01 03 02 00 07 F9 86"
 Visualizers use a format spec language to map bytes to columns:
 
 ```text
-Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16-modbus_le
+Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le
 ```
 
-Type codes: `H` (hex), `D` (decimal), `+D` (signed), `S` (string), `F` (float),
-`B` (bit), `crc*` (CRC verify). Byte indices are 1-based; byte order determines
-endianness (`D3-4` = big-endian, `D4-3` = little-endian). Use `H7-*` for
-variable-length fields.
+Type codes: `H` (hex), `U` (unsigned decimal), `I` (signed, always +/-),
+`S` (string), `F` (float), `B` (bit/bit field), `_` (padding, not displayed),
+`crc*` (CRC verify). Byte indices are 1-based; byte order determines
+endianness (`U3-4` = big-endian, `U4-3` = little-endian). Use `H7-*` for
+variable-length fields. Bit fields: `B1.3` (single bit), `B1-2.7-9` (multi-byte
+bit range, LSB-0).
 
 62 named CRC algorithms are built in (from the reveng catalogue): `crc16-modbus`,
 `crc16-xmodem`, `crc16-ccitt-false`, `crc8`, `crc32`, `crc32-iscsi`, and many more.

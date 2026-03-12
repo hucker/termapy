@@ -15,6 +15,7 @@ from textual.widgets import Button, Input, OptionList, TextArea
 from textual.widgets.option_list import Option
 
 from termapy.config import cfg_dir, cfg_path_for_name, migrate_json_to_cfg, open_with_system
+from termapy.defaults import PROTO_TEMPLATE, SCRIPT_TEMPLATE
 
 # Shared CSS for modal dialog buttons
 _MODAL_BTN_CSS = """
@@ -36,10 +37,10 @@ class ConfigEditor(ModalScreen[tuple | None]):
     ConfigEditor Button {{ {_MODAL_BTN_CSS} }}
     #config-dialog {{
         width: 90%; height: 80%;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #config-title {{ height: 1; text-style: bold; }}
-    #config-editor {{ height: 1fr; }}
+    #config-editor {{ height: 1fr; border: thick $primary; }}
     #config-error {{ height: 1; color: $error; display: none; }}
     #config-error.visible {{ display: block; }}
     #save-as-row {{ height: 1; display: none; }}
@@ -181,7 +182,7 @@ class HelpViewer(ModalScreen[None]):
     HelpViewer Button {{ {_MODAL_BTN_CSS} }}
     #help-dialog {{
         width: 80%; height: 80%;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #help-content {{ height: 1fr; overflow-y: auto; }}
     #help-buttons {{ height: 1; align: right middle; }}
@@ -216,10 +217,10 @@ class MarkdownViewer(ModalScreen[None]):
     MarkdownViewer Button {{ {_MODAL_BTN_CSS} }}
     #mdv-dialog {{
         width: 90%; height: 90%;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #mdv-title {{ height: 1; text-style: bold; }}
-    #mdv-content {{ height: 1fr; }}
+    #mdv-content {{ height: 1fr; border: thick $primary; }}
     #mdv-buttons {{ height: 1; align: right middle; }}
     """
 
@@ -276,10 +277,10 @@ class LogViewer(ModalScreen[None]):
     LogViewer Button {{ {_MODAL_BTN_CSS} }}
     #log-dialog {{
         width: 95%; height: 95%;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #log-title {{ height: 1; text-align: center; text-style: bold; }}
-    #log-viewer {{ height: 1fr; }}
+    #log-viewer {{ height: 1fr; border: thick $primary; }}
     #log-buttons {{ height: 1; align: right middle; }}
     """
 
@@ -326,7 +327,7 @@ class NamePicker(ModalScreen[str | None]):
     NamePicker Button {{ {_MODAL_BTN_CSS} }}
     #name-dialog {{
         width: 40; height: auto;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #name-label {{ height: 1; text-style: bold; }}
     #name-buttons {{ height: 1; margin-top: 1; }}
@@ -368,10 +369,10 @@ class ConfigPicker(ModalScreen[tuple | None]):
     ConfigPicker Button {{ {_MODAL_BTN_CSS} }}
     #picker-dialog {{
         width: 50; height: 18;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #picker-title {{ height: 1; text-style: bold; }}
-    #picker-list {{ height: 1fr; }}
+    #picker-list {{ height: 1fr; border: thick $primary; }}
     #picker-buttons {{ height: 1; align: right middle; }}
     """
 
@@ -460,10 +461,10 @@ class ScriptPicker(ModalScreen[tuple | None]):
     ScriptPicker Button {{ {_MODAL_BTN_CSS} }}
     #script-dialog {{
         width: 50; height: 18;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #script-title {{ height: 1; text-style: bold; }}
-    #script-list {{ height: 1fr; }}
+    #script-list {{ height: 1fr; border: thick $primary; }}
     #script-buttons {{ height: 1; align: right middle; }}
     """
 
@@ -549,10 +550,10 @@ class ProtoPicker(ModalScreen[tuple | None]):
     ProtoPicker Button {{ {_MODAL_BTN_CSS} }}
     #proto-dialog {{
         width: 50; height: 18;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #proto-title {{ height: 1; text-style: bold; }}
-    #proto-list {{ height: 1fr; }}
+    #proto-list {{ height: 1fr; border: thick $primary; }}
     #proto-buttons {{ height: 1; align: right middle; }}
     """
 
@@ -640,41 +641,6 @@ class ProtoPicker(ModalScreen[tuple | None]):
         self.dismiss(None)
 
 
-_PROTO_TEMPLATE = """\
-# Protocol Test Script
-# Rename this file to something meaningful, e.g. read_registers.pro
-#
-# Directives (optional):
-#   timeout = "1000ms"     # default expect timeout
-#   frame_gap = "50ms"     # silence gap to detect end of frame
-#   strip_ansi = true      # strip ANSI escapes from responses
-#
-# Each [[test]] section is one send/expect step:
-#
-# [[test]]
-# label = "Read holding registers"
-# send = "01 03 00 00 00 0A C5 CD"
-# expect = "01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **"
-#
-# [[test]]
-# label = "AT query"
-# send = '"AT+VERSION?\\r"'
-# expect = '"V1." ** ** "\\r"'
-#
-# Use ** for wildcard bytes (match anything).
-# Use "quoted strings" for text with optional \\r \\n \\t escapes.
-# Per-step overrides: timeout, delay, flush, cmd
-
-[settings]
-timeout = "1000ms"
-frame_gap = "50ms"
-
-[[test]]
-label = "Example step"
-send = "01 02 03"
-expect = "01 02 03"
-"""
-
 
 class ProtoEditor(ModalScreen[str | None]):
     """Modal editor for .pro protocol script files with TOML highlighting."""
@@ -686,10 +652,10 @@ class ProtoEditor(ModalScreen[str | None]):
     ProtoEditor Button {{ {_MODAL_BTN_CSS} }}
     #ped-dialog {{
         width: 90%; height: 90%;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #ped-title {{ height: 1; text-style: bold; }}
-    #ped-editor {{ height: 1fr; }}
+    #ped-editor {{ height: 1fr; border: thick $primary; }}
     #ped-name-row {{ height: 1; }}
     #ped-name {{ width: 1fr; height: 1; border: none; }}
     #ped-error {{ height: 1; color: $error; display: none; }}
@@ -718,7 +684,7 @@ class ProtoEditor(ModalScreen[str | None]):
             title = f"Edit: {Path(self.edit_path).name}"
         else:
             name = ""
-            content = _PROTO_TEMPLATE
+            content = PROTO_TEMPLATE
             title = "New Protocol Script"
 
         with Vertical(id="ped-dialog"):
@@ -774,16 +740,6 @@ class ProtoEditor(ModalScreen[str | None]):
         self.dismiss(None)
 
 
-_SCRIPT_TEMPLATE = """\
-# Script: {name}
-# Lines starting with # are comments
-# Lines starting with / are REPL commands
-# All other lines are sent to the serial device
-#
-# Example:
-# /sleep 500ms
-# AT+INFO
-"""
 
 
 class ScriptEditor(ModalScreen[str | None]):
@@ -796,10 +752,10 @@ class ScriptEditor(ModalScreen[str | None]):
     ScriptEditor Button {{ {_MODAL_BTN_CSS} }}
     #sed-dialog {{
         width: 90%; height: 90%;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #sed-title {{ height: 1; text-style: bold; }}
-    #sed-editor {{ height: 1fr; }}
+    #sed-editor {{ height: 1fr; border: thick $primary; }}
     #sed-name-row {{ height: 1; }}
     #sed-name {{ width: 1fr; height: 1; border: none; }}
     #sed-error {{ height: 1; color: $error; display: none; }}
@@ -828,7 +784,7 @@ class ScriptEditor(ModalScreen[str | None]):
             title = f"Edit: {Path(self.edit_path).name}"
         else:
             name = ""
-            content = _SCRIPT_TEMPLATE.format(name="untitled")
+            content = SCRIPT_TEMPLATE.format(name="untitled")
             title = "New Script"
 
         with Vertical(id="sed-dialog"):
@@ -889,7 +845,7 @@ class CfgConfirm(ModalScreen[bool]):
     CfgConfirm Button {{ {_MODAL_BTN_CSS} }}
     #cfg-confirm-dialog {{
         width: 50; height: 7;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #cfg-confirm-msg {{ height: 1; }}
     #cfg-confirm-buttons {{ height: 1; align: right middle; }}
@@ -940,7 +896,7 @@ class ConfirmDialog(ModalScreen[bool]):
     ConfirmDialog Button {{ {_MODAL_BTN_CSS} }}
     #confirm-dialog {{
         width: 50; height: 7;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #confirm-msg {{ height: 1; }}
     #confirm-buttons {{ height: 1; align: right middle; }}
@@ -984,10 +940,10 @@ class PortPicker(ModalScreen[str | None]):
     PortPicker Button {{ {_MODAL_BTN_CSS} }}
     #port-dialog {{
         width: 60; height: 18;
-        border: thick $primary; background: $surface; padding: 1 2;
+        border: solid $primary; background: $surface; padding: 1 2;
     }}
     #port-title {{ height: 1; text-style: bold; }}
-    #port-list {{ height: 1fr; }}
+    #port-list {{ height: 1fr; border: thick $primary; }}
     #port-buttons {{ height: 1; align: right middle; }}
     """
 

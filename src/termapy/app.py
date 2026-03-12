@@ -54,6 +54,8 @@ from termapy.dialogs import (
     ScriptPicker,
 )
 from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_from_dir
+from termapy.proto_debug import ProtoDebugScreen
+from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
@@ -760,9 +762,6 @@ class SerialTerminal(App):
             path: Path to the .pro script file.
             script: Parsed ProtoScript instance.
         """
-        from termapy.proto_debug import ProtoDebugScreen
-        from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
-
         # Discover visualizers: built-in → per-config (later overrides)
         visualizers = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
         if self.config_path:

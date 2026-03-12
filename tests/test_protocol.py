@@ -1187,16 +1187,16 @@ class TestParseFormatSpec:
         cols = parse_format_spec("Val:H4-1")
         assert cols[0].byte_indices == [3, 2, 1, 0]
 
-    def test_decimal(self):
-        """Decimal type: D3-4."""
-        cols = parse_format_spec("Count:D3-4")
-        assert cols[0].type_code == "D"
+    def test_unsigned_decimal(self):
+        """Unsigned decimal type: U3-4."""
+        cols = parse_format_spec("Count:U3-4")
+        assert cols[0].type_code == "U"
         assert cols[0].byte_indices == [2, 3]
 
     def test_signed_decimal(self):
-        """Signed decimal: +D1-4."""
-        cols = parse_format_spec("Temp:+D1-4")
-        assert cols[0].type_code == "+D"
+        """Signed decimal: I1-4."""
+        cols = parse_format_spec("Temp:I1-4")
+        assert cols[0].type_code == "I"
         assert cols[0].byte_indices == [0, 1, 2, 3]
 
     def test_string_type(self):
@@ -1217,6 +1217,25 @@ class TestParseFormatSpec:
         assert cols[0].type_code == "B"
         assert cols[0].byte_indices == [0]
         assert cols[0].bit == 3
+
+    def test_bit_field_multi_byte(self):
+        """Multi-byte bit field: B1-2.7-9."""
+        cols = parse_format_spec("Mode:B1-2.7-9")
+        assert cols[0].type_code == "B"
+        assert cols[0].byte_indices == [0, 1]
+        assert cols[0].bit == (7, 9)  # bit range tuple
+
+    def test_bit_field_multi_byte_descending(self):
+        """Multi-byte bit field descending bytes: B2-1.4-6."""
+        cols = parse_format_spec("Flags:B2-1.4-6")
+        assert cols[0].byte_indices == [1, 0]  # descending = LE
+        assert cols[0].bit == (4, 6)
+
+    def test_padding_type(self):
+        """Padding type: _3-4."""
+        cols = parse_format_spec("A:H1 _:_2-3 B:H4")
+        assert cols[1].type_code == "_"
+        assert cols[1].byte_indices == [1, 2]
 
     def test_wildcard(self):
         """Wildcard: H7-*."""
@@ -1264,7 +1283,7 @@ class TestParseFormatSpec:
 
     def test_multi_column(self):
         """Full Modbus spec parses multiple columns."""
-        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
         cols = parse_format_spec(spec)
         assert len(cols) == 5
         actual_names = [c.name for c in cols]
@@ -1304,21 +1323,21 @@ class TestApplyFormat:
         assert headers == ["Slave"]
         assert values == ["01"]
 
-    def test_decimal_two_bytes(self):
-        """Two-byte decimal big-endian."""
-        cols = parse_format_spec("Addr:D1-2")
+    def test_unsigned_two_bytes(self):
+        """Two-byte unsigned decimal big-endian."""
+        cols = parse_format_spec("Addr:U1-2")
         headers, values = apply_format(b"\x00\x0A", cols)
         assert values == ["10"]  # 0x000A = 10
 
     def test_signed_negative(self):
         """Signed decimal shows sign."""
-        cols = parse_format_spec("Temp:+D1-2")
+        cols = parse_format_spec("Temp:I1-2")
         headers, values = apply_format(b"\xFF\xFE", cols)
         assert values == ["-2"]
 
     def test_signed_positive(self):
         """Signed decimal shows + for positive."""
-        cols = parse_format_spec("Temp:+D1")
+        cols = parse_format_spec("Temp:I1")
         headers, values = apply_format(b"\x7F", cols)
         assert values == ["+127"]
 
@@ -1342,18 +1361,66 @@ class TestApplyFormat:
         _, values = apply_format(b"\x81", cols)
         assert values == ["1", "1"]  # bit 0 = 1, bit 7 = 1
 
+    def test_bit_field_multi_byte_value(self):
+        """Multi-byte bit field extracts value from bit range."""
+        # Arrange — bytes 1-2 = 0x0180 (big-endian), bits 7-9
+        # 0x0180 = 0000_0001_1000_0000, bits 7-9 = 011 = 3
+        cols = parse_format_spec("Mode:B1-2.7-9")
+        data = b"\x01\x80"
+
+        # Act
+        _, values = apply_format(data, cols)
+
+        # Assert
+        actual = int(values[0])
+        expected = 3
+        assert actual == expected  # bits 7-9 of 0x0180 = 3
+
+    def test_bit_field_multi_byte_all_ones(self):
+        """Multi-byte bit field with all bits set in range."""
+        # Arrange — 0xFFFF, bits 4-7 = 1111 = 15
+        cols = parse_format_spec("Nibble:B1-2.4-7")
+        data = b"\xFF\xFF"
+
+        # Act
+        _, values = apply_format(data, cols)
+
+        # Assert
+        actual = int(values[0])
+        expected = 15
+        assert actual == expected  # bits 4-7 all set = 15
+
+    def test_padding_skipped_in_output(self):
+        """Padding columns are not included in headers or values."""
+        # Arrange
+        cols = parse_format_spec("A:H1 Pad:_2-3 B:H4")
+        data = b"\x01\x02\x03\x04"
+
+        # Act
+        headers, values = apply_format(data, cols)
+
+        # Assert
+        assert headers == ["A", "B"]  # padding skipped
+        assert values == ["01", "04"]  # only non-padding values
+
     def test_wildcard_expands(self):
-        """Wildcard H1-* expands to cover all bytes."""
-        cols = parse_format_spec("Data:H1-*")
+        """Wildcard h1-* expands to cover all bytes (spaced per-byte hex)."""
+        cols = parse_format_spec("Data:h1-*")
         _, values = apply_format(b"\x01\x02\x03", cols)
         assert values == ["01 02 03"]
+
+    def test_hex_combined_multi_byte(self):
+        """H with multi-byte range produces combined hex (no spaces)."""
+        cols = parse_format_spec("Val:H1-3")
+        _, values = apply_format(b"\x01\x02\x03", cols)
+        assert values == ["010203"]
 
     def test_modbus_read_request(self):
         """Full Modbus read request decodes correctly."""
         # Slave=1, Func=3, Addr=0, Count=10
         payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
         frame = _modbus_frame(payload)
-        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         headers, values = apply_format(frame, cols)
@@ -1370,11 +1437,11 @@ class TestApplyFormat:
         # 6 data bytes + 2 CRC bytes = 8 total
         payload = b"\x01\x02ABCD"
         frame = _modbus_frame(payload)
-        spec = "Data:H1-* CRC:crc16m_le"
+        spec = "Data:h1-* CRC:crc16m_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         headers, values = apply_format(frame, cols)
-        # Data should be first 6 bytes, not including CRC
+        # Data should be first 6 bytes, not including CRC (h = spaced)
         assert "01 02 41 42 43 44" == values[0]
 
 
@@ -1388,7 +1455,7 @@ class TestDiffColumns:
         """All bytes match → all column statuses are 'match'."""
         data = b"\x01\x03\x00\x0A"
         mask = b"\xff\xff\xff\xff"
-        cols = parse_format_spec("Slave:H1 Func:H2 Addr:D3-4")
+        cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4")
         headers, exp_vals, act_vals, statuses = diff_columns(
             data, data, mask, cols)
         assert all(s == "match" for s in statuses)
@@ -1398,27 +1465,27 @@ class TestDiffColumns:
         expected = b"\x01\x03\x00\x0A"
         actual = b"\x01\x04\x00\x0A"
         mask = b"\xff\xff\xff\xff"
-        cols = parse_format_spec("Slave:H1 Func:H2 Addr:D3-4")
+        cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4")
         _, _, _, statuses = diff_columns(actual, expected, mask, cols)
         assert statuses[0] == "match"      # Slave matches
         assert statuses[1] == "mismatch"   # Func differs
         assert statuses[2] == "match"      # Addr matches
 
     def test_wildcard_column(self):
-        """Wildcard mask bytes → column status is 'match' (wildcards skip)."""
+        """Wildcard mask bytes → column status is 'wildcard' (dimmed)."""
         expected = b"\x01\x00\x03"
         actual = b"\x01\xFF\x03"
         mask = b"\xff\x00\xff"
         cols = parse_format_spec("A:H1 B:H2 C:H3")
         _, _, _, statuses = diff_columns(actual, expected, mask, cols)
-        assert statuses[1] == "match"  # wildcard byte, always match
+        assert statuses[1] == "wildcard"  # wildcard byte, dimmed display
 
     def test_crc_verify_pass(self):
         """CRC column shows 'match' when CRC is valid."""
         payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
         frame = _modbus_frame(payload)
         mask = b"\xff" * len(frame)
-        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         _, _, _, statuses = diff_columns(frame, frame, mask, cols)
@@ -1433,11 +1500,25 @@ class TestDiffColumns:
         corrupted[-1] ^= 0xFF
         corrupted = bytes(corrupted)
         mask = b"\xff" * len(frame)
-        spec = "Slave:H1 Func:H2 Addr:D3-4 Count:D5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         _, _, _, statuses = diff_columns(corrupted, frame, mask, cols)
         assert statuses[-1] == "mismatch"  # CRC invalid
+
+    def test_padding_skipped_in_diff(self):
+        """Padding columns are excluded from diff output."""
+        # Arrange
+        data = b"\x01\x02\x03\x04"
+        mask = b"\xff\xff\xff\xff"
+        cols = parse_format_spec("A:H1 Pad:_2-3 B:H4")
+
+        # Act
+        headers, _, _, statuses = diff_columns(data, data, mask, cols)
+
+        # Assert
+        assert headers == ["A", "B"]  # padding not in output
+        assert len(statuses) == 2  # only 2 columns
 
 
 # ── Hex View Column API ──────────────────────────────────────────────────
@@ -1473,13 +1554,15 @@ class TestHexViewColumns:
         assert statuses == ["match"]
 
     def test_diff_mismatch(self):
-        """Mismatched bytes → mismatch status."""
+        """Mismatched bytes → mixed status (per-byte coloring)."""
         from termapy.builtins.viz.hex_view import diff_columns
 
         reset_crc_registry()
-        _, _, _, statuses = diff_columns(
+        _, _, act_values, statuses = diff_columns(
             b"\x01\xFF", b"\x01\x02", b"\xff\xff")
-        assert statuses == ["mismatch"]
+        assert statuses == ["mixed"]  # per-byte markup
+        assert "01" in act_values[0]  # matching byte present
+        assert "FF" in act_values[0]  # mismatched byte present
 
 
 # ── Text View Column API ─────────────────────────────────────────────────

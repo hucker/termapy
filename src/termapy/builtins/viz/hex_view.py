@@ -1,7 +1,7 @@
 """Built-in visualizer: raw hexadecimal byte values.
 
-Single-column layout using ``H1-*`` — all bytes displayed as
-spaced hex in one column.
+Single-column layout using ``h1-*`` — all bytes displayed as
+spaced hex in one column with per-byte diff coloring.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ NAME = "Hex"
 DESCRIPTION = "Raw hexadecimal byte values"
 SORT_ORDER = 10
 
-_SPEC = "Hex:H1-*"
+_SPEC = "Hex:h1-*"
 
 
 def format_spec(data: bytes) -> str:

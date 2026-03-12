@@ -506,7 +506,8 @@ class ProtoDebugScreen(ModalScreen[None]):
                 _, _, act_values, act_statuses = proto_diff_columns(
                     actual_data, tc.expect_data, tc.expect_mask, cols)
             self._render_unified_table(
-                lines, title or "Custom RX", [c.name for c in cols],
+                lines, title or "Custom RX",
+                [c.name for c in cols if c.type_code != "_"],
                 [],
                 exp_values, act_values, act_statuses,
                 has_actual=(actual_data is not None),
@@ -712,8 +713,16 @@ class ProtoDebugScreen(ModalScreen[None]):
                 row.append(Text(" │ ", style="dim"))
                 val = act_values[i] if i < len(act_values) else ""
                 status = act_statuses[i] if i < len(act_statuses) else "match"
-                style = DIFF_STYLES.get(status, "")
-                row.append(val.ljust(col_widths[i]), style=style)
+                if status == "mixed":
+                    # Per-byte markup — parse and pad to column width
+                    styled = Text.from_markup(val)
+                    pad = col_widths[i] - styled.cell_len
+                    if pad > 0:
+                        styled.append(" " * pad)
+                    row.append_text(styled)
+                else:
+                    style = DIFF_STYLES.get(status, "")
+                    row.append(val.ljust(col_widths[i]), style=style)
             row.append(Text(" │", style="dim"))
             lines.append(row)
         elif is_timeout:

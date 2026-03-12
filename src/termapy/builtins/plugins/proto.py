@@ -276,22 +276,75 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
     ending appended), then waits up to 1 second for a response frame.
     Displays both TX and RX as hex with byte count and round-trip time.
 
+    If the first word matches a known CRC algorithm, computes and
+    appends the CRC to the data before sending. Flags ``--le``/``--be``
+    control byte order (default LE), ``--ascii`` appends CRC as hex text.
+
     Args:
         ctx: Plugin context for serial I/O and output.
         args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
     """
     if not args.strip():
-        ctx.write("Usage: /proto.send <hex bytes or \"text\">", "red")
+        ctx.write("Usage: /proto.send [algo] [--le|--be] [--ascii] "
+                  "<hex bytes or \"text\">", "red")
         return
     if not ctx.is_connected():
         ctx.write("Not connected.", "red")
         return
 
+    # Check if the first word is a CRC algorithm name
+    first, _, rest = args.strip().partition(" ")
+    registry = get_crc_registry()
+    algo = registry.get(first.lower())
+
     try:
-        data = parse_data(args)
+        if algo is None:
+            data = parse_data(args)
+        else:
+            if not rest.strip():
+                ctx.write(f"No data after CRC algorithm '{first}'", "red")
+                return
+            big_endian = False
+            ascii_crc = False
+            remaining = rest.strip()
+            while remaining.startswith("--"):
+                if remaining.startswith("--le"):
+                    big_endian = False
+                    remaining = remaining[4:].lstrip()
+                elif remaining.startswith("--be"):
+                    big_endian = True
+                    remaining = remaining[4:].lstrip()
+                elif remaining.startswith("--ascii"):
+                    ascii_crc = True
+                    remaining = remaining[7:].lstrip()
+                else:
+                    break
+            if not remaining.strip():
+                ctx.write(f"No data after CRC flags", "red")
+                return
+            data = parse_data(remaining)
+            crc_value = algo.compute(data)
+            if ascii_crc:
+                hex_str = f"{crc_value:0{algo.width * 2}X}"
+                if not big_endian:
+                    pairs = [hex_str[i:i+2]
+                             for i in range(0, len(hex_str), 2)]
+                    hex_str = "".join(reversed(pairs))
+                data += hex_str.encode()
+            else:
+                crc_bytes = crc_value.to_bytes(algo.width, "big")
+                if not big_endian:
+                    crc_bytes = crc_bytes[::-1]
+                data += crc_bytes
     except ValueError as e:
         ctx.write(f"Parse error: {e}", "red")
         return
+
+    if algo is not None:
+        endian_label = "BE" if big_endian else "LE"
+        mode_label = "ascii" if ascii_crc else "bin"
+        ctx.write(f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X}"
+                  f" ({endian_label}, {mode_label})")
 
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
@@ -645,7 +698,12 @@ Send examples:
   /proto.send "AT\\r"           — send text with carriage return
   /proto.send 0x01 "hello" 0D  — mix hex and text
 
-CRC examples:
+Send with CRC (first word = algorithm name):
+  /proto.send crc16-modbus 01 03 00 00 00 0A       — append LE CRC
+  /proto.send crc16-modbus --be 01 03 00 00 00 0A  — append BE CRC
+  /proto.send crc16-modbus --ascii "READ 0000"      — append CRC as text
+
+CRC tools:
   /proto.crc.list              — list all 62 algorithms
   /proto.crc.list *modbus*     — filter by glob pattern
   /proto.crc.help crc16-modbus — show parameters for Modbus CRC
@@ -656,8 +714,8 @@ or flat format with send:/expect: directives. Scripts are found
 in the proto/ subfolder of your config directory.""",
     sub_commands={
         "send": Command(
-            args='<hex|"text">',
-            help="Send raw bytes, show response.",
+            args='{algo} {--le|--be} {--ascii} <hex|"text">',
+            help="Send raw bytes (with optional CRC), show response.",
             handler=_cmd_send,
         ),
         "run": Command(

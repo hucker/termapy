@@ -799,6 +799,7 @@ DIFF_STYLES: dict[str, str] = {
     "mismatch": "bold red",
     "extra": "bold red",
     "missing": "bold red",
+    "mixed": "",  # per-byte markup embedded in value string
 }
 
 
@@ -1130,11 +1131,12 @@ class ColumnSpec:
 
     Attributes:
         name: Column header label.
-        type_code: Type code (``"H"``, ``"D"``, ``"+D"``, ``"S"``, ``"F"``,
-            ``"B"``, or a CRC algorithm name like ``"crc16m"``).
+        type_code: Type code (``"H"``, ``"U"``, ``"I"``, ``"S"``, ``"F"``,
+            ``"B"``, ``"_"``, or a CRC algorithm name like ``"crc16m"``).
         byte_indices: 0-based byte indices in the specified order.
             For ascending ranges the first index is MSB (big-endian).
-        bit: Bit index for ``B`` type (0-7), or None.
+        bit: Bit index or range for ``B`` type, or None.
+            Single bit: ``int``. Multi-byte range: ``(start, end)`` tuple.
         wildcard: True if the spec ends with ``-*`` (variable length).
         crc_algo: CRC algorithm name (without ``_le``/``_be`` suffix), or None.
         crc_little_endian: True if CRC uses ``_le`` suffix.
@@ -1145,7 +1147,7 @@ class ColumnSpec:
     name: str
     type_code: str
     byte_indices: list[int] = field(default_factory=list)
-    bit: int | None = None
+    bit: int | tuple[int, int] | None = None
     wildcard: bool = False
     crc_algo: str | None = None
     crc_little_endian: bool = True
@@ -1286,7 +1288,7 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
 
     Args:
         spec: Format spec string, e.g.
-            ``"Slave:H1 Func:H2 Addr:D3-4 CRC:crc16m_le"``.
+            ``"Slave:H1 Func:H2 Addr:U3-4 CRC:crc16m_le"``.
 
     Returns:
         List of ColumnSpec, one per column.
@@ -1297,14 +1299,34 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
         name = token[:colon]
         type_body = token[colon + 1:]
 
-        # Bit field: B1.3
-        if type_body.startswith("B") and "." in type_body:
-            parts = type_body[1:].split(".")
-            byte_idx = int(parts[0]) - 1
-            bit_idx = int(parts[1])
+        # Bit field: B/b prefix with dot separator
+        #   B1.3 — single bit, display as integer
+        #   B1-2.7-9 — multi-byte bit range, display as integer
+        #   b1-2.0-7 — same but display as binary string (0-7 = MSB first)
+        #   b1-2.7-0 — binary string (7-0 = LSB first)
+        if type_body[0] in "Bb" and "." in type_body:
+            type_code = type_body[0]
+            byte_part, bit_part = type_body[1:].split(".", 1)
+            byte_indices, _ = _parse_byte_refs(byte_part)
+            if "-" in bit_part:
+                bit_parts = bit_part.split("-", 1)
+                bit = (int(bit_parts[0]), int(bit_parts[1]))
+            else:
+                bit = int(bit_part)
             columns.append(ColumnSpec(
-                name=name, type_code="B",
-                byte_indices=[byte_idx], bit=bit_idx,
+                name=name, type_code=type_code,
+                byte_indices=byte_indices, bit=bit,
+            ))
+            continue
+
+        # Standard types: H, h, U, I, S, F, _ (padding)
+        if type_body[0] in "HhUISF_":
+            type_code = type_body[0]
+            refs_str = type_body[1:]
+            byte_indices, wildcard = _parse_byte_refs(refs_str)
+            columns.append(ColumnSpec(
+                name=name, type_code=type_code,
+                byte_indices=byte_indices, wildcard=wildcard,
             ))
             continue
 
@@ -1317,21 +1339,10 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
             columns.append(col)
             continue
 
-        # Standard types: H, D, +D, S, F
-        if type_body.startswith("+D"):
-            type_code = "+D"
-            refs_str = type_body[2:]
-        elif type_body[0] in "HDSF":
-            type_code = type_body[0]
-            refs_str = type_body[1:]
-        else:
-            # Unknown — treat as hex
-            type_code = "H"
-            refs_str = type_body
-
-        byte_indices, wildcard = _parse_byte_refs(refs_str)
+        # Unknown — treat as hex
+        byte_indices, wildcard = _parse_byte_refs(type_body)
         columns.append(ColumnSpec(
-            name=name, type_code=type_code,
+            name=name, type_code="H",
             byte_indices=byte_indices, wildcard=wildcard,
         ))
 
@@ -1413,12 +1424,36 @@ def _format_column_value(
     """
     indices = col.byte_indices
 
-    # Bit field
-    if col.type_code == "B" and col.bit is not None:
+    # Bit field — B (integer) or b (binary string)
+    if col.type_code in ("B", "b") and col.bit is not None:
         if not indices or indices[0] >= len(data):
             return "?"
+        if isinstance(col.bit, tuple):
+            # Multi-byte bit range: assemble value from byte indices,
+            # extract bit range. Byte order follows index order.
+            raw_bits = bytearray()
+            for idx in indices:
+                raw_bits.append(data[idx] if idx < len(data) else 0)
+            combined = int.from_bytes(raw_bits, "big")
+            start_bit, end_bit = col.bit
+            if start_bit <= end_bit:
+                low = start_bit
+                width = end_bit - start_bit + 1
+            else:
+                low = end_bit
+                width = start_bit - end_bit + 1
+            value = (combined >> low) & ((1 << width) - 1)
+            if col.type_code == "b":
+                bits = format(value, f"0{width}b")
+                # Ascending range (0-7) = MSB first (conventional),
+                # descending range (7-0) = reversed
+                if start_bit > end_bit:
+                    bits = bits[::-1]
+                return bits
+            return str(value)
         byte_val = data[indices[0]]
-        return str((byte_val >> col.bit) & 1)
+        bit_val = (byte_val >> col.bit) & 1
+        return str(bit_val)
 
     # Gather bytes in specified order
     raw = bytearray()
@@ -1442,17 +1477,20 @@ def _format_column_value(
             return f"{val:0{width * 2}X}"
         return raw.hex().upper()
 
-    # Hex
+    # Hex: H = combined (0A2B), h = spaced per-byte (0A 2B)
     if col.type_code == "H":
+        return "".join(f"{b:02X}" for b in raw) if len(raw) > 1 else (
+            f"{raw[0]:02X}" if raw else "")
+    if col.type_code == "h":
         return " ".join(f"{b:02X}" for b in raw)
 
-    # Decimal unsigned
-    if col.type_code == "D":
+    # Unsigned decimal
+    if col.type_code == "U":
         val = int.from_bytes(raw, "big")
         return str(val)
 
-    # Decimal signed
-    if col.type_code == "+D":
+    # Signed decimal (always show +/- sign)
+    if col.type_code == "I":
         val = int.from_bytes(raw, "big", signed=True)
         return f"{val:+d}"
 
@@ -1491,6 +1529,8 @@ def apply_format(
     headers: list[str] = []
     values: list[str] = []
     for col in resolved:
+        if col.type_code == "_":
+            continue  # padding — accounted for but not displayed
         headers.append(col.name)
         values.append(_format_column_value(data, col))
     return headers, values
@@ -1532,6 +1572,8 @@ def diff_columns(
     registry = get_crc_registry()
 
     for col in resolved:
+        if col.type_code == "_":
+            continue  # padding — accounted for but not displayed
         headers.append(col.name)
         exp_values.append(_format_column_value(expected, col))
         act_values.append(_format_column_value(actual, col))
@@ -1566,21 +1608,48 @@ def diff_columns(
                     statuses.append("match" if computed == packet_crc else "mismatch")
                 else:
                     statuses.append("mismatch")
-        else:
-            # Regular column: compare each byte
-            col_status = "match"
+        elif col.type_code == "h" and len(col.byte_indices) > 1:
+            # Per-byte hex: build Rich markup with per-byte coloring
+            parts: list[str] = []
+            has_mismatch = False
             for idx in col.byte_indices:
                 if idx >= len(actual):
-                    col_status = "missing"
-                    break
-                if idx >= len(expected):
-                    col_status = "extra"
-                    break
-                if idx < len(mask) and mask[idx] == 0x00:
-                    continue  # wildcard byte, skip
-                if idx < len(expected) and actual[idx] != expected[idx]:
-                    col_status = "mismatch"
-                    break
+                    parts.append(f"[{DIFF_STYLES['missing']}]--[/]")
+                    has_mismatch = True
+                elif idx >= len(expected):
+                    parts.append(
+                        f"[{DIFF_STYLES['extra']}]{actual[idx]:02X}[/]")
+                    has_mismatch = True
+                elif idx < len(mask) and mask[idx] == 0x00:
+                    parts.append(
+                        f"[{DIFF_STYLES['wildcard']}]{actual[idx]:02X}[/]")
+                elif actual[idx] != expected[idx]:
+                    parts.append(
+                        f"[{DIFF_STYLES['mismatch']}]{actual[idx]:02X}[/]")
+                    has_mismatch = True
+                else:
+                    parts.append(
+                        f"[{DIFF_STYLES['match']}]{actual[idx]:02X}[/]")
+            act_values[-1] = " ".join(parts)
+            statuses.append("mixed" if has_mismatch else "match")
+        else:
+            # Compare decoded values so that multi-byte columns
+            # (H, U, bit fields sharing bytes) only show mismatch
+            # when their formatted output actually differs.
+            max_idx = max(col.byte_indices) if col.byte_indices else -1
+            if max_idx >= len(actual):
+                col_status = "missing"
+            elif max_idx >= len(expected):
+                col_status = "extra"
+            elif all(
+                idx >= len(mask) or mask[idx] == 0x00
+                for idx in col.byte_indices
+            ):
+                col_status = "wildcard"
+            elif exp_values[-1] != act_values[-1]:
+                col_status = "mismatch"
+            else:
+                col_status = "match"
             statuses.append(col_status)
 
     return headers, exp_values, act_values, statuses

@@ -83,7 +83,7 @@ PROTO_TEMPLATE = """\
 # Use ** for wildcard bytes (match anything).
 # Use "quoted strings" for text with optional \\r \\n \\t escapes.
 # Per-step overrides: timeout, delay, flush, cmd
-
+#
 [settings]
 timeout = "1000ms"
 frame_gap = "50ms"
@@ -92,4 +92,7 @@ frame_gap = "50ms"
 label = "Example step"
 send = "01 02 03"
 expect = "01 02 03"
+# Inline format specs (optional, decode bytes into named columns):
+# send_fmt = "Addr:H1 Cmd:H2 Data:H3"
+# recv_fmt = "Addr:H1 Cmd:H2 Data:H3"
 """

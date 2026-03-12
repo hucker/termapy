@@ -592,6 +592,8 @@ class TestCase:
         binary: True if send value is hex (not quoted text).
         timeout_ms: Per-test timeout override.
         viz: Visualizer name that must be displayed for this test.
+        send_fmt: Inline format spec for TX data (e.g. ``"Slave:H1 Func:H2"``).
+        recv_fmt: Inline format spec for RX data.
     """
 
     index: int
@@ -606,6 +608,8 @@ class TestCase:
     binary: bool = False
     timeout_ms: int = 1000
     viz: str = ""
+    send_fmt: str = ""
+    recv_fmt: str = ""
 
 
 @dataclass
@@ -622,6 +626,8 @@ class ProtoScript:
         teardown: List of command strings to run after tests.
         tests: Ordered list of test cases.
         viz: Allowed visualizer names (empty = all available).
+        send_fmt: Default inline format spec for TX data.
+        recv_fmt: Default inline format spec for RX data.
     """
 
     name: str = ""
@@ -633,6 +639,8 @@ class ProtoScript:
     teardown: list[str] = field(default_factory=list)
     tests: list[TestCase] = field(default_factory=list)
     viz: list[str] = field(default_factory=list)
+    send_fmt: str = ""
+    recv_fmt: str = ""
 
 
 def parse_toml_script(text: str) -> ProtoScript:
@@ -673,6 +681,8 @@ def parse_toml_script(text: str) -> ProtoScript:
         setup=doc.get("setup", []),
         teardown=doc.get("teardown", []),
         viz=doc.get("viz", []),
+        send_fmt=doc.get("send_fmt", ""),
+        recv_fmt=doc.get("recv_fmt", ""),
     )
 
     # Parse test cases
@@ -711,6 +721,8 @@ def parse_toml_script(text: str) -> ProtoScript:
             binary=is_binary,
             timeout_ms=timeout,
             viz=entry.get("viz", ""),
+            send_fmt=entry.get("send_fmt", script.send_fmt),
+            recv_fmt=entry.get("recv_fmt", script.recv_fmt),
         ))
 
     return script
@@ -1244,6 +1256,26 @@ def _parse_crc_spec(type_body: str) -> ColumnSpec:
         crc_little_endian=little_endian,
         crc_data_range=data_range,
     )
+
+
+def extract_fmt_title(spec: str) -> tuple[str, str]:
+    """Extract a ``Title:Name`` prefix from a format spec string.
+
+    If the first token is ``Title:SomeName``, returns the title (with
+    underscores replaced by spaces) and the remaining spec. Otherwise
+    returns an empty title and the original spec.
+
+    Args:
+        spec: Format spec string, possibly starting with ``Title:Name``.
+
+    Returns:
+        Tuple of (title, remaining_spec).
+    """
+    tokens = spec.split()
+    if tokens and tokens[0].startswith("Title:"):
+        title = tokens[0][6:].replace("_", " ")
+        return title, " ".join(tokens[1:])
+    return "", spec
 
 
 def parse_format_spec(spec: str) -> list[ColumnSpec]:

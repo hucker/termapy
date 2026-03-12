@@ -27,6 +27,7 @@ from termapy.protocol import (
     overflow_count,
     format_hex_dump,
     parse_data,
+    extract_fmt_title,
     parse_format_spec,
     parse_hex,
     parse_pattern,
@@ -696,6 +697,89 @@ expect = '"FB8d\\r\\n"'
         assert script.tests[0].expect_raw == '"FB8d\\r\\n"'
 
 
+# ── inline format spec fields ───────────────────────────────────────────
+
+
+class TestInlineFmtFields:
+    def test_script_level_fmt(self):
+        """Script-level send_fmt/recv_fmt are parsed and inherited by tests."""
+        # Arrange
+        toml = '''\
+send_fmt = "Slave:H1 Func:H2"
+recv_fmt = "Slave:H1 Data:H2-*"
+
+[[test]]
+name = "T1"
+send = "01 03"
+expect = "01 AA BB"
+'''
+        # Act
+        script = parse_toml_script(toml)
+
+        # Assert
+        assert script.send_fmt == "Slave:H1 Func:H2"  # script-level parsed
+        assert script.recv_fmt == "Slave:H1 Data:H2-*"  # script-level parsed
+        assert script.tests[0].send_fmt == "Slave:H1 Func:H2"  # inherited
+        assert script.tests[0].recv_fmt == "Slave:H1 Data:H2-*"  # inherited
+
+    def test_per_test_override(self):
+        """Per-test send_fmt/recv_fmt override script-level defaults."""
+        # Arrange
+        toml = '''\
+send_fmt = "Default:H1-*"
+recv_fmt = "Default:H1-*"
+
+[[test]]
+name = "T1"
+send = "01 03"
+expect = "01 AA"
+send_fmt = "Custom:H1 Func:H2"
+recv_fmt = "Custom:H1 Data:H2"
+'''
+        # Act
+        script = parse_toml_script(toml)
+
+        # Assert
+        assert script.tests[0].send_fmt == "Custom:H1 Func:H2"  # overridden
+        assert script.tests[0].recv_fmt == "Custom:H1 Data:H2"  # overridden
+
+    def test_default_empty(self):
+        """Missing send_fmt/recv_fmt default to empty string."""
+        # Arrange
+        toml = '''\
+[[test]]
+name = "T1"
+send = "01"
+expect = "02"
+'''
+        # Act
+        script = parse_toml_script(toml)
+
+        # Assert
+        assert script.send_fmt == ""  # no script-level fmt
+        assert script.recv_fmt == ""  # no script-level fmt
+        assert script.tests[0].send_fmt == ""  # no per-test fmt
+        assert script.tests[0].recv_fmt == ""  # no per-test fmt
+
+    def test_send_fmt_only(self):
+        """Only send_fmt set, recv_fmt defaults to empty."""
+        # Arrange
+        toml = '''\
+send_fmt = "Addr:H1 Cmd:H2"
+
+[[test]]
+name = "T1"
+send = "01 03"
+expect = "01 AA"
+'''
+        # Act
+        script = parse_toml_script(toml)
+
+        # Assert
+        assert script.tests[0].send_fmt == "Addr:H1 Cmd:H2"  # inherited
+        assert script.tests[0].recv_fmt == ""  # not set
+
+
 # ── viz field parsing ────────────────────────────────────────────────────
 
 
@@ -1039,6 +1123,44 @@ class TestCrcCatalogue:
         for name in _CANONICAL_NAMES:
             desc = CRC_CATALOGUE[name]["desc"]
             assert len(desc) <= 80  # desc too long: {name}
+
+
+# ── extract_fmt_title ────────────────────────────────────────────────────
+
+
+class TestExtractFmtTitle:
+    def test_title_extracted(self):
+        # Act
+        actual_title, actual_spec = extract_fmt_title(
+            "Title:Modbus_RTU Slave:H1 Func:H2")
+
+        # Assert
+        assert actual_title == "Modbus RTU"  # underscores replaced with spaces
+        assert actual_spec == "Slave:H1 Func:H2"  # title stripped from spec
+
+    def test_no_title(self):
+        # Act
+        actual_title, actual_spec = extract_fmt_title("Slave:H1 Func:H2")
+
+        # Assert
+        assert actual_title == ""  # no title found
+        assert actual_spec == "Slave:H1 Func:H2"  # spec unchanged
+
+    def test_title_only(self):
+        # Act
+        actual_title, actual_spec = extract_fmt_title("Title:My_Custom_View")
+
+        # Assert
+        assert actual_title == "My Custom View"  # title extracted
+        assert actual_spec == ""  # no remaining spec
+
+    def test_single_word_title(self):
+        # Act
+        actual_title, actual_spec = extract_fmt_title("Title:Modbus Slave:H1")
+
+        # Assert
+        assert actual_title == "Modbus"  # no underscores to replace
+        assert actual_spec == "Slave:H1"  # remaining spec
 
 
 # ── Format Spec Parsing ──────────────────────────────────────────────────

@@ -187,6 +187,9 @@ class SerialTerminal(App):
         border: none;
         height: 1;
     }
+    #cmd.repl-mode {
+        color: red;
+    }
     #bottom-bar Button {
         min-width: 0;
         width: auto;
@@ -1495,6 +1498,15 @@ class SerialTerminal(App):
                 clean = ANSI_RE.sub("", text)
                 self.log_fh.write(f"[{ts}] {clean}\n")
             self.log_fh.flush()
+
+    @on(Input.Changed, "#cmd")
+    def _on_cmd_changed(self, event: Input.Changed) -> None:
+        """Color input red when typing a REPL command."""
+        prefix = self.cfg.get("repl_prefix", "/")
+        if event.value.startswith(prefix):
+            event.input.add_class("repl-mode")
+        else:
+            event.input.remove_class("repl-mode")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Send command to serial port when Enter is pressed."""

@@ -323,6 +323,8 @@ class ProtoDebugScreen(ModalScreen[None]):
                         "Stop on Error", value=False, id="chk-stop-err")
                     yield Checkbox(
                         "Show viz string", value=False, id="chk-show-viz")
+                    yield Checkbox(
+                        "Compact", value=False, id="chk-compact")
                 with Vertical(id="input-col"):
                     with Horizontal(classes="input-row"):
                         yield Static("Repeat:", classes="input-label")
@@ -478,11 +480,15 @@ class ProtoDebugScreen(ModalScreen[None]):
                         f"  [{viz.name}] RX: {rx_spec}", style="cyan"))
             lines.append("")
 
-        # Render column tables for each active visualizer
+        # Render tables: TX then RX for each visualizer
+        compact = self._get_compact()
         for viz in active_vizs:
-            self._build_column_table(
-                lines, tc, viz, actual_data, elapsed_ms, passed)
-            lines.append("")
+            self._build_tx_table(lines, tc, viz)
+            if not compact:
+                lines.append("")
+            self._build_rx_table(lines, tc, viz, actual_data)
+            if not compact:
+                lines.append("")
 
         # Result line (once, after all tables)
         if tc.index in self._results:
@@ -529,70 +535,53 @@ class ProtoDebugScreen(ModalScreen[None]):
         """Clear the detail log panel."""
         self.query_one("#proto-debug-detail", RichLog).clear()
 
-    def _build_column_table(
+    def _build_tx_table(
+        self, lines: list[Text | str], tc: TestCase,
+        viz: VisualizerInfo,
+    ) -> None:
+        """Build the TX portion of a visualizer table.
+
+        Args:
+            lines: List to append table lines to.
+            tc: Test case.
+            viz: Visualizer to use for formatting.
+        """
+        tx_headers, tx_values = viz.format_columns(tc.send_data)
+        self._render_unified_table(
+            lines, f"{viz.name} TX", tx_headers,
+            [("TX", tx_values, "bold cyan", [])],
+            [], [], [],
+            has_actual=False, is_timeout=False,
+        )
+
+    def _build_rx_table(
         self, lines: list[Text | str], tc: TestCase,
         viz: VisualizerInfo, actual_data: bytes | None,
-        elapsed_ms: float, passed: bool | None,
     ) -> None:
-        """Build a multi-column bordered table for one visualizer.
-
-        Renders TX as one table, and Expected+Actual as a second table
-        when the column layouts differ. Per-column diff coloring on
-        the Actual row.
+        """Build the RX (Expected+Actual) portion of a visualizer table.
 
         Args:
             lines: List to append table lines to.
             tc: Test case.
             viz: Visualizer to use for formatting.
             actual_data: Actual received bytes, or None.
-            elapsed_ms: Round-trip time.
-            passed: True/False/None.
         """
-        # Get column data for TX
-        tx_headers, tx_values = viz.format_columns(tc.send_data)
-
-        # Get column data for Expected
         exp_headers, exp_values = viz.format_columns(tc.expect_data)
 
-        # Get diff data for Actual (if available)
-        act_headers: list[str] = []
-        act_exp_values: list[str] = []
         act_values: list[str] = []
         act_statuses: list[str] = []
         if actual_data is not None:
-            act_headers, act_exp_values, act_values, act_statuses = (
+            _, _, act_values, act_statuses = (
                 viz.diff_columns(actual_data, tc.expect_data, tc.expect_mask)
             )
 
-        # Check if TX and RX have same column layout
-        same_layout = tx_headers == exp_headers
-
-        if same_layout:
-            # Single table with all rows
-            self._render_unified_table(
-                lines, viz.name, tx_headers,
-                [("TX", tx_values, "bold cyan", [])],
-                exp_values, act_values, act_statuses,
-                has_actual=(actual_data is not None),
-                is_timeout=(tc.index in self._results and actual_data is None),
-            )
-        else:
-            # Separate TX table
-            self._render_unified_table(
-                lines, f"{viz.name} TX", tx_headers,
-                [("TX", tx_values, "bold cyan", [])],
-                [], [], [],
-                has_actual=False, is_timeout=False,
-            )
-            lines.append("")
-            # Separate RX table
-            self._render_unified_table(
-                lines, f"{viz.name} RX", exp_headers,
-                [],
-                exp_values, act_values, act_statuses,
-                has_actual=(actual_data is not None),
-                is_timeout=(tc.index in self._results and actual_data is None),
-            )
+        self._render_unified_table(
+            lines, f"{viz.name} RX", exp_headers,
+            [],
+            exp_values, act_values, act_statuses,
+            has_actual=(actual_data is not None),
+            is_timeout=(tc.index in self._results and actual_data is None),
+        )
 
     def _render_unified_table(
         self, lines: list[Text | str], title: str,
@@ -737,6 +726,10 @@ class ProtoDebugScreen(ModalScreen[None]):
     def _get_show_viz(self) -> bool:
         """Get the Show Viz checkbox state."""
         return self.query_one("#chk-show-viz", Checkbox).value
+
+    def _get_compact(self) -> bool:
+        """Get the Compact checkbox state."""
+        return self.query_one("#chk-compact", Checkbox).value
 
     def _highlight_test(self, tc: TestCase) -> None:
         """Move the SelectionList cursor to a specific test case.

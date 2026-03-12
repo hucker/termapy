@@ -431,22 +431,21 @@ class TestTransformChains:
         assert actual == expected  # transforms applied in registration order
 
     def test_transforms_independent(self, engine):
-        # Arrange
+        # Arrange — one transform with both repl and serial functions
         eng, _ = engine
         eng.register_transform(TransformInfo(
-            name="repl_only", help="test", repl=lambda s: "REPL:" + s,
-        ))
-        eng.register_transform(TransformInfo(
-            name="serial_only", help="test", serial=lambda s: "SER:" + s,
+            name="dual", help="test",
+            repl=lambda s: "REPL:" + s,
+            serial=lambda s: "SER:" + s,
         ))
 
         # Act
         actual_repl = eng.transform_repl("test")
         actual_serial = eng.transform_serial("test")
 
-        # Assert
-        assert actual_repl == "REPL:test"  # only REPL transform applied
-        assert actual_serial == "SER:test"  # only serial transform applied
+        # Assert — each path applies only its own function
+        assert actual_repl == "REPL:test"  # repl transform applied, not serial
+        assert actual_serial == "SER:test"  # serial transform applied, not repl
 
     def test_identity_when_no_transforms(self, engine):
         # Arrange

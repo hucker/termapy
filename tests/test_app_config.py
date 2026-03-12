@@ -5,9 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from termapy.dialogs import _SCRIPT_TEMPLATE
+from termapy.defaults import DEFAULT_CFG, SCRIPT_TEMPLATE
 from termapy.config import (
-    DEFAULT_CFG,
     cfg_data_dir,
     cfg_history_path,
     cfg_log_path,
@@ -178,23 +177,23 @@ class TestLoadConfig:
         assert actual["custom_buttons"][0]["enabled"] is True  # custom value kept
 
 
-# -- _SCRIPT_TEMPLATE -------------------------------------------------------
+# -- SCRIPT_TEMPLATE -------------------------------------------------------
 
 
 class TestScriptTemplate:
     def test_has_placeholder(self):
-        actual = _SCRIPT_TEMPLATE.format(name="test_script")
+        actual = SCRIPT_TEMPLATE.format(name="test_script")
         assert "test_script" in actual  # name placeholder expanded
 
     def test_has_comments(self):
-        actual = _SCRIPT_TEMPLATE.format(name="x")
+        actual = SCRIPT_TEMPLATE.format(name="x")
         lines = actual.strip().splitlines()
         assert all(
             line.startswith("#") for line in lines if line.strip()
         )  # all lines are comments
 
     def test_has_example_commands(self):
-        actual = _SCRIPT_TEMPLATE.format(name="x")
+        actual = SCRIPT_TEMPLATE.format(name="x")
         assert "/sleep" in actual  # contains REPL example
 
 

@@ -20,7 +20,6 @@ from threading import Event
 import serial
 from termapy.config import (
     CFG_DIR,
-    DEFAULT_CFG,
     CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
@@ -39,6 +38,7 @@ from termapy.config import (
 from rich.text import Text
 from textual import on, work
 
+from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -52,7 +52,6 @@ from termapy.dialogs import (
     ProtoPicker,
     ScriptEditor,
     ScriptPicker,
-    _SCRIPT_TEMPLATE,
 )
 from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_from_dir
 from termapy.repl import ReplEngine
@@ -1932,10 +1931,10 @@ class SerialTerminal(App):
         action = result[0]
         if action == "run":
             filename = Path(result[1]).name
-            self.repl.dispatch(f"proto run {filename}")
+            self.repl.dispatch(f"proto.run {filename}")
         elif action == "debug":
             filename = Path(result[1]).name
-            self.repl.dispatch(f"proto debug {filename}")
+            self.repl.dispatch(f"proto.debug {filename}")
         elif action == "new":
             self.push_screen(
                 ProtoEditor(self.repl.proto_dir),

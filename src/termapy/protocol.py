@@ -1506,28 +1506,34 @@ def diff_columns(
 
         # Determine per-column status
         if col.type_code == "crc" and col.crc_algo:
-            # CRC verification: compute and compare
-            algo = registry.get(col.crc_algo)
-            if algo:
-                # Determine data range
-                if col.crc_data_range:
-                    start, end = col.crc_data_range
-                    crc_data = actual[start:end + 1]
-                else:
-                    # Auto-range: all bytes before CRC
-                    crc_end = len(actual) - algo.width
-                    crc_data = actual[:crc_end]
+            # CRC column: first compare actual vs expected bytes (diff),
+            # then fall back to computed CRC validation.
+            act_crc_bytes = bytearray()
+            exp_crc_bytes = bytearray()
+            for idx in col.byte_indices:
+                if idx < len(actual):
+                    act_crc_bytes.append(actual[idx])
+                if idx < len(expected):
+                    exp_crc_bytes.append(expected[idx])
 
-                computed = algo.compute(crc_data)
-                # Extract actual CRC from packet (in byte order)
-                crc_bytes = bytearray()
-                for idx in col.byte_indices:
-                    if idx < len(actual):
-                        crc_bytes.append(actual[idx])
-                packet_crc = int.from_bytes(crc_bytes, "big")
-                statuses.append("match" if computed == packet_crc else "mismatch")
-            else:
+            if act_crc_bytes == exp_crc_bytes and exp_crc_bytes:
+                # Actual matches expected — green regardless of CRC validity
                 statuses.append("match")
+            else:
+                # Bytes differ — check computed CRC for validation
+                algo = registry.get(col.crc_algo)
+                if algo:
+                    if col.crc_data_range:
+                        start, end = col.crc_data_range
+                        crc_data = actual[start:end + 1]
+                    else:
+                        crc_end = len(actual) - algo.width
+                        crc_data = actual[:crc_end]
+                    computed = algo.compute(crc_data)
+                    packet_crc = int.from_bytes(act_crc_bytes, "big")
+                    statuses.append("match" if computed == packet_crc else "mismatch")
+                else:
+                    statuses.append("mismatch")
         else:
             # Regular column: compare each byte
             col_status = "match"

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import serial
 
+from termapy.defaults import DEFAULT_CFG
 from termapy.migration import CURRENT_CONFIG_VERSION, migrate_config
 
 CFG_DIR = "termapy_cfg"
@@ -77,49 +78,6 @@ def global_plugins_dir() -> Path:
     d.mkdir(exist_ok=True)
     return d
 
-
-DEFAULT_CFG = {
-    "config_version": CURRENT_CONFIG_VERSION,
-    # App
-    "title": "",
-    "app_border_color": "",
-    "max_lines": 10000,
-    "repl_prefix": "/",
-    "read_only": False,
-    "os_cmd_enabled": False,
-    # Serial
-    "port": "COM4",
-    "baud_rate": 115200,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
-    "encoding": "utf-8",
-    "inter_cmd_delay_ms": 0,
-    # Connection
-    "auto_connect": False,
-    "auto_reconnect": False,
-    "auto_connect_cmd": "",
-    "line_ending": "\r",
-    # Input echo
-    "echo_cmd": False,
-    "echo_cmd_fmt": "[purple]> {cmd}[/]",
-    # Logging
-    "log_file": "",
-    # Diagnostics
-    "exception_traceback": False,
-    # Display
-    "show_timestamps": False,
-    "show_eol": False,
-    "max_grep_lines": 100,
-    # Custom buttons
-    "custom_buttons": [
-        {"enabled": True, "name": "Info", "command": "/info", "tooltip": "Project info"},
-        {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
-        {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
-        {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
-    ],
-}
 
 _ENV_RE = re.compile(r"\$\(env\.(\w+)(?:\|([^)]*))?\)")
 

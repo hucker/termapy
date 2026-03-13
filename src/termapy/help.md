@@ -82,7 +82,7 @@ The bottom bar also has buttons. Some appear based on context:
 | **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line        |
 | **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line        |
 | **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal    |
-| **Log**     | Always                       | View the current session log        |
+| **Log**     | Always                       | Open the session log in your editor |
 | **SS**      | Always                       | Open the screenshot folder          |
 | **Scripts** | Always                       | Pick, run, create, or edit a script |
 | **Custom**  | `custom_buttons` enabled     | User-defined command buttons        |
@@ -109,7 +109,7 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 - Select Port
 - Connect / Disconnect
 - Edit, Load, or Create a Config
-- View Log File
+- Open Log File
 - Delete Log File
 - Clear Screen
 - Save Screenshots
@@ -127,6 +127,19 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/port.list`              | List available serial ports                                                 |
 | `/port.open {name}`       | Connect (optional port override)                                            |
 | `/port.close`             | Disconnect from the serial port                                             |
+| `/port.info`              | Show port status, serial parameters, and hardware lines                     |
+| `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |
+| `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
+| `/port.parity {value}`    | Show or set parity (hardware only)                                          |
+| `/port.stop_bits {value}` | Show or set stop bits (hardware only)                                       |
+| `/port.flow_control {m}`  | Show or set flow control: none, rtscts, xonxoff, manual                     |
+| `/port.dtr {0\|1}`        | Show or set DTR line                                                        |
+| `/port.rts {0\|1}`        | Show or set RTS line                                                        |
+| `/port.cts`               | Show CTS state (read-only)                                                  |
+| `/port.dsr`               | Show DSR state (read-only)                                                  |
+| `/port.ri`                | Show RI state (read-only)                                                   |
+| `/port.cd`                | Show CD state (read-only)                                                   |
+| `/port.break {ms}`        | Send break signal (default 250ms)                                           |
 | `/cfg [key [value]]`      | View or change config values                                                |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
@@ -316,7 +329,7 @@ Send raw hex bytes and see the response:
 Create `.pro` files in the per-config `proto/` folder with send/expect sequences:
 
 ```text
-# modbus_test.pro
+# example.pro
 @timeout 1000ms
 @frame_gap 50ms
 
@@ -335,7 +348,7 @@ send: "AT+VERSION?\r"
 expect: "V1." ** ** "\r"
 ```
 
-Run with `/proto.run modbus_test.pro`. Each step reports PASS/FAIL.
+Run with `/proto.run example.pro`. Each step reports PASS/FAIL.
 
 **Script directives:**
 
@@ -437,9 +450,8 @@ This creates a `termapy_cfg/demo/` config that auto-connects to a simulated seri
 The demo config includes example scripts and protocol tests:
 
 - **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`
-- **Proto:** `at_test.pro` (AT command tests), `modbus_test.pro` (Modbus RTU tests)
+- **Proto:** `at_test.pro` (AT command tests), `bitfield_inline.pro`, `modbus_inline.pro` (Modbus RTU tests)
 - **Plugin:** `probe.py` — demo plugin showing serial I/O (drain → write → read → parse). Try `/probe` to run a device survey, or `/help.dev probe` to see the annotated source as a plugin-writing guide.
-- **Visualizer:** `at_view.py` — demo packet visualizer that decodes AT responses (`+KEY:VALUE`) into labeled fields. Visible in the proto debug screen alongside Hex and Text views.
 
 The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.
 

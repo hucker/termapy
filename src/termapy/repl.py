@@ -297,6 +297,7 @@ class ReplEngine:
                 if kind == "repl":
                     name, _, args = content.partition(" ")
                     if name.lower() == "delay":
+                        self.ctx.log(">", f"{prefix}{content}")
                         expanded, self._seq_counters = expand_template(
                             args.strip(), self._seq_counters, self._seq_start_time
                         )
@@ -308,6 +309,7 @@ class ReplEngine:
                         time.sleep(seconds)
                         w(f"Delay {expanded} done.")
                     else:
+                        self.ctx.log(">", f"{prefix}{content}")
                         self.dispatch(content)
                         time.sleep(0.1)
                 elif kind == "serial":

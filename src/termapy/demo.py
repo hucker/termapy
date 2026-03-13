@@ -3,6 +3,9 @@
 Provides ``FakeSerial``, a duck-typed replacement for ``serial.Serial``
 that responds to ASCII text commands and binary Modbus RTU frames.
 No Textual or pyserial dependencies — safe to import anywhere.
+
+Note: The DEMO port simulates most serial port properties but is not a
+perfect substitute.  Use real hardware for testing real projects.
 """
 
 from __future__ import annotations
@@ -18,7 +21,9 @@ class FakeSerial:
     """Simulated serial port that responds to AT commands and Modbus RTU.
 
     Duck-types ``serial.Serial`` so the app can use it transparently
-    when port is set to ``"DEMO"``.
+    when port is set to ``"DEMO"``.  Serial properties (baud rate, parity,
+    etc.) are accepted but cosmetic — they do not affect timing or framing.
+    Use real hardware for testing real projects.
 
     Args:
         baudrate: Baud rate (cosmetic, does not affect timing).
@@ -29,8 +34,13 @@ class FakeSerial:
         self._port: str = port
         self._baudrate: int = baudrate
         self._is_open: bool = True
+        self._bytesize: int = 8
+        self._parity: str = "N"
+        self._stopbits: float = 1
         self._dtr: bool = True
         self._rts: bool = True
+        self._rtscts: bool = False
+        self._xonxoff: bool = False
 
         self._timeout: float | None = None
 
@@ -74,6 +84,33 @@ class FakeSerial:
         self._baudrate = value
 
     @property
+    def bytesize(self) -> int:
+        """Data bits."""
+        return self._bytesize
+
+    @bytesize.setter
+    def bytesize(self, value: int) -> None:
+        self._bytesize = value
+
+    @property
+    def parity(self) -> str:
+        """Parity."""
+        return self._parity
+
+    @parity.setter
+    def parity(self, value: str) -> None:
+        self._parity = value
+
+    @property
+    def stopbits(self) -> float:
+        """Stop bits."""
+        return self._stopbits
+
+    @stopbits.setter
+    def stopbits(self, value: float) -> None:
+        self._stopbits = value
+
+    @property
     def dtr(self) -> bool:
         """Data Terminal Ready."""
         return self._dtr
@@ -92,6 +129,24 @@ class FakeSerial:
         self._rts = value
 
     @property
+    def rtscts(self) -> bool:
+        """RTS/CTS hardware flow control."""
+        return self._rtscts
+
+    @rtscts.setter
+    def rtscts(self, value: bool) -> None:
+        self._rtscts = value
+
+    @property
+    def xonxoff(self) -> bool:
+        """XON/XOFF software flow control."""
+        return self._xonxoff
+
+    @xonxoff.setter
+    def xonxoff(self, value: bool) -> None:
+        self._xonxoff = value
+
+    @property
     def timeout(self) -> float | None:
         """Read timeout in seconds (mirrors ``serial.Serial.timeout``)."""
         return self._timeout
@@ -99,6 +154,26 @@ class FakeSerial:
     @timeout.setter
     def timeout(self, value: float | None) -> None:
         self._timeout = value
+
+    @property
+    def cts(self) -> bool:
+        """Clear To Send (simulated, always True)."""
+        return True
+
+    @property
+    def dsr(self) -> bool:
+        """Data Set Ready (simulated, always True)."""
+        return True
+
+    @property
+    def ri(self) -> bool:
+        """Ring Indicator (simulated, always False)."""
+        return False
+
+    @property
+    def cd(self) -> bool:
+        """Carrier Detect (simulated, always True)."""
+        return True
 
     @property
     def in_waiting(self) -> int:

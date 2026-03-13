@@ -1,5 +1,5 @@
 # Quick status check
 AT+STATUS
-!delay 300ms
+/delay 300ms
 AT+TEMP
-!delay 300ms
+/delay 300ms

@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-538%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-558%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -101,6 +101,7 @@ The most common ones:
 | `/help [cmd]`        | List commands or show help for one |
 | `/port.list`         | List available serial ports        |
 | `/port.open {name}`  | Connect to a port                  |
+| `/port.info`         | Show port status and parameters    |
 | `/cfg [key [value]]` | Show or change in-memory config    |
 | `/ss.svg [name]`     | Save SVG screenshot                |
 | `/cls`               | Clear the terminal                 |
@@ -120,6 +121,19 @@ The most common ones:
 | `/port.list`              | List available serial ports                                                      |
 | `/port.open {name}`       | Connect to the serial port (optional port override)                              |
 | `/port.close`             | Disconnect from the serial port                                                  |
+| `/port.info`              | Show port status, serial parameters, and hardware lines                          |
+| `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                            |
+| `/port.byte_size {value}` | Show or set data bits (hardware only)                                            |
+| `/port.parity {value}`    | Show or set parity (hardware only)                                               |
+| `/port.stop_bits {value}` | Show or set stop bits (hardware only)                                            |
+| `/port.flow_control {m}`  | Show or set flow control: none, rtscts, xonxoff, manual                          |
+| `/port.dtr {0\|1}`        | Show or set DTR line                                                             |
+| `/port.rts {0\|1}`        | Show or set RTS line                                                             |
+| `/port.cts`               | Show CTS state (read-only)                                                       |
+| `/port.dsr`               | Show DSR state (read-only)                                                       |
+| `/port.ri`                | Show RI state (read-only)                                                        |
+| `/port.cd`                | Show CD state (read-only)                                                        |
+| `/port.break {ms}`        | Send break signal (default 250ms)                                                |
 | `/cfg [key [value]]`      | Show config, show a key, or change in-memory value (with confirmation)           |
 | `/cfg.auto <key> <value>` | Set an in-memory config key immediately (no confirmation)                        |
 | `/ss.svg [name]`          | Save SVG screenshot                                                              |
@@ -177,11 +191,10 @@ termapy_cfg/
     │   └── status_check.run
     ├── plugins/                        # per-config plugins
     │   └── probe.py
-    ├── proto/                          # protocol test scripts
-    │   ├── at_test.pro
-    │   └── modbus_test.pro
-    └── viz/                            # per-config packet visualizers
-        └── at_view.py
+    └── proto/                          # protocol test scripts
+        ├── at_test.pro
+        ├── bitfield_inline.pro
+        └── modbus_inline.pro
 ```
 
 Your own configs follow the same layout — create one with `Cfg` → `New` and termapy builds the folder structure automatically.
@@ -479,9 +492,8 @@ Modbus RTU supports function 0x03 (read holding registers) and 0x06 (write singl
 The demo comes with everything wired up so you can try each feature:
 
 - **Scripts** — `at_demo.run`, `smoke_test.run`, `status_check.run` — run via the Scripts button or `/run`
-- **Proto test files** — `at_test.pro`, `modbus_test.pro` — run via the Proto button for pass/fail results
+- **Proto test files** — `at_test.pro`, `bitfield_inline.pro`, `modbus_inline.pro` — run via the Proto button for pass/fail results
 - **Plugins** — `/probe` sends a command sequence and reports results; `/cmd` adds a custom shortcut
-- **Visualizers** — `AT` and `Modbus` views decode protocol responses into readable columns
 
 </details>
 
@@ -557,7 +569,8 @@ The `ctx` object passed to every handler:
 | `ctx.cfg`                   | Current config dict (read-only access)                             |
 | `ctx.config_path`           | Path to the current `.cfg` config file                             |
 | `ctx.is_connected()`        | Check if the serial port is open                                   |
-| `ctx.serial_write(data)`    | Send bytes to the serial port                                      |
+| `ctx.log(prefix, text)`     | Write to session log: `">"` TX, `"<"` RX, `"#"` status            |
+| `ctx.serial_write(data)`    | Send bytes to the serial port (auto-logged as TX to session log)   |
 | `ctx.serial_wait_idle()`    | Wait until serial output settles                                   |
 | `ctx.serial_read_raw()`     | Read raw bytes with timeout framing (returns `bytes`)              |
 | `ctx.serial_io()`           | Context manager for exclusive serial I/O (`with ctx.serial_io():`) |
@@ -701,11 +714,11 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test Coverage</strong> — 538 tests, 96% coverage of library code</summary>
+<summary><strong>Test Coverage</strong> — 558 tests, 96% coverage of library code</summary>
 
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
 
-538 tests across 9 test files. Run with `uv run pytest`.
+558 tests across 9 test files. Run with `uv run pytest`.
 
 | Module         | Coverage | Test file                            |
 | -------------- | -------- | ------------------------------------ |

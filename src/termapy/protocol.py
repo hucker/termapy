@@ -641,6 +641,7 @@ class ProtoScript:
     viz: list[str] = field(default_factory=list)
     send_fmt: str = ""
     expect_fmt: str = ""
+    json_file: str = ""
 
 
 def parse_toml_script(text: str) -> ProtoScript:
@@ -683,6 +684,7 @@ def parse_toml_script(text: str) -> ProtoScript:
         viz=doc.get("viz", []),
         send_fmt=doc.get("send_fmt", ""),
         expect_fmt=doc.get("expect_fmt", doc.get("recv_fmt", "")),  # recv_fmt compat — remove after v7
+        json_file=doc.get("json_file", ""),
     )
 
     # Parse test cases

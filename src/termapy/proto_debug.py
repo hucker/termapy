@@ -23,6 +23,7 @@ from textual.widgets import (
 )
 
 from termapy.config import cfg_data_dir, open_with_system
+from termapy.proto_runner import _build_test_result, expand_result_template
 from termapy.protocol import (
     DIFF_STYLES,
     ProtoScript,
@@ -125,6 +126,10 @@ class ProtoDebugScreen(ModalScreen[None]):
     .input-row {{
         height: 1; width: auto;
     }}
+    #input-json-file {{
+        width: 40; margin: 0;
+        background: $primary-background;
+    }}
     #proto-debug-detail {{
         height: 1fr;
     }}
@@ -204,6 +209,8 @@ class ProtoDebugScreen(ModalScreen[None]):
                         "Show viz string", value=False, id="chk-show-viz")
                     yield Checkbox(
                         "Compact", value=False, id="chk-compact")
+                    yield Checkbox(
+                        "JSON", value=False, id="chk-json")
                 with Vertical(id="input-col"):
                     with Horizontal(classes="input-row"):
                         yield Static("Repeat:", classes="input-label")
@@ -213,6 +220,14 @@ class ProtoDebugScreen(ModalScreen[None]):
                         yield Static("Delay (ms):", classes="input-label")
                         yield Input(value="10", id="input-delay",
                                     type="integer", compact=True)
+                    with Horizontal(classes="input-row"):
+                        yield Static("JSON file:", classes="input-label")
+                        json_default = (self._script.json_file
+                                        or self._ctx.cfg.get(
+                                            "proto_results_template",
+                                            "{name}_results.json"))
+                        yield Input(value=json_default,
+                                    id="input-json-file", compact=True)
             yield Rule()
             yield RichLog(id="proto-debug-detail", wrap=False)
             yield Static("", id="proto-debug-status")
@@ -659,6 +674,10 @@ class ProtoDebugScreen(ModalScreen[None]):
         """Get the Compact checkbox state."""
         return self.query_one("#chk-compact", Checkbox).value
 
+    def _get_json_enabled(self) -> bool:
+        """Get the JSON checkbox state."""
+        return self.query_one("#chk-json", Checkbox).value
+
     def _highlight_test(self, tc: TestCase) -> None:
         """Move the SelectionList cursor to a specific test case.
 
@@ -931,6 +950,73 @@ class ProtoDebugScreen(ModalScreen[None]):
         self._set_status(status, "bold yellow")
         self._append_test_detail(tc)
 
+    def _get_json_template(self) -> str:
+        """Get the JSON filename template from the input field."""
+        return self.query_one("#input-json-file", Input).value.strip()
+
+    def _write_json_results(self, tests: list[TestCase],
+                            pass_count: int, fail_count: int,
+                            elapsed_ms: float,
+                            template: str) -> None:
+        """Write JSON test results to the proto/test/ directory.
+
+        Uses the same format as the headless proto_runner, reusing
+        ``_build_test_result`` and ``expand_result_template``.
+
+        Args:
+            tests: Test cases that were executed.
+            pass_count: Total passing count.
+            fail_count: Total failing count.
+            elapsed_ms: Total elapsed time in milliseconds.
+            template: Filename template from the UI input field.
+        """
+        import json
+
+        cfg = self._ctx.cfg
+        output_dir = cfg_data_dir(self._ctx.config_path) / "proto" / "test"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        test_results = []
+        for tc in tests:
+            if tc.index in self._results:
+                response, tc_elapsed, passed = self._results[tc.index]
+                test_results.append(
+                    _build_test_result(tc, response, tc_elapsed, passed))
+
+        text = self._path.read_text(encoding="utf-8")
+        config_name = Path(self._ctx.config_path).stem if self._ctx.config_path else ""
+        results = {
+            "meta": {
+                "script": self._path.name,
+                "script_name": self._script.name or self._path.stem,
+                "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+                "config": config_name,
+                "port": cfg.get("port", ""),
+                "baud_rate": cfg.get("baud_rate", 0),
+                "encoding": cfg.get("encoding", "utf-8"),
+            },
+            "summary": {
+                "total": pass_count + fail_count,
+                "passed": pass_count,
+                "failed": fail_count,
+                "elapsed_ms": round(elapsed_ms, 1),
+            },
+            "tests": test_results,
+            "source": text,
+        }
+
+        filename = expand_result_template(template, self._path.stem,
+                                          config_name)
+        out_path = output_dir / filename
+        try:
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(results, f, indent=2)
+            self._log(f"JSON results written to {out_path}")
+            return str(out_path.resolve())
+        except OSError as e:
+            self._log(f"Failed to write JSON results: {e}")
+            return None
+
     @work(thread=True)
     def _run_tests(self, tests: list[TestCase]) -> None:
         """Execute one or more test cases in a background thread.
@@ -955,6 +1041,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             total_pass = 0
             total_fail = 0
             stopped = False
+            t_start = time.monotonic()
             try:
                 for run_num in range(1, repeat + 1):
                     if repeat > 1:
@@ -1004,8 +1091,25 @@ class ProtoDebugScreen(ModalScreen[None]):
             finally:
                 self._ctx.engine.set_proto_active(False)
 
+            total_elapsed_ms = (time.monotonic() - t_start) * 1000
             self._log_summary(tests, total_pass, total_fail, stopped)
             self._show_run_summary(tests, total_pass, total_fail)
+
+            # Write JSON results if checkbox is checked
+            json_enabled = self.app.call_from_thread(self._get_json_enabled)
+            if json_enabled:
+                json_template = self.app.call_from_thread(
+                    self._get_json_template)
+                json_file = self._write_json_results(
+                    tests, total_pass, total_fail,
+                    total_elapsed_ms, json_template)
+                if json_file:
+                    log = self.app.call_from_thread(
+                        self.query_one, "#proto-debug-detail", RichLog)
+                    self.app.call_from_thread(
+                        log.write,
+                        Text(f"  JSON: {json_file}", style="dim"))
+
             # Clear _running *on the UI thread* so that any pending
             # SelectionHighlighted events still see _running=True and
             # don't call _show_test_detail (which clears the log).

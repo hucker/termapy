@@ -35,6 +35,8 @@ DEFAULT_CFG = {
     "log_file": "",
     # Diagnostics
     "show_traceback": False,
+    # Proto test results
+    "proto_results_template": "{name}_results.json",
     # Display
     "show_timestamps": False,
     "show_line_endings": False,
@@ -67,6 +69,7 @@ PROTO_TEMPLATE = """\
 #   timeout = "1000ms"     # default expect timeout
 #   frame_gap = "50ms"     # silence gap to detect end of frame
 #   strip_ansi = true      # strip ANSI escapes from responses
+#   json_file = "{name}-{proto_name}-{datetime}.json"  # JSON result filename
 #
 # Each [[test]] section is one send/expect step:
 #

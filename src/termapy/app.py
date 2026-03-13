@@ -2359,6 +2359,67 @@ def _reset_terminal() -> None:
         pass
 
 
+def _run_proto_headless(args) -> None:
+    """Run a .pro test script headlessly (no TUI) and write JSON results."""
+    from termapy.proto_runner import run_proto_tests
+
+    # Resolve config
+    if args.demo:
+        from termapy.config import setup_demo_config
+        config_path = str(setup_demo_config(cfg_dir()))
+    elif args.config:
+        config_path = args.config
+    else:
+        found, _ = _find_config()
+        if not found:
+            print("termapy: no config found. Use --demo or --cfg-dir.", file=sys.stderr)
+            sys.exit(2)
+        config_path = found
+
+    try:
+        cfg = load_config(config_path)
+    except Exception as e:
+        print(f"termapy: failed to load config: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    # Stash config path for metadata
+    cfg["_config_path"] = config_path
+
+    # Resolve .pro file from config's proto/ dir
+    proto_dir = Path(config_path).parent / "proto"
+    name = args.proto
+    if not name.endswith(".pro"):
+        name += ".pro"
+    pro_path = Path(name)
+    if not pro_path.exists():
+        pro_path = proto_dir / name
+    if not pro_path.exists():
+        print(f"termapy: proto file not found: {name}", file=sys.stderr)
+        if proto_dir.exists():
+            print(f"  (checked {proto_dir})", file=sys.stderr)
+        sys.exit(2)
+
+    # Run tests
+    template = cfg.get("proto_results_template", "{name}_results.json")
+    try:
+        results = run_proto_tests(pro_path, cfg, template=template)
+    except ValueError as e:
+        print(f"termapy: {e}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as e:
+        print(f"termapy: test error: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    # Print summary
+    s = results["summary"]
+    total, passed, failed = s["total"], s["passed"], s["failed"]
+    elapsed = s["elapsed_ms"]
+    status = "PASS" if failed == 0 else "FAIL"
+    print(f"{results['meta']['script_name']}: {passed}/{total} {status} ({elapsed:.0f}ms)")
+
+    sys.exit(0 if failed == 0 else 1)
+
+
 def main():
     import termapy.config as _cfg_mod
 
@@ -2381,10 +2442,20 @@ def main():
         action="store_true",
         help="Start with simulated demo device (no hardware needed)",
     )
+    parser.add_argument(
+        "--proto",
+        default=None,
+        metavar="NAME",
+        help="Run a .pro test script headlessly and write JSON results (no TUI)",
+    )
     args = parser.parse_args()
 
     if args.cfg_dir:
         _cfg_mod.CFG_DIR = args.cfg_dir
+
+    if args.proto is not None:
+        _run_proto_headless(args)
+        return
 
     if args.demo:
         from termapy.config import setup_demo_config

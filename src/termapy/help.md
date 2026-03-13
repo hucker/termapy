@@ -82,7 +82,7 @@ The bottom bar also has buttons. Some appear based on context:
 | **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line        |
 | **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line        |
 | **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal    |
-| **Log**     | Always                       | View the current session log        |
+| **Log**     | Always                       | Open the session log in your editor |
 | **SS**      | Always                       | Open the screenshot folder          |
 | **Scripts** | Always                       | Pick, run, create, or edit a script |
 | **Custom**  | `custom_buttons` enabled     | User-defined command buttons        |
@@ -109,7 +109,7 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 - Select Port
 - Connect / Disconnect
 - Edit, Load, or Create a Config
-- View Log File
+- Open Log File
 - Delete Log File
 - Clear Screen
 - Save Screenshots

@@ -22,7 +22,7 @@ from textual.widgets import (
     Button, Checkbox, Input, RichLog, Rule, SelectionList, Static,
 )
 
-from termapy.config import cfg_data_dir
+from termapy.config import cfg_data_dir, open_with_system
 from termapy.protocol import (
     DIFF_STYLES,
     ProtoScript,
@@ -45,129 +45,6 @@ _BTN_CSS = """
     min-width: 0; width: auto; height: 1; min-height: 1;
     border: none; margin: 0 0 0 1;
 """
-
-
-def _colorize_log(content: str) -> Text:
-    """Parse proto debug log text and return a colorized Rich Text object.
-
-    Color rules:
-        - ``=`` separator lines → dim
-        - ``-`` separator lines → dim
-        - ``[PASS]`` lines → bold green
-        - ``[FAIL]`` lines → bold red
-        - ``TX:`` / ``EXP:`` / ``RX:`` / ``Time:`` lines → styled
-        - ``Summary:`` lines → bold (green if all pass, red otherwise)
-        - ``setup:`` / ``teardown:`` lines → dim italic
-        - ``--- Repeat`` lines → dim
-        - Everything else → default
-
-    Args:
-        content: Raw log file text.
-
-    Returns:
-        Styled Rich Text object.
-    """
-    result = Text()
-    for line in content.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("===") or stripped.startswith("---"):
-            result.append(line, style="dim")
-        elif "[PASS]" in line:
-            result.append(line, style="bold bright_green")
-        elif "[FAIL]" in line:
-            result.append(line, style="bold red")
-        elif stripped.startswith(("TX:", "EXP:", "Time:")):
-            result.append(line, style="dim")
-        elif stripped.startswith("RX:"):
-            if "(timeout)" in line:
-                result.append(line, style="bold red")
-            else:
-                result.append(line, style="yellow")
-        elif stripped.startswith("Summary:"):
-            # Green if no failures, red otherwise
-            has_fail = "stopped on error" in stripped
-            # Parse "X/Y PASS" — fail if X != Y
-            parts = stripped.split("PASS")[0].split()
-            if parts:
-                ratio = parts[-1]  # e.g. "3/5"
-                nums = ratio.split("/")
-                if len(nums) == 2 and nums[0] != nums[1]:
-                    has_fail = True
-            style = "bold red" if has_fail else "bold bright_green"
-            result.append(line, style=style)
-        elif stripped.startswith("setup:") or stripped.startswith("teardown:"):
-            result.append(line, style="dim italic")
-        elif stripped.startswith("["):
-            # Timestamp lines like [2026-03-08 ...]
-            result.append(line, style="bold")
-        else:
-            result.append(line)
-        result.append("\n")
-    return result
-
-
-class ProtoLogViewer(ModalScreen[None]):
-    """Modal viewer for the proto debug log with color-coded output."""
-
-    BINDINGS = [("ctrl+q", "dismiss_modal", "Close")]
-
-    def action_dismiss_modal(self) -> None:
-        """Close the modal on Ctrl+Q."""
-        self.dismiss(None)
-
-    CSS = f"""
-    ProtoLogViewer {{ align: center middle; }}
-    ProtoLogViewer Button {{ {_BTN_CSS} }}
-    #plog-dialog {{
-        width: 95%; height: 95%;
-        border: thick $primary; background: $surface; padding: 1 2;
-    }}
-    #plog-title {{ height: 1; text-align: center; text-style: bold; }}
-    #plog-content {{ height: 1fr; }}
-    #plog-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def __init__(self, log_path: str) -> None:
-        super().__init__()
-        self.log_path = log_path
-
-    def compose(self) -> ComposeResult:
-        """Build the log viewer layout."""
-        with Vertical(id="plog-dialog"):
-            yield Static("Proto Debug Log", id="plog-title")
-            yield RichLog(id="plog-content", wrap=False)
-            with Horizontal(id="plog-buttons"):
-                open_btn = Button("Open in OS", id="plog-open")
-                open_btn.styles.background = "dodgerblue"
-                yield open_btn
-                yield Button("Close", id="plog-close", variant="error")
-
-    def on_mount(self) -> None:
-        """Load and colorize the log content on mount, scrolled to bottom."""
-        log = self.query_one("#plog-content", RichLog)
-        try:
-            content = Path(self.log_path).read_text(encoding="utf-8")
-        except FileNotFoundError:
-            content = ""
-
-        if content:
-            colored = _colorize_log(content)
-            log.write(colored)
-        else:
-            log.write(Text("(no log file yet)", style="dim"))
-
-    @on(Button.Pressed, "#plog-open")
-    def _open_external(self) -> None:
-        """Open the log file with the system default application."""
-        from termapy.config import open_with_system
-
-        if Path(self.log_path).exists():
-            open_with_system(self.log_path)
-
-    @on(Button.Pressed, "#plog-close")
-    def _close(self) -> None:
-        """Close the log viewer."""
-        self.dismiss(None)
 
 
 class ProtoDebugScreen(ModalScreen[None]):
@@ -459,7 +336,6 @@ class ProtoDebugScreen(ModalScreen[None]):
             lines.append(Text(f"  setup: {', '.join(tc.setup)}", style="dim"))
         if tc.teardown:
             lines.append(Text(f"  teardown: {', '.join(tc.teardown)}", style="dim"))
-        lines.append("")
 
         # Get result data if available
         actual_data: bytes | None = None
@@ -644,18 +520,27 @@ class ProtoDebugScreen(ModalScreen[None]):
         if n_cols == 0:
             return
 
-        # Calculate column widths: max of header, all row values
+        # Calculate column widths: max of header, all row values.
+        # For "mixed" status, values contain Rich markup — measure visible
+        # cell length instead of raw string length.
+        def _visible_len(val: str, status: str) -> int:
+            if status == "mixed":
+                return Text.from_markup(val).cell_len
+            return len(val)
+
         col_widths = [len(h) for h in headers]
-        for _, values, _, _ in extra_rows:
+        for _, values, _, row_statuses in extra_rows:
             for i, v in enumerate(values):
                 if i < n_cols:
-                    col_widths[i] = max(col_widths[i], len(v))
+                    st = row_statuses[i] if i < len(row_statuses) else ""
+                    col_widths[i] = max(col_widths[i], _visible_len(v, st))
         for i, v in enumerate(exp_values):
             if i < n_cols:
                 col_widths[i] = max(col_widths[i], len(v))
         for i, v in enumerate(act_values):
             if i < n_cols:
-                col_widths[i] = max(col_widths[i], len(v))
+                st = act_statuses[i] if i < len(act_statuses) else ""
+                col_widths[i] = max(col_widths[i], _visible_len(v, st))
 
         # Build border strings
         def border_line(left: str, mid: str, sep: str, right: str) -> str:
@@ -817,8 +702,8 @@ class ProtoDebugScreen(ModalScreen[None]):
 
     @on(Button.Pressed, "#btn-dbg-log")
     def _on_log(self) -> None:
-        """Open the debug log in the colorized log viewer."""
-        self.app.push_screen(ProtoLogViewer(str(self._log_path)))
+        """Open the debug log with the system default application."""
+        open_with_system(str(self._log_path))
 
     @on(Button.Pressed, "#btn-dbg-close")
     def _on_close(self) -> None:
@@ -1118,10 +1003,13 @@ class ProtoDebugScreen(ModalScreen[None]):
                         break
             finally:
                 self._ctx.engine.set_proto_active(False)
-                self._running = False
 
             self._log_summary(tests, total_pass, total_fail, stopped)
             self._show_run_summary(tests, total_pass, total_fail)
+            # Clear _running *on the UI thread* so that any pending
+            # SelectionHighlighted events still see _running=True and
+            # don't call _show_test_detail (which clears the log).
+            self.app.call_from_thread(setattr, self, "_running", False)
         except RuntimeError:
             # call_from_thread fails during app shutdown — ignore
             pass
@@ -1129,7 +1017,10 @@ class ProtoDebugScreen(ModalScreen[None]):
             self._log(f"Test runner error: {e}")
         finally:
             self._ctx.engine.set_proto_active(False)
-            self._running = False
+            try:
+                self.app.call_from_thread(setattr, self, "_running", False)
+            except RuntimeError:
+                self._running = False
             self._close_log()
 
     @work(thread=True)

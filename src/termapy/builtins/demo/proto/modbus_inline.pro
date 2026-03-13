@@ -1,5 +1,4 @@
-# Modbus RTU protocol test — using inline format specs (no visualizer)
-# Same tests as modbus_test.pro but decoded with send_fmt/expect_fmt
+# Modbus RTU protocol test — using inline format specs
 name = "Demo Modbus Inline Format"
 frame_gap = "20ms"
 quiet = false

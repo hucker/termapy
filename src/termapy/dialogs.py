@@ -267,56 +267,6 @@ class MarkdownViewer(ModalScreen[None]):
         self.dismiss(None)
 
 
-class LogViewer(ModalScreen[None]):
-    """Modal dialog to view the log file."""
-
-    BINDINGS = _CTRL_Q_BINDING
-
-    CSS = f"""
-    LogViewer {{ align: center middle; }}
-    LogViewer Button {{ {_MODAL_BTN_CSS} }}
-    #log-dialog {{
-        width: 95%; height: 95%;
-        border: solid $primary; background: $surface; padding: 1 2;
-    }}
-    #log-title {{ height: 1; text-align: center; text-style: bold; }}
-    #log-viewer {{ height: 1fr; border: thick $primary; }}
-    #log-buttons {{ height: 1; align: right middle; }}
-    """
-
-    def action_dismiss_modal(self) -> None:
-        """Close the modal on Ctrl+Q."""
-        self.dismiss(None)
-
-    def __init__(self, log_path: str) -> None:
-        super().__init__()
-        self.log_path = log_path
-
-    def compose(self) -> ComposeResult:
-        from textual.widgets import Static
-
-        try:
-            content = Path(self.log_path).read_text(encoding="utf-8")
-        except FileNotFoundError:
-            content = "(no log file yet)"
-        with Vertical(id="log-dialog"):
-            yield Static(self.log_path, id="log-title")
-            ta = TextArea(content, read_only=True, id="log-viewer")
-            ta.soft_wrap = False
-            yield ta
-            with Horizontal(id="log-buttons"):
-                yield Button("Edit", id="log-edit")
-                yield Button("Close", id="log-close", variant="primary")
-
-    @on(Button.Pressed, "#log-edit")
-    def edit_log(self) -> None:
-        open_with_system(self.log_path)
-
-    @on(Button.Pressed, "#log-close")
-    def close_log(self) -> None:
-        self.dismiss(None)
-
-
 class NamePicker(ModalScreen[str | None]):
     """Modal dialog to enter a name for a new config."""
 

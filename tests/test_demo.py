@@ -260,7 +260,6 @@ class TestDemoConfigSetup:
         assert (tmp_path / "demo" / "scripts").is_dir()  # scripts dir created
         assert (tmp_path / "demo" / "proto").is_dir()  # proto dir created
         assert (tmp_path / "demo" / "plugins" / "probe.py").exists()  # demo plugin copied
-        assert (tmp_path / "demo" / "viz" / "at_view.py").exists()  # demo visualizer copied
 
     def test_setup_idempotent(self, tmp_path) -> None:
         from termapy.config import setup_demo_config

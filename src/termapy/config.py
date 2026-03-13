@@ -257,7 +257,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     proto_dir = demo_dir / "proto"
     proto_dir.mkdir(exist_ok=True)
     proto_pkg = pkg / "proto"
-    for name in ("at_test.pro", "bitfield_inline.pro", "modbus_inline.pro", "modbus_test.pro"):
+    for name in ("at_test.pro", "bitfield_inline.pro", "modbus_inline.pro"):
         dest = proto_dir / name
         if force or not dest.exists():
             src = proto_pkg / name
@@ -271,16 +271,6 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
         dest = plugins_dir / name
         if force or not dest.exists():
             src = plugins_pkg / name
-            dest.write_bytes(src.read_bytes())
-
-    # Copy demo visualizers
-    viz_dir = demo_dir / "viz"
-    viz_dir.mkdir(exist_ok=True)
-    viz_pkg = pkg / "viz"
-    for name in ("at_view.py", "modbus_view.py"):
-        dest = viz_dir / name
-        if force or not dest.exists():
-            src = viz_pkg / name
             dest.write_bytes(src.read_bytes())
 
     # Create standard subdirs

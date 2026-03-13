@@ -45,7 +45,6 @@ from termapy.dialogs import (
     ConfigPicker,
     ConfirmDialog,
     HelpViewer,
-    LogViewer,
     NamePicker,
     PortPicker,
     ProtoEditor,
@@ -289,6 +288,7 @@ class SerialTerminal(App):
         self._history_idx: int = -1  # -1 = not browsing history
         self._history_saved_input: str = ""  # input text before Up was pressed
         self._suggester = CommandSuggester()
+        self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
         self._show_line_numbers: bool = False
         self._line_counter: int = 0
@@ -321,13 +321,12 @@ class SerialTerminal(App):
             return []
 
     def _save_history(self) -> None:
-        """Persist command history to disk (last _HISTORY_LIMIT entries)."""
+        """Persist command history to disk."""
+        data = "\n".join(self.history[-self._HISTORY_LIMIT :])
         try:
-            Path(self._history_path()).write_text(
-                "\n".join(self.history[-self._HISTORY_LIMIT :]), encoding="utf-8"
-            )
+            Path(self._history_path()).write_text(data, encoding="utf-8")
         except OSError:
-            pass  # non-critical — history will be lost but app continues
+            pass
 
     def _project_files(self) -> list[str]:
         """Return suggestion names for all editable project files.
@@ -395,8 +394,8 @@ class SerialTerminal(App):
             return path if path.exists() else None
         return None
 
-    def _update_suggester(self) -> None:
-        """Rebuild type-ahead suggestions from REPL commands + device history."""
+    def _rebuild_suggester_commands(self) -> None:
+        """Rebuild the cached command list (call on plugin/config/file changes)."""
         prefix = self.cfg.get("cmd_prefix", "/")
         commands: list[str] = []
         for name, plugin in self.repl._plugins.items():
@@ -405,7 +404,13 @@ class SerialTerminal(App):
                 commands.append(f"{prefix}{name} {plugin.args}")
         for f in self._project_files():
             commands.append(f"{prefix}edit {f}")
+        self._cached_commands = commands
         self._suggester.update(commands, self.history, prefix)
+
+    def _update_suggester(self) -> None:
+        """Update suggestions with current history (no filesystem scan)."""
+        prefix = self.cfg.get("cmd_prefix", "/")
+        self._suggester.update(self._cached_commands, self.history, prefix)
 
     def compose(self) -> ComposeResult:
         title = self.cfg.get("title", "") or self.config_path
@@ -460,21 +465,24 @@ class SerialTerminal(App):
                     return b
 
                 show_hw = self.cfg.get("flow_control") == "manual"
-                yield _btn(
+                self._btn_dtr = _btn(
                     "DTR:0",
                     "btn-dtr",
                     "Toggle Data Terminal Ready line.",
                     display=show_hw,
                 )
-                yield _btn(
+                yield self._btn_dtr
+                self._btn_rts = _btn(
                     "RTS:0", "btn-rts", "Toggle Request To Send line.", display=show_hw
                 )
-                yield _btn(
+                yield self._btn_rts
+                self._btn_break = _btn(
                     "Break",
                     "btn-break",
                     "Send serial break signal (250ms).",
                     display=show_hw,
                 )
+                yield self._btn_break
                 custom_buttons = self.cfg.get("custom_buttons", [])
                 has_custom = False
                 for i, cb in enumerate(custom_buttons):
@@ -510,7 +518,7 @@ class SerialTerminal(App):
         if not log_path:
             return
         self.log_fh = open(log_path, "a", encoding="utf-8")
-        self.log_fh.write(f"\n--- Session {datetime.now().isoformat()} ---\n")
+        self._log_line("#", f"{' Session Start ':-^60s}")
         self._status(f"Logging to {log_path}")
 
     def _apply_border_color(self) -> None:
@@ -546,10 +554,11 @@ class SerialTerminal(App):
         ctx = PluginContext(
             write=self._status,
             write_markup=self._write_output_markup,
+            log=self._log_line,
             cfg=self.cfg,
             config_path=self.config_path,
             is_connected=lambda: self.is_connected,
-            serial_write=lambda data: self.ser.write(data),
+            serial_write=self._serial_write,
             serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
             serial_read_raw=self._serial_read_raw,
             serial_drain=self._drain_rx_queue,
@@ -619,6 +628,62 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "port.info",
+            "",
+            "Show port status, serial parameters, and hardware lines.",
+            self._hook_port_info,
+            source="app",
+        )
+        for key, (_, _, desc, _) in self._PORT_PROPS.items():
+            self.repl.register_hook(
+                f"port.{key}",
+                "{value}",
+                f"Show or set {desc.lower()} (hardware only).",
+                lambda ctx, args, k=key: self._hook_port_prop(ctx, args, k),
+                source="app",
+            )
+        self.repl.register_hook(
+            "port.flow_control",
+            "{mode}",
+            "Show or set flow control (none/rtscts/xonxoff/manual).",
+            self._hook_port_flow,
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.dtr",
+            "{0|1}",
+            "Show or set DTR line (hardware only).",
+            lambda ctx, args: self._hook_port_hw_line(ctx, args, "dtr"),
+            source="app",
+        )
+        self.repl.register_hook(
+            "port.rts",
+            "{0|1}",
+            "Show or set RTS line (hardware only).",
+            lambda ctx, args: self._hook_port_hw_line(ctx, args, "rts"),
+            source="app",
+        )
+        for sig, desc in (
+            ("cts", "Clear To Send"),
+            ("dsr", "Data Set Ready"),
+            ("ri", "Ring Indicator"),
+            ("cd", "Carrier Detect"),
+        ):
+            self.repl.register_hook(
+                f"port.{sig}",
+                "",
+                f"Show {desc} state (read-only).",
+                lambda ctx, args, s=sig: self._hook_port_signal(ctx, args, s),
+                source="app",
+            )
+        self.repl.register_hook(
+            "port.break",
+            "{duration_ms}",
+            "Send a break signal (default 250ms).",
+            self._hook_port_break,
+            source="app",
+        )
+        self.repl.register_hook(
             "run",
             "<filename>",
             "Run a script file. Checks scripts/ folder then cwd.",
@@ -664,7 +729,7 @@ class SerialTerminal(App):
                     Path(self.config_path).stem,
                 ),
             )
-        self._update_suggester()
+        self._rebuild_suggester_commands()
         # Open log file (deferred if no config loaded yet)
         self._open_log()
         self._sync_ss_button()
@@ -685,6 +750,7 @@ class SerialTerminal(App):
             self._status(f"{self._port_info_str()} — press Connect to start")
 
     def on_unmount(self) -> None:
+        self._save_history()
         self._disconnect()
         self.reader_stopped.wait(timeout=1.0)
         if self.log_fh:
@@ -890,6 +956,37 @@ class SerialTerminal(App):
             )
         except Exception:
             pass  # widgets gone during shutdown
+        self._log_line("#", text)
+
+    def _log_line(self, prefix: str, text: str) -> None:
+        """Write a prefixed line to the log file.
+
+        Args:
+            prefix: Line prefix (``>`` TX, ``<`` RX, ``#`` status).
+            text: Content to log.
+        """
+        if self.log_fh:
+            try:
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                self.log_fh.write(f"[{ts}] {prefix} {text}\n")
+                self.log_fh.flush()
+            except OSError:
+                pass
+
+    def _serial_write(self, data: bytes) -> None:
+        """Write bytes to serial port and log the TX data.
+
+        All serial output — interactive, scripted, and plugin — flows
+        through this method so every TX is logged exactly once.
+        """
+        enc = self.cfg.get("encoding", "utf-8")
+        try:
+            text = data.decode(enc).rstrip("\r\n")
+        except (UnicodeDecodeError, LookupError):
+            text = data.hex(" ")
+        self._log_line(">", text)
+        if self.ser:
+            self.ser.write(data)
 
     def _confirm(self, message: str) -> bool:
         """Show a Yes/Cancel dialog and block until the user responds.
@@ -963,12 +1060,13 @@ class SerialTerminal(App):
     def _sync_hw_visibility(self) -> None:
         """Show or hide DTR/RTS/Break buttons based on flow_control config."""
         show = self.cfg.get("flow_control") == "manual"
-        self.query_one("#btn-dtr", Button).display = show
-        self.query_one("#btn-rts", Button).display = show
-        self.query_one("#btn-break", Button).display = show
+        self._btn_dtr.display = show
+        self._btn_rts.display = show
+        self._btn_break.display = show
 
     def _switch_config(self, cfg: dict, path: str) -> None:
         """Apply a new config: disconnect, update state, refresh UI, reconnect."""
+        self._save_history()
         migrated_from = cfg.pop("_migrated_from", None)
         was_connected = self.is_connected
         if was_connected:
@@ -980,6 +1078,8 @@ class SerialTerminal(App):
             )
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
+        self.history = self._load_history()
+        self._history_idx = -1
         self.repl.ctx.config_path = path
         self.repl.ctx.ss_dir = self.repl.ss_dir
         self.repl.ctx.scripts_dir = self.repl.scripts_dir
@@ -1055,7 +1155,7 @@ class SerialTerminal(App):
                 Path(config_path).stem,
             ),
         )
-        self._update_suggester()
+        self._rebuild_suggester_commands()
 
     def _start_demo(self, args: str = "") -> None:
         """Set up and switch to the built-in demo device config.
@@ -1158,17 +1258,15 @@ class SerialTerminal(App):
 
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
-        try:
-            dtr_btn = self.query_one("#btn-dtr", Button)
-            rts_btn = self.query_one("#btn-rts", Button)
-            if reset:
-                dtr_btn.label = "DTR:0"
-                rts_btn.label = "RTS:0"
-            elif self.is_connected:
-                dtr_btn.label = f"DTR:{int(self.ser.dtr)}"
-                rts_btn.label = f"RTS:{int(self.ser.rts)}"
-        except Exception as e:
-            self._report_exception(e)
+        if reset:
+            self._btn_dtr.label = "DTR:0"
+            self._btn_rts.label = "RTS:0"
+        elif self.is_connected:
+            try:
+                self._btn_dtr.label = f"DTR:{int(self.ser.dtr)}"
+                self._btn_rts.label = f"RTS:{int(self.ser.rts)}"
+            except (OSError, serial.SerialException) as e:
+                self._report_exception(e)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "title-right":
@@ -1222,7 +1320,7 @@ class SerialTerminal(App):
         elif event.button.id == "btn-help":
             self.push_screen(HelpViewer())
         elif event.button.id == "btn-log":
-            self.push_screen(LogViewer(self._log_path()))
+            open_with_system(self._log_path())
         elif event.button.id == "btn-ss-dir":
             self.action_open_screenshot()
         elif event.button.id == "btn-scripts":
@@ -1325,7 +1423,7 @@ class SerialTerminal(App):
         self._new_config()
 
     def _palette_view_log(self) -> None:
-        self.push_screen(LogViewer(self._log_path()))
+        open_with_system(self._log_path())
 
     def _palette_delete_log(self) -> None:
         """Delete the current session log file after confirmation."""
@@ -1492,12 +1590,8 @@ class SerialTerminal(App):
                 log.write(Text.from_ansi(f"{prefix}{hex_str}"))
             else:
                 log.write(Text.from_ansi(f"{prefix}{text}"))
-        if self.log_fh:
-            for text in lines:
-                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                clean = ANSI_RE.sub("", text)
-                self.log_fh.write(f"[{ts}] {clean}\n")
-            self.log_fh.flush()
+        for text in lines:
+            self._log_line("<", ANSI_RE.sub("", text))
 
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:
@@ -1516,13 +1610,13 @@ class SerialTerminal(App):
         if not cmd:
             return
 
-        # Add to history (skip consecutive duplicates)
-        if not self.history or self.history[-1] != cmd:
-            self.history.append(cmd)
-            if len(self.history) > self._HISTORY_LIMIT:
-                self.history.pop(0)
-            self._save_history()
-            self._update_suggester()
+        # Add to history (remove earlier duplicate, keep most recent)
+        if cmd in self.history:
+            self.history.remove(cmd)
+        self.history.append(cmd)
+        if len(self.history) > self._HISTORY_LIMIT:
+            self.history.pop(0)
+        self._update_suggester()
 
         self._execute_command(cmd)
         self.query_one("#cmd", Input).value = ""
@@ -1574,6 +1668,7 @@ class SerialTerminal(App):
         prefix = self.cfg.get("cmd_prefix", "/")
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix):].strip()
+            self._log_line(">",f"{prefix}{repl_cmd}")
             if self.repl.echo:
                 self._write_output_markup(f"[red]> {prefix}{repl_cmd}[/]")
             if self.repl.has_repl_transforms:
@@ -1604,7 +1699,7 @@ class SerialTerminal(App):
             return
         line_ending = self.cfg.get("line_ending", "\r")
         try:
-            self.ser.write(
+            self._serial_write(
                 (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
             )
         except (OSError, serial.SerialException) as e:
@@ -1867,9 +1962,22 @@ class SerialTerminal(App):
         name = args.strip()
         if not name:
             ctx.write("Usage: /port <name> to switch, or use subcommands:")
-            ctx.write("  /port.list   — list available ports")
-            ctx.write("  /port.open   — connect (optional port override)")
-            ctx.write("  /port.close  — disconnect")
+            ctx.write("  /port.list          — list available ports")
+            ctx.write("  /port.open          — connect (optional port override)")
+            ctx.write("  /port.close         — disconnect")
+            ctx.write("  /port.info          — show port status and parameters")
+            ctx.write("  /port.baud_rate     — show or set baud rate")
+            ctx.write("  /port.byte_size     — show or set data bits")
+            ctx.write("  /port.parity        — show or set parity")
+            ctx.write("  /port.stop_bits     — show or set stop bits")
+            ctx.write("  /port.flow_control  — show or set flow control")
+            ctx.write("  /port.dtr           — show or set DTR line")
+            ctx.write("  /port.rts           — show or set RTS line")
+            ctx.write("  /port.cts           — show CTS state (read-only)")
+            ctx.write("  /port.dsr           — show DSR state (read-only)")
+            ctx.write("  /port.ri            — show RI state (read-only)")
+            ctx.write("  /port.cd            — show CD state (read-only)")
+            ctx.write("  /port.break         — send break signal (default 250ms)")
             return
         self._update_port(name)
 
@@ -1885,6 +1993,157 @@ class SerialTerminal(App):
             desc = p.description or ""
             self._status(f"  {p.device}  {desc}")
 
+    def _hook_port_info(self, ctx, args: str) -> None:
+        """Print comprehensive port status."""
+        c = self.cfg
+        connected = self.is_connected
+        state = "connected" if connected else "disconnected"
+        ctx.write(f"  Port:         {c.get('port', '?')}  ({state})")
+        ctx.write(f"  Baud rate:    {c.get('baud_rate', '?')}")
+        sb = c.get("stop_bits", 1)
+        sb_str = str(int(sb)) if sb == int(sb) else str(sb)
+        ctx.write(
+            f"  Frame:        {c.get('byte_size', 8)}"
+            f"{c.get('parity', 'N')}{sb_str}"
+        )
+        ctx.write(f"  Flow control: {c.get('flow_control', 'none')}")
+        ctx.write(f"  Encoding:     {c.get('encoding', 'utf-8')}")
+        if connected:
+            try:
+                ctx.write(f"  DTR:          {int(self.ser.dtr)}")
+                ctx.write(f"  RTS:          {int(self.ser.rts)}")
+                ctx.write(f"  CTS:          {int(self.ser.cts)}")
+                ctx.write(f"  DSR:          {int(self.ser.dsr)}")
+                ctx.write(f"  RI:           {int(self.ser.ri)}")
+                ctx.write(f"  CD:           {int(self.ser.cd)}")
+            except (OSError, serial.SerialException):
+                pass
+
+    def _hook_port_prop(self, ctx, args: str, key: str) -> None:
+        """Get or set a serial port property (hardware only, not saved to config)."""
+        attr, coerce, desc, valid = self._PORT_PROPS[key]
+        val = args.strip()
+        if not val:
+            if not self.is_connected:
+                ctx.write(f"  {desc}: {self.cfg.get(key, '?')} (disconnected)")
+                return
+            try:
+                ctx.write(f"  {desc}: {getattr(self.ser, attr)}")
+            except (OSError, serial.SerialException) as e:
+                self._status(f"{desc} read error: {e}", "red")
+            return
+        if not self.is_connected:
+            self._status("Not connected", "yellow")
+            return
+        try:
+            if key == "parity":
+                val = val.upper()
+            typed = coerce(val)
+            if valid and typed not in valid:
+                opts = ", ".join(sorted(str(v) for v in valid))
+                self._status(f"Invalid {desc.lower()}: {val} (use {opts})", "red")
+                return
+            setattr(self.ser, attr, typed)
+            self.repl._cfg_data[key] = typed
+            self._update_title()
+            self._status(f"{desc} → {typed}")
+        except ValueError:
+            self._status(f"Invalid {desc.lower()}: {val}", "red")
+        except (OSError, serial.SerialException) as e:
+            self._status(f"{desc} error: {e}", "red")
+
+    _FLOW_MODES = {"none", "rtscts", "xonxoff", "manual"}
+
+    def _hook_port_flow(self, ctx, args: str) -> None:
+        """Get or set flow control mode (hardware only, not saved to config)."""
+        val = args.strip().lower()
+        if not val:
+            fc = self.cfg.get("flow_control", "none")
+            suffix = " (disconnected)" if not self.is_connected else ""
+            ctx.write(f"  Flow control: {fc}{suffix}")
+            return
+        if not self.is_connected:
+            self._status("Not connected", "yellow")
+            return
+        if val not in self._FLOW_MODES:
+            self._status(
+                f"Invalid flow control: {val} (use none/rtscts/xonxoff/manual)", "red"
+            )
+            return
+        try:
+            self.ser.rtscts = (val == "rtscts")
+            self.ser.xonxoff = (val == "xonxoff")
+            self.repl._cfg_data["flow_control"] = val
+            self._sync_hw_visibility()
+            self._update_title()
+            self._status(f"Flow control → {val}")
+        except (OSError, serial.SerialException) as e:
+            self._status(f"Flow control error: {e}", "red")
+
+    def _hook_port_hw_line(self, ctx, args: str, line: str) -> None:
+        """Get or set a hardware line (DTR or RTS)."""
+        label = line.upper()
+        val = args.strip().lower()
+        if not val:
+            if not self.is_connected:
+                self._status("Not connected", "yellow")
+                return
+            try:
+                ctx.write(f"  {label}: {int(getattr(self.ser, line))}")
+            except (OSError, serial.SerialException) as e:
+                self._status(f"{label} read error: {e}", "red")
+            return
+        if not self.is_connected:
+            self._status("Not connected", "yellow")
+            return
+        if val in ("1", "on", "true", "high"):
+            state = True
+        elif val in ("0", "off", "false", "low"):
+            state = False
+        else:
+            self._status(f"Invalid {label} value: {val} (use 0/1/on/off)", "red")
+            return
+        try:
+            setattr(self.ser, line, state)
+            self._sync_hw_buttons()
+            self._status(f"{label} → {int(state)}")
+        except (OSError, serial.SerialException) as e:
+            self._status(f"{label} error: {e}", "red")
+
+    def _hook_port_break(self, ctx, args: str) -> None:
+        """Send a break signal on the serial line."""
+        if not self.is_connected:
+            self._status("Not connected", "yellow")
+            return
+        val = args.strip()
+        duration = 0.25
+        if val:
+            try:
+                duration = int(val) / 1000.0
+                if duration <= 0:
+                    raise ValueError
+            except ValueError:
+                self._status("Invalid duration (use milliseconds, e.g. 250)", "red")
+                return
+        try:
+            self.ser.send_break(duration=duration)
+            self._status(f"Break sent ({int(duration * 1000)}ms)")
+        except (OSError, serial.SerialException) as e:
+            self._status(f"Break error: {e}", "red")
+
+    def _hook_port_signal(self, ctx, args: str, signal: str) -> None:
+        """Show a read-only input signal (CTS, DSR, RI, CD)."""
+        if args.strip():
+            self._status(f"{signal.upper()} is read-only", "yellow")
+            return
+        if not self.is_connected:
+            self._status("Not connected", "yellow")
+            return
+        try:
+            ctx.write(f"  {signal.upper()}: {int(getattr(self.ser, signal))}")
+        except (OSError, serial.SerialException) as e:
+            self._status(f"{signal.upper()} read error: {e}", "red")
+
     _SERIAL_KEYS = {
         "port",
         "baud_rate",
@@ -1892,6 +2151,14 @@ class SerialTerminal(App):
         "parity",
         "stop_bits",
         "flow_control",
+    }
+
+    # Maps config key → (pyserial attribute, type coercion, description, valid values)
+    _PORT_PROPS = {
+        "baud_rate": ("baudrate", int, "Baud rate", None),
+        "byte_size": ("bytesize", int, "Data bits", {5, 6, 7, 8}),
+        "parity": ("parity", str, "Parity", {"N", "E", "O", "M", "S"}),
+        "stop_bits": ("stopbits", float, "Stop bits", {1, 1.5, 2}),
     }
 
     def _refresh_after_cfg(self, key: str, new_val) -> None:
@@ -1981,7 +2248,7 @@ class SerialTerminal(App):
     def _hook_edit(self, ctx, args: str) -> None:
         """Edit a project file using the same dialogs as the UI menus.
 
-        Routes to ConfigEditor ($cfg), LogViewer ($log/$info),
+        Routes to ConfigEditor ($cfg), system viewer ($log/$info),
         ScriptEditor (.run), or ProtoEditor (.pro).
 
         Args:
@@ -2004,14 +2271,14 @@ class SerialTerminal(App):
 
         # $log — same as Palette → View Log
         if low == "$log":
-            self.push_screen(LogViewer(self._log_path()))
+            open_with_system(self._log_path())
             return
 
         # $info — view the generated info report
         if low == "$info":
             path = self._resolve_project_file("$info")
             if path and path.exists():
-                self.push_screen(LogViewer(str(path)))
+                open_with_system(str(path))
             else:
                 self.repl.write("No info report yet. Run /info first.", "red")
             return

@@ -180,6 +180,10 @@ class PluginContext:
         write_markup: Output Rich markup text to the terminal. Signature:
             ``write_markup(text)``. Supports Rich markup tags like
             ``[bold red]text[/]``.
+        log: Write a timestamped line to the session log file. Signature:
+            ``log(prefix, text)`` where prefix is ``">"`` (TX), ``"<"`` (RX),
+            or ``"#"`` (status). Independent of screen output — always logged
+            regardless of echo settings.
         cfg: Read-only config dict (``MappingProxyType``). Access any config
             field with ``ctx.cfg.get("key", default)``. Do not mutate.
         config_path: Absolute path to the current JSON config file on disk.
@@ -218,6 +222,10 @@ class PluginContext:
     write_markup: Callable = lambda text: None  # write(text) with Rich markup
     cfg: MappingProxyType | dict = field(default_factory=dict)
     config_path: str = ""
+
+    # Logging — log(prefix, text) writes a timestamped line to the session log.
+    # Prefixes: ">" TX (commands sent), "<" RX (device responses), "#" status.
+    log: Callable = lambda prefix, text: None
 
     # Serial port
     is_connected: Callable = lambda: False

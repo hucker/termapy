@@ -1580,8 +1580,7 @@ def diff_columns(
 
         # Determine per-column status
         if col.type_code == "crc" and col.crc_algo:
-            # CRC column: first compare actual vs expected bytes (diff),
-            # then fall back to computed CRC validation.
+            # CRC column: compare actual vs expected bytes directly.
             act_crc_bytes = bytearray()
             exp_crc_bytes = bytearray()
             for idx in col.byte_indices:
@@ -1591,23 +1590,9 @@ def diff_columns(
                     exp_crc_bytes.append(expected[idx])
 
             if act_crc_bytes == exp_crc_bytes and exp_crc_bytes:
-                # Actual matches expected — green regardless of CRC validity
                 statuses.append("match")
             else:
-                # Bytes differ — check computed CRC for validation
-                algo = registry.get(col.crc_algo)
-                if algo:
-                    if col.crc_data_range:
-                        start, end = col.crc_data_range
-                        crc_data = actual[start:end + 1]
-                    else:
-                        crc_end = len(actual) - algo.width
-                        crc_data = actual[:crc_end]
-                    computed = algo.compute(crc_data)
-                    packet_crc = int.from_bytes(act_crc_bytes, "big")
-                    statuses.append("match" if computed == packet_crc else "mismatch")
-                else:
-                    statuses.append("mismatch")
+                statuses.append("mismatch")
         elif col.type_code == "h" and len(col.byte_indices) > 1:
             # Per-byte hex: build Rich markup with per-byte coloring
             parts: list[str] = []
@@ -1630,8 +1615,11 @@ def diff_columns(
                 else:
                     parts.append(
                         f"[{DIFF_STYLES['match']}]{actual[idx]:02X}[/]")
-            act_values[-1] = " ".join(parts)
-            statuses.append("mixed" if has_mismatch else "match")
+            if has_mismatch:
+                act_values[-1] = " ".join(parts)
+                statuses.append("mixed")
+            else:
+                statuses.append("match")
         else:
             # Compare decoded values so that multi-byte columns
             # (H, U, bit fields sharing bytes) only show mismatch

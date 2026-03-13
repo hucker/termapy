@@ -101,6 +101,7 @@ The most common ones:
 | `/help [cmd]`        | List commands or show help for one |
 | `/port.list`         | List available serial ports        |
 | `/port.open {name}`  | Connect to a port                  |
+| `/port.info`         | Show port status and parameters    |
 | `/cfg [key [value]]` | Show or change in-memory config    |
 | `/ss.svg [name]`     | Save SVG screenshot                |
 | `/cls`               | Clear the terminal                 |
@@ -120,6 +121,19 @@ The most common ones:
 | `/port.list`              | List available serial ports                                                      |
 | `/port.open {name}`       | Connect to the serial port (optional port override)                              |
 | `/port.close`             | Disconnect from the serial port                                                  |
+| `/port.info`              | Show port status, serial parameters, and hardware lines                          |
+| `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                            |
+| `/port.byte_size {value}` | Show or set data bits (hardware only)                                            |
+| `/port.parity {value}`    | Show or set parity (hardware only)                                               |
+| `/port.stop_bits {value}` | Show or set stop bits (hardware only)                                            |
+| `/port.flow_control {m}`  | Show or set flow control: none, rtscts, xonxoff, manual                          |
+| `/port.dtr {0\|1}`        | Show or set DTR line                                                             |
+| `/port.rts {0\|1}`        | Show or set RTS line                                                             |
+| `/port.cts`               | Show CTS state (read-only)                                                       |
+| `/port.dsr`               | Show DSR state (read-only)                                                       |
+| `/port.ri`                | Show RI state (read-only)                                                        |
+| `/port.cd`                | Show CD state (read-only)                                                        |
+| `/port.break {ms}`        | Send break signal (default 250ms)                                                |
 | `/cfg [key [value]]`      | Show config, show a key, or change in-memory value (with confirmation)           |
 | `/cfg.auto <key> <value>` | Set an in-memory config key immediately (no confirmation)                        |
 | `/ss.svg [name]`          | Save SVG screenshot                                                              |
@@ -177,11 +191,10 @@ termapy_cfg/
     │   └── status_check.run
     ├── plugins/                        # per-config plugins
     │   └── probe.py
-    ├── proto/                          # protocol test scripts
-    │   ├── at_test.pro
-    │   └── modbus_test.pro
-    └── viz/                            # per-config packet visualizers
-        └── at_view.py
+    └── proto/                          # protocol test scripts
+        ├── at_test.pro
+        ├── bitfield_inline.pro
+        └── modbus_inline.pro
 ```
 
 Your own configs follow the same layout — create one with `Cfg` → `New` and termapy builds the folder structure automatically.
@@ -479,7 +492,7 @@ Modbus RTU supports function 0x03 (read holding registers) and 0x06 (write singl
 The demo comes with everything wired up so you can try each feature:
 
 - **Scripts** — `at_demo.run`, `smoke_test.run`, `status_check.run` — run via the Scripts button or `/run`
-- **Proto test files** — `at_test.pro`, `modbus_test.pro` — run via the Proto button for pass/fail results
+- **Proto test files** — `at_test.pro`, `bitfield_inline.pro`, `modbus_inline.pro` — run via the Proto button for pass/fail results
 - **Plugins** — `/probe` sends a command sequence and reports results; `/cmd` adds a custom shortcut
 - **Visualizers** — `AT` and `Modbus` views decode protocol responses into readable columns
 

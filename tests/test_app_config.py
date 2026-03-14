@@ -16,6 +16,7 @@ from termapy.config import (
     expand_env_str,
     load_config,
     migrate_json_to_cfg,
+    validate_config,
 )
 
 
@@ -405,3 +406,291 @@ class TestMigrateJsonToCfg:
 
         # Assert
         assert (sub / "baz.cfg").exists()  # .cfg still exists
+
+
+# -- validate_config: serial port setting validation --------------------------
+
+
+class TestValidateConfig:
+    def test_default_cfg_passes(self):
+        # Act
+        actual = validate_config(dict(DEFAULT_CFG))
+
+        # Assert
+        assert actual == []  # no warnings for defaults
+
+    def test_invalid_byte_size(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, byte_size=9)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "byte_size" in actual[0]  # identifies the field
+        assert "9" in actual[0]  # shows the bad value
+
+    def test_invalid_parity(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, parity="X")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "parity" in actual[0]  # identifies the field
+
+    def test_invalid_stop_bits(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, stop_bits=3)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "stop_bits" in actual[0]  # identifies the field
+
+    def test_invalid_flow_control(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, flow_control="bad")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "flow_control" in actual[0]  # identifies the field
+
+    def test_nonstandard_baud_rate_warns(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=250000)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # warns but doesn't reject
+        assert "not a standard rate" in actual[0]  # clear message
+
+    def test_standard_baud_rate_ok(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=9600)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert actual == []  # no warnings
+
+    def test_negative_baud_rate(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=-1)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "positive" in actual[0]  # clear message
+
+    def test_baud_rate_wrong_type(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate="fast")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "expected int" in actual[0]  # type error message
+
+    def test_invalid_encoding(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, encoding="not-a-codec")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "encoding" in actual[0]  # identifies the field
+
+    def test_valid_encoding(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, encoding="ascii")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert actual == []  # no warnings
+
+    def test_negative_cmd_delay_ms(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, cmd_delay_ms=-10)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "cmd_delay_ms" in actual[0]  # identifies the field
+
+    def test_zero_max_lines(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, max_lines=0)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "max_lines" in actual[0]  # identifies the field
+
+    def test_unknown_key_flagged(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baudrate=9600)  # typo: should be baud_rate
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "unknown key" in actual[0]  # clear message
+        assert "baudrate" in actual[0]  # shows the bad key
+
+    def test_internal_keys_ignored(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, _migrated_from=5, _config_warnings=[])
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert actual == []  # internal keys not flagged
+
+    def test_multiple_errors(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, byte_size=99, parity="Z", baud_rate=-1)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 3  # one warning per bad field
+
+    def test_old_config_version_warns(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, config_version=3)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1  # exactly one warning
+        assert "config_version" in actual[0]  # identifies the field
+        assert "3" in actual[0]  # shows the old version
+
+    def test_current_config_version_ok(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG)  # uses CURRENT_CONFIG_VERSION
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert actual == []  # no warnings
+
+
+# -- load_config: malformed JSON handling -------------------------------------
+
+
+class TestLoadConfigMalformed:
+    def test_malformed_json_raises(self, tmp_path):
+        # Arrange
+        cfg_file = tmp_path / "bad" / "bad.cfg"
+        cfg_file.parent.mkdir()
+        cfg_file.write_text("{not valid json!!}")
+
+        # Act / Assert
+        with pytest.raises(json.JSONDecodeError):
+            load_config(str(cfg_file))  # surfaces parse error to caller
+
+
+# -- _run_check: CLI --check flag --------------------------------------------
+
+
+class TestRunCheck:
+    def _run(self, *args):
+        """Run termapy --check via subprocess and return (returncode, stdout)."""
+        import subprocess
+
+        result = subprocess.run(
+            ["uv", "run", "termapy", "--check", *args],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.returncode, result.stdout
+
+    def test_valid_config_ok(self, tmp_path):
+        # Arrange
+        cfg_file = tmp_path / "ok" / "ok.cfg"
+        cfg_file.parent.mkdir()
+        cfg_file.write_text(json.dumps(dict(DEFAULT_CFG)))
+
+        # Act
+        code, stdout = self._run(str(cfg_file))
+
+        # Assert
+        actual = json.loads(stdout)
+        assert code == 0  # success exit code
+        assert actual["status"] == "ok"  # no warnings
+
+    def test_invalid_baud_warns(self, tmp_path):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=999)
+        cfg_file = tmp_path / "bad" / "bad.cfg"
+        cfg_file.parent.mkdir()
+        cfg_file.write_text(json.dumps(cfg))
+
+        # Act
+        code, stdout = self._run(str(cfg_file))
+
+        # Assert
+        actual = json.loads(stdout)
+        assert code == 0  # still exits 0 (warnings, not errors)
+        assert actual["status"] == "warn"  # flagged as warn
+        assert any("baud_rate" in w for w in actual["warnings"])  # identifies field
+
+    def test_malformed_json_errors(self, tmp_path):
+        # Arrange
+        cfg_file = tmp_path / "bad" / "bad.cfg"
+        cfg_file.parent.mkdir()
+        cfg_file.write_text("{broken json!}")
+
+        # Act
+        code, stdout = self._run(str(cfg_file))
+
+        # Assert
+        actual = json.loads(stdout)
+        assert code == 1  # error exit code
+        assert actual["status"] == "error"  # parse failure
+
+    def test_does_not_modify_file(self, tmp_path):
+        # Arrange — config with old version, check should NOT migrate it
+        cfg = dict(DEFAULT_CFG, config_version=3)
+        cfg_file = tmp_path / "old" / "old.cfg"
+        cfg_file.parent.mkdir()
+        original = json.dumps(cfg)
+        cfg_file.write_text(original)
+
+        # Act
+        self._run(str(cfg_file))
+
+        # Assert
+        actual = cfg_file.read_text()
+        assert actual == original  # file unchanged (read-only check)

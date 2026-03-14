@@ -8,6 +8,7 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
 import argparse
+import json
 import queue
 import re
 import sys
@@ -34,11 +35,18 @@ from termapy.config import (
     open_serial,
     open_with_system,
     setup_demo_config,
+    validate_config,
 )
 from rich.text import Text
 from textual import on, work
 
-from termapy.defaults import DEFAULT_CFG
+from termapy.defaults import (
+    DEFAULT_CFG,
+    VALID_BYTE_SIZES,
+    VALID_FLOW_CONTROLS,
+    VALID_PARITIES,
+    VALID_STOP_BITS,
+)
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -735,6 +743,8 @@ class SerialTerminal(App):
         self._sync_ss_button()
         self._sync_scripts_button()
         self._sync_proto_button()
+        for w in self.repl._cfg_data.pop("_config_warnings", []):
+            self._status(f"Config warning: {w}", "yellow")
         if self.show_picker_on_start:
             self.push_screen(
                 ConfigPicker(
@@ -1076,6 +1086,8 @@ class SerialTerminal(App):
                 f"Config migrated: v{migrated_from} → v{CURRENT_CONFIG_VERSION}",
                 "yellow",
             )
+        for w in cfg.pop("_config_warnings", []):
+            self._status(f"Config warning: {w}", "yellow")
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self.history = self._load_history()
@@ -1206,7 +1218,13 @@ class SerialTerminal(App):
             return
         new_cfg, new_path = result
         expand_env_cfg(new_cfg)
+        config_warnings = validate_config(new_cfg)
+        if config_warnings:
+            new_cfg["_config_warnings"] = config_warnings
         self._switch_config(new_cfg, new_path)
+        if config_warnings:
+            detail = "\n".join(config_warnings)
+            self.notify(detail, severity="warning", timeout=15)
         self._status(f"Config saved: {new_path}", "green")
 
     def _port_info_str(self) -> str:
@@ -2052,7 +2070,7 @@ class SerialTerminal(App):
         except (OSError, serial.SerialException) as e:
             self._status(f"{desc} error: {e}", "red")
 
-    _FLOW_MODES = {"none", "rtscts", "xonxoff", "manual"}
+    _FLOW_MODES = VALID_FLOW_CONTROLS
 
     def _hook_port_flow(self, ctx, args: str) -> None:
         """Get or set flow control mode (hardware only, not saved to config)."""
@@ -2156,9 +2174,9 @@ class SerialTerminal(App):
     # Maps config key → (pyserial attribute, type coercion, description, valid values)
     _PORT_PROPS = {
         "baud_rate": ("baudrate", int, "Baud rate", None),
-        "byte_size": ("bytesize", int, "Data bits", {5, 6, 7, 8}),
-        "parity": ("parity", str, "Parity", {"N", "E", "O", "M", "S"}),
-        "stop_bits": ("stopbits", float, "Stop bits", {1, 1.5, 2}),
+        "byte_size": ("bytesize", int, "Data bits", VALID_BYTE_SIZES),
+        "parity": ("parity", str, "Parity", VALID_PARITIES),
+        "stop_bits": ("stopbits", float, "Stop bits", VALID_STOP_BITS),
     }
 
     def _refresh_after_cfg(self, key: str, new_val) -> None:
@@ -2359,6 +2377,42 @@ def _reset_terminal() -> None:
         pass
 
 
+def _run_check(args) -> None:
+    """Validate config and print JSON result to stdout (no TUI).
+
+    Read-only — does not migrate or write to disk.
+    """
+    # Resolve config
+    if args.config:
+        config_path = args.config
+    else:
+        found, _ = _find_config()
+        if not found:
+            print("termapy: no config found. Use --cfg-dir or specify a config.", file=sys.stderr)
+            sys.exit(1)
+        config_path = found
+
+    try:
+        with open(config_path) as f:
+            cfg = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        result = {"status": "error", "message": str(e)}
+        print(json.dumps(result, indent=2))
+        sys.exit(1)
+
+    # Backfill defaults in memory only (no disk write, no migration)
+    for key, val in DEFAULT_CFG.items():
+        if key not in cfg:
+            cfg[key] = val
+
+    warnings = validate_config(cfg)
+    if warnings:
+        result = {"status": "warn", "warnings": warnings}
+    else:
+        result = {"status": "ok"}
+    print(json.dumps(result, indent=2))
+
+
 def _run_proto_headless(args) -> None:
     """Run a .pro test script headlessly (no TUI) and write JSON results."""
     from termapy.proto_runner import run_proto_tests
@@ -2448,10 +2502,19 @@ def main():
         metavar="NAME",
         help="Run a .pro test script headlessly and write JSON results (no TUI)",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate config and print JSON result to stdout (no TUI)",
+    )
     args = parser.parse_args()
 
     if args.cfg_dir:
         _cfg_mod.CFG_DIR = args.cfg_dir
+
+    if args.check:
+        _run_check(args)
+        return
 
     if args.proto is not None:
         _run_proto_headless(args)

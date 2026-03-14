@@ -8,6 +8,7 @@ Run termapy from the command line:
 termapy                          # auto-detect config
 termapy my_device.cfg            # load a specific config file
 termapy --cfg-dir /path/to/cfgs  # use a custom config directory
+termapy --check my_device.cfg    # validate config (no UI)
 ```
 
 **Config file argument** — pass the path to a JSON config file directly.
@@ -17,6 +18,11 @@ If the file doesn't exist, termapy creates it with default settings.
 termapy stores everything in a `termapy_cfg/` folder in the current
 working directory. Use this flag to point to a different location,
 for example a shared network folder or a project-specific directory.
+
+**--check** — validate a config file and print JSON results to stdout
+without launching the UI. Checks baud rate, parity, data bits, stop bits,
+flow control, encoding, and flags unknown keys. Read-only — never modifies
+the file.
 
 **No arguments** — termapy looks in `termapy_cfg/` for config files:
 

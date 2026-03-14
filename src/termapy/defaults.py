@@ -5,6 +5,17 @@ Pure data — no logic, no I/O, no dependencies beyond migration version.
 
 from termapy.migration import CURRENT_CONFIG_VERSION
 
+# ── Validation constants ────────────────────────────────────────────────────────
+
+STANDARD_BAUD_RATES = (
+    110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800,
+    38400, 57600, 115200, 230400, 460800, 921600,
+)
+VALID_BYTE_SIZES = {5, 6, 7, 8}
+VALID_PARITIES = {"N", "E", "O", "M", "S"}
+VALID_STOP_BITS = {1, 1.5, 2}
+VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
+
 DEFAULT_CFG = {
     "config_version": CURRENT_CONFIG_VERSION,
     # App

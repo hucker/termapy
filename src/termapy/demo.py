@@ -58,6 +58,10 @@ class FakeSerial:
         # Modbus holding registers (addr 0-99)
         self._registers: dict[int, int] = {}
 
+        # GPS state
+        self._gps_fix: bool = True
+        self._gps_sats: int = 9
+
     # -- serial.Serial properties ------------------------------------------
 
     @property
@@ -349,6 +353,14 @@ class FakeSerial:
                 b"[Boot] Ready\r\n"
             )
 
+        # -- NMEA / GPS commands -----------------------------------------------
+
+        if cmd.startswith("$GP"):
+            return self._handle_nmea_query(cmd)
+
+        if cmd.startswith("$PMTK"):
+            return self._handle_pmtk(cmd)
+
         if upper == "HELP":
             return (
                 b"Available commands:\r\n"
@@ -363,6 +375,11 @@ class FakeSerial:
                 b"  AT+BAUD=val - Set baud rate\r\n"
                 b"  AT+STATUS   - Device status\r\n"
                 b"  AT+RESET    - Reset device\r\n"
+                b"  $GPGGA      - NMEA position fix\r\n"
+                b"  $GPRMC      - NMEA nav data\r\n"
+                b"  $GPGSA      - NMEA DOP/active satellites\r\n"
+                b"  $GPGSV      - NMEA satellites in view\r\n"
+                b"  $PMTK...    - GPS config (simulated)\r\n"
                 b"  mem <addr> [len] - Memory dump\r\n"
                 b"  help        - This help\r\n"
             )
@@ -414,6 +431,149 @@ class FakeSerial:
         mins, secs = divmod(elapsed, 60)
         hours, mins = divmod(mins, 60)
         return f"{hours}h {mins}m {secs}s"
+
+    # -- NMEA / GPS handlers ------------------------------------------------
+
+    def _nmea_checksum(self, sentence: str) -> str:
+        """Compute NMEA XOR checksum for the content between $ and *.
+
+        Args:
+            sentence: NMEA sentence content (without $ and *XX).
+
+        Returns:
+            Two-character hex checksum.
+        """
+        cs = 0
+        for ch in sentence:
+            cs ^= ord(ch)
+        return f"{cs:02X}"
+
+    def _nmea_sentence(self, body: str) -> bytes:
+        """Build a complete NMEA sentence with checksum and CRLF.
+
+        Args:
+            body: Sentence content without $ prefix or *XX suffix.
+
+        Returns:
+            Complete NMEA sentence as bytes.
+        """
+        cs = self._nmea_checksum(body)
+        return f"${body}*{cs}\r\n".encode()
+
+    def _nmea_time(self) -> str:
+        """Return current UTC time in NMEA HHMMSS.SS format."""
+        t = time.gmtime()
+        return f"{t.tm_hour:02d}{t.tm_min:02d}{t.tm_sec:02d}.00"
+
+    def _nmea_date(self) -> str:
+        """Return current UTC date in NMEA DDMMYY format."""
+        t = time.gmtime()
+        return f"{t.tm_mday:02d}{t.tm_mon:02d}{t.tm_year % 100:02d}"
+
+    def _handle_nmea_query(self, cmd: str) -> bytes:
+        """Handle NMEA $GPxxx query commands.
+
+        Returns simulated GPS data for the 50-yard line of
+        Lumen Field, Seattle (47°35.712'N, 122°19.896'W).
+
+        Args:
+            cmd: The NMEA command string.
+
+        Returns:
+            NMEA sentence(s) as bytes.
+        """
+        upper = cmd.upper().strip()
+
+        # Position: 47.5952°N, 122.3316°W
+        # NMEA format: DDMM.MMMM
+        lat = "4735.7120"
+        lat_dir = "N"
+        lon = "12219.8960"
+        lon_dir = "W"
+        utc = self._nmea_time()
+        date = self._nmea_date()
+        sats = self._gps_sats
+        # Add slight jitter to altitude
+        alt = round(4.5 + random.uniform(-0.3, 0.3), 1)
+
+        if upper == "$GPGGA":
+            # GGA - Global Positioning System Fix Data
+            fix = 1 if self._gps_fix else 0
+            body = (
+                f"GPGGA,{utc},{lat},{lat_dir},{lon},{lon_dir},"
+                f"{fix},{sats:02d},0.9,{alt},M,-17.0,M,,"
+            )
+            return self._nmea_sentence(body)
+
+        if upper == "$GPRMC":
+            # RMC - Recommended Minimum Navigation Information
+            status = "A" if self._gps_fix else "V"
+            speed = round(random.uniform(0.0, 0.2), 1)
+            course = round(random.uniform(0, 360), 1)
+            body = (
+                f"GPRMC,{utc},{status},{lat},{lat_dir},{lon},{lon_dir},"
+                f"{speed},{course},{date},,,A"
+            )
+            return self._nmea_sentence(body)
+
+        if upper == "$GPGSA":
+            # GSA - DOP and Active Satellites
+            fix_3d = 3 if self._gps_fix else 1
+            # Report satellite PRNs (simulated)
+            prns = ",".join(f"{i:02d}" for i in range(3, 3 + min(sats, 12)))
+            # Pad to 12 slots
+            empty = ",".join("" for _ in range(12 - min(sats, 12)))
+            if empty:
+                prns = prns + "," + empty
+            body = f"GPGSA,A,{fix_3d},{prns},1.5,0.9,1.2"
+            return self._nmea_sentence(body)
+
+        if upper == "$GPGSV":
+            # GSV - Satellites in View (one message for simplicity)
+            lines: list[bytes] = []
+            total_msgs = (sats + 3) // 4
+            for msg_num in range(1, total_msgs + 1):
+                parts = [f"GPGSV,{total_msgs},{msg_num},{sats:02d}"]
+                start = (msg_num - 1) * 4
+                for i in range(4):
+                    idx = start + i
+                    if idx >= sats:
+                        break
+                    prn = 3 + idx
+                    elev = 20 + idx * 7
+                    azim = (45 + idx * 40) % 360
+                    snr = random.randint(30, 45)
+                    parts.append(f"{prn:02d},{elev},{azim:03d},{snr:02d}")
+                body = ",".join(parts)
+                lines.append(self._nmea_sentence(body))
+            return b"".join(lines)
+
+        return f"ERROR: Unknown NMEA query '{cmd}'\r\n".encode()
+
+    def _handle_pmtk(self, cmd: str) -> bytes:
+        """Handle $PMTK configuration commands (simulated).
+
+        Always acknowledges with $PMTK001. Configuration is accepted
+        but has no effect on the simulated device.
+
+        Args:
+            cmd: The PMTK command string.
+
+        Returns:
+            PMTK acknowledgement sentence as bytes.
+        """
+        # Extract command number from $PMTKnnn,...
+        stripped = cmd.strip()
+        if len(stripped) < 8:
+            return b"ERROR: Invalid PMTK command\r\n"
+        try:
+            cmd_id = stripped[5:].split(",")[0].split("*")[0]
+            int(cmd_id)  # validate it's a number
+        except (ValueError, IndexError):
+            return b"ERROR: Invalid PMTK command\r\n"
+        # $PMTK001,cmd,3 = success acknowledgement
+        body = f"PMTK001,{cmd_id},3"
+        return self._nmea_sentence(body)
 
     # -- Set/query helpers --------------------------------------------------
 

@@ -3,6 +3,7 @@
 Pure functions with no UI dependency. Used by app.py and tests.
 """
 
+import codecs
 import json
 import os
 import re
@@ -11,7 +12,14 @@ from pathlib import Path
 
 import serial
 
-from termapy.defaults import DEFAULT_CFG
+from termapy.defaults import (
+    DEFAULT_CFG,
+    STANDARD_BAUD_RATES,
+    VALID_BYTE_SIZES,
+    VALID_FLOW_CONTROLS,
+    VALID_PARITIES,
+    VALID_STOP_BITS,
+)
 from termapy.migration import CURRENT_CONFIG_VERSION, migrate_config
 
 CFG_DIR = "termapy_cfg"
@@ -122,6 +130,115 @@ def expand_env_cfg(cfg: dict) -> dict:
     return cfg
 
 
+def validate_config(cfg: dict) -> list[str]:
+    """Validate config values and return a list of warning strings.
+
+    Checks serial port settings, encoding, and numeric constraints.
+    Unknown keys (not in DEFAULT_CFG) are flagged as potential typos.
+    Non-standard baud rates produce a warning but are not rejected.
+
+    Args:
+        cfg: Config dict to validate.
+
+    Returns:
+        List of warning strings (empty means valid).
+    """
+    warnings: list[str] = []
+
+    # Config version
+    ver = cfg.get("config_version")
+    if ver is not None and ver != CURRENT_CONFIG_VERSION:
+        warnings.append(
+            f"config_version: {ver} (current is {CURRENT_CONFIG_VERSION})"
+        )
+
+    # Unknown keys (skip internal keys starting with _)
+    for key in cfg:
+        if not key.startswith("_") and key not in DEFAULT_CFG:
+            warnings.append(f"unknown key: '{key}' (typo?)")
+
+    # Type + value checks for serial settings
+    _check_set(cfg, "byte_size", int, VALID_BYTE_SIZES, warnings)
+    _check_set(cfg, "parity", str, VALID_PARITIES, warnings)
+    _check_set(cfg, "stop_bits", (int, float), VALID_STOP_BITS, warnings)
+    _check_set(cfg, "flow_control", str, VALID_FLOW_CONTROLS, warnings)
+
+    # Baud rate — warn on non-standard but don't reject
+    val = cfg.get("baud_rate")
+    if val is not None:
+        if not isinstance(val, int):
+            warnings.append(f"baud_rate: expected int, got {type(val).__name__}")
+        elif val <= 0:
+            warnings.append(f"baud_rate: must be positive, got {val}")
+        elif val not in STANDARD_BAUD_RATES:
+            rates = ", ".join(str(r) for r in STANDARD_BAUD_RATES)
+            warnings.append(f"baud_rate: {val} is not a standard rate ({rates})")
+
+    # Encoding — must be a valid Python codec
+    enc = cfg.get("encoding")
+    if enc is not None:
+        if not isinstance(enc, str):
+            warnings.append(f"encoding: expected str, got {type(enc).__name__}")
+        else:
+            try:
+                codecs.lookup(enc)
+            except LookupError:
+                warnings.append(f"encoding: unknown codec '{enc}'")
+
+    # Numeric constraints
+    _check_positive(cfg, "max_lines", warnings)
+    _check_non_negative(cfg, "cmd_delay_ms", warnings)
+
+    return warnings
+
+
+def _check_set(
+    cfg: dict,
+    key: str,
+    expected_type: type | tuple[type, ...],
+    valid: set,
+    warnings: list[str],
+) -> None:
+    """Check that cfg[key] has the right type and is in the valid set."""
+    val = cfg.get(key)
+    if val is None:
+        return
+    if not isinstance(val, expected_type):
+        warnings.append(f"{key}: expected {_type_name(expected_type)}, got {type(val).__name__}")
+        return
+    if val not in valid:
+        warnings.append(f"{key}: invalid value {val!r}, expected one of {sorted(valid)}")
+
+
+def _check_positive(cfg: dict, key: str, warnings: list[str]) -> None:
+    """Check that cfg[key] is a positive integer."""
+    val = cfg.get(key)
+    if val is None:
+        return
+    if not isinstance(val, int):
+        warnings.append(f"{key}: expected int, got {type(val).__name__}")
+    elif val <= 0:
+        warnings.append(f"{key}: must be positive, got {val}")
+
+
+def _check_non_negative(cfg: dict, key: str, warnings: list[str]) -> None:
+    """Check that cfg[key] is a non-negative integer."""
+    val = cfg.get(key)
+    if val is None:
+        return
+    if not isinstance(val, int):
+        warnings.append(f"{key}: expected int, got {type(val).__name__}")
+    elif val < 0:
+        warnings.append(f"{key}: must be non-negative, got {val}")
+
+
+def _type_name(t: type | tuple[type, ...]) -> str:
+    """Return a readable name for a type or tuple of types."""
+    if isinstance(t, tuple):
+        return "/".join(x.__name__ for x in t)
+    return t.__name__
+
+
 def load_config(path: str) -> dict:
     """Load and validate JSON config, applying defaults for missing fields.
 
@@ -168,7 +285,11 @@ def load_config(path: str) -> dict:
             json.dump(cfg, f, indent=4)
     if migrated:
         cfg["_migrated_from"] = old_version
-    return expand_env_cfg(cfg)
+    cfg = expand_env_cfg(cfg)
+    config_warnings = validate_config(cfg)
+    if config_warnings:
+        cfg["_config_warnings"] = config_warnings
+    return cfg
 
 
 def open_with_system(path: str) -> None:

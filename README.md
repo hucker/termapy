@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-558%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-608%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -261,6 +261,28 @@ To override the config directory:
 ```sh
 termapy --cfg-dir /path/to/configs
 ```
+
+### Config Validation
+
+Termapy validates config files on load and when saving from the editor. Invalid serial settings (baud rate, parity, data bits, stop bits, flow control, encoding) and unknown keys (typos) produce yellow warnings in the log window. Non-standard baud rates are flagged but allowed — some hardware uses custom rates.
+
+To validate a config from the command line without launching the UI:
+
+```sh
+termapy --check my_device.cfg
+```
+
+This prints a JSON result to stdout and exits:
+
+```json
+{"status": "ok"}
+```
+
+```json
+{"status": "warn", "warnings": ["baud_rate: 115201 is not a standard rate (110, 300, ...)"]}
+```
+
+The `--check` flag is read-only — it never modifies the config file.
 
 ### Config Examples
 

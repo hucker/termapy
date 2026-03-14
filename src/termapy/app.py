@@ -1683,6 +1683,13 @@ class SerialTerminal(App):
         Args:
             cmd: A single command string (no ``\\n`` separators).
         """
+        # Line rewriting: $VAR = value → /var.set VAR value (before REPL/serial)
+        from termapy.builtins.plugins.var import rewrite_assignment
+        rewritten = rewrite_assignment(cmd)
+        if rewritten is not None:
+            self.repl.dispatch(rewritten)
+            return
+
         prefix = self.cfg.get("cmd_prefix", "/")
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix):].strip()
@@ -2207,6 +2214,8 @@ class SerialTerminal(App):
             return
         action = result[0]
         if action == "run":
+            from termapy.builtins.plugins.var import clear_vars
+            clear_vars()
             path = self.repl.start_script(result[1])
             if path:
                 self._run_script(path)

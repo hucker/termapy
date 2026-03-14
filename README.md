@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-608%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-638%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -240,6 +240,59 @@ You can also manage environment variables at runtime with REPL commands:
 | `/env.reload`           | Re-snapshot variables from the OS environment      |
 
 Variables set with `/env.set` are available immediately for `$(env.NAME)` expansion in REPL commands but do not modify the OS environment or the config file.
+
+#### User Variables (`$VAR`)
+
+User variables let you define values once and reuse them across commands and scripts. This is especially useful when a test references the same address, register, or port in multiple places — change it once at the top instead of everywhere.
+
+Assign a variable by typing `$name = value` (no `/` prefix needed):
+
+```text
+$slave = 01
+$reg = 0064
+$count = 05
+```
+
+Use variables in any command — REPL or serial:
+
+```text
+/proto.send $slave 03 00 $reg 00 $count
+/print Reading $count registers from $slave at $reg
+AT+ADDR=$slave
+```
+
+A typical workflow is a setup script that configures a test, then a test script that uses the variables:
+
+```text
+# setup_modbus.run — run this first to configure the test
+$SLAVE = 01
+$BASE_REG = 0064
+$NUM_REGS = 05
+/print Configured: slave=$SLAVE base=$BASE_REG count=$NUM_REGS
+```
+
+```text
+# test_registers.run — uses variables from setup
+/proto.send $SLAVE 03 00 $BASE_REG 00 $NUM_REGS
+/delay 500ms
+/proto.send $SLAVE 06 00 $BASE_REG 04 D2
+```
+
+Run `/run setup_modbus.run` then `/run test_registers.run` — the variables persist across interactive `/run` calls.
+
+| Command          | Description                            |
+| ---------------- | -------------------------------------- |
+| `$NAME = value`  | Set a variable (no `/` prefix needed)  |
+| `/var`           | List all defined variables             |
+| `/var $NAME`     | Show one variable's value              |
+| `/var.set N val` | Set a variable (explicit command form) |
+| `/var.clear`     | Clear all variables                    |
+
+**Scope:** Variables persist for the interactive session. They are automatically cleared when a script is launched from the Scripts button or Run menu, but *not* when `/run` is typed interactively or called within a script. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
+
+**Naming:** Variable names are case-sensitive (`$PORT` and `$port` are different variables). Names must start with a letter or underscore and contain only letters, digits, and underscores.
+
+**vs. environment variables:** `$(env.NAME)` pulls from the OS environment and works in config files. `$NAME` is for user-defined session variables in commands and scripts. Both are expanded in REPL and serial commands.
 
 Add a `.gitignore` for session files you don't need to track:
 
@@ -524,6 +577,52 @@ expect_fmt = "Title:Modbus_Response Slave:H1 Func:H2 Bytes:U3 R0:U4-5 R1:U6-7 R2
 ```
 
 ![Inline format spec — decoded Modbus columns in proto debug screen](img/proto_inline_fmt.png)
+
+
+Finally here is the serial log output of a protocol test:
+
+```text
+================================================================================
+[2026-03-12 22:28:14] Script: Demo AT Command Test | Tests: 4 | Repeat: 1
+================================================================================
+  [PASS]  AT basic
+         TX:  41 54 0D
+         EXP: 4F 4B 0D 0A
+         RX:  4F 4B 0D 0A
+         Time: 77ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=41 54 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=4F 4B 0D 0A
+  [PASS]  LED on
+         TX:  41 54 2B 4C 45 44 20 6F 6E 0D
+         EXP: 4F 4B 0D 0A
+         RX:  4F 4B 0D 0A
+         Time: 128ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=41 54 2B 4C 45 44 20 6F 6E 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=4F 4B 0D 0A
+  [PASS]  LED off
+         TX:  41 54 2B 4C 45 44 20 6F 66 66 0D
+         EXP: 4F 4B 0D 0A
+         RX:  4F 4B 0D 0A
+         Time: 99ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=41 54 2B 4C 45 44 20 6F 66 66 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=4F 4B 0D 0A
+  [PASS]  Unknown command
+         TX:  49 4E 56 41 4C 49 44 0D
+         EXP: 45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
+         RX:  45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
+         Time: 72ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=49 4E 56 41 4C 49 44 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
+Summary: 4/4 PASS (4 tests)
+```
 
 ### CRC Algorithms
 

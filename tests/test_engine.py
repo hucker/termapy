@@ -352,10 +352,11 @@ class TestTransformChains:
         eng, _ = engine
 
         # Assert
-        assert eng.has_repl_transforms is True  # env_var REPL transform loaded
-        assert eng.has_serial_transforms is False  # no built-in serial transforms
+        assert eng.has_repl_transforms is True  # env_var + var REPL transforms loaded
+        assert eng.has_serial_transforms is True  # var serial transform loaded
         names = [t.name for t in eng._transform_infos]
         assert "env_var" in names  # env_var transform registered
+        assert "var" in names  # var transform registered
 
     def test_repl_transform_registered(self, engine):
         # Arrange
@@ -368,7 +369,7 @@ class TestTransformChains:
 
         # Assert
         assert eng.has_repl_transforms is True  # REPL transform registered
-        assert eng.has_serial_transforms is False  # no serial transforms
+        assert eng.has_serial_transforms is True  # var serial transform already loaded
 
     def test_serial_transform_registered(self, engine):
         # Arrange
@@ -382,7 +383,7 @@ class TestTransformChains:
 
         # Assert
         assert eng.has_serial_transforms is True  # serial transform registered
-        assert eng.has_repl_transforms is True  # env_var REPL transform loaded
+        assert eng.has_repl_transforms is True  # env_var + var REPL transforms loaded
 
     def test_repl_transform_applied(self, engine):
         # Arrange

@@ -1,0 +1,35 @@
+# GPS/NMEA Demo — query simulated GPS receiver
+/print ─── GPS Demo ───
+
+/print
+/print [1] Position fix (GGA)
+$GPGGA
+/delay 500ms
+
+/print
+/print [2] Navigation data (RMC)
+$GPRMC
+/delay 500ms
+
+/print
+/print [3] Active satellites and DOP (GSA)
+$GPGSA
+/delay 500ms
+
+/print
+/print [4] Satellites in view (GSV)
+$GPGSV
+/delay 500ms
+
+/print
+/print [5] Configure update rate to 1Hz (PMTK)
+$PMTK220,1000
+/delay 300ms
+
+/print
+/print [6] Configure sentence output (PMTK)
+$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+/delay 300ms
+
+/print
+/print ─── GPS Demo complete ───

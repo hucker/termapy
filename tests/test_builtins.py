@@ -399,7 +399,7 @@ class TestShow:
         engine, cfg, config_path, output = repl_env
 
         # Act
-        engine.dispatch("show $cfg")
+        engine.dispatch("show.cfg")
 
         # Assert
         texts = [t for t, _ in output]
@@ -436,10 +436,10 @@ class TestShow:
         engine.dispatch("show")
         assert any("Usage" in t for t, _ in output)  # usage message
 
-    def test_show_unknown_special(self, repl_env):
+    def test_show_nonexistent_name(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("show $bogus")
-        assert any("Unknown special" in t for t, _ in output)  # error for bad $name
+        assert any("not found" in t.lower() for t, _ in output)  # treated as filename
 
 
 # -- /os ------------------------------------------------------------------

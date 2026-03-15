@@ -19,3 +19,5 @@ __pycache__/
 termapy_cfg/
 .coverage
 CLAUDE.md
+*.log
+.cmd_history.txt

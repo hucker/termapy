@@ -67,8 +67,10 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
         Resolved Path, or None if not found (error already written).
     """
     path = Path(filename)
+    if not path.exists() and not path.suffix:
+        path = Path(filename + ".pro")
     if not path.exists():
-        alt = ctx.proto_dir / filename
+        alt = ctx.proto_dir / path.name
         if alt.exists():
             path = alt
         else:
@@ -688,6 +690,25 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
                 )
 
 
+def _cmd_list(ctx: PluginContext, args: str) -> None:
+    """List .pro files in the proto/ directory.
+
+    Args:
+        ctx: Plugin context for proto_dir and output.
+        args: Unused.
+    """
+    d = ctx.proto_dir
+    if not d.exists():
+        ctx.write("  (no proto/ directory)", "dim")
+        return
+    files = sorted(d.glob("*.pro"))
+    if not files:
+        ctx.write("  (no .pro files)", "dim")
+        return
+    for f in files:
+        ctx.write(f"  {f.name}")
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="proto",
@@ -722,6 +743,10 @@ in the proto/ subfolder of your config directory.""",
             args="<file.pro>",
             help="Run a protocol test script.",
             handler=_cmd_run,
+        ),
+        "list": Command(
+            help="List .pro files in the proto/ directory.",
+            handler=_cmd_list,
         ),
         "debug": Command(
             args="<file.pro>",

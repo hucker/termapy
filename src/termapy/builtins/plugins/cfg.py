@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.config import cfg_dir
 from termapy.plugins import Command
 
 if TYPE_CHECKING:
@@ -80,6 +81,23 @@ def _handler_auto(ctx: PluginContext, args: str) -> None:
     ctx.engine.apply_cfg(key, new_val)
 
 
+def _handler_list(ctx: PluginContext, args: str) -> None:
+    """List all config files in the config directory.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Unused.
+    """
+    d = cfg_dir()
+    files = sorted(d.glob("*/*.cfg"))
+    if not files:
+        ctx.write("  (no config files)", "dim")
+        return
+    for f in files:
+        marker = " *" if str(f) == ctx.config_path else ""
+        ctx.write(f"  {f.parent.name}/{f.name}{marker}")
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="cfg",
@@ -102,6 +120,10 @@ Use /cfg.auto to set values without confirmation (for scripts).""",
             args="<key> <value>",
             help="Set immediately (no confirmation).",
             handler=_handler_auto,
+        ),
+        "list": Command(
+            help="List all config files.",
+            handler=_handler_list,
         ),
     },
 )

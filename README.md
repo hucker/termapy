@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-608%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-638%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -136,32 +136,49 @@ The most common ones:
 | `/port.break {ms}`               | Send break signal (default 250ms)                                                |
 | `/cfg [key [value]]`             | Show config, show a key, or change in-memory value (with confirmation)           |
 | `/cfg.auto <key> <value>`        | Set an in-memory config key immediately (no confirmation)                        |
+| `/cfg.list`                      | List all config files                                                            |
+| `/cfg.load <name>`               | Switch to a different config by name                                             |
 | `/ss.svg [name]`                 | Save SVG screenshot                                                              |
 | `/ss.txt [name]`                 | Save text screenshot                                                             |
 | `/ss.dir`                        | Show the screenshot folder                                                       |
 | `/cls`                           | Clear the terminal screen                                                        |
 | `/run <filename>`                | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
+| `/run.list`                      | List .run files in the scripts/ directory                                        |
+| `/run.load <filename>`           | Run a script file (same as /run)                                                 |
 | `/delay <duration>`              | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
 | `/confirm {message}`             | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)        |
 | `/stop`                          | Abort a running script                                                           |
 | `/seq [reset]`                   | Show or reset sequence counters                                                  |
 | `/print <text>`                  | Print a message to the terminal                                                  |
 | `/print.r <text>`                | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
-| `/show <name>`                   | Show a file (`$cfg` for current config)                                          |
+| `/show <name>`                   | Show a file                                                                      |
+| `/show.cfg`                      | Show the current config file                                                     |
 | `/echo [on \| off]`              | Toggle REPL command echo                                                         |
 | `/echo.quiet <on \| off>`        | Set echo on/off silently (for scripts and on_connect_cmd)                        |
-| `/edit <file>`                   | Edit a project file (`$cfg`, `$log`, `$info`, or `scripts/`/`proto/` path)       |
+| `/edit <file>`                   | Edit a project file (`scripts/`/`proto/` path)                                   |
+| `/edit.cfg`                      | Edit the current config file                                                     |
+| `/edit.log`                      | Open the session log in the system viewer                                        |
+| `/edit.info`                     | Open the info report in the system viewer                                        |
 | `/show_line_endings [on \| off]` | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
 | `/os <cmd>`                      | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `/grep <pattern>`                | Search scrollback for regex matches (case-insensitive, skips own output)         |
 | `/info {--display}`              | Show project summary; `--display` opens full report in system viewer             |
 | `/proto.send <hex>`              | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
 | `/proto.run <file>`              | Run a binary protocol test script (.pro) with pass/fail                          |
+| `/proto.list`                    | List .pro files in the proto/ directory                                          |
+| `/proto.load <file>`             | Run a protocol test script (same as /proto.run)                                  |
 | `/proto.hex [on \| off]`         | Toggle hex display mode for serial I/O                                           |
 | `/proto.crc.list {pat}`          | List available CRC algorithms (optional glob filter)                             |
 | `/proto.crc.help <name>`         | Show CRC algorithm parameters and description                                    |
 | `/proto.crc.calc <n> {d}`        | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
 | `/proto.status`                  | Show current protocol mode state                                                 |
+| `/var {name}`                    | List user variables, or show one by name                                         |
+| `/var.set <NAME> <value>`        | Set a user variable                                                              |
+| `/var.clear`                     | Clear all user variables                                                         |
+| `/env.list {pattern}`            | List environment variables (all, by name, or glob)                               |
+| `/env.set <name> <value>`        | Set a session-scoped environment variable                                        |
+| `/env.reload`                    | Re-snapshot variables from the OS environment                                    |
+| `/raw <text>`                    | Send text to serial with no variable expansion or transforms                     |
 | `/exit`                          | Exit termapy                                                                     |
 
 </details>
@@ -240,6 +257,71 @@ You can also manage environment variables at runtime with REPL commands:
 | `/env.reload`           | Re-snapshot variables from the OS environment      |
 
 Variables set with `/env.set` are available immediately for `$(env.NAME)` expansion in REPL commands but do not modify the OS environment or the config file.
+
+#### User Variables (`$(NAME)`)
+
+User variables let you define values once and reuse them across commands and scripts. This is especially useful when a test references the same address, register, or port in multiple places — change it once at the top instead of everywhere.
+
+Assign a variable by typing `$(name) = value` (no `/` prefix needed):
+
+```text
+$(slave) = 01
+$(reg) = 0064
+$(count) = 05
+```
+
+Use variables in any command — REPL or serial:
+
+```text
+/proto.send $(slave) 03 00 $(reg) 00 $(count)
+/print Reading $(count) registers from $(slave) at $(reg)
+AT+ADDR=$(slave)
+```
+
+A typical workflow is a setup script that configures a test, then a test script that uses the variables:
+
+```text
+# setup_modbus.run — run this first to configure the test
+$(SLAVE) = 01
+$(BASE_REG) = 0064
+$(NUM_REGS) = 05
+/print Configured: slave=$(SLAVE) base=$(BASE_REG) count=$(NUM_REGS)
+```
+
+```text
+# test_registers.run — uses variables from setup
+/proto.send $(SLAVE) 03 00 $(BASE_REG) 00 $(NUM_REGS)
+/delay 500ms
+/proto.send $(SLAVE) 06 00 $(BASE_REG) 04 D2
+```
+
+Run `/run setup_modbus.run` then `/run test_registers.run` — the variables persist across interactive `/run` calls.
+
+| Command              | Description                            |
+| -------------------- | -------------------------------------- |
+| `$(NAME) = value`    | Set a variable (no `/` prefix needed)  |
+| `/var`               | List all defined variables             |
+| `/var NAME`          | Show one variable's value (or $(NAME)) |
+| `/var.set NAME val`  | Set a variable (explicit command form) |
+| `/var.clear`         | Clear all variables                    |
+
+**Scope:** Variables persist for the interactive session. They are automatically cleared when a script is launched from the Scripts button or Run menu, but *not* when `/run` is typed interactively or called within a script. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
+
+**Naming:** Variable names are case-sensitive (`$(PORT)` and `$(port)` are different variables). Names must start with a letter or underscore and contain only letters, digits, and underscores.
+
+**Built-in time variables:**
+
+| Variable | Set when | Updates? |
+| --- | --- | --- |
+| `$(LAUNCH_DATETIME)` | App starts | Never - frozen |
+| `$(SESSION_DATETIME)` | Script launched (Scripts button / Run menu) | Per script launch |
+| `$(DATETIME)` | Every expansion | Always current clock |
+
+Each group also has `_DATE` and `_TIME` variants (e.g. `$(LAUNCH_DATE)`, `$(SESSION_TIME)`).
+
+**vs. environment variables:** `$(env.NAME)` pulls from the OS environment and works in config files. `$(NAME)` is for user-defined session variables in commands and scripts. Both use the `$(...)` syntax — `env.` is required to access environment variables explicitly.
+
+**Escaping:** Use `\$` to prevent expansion of a single reference, or `/raw` to skip expansion for an entire line.
 
 Add a `.gitignore` for session files you don't need to track:
 
@@ -524,6 +606,52 @@ expect_fmt = "Title:Modbus_Response Slave:H1 Func:H2 Bytes:U3 R0:U4-5 R1:U6-7 R2
 ```
 
 ![Inline format spec — decoded Modbus columns in proto debug screen](img/proto_inline_fmt.png)
+
+
+Finally here is the serial log output of a protocol test:
+
+```text
+================================================================================
+[2026-03-12 22:28:14] Script: Demo AT Command Test | Tests: 4 | Repeat: 1
+================================================================================
+  [PASS]  AT basic
+         TX:  41 54 0D
+         EXP: 4F 4B 0D 0A
+         RX:  4F 4B 0D 0A
+         Time: 77ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=41 54 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=4F 4B 0D 0A
+  [PASS]  LED on
+         TX:  41 54 2B 4C 45 44 20 6F 6E 0D
+         EXP: 4F 4B 0D 0A
+         RX:  4F 4B 0D 0A
+         Time: 128ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=41 54 2B 4C 45 44 20 6F 6E 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=4F 4B 0D 0A
+  [PASS]  LED off
+         TX:  41 54 2B 4C 45 44 20 6F 66 66 0D
+         EXP: 4F 4B 0D 0A
+         RX:  4F 4B 0D 0A
+         Time: 99ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=41 54 2B 4C 45 44 20 6F 66 66 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=4F 4B 0D 0A
+  [PASS]  Unknown command
+         TX:  49 4E 56 41 4C 49 44 0D
+         EXP: 45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
+         RX:  45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
+         Time: 72ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=49 4E 56 41 4C 49 44 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
+Summary: 4/4 PASS (4 tests)
+```
 
 ### CRC Algorithms
 

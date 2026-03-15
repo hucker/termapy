@@ -40,6 +40,12 @@ from termapy.config import (
 from rich.text import Text
 from textual import on, work
 
+from termapy.builtins.plugins.var import (
+    check_bare_dollar,
+    clear_vars,
+    rewrite_assignment,
+    set_start_time_vars,
+)
 from termapy.defaults import (
     DEFAULT_CFG,
     VALID_BYTE_SIZES,
@@ -199,6 +205,9 @@ class SerialTerminal(App):
     #cmd.repl-mode {
         color: red;
     }
+    #cmd.var-mode {
+        color: cyan;
+    }
     #bottom-bar Button {
         min-width: 0;
         width: auto;
@@ -339,10 +348,10 @@ class SerialTerminal(App):
     def _project_files(self) -> list[str]:
         """Return suggestion names for all editable project files.
 
-        Scans scripts/ (.run) and proto/ (.pro), plus special names
-        $cfg, $log, $info. Skips ss/, plugins/, viz/, and .py files.
+        Scans scripts/ (.run) and proto/ (.pro).
+        Skips ss/, plugins/, viz/, and .py files.
         """
-        names = ["$cfg", "$log", "$info"]
+        names: list[str] = []
         for d, pattern in [
             (self.repl.scripts_dir, "*.run"),
             (self.repl.proto_dir, "*.pro"),
@@ -356,28 +365,15 @@ class SerialTerminal(App):
     def _resolve_project_file(self, name: str) -> Path | None:
         """Resolve a user-supplied filename to an absolute path.
 
-        Handles special names ($cfg, $log, $info) and prefixed paths
-        (scripts/foo.run, proto/bar.pro). Falls back to extension-based
-        lookup for bare filenames.
+        Handles prefixed paths (scripts/foo.run, proto/bar.pro).
+        Falls back to extension-based lookup for bare filenames.
 
         Args:
-            name: User input (e.g. "$cfg", "scripts/demo.run", "test.pro").
+            name: User input (e.g. "scripts/demo.run", "test.pro").
 
         Returns:
             Resolved Path, or None if not found.
         """
-        low = name.lower()
-        if low == "$cfg":
-            return Path(self.config_path) if self.config_path else None
-        if low == "$log":
-            log = self._log_path()
-            return Path(log) if log else None
-        if low == "$info":
-            if not self.config_path:
-                return None
-            stem = Path(self.config_path).stem
-            return Path(self.config_path).parent / f"{stem}.md"
-
         # Prefixed path: "scripts/foo.run" or "proto/bar.pro"
         dir_map = {
             "scripts": self.repl.scripts_dir,
@@ -451,7 +447,7 @@ class SerialTerminal(App):
             yield right
         max_lines = self.cfg.get("max_lines", 10000)
         yield RichLog(
-            highlight=True, markup=True, wrap=True, id="output", max_lines=max_lines
+            highlight=False, markup=True, wrap=True, id="output", max_lines=max_lines
         )
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
@@ -572,6 +568,7 @@ class SerialTerminal(App):
             serial_drain=self._drain_rx_queue,
             serial_claim=lambda: setattr(self, "_proto_active", True),
             serial_release=lambda: setattr(self, "_proto_active", False),
+            dispatch=self._dispatch_single,
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
             proto_dir=self.repl.proto_dir,
@@ -699,6 +696,13 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "run.list",
+            "",
+            "List .run files in the scripts/ directory.",
+            self._hook_run_list,
+            source="app",
+        )
+        self.repl.register_hook(
             "demo",
             "",
             "Switch to the built-in demo device.",
@@ -722,8 +726,57 @@ class SerialTerminal(App):
         self.repl.register_hook(
             "edit",
             "<filename>",
-            "Edit a project file. $cfg/$log/$info or scripts/proto path.",
+            "Edit a project file (scripts/proto path).",
             self._hook_edit,
+            source="app",
+        )
+        self.repl.register_hook(
+            "edit.cfg",
+            "",
+            "Edit the current config file.",
+            lambda ctx, args: self._hook_edit_cfg(),
+            source="app",
+        )
+        self.repl.register_hook(
+            "edit.log",
+            "",
+            "Open the session log in the system viewer.",
+            lambda ctx, args: self._hook_edit_log(),
+            source="app",
+        )
+        self.repl.register_hook(
+            "edit.info",
+            "",
+            "Open the info report in the system viewer.",
+            lambda ctx, args: self._hook_edit_info(),
+            source="app",
+        )
+        self.repl.register_hook(
+            "cfg.load",
+            "<name>",
+            "Switch to a different config by name.",
+            self._hook_cfg_load,
+            source="app",
+        )
+        self.repl.register_hook(
+            "run.load",
+            "<filename>",
+            "Run a script file (same as /run).",
+            self._hook_run,
+            source="app",
+        )
+        self.repl.register_hook(
+            "proto.load",
+            "<filename>",
+            "Run a protocol test script (same as /proto.run).",
+            self._hook_proto_load,
+            source="app",
+        )
+        self.repl.register_hook(
+            "raw",
+            "<text>",
+            "Send text to serial with no variable expansion or transforms.",
+            lambda ctx, args: self._send_serial_raw(args),
             source="app",
         )
         # Load external plugins: global first, then per-config (can override)
@@ -1617,8 +1670,13 @@ class SerialTerminal(App):
         prefix = self.cfg.get("cmd_prefix", "/")
         if event.value.startswith(prefix):
             event.input.add_class("repl-mode")
+            event.input.remove_class("var-mode")
+        elif event.value.startswith("$"):
+            event.input.add_class("var-mode")
+            event.input.remove_class("repl-mode")
         else:
             event.input.remove_class("repl-mode")
+            event.input.remove_class("var-mode")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Send command to serial port when Enter is pressed."""
@@ -1677,24 +1735,75 @@ class SerialTerminal(App):
         if idx + 1 < len(cmds):
             self.call_after_refresh(self._execute_sequence, cmds, idx + 1)
 
+    def _send_serial_raw(self, text: str) -> None:
+        """Send text to serial with no transforms or variable expansion.
+
+        Reuses the standard echo / connection-check / line-ending / write
+        path but bypasses all transforms.
+
+        Args:
+            text: Literal text to send.
+        """
+        if self.cfg.get("echo_input"):
+            fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
+            echo_text = text
+            if self.cfg.get("show_line_endings", False):
+                le = self.cfg.get("line_ending", "\r")
+                echo_text += _eol_label(le)
+            self._write_output_markup(fmt.replace("{cmd}", echo_text))
+        if not self.is_connected:
+            self._status("Not connected — command not sent", "red")
+            return
+        line_ending = self.cfg.get("line_ending", "\r")
+        try:
+            self._serial_write(
+                (text + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+            )
+        except (OSError, serial.SerialException) as e:
+            self._status(f"Send error: {e}", "red")
+
     def _dispatch_single(self, cmd: str) -> None:
         """Dispatch a single command: REPL prefix goes to REPL, otherwise serial.
 
         Args:
             cmd: A single command string (no ``\\n`` separators).
         """
+        # ── Dispatch directives (meta-syntax, before plugins/transforms) ──
         prefix = self.cfg.get("cmd_prefix", "/")
+        if cmd.startswith(prefix + "raw "):
+            raw_text = cmd[len(prefix) + 4:]
+            self._log_line(">", cmd)
+            if self.repl.echo:
+                self._write_output_markup(f"[cyan]> {cmd}[/]")
+            self._send_serial_raw(raw_text)
+            return
+
+        # Line rewriting: $(VAR) = value → /var.set VAR value (before REPL/serial)
+        rewritten = rewrite_assignment(cmd)
+        if rewritten is not None:
+            self._log_line(">", cmd)
+            if self.repl.echo:
+                self._write_output_markup(f"[cyan]> {cmd}[/]")
+            self.repl.dispatch(rewritten)
+            return
+        # Warn on bare $NAME = value (old syntax without parens)
+        bare_warning = check_bare_dollar(cmd)
+        if bare_warning is not None:
+            self._status(bare_warning, "yellow")
+            return
+
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix):].strip()
             self._log_line(">",f"{prefix}{repl_cmd}")
             if self.repl.echo:
                 self._write_output_markup(f"[red]> {prefix}{repl_cmd}[/]")
             if self.repl.has_repl_transforms:
-                try:
-                    repl_cmd = self.repl.transform_repl(repl_cmd)
-                except ValueError as e:
-                    self._status(str(e), "red")
-                    return
+                if not self.repl.command_has_raw_args(repl_cmd):
+                    try:
+                        repl_cmd = self.repl.transform_repl(repl_cmd)
+                    except ValueError as e:
+                        self._status(str(e), "red")
+                        return
             self.repl.dispatch(repl_cmd)
             return
         # Apply serial transforms
@@ -2207,6 +2316,8 @@ class SerialTerminal(App):
             return
         action = result[0]
         if action == "run":
+            clear_vars()
+            set_start_time_vars()
             path = self.repl.start_script(result[1])
             if path:
                 self._run_script(path)
@@ -2263,42 +2374,41 @@ class SerialTerminal(App):
             self._status(f"Proto script saved: {Path(path).name}", "green")
             self._sync_proto_button()
 
+    def _hook_edit_cfg(self) -> None:
+        """Open the config editor modal."""
+        self.push_screen(
+            ConfigEditor(dict(self.cfg), self.config_path),
+            callback=self._on_config_result,
+        )
+
+    def _hook_edit_log(self) -> None:
+        """Open the session log in the system viewer."""
+        open_with_system(self._log_path())
+
+    def _hook_edit_info(self) -> None:
+        """Open the info report in the system viewer."""
+        if not self.config_path:
+            self.repl.write("No config loaded.", "red")
+            return
+        stem = Path(self.config_path).stem
+        path = Path(self.config_path).parent / f"{stem}.md"
+        if path.exists():
+            open_with_system(str(path))
+        else:
+            self.repl.write("No info report yet. Run /info first.", "red")
+
     def _hook_edit(self, ctx, args: str) -> None:
         """Edit a project file using the same dialogs as the UI menus.
 
-        Routes to ConfigEditor ($cfg), system viewer ($log/$info),
-        ScriptEditor (.run), or ProtoEditor (.pro).
+        Routes to ScriptEditor (.run) or ProtoEditor (.pro).
 
         Args:
             ctx: Plugin context (unused).
-            args: Filename or special name ($cfg, $log, $info).
+            args: Filename (scripts/proto path).
         """
         filename = args.strip()
         if not filename:
             self.repl.write("Usage: /edit <filename>", "red")
-            return
-        low = filename.lower()
-
-        # $cfg — same as Cfg menu → Edit
-        if low == "$cfg":
-            self.push_screen(
-                ConfigEditor(dict(self.cfg), self.config_path),
-                callback=self._on_config_result,
-            )
-            return
-
-        # $log — same as Palette → View Log
-        if low == "$log":
-            open_with_system(self._log_path())
-            return
-
-        # $info — view the generated info report
-        if low == "$info":
-            path = self._resolve_project_file("$info")
-            if path and path.exists():
-                open_with_system(str(path))
-            else:
-                self.repl.write("No info report yet. Run /info first.", "red")
             return
 
         # Resolve prefixed or bare filename
@@ -2324,6 +2434,49 @@ class SerialTerminal(App):
         if path:
             self._run_script(path)
 
+    def _hook_cfg_load(self, ctx, args: str) -> None:
+        """Switch to a different config by name or path."""
+        name = args.strip()
+        if not name:
+            self.repl.write("Usage: /cfg.load <name>", "red")
+            return
+        path = Path(name)
+        # Try as a bare name: termapy_cfg/<name>/<name>.cfg
+        if not path.exists():
+            from termapy.config import cfg_path_for_name
+            path = cfg_path_for_name(name)
+        # Try appending .cfg
+        if not path.exists() and not path.suffix:
+            path = Path(str(path) + ".cfg")
+        if not path.exists():
+            self.repl.write(f"Config not found: {name}", "red")
+            return
+        try:
+            from termapy.config import load_config
+            cfg = load_config(str(path))
+        except Exception as e:
+            self.repl.write(f"Failed to load config: {e}", "red")
+            return
+        self._switch_config(cfg, str(path))
+        self._status(f"Loaded config: {path.stem}", "green")
+
+    def _hook_proto_load(self, ctx, args: str) -> None:
+        """Run a protocol test script (delegates to /proto.run)."""
+        self.repl.dispatch(f"proto.run {args}")
+
+    def _hook_run_list(self, ctx, args: str) -> None:
+        """List .run files in the scripts/ directory."""
+        d = self.repl.scripts_dir
+        if not d.exists():
+            self.repl.write("  (no scripts/ directory)", "dim")
+            return
+        files = sorted(d.glob("*.run"))
+        if not files:
+            self.repl.write("  (no .run files)", "dim")
+            return
+        for f in files:
+            self.repl.write(f"  {f.name}")
+
     @work(thread=True)
     def _run_script(self, path: Path) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
@@ -2331,8 +2484,13 @@ class SerialTerminal(App):
         def thread_safe_write(text: str, color: str = "dim") -> None:
             self.call_from_thread(self._status, text, color)
 
+        def thread_safe_dispatch(cmd: str) -> None:
+            self.call_from_thread(self._dispatch_single, cmd)
+
         try:
-            self.repl.run_script(path, write=thread_safe_write)
+            self.repl.run_script(
+                path, write=thread_safe_write, dispatch=thread_safe_dispatch,
+            )
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
 
@@ -2523,7 +2681,7 @@ def main():
     if args.demo:
         from termapy.config import setup_demo_config
 
-        config_path = setup_demo_config(cfg_dir())
+        config_path = setup_demo_config(cfg_dir(), force=True)
         try:
             cfg = load_config(str(config_path))
         except Exception as e:

@@ -1,4 +1,4 @@
-"""Tests for FakeSerial demo device — ASCII commands, Modbus RTU, and config setup."""
+"""Tests for FakeSerial demo device — ASCII, GPS/NMEA, Modbus RTU, and config setup."""
 
 import struct
 import time
@@ -146,6 +146,68 @@ class TestAsciiCommands:
         time.sleep(0.01)
         actual = dev.read(4096).decode()
         assert actual == "\r\n"  # empty line returns just CRLF
+
+
+# -- GPS / NMEA commands ---------------------------------------------------
+
+
+class TestGpsNmea:
+    def test_gpgga_sentence(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$GPGGA")
+        assert actual.startswith("$GPGGA,")  # GGA sentence
+        assert ",4735.7120,N," in actual  # Lumen Field latitude
+        assert ",12219.8960,W," in actual  # Lumen Field longitude
+        assert actual.strip().endswith("*" + actual.strip()[-2:])  # has checksum
+
+    def test_gprmc_sentence(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$GPRMC")
+        assert actual.startswith("$GPRMC,")  # RMC sentence
+        assert ",4735.7120,N," in actual  # latitude
+        assert ",12219.8960,W," in actual  # longitude
+        assert ",A," in actual  # fix valid
+
+    def test_gpgsa_sentence(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$GPGSA")
+        assert actual.startswith("$GPGSA,")  # GSA sentence
+        assert ",A,3," in actual  # auto mode, 3D fix
+
+    def test_gpgsv_multiple_messages(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$GPGSV")
+        lines = [l for l in actual.strip().split("\r\n") if l.startswith("$GPGSV")]
+        assert len(lines) >= 2  # 9 sats = at least 2 messages (4 per msg)
+        assert lines[0].startswith("$GPGSV,")  # valid GSV sentence
+
+    def test_gpgga_checksum_valid(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$GPGGA").strip()
+        # Extract body between $ and *
+        body = actual[1:actual.rfind("*")]
+        expected_cs = 0
+        for ch in body:
+            expected_cs ^= ord(ch)
+        actual_cs = actual[actual.rfind("*") + 1:]
+        assert actual_cs == f"{expected_cs:02X}"  # checksum matches
+
+    def test_pmtk_acknowledged(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$PMTK220,1000")
+        assert "$PMTK001,220,3*" in actual  # acknowledged with success
+
+    def test_pmtk_config_sentence(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0")
+        assert "$PMTK001,314,3*" in actual  # acknowledged
+
+    def test_pmtk_invalid(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$PMTK")
+        assert "ERROR" in actual  # too short
+
+    def test_unknown_gp_command(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "$GPXYZ")
+        assert "ERROR" in actual  # unknown NMEA query
+        assert "GPXYZ" in actual  # includes the bad command
+
+    def test_help_lists_gps(self, dev: FakeSerial) -> None:
+        actual = _send_cmd(dev, "help")
+        assert "$GPGGA" in actual  # GPS commands in help
+        assert "$PMTK" in actual  # PMTK in help
 
 
 # -- Binary Modbus --------------------------------------------------------

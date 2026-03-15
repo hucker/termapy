@@ -1,0 +1,45 @@
+# Variable Demo — set variables and use them in commands
+/print ─── Variable Demo ───
+
+/print
+/print [1] Set variables
+$SLAVE = 01
+$FUNC = 03
+$REG = 0064
+$COUNT = 05
+/delay 300ms
+
+/print
+/print [2] List defined variables
+/var
+/delay 500ms
+
+/print
+/print [3] Use in a print command
+/print Reading $COUNT registers from slave $SLAVE at $REG
+/delay 300ms
+
+/print
+/print [4] Use in a device command
+AT+INFO
+/delay 300ms
+
+/print
+/print [5] Reassign a variable
+$REG = 0000
+/print Register changed to $REG
+/delay 300ms
+
+/print
+/print [6] Show a single variable
+/var $SLAVE
+/delay 300ms
+
+/print
+/print [7] Clear all variables
+/var.clear
+/var
+/delay 300ms
+
+/print
+/print ─── Variable Demo complete ───

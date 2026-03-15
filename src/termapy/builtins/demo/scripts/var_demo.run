@@ -3,10 +3,9 @@
 
 /print
 /print [1] Set variables
-$SLAVE = 01
-$FUNC = 03
-$REG = 0064
-$COUNT = 05
+$(SLAVE) = 01
+$(REG) = 0064
+$(COUNT) = 05
 /delay 300ms
 
 /print
@@ -16,27 +15,40 @@ $COUNT = 05
 
 /print
 /print [3] Use in a print command
-/print Reading $COUNT registers from slave $SLAVE at $REG
+/print Reading $(COUNT) registers from slave $(SLAVE) at $(REG)
 /delay 300ms
 
 /print
 /print [4] Use in a device command
-AT+INFO
+AT+ADDR=$(SLAVE)
 /delay 300ms
 
 /print
 /print [5] Reassign a variable
-$REG = 0000
-/print Register changed to $REG
+$(REG) = 0000
+/print Register changed to $(REG)
 /delay 300ms
 
 /print
-/print [6] Show a single variable
-/var $SLAVE
+/print [6] Show a single variable (use bare name)
+/var SLAVE
 /delay 300ms
 
 /print
-/print [7] Clear all variables
+/print [7] Built-in time variables
+/print App started:    $(LAUNCH_DATETIME)
+/print Script started: $(SESSION_DATETIME)
+/print Right now:      $(DATETIME)
+/delay 300ms
+
+/print
+/print [8] Escaping — show name and value together
+/print \$(SLAVE) = $(SLAVE)
+/print \$(REG) = $(REG)
+/delay 300ms
+
+/print
+/print [9] Clear all variables
 /var.clear
 /var
 /delay 300ms

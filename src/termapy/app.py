@@ -826,7 +826,7 @@ class SerialTerminal(App):
         if port:
             self.repl._cfg_data["port"] = port
         # Wait for any previous reader thread to finish
-        self.reader_stopped.wait(timeout=1.0)
+        self.reader_stopped.wait(timeout=0.3)
         self.stop_event.clear()
         self._try_open_port()
 
@@ -1105,7 +1105,7 @@ class SerialTerminal(App):
     def _disconnect(self) -> None:
         was_open = self.is_connected
         self.stop_event.set()
-        self.reader_stopped.wait(timeout=2.0)
+        self.reader_stopped.wait(timeout=0.3)
         try:
             if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
@@ -1229,17 +1229,31 @@ class SerialTerminal(App):
             args: Optional ``--force`` to overwrite existing demo config.
         """
         force = "--force" in args.lower()
-        config_path = setup_demo_config(cfg_dir(), force=force)
+        self._start_demo_async(force)
+
+    @work(thread=True)
+    def _start_demo_async(self, force: bool) -> None:
+        """Background thread for demo setup so status messages render."""
         try:
+            self.call_from_thread(self._status, "Setting up demo files...", "dim")
+            config_path = setup_demo_config(cfg_dir(), force=force)
+
+            self.call_from_thread(self._status, "Loading demo config...", "dim")
             cfg = load_config(str(config_path))
+
+            self.call_from_thread(self._status, "Switching to demo device...", "dim")
+            self.call_from_thread(self._switch_config, cfg, str(config_path))
+
+            msg = "Switched to demo device"
+            if force:
+                msg += " (config reset)"
+            self.call_from_thread(self._status, msg, "green")
+        except RuntimeError:
+            pass  # call_from_thread fails during app shutdown
         except Exception as e:
-            self._status(f"Failed to load demo config: {e}", "red")
-            return
-        self._switch_config(cfg, str(config_path))
-        msg = "Switched to demo device"
-        if force:
-            msg += " (config reset)"
-        self._status(msg, "green")
+            self.call_from_thread(
+                self._status, f"Failed to load demo config: {e}", "red",
+            )
 
     def _on_config_picked(self, result: tuple | None) -> None:
         if result is None:

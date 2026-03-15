@@ -271,6 +271,47 @@ def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
 
 # ---- Leaf handlers ---------------------------------------------------------
 
+def _parse_send_algo(
+    name: str, registry: dict,
+) -> tuple[str | None, bool, bool]:
+    """Extract algorithm name and suffixes from a /proto.send first word.
+
+    Strips ``_le``/``_be`` (byte order) and ``_ascii`` (output format)
+    suffixes from the name and looks up the base algorithm in the registry.
+
+    Args:
+        name: First word from the command (e.g. ``"crc16-modbus_be_ascii"``).
+        registry: CRC algorithm registry to match against.
+
+    Returns:
+        Tuple of (algo_name, big_endian, ascii_crc). algo_name is None
+        if the name doesn't match any algorithm.
+    """
+    low = name.lower()
+    # Exact match first (some algo names contain underscores)
+    if low in registry:
+        return low, False, False
+
+    big_endian = False
+    ascii_crc = False
+
+    # Strip _ascii suffix
+    if low.endswith("_ascii"):
+        ascii_crc = True
+        low = low[:-6]
+
+    # Strip _le or _be suffix
+    if low.endswith("_be"):
+        big_endian = True
+        low = low[:-3]
+    elif low.endswith("_le"):
+        low = low[:-3]
+
+    if low in registry:
+        return low, big_endian, ascii_crc
+    return None, False, False
+
+
 def _cmd_send(ctx: PluginContext, args: str) -> None:
     """Send raw bytes to the serial port and display the response.
 
@@ -278,26 +319,27 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
     ending appended), then waits up to 1 second for a response frame.
     Displays both TX and RX as hex with byte count and round-trip time.
 
-    If the first word matches a known CRC algorithm, computes and
-    appends the CRC to the data before sending. Flags ``--le``/``--be``
-    control byte order (default LE), ``--ascii`` appends CRC as hex text.
+    If the first word matches a known CRC algorithm (with optional
+    ``_le``/``_be`` and ``_ascii`` suffixes), computes and appends the
+    CRC to the data before sending. Default byte order is LE.
 
     Args:
         ctx: Plugin context for serial I/O and output.
         args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
     """
     if not args.strip():
-        ctx.write("Usage: /proto.send [algo] [--le|--be] [--ascii] "
+        ctx.write("Usage: /proto.send [algo[_le|_be][_ascii]] "
                   "<hex bytes or \"text\">", "red")
         return
     if not ctx.is_connected():
         ctx.write("Not connected.", "red")
         return
 
-    # Check if the first word is a CRC algorithm name
+    # Check if the first word is a CRC algorithm name (with optional suffixes)
     first, _, rest = args.strip().partition(" ")
     registry = get_crc_registry()
-    algo = registry.get(first.lower())
+    algo_name, big_endian, ascii_crc = _parse_send_algo(first, registry)
+    algo = registry.get(algo_name) if algo_name else None
 
     try:
         if algo is None:
@@ -306,25 +348,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
             if not rest.strip():
                 ctx.write(f"No data after CRC algorithm '{first}'", "red")
                 return
-            big_endian = False
-            ascii_crc = False
-            remaining = rest.strip()
-            while remaining.startswith("--"):
-                if remaining.startswith("--le"):
-                    big_endian = False
-                    remaining = remaining[4:].lstrip()
-                elif remaining.startswith("--be"):
-                    big_endian = True
-                    remaining = remaining[4:].lstrip()
-                elif remaining.startswith("--ascii"):
-                    ascii_crc = True
-                    remaining = remaining[7:].lstrip()
-                else:
-                    break
-            if not remaining.strip():
-                ctx.write(f"No data after CRC flags", "red")
-                return
-            data = parse_data(remaining)
+            data = parse_data(rest.strip())
             crc_value = algo.compute(data)
             if ascii_crc:
                 hex_str = f"{crc_value:0{algo.width * 2}X}"
@@ -719,10 +743,11 @@ Send examples:
   /proto.send "AT\\r"           — send text with carriage return
   /proto.send 0x01 "hello" 0D  — mix hex and text
 
-Send with CRC (first word = algorithm name):
-  /proto.send crc16-modbus 01 03 00 00 00 0A       — append LE CRC
-  /proto.send crc16-modbus --be 01 03 00 00 00 0A  — append BE CRC
-  /proto.send crc16-modbus --ascii "READ 0000"      — append CRC as text
+Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
+  /proto.send crc16-modbus 01 03 00 00 00 0A            — append LE CRC (default)
+  /proto.send crc16-modbus_be 01 03 00 00 00 0A         — append BE CRC
+  /proto.send crc16-modbus_ascii "READ 0000"             — append CRC as hex text
+  /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   — BE CRC as hex text
 
 CRC tools:
   /proto.crc.list              — list all 62 algorithms
@@ -735,7 +760,7 @@ or flat format with send:/expect: directives. Scripts are found
 in the proto/ subfolder of your config directory.""",
     sub_commands={
         "send": Command(
-            args='{algo} {--le|--be} {--ascii} <hex|"text">',
+            args='{algo[_le|_be][_ascii]} <hex|"text">',
             help="Send raw bytes (with optional CRC), show response.",
             handler=_cmd_send,
         ),

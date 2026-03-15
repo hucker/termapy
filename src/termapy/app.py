@@ -40,6 +40,7 @@ from termapy.config import (
 from rich.text import Text
 from textual import on, work
 
+from termapy.builtins.plugins.var import clear_vars, rewrite_assignment
 from termapy.defaults import (
     DEFAULT_CFG,
     VALID_BYTE_SIZES,
@@ -1684,7 +1685,6 @@ class SerialTerminal(App):
             cmd: A single command string (no ``\\n`` separators).
         """
         # Line rewriting: $VAR = value → /var.set VAR value (before REPL/serial)
-        from termapy.builtins.plugins.var import rewrite_assignment
         rewritten = rewrite_assignment(cmd)
         if rewritten is not None:
             self.repl.dispatch(rewritten)
@@ -2214,7 +2214,6 @@ class SerialTerminal(App):
             return
         action = result[0]
         if action == "run":
-            from termapy.builtins.plugins.var import clear_vars
             clear_vars()
             path = self.repl.start_script(result[1])
             if path:

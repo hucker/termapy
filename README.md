@@ -162,6 +162,12 @@ The most common ones:
 | `/proto.crc.help <name>`         | Show CRC algorithm parameters and description                                    |
 | `/proto.crc.calc <n> {d}`        | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
 | `/proto.status`                  | Show current protocol mode state                                                 |
+| `/var {name}`                    | List user variables, or show one by name                                         |
+| `/var.set <NAME> <value>`        | Set a user variable                                                              |
+| `/var.clear`                     | Clear all user variables                                                         |
+| `/env.list {pattern}`            | List environment variables (all, by name, or glob)                               |
+| `/env.set <name> <value>`        | Set a session-scoped environment variable                                        |
+| `/env.reload`                    | Re-snapshot variables from the OS environment                                    |
 | `/exit`                          | Exit termapy                                                                     |
 
 </details>

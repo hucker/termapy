@@ -73,6 +73,8 @@ class Command:
         handler: The command function. Required for leaf nodes.
             Signature: ``handler(ctx: PluginContext, args: str) -> None``.
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
+        raw_args: When True, REPL transforms are skipped for this command.
+            Use for commands that take variable names as arguments.
     """
 
     help: str
@@ -81,6 +83,7 @@ class Command:
     long_help: str = ""
     handler: Callable | None = None
     sub_commands: dict[str, "Command"] | None = None
+    raw_args: bool = False
 
 
 @dataclass
@@ -203,6 +206,9 @@ class PluginContext:
         ss_dir: Path to the per-config screenshots directory (auto-created).
         scripts_dir: Path to the per-config scripts directory (auto-created).
         proto_dir: Path to the per-config protocol test scripts directory (auto-created).
+        dispatch: Route a raw command through the full dispatch pipeline
+            (directives, transforms, REPL/serial). Signature: ``dispatch(cmd)``.
+            Thread-safe when called via ``call_from_thread``.
         confirm: Show a Yes/Cancel confirmation dialog and return the result.
             Signature: ``confirm(message) -> bool``. **Must be called from a
             background thread** (e.g. inside a ``@work(thread=True)`` handler).
@@ -240,6 +246,11 @@ class PluginContext:
     ss_dir: Path = field(default_factory=lambda: Path("."))
     scripts_dir: Path = field(default_factory=lambda: Path("."))
     proto_dir: Path = field(default_factory=lambda: Path("."))
+
+    # Dispatch — route a raw command through the full dispatch pipeline
+    # (directives, transforms, REPL/serial). Thread-safe when wired via
+    # call_from_thread in app.py.
+    dispatch: Callable = lambda cmd: None  # dispatch(cmd) -> None
 
     # UI
     confirm: Callable = lambda message: False  # confirm(msg) -> bool (worker thread only)
@@ -291,6 +302,7 @@ class PluginInfo:
         source: Where the plugin was loaded from (``"built-in"``, ``"global"``,
             or the config name).
         children: Dotted names of direct subcommands (empty for leaf commands).
+        raw_args: When True, REPL transforms are skipped for this command.
     """
 
     name: str
@@ -300,6 +312,7 @@ class PluginInfo:
     long_help: str = ""
     source: str = "built-in"
     children: list[str] = field(default_factory=list)
+    raw_args: bool = False
 
 
 def builtins_dir() -> Path:
@@ -433,6 +446,7 @@ def _flatten_command(
         handler=handler,
         source=source,
         children=children,
+        raw_args=node.raw_args,
     )
     result.insert(0, info)
     return result

@@ -18,7 +18,7 @@ from termapy.plugins import (
     PluginContext, PluginInfo, TransformInfo,
     builtins_dir, load_plugins_from_dir,
 )
-from termapy.scripting import expand_template, parse_duration, parse_script_lines
+from termapy.scripting import expand_template, parse_duration
 
 
 class ReplEngine:
@@ -90,7 +90,8 @@ class ReplEngine:
 
     def register_hook(self, name: str, args: str, help_text: str,
                       handler: Callable, source: str = "built-in",
-                      long_help: str = "") -> None:
+                      long_help: str = "",
+                      raw_args: bool = False) -> None:
         """Register an app-coupled command as a plugin.
 
         Bridge for commands that need Textual access (screenshots, connect,
@@ -105,10 +106,12 @@ class ReplEngine:
             handler: Callable(ctx, args) invoked when the command runs.
             source: Label for origin (default "built-in").
             long_help: Extended help for ``/help <cmd>`` (default "").
+            raw_args: Skip REPL transforms for this command (default False).
         """
         self._plugins[name] = PluginInfo(
             name=name, args=args, help=help_text,
             handler=handler, long_help=long_help, source=source,
+            raw_args=raw_args,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -116,6 +119,21 @@ class ReplEngine:
             parent = self._plugins.get(parent_name)
             if parent and name not in parent.children:
                 parent.children.append(name)
+
+    def command_has_raw_args(self, repl_cmd: str) -> bool:
+        """Check if the first command token has ``raw_args`` set.
+
+        Called before transforms to decide whether to skip expansion.
+
+        Args:
+            repl_cmd: REPL command string (prefix already stripped).
+
+        Returns:
+            True if the command exists and has ``raw_args=True``.
+        """
+        name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
+        plugin = self._plugins.get(name)
+        return plugin.raw_args if plugin else False
 
     # -- Dispatch -------------------------------------------------------------
 
@@ -241,9 +259,11 @@ class ReplEngine:
             self.write("Usage: /run <filename>", "red")
             return None
         path = Path(filename)
+        if not path.exists() and not path.suffix:
+            path = Path(filename + ".run")
         if not path.exists():
             # Try resolving relative to the per-config scripts/ folder
-            alt = self.scripts_dir / filename
+            alt = self.scripts_dir / path.name
             if alt.exists():
                 path = alt
             else:
@@ -261,45 +281,48 @@ class ReplEngine:
         self.write(f"Running script: {filename}")
         return path
 
-    def run_script(self, path: Path, write: Callable | None = None) -> None:
+    def run_script(
+        self,
+        path: Path,
+        write: Callable | None = None,
+        dispatch: Callable | None = None,
+    ) -> None:
         """Execute a script file line by line (call from a background thread).
 
-        Parses the script into serial commands, REPL commands, and delays.
-        Supports /stop to abort mid-execution. Serial commands are sent with
-        the configured line ending and encoding.
-
-        This method is called from a ``@work(thread=True)`` background thread
-        in ``app.py``. The default ``self.write`` callback writes directly to
-        the Textual UI, which is not thread-safe. Callers pass a thread-safe
-        ``write`` override (typically wrapping ``call_from_thread``) so that
-        status messages are posted safely to the main event loop. This avoids
-        monkey-patching ``self.write`` and keeps the override scoped to the
-        call stack.
+        Every non-blank, non-comment line is routed through the full dispatch
+        pipeline (directives, transforms, REPL/serial). The only exception is
+        ``/delay`` which sleeps in the background thread to avoid blocking the
+        UI event loop.
 
         Args:
             path: Path to the script file to execute.
             write: Optional write callback override for thread-safe output.
                 Falls back to ``self.write`` when None (e.g. in tests).
+            dispatch: Optional dispatch callback that routes a raw command
+                through the full pipeline (``_dispatch_single`` via
+                ``call_from_thread``). Falls back to a local REPL-only
+                dispatch when None (e.g. in tests).
         """
         w = write or self.write
+        prefix = self.prefix
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
-            prefix = self.prefix
-            line_ending = self.cfg.get("line_ending", "\r")
-            enc = self.cfg.get("encoding", "utf-8")
-            parsed = parse_script_lines(lines, prefix)
-            for kind, content in parsed:
+            for raw_line in lines:
                 if self._script_stop.is_set():
                     w("Script stopped.")
                     break
-                if kind == "skip":
+                stripped = raw_line.strip()
+                if not stripped or stripped.startswith("#"):
                     continue
-                if kind == "repl":
-                    name, _, args = content.partition(" ")
+                # /delay must sleep in the background thread — can't dispatch
+                if stripped.startswith(prefix):
+                    cmd = stripped[len(prefix):].strip()
+                    name, _, args = cmd.partition(" ")
                     if name.lower() == "delay":
-                        self.ctx.log(">", f"{prefix}{content}")
+                        self.ctx.log(">", stripped)
                         expanded, self._seq_counters = expand_template(
-                            args.strip(), self._seq_counters, self._seq_start_time
+                            args.strip(), self._seq_counters,
+                            self._seq_start_time,
                         )
                         try:
                             seconds = parse_duration(expanded)
@@ -308,16 +331,20 @@ class ReplEngine:
                             break
                         time.sleep(seconds)
                         w(f"Delay {expanded} done.")
-                    else:
-                        self.ctx.log(">", f"{prefix}{content}")
-                        self.dispatch(content)
-                        time.sleep(0.1)
-                elif kind == "serial":
-                    if self.ctx.is_connected():
+                        continue
+                # Everything else goes through the full dispatch pipeline
+                if dispatch:
+                    dispatch(stripped)
+                else:
+                    # Fallback for tests: classify and handle locally
+                    if stripped.startswith(prefix):
+                        self.dispatch(stripped[len(prefix):].strip())
+                    elif self.ctx.is_connected():
                         self.ctx.serial_write(
-                            (content + line_ending).encode(enc)
+                            (stripped + self.cfg.get("line_ending", "\r"))
+                            .encode(self.cfg.get("encoding", "utf-8"))
                         )
-                        self.ctx.serial_wait_idle()
+                time.sleep(0.1)
             else:
                 w("Script finished.")
         except Exception as e:

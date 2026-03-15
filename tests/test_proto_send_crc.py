@@ -3,7 +3,7 @@
 import pytest
 
 from termapy.plugins import EngineAPI, PluginContext
-from termapy.builtins.plugins.proto import _cmd_send
+from termapy.builtins.plugins.proto import _cmd_send, _parse_send_algo
 from termapy.protocol import get_crc_registry
 
 
@@ -21,6 +21,107 @@ def send_env():
         engine=EngineAPI(),
     )
     return ctx, output, tx_bytes
+
+
+# ── _parse_send_algo ────────────────────────────────────────────────────────
+
+
+class TestParseSendAlgo:
+    """Tests for algorithm name + suffix parsing."""
+
+    def test_bare_algo(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, actual_be, actual_ascii = _parse_send_algo(
+            "crc16-modbus", registry,
+        )
+
+        # Assert — exact match, default LE, no ascii
+        assert actual_name == "crc16-modbus"
+        assert actual_be is False
+        assert actual_ascii is False
+
+    def test_algo_be(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, actual_be, actual_ascii = _parse_send_algo(
+            "crc16-modbus_be", registry,
+        )
+
+        # Assert — BE suffix stripped
+        assert actual_name == "crc16-modbus"
+        assert actual_be is True
+        assert actual_ascii is False
+
+    def test_algo_le(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, actual_be, actual_ascii = _parse_send_algo(
+            "crc16-modbus_le", registry,
+        )
+
+        # Assert — explicit LE, same as default
+        assert actual_name == "crc16-modbus"
+        assert actual_be is False
+        assert actual_ascii is False
+
+    def test_algo_ascii(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, actual_be, actual_ascii = _parse_send_algo(
+            "crc16-modbus_ascii", registry,
+        )
+
+        # Assert — ascii suffix stripped
+        assert actual_name == "crc16-modbus"
+        assert actual_be is False
+        assert actual_ascii is True
+
+    def test_algo_be_ascii(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, actual_be, actual_ascii = _parse_send_algo(
+            "crc16-modbus_be_ascii", registry,
+        )
+
+        # Assert — both suffixes stripped
+        assert actual_name == "crc16-modbus"
+        assert actual_be is True
+        assert actual_ascii is True
+
+    def test_algo_le_ascii(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, actual_be, actual_ascii = _parse_send_algo(
+            "crc16-modbus_le_ascii", registry,
+        )
+
+        # Assert — LE + ascii
+        assert actual_name == "crc16-modbus"
+        assert actual_be is False
+        assert actual_ascii is True
+
+    def test_unknown_returns_none(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, _, _ = _parse_send_algo("not-an-algo", registry)
+
+        # Assert — no match
+        assert actual_name is None
+
+    def test_case_insensitive(self):
+        # Act
+        registry = get_crc_registry()
+        actual_name, actual_be, _ = _parse_send_algo(
+            "CRC16-MODBUS_BE", registry,
+        )
+
+        # Assert — case folded
+        assert actual_name == "crc16-modbus"
+        assert actual_be is True
+
+
+# ── Send with CRC ──────────────────────────────────────────────────────────
 
 
 class TestSendCrcAppend:
@@ -43,7 +144,7 @@ class TestSendCrcAppend:
     def test_crc16_modbus_be(self, send_env):
         # Arrange
         ctx, output, tx_bytes = send_env
-        args = "crc16-modbus --be 01 03 00 00 00 01"
+        args = "crc16-modbus_be 01 03 00 00 00 01"
 
         # Act
         _cmd_send(ctx, args)
@@ -56,7 +157,7 @@ class TestSendCrcAppend:
     def test_crc16_modbus_ascii_le(self, send_env):
         # Arrange
         ctx, output, tx_bytes = send_env
-        args = "crc16-modbus --ascii 01 03 00 00 00 01"
+        args = "crc16-modbus_ascii 01 03 00 00 00 01"
 
         # Act
         _cmd_send(ctx, args)
@@ -71,7 +172,7 @@ class TestSendCrcAppend:
     def test_crc16_modbus_ascii_be(self, send_env):
         # Arrange
         ctx, output, tx_bytes = send_env
-        args = "crc16-modbus --be --ascii 01 03 00 00 00 01"
+        args = "crc16-modbus_be_ascii 01 03 00 00 00 01"
 
         # Act
         _cmd_send(ctx, args)
@@ -101,7 +202,7 @@ class TestSendCrcAppend:
     def test_crc_info_be_ascii(self, send_env):
         # Arrange
         ctx, output, tx_bytes = send_env
-        args = "crc16-modbus --be --ascii 01 03 00 00 00 01"
+        args = "crc16-modbus_be_ascii 01 03 00 00 00 01"
 
         # Act
         _cmd_send(ctx, args)
@@ -128,10 +229,10 @@ class TestSendCrcEdgeCases:
         actual = [t for t, c in output if c == "red"]
         assert any("No data" in t for t in actual)  # error shown
 
-    def test_no_data_after_flags(self, send_env):
+    def test_no_data_after_algo_with_suffix(self, send_env):
         # Arrange
         ctx, output, tx_bytes = send_env
-        args = "crc16-modbus --le --ascii"
+        args = "crc16-modbus_ascii"
 
         # Act
         _cmd_send(ctx, args)
@@ -140,19 +241,6 @@ class TestSendCrcEdgeCases:
         assert len(tx_bytes) == 0  # nothing sent
         actual = [t for t, c in output if c == "red"]
         assert any("No data" in t for t in actual)  # error shown
-
-    def test_unknown_flag_treated_as_data(self, send_env):
-        # Arrange — --bogus is not a known flag, so parser stops and
-        # treats it as data (which will fail parse_data)
-        ctx, output, tx_bytes = send_env
-        args = "crc16-modbus --bogus"
-
-        # Act
-        _cmd_send(ctx, args)
-
-        # Assert — should get a parse error since "--bogus" isn't valid hex
-        actual = [t for t, c in output if c == "red"]
-        assert any("Parse error" in t for t in actual)  # parse error shown
 
     def test_no_algo_sends_raw(self, send_env):
         # Arrange — first word is NOT a CRC algo, so plain send
@@ -205,19 +293,6 @@ class TestSendCrcEdgeCases:
         assert len(tx_bytes) == 0  # nothing sent
         actual = [t for t, c in output if c == "red"]
         assert any("Usage" in t for t in actual)  # usage shown
-
-    def test_le_flag_overrides_be(self, send_env):
-        # Arrange — --be then --le, last wins
-        ctx, output, tx_bytes = send_env
-        args = "crc16-modbus --be --le 01 03 00 00 00 01"
-
-        # Act
-        _cmd_send(ctx, args)
-
-        # Assert
-        actual = tx_bytes[0]
-        expected = b"\x01\x03\x00\x00\x00\x01\x84\x0A"
-        assert actual == expected  # LE wins (last flag)
 
 
 class TestSendCrcAlgorithms:

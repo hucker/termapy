@@ -2531,7 +2531,7 @@ def main():
     if args.demo:
         from termapy.config import setup_demo_config
 
-        config_path = setup_demo_config(cfg_dir())
+        config_path = setup_demo_config(cfg_dir(), force=True)
         try:
             cfg = load_config(str(config_path))
         except Exception as e:

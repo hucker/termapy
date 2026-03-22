@@ -11,7 +11,7 @@ from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, OptionList, RichLog, TextArea
+from textual.widgets import Button, Input, OptionList, TextArea
 from textual.widgets.option_list import Option
 
 from termapy.config import cfg_dir, cfg_path_for_name, migrate_json_to_cfg, open_with_system
@@ -170,139 +170,6 @@ class ConfigEditor(ModalScreen[tuple | None]):
     @on(Button.Pressed, "#cfg-cancel")
     def cancel_config(self) -> None:
         self.dismiss(None)
-
-
-class HelpViewer(ModalScreen[None]):
-    """Modal dialog with multi-page help navigation."""
-
-    BINDINGS = _CTRL_Q_BINDING
-
-    # Ordered topic list — defines Prev/Next sequence.
-    TOPICS = [
-        ("getting-started.md", "Getting Started"),
-        ("toolbar.md", "Toolbar & Shortcuts"),
-        ("commands.md", "REPL Commands"),
-        ("config.md", "Configuration"),
-        ("custom-buttons.md", "Custom Buttons"),
-        ("scripting.md", "Scripting"),
-        ("protocol-testing.md", "Protocol Testing"),
-        ("data-capture.md", "Data Capture"),
-        ("demo.md", "Demo Mode"),
-    ]
-
-    CSS = """
-    HelpViewer { align: center middle; }
-    HelpViewer Button {
-        min-width: 0; width: auto; height: 1; min-height: 1;
-        border: none;
-    }
-    #help-dialog {
-        width: 95%; height: 95%;
-        border: solid $primary; background: $surface; padding: 1 2;
-    }
-    #help-content { height: 1fr; overflow-y: auto; }
-    #help-nav { height: 1; margin-top: 1; }
-    #help-prev {
-        background: dodgerblue; dock: left;
-    }
-    #help-next {
-        background: dodgerblue; dock: right;
-    }
-    #help-bottom { height: 2; align: center top; }
-    #help-index {
-        background: mediumseagreen;
-    }
-    #help-close {
-        background: mediumpurple;
-    }
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._current_file = "index.md"
-
-    def _load_topic(self, filename: str) -> str:
-        """Load a help topic file by name."""
-        from importlib.resources import files as pkg_files
-        help_dir = pkg_files("termapy").joinpath("help")
-        return help_dir.joinpath(filename).read_text(encoding="utf-8")
-
-    def _topic_index(self, filename: str) -> int | None:
-        """Return the index of a topic file in TOPICS, or None."""
-        for i, (fn, _) in enumerate(self.TOPICS):
-            if fn == filename:
-                return i
-        return None
-
-    def _navigate(self, filename: str) -> None:
-        """Load a topic into the RichLog widget."""
-        from rich.markdown import Markdown as RichMarkdown
-        self._current_file = filename
-        log = self.query_one("#help-content", RichLog)
-        log.clear()
-        log.write(RichMarkdown(self._load_topic(filename)))
-        log.scroll_home(animate=False)
-        self._sync_nav_buttons()
-
-    def _sync_nav_buttons(self) -> None:
-        """Update Prev/Next button labels and visibility."""
-        idx = self._topic_index(self._current_file)
-        prev_btn = self.query_one("#help-prev", Button)
-        next_btn = self.query_one("#help-next", Button)
-        if idx is not None:
-            if idx > 0:
-                prev_btn.label = f"\u2190 {self.TOPICS[idx - 1][1]}"
-                prev_btn.display = True
-            else:
-                prev_btn.display = False
-            if idx < len(self.TOPICS) - 1:
-                next_btn.label = f"{self.TOPICS[idx + 1][1]} \u2192"
-                next_btn.display = True
-            else:
-                next_btn.display = False
-        else:
-            # On index page — hide prev/next
-            prev_btn.display = False
-            next_btn.display = False
-
-    def action_dismiss_modal(self) -> None:
-        """Close the modal on Ctrl+Q."""
-        self.dismiss(None)
-
-    def compose(self) -> ComposeResult:
-        from rich.markdown import Markdown as RichMarkdown
-        with Vertical(id="help-dialog"):
-            log = RichLog(highlight=False, markup=False, wrap=True, id="help-content")
-            yield log
-            with Horizontal(id="help-nav"):
-                yield Button("", id="help-prev")
-                yield Button("", id="help-next")
-            with Vertical(id="help-bottom"):
-                yield Button("Index", id="help-index")
-                yield Button("Close", id="help-close")
-
-    def on_mount(self) -> None:
-        self._navigate("index.md")
-
-    @on(Button.Pressed, "#help-close")
-    def close_help(self) -> None:
-        self.dismiss(None)
-
-    @on(Button.Pressed, "#help-index")
-    def go_index(self) -> None:
-        self._navigate("index.md")
-
-    @on(Button.Pressed, "#help-prev")
-    def go_prev(self) -> None:
-        idx = self._topic_index(self._current_file)
-        if idx is not None and idx > 0:
-            self._navigate(self.TOPICS[idx - 1][0])
-
-    @on(Button.Pressed, "#help-next")
-    def go_next(self) -> None:
-        idx = self._topic_index(self._current_file)
-        if idx is not None and idx < len(self.TOPICS) - 1:
-            self._navigate(self.TOPICS[idx + 1][0])
 
 
 class MarkdownViewer(ModalScreen[None]):

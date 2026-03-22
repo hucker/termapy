@@ -59,7 +59,6 @@ from termapy.dialogs import (
     ConfigEditor,
     ConfigPicker,
     ConfirmDialog,
-    HelpViewer,
     NamePicker,
     PortPicker,
     ProtoEditor,
@@ -283,6 +282,7 @@ class SerialTerminal(App):
     ]
 
     PALETTE_CMDS = [
+        ("Help", "_palette_help"),
         ("Select Port...", "_show_port_picker"),
         ("Connect / Disconnect", "_toggle_connection"),
         ("Edit Config", "_palette_edit_config"),
@@ -1607,24 +1607,34 @@ class SerialTerminal(App):
     def _palette_ss_txt(self) -> None:
         self.repl.dispatch("ss.txt")
 
+    _HELP_TOPICS = [
+        "getting-started", "toolbar", "commands", "config",
+        "custom-buttons", "scripting", "protocol-testing",
+        "data-capture", "demo",
+    ]
+
     def _hook_help_open(self, ctx: "PluginContext", args: str) -> None:
-        """Open a help topic in the system viewer."""
+        """Open a help topic in the system browser."""
         from importlib.resources import files as pkg_files
-        help_dir = pkg_files("termapy").joinpath("help")
+        html_dir = pkg_files("termapy").joinpath("html")
         topic = args.strip()
         if not topic:
-            topic = "index.md"
-        if not topic.endswith(".md"):
-            topic += ".md"
-        path = help_dir.joinpath(topic)
-        try:
-            # Verify it exists by reading it
-            path.read_text(encoding="utf-8")
-        except (OSError, FileNotFoundError):
-            topics = [fn for fn, _ in HelpViewer.TOPICS]
-            self._status(f"Unknown topic: {topic}. Available: {', '.join(topics)}", "red")
+            path = html_dir.joinpath("index.html")
+        else:
+            # Topic can be "commands", "commands.md", or "commands.html"
+            topic = topic.replace(".md", "").replace(".html", "")
+            path = html_dir.joinpath(f"{topic}.html")
+        if not Path(str(path)).exists():
+            self._status(
+                f"Unknown topic: {topic!r}. "
+                f"Available: {', '.join(self._HELP_TOPICS)}",
+                "red",
+            )
             return
         open_with_system(str(path))
+
+    def _palette_help(self) -> None:
+        self._hook_help_open(None, "")
 
     def _palette_show_newest_ss(self) -> None:
         path = self._newest_file(self.repl.ss_dir)

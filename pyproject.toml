@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [tool.uv-build]
-include = ["src/termapy/*.md", "src/termapy/help/*.md", "src/termapy/builtins/demo/**"]
+include = ["src/termapy/*.md", "src/termapy/help/*.md", "src/termapy/html/**", "src/termapy/builtins/demo/**"]
 
 [build-system]
 requires = ["uv_build"]
@@ -41,4 +41,5 @@ show_missing = true
 [dependency-groups]
 dev = [
     "pytest-cov>=7.0.0",
+    "mkdocs-material>=9.0",
 ]

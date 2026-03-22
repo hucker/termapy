@@ -54,7 +54,12 @@ def cfg_data_dir(config_path: str) -> Path:
     """
     d = Path(config_path).parent
     d.mkdir(parents=True, exist_ok=True)
-    for sub in ("plugins", "ss", "scripts", "proto", "viz", "captures"):
+    # One-time rename: captures/ → cap/
+    old_cap = d / "captures"
+    new_cap = d / "cap"
+    if old_cap.is_dir() and not new_cap.exists():
+        old_cap.rename(new_cap)
+    for sub in ("plugins", "ss", "scripts", "proto", "viz", "cap"):
         (d / sub).mkdir(exist_ok=True)
     return d
 

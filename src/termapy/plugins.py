@@ -208,7 +208,7 @@ class PluginContext:
         ss_dir: Path to the per-config screenshots directory (auto-created).
         scripts_dir: Path to the per-config scripts directory (auto-created).
         proto_dir: Path to the per-config protocol test scripts directory (auto-created).
-        cap_dir: Path to the per-config captures directory (auto-created).
+        cap_dir: Path to the per-config cap/ directory (auto-created).
         dispatch: Route a raw command through the full dispatch pipeline
             (directives, transforms, REPL/serial). Signature: ``dispatch(cmd)``.
             Thread-safe when called via ``call_from_thread``.

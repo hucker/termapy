@@ -393,7 +393,7 @@ class ReplEngine:
     def cap_dir(self) -> Path:
         """Captures directory, derived from config_path."""
         if self.config_path:
-            return Path(self.config_path).parent / "captures"
+            return Path(self.config_path).parent / "cap"
         return Path(".")
 
     @property

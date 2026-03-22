@@ -137,7 +137,7 @@ The most common ones:
 | `/port.break {ms}`               | Send break signal (default 250ms)                                                |
 | `/cfg [key [value]]`             | Show config, show a key, or change in-memory value (with confirmation)           |
 | `/cfg.auto <key> <value>`        | Set an in-memory config key immediately (no confirmation)                        |
-| `/cfg.list`                      | List all config files                                                            |
+| `/cfg.configs`                   | List all config files                                                            |
 | `/cfg.load <name>`               | Switch to a different config by name                                             |
 | `/ss.svg [name]`                 | Save SVG screenshot                                                              |
 | `/ss.txt [name]`                 | Save text screenshot                                                             |
@@ -163,7 +163,8 @@ The most common ones:
 | `/show_line_endings [on \| off]` | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
 | `/os <cmd>`                      | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
 | `/grep <pattern>`                | Search scrollback for regex matches (case-insensitive, skips own output)         |
-| `/info {--display}`              | Show project summary; `--display` opens full report in system viewer             |
+| `/cfg.info {--display}`          | Show project summary; `--display` opens full report in system viewer             |
+| `/cfg.files`                     | Show project directory tree                                                      |
 | `/proto.send <hex>`              | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
 | `/proto.run <file>`              | Run a binary protocol test script (.pro) with pass/fail                          |
 | `/proto.list`                    | List .pro files in the proto/ directory                                          |
@@ -213,7 +214,7 @@ termapy_cfg/
     │   └── status_check.run
     ├── plugins/                        # per-config plugins
     │   └── probe.py
-    ├── captures/                       # data capture output files
+    ├── cap/                            # data capture output files
     └── proto/                          # protocol test scripts
         ├── at_test.pro
         ├── bitfield_inline.pro
@@ -390,10 +391,10 @@ When you create a new config, termapy writes a complete `.cfg` file with all def
 
 ### Custom Buttons
 
-The demo project's "Info" button runs the `/info` command via a custom button:
+The demo project's "Info" button runs the `/cfg.info` command via a custom button:
 
 ```json
-{"enabled": true, "name": "Info", "command": "/info", "tooltip": "Project info"}
+{"enabled": true, "name": "Info", "command": "/cfg.info", "tooltip": "Project info"}
 ```
 
 ![Custom Info button in the toolbar](img/custom_info_button.png)
@@ -565,7 +566,7 @@ Auto-numbered filenames: use `$(n000)` for a 3-digit rotating sequence (000–99
 /bin_cap n data_$(n00).csv fmt=V:U1-2 cap_vals=100 cmd=read
 ```
 
-A progress bar and Stop button overlay the toolbar during capture. The `Cap` button opens the captures folder.
+A progress bar and Stop button overlay the toolbar during capture. The `Cap` button opens the cap/ folder.
 
 </details>
 

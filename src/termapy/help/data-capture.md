@@ -72,7 +72,7 @@ See [Protocol Testing](protocol-testing.md) for the full format spec language.
 ## Auto-Numbered Filenames
 
 Use `$(n000)` in filenames for auto-incrementing sequence numbers.
-The number of zeros sets the digit width (max 3). A counter file in `captures/`
+The number of zeros sets the digit width (max 3). A counter file in `cap/`
 tracks the last-used number across sessions, with rollover.
 
 | Pattern     | Range   |
@@ -86,9 +86,9 @@ tracks the last-used number across sessions, with rollover.
 # → log_000.txt, log_001.txt, log_002.txt, ...
 ```
 
-Bare filenames are saved to the per-config `captures/` directory.
+Bare filenames are saved to the per-config `cap/` directory.
 A progress bar and Stop button overlay the toolbar during capture.
-The **Cap** button opens the captures folder.
+The **Cap** button opens the cap/ folder.
 
 ---
 

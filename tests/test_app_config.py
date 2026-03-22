@@ -104,7 +104,7 @@ class TestDefaultCfg:
         info_btn = DEFAULT_CFG["custom_buttons"][0]
         assert info_btn["enabled"] is True  # Info button enabled
         assert info_btn["name"] == "Info"  # named Info
-        assert info_btn["command"] == "/info"  # runs /info
+        assert info_btn["command"] == "/cfg.info"  # runs /cfg.info
 
     def test_custom_buttons_placeholders_disabled(self):
         """Remaining default buttons are disabled placeholders."""

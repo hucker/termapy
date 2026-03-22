@@ -12,7 +12,7 @@ The bottom bar has buttons. Some appear based on context:
 | **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal    |
 | **Log**     | Always                       | Open the session log in your editor |
 | **SS**      | Always                       | Open the screenshot folder          |
-| **Cap**     | Always                       | Open the captures folder            |
+| **Cap**     | Always                       | Open the cap/ folder                |
 | **Scripts** | Always                       | Pick, run, create, or edit a script |
 | **Custom**  | `custom_buttons` enabled     | User-defined command buttons        |
 | **Exit**    | Always                       | Close the connection and quit       |

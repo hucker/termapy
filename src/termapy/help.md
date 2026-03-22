@@ -148,7 +148,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
 | `/cfg [key [value]]`      | View or change config values                                                |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
-| `/cfg.list`               | List all config files                                                       |
+| `/cfg.configs`            | List all config files                                                       |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
 | `/ss.txt [name]`          | Save a text screenshot                                                      |
@@ -174,7 +174,8 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.log`               | Open the session log in the system viewer                                   |
 | `/edit.info`              | Open the info report in the system viewer                                   |
-| `/info {--display}`       | Show project summary; `--display` opens full report in system viewer        |
+| `/cfg.info {--display}`   | Show project summary; `--display` opens full report in system viewer        |
+| `/cfg.files`              | Show project directory tree                                                 |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
 | `/proto.list`             | List .pro files in the proto/ directory                                     |
@@ -491,13 +492,13 @@ Byte ranges are 1-based. Omit `fmt=` for raw binary capture.
 /bin_cap n log.tsv fmt=A:U1-2 B:U3-4 cap_vals=50 sep=tab echo
 ```
 
-Bare filenames are saved to the per-config `captures/` directory.
+Bare filenames are saved to the per-config `cap/` directory.
 A progress bar and Stop button overlay the toolbar during capture.
 
 ### Auto-Numbered Filenames
 
 Use `$(n000)` in filenames for auto-incrementing sequence numbers.
-The number of zeros sets the digit width (max 3). A counter file in `captures/`
+The number of zeros sets the digit width (max 3). A counter file in `cap/`
 tracks the last-used number across sessions, with rollover.
 
 | Pattern     | Range   |

@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 6
+CURRENT_CONFIG_VERSION = 8
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
@@ -88,6 +88,24 @@ MIGRATIONS[2] = _migrate_v2_to_v3
 MIGRATIONS[3] = _migrate_v3_to_v4
 MIGRATIONS[4] = _migrate_v4_to_v5
 MIGRATIONS[5] = _migrate_v5_to_v6
+
+
+def _migrate_v6_to_v7(cfg: dict) -> dict:
+    """Add send_bare_enter option (default off)."""
+    cfg.setdefault("send_bare_enter", False)
+    return cfg
+
+
+MIGRATIONS[6] = _migrate_v6_to_v7
+
+
+def _migrate_v7_to_v8(cfg: dict) -> dict:
+    """Remove cap_endian (endianness now in format spec byte order)."""
+    cfg.pop("cap_endian", None)
+    return cfg
+
+
+MIGRATIONS[7] = _migrate_v7_to_v8
 
 
 def migrate_config(cfg: dict) -> dict:

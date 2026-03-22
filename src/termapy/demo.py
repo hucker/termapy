@@ -381,11 +381,20 @@ class FakeSerial:
                 b"  $GPGSV      - NMEA satellites in view\r\n"
                 b"  $PMTK...    - GPS config (simulated)\r\n"
                 b"  mem <addr> [len] - Memory dump\r\n"
+                b"  AT+TEXTDUMP <n> - Emit n text readings\r\n"
+                b"  AT+BINDUMP <n>        - Emit n mixed 21-byte records\r\n"
+                b"  AT+BINDUMP <type> <n> - Emit n typed binary values\r\n"
                 b"  help        - This help\r\n"
             )
 
         if upper.startswith("MEM"):
             return self._handle_mem(cmd)
+
+        if upper.startswith("AT+TEXTDUMP"):
+            return self._handle_textdump(cmd)
+
+        if upper.startswith("AT+BINDUMP"):
+            return self._handle_bindump(cmd)
 
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
@@ -424,6 +433,144 @@ class FakeSerial:
             )
             lines.append(f"  {row_addr:08X}: {hex_part:<48s} {ascii_part}")
         return ("\r\n".join(lines) + "\r\n").encode()
+
+    def _handle_textdump(self, cmd: str) -> bytes:
+        """Emit *count* lines of timestamped sensor readings.
+
+        Args:
+            cmd: The full command string, e.g. ``"AT+TEXTDUMP 50"``.
+
+        Returns:
+            Multi-line text response with simulated readings.
+        """
+        parts = cmd.split()
+        try:
+            count = int(parts[1]) if len(parts) > 1 else 10
+        except ValueError:
+            return b"ERROR: Usage: AT+TEXTDUMP <count>\r\n"
+        count = max(1, min(count, 1000))
+        lines: list[str] = []
+        for i in range(count):
+            temp = round(22.0 + (i * 7 % 30) / 10.0, 1)
+            voltage = round(3.3 + (i * 13 % 20) / 100.0, 2)
+            ts = f"{i * 50:06d}ms"
+            lines.append(f"[{ts}] temp={temp}C voltage={voltage}V sample={i}")
+        return ("\r\n".join(lines) + "\r\n").encode()
+
+    _BINDUMP_TYPES: dict[str, tuple[str, int]] = {
+        "i8": ("<b", 1), "u8": ("<B", 1),
+        "i16": ("<h", 2), "u16": ("<H", 2),
+        "i32": ("<i", 4), "u32": ("<I", 4),
+        "i64": ("<q", 8), "u64": ("<Q", 8),
+        "f4": ("<f", 4), "f8": ("<d", 8),
+    }
+
+    # Mixed record: 10s label, u8, u16, u32, float32 (little-endian, 21 bytes)
+    # Format spec: fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18
+    _MIXED_RECORD_SIZE = 21
+    _MIXED_LABELS = [
+        "Sensor-A  ", "Sensor-B  ", "Motor-1   ", "Motor-2   ",
+        "Pump-Main ", "Valve-In  ", "Valve-Out ", "Thermo-1  ",
+        "Thermo-2  ", "Pressure  ",
+    ]
+
+    def _handle_bindump(self, cmd: str) -> bytes:
+        """Emit binary records as raw bytes.
+
+        With a type argument, emits single-type values.
+        Without a type (just a count), emits mixed 21-byte records
+        containing a string label, u8, u16, u32, and float32.
+
+        Args:
+            cmd: ``"AT+BINDUMP <count>"`` or ``"AT+BINDUMP <type> <count>"``.
+
+        Returns:
+            Empty (data streams in background), or error message.
+        """
+        parts = cmd.split()
+        if len(parts) < 2:
+            return (
+                b"Usage: AT+BINDUMP <count>         (mixed 21-byte records)\r\n"
+                b"       AT+BINDUMP <type> <count>  (single-type values)\r\n"
+            )
+
+        # Detect: AT+BINDUMP <count> (mixed) vs AT+BINDUMP <type> <count>
+        if len(parts) == 2 or parts[1].isdigit():
+            return self._bindump_mixed(parts)
+        return self._bindump_typed(parts)
+
+    def _bindump_mixed(self, parts: list[str]) -> bytes:
+        """Stream mixed 21-byte records (label + u8 + u16 + u32 + f32)."""
+        try:
+            count = int(parts[1] if len(parts) == 2 else parts[2])
+        except ValueError:
+            return b"ERROR: count must be an integer\r\n"
+        count = max(1, min(count, 1000))
+        labels = self._MIXED_LABELS
+
+        def _stream() -> None:
+            for i in range(count):
+                if not self._is_open:
+                    break
+                label = labels[i % len(labels)].encode("ascii")[:10]
+                label = label.ljust(10)  # pad to 10 bytes
+                counter = i & 0xFF
+                val16 = (i * 137) & 0xFFFF
+                val32 = (i * 2654435761) & 0xFFFFFFFF
+                temp = 20.0 + (i % 50) * 0.3
+                record = (
+                    label
+                    + struct.pack("<B", counter)
+                    + struct.pack("<H", val16)
+                    + struct.pack("<I", val32)
+                    + struct.pack("<f", temp)
+                )
+                with self._lock:
+                    self._output_buf.extend(record)
+                time.sleep(0.02)
+
+        t = threading.Thread(target=_stream, daemon=True)
+        t.start()
+        return b""
+
+    def _bindump_typed(self, parts: list[str]) -> bytes:
+        """Stream single-type binary values."""
+        type_str = parts[1].lower()
+        info = self._BINDUMP_TYPES.get(type_str)
+        if not info:
+            valid = ", ".join(sorted(self._BINDUMP_TYPES))
+            return f"ERROR: Unknown type '{parts[1]}'. Valid: {valid}\r\n".encode()
+
+        try:
+            count = int(parts[2])
+        except ValueError:
+            return b"ERROR: count must be an integer\r\n"
+        count = max(1, min(count, 10000))
+
+        fmt, width = info
+
+        def _stream() -> None:
+            for i in range(count):
+                if not self._is_open:
+                    break
+                if type_str.startswith("f"):
+                    val = float(i) * 1.5
+                    if type_str == "f8":
+                        val = float(i) * 1.5e6
+                else:
+                    val = (i * 2654435761) & ((1 << (width * 8)) - 1)
+                    if type_str.startswith("i"):
+                        max_signed = 1 << (width * 8 - 1)
+                        if val >= max_signed:
+                            val -= 1 << (width * 8)
+                sample = struct.pack(fmt, val)
+                with self._lock:
+                    self._output_buf.extend(sample)
+                time.sleep(0.02)
+
+        t = threading.Thread(target=_stream, daemon=True)
+        t.start()
+        return b""
 
     def _uptime_str(self) -> str:
         """Return formatted uptime string."""

@@ -314,7 +314,14 @@ class ReplEngine:
                 stripped = raw_line.strip()
                 if not stripped or stripped.startswith("#"):
                     continue
-                # /delay must sleep in the background thread — can't dispatch
+                # THREADING: run_script runs in a background thread, but
+                # dispatch() routes commands to the main thread via
+                # call_from_thread. Commands that block (delay, confirm)
+                # MUST be handled here in the background thread — if they
+                # run on the main thread, call_from_thread fails and
+                # blocking calls freeze the UI. When adding new commands
+                # that block or use call_from_thread internally, add them
+                # here as special cases.
                 if stripped.startswith(prefix):
                     cmd = stripped[len(prefix):].strip()
                     name, _, args = cmd.partition(" ")
@@ -331,6 +338,13 @@ class ReplEngine:
                             break
                         time.sleep(seconds)
                         w(f"Delay {expanded} done.")
+                        continue
+                    if name.lower() == "confirm":
+                        self.ctx.log(">", stripped)
+                        message = args.strip() or "Continue?"
+                        if not self.ctx.confirm(message):
+                            w("Script cancelled by user.")
+                            self._script_stop.set()
                         continue
                 # Everything else goes through the full dispatch pipeline
                 if dispatch:
@@ -373,6 +387,13 @@ class ReplEngine:
         """Protocol test scripts directory, derived from config_path."""
         if self.config_path:
             return Path(self.config_path).parent / "proto"
+        return Path(".")
+
+    @property
+    def cap_dir(self) -> Path:
+        """Captures directory, derived from config_path."""
+        if self.config_path:
+            return Path(self.config_path).parent / "captures"
         return Path(".")
 
     @property

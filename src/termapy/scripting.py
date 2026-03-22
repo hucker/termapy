@@ -3,8 +3,10 @@
 Pure functions with no Textual or serial dependencies.
 """
 
+import json
 import re
 from datetime import datetime
+from pathlib import Path
 
 
 def expand_template(
@@ -88,3 +90,65 @@ def parse_script_lines(
         else:
             result.append(("serial", stripped))
     return result
+
+
+# ── Sequence-numbered filenames ───────────────────────────────────────────────
+
+_SEQ_RE = re.compile(r"\$\(n(0+)\)")
+_SEQ_FILE = ".cap_seq"
+_MAX_SEQ_WIDTH = 3
+
+
+def resolve_seq_filename(filename: str, directory: Path) -> str:
+    """Expand ``$(n000)``-style sequence placeholders in a filename.
+
+    The number of zeros sets the digit width (max 3).  A counter file
+    (``.cap_seq``) in *directory* tracks the last-used number per pattern
+    so the sequence persists across sessions.
+
+    Args:
+        filename: Filename that may contain a ``$(n0+)`` placeholder.
+        directory: Directory where the counter file lives (usually captures/).
+
+    Returns:
+        Filename with the placeholder replaced by the next sequence number.
+
+    Raises:
+        ValueError: If the digit width exceeds the maximum.
+    """
+    m = _SEQ_RE.search(filename)
+    if not m:
+        return filename
+
+    zeros = m.group(1)
+    width = len(zeros)
+    if width > _MAX_SEQ_WIDTH:
+        raise ValueError(
+            f"$(n{zeros}) too wide — max {_MAX_SEQ_WIDTH} digits."
+        )
+
+    max_num = 10**width - 1
+    pattern_key = filename  # use the un-resolved pattern as the dict key
+
+    # Read counter file
+    seq_path = directory / _SEQ_FILE
+    counters: dict[str, int] = {}
+    try:
+        counters = json.loads(seq_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
+
+    last = counters.get(pattern_key, -1)
+    next_num = (last + 1) % (max_num + 1)
+
+    # Write counter back
+    counters[pattern_key] = next_num
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        seq_path.write_text(
+            json.dumps(counters, indent=2) + "\n", encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+    return _SEQ_RE.sub(f"{next_num:0{width}d}", filename)

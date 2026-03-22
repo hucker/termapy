@@ -758,7 +758,7 @@ Byte ranges are 1-based. Omit <code>fmt=</code> for raw binary capture.</p>
 <p>See <a href="protocol-testing.html">Protocol Testing</a> for the full format spec language.</p>
 <h2 id="auto-numbered-filenames">Auto-Numbered Filenames</h2>
 <p>Use <code>$(n000)</code> in filenames for auto-incrementing sequence numbers.
-The number of zeros sets the digit width (max 3). A counter file in <code>captures/</code>
+The number of zeros sets the digit width (max 3). A counter file in <code>cap/</code>
 tracks the last-used number across sessions, with rollover.</p>
 <table>
 <thead>
@@ -785,9 +785,9 @@ tracks the last-used number across sessions, with rollover.</p>
 <pre><code class="language-text">/text_cap n log_$(n000).txt 3s cmd=AT+INFO
 # → log_000.txt, log_001.txt, log_002.txt, ...
 </code></pre>
-<p>Bare filenames are saved to the per-config <code>captures/</code> directory.
+<p>Bare filenames are saved to the per-config <code>cap/</code> directory.
 A progress bar and Stop button overlay the toolbar during capture.
-The <strong>Cap</strong> button opens the captures folder.</p>
+The <strong>Cap</strong> button opens the cap/ folder.</p>
 <hr />
 <table>
 <thead>

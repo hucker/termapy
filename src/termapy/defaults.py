@@ -56,7 +56,7 @@ DEFAULT_CFG = {
     "max_grep_lines": 100,
     # Custom buttons
     "custom_buttons": [
-        {"enabled": True, "name": "Info", "command": "/info", "tooltip": "Project info"},
+        {"enabled": True, "name": "Info", "command": "/cfg.info", "tooltip": "Project info"},
         {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
         {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
         {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},

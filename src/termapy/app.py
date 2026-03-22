@@ -2812,7 +2812,7 @@ class SerialTerminal(App):
         if path.exists():
             open_with_system(str(path))
         else:
-            self.repl.write("No info report yet. Run /info first.", "red")
+            self.repl.write("No info report yet. Run /cfg.info first.", "red")
 
     def _hook_edit(self, ctx, args: str) -> None:
         """Edit a project file using the same dialogs as the UI menus.

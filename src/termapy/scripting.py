@@ -108,7 +108,7 @@ def resolve_seq_filename(filename: str, directory: Path) -> str:
 
     Args:
         filename: Filename that may contain a ``$(n0+)`` placeholder.
-        directory: Directory where the counter file lives (usually captures/).
+        directory: Directory where the counter file lives (usually cap/).
 
     Returns:
         Filename with the placeholder replaced by the next sequence number.

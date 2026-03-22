@@ -61,7 +61,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         ctx.write(str(e), "red")
         return
 
-    # Resolve path: bare filename → captures/ dir, absolute → as-is
+    # Resolve path: bare filename → cap/ dir, absolute → as-is
     path = Path(filename)
     if not path.is_absolute():
         path = ctx.cap_dir / filename

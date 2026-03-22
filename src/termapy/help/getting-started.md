@@ -44,7 +44,7 @@ termapy_cfg/
 │   ├── ss/                    # screenshots
 │   ├── scripts/               # script files
 │   ├── proto/                 # protocol test scripts (.pro)
-│   ├── captures/              # data capture output files
+│   ├── cap/                   # data capture output files
 │   ├── viz/                   # per-config packet visualizers
 │   └── plugins/               # per-config plugins
 └── plugins/                   # global plugins (all configs)

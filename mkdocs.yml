@@ -1,0 +1,27 @@
+site_name: Termapy Help
+docs_dir: src/termapy/help
+site_dir: src/termapy/html
+
+use_directory_urls: false
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: blue
+    accent: cyan
+  features:
+    - navigation.instant
+    - navigation.footer
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Toolbar & Shortcuts: toolbar.md
+  - REPL Commands: commands.md
+  - Configuration: config.md
+  - Custom Buttons: custom-buttons.md
+  - Scripting: scripting.md
+  - Protocol Testing: protocol-testing.md
+  - Data Capture: data-capture.md
+  - Demo Mode: demo.md

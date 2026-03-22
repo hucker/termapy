@@ -35,15 +35,18 @@ The bottom bar has buttons. Some appear based on context:
 
 Press **Ctrl+P** to open the command palette, which provides quick access to:
 
+- Help
 - Select Port
 - Connect / Disconnect
 - Edit, Load, or Create a Config
-- Open Log File
-- Delete Log File
+- View / Delete Log File
 - Clear Screen
-- Save Screenshots
-- Open Screenshot / Captures Folder
-- Show Newest Screenshot / Capture
+- Save SVG / Text Screenshot
+- Open Screenshot Folder
+- Open Captures Folder
+- Show Newest Screenshot
+- Show Newest Text Capture
+- Exit
 
 ---
 

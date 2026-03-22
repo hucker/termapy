@@ -167,6 +167,8 @@ class EngineAPI:
     set_hex_mode: Callable = lambda enabled: None
     set_proto_active: Callable = lambda active: None
     open_proto_debug: Callable = lambda path, script: None
+    start_capture: Callable = lambda **kw: None
+    stop_capture: Callable = lambda: None
 
 
 @dataclass
@@ -206,6 +208,7 @@ class PluginContext:
         ss_dir: Path to the per-config screenshots directory (auto-created).
         scripts_dir: Path to the per-config scripts directory (auto-created).
         proto_dir: Path to the per-config protocol test scripts directory (auto-created).
+        cap_dir: Path to the per-config captures directory (auto-created).
         dispatch: Route a raw command through the full dispatch pipeline
             (directives, transforms, REPL/serial). Signature: ``dispatch(cmd)``.
             Thread-safe when called via ``call_from_thread``.
@@ -246,6 +249,7 @@ class PluginContext:
     ss_dir: Path = field(default_factory=lambda: Path("."))
     scripts_dir: Path = field(default_factory=lambda: Path("."))
     proto_dir: Path = field(default_factory=lambda: Path("."))
+    cap_dir: Path = field(default_factory=lambda: Path("."))
 
     # Dispatch — route a raw command through the full dispatch pipeline
     # (directives, transforms, REPL/serial). Thread-safe when wired via

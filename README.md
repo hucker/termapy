@@ -55,6 +55,7 @@ PuTTY works. So does minicom, screen, and CoolTerm. Use them if they do what you
 - **Runs anywhere Python does** — same tool on Windows, macOS, Linux. No GUI installer, no system dependencies.
 - **Session logging and screenshots** — every session is logged. Ctrl+S saves an SVG screenshot you can paste into a report or email.
 - **Scripting** — record a sequence of commands in a text file and replay it with one click. Add delays, prompts, and REPL commands.
+- **Data capture** — capture serial text (timed) or binary data (by byte/record count) to files. Binary captures use the same format spec language as protocol testing to decode mixed-type records into CSV/TSV.
 - **Binary protocol testing** — send raw hex, run scripted send/expect tests with pass/fail, decode Modbus and custom protocols with pluggable visualizers.
 - **Plugin system** — add custom commands with a simple Python API. Drop a file in a folder, define a handler, done. Includes examples to get started.
 - **Everything in one folder** — each device config gets its own subfolder with logs, screenshots, scripts, and plugins. Check it into git so the whole team has the same config.
@@ -178,6 +179,10 @@ The most common ones:
 | `/env.list {pattern}`            | List environment variables (all, by name, or glob)                               |
 | `/env.set <name> <value>`        | Set a session-scoped environment variable                                        |
 | `/env.reload`                    | Re-snapshot variables from the OS environment                                    |
+| `/text_cap <m> <f> <dur>`        | Capture serial text to file for a timed duration                                 |
+| `/text_cap.stop`                 | Stop an active text capture                                                      |
+| `/bin_cap <m> <f> ...`           | Capture binary serial data to file by byte/element count                         |
+| `/bin_cap.stop`                  | Stop an active binary capture                                                    |
 | `/raw <text>`                    | Send text to serial with no variable expansion or transforms                     |
 | `/exit`                          | Exit termapy                                                                     |
 
@@ -208,6 +213,7 @@ termapy_cfg/
     │   └── status_check.run
     ├── plugins/                        # per-config plugins
     │   └── probe.py
+    ├── captures/                       # data capture output files
     └── proto/                          # protocol test scripts
         ├── at_test.pro
         ├── bitfield_inline.pro
@@ -432,6 +438,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
     "line_ending": "\r",
+    "send_bare_enter": false,
     "auto_connect": false,
     "auto_reconnect": false,
     "on_connect_cmd": "",
@@ -464,6 +471,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `encoding`           | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
 | `cmd_delay_ms`       | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
 | `line_ending`        | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
+| `send_bare_enter`    | `false`                | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)         |
 | `auto_connect`       | `false`                | Connect to the port on startup                                                                           |
 | `auto_reconnect`     | `false`                | Retry every second if the port drops or fails to open                                                    |
 | `on_connect_cmd`     | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
@@ -505,6 +513,59 @@ AT+TEMP
 ```
 
 Scripts support delays (`/delay 500ms`), screen clearing (`/cls`), confirmation prompts (`/confirm Reset device?`), screenshots, and sequence counters with auto-increment for batch testing. See the demo scripts (`at_demo.run`, `smoke_test.run`) for examples.
+
+</details>
+
+<details>
+<summary><strong>Data Capture</strong> — timed text capture, structured binary capture to CSV</summary>
+
+Capture serial data to files without interrupting normal terminal display.
+
+**Text capture** — timed, writes decoded text lines:
+
+```sh
+/text_cap n log.txt 3s cmd=AT+INFO         # capture 3 seconds of text
+/text_cap a session.txt 10s                 # append, just listen (no command)
+```
+
+**Binary capture** — sized, with format spec for structured output:
+
+```sh
+# Raw binary (no format spec) — bytes straight to file
+/bin_cap n raw.bin cap_bytes=256 cmd=read_all
+
+# Single-type column — 50 big-endian unsigned 16-bit values
+/bin_cap n data.csv fmt=Val:U1-2 cap_vals=50 cmd=AT+BINDUMP u16 50
+
+# Mixed-type record — string + u8 + u16 + u32 + float (little-endian)
+/bin_cap n mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 cap_vals=20 cmd=AT+BINDUMP 20
+
+# Tab-separated output with echo to terminal
+/bin_cap n log.tsv fmt=A:U1-2 B:F3-6 cap_vals=100 sep=tab echo cmd=read
+```
+
+The `fmt=` parameter uses the same format spec language as `/proto` — type codes `H` (hex), `U` (unsigned), `I` (signed), `S` (string), `F` (float), `B` (bit) with 1-based byte ranges. Byte range order determines endianness: `U1-2` = big-endian, `U2-1` = little-endian. Named columns (`Temp:U1-2`) produce a CSV header row; unnamed columns (`U1-2`) omit it.
+
+| Format spec | Meaning |
+|---|---|
+| `U1` | 1 unsigned byte |
+| `U1-2` | 2-byte unsigned, big-endian |
+| `U2-1` | 2-byte unsigned, little-endian |
+| `U1-4` | 4-byte unsigned, big-endian |
+| `I1-2` | 2-byte signed integer |
+| `F1-4` | 4-byte IEEE 754 float |
+| `F1-8` | 8-byte double |
+| `S1-10` | 10-byte ASCII string |
+| `H1-4` | 4 bytes as hex (e.g. `0A1BFF03`) |
+
+Auto-numbered filenames: use `$(n000)` for a 3-digit rotating sequence (000–999), tracked across sessions in a counter file.
+
+```sh
+/text_cap n log_$(n000).txt 3s cmd=AT+INFO   # log_000.txt, log_001.txt, ...
+/bin_cap n data_$(n00).csv fmt=V:U1-2 cap_vals=100 cmd=read
+```
+
+A progress bar and Stop button overlay the toolbar during capture. The `Cap` button opens the captures folder.
 
 </details>
 

@@ -1,10 +1,16 @@
 """Tests for termapy.scripting — pure functions, no serial or Textual needed."""
 
+import json
 import re
 
 import pytest
 
-from termapy.scripting import expand_template, parse_duration, parse_script_lines
+from termapy.scripting import (
+    expand_template,
+    parse_duration,
+    parse_script_lines,
+    resolve_seq_filename,
+)
 
 
 # ── expand_template ──────────────────────────────────────────────
@@ -212,3 +218,101 @@ class TestParseScriptLines:
 
         # Assert
         assert actual == expected  # all line types classified correctly
+
+
+# ── resolve_seq_filename ────────────────────────────────────────
+
+
+class TestResolveSeqFilename:
+    def test_no_pattern_passthrough(self, tmp_path):
+        actual = resolve_seq_filename("plain.txt", tmp_path)
+        assert actual == "plain.txt"  # no $(n...) = unchanged
+
+    def test_first_call_starts_at_zero(self, tmp_path):
+        actual = resolve_seq_filename("data_$(n000).txt", tmp_path)
+        assert actual == "data_000.txt"  # first number is 000
+
+    def test_increments_on_each_call(self, tmp_path):
+        # Act
+        first = resolve_seq_filename("data_$(n000).txt", tmp_path)
+        second = resolve_seq_filename("data_$(n000).txt", tmp_path)
+        third = resolve_seq_filename("data_$(n000).txt", tmp_path)
+
+        # Assert
+        assert first == "data_000.txt"  # starts at 0
+        assert second == "data_001.txt"  # increments
+        assert third == "data_002.txt"  # increments again
+
+    def test_counter_persists_in_file(self, tmp_path):
+        # Arrange
+        resolve_seq_filename("data_$(n000).txt", tmp_path)
+        resolve_seq_filename("data_$(n000).txt", tmp_path)
+
+        # Act — read counter file directly
+        seq_path = tmp_path / ".cap_seq"
+        counters = json.loads(seq_path.read_text(encoding="utf-8"))
+
+        # Assert
+        assert counters["data_$(n000).txt"] == 1  # last used = 1
+
+    def test_rollover(self, tmp_path):
+        # Arrange — set counter to max
+        seq_path = tmp_path / ".cap_seq"
+        seq_path.write_text(
+            json.dumps({"data_$(n0).txt": 9}), encoding="utf-8"
+        )
+
+        # Act
+        actual = resolve_seq_filename("data_$(n0).txt", tmp_path)
+
+        # Assert
+        assert actual == "data_0.txt"  # rolls over from 9 to 0
+
+    def test_width_1(self, tmp_path):
+        actual = resolve_seq_filename("f_$(n0).txt", tmp_path)
+        assert actual == "f_0.txt"  # 1-digit sequence
+
+    def test_width_2(self, tmp_path):
+        actual = resolve_seq_filename("f_$(n00).txt", tmp_path)
+        assert actual == "f_00.txt"  # 2-digit zero-padded
+
+    def test_width_3(self, tmp_path):
+        actual = resolve_seq_filename("f_$(n000).txt", tmp_path)
+        assert actual == "f_000.txt"  # 3-digit zero-padded
+
+    def test_width_4_raises(self, tmp_path):
+        with pytest.raises(ValueError, match="too wide"):
+            resolve_seq_filename("f_$(n0000).txt", tmp_path)
+
+    def test_independent_patterns(self, tmp_path):
+        # Act
+        a1 = resolve_seq_filename("alpha_$(n00).txt", tmp_path)
+        b1 = resolve_seq_filename("beta_$(n00).txt", tmp_path)
+        a2 = resolve_seq_filename("alpha_$(n00).txt", tmp_path)
+
+        # Assert
+        assert a1 == "alpha_00.txt"  # alpha starts at 0
+        assert b1 == "beta_00.txt"  # beta starts at 0 independently
+        assert a2 == "alpha_01.txt"  # alpha increments independently
+
+    def test_corrupt_counter_file_resets(self, tmp_path):
+        # Arrange
+        seq_path = tmp_path / ".cap_seq"
+        seq_path.write_text("not json!", encoding="utf-8")
+
+        # Act
+        actual = resolve_seq_filename("f_$(n000).txt", tmp_path)
+
+        # Assert
+        assert actual == "f_000.txt"  # resets to 0 on corrupt file
+
+    def test_missing_directory_created(self, tmp_path):
+        # Arrange
+        subdir = tmp_path / "sub" / "dir"
+
+        # Act
+        actual = resolve_seq_filename("f_$(n00).txt", subdir)
+
+        # Assert
+        assert actual == "f_00.txt"  # works
+        assert subdir.exists()  # directory created

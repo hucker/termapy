@@ -191,6 +191,10 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
+| `/text_cap <m> <f> <dur>` | Capture serial text to file for a timed duration                            |
+| `/text_cap.stop`          | Stop an active text capture                                                 |
+| `/bin_cap <m> <f> ...`    | Capture binary serial data to file by byte/element count                    |
+| `/bin_cap.stop`           | Stop an active binary capture                                               |
 | `/raw <text>`             | Send text to serial with no variable expansion or transforms                |
 | `/exit`                   | Exit termapy                                                                |
 
@@ -214,6 +218,7 @@ Here is an example config for a device called `iot_device`:
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
     "line_ending": "\r",
+    "send_bare_enter": false,
     "auto_connect": true,
     "auto_reconnect": true,
     "on_connect_cmd": "status\nhelp",
@@ -250,6 +255,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `encoding`              | `utf-8`              | Character encoding for serial data (utf-8, latin-1, ascii, cp437)                                               |
 | `cmd_delay_ms`    | `0`                  | Milliseconds to wait between commands in autoconnect sequences and multi-command input                          |
 | `line_ending`           | `\r`                 | String appended to each sent command: `\r` (CR), `\r\n` (CRLF), or `\n` (LF)                                    |
+| `send_bare_enter`       | `false`              | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)                |
 | `auto_connect`          | `false`              | Automatically connect to the port when the app starts                                                           |
 | `auto_reconnect`        | `false`              | Automatically retry the connection every second if the port drops                                               |
 | `on_connect_cmd`      | ` `                  | Commands to send after connecting, separated by `\n` (waits for idle between each)                              |
@@ -442,6 +448,69 @@ suffix: `_le` or `_be`.
 
 See README.md for full format spec reference and visualizer examples.
 
+## Data Capture
+
+Capture serial output to files without interrupting normal display or logging.
+
+### Text Capture (timed)
+
+```
+/text_cap <mode> <file> <duration> {cmd=command...}
+/text_cap.stop
+```
+
+Modes: `append`/`a`, `new`/`n`. Duration: e.g. `2s`, `500ms`.
+Everything after `cmd=` is sent to the device after capture starts.
+Data is written as ANSI-stripped text, one line at a time.
+
+```
+/text_cap n log.txt 3s cmd=AT+INFO
+/text_cap a session.txt 10s
+```
+
+### Binary Capture (sized)
+
+```
+/bin_cap <mode> <file> {fmt=spec} <cap_vals=N|cap_bytes=N> {sep=comma|tab|space} {echo} {cmd=command...}
+/bin_cap.stop
+```
+
+Use `fmt=` with the protocol format spec language to define the record structure.
+Byte ranges are 1-based. Omit `fmt=` for raw binary capture.
+
+- `cap_vals=N`: number of records (record size derived from format spec)
+- `cap_bytes=N`: total bytes (works with or without format spec)
+- `sep=comma|tab|space`: column separator (default comma)
+- `echo`: print formatted values to terminal
+- Header row written when columns have names (e.g. `Temp:U1-2`)
+
+```
+/bin_cap n data.csv fmt=Val:U1-2 cap_vals=50 cmd=AT+BINDUMP u16 50
+/bin_cap n sensors.csv fmt=Temp:U1-2 Volts:F3-6 Status:H7 cap_vals=100 cmd=read
+/bin_cap n raw.bin cap_bytes=256 cmd=read_all
+/bin_cap n log.tsv fmt=A:U1-2 B:U3-4 cap_vals=50 sep=tab echo
+```
+
+Bare filenames are saved to the per-config `captures/` directory.
+A progress bar and Stop button overlay the toolbar during capture.
+
+### Auto-Numbered Filenames
+
+Use `$(n000)` in filenames for auto-incrementing sequence numbers.
+The number of zeros sets the digit width (max 3). A counter file in `captures/`
+tracks the last-used number across sessions, with rollover.
+
+| Pattern     | Range   |
+|-------------|---------|
+| `$(n0)`     | 0–9     |
+| `$(n00)`    | 00–99   |
+| `$(n000)`   | 000–999 |
+
+```
+/text_cap n log_$(n000).txt 3s cmd=AT+INFO
+# → log_000.txt, log_001.txt, log_002.txt, ...
+```
+
 ## Demo Mode
 
 Try termapy without hardware using the built-in simulated device:
@@ -466,6 +535,9 @@ This creates a `termapy_cfg/demo/` config that auto-connects to a simulated seri
 | `AT+PROD-ID`              | Returns product ID (`BASSOMATIC-77`) |
 | `AT+RESET`                | Simulated reboot sequence            |
 | `mem <addr> [len]`        | Hex memory dump                      |
+| `AT+TEXTDUMP <n>`         | Emit n lines of text readings        |
+| `AT+BINDUMP <n>`           | Emit n mixed 21-byte records (S10+U8+U16+U32+F4) |
+| `AT+BINDUMP <type> <n>`   | Emit n typed binary values           |
 | `help`                    | List available commands              |
 
 ### Bundled Files

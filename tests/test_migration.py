@@ -214,3 +214,55 @@ def test_v5_to_v6_handles_missing_keys():
     assert "echo_cmd" not in result
     assert "echo_input" not in result
     assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v6_to_v7_adds_send_bare_enter():
+    """Migration v6→v7 adds send_bare_enter defaulting to False."""
+    # Arrange
+    cfg = {"config_version": 6, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["send_bare_enter"] is False  # assert default added
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v6_to_v7_preserves_existing_send_bare_enter():
+    """Migration v6→v7 does not overwrite existing send_bare_enter value."""
+    # Arrange
+    cfg = {"config_version": 6, "port": "COM4", "send_bare_enter": True}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["send_bare_enter"] is True  # assert existing value preserved
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v7_to_v8_removes_cap_endian():
+    """Migration v7→v8 removes cap_endian from config."""
+    # Arrange
+    cfg = {"config_version": 7, "port": "COM4", "cap_endian": "le"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert "cap_endian" not in result  # assert key removed
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v7_to_v8_handles_missing_cap_endian():
+    """Migration v7→v8 handles configs without cap_endian."""
+    # Arrange
+    cfg = {"config_version": 7, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert "cap_endian" not in result  # assert no error
+    assert result["config_version"] == CURRENT_CONFIG_VERSION

@@ -39,6 +39,8 @@ DEFAULT_CFG = {
     "auto_reconnect": False,
     "on_connect_cmd": "",
     "line_ending": "\r",
+    # Input
+    "send_bare_enter": False,
     # Input echo
     "echo_input": False,
     "echo_input_fmt": "[purple]> {cmd}[/]",

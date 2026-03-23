@@ -87,9 +87,37 @@ External plugins use `PluginContext` only. `EngineAPI` is internal and may chang
 
 A user plugin with the same name as a built-in replaces it. App hooks override everything — they need direct access to Textual widgets and serial state.
 
+### Transforms
+
+A `Transform` rewrites command text after the REPL/serial routing decision. Separate chains for REPL commands and serial commands. Used by the `var` plugin to expand `$(NAME)` placeholders and by `env` to expand `$(env.NAME)`:
+
+```python
+TRANSFORM = Transform(
+    name="var",
+    help="Expand $(NAME) placeholders from user-defined variables.",
+    repl=expand_vars,
+    serial=expand_vars,
+)
+```
+
+### Directives
+
+A `Directive` intercepts raw input lines **before** REPL/serial routing — before transforms, before prefix checking. Used for syntax that doesn't fit the `/command` pattern. Returns a `DirectiveResult` with an action (`rewrite`, `warn`, `error`, or `none`):
+
+```python
+DIRECTIVE = Directive(
+    name="var_assign",
+    help="Assign user variables with $(NAME) = value syntax.",
+    pattern="$(NAME) = value",
+    handler=_directive_var_assign,  # returns DirectiveResult
+)
+```
+
+Currently the only directive is `var_assign` which rewrites `$(PORT) = COM7` into `var.set PORT COM7`. The directive system exists so this logic lives in the plugin rather than as a hardcoded special case in app.py.
+
 ### Plugin File Convention
 
-Every plugin file ends with a `COMMAND` dict:
+A plugin file exports `COMMAND`, `TRANSFORM`, and/or `DIRECTIVE` at module level:
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:
@@ -139,11 +167,12 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 ├──────────────────────────────────────────────────┤
 │  plugins.py — Plugin System                      │
 │  • Command — declares name, args, handler, subs  │
+│  • Transform — post-routing text rewriters       │
+│  • Directive / DirectiveResult — pre-routing     │
 │  • PluginContext — stable API for all plugins    │
 │  • PluginInfo — flattened metadata + handler     │
 │  • EngineAPI — internal API for built-ins        │
 │  • load_plugins_from_dir() — file discovery      │
-│  • _flatten_command() — tree → dotted names      │
 ├──────────────────────────────────────────────────┤
 │  protocol.py — Protocol Engine                   │
 │  • Format spec language (H, U, I, S, F, B, CRC)  │
@@ -178,10 +207,14 @@ serial.read() → _raw_rx_queue
 ```text
 Input.on_submit → _execute_command()
   → split on \n (multi-command)
+  → /raw? → send verbatim to serial (bypass everything)
+  → run_directives() → rewrite? dispatch rewritten command
+                      → warn/error? show message, stop
   → starts with prefix? → repl.dispatch(name, args)
+      → apply REPL transforms (variable expansion, etc.)
       → lookup dotted name in plugin registry
       → call handler(ctx, args)
-  → else → ser.write(cmd + line_ending)
+  → else → apply serial transforms → ser.write(cmd + line_ending)
   → optional echo to RichLog
 ```
 
@@ -264,7 +297,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test Coverage
 
-13 test files, 693 tests covering non-UI layers:
+13 test files, 706 tests covering non-UI layers:
 
 | File                   | Covers                                      |
 | ---------------------- | ------------------------------------------- |

@@ -11,33 +11,38 @@ if TYPE_CHECKING:
 
 
 def _handler(ctx: PluginContext, args: str) -> None:
-    """Show current sequence counters or reset them.
+    """Show current sequence counter values.
 
     Sequence counters are auto-incremented by ``{seq}`` template
-    expansions in scripts. With ``reset``, clears all counters and
-    resets the start timestamp. With no args, displays current values.
+    expansions in scripts. Displays all current counter values.
 
     Args:
         ctx: Plugin context for engine state and output.
-        args: ``"reset"`` to clear counters, or empty to display them.
+        args: Unused.
     """
-    if args.strip().lower() == "reset":
-        ctx.engine.reset_seq()
-        ctx.write("Sequence counters reset.")
+    counters = ctx.engine.get_seq_counters()
+    if counters:
+        parts = [f"seq{k}={v}" for k, v in sorted(counters.items())]
+        ctx.write(f"Counters: {', '.join(parts)}")
     else:
-        counters = ctx.engine.get_seq_counters()
-        if counters:
-            parts = [f"seq{k}={v}" for k, v in sorted(counters.items())]
-            ctx.write(f"Counters: {', '.join(parts)}")
-        else:
-            ctx.write("No counters set.")
+        ctx.write("No counters set.")
+
+
+def _handler_reset(ctx: PluginContext, args: str) -> None:
+    """Reset all sequence counters to zero.
+
+    Args:
+        ctx: Plugin context for engine state and output.
+        args: Unused.
+    """
+    ctx.engine.reset_seq()
+    ctx.write("Sequence counters reset.")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="seq",
-    args="{reset}",
-    help="Show sequence counters, or reset them.",
+    help="Show sequence counters.",
     long_help="""\
 Sequence counters are used in script templates for auto-numbering.
 
@@ -56,9 +61,12 @@ Use cases:
     Test {seq1+}.{seq2+}   → Test 2.1 (seq2 resets on seq1 increment)
 
   Automatic file naming (e.g. screenshots in a script):
-    /ss.txt capture_{seq1+}  → capture_1.txt, capture_2.txt, ...
-
-/seq         — show current counter values
-/seq reset   — reset all counters to 0""",
+    /ss.txt capture_{seq1+}  → capture_1.txt, capture_2.txt, ...""",
     handler=_handler,
+    sub_commands={
+        "reset": Command(
+            help="Reset all counters to zero.",
+            handler=_handler_reset,
+        ),
+    },
 )

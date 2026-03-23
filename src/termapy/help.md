@@ -160,7 +160,8 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
 | `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)   |
 | `/stop`                   | Abort a running script                                                      |
-| `/seq [reset]`            | Show or reset sequence counters                                             |
+| `/seq`                    | Show sequence counters                                                      |
+| `/seq.reset`              | Reset all sequence counters to zero                                         |
 | `/print <text>`           | Print a message to the terminal                                             |
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `/show <name>`            | Show a file                                                                 |

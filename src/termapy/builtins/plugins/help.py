@@ -15,6 +15,47 @@ _LABEL_RE = re.compile(r"^(\s*)(\w+)(:)(.*)")
 _TITLE_FMT = "  [bold]{text}[/]"
 _LABEL_FMT = "  {indent}[bold]{label}[/]{rest}"
 
+# Colors for help output
+_CMD = "cyan"          # command names
+_OPT = "green"         # {optional} args
+_REQ = "yellow"        # <required> args
+_SEP = "dim"           # section separators
+_SRC = "dim"           # source labels
+
+_OPT_RE = re.compile(r"(\{[^}]+\})")
+_REQ_RE = re.compile(r"(<[^>]+>)")
+_MARKUP_RE = re.compile(r"\[[^\]]*\]")
+
+# Max visible length for args before truncation
+_MAX_ARGS_LEN = 20
+
+
+def _color_args(args: str) -> str:
+    """Add Rich color markup to argument placeholders."""
+    if not args:
+        return ""
+    result = args
+    result = _OPT_RE.sub(rf"[{_OPT}]\1[/]", result)
+    result = _REQ_RE.sub(rf"[{_REQ}]\1[/]", result)
+    return result
+
+
+def _visible_len(s: str) -> int:
+    """Return the visible length of a string, ignoring Rich markup tags."""
+    return len(_MARKUP_RE.sub("", s))
+
+
+def _pad(s: str, width: int) -> str:
+    """Pad a string with Rich markup to a visible width."""
+    return s + " " * max(0, width - _visible_len(s))
+
+
+def _truncate_args(args: str, prefix: str, name: str) -> str:
+    """Truncate long args strings and add a help hint."""
+    if not args or len(args) <= _MAX_ARGS_LEN:
+        return args
+    return f"[{_SEP}]... /help {name}[/]"
+
 
 def _write_docstring(ctx: PluginContext, docstring: str) -> None:
     """Format and write a Google-style docstring with markup.
@@ -64,9 +105,10 @@ def _list_children(ctx: PluginContext, plugin, prefix: str,
         if not child:
             continue
         indent = "  " * (depth + 1)
-        cmd_col = f"{indent}{prefix}{child_name}".ljust(cmd_w + 2)
-        arg_col = (child.args or "").ljust(arg_w)
-        ctx.write(f"{cmd_col}{arg_col}  {child.help}")
+        cmd_col = _pad(f"{indent}[{_CMD}]{prefix}{child_name}[/]", cmd_w + 2)
+        args_text = _truncate_args(child.args or "", prefix, child_name)
+        arg_col = _pad(_color_args(args_text), arg_w)
+        ctx.write_markup(f"{cmd_col} {arg_col}  {child.help}")
         if child.children:
             _list_children(ctx, child, prefix, cmd_w, arg_w, depth + 1)
 
@@ -85,8 +127,8 @@ def _show_command_help(ctx: PluginContext, name: str,
     if not plugin:
         ctx.write(f"Unknown command: {name}", "red")
         return
-    arg_str = f" {plugin.args}" if plugin.args else ""
-    ctx.write(f"{prefix}{name}{arg_str} — {plugin.help}")
+    arg_str = f" {_color_args(plugin.args)}" if plugin.args else ""
+    ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} — {plugin.help}")
     if dev_mode:
         docstring = getattr(plugin.handler, "__doc__", None)
         if docstring:
@@ -99,19 +141,19 @@ def _show_command_help(ctx: PluginContext, name: str,
             ctx.write(f"  {line}")
     # Show subcommands if any
     if plugin.children:
-        ctx.write("  Subcommands:")
+        ctx.write_markup(f"  [{_SEP}]Subcommands:[/]")
         plugins = ctx.engine.plugins
         for child_name in plugin.children:
             child = plugins.get(child_name)
             if child:
-                arg_str = f" {child.args}" if child.args else ""
-                suffix = "  ..." if child.children else ""
-                ctx.write(
-                    f"    {prefix}{child_name}{arg_str}"
+                arg_str = f" {_color_args(child.args)}" if child.args else ""
+                suffix = f"  [{_SEP}]...[/]" if child.children else ""
+                ctx.write_markup(
+                    f"    [{_CMD}]{prefix}{child_name}[/]{arg_str}"
                     f" — {child.help}{suffix}"
                 )
     if plugin.source not in ("built-in", "app"):
-        ctx.write(f"  (source: {plugin.source})", "dim")
+        ctx.write_markup(f"  [{_SRC}](source: {plugin.source})[/]")
 
 
 def _handler(ctx: PluginContext, args: str) -> None:
@@ -132,7 +174,14 @@ def _handler(ctx: PluginContext, args: str) -> None:
         _show_command_help(ctx, name)
         return
     else:
-        # Group top-level commands by source
+        # Group top-level commands by source, with display labels and order
+        _SOURCE_ORDER = {"app": 0, "built-in": 1, "global": 2}
+        _SOURCE_LABELS = {
+            "app": "Application",
+            "built-in": "Application Plugins",
+            "global": "User Plugins",
+        }
+
         all_plugins = ctx.engine.plugins
         groups: dict[str, list] = {}
         for cmd_name, plugin in all_plugins.items():
@@ -149,16 +198,24 @@ def _handler(ctx: PluginContext, args: str) -> None:
              for p in all_infos),
             default=10,
         ) + 2
-        arg_w = max(
-            (len(p.args) for p in all_infos if p.args), default=0
-        ) + 2
+        arg_w = min(
+            max(
+                (len(p.args) for p in all_infos if p.args), default=0
+            ) + 2,
+            _MAX_ARGS_LEN + 2,
+        )
 
-        for source, plugins_list in groups.items():
-            ctx.write(f"── {source} ──")
-            for cmd_name, plugin in plugins_list:
-                cmd_col = f"  {prefix}{cmd_name}".ljust(cmd_w + 2)
-                arg_col = (plugin.args or "").ljust(arg_w)
-                ctx.write(f"{cmd_col}{arg_col}  {plugin.help}")
+        sorted_sources = sorted(
+            groups, key=lambda s: _SOURCE_ORDER.get(s, 3)
+        )
+        for source in sorted_sources:
+            label = _SOURCE_LABELS.get(source, f"{source} Plugins")
+            ctx.write_markup(f"[{_SEP}]── {label} ──[/]")
+            for cmd_name, plugin in groups[source]:
+                cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
+                args_text = _truncate_args(plugin.args or "", prefix, cmd_name)
+                arg_col = _pad(_color_args(args_text), arg_w)
+                ctx.write_markup(f"{cmd_col} {arg_col}  {plugin.help}")
                 if plugin.children:
                     _list_children(
                         ctx, plugin, prefix, cmd_w, arg_w, depth=1

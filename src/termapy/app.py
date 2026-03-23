@@ -45,13 +45,8 @@ from termapy.builtins.plugins.var import (
     clear_vars,
     set_start_time_vars,
 )
-from termapy.defaults import (
-    DEFAULT_CFG,
-    VALID_BYTE_SIZES,
-    VALID_FLOW_CONTROLS,
-    VALID_PARITIES,
-    VALID_STOP_BITS,
-)
+from termapy import port_control
+from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -683,7 +678,7 @@ class SerialTerminal(App):
             self._hook_port_info,
             source="app",
         )
-        for key, (_, _, desc, _) in self._PORT_PROPS.items():
+        for key, (_, _, desc, _) in port_control.PORT_PROPS.items():
             self.repl.register_hook(
                 f"port.{key}",
                 "{value}",
@@ -2534,189 +2529,53 @@ class SerialTerminal(App):
             return
         self._update_port(name)
 
-    def _hook_port_list(self, ctx, args: str) -> None:
-        """List available serial ports."""
-        from serial.tools.list_ports import comports
+    def _apply_port_result(self, ctx, result) -> None:
+        """Apply messages and side effects from a port_control function."""
+        msgs, effects = result
+        for text, color in msgs:
+            if color:
+                ctx.write(text, color)
+            else:
+                ctx.write(text)
+        if effects.get("cfg_update"):
+            for key, val in effects["cfg_update"].items():
+                self.repl._cfg_data[key] = val
+        if effects.get("update_title"):
+            self._update_title()
+        if effects.get("sync_hw"):
+            self._sync_hw_visibility()
+            self._sync_hw_buttons()
 
-        ports = sorted(comports(), key=lambda p: p.device)
-        if not ports:
-            self._status("No serial ports found", "yellow")
-            return
-        for p in ports:
-            desc = p.description or ""
-            self._status(f"  {p.device}  {desc}")
+    def _hook_port_list(self, ctx, args: str) -> None:
+        self._apply_port_result(ctx, port_control.list_ports())
 
     def _hook_port_info(self, ctx, args: str) -> None:
-        """Print comprehensive port status."""
-        c = self.cfg
-        connected = self.is_connected
-        state = "connected" if connected else "disconnected"
-        ctx.write(f"  Port:         {c.get('port', '?')}  ({state})")
-        ctx.write(f"  Baud rate:    {c.get('baud_rate', '?')}")
-        sb = c.get("stop_bits", 1)
-        sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-        ctx.write(
-            f"  Frame:        {c.get('byte_size', 8)}"
-            f"{c.get('parity', 'N')}{sb_str}"
-        )
-        ctx.write(f"  Flow control: {c.get('flow_control', 'none')}")
-        ctx.write(f"  Encoding:     {c.get('encoding', 'utf-8')}")
-        if connected:
-            try:
-                ctx.write(f"  DTR:          {int(self.ser.dtr)}")
-                ctx.write(f"  RTS:          {int(self.ser.rts)}")
-                ctx.write(f"  CTS:          {int(self.ser.cts)}")
-                ctx.write(f"  DSR:          {int(self.ser.dsr)}")
-                ctx.write(f"  RI:           {int(self.ser.ri)}")
-                ctx.write(f"  CD:           {int(self.ser.cd)}")
-            except (OSError, serial.SerialException):
-                pass
+        ser = self.ser if self.is_connected else None
+        self._apply_port_result(ctx, port_control.port_info(self.cfg, ser))
 
     def _hook_port_prop(self, ctx, args: str, key: str) -> None:
-        """Get or set a serial port property (hardware only, not saved to config)."""
-        attr, coerce, desc, valid = self._PORT_PROPS[key]
-        val = args.strip()
-        if not val:
-            if not self.is_connected:
-                ctx.write(f"  {desc}: {self.cfg.get(key, '?')} (disconnected)")
-                return
-            try:
-                ctx.write(f"  {desc}: {getattr(self.ser, attr)}")
-            except (OSError, serial.SerialException) as e:
-                self._status(f"{desc} read error: {e}", "red")
-            return
-        if not self.is_connected:
-            self._status("Not connected", "yellow")
-            return
-        try:
-            if key == "parity":
-                val = val.upper()
-            typed = coerce(val)
-            if valid and typed not in valid:
-                opts = ", ".join(sorted(str(v) for v in valid))
-                self._status(f"Invalid {desc.lower()}: {val} (use {opts})", "red")
-                return
-            setattr(self.ser, attr, typed)
-            self.repl._cfg_data[key] = typed
-            self._update_title()
-            self._status(f"{desc} → {typed}")
-        except ValueError:
-            self._status(f"Invalid {desc.lower()}: {val}", "red")
-        except (OSError, serial.SerialException) as e:
-            self._status(f"{desc} error: {e}", "red")
-
-    _FLOW_MODES = VALID_FLOW_CONTROLS
+        ser = self.ser if self.is_connected else None
+        self._apply_port_result(ctx, port_control.get_set_prop(ser, self.cfg, key, args))
 
     def _hook_port_flow(self, ctx, args: str) -> None:
-        """Get or set flow control mode (hardware only, not saved to config)."""
-        val = args.strip().lower()
-        if not val:
-            fc = self.cfg.get("flow_control", "none")
-            suffix = " (disconnected)" if not self.is_connected else ""
-            ctx.write(f"  Flow control: {fc}{suffix}")
-            return
-        if not self.is_connected:
-            self._status("Not connected", "yellow")
-            return
-        if val not in self._FLOW_MODES:
-            self._status(
-                f"Invalid flow control: {val} (use none/rtscts/xonxoff/manual)", "red"
-            )
-            return
-        try:
-            self.ser.rtscts = (val == "rtscts")
-            self.ser.xonxoff = (val == "xonxoff")
-            self.repl._cfg_data["flow_control"] = val
-            self._sync_hw_visibility()
-            self._update_title()
-            self._status(f"Flow control → {val}")
-        except (OSError, serial.SerialException) as e:
-            self._status(f"Flow control error: {e}", "red")
+        ser = self.ser if self.is_connected else None
+        self._apply_port_result(ctx, port_control.get_set_flow(ser, self.cfg, args))
 
     def _hook_port_hw_line(self, ctx, args: str, line: str) -> None:
-        """Get or set a hardware line (DTR or RTS)."""
-        label = line.upper()
-        val = args.strip().lower()
-        if not val:
-            if not self.is_connected:
-                self._status("Not connected", "yellow")
-                return
-            try:
-                ctx.write(f"  {label}: {int(getattr(self.ser, line))}")
-            except (OSError, serial.SerialException) as e:
-                self._status(f"{label} read error: {e}", "red")
-            return
-        if not self.is_connected:
-            self._status("Not connected", "yellow")
-            return
-        if val in ("1", "on", "true", "high"):
-            state = True
-        elif val in ("0", "off", "false", "low"):
-            state = False
-        else:
-            self._status(f"Invalid {label} value: {val} (use 0/1/on/off)", "red")
-            return
-        try:
-            setattr(self.ser, line, state)
-            self._sync_hw_buttons()
-            self._status(f"{label} → {int(state)}")
-        except (OSError, serial.SerialException) as e:
-            self._status(f"{label} error: {e}", "red")
+        ser = self.ser if self.is_connected else None
+        self._apply_port_result(ctx, port_control.get_set_hw_line(ser, line, args))
 
     def _hook_port_break(self, ctx, args: str) -> None:
-        """Send a break signal on the serial line."""
-        if not self.is_connected:
-            self._status("Not connected", "yellow")
-            return
-        val = args.strip()
-        duration = 0.25
-        if val:
-            try:
-                duration = int(val) / 1000.0
-                if duration <= 0:
-                    raise ValueError
-            except ValueError:
-                self._status("Invalid duration (use milliseconds, e.g. 250)", "red")
-                return
-        try:
-            self.ser.send_break(duration=duration)
-            self._status(f"Break sent ({int(duration * 1000)}ms)")
-        except (OSError, serial.SerialException) as e:
-            self._status(f"Break error: {e}", "red")
+        ser = self.ser if self.is_connected else None
+        self._apply_port_result(ctx, port_control.send_break(ser, args))
 
     def _hook_port_signal(self, ctx, args: str, signal: str) -> None:
-        """Show a read-only input signal (CTS, DSR, RI, CD)."""
-        if args.strip():
-            self._status(f"{signal.upper()} is read-only", "yellow")
-            return
-        if not self.is_connected:
-            self._status("Not connected", "yellow")
-            return
-        try:
-            ctx.write(f"  {signal.upper()}: {int(getattr(self.ser, signal))}")
-        except (OSError, serial.SerialException) as e:
-            self._status(f"{signal.upper()} read error: {e}", "red")
-
-    _SERIAL_KEYS = {
-        "port",
-        "baud_rate",
-        "byte_size",
-        "parity",
-        "stop_bits",
-        "flow_control",
-    }
-
-    # Maps config key → (pyserial attribute, type coercion, description, valid values)
-    _PORT_PROPS = {
-        "baud_rate": ("baudrate", int, "Baud rate", None),
-        "byte_size": ("bytesize", int, "Data bits", VALID_BYTE_SIZES),
-        "parity": ("parity", str, "Parity", VALID_PARITIES),
-        "stop_bits": ("stopbits", float, "Stop bits", VALID_STOP_BITS),
-    }
+        ser = self.ser if self.is_connected else None
+        self._apply_port_result(ctx, port_control.read_signal(ser, signal, args))
 
     def _refresh_after_cfg(self, key: str, new_val) -> None:
         was_connected = self.is_connected
-        if key in self._SERIAL_KEYS and was_connected:
+        if key in port_control.SERIAL_KEYS and was_connected:
             self._disconnect()
         self._update_title()
         self._apply_border_color()
@@ -2725,7 +2584,7 @@ class SerialTerminal(App):
             self._sync_cmd_prefix()
         if key == "custom_buttons":
             self.run_worker(self._sync_custom_buttons())
-        if key in self._SERIAL_KEYS and was_connected:
+        if key in port_control.SERIAL_KEYS and was_connected:
             self._connect()
 
     def _hook_cfg_confirm(self, key: str, new_val) -> None:

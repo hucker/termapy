@@ -16,6 +16,7 @@ src/termapy/
 ├── repl.py              # (405 lines)  REPL engine — dispatch, scripting, history
 ├── plugins.py           # (484 lines)  Plugin system — Command, PluginContext, loading
 ├── config.py            # (406 lines)  Config dirs, loading, validation, migration trigger
+├── port_control.py      # (230 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (284 lines)  Protocol test script runner
 ├── scripting.py         # (154 lines)  Pure functions — templates, duration parsing
 ├── migration.py         # (130 lines)  Config schema migration chain (v1→v8)
@@ -297,7 +298,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test Coverage
 
-13 test files, 706 tests covering non-UI layers:
+14 test files, 733 tests covering non-UI layers:
 
 | File                   | Covers                                      |
 | ---------------------- | ------------------------------------------- |
@@ -312,6 +313,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | test_demo.py           | Demo device simulation                      |
 | test_var.py            | User variable system                        |
 | test_env_var.py        | Environment variable commands               |
+| test_port_control.py   | Serial port control pure functions          |
 | test_proto_runner.py   | Protocol test runner                        |
 | test_proto_send_crc.py | CRC in proto.send                           |
 

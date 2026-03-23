@@ -1,167 +1,285 @@
 # Termapy Architecture
 
+## Core Idea
+
+Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `/grep`, `/proto`, etc.) are regular plugins loaded from `builtins/plugins/`. The same `Command` + `PluginContext` API that implements the core REPL is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device-specific tools — no compilation or registration required.
+
 ## Module Structure
 
 ```text
 src/termapy/
-├── __init__.py          # Entry point — exports run()
-├── app.py               # (1500 lines) Textual TUI app, serial I/O, UI
-├── proto_debug.py       # (574 lines)  Proto debug modal screen
-├── protocol.py          # (866 lines)  Protocol parsing, test runner, visualizer loading
-├── repl.py              # (289 lines)  REPL engine — command dispatch, scripting
-├── plugins.py           # (207 lines)  Plugin system — discovery, loading, context API
-├── config.py            # (178 lines)  Config directory management
-├── scripting.py         # (90 lines)   Pure functions — template expansion, duration parsing
-├── migration.py         # (48 lines)   Config schema migration
-├── help.md              # In-app help guide (bundled in pip installs)
-├── builtins/            # Built-in REPL commands (9 plugin files)
-│   ├── cfg.py           # /cfg — view/change config; /cfg.auto subcommand
-│   ├── echo.py          # /echo — toggle command echo
-│   ├── grep.py          # /grep — search scrollback
-│   ├── help.py          # /help — list commands
-│   ├── os_cmd.py        # /os — run shell commands
-│   ├── print.py         # /print — print to terminal; /print.r subcommand
-│   ├── proto.py         # /proto — binary protocol commands
-│   ├── seq.py           # /seq — sequence counters
-│   ├── show.py          # /show — display files
-│   ├── ss.py            # /ss — screenshots; /ss.dir subcommand
-│   └── stop.py          # /stop — abort scripts
-└── builtins/viz/        # Built-in packet visualizers
-    ├── hex_view.py      # Hex — raw hexadecimal byte values
-    └── text_view.py     # Text — ASCII text with escape sequences
+├── app.py               # (3150 lines) Textual TUI — UI, serial I/O, modals, app hooks
+├── dialogs.py           # (890 lines)  Modal screens — config editor, pickers, confirm
+├── proto_debug.py       # (1160 lines) Interactive protocol debug screen
+├── protocol.py          # (1770 lines) Protocol parsing, format specs, CRC, visualizers
+├── demo.py              # (910 lines)  Simulated device for --demo mode
+├── repl.py              # (405 lines)  REPL engine — dispatch, scripting, history
+├── plugins.py           # (484 lines)  Plugin system — Command, PluginContext, loading
+├── config.py            # (406 lines)  Config dirs, loading, validation, migration trigger
+├── proto_runner.py      # (284 lines)  Protocol test script runner
+├── scripting.py         # (154 lines)  Pure functions — templates, duration parsing
+├── migration.py         # (130 lines)  Config schema migration chain (v1→v8)
+├── defaults.py          # (114 lines)  DEFAULT_CFG, templates
+├── help/                #              Markdown help pages (source for MkDocs)
+├── html/                #              Generated HTML help (MkDocs Material output)
+├── builtins/
+│   ├── plugins/         #              20 built-in REPL command plugins
+│   ├── viz/             #              Built-in packet visualizers (hex, text)
+│   ├── crc/             #              Built-in CRC plugins (sum8, sum16)
+│   └── demo/            #              Demo config, scripts, proto files, plugins
+└── help.md              #              Legacy single-page help (bundled)
 ```
+
+## The Plugin System
+
+The plugin system is the central abstraction. Everything flows through it.
+
+### Command
+
+A `Command` declares a REPL command — its name, args, help text, handler function, and optional subcommands:
+
+```python
+COMMAND = Command(
+    name="cfg",
+    args="{key {value}}",
+    help="Show or change config values.",
+    handler=_handler,
+    sub_commands={
+        "auto": Command(args="<key> <value>", help="Set immediately.", handler=_handler_auto),
+        "configs": Command(help="List all config files.", handler=_handler_configs),
+        "ss": Command(help="List ss/ files.", handler=_handler_ss,
+            sub_commands={
+                "explore": Command(help="Open ss/ in explorer.", handler=...),
+                "clear": Command(help="Delete all ss/ files.", handler=...),
+            }),
+    },
+)
+```
+
+The subcommand tree is flattened at registration into dotted names (`cfg.auto`, `cfg.ss.explore`) that the dispatch system looks up directly. The `/help` command walks the tree to show hierarchical output.
+
+### PluginContext
+
+Every handler receives a `PluginContext` — the stable API boundary between plugins and the app:
+
+```text
+Output:          ctx.write(), ctx.write_markup(), ctx.notify()
+Config:          ctx.cfg, ctx.config_path
+Serial I/O:     ctx.serial_write(), ctx.serial_read_raw(), ctx.serial_drain()
+                 ctx.serial_wait_idle(), ctx.serial_io() (context manager)
+                 ctx.is_connected()
+Filesystem:      ctx.ss_dir, ctx.scripts_dir, ctx.proto_dir, ctx.cap_dir
+Interaction:     ctx.confirm(), ctx.clear_screen()
+Dispatch:        ctx.dispatch() — route a command through the full pipeline
+Engine:          ctx.engine — internal/unstable API for built-ins
+```
+
+External plugins use `PluginContext` only. `EngineAPI` is internal and may change.
+
+### Loading Order (later overrides earlier)
+
+```text
+1. builtins/plugins/         — 20 built-in commands (shipped with termapy)
+2. termapy_cfg/plugins/      — user plugins (all configs on this machine)
+3. termapy_cfg/<name>/plugins/ — per-config plugins (one config only)
+4. App hooks (app.py)        — commands needing Textual access (connect, ss, run, port, etc.)
+```
+
+A user plugin with the same name as a built-in replaces it. App hooks override everything — they need direct access to Textual widgets and serial state.
+
+### Plugin File Convention
+
+Every plugin file ends with a `COMMAND` dict:
+
+```python
+def _handler(ctx: PluginContext, args: str) -> None:
+    ctx.write("Hello!")
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handler)
+```
+
+"Must be at end of file" means after all handler functions it references.
 
 ## Layer Diagram
 
 ```text
-┌─────────────────────────────────────────────┐
-│  app.py — Textual App (TermapyApp)          │
-│  ┌────────────┐ ┌──────────┐ ┌───────────┐ │
-│  │ Title Bar  │ │ RichLog  │ │ Bottom Bar│ │
-│  │ (Cfg,Port, │ │ (output) │ │ (Input,   │ │
-│  │  Status)   │ │          │ │  Buttons) │ │
-│  └────────────┘ └──────────┘ └───────────┘ │
-│  ┌────────────────────────────────────────┐ │
-│  │ Modal Screens                          │ │
-│  │ ConfigPicker, ScriptPicker,            │ │
-│  │ ScriptEditor, JsonEditor, PortPicker,  │ │
-│  │ ProtoDebugScreen                       │ │
-│  └────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────┐ │
-│  │ Serial I/O (pyserial)                  │ │
-│  │ read_serial() — background thread      │ │
-│  │ open_serial() / _try_open_port()       │ │
-│  └────────────────────────────────────────┘ │
-├─────────────────────────────────────────────┤
-│  repl.py — ReplEngine                       │
-│  • Command dispatch (name → plugin handler) │
-│  • Script runner (parse → execute lines)    │
-│  • State: seq counters, echo, in_script     │
-├─────────────────────────────────────────────┤
-│  protocol.py — Protocol Engine              │
-│  • ProtoScript / TestCase — test data        │
-│  • diff_bytes() — per-byte comparison       │
-│  • VisualizerInfo — visualizer metadata     │
-│  • load_visualizers_from_dir() — discovery  │
-│  • builtins_viz_dir() — built-in viz path   │
-├─────────────────────────────────────────────┤
-│  plugins.py — Plugin System                 │
-│  • PluginContext — stable API for plugins   │
-│  • PluginInfo — metadata + handler          │
-│  • EngineAPI — internals for built-ins only │
-│  • load_plugins_from_dir() — file discovery │
-├─────────────────────────────────────────────┤
-│  scripting.py — Pure Functions              │
-│  • expand_template() — {seq}, {datetime}    │
-│  • parse_duration() — "500ms" → 0.5         │
-│  • parse_script_lines() — classify lines    │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  app.py — Textual App                            │
+│  ┌─────────────┐ ┌──────────┐ ┌──────────────┐   │
+│  │ Title Bar   │ │ RichLog  │ │ Bottom Bar   │   │
+│  │ (?,#,Cfg,   │ │ (serial  │ │ (Input, SS,  │   │
+│  │  Port,      │ │  output) │ │  Scripts,Cap,│   │
+│  │  Status)    │ │          │ │  Proto,Exit) │   │
+│  └─────────────┘ └──────────┘ └──────────────┘   │
+│  ┌──────────────────────────────────────────┐    │
+│  │ dialogs.py — Modal Screens               │    │
+│  │ ConfigPicker, ConfigEditor, PortPicker,  │    │
+│  │ ScriptPicker, NamePicker, ConfirmDialog  │    │
+│  └──────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────┐    │
+│  │ proto_debug.py — Proto Debug Screen      │    │
+│  │ Interactive send/expect with visualizers │    │
+│  └──────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────┐    │
+│  │ App Hooks — commands needing Textual     │    │
+│  │ port, ss, run, cfg.load, edit, help.open │    │
+│  └──────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────┐    │
+│  │ Serial I/O (pyserial)                    │    │
+│  │ read_serial() — background thread        │    │
+│  │ _raw_rx_queue — inter-thread byte queue  │    │
+│  └──────────────────────────────────────────┘    │
+├──────────────────────────────────────────────────┤
+│  repl.py — ReplEngine                            │
+│  • Command dispatch (dotted name → handler)      │
+│  • Script runner (background thread)             │
+│  • State: seq counters, echo, variables          │
+│  • History management                            │
+├──────────────────────────────────────────────────┤
+│  plugins.py — Plugin System                      │
+│  • Command — declares name, args, handler, subs  │
+│  • PluginContext — stable API for all plugins    │
+│  • PluginInfo — flattened metadata + handler     │
+│  • EngineAPI — internal API for built-ins        │
+│  • load_plugins_from_dir() — file discovery      │
+│  • _flatten_command() — tree → dotted names      │
+├──────────────────────────────────────────────────┤
+│  protocol.py — Protocol Engine                   │
+│  • Format spec language (H, U, I, S, F, B, CRC)  │
+│  • ProtoScript / TestCase — test data model      │
+│  • 62 CRC algorithms + plugin CRC loading        │
+│  • Visualizer loading and column rendering       │
+│  • diff_bytes() / diff_columns() — comparison    │
+├──────────────────────────────────────────────────┤
+│  config.py         — dirs, loading, validation   │
+│  defaults.py       — DEFAULT_CFG, templates      │
+│  migration.py      — schema migration v1→v8      │
+│  scripting.py      — pure functions, no state    │
+│  demo.py           — simulated device for --demo │
+│  proto_runner.py   — protocol test execution     │
+└──────────────────────────────────────────────────┘
 ```
 
-## Key Data Flow
+## Key Data Flows
 
-### Serial Read Path (background thread)
+### Serial Read (background thread)
 
 ```text
-serial.read() → decode(encoding) → buffer
-  → detect ANSI clear screen → clear RichLog
-  → split on \n → batch lines
-  → call_from_thread(_write_output_batch) → RichLog.write(Text.from_ansi())
-  → call_from_thread(_write_log_batch) → strip ANSI → log file
+serial.read() → _raw_rx_queue
+  → decode(encoding) → split on \n → batch lines
+  → call_from_thread → RichLog.write(Text.from_ansi())
+  → strip ANSI → log file
+  (if capture active: raw bytes also written to capture file)
 ```
 
-### Command Send Path (user input)
+### Command Dispatch (user input or script)
 
 ```text
 Input.on_submit → _execute_command()
-  → starts with prefix? → repl.dispatch() → plugin.handler(ctx, args)
-  → else → ser.write(cmd + line_ending) → optional echo to RichLog
-  → _wait_for_idle() between multi-line commands
+  → split on \n (multi-command)
+  → starts with prefix? → repl.dispatch(name, args)
+      → lookup dotted name in plugin registry
+      → call handler(ctx, args)
+  → else → ser.write(cmd + line_ending)
+  → optional echo to RichLog
 ```
 
-### Plugin Loading Order (later overrides earlier)
+### Binary Capture Flow
 
 ```text
-1. builtins/                      — shipped with termapy
-2. termapy_cfg/plugins/           — global (all configs)
-3. termapy_cfg/<name>/plugins/    — per-config
-4. App hooks                      — registered by app.py for Textual-coupled commands
-                                    (connect, disconnect, port, ss_svg, ss_txt, etc.)
+/bin_cap → start_capture(path, mode, target_bytes, columns, ...)
+  → serial read thread feeds raw bytes to capture buffer
+  → on each record: apply format spec → write CSV row
+  → on target reached: close file, show summary
+  cmd= sends device trigger after capture starts + drain
 ```
-
-### Visualizer Loading Order (later overrides earlier by name)
-
-```text
-1. builtins/viz/                     — shipped with termapy (hex_view.py, text_view.py)
-2. termapy_cfg/<name>/viz/           — per-config custom visualizers
-```
-
-Visualizers are plain `.py` files returning Rich-markup strings — no Textual dependency.
-`proto_debug.py` renders them via `Text.from_markup()`. Each visualizer appears as a
-checkbox in the debug screen; multiple can be active simultaneously. Visualizers may
-optionally provide `format_header(data)` to display field name headers above data rows.
-
-## Design Principles
-
-- **app.py is the monolith** — all UI, serial I/O, config management, and modal screens live here. It's the only file that imports Textual.
-- **plugins.py has zero dependencies** on Textual or pyserial — it's pure Python dataclasses and importlib.
-- **scripting.py is pure functions** — no state, no I/O, fully testable.
-- **repl.py bridges plugins and app** — owns command dispatch and script execution, but delegates UI actions back to app.py through `PluginContext` callbacks.
-- **Plugin API boundary** — external plugins interact only through `PluginContext` (write, serial_write, cfg, etc.). `EngineAPI` exists for built-ins but is marked unstable.
-- **Plugins all the way down** — built-in commands are regular plugins loaded from `builtins/`. The same API that implements `/help` and `/grep` is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device simulators — no compilation or registration required.
 
 ## Config & Filesystem
 
 ```text
 termapy_cfg/
-├── plugins/              # global plugins
+├── plugins/              # user plugins (all configs)
 └── <name>/
-    ├── <name>.json       # config file
+    ├── <name>.cfg        # JSON config file
     ├── <name>.log        # session log
-    ├── .cmd_history.txt  # command history (last 10)
+    ├── <name>.md         # info report (from /cfg.info)
+    ├── .cmd_history.txt  # command history
     ├── plugins/          # per-config plugins
     ├── ss/               # screenshots (SVG + TXT)
     ├── scripts/          # .run script files
     ├── proto/            # .pro protocol test scripts
-    └── viz/              # per-config packet visualizers
+    ├── viz/              # per-config packet visualizers
+    └── cap/              # data capture output files
 ```
 
-`cfg_data_dir()` auto-creates `plugins/`, `ss/`, `scripts/`, `proto/`, `viz/` subdirs whenever a config path is accessed, so the rest of the code can assume they exist.
+`cfg_data_dir()` auto-creates all subdirs on access. Old `captures/` folders are auto-renamed to `cap/`.
+
+## Threading Model
+
+```text
+┌─────────────────────┐
+│ Main thread         │  Textual event loop — all UI updates
+│ (async)             │  dispatch, modals, button handlers
+├─────────────────────┤
+│ read_serial()       │  Long-lived background thread
+│ @work(thread=True)  │  Reads serial data, posts to RichLog
+├─────────────────────┤
+│ _run_script()       │  Short-lived per script/command
+│ @work(thread=True)  │  Blocking commands (/delay, /confirm)
+│                     │  must run here, not on main thread
+├─────────────────────┤
+│ _auto_reconnect()   │  Short-lived, retries connection
+│ _send_test()        │  Short-lived, protocol test case
+│ _run_cmds()         │  Short-lived, setup/teardown commands
+└─────────────────────┘
+```
+
+At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread.
+
+## Built-in Plugins (20 files)
+
+| Plugin      | Command            | Purpose                                           |
+| ----------- | ------------------ | ------------------------------------------------- |
+| bin_cap.py  | /bin_cap           | Binary data capture to CSV/file                   |
+| cfg.py      | /cfg               | Config values, info, explore, per-folder file ops |
+| cls.py      | /cls               | Clear terminal                                    |
+| confirm.py  | /confirm           | Yes/Cancel dialog (scripts)                       |
+| echo.py     | /echo              | Toggle command echo                               |
+| env_var.py  | /env               | Environment variable management                   |
+| eol.py      | /show_line_endings | Toggle line ending markers                        |
+| exit.py     | /exit              | Quit the app                                      |
+| grep.py     | /grep              | Search scrollback                                 |
+| help.py     | /help              | Colorized command listing and help                |
+| os_cmd.py   | /os                | Run shell commands                                |
+| print.py    | /print             | Print to terminal                                 |
+| proto.py    | /proto             | Binary protocol tools                             |
+| seq.py      | /seq               | Sequence counters                                 |
+| show.py     | /show              | Display files                                     |
+| ss.py       | /ss                | Screenshots (placeholder, hooks override)         |
+| stop.py     | /stop              | Abort running script                              |
+| text_cap.py | /text_cap          | Timed text capture                                |
+| timeit.py   | /timeit            | Time a command                                    |
+| var.py      | /var               | User variables                                    |
 
 ## Test Coverage
 
-8 test files covering the non-UI layers (263 tests):
+13 test files, 693 tests covering non-UI layers:
 
-| File | Coverage |
-| ---- | -------- |
-| `test_protocol.py` | Protocol parsing, test runner, visualizer loading, hex/text views |
-| `test_engine.py` | ReplEngine dispatch, scripting, config |
-| `test_app_config.py` | Config utilities, custom buttons, templates |
-| `test_scripting.py` | Template expansion, duration parsing, script parsing |
-| `test_plugins.py` | Plugin loading, context API |
-| `test_builtins.py` | Built-in command handlers |
-| `test_repl_cfg.py` | Config change mechanics |
-| `test_migration.py` | Config schema migration |
-| `conftest.py` | Shared fixtures |
+| File                   | Covers                                      |
+| ---------------------- | ------------------------------------------- |
+| test_protocol.py       | Format specs, CRC, visualizers, diff        |
+| test_engine.py         | ReplEngine dispatch, scripting, config      |
+| test_app_config.py     | Config utilities, custom buttons, templates |
+| test_scripting.py      | Template expansion, duration parsing        |
+| test_plugins.py        | Plugin loading, context API                 |
+| test_builtins.py       | Built-in command handlers                   |
+| test_repl_cfg.py       | Config change mechanics                     |
+| test_migration.py      | Config schema migration                     |
+| test_demo.py           | Demo device simulation                      |
+| test_var.py            | User variable system                        |
+| test_env_var.py        | Environment variable commands               |
+| test_proto_runner.py   | Protocol test runner                        |
+| test_proto_send_crc.py | CRC in proto.send                           |
 
-The UI layer (`app.py`, `proto_debug.py`) is not unit tested — it relies on manual testing.
+`app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested — UI is tested manually.

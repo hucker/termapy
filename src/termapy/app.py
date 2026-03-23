@@ -42,9 +42,7 @@ from rich.text import Text
 from textual import on, work
 
 from termapy.builtins.plugins.var import (
-    check_bare_dollar,
     clear_vars,
-    rewrite_assignment,
     set_start_time_vars,
 )
 from termapy.defaults import (
@@ -598,6 +596,7 @@ class SerialTerminal(App):
             ),
             start_capture=self._cap_start,
             stop_capture=self._cap_stop,
+            directives=self.repl._directives,
         )
         ctx = PluginContext(
             write=self._status,
@@ -1237,6 +1236,9 @@ class SerialTerminal(App):
         for xform in result.transforms:
             self.repl.register_transform(xform)
             loaded.append(f"~{xform.name}")
+        for directive in result.directives:
+            self.repl.register_directive(directive)
+            loaded.append(f"@{directive.name}")
         if loaded:
             self._status(
                 f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),
@@ -2179,18 +2181,25 @@ class SerialTerminal(App):
             self._send_serial_raw(raw_text)
             return
 
-        # Line rewriting: $(VAR) = value → /var.set VAR value (before REPL/serial)
-        rewritten = rewrite_assignment(cmd)
-        if rewritten is not None:
+        # Pre-dispatch directives (e.g. $(VAR) = value → /var.set)
+        result = self.repl.run_directives(cmd)
+        if result.action == "rewrite":
             self._log_line(">", cmd)
             if self.repl.echo:
                 self._write_output_markup(f"[cyan]> {cmd}[/]")
-            self.repl.dispatch(rewritten)
+            self.repl.dispatch(result.payload)
             return
-        # Warn on bare $NAME = value (old syntax without parens)
-        bare_warning = check_bare_dollar(cmd)
-        if bare_warning is not None:
-            self._status(bare_warning, "yellow")
+        elif result.action == "warn":
+            self._log_line(">", cmd)
+            if self.repl.echo:
+                self._write_output_markup(f"[cyan]> {cmd}[/]")
+            self._status(f"Warning: {result.payload}", "yellow")
+            return
+        elif result.action == "error":
+            self._log_line(">", cmd)
+            if self.repl.echo:
+                self._write_output_markup(f"[cyan]> {cmd}[/]")
+            self._status(f"Error: {result.payload}", "red")
             return
 
         if cmd.startswith(prefix):

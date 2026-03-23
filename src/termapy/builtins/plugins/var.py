@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from termapy.plugins import Command, Transform
+from termapy.plugins import Command, Directive, DirectiveResult, Transform
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -21,7 +21,10 @@ _VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_]*)\)")
 _VAR_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*(.+)$")
 
 # Match bare $NAME = value (old syntax) for helpful warning
-_BARE_ASSIGN_RE = re.compile(r"^\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*.+$")
+_BARE_ASSIGN_RE = re.compile(r"^\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*.*$")
+
+# Match $(NAME) = (with no value) for error
+_EMPTY_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*$")
 
 # Match optional $(NAME) or bare NAME wrapper for user input stripping
 _STRIP_WRAPPER_RE = re.compile(r"^\$\((.+)\)$")
@@ -274,4 +277,26 @@ TRANSFORM = Transform(
     help="Expand $(NAME) placeholders from user-defined variables.",
     repl=expand_vars,
     serial=expand_vars,
+)
+
+
+def _directive_var_assign(line: str) -> DirectiveResult | None:
+    """Handle $(VAR) = value assignment, empty value error, and bare $VAR warning."""
+    rewritten = rewrite_assignment(line)
+    if rewritten is not None:
+        return DirectiveResult("rewrite", rewritten)
+    m = _EMPTY_ASSIGN_RE.match(line)
+    if m:
+        return DirectiveResult("error", f"$({m.group(1)}) = requires a value.")
+    warning = check_bare_dollar(line)
+    if warning is not None:
+        return DirectiveResult("warn", warning)
+    return None
+
+
+DIRECTIVE = Directive(
+    name="var_assign",
+    help="Assign user variables with $(NAME) = value syntax.",
+    pattern="$(NAME) = value",
+    handler=_directive_var_assign,
 )

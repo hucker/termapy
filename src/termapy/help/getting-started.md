@@ -1,8 +1,8 @@
 # Getting Started
 
-## Launching Termapy
+## Launching `Termapy`
 
-Run termapy from the command line:
+Run `termapy` from the command line:
 
 ```text
 termapy                          # auto-detect config
@@ -12,7 +12,7 @@ termapy --check my_device.cfg    # validate config (no UI)
 ```
 
 **Config file argument** — pass the path to a JSON config file directly.
-If the file doesn't exist, termapy creates it with default settings.
+If the file doesn't exist, `termapy` creates it with default settings.
 
 **--cfg-dir** — override the config directory location. By default,
 termapy stores everything in a `termapy_cfg/` folder in the current
@@ -24,7 +24,7 @@ without launching the UI. Checks baud rate, parity, data bits, stop bits,
 flow control, encoding, and flags unknown keys. Read-only — never modifies
 the file.
 
-**No arguments** — termapy looks in `termapy_cfg/` for config files:
+**No arguments** — `termapy` looks in `termapy_cfg/` for config files:
 
 - If one config exists, it loads automatically.
 - If multiple configs exist, a picker dialog appears.
@@ -83,6 +83,6 @@ Type `/help` to see all available REPL commands.
 
 ---
 
-| | | |
-|:---:|:---:|:---:|
-| | [Index](index.md) | [Toolbar & Shortcuts →](toolbar.md) |
+|       |                   |                                     |
+| :---: | :---------------: | :---------------------------------: |
+|       | [Index](index.md) | [Toolbar & Shortcuts →](toolbar.md) |

@@ -61,6 +61,20 @@ def cfg_data_dir(config_path: str) -> Path:
         old_cap.rename(new_cap)
     for sub in ("plugins", "ss", "scripts", "proto", "viz", "cap", "prof"):
         (d / sub).mkdir(exist_ok=True)
+    # Write .gitignore for transient data (only if it doesn't exist)
+    gitignore = d / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(
+            "# Termapy — ignore transient/generated data\n"
+            "*.log\n"
+            ".cmd_history.txt\n"
+            ".cap_seq\n"
+            "_profile_tmp_*\n"
+            "ss/\n"
+            "cap/\n"
+            "prof/\n",
+            encoding="utf-8",
+        )
     return d
 
 
@@ -393,14 +407,20 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     plugins_dir = demo_dir / "plugins"
     plugins_dir.mkdir(exist_ok=True)
     plugins_pkg = pkg / "plugins"
-    for name in ("cmd.py", "probe.py"):
+    for name in ("cmd.py", "probe.py", "temp_plot.py"):
         dest = plugins_dir / name
         if force or not dest.exists():
             src = plugins_pkg / name
             dest.write_bytes(src.read_bytes())
 
+    # Copy .gitignore for transient data
+    gitignore_dest = demo_dir / ".gitignore"
+    if force or not gitignore_dest.exists():
+        src = pkg / ".gitignore"
+        gitignore_dest.write_bytes(src.read_bytes())
+
     # Create standard subdirs
-    for sub in ("ss",):
+    for sub in ("ss", "cap", "prof"):
         (demo_dir / sub).mkdir(exist_ok=True)
 
     return config_path

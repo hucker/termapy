@@ -270,6 +270,7 @@ class PluginContext:
         scripts_dir: Path to the per-config scripts directory (auto-created).
         proto_dir: Path to the per-config protocol test scripts directory (auto-created).
         cap_dir: Path to the per-config cap/ directory (auto-created).
+        prof_dir: Path to the per-config prof/ directory (auto-created).
         dispatch: Route a raw command through the full dispatch pipeline
             (directives, transforms, REPL/serial). Signature: ``dispatch(cmd)``.
             Thread-safe when called via ``call_from_thread``.
@@ -311,6 +312,7 @@ class PluginContext:
     scripts_dir: Path = field(default_factory=lambda: Path("."))
     proto_dir: Path = field(default_factory=lambda: Path("."))
     cap_dir: Path = field(default_factory=lambda: Path("."))
+    prof_dir: Path = field(default_factory=lambda: Path("."))
 
     # Dispatch — route a raw command through the full dispatch pipeline
     # (directives, transforms, REPL/serial). Thread-safe when wired via

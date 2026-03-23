@@ -527,6 +527,60 @@
   
   
     <li class="md-nav__item">
+      <a href="writing-plugins.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using with Git
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="demo.html" class="md-nav__link">
         
   
@@ -626,7 +680,7 @@
 <h1 id="configuration">Configuration</h1>
 <h2 id="json-config-file">JSON Config File</h2>
 <p>Each configuration is stored as a JSON file at <code>termapy_cfg/&lt;name&gt;/&lt;name&gt;.cfg</code>.
-On first run, termapy creates a default config for you. You can edit it
+On first run, <code>termapy</code> creates a default config for you. You can edit it
 from within the app by clicking the center title bar button or using <code>/cfg</code>.</p>
 <p>Here is an example config for a device called <code>iot_device</code>:</p>
 <pre><code class="language-json">{
@@ -758,6 +812,11 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 <td>Prefix lines with <code>[HH:MM:SS.mmm]</code></td>
 </tr>
 <tr>
+<td><code>show_line_endings</code></td>
+<td><code>false</code></td>
+<td>Show dim <code>\r</code> <code>\n</code> markers in serial output for debugging</td>
+</tr>
+<tr>
 <td><code>max_grep_lines</code></td>
 <td><code>100</code></td>
 <td>Maximum lines shown by <code>/grep</code></td>
@@ -766,6 +825,11 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 <td><code>proto_frame_gap_ms</code></td>
 <td><code>50</code></td>
 <td>Silence gap (ms) to detect end of a binary frame</td>
+</tr>
+<tr>
+<td><code>proto_results_template</code></td>
+<td><code>{name}_results.json</code></td>
+<td>Filename template for protocol test JSON results</td>
 </tr>
 <tr>
 <td><code>title</code></td>
@@ -786,6 +850,11 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 <td><code>cmd_prefix</code></td>
 <td><code>/</code></td>
 <td>Prefix for local REPL commands</td>
+</tr>
+<tr>
+<td><code>config_read_only</code></td>
+<td><code>false</code></td>
+<td>Disable Edit button in pickers (<code>/cfg</code> still changes in-memory values)</td>
 </tr>
 <tr>
 <td><code>os_cmd_enabled</code></td>

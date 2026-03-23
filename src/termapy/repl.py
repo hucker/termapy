@@ -458,6 +458,13 @@ class ReplEngine:
         return Path(".")
 
     @property
+    def prof_dir(self) -> Path:
+        """Profile directory, derived from config_path."""
+        if self.config_path:
+            return Path(self.config_path).parent / "prof"
+        return Path(".")
+
+    @property
     def echo(self) -> bool:
         return self._echo
 

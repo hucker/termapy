@@ -1,0 +1,8 @@
+# Termapy — ignore transient/generated data
+*.log
+.cmd_history.txt
+.cap_seq
+_profile_tmp_*
+ss/
+cap/
+prof/

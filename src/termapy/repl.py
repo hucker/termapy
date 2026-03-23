@@ -308,6 +308,7 @@ class ReplEngine:
         path: Path,
         write: Callable | None = None,
         dispatch: Callable | None = None,
+        profile: bool = False,
     ) -> None:
         """Execute a script file line by line (call from a background thread).
 
@@ -327,8 +328,19 @@ class ReplEngine:
         """
         w = write or self.write
         prefix = self.prefix
+        profile_times: list[tuple[str, float]] = []
+        prof_fh = None
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
+            if profile:
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                prof_name = f"{Path(self.config_path).stem}_{ts}.txt"
+                prof_dir = Path(self.config_path).parent / "prof"
+                prof_dir.mkdir(exist_ok=True)
+                prof_path = prof_dir / prof_name
+                prof_fh = open(prof_path, "a", encoding="utf-8")
+                prof_fh.write(f"── profile: {path.name} ({len(lines)} lines) ──\n")
+                w(f"── profile: {path.name} → {prof_name} ──")
             for raw_line in lines:
                 if self._script_stop.is_set():
                     w("Script stopped.")
@@ -358,17 +370,29 @@ class ReplEngine:
                         except ValueError as e:
                             w(str(e), "red")
                             break
+                        t0 = time.perf_counter()
                         time.sleep(seconds)
-                        w(f"Delay {expanded} done.")
+                        if profile:
+                            elapsed = time.perf_counter() - t0
+                            profile_times.append((stripped, elapsed))
+                            prof_fh.write(f"  {elapsed:7.3f}s  {stripped}\n")
+                        else:
+                            w(f"Delay {expanded} done.")
                         continue
                     if name.lower() == "confirm":
                         self.ctx.log(">", stripped)
                         message = args.strip() or "Continue?"
+                        t0 = time.perf_counter()
                         if not self.ctx.confirm(message):
                             w("Script cancelled by user.")
                             self._script_stop.set()
+                        if profile:
+                            elapsed = time.perf_counter() - t0
+                            profile_times.append((stripped, elapsed))
+                            prof_fh.write(f"  {elapsed:7.3f}s  {stripped}\n")
                         continue
                 # Everything else goes through the full dispatch pipeline
+                t0 = time.perf_counter()
                 if dispatch:
                     dispatch(stripped)
                 else:
@@ -380,13 +404,26 @@ class ReplEngine:
                             (stripped + self.cfg.get("line_ending", "\r"))
                             .encode(self.cfg.get("encoding", "utf-8"))
                         )
+                if profile:
+                    elapsed = time.perf_counter() - t0
+                    label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
+                    profile_times.append((label, elapsed))
+                    prof_fh.write(f"  {elapsed:7.3f}s  {label}\n")
                 time.sleep(0.1)
             else:
-                w("Script finished.")
+                if profile and profile_times:
+                    total = sum(t for _, t in profile_times)
+                    summary = f"── {total:.3f}s total ({len(profile_times)} commands) ──"
+                    prof_fh.write(f"{summary}\n")
+                    w(summary)
+                else:
+                    w("Script finished.")
         except Exception as e:
             w(f"Script error: {e}", "red")
         finally:
             self._in_script = False
+            if prof_fh:
+                prof_fh.close()
 
     # -- Properties -----------------------------------------------------------
 

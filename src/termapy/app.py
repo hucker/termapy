@@ -735,6 +735,34 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "run.profile",
+            "<filename>",
+            "Run a script with per-line timing.",
+            self._hook_run_profile,
+            source="app",
+        )
+        self.repl.register_hook(
+            "run.profile.show",
+            "",
+            "Open the newest .prof file in system viewer.",
+            self._hook_run_profile_show,
+            source="app",
+        )
+        self.repl.register_hook(
+            "run.profile.explore",
+            "",
+            "Open config directory in file explorer.",
+            self._hook_run_profile_explore,
+            source="app",
+        )
+        self.repl.register_hook(
+            "run.profile.list",
+            "",
+            "List profile (.prof) files.",
+            self._hook_run_profile_list,
+            source="app",
+        )
+        self.repl.register_hook(
             "run.list",
             "",
             "List .run files in the scripts/ directory.",
@@ -861,7 +889,7 @@ class SerialTerminal(App):
     def on_unmount(self) -> None:
         self._save_history()
         self._disconnect()
-        self.reader_stopped.wait(timeout=1.0)
+        self.reader_stopped.wait(timeout=0.2)
         if self.log_fh:
             self.log_fh.close()
             self.log_fh = None
@@ -1311,6 +1339,27 @@ class SerialTerminal(App):
                 self._status, f"Failed to load demo config: {e}", "red",
             )
 
+    def _confirm_delete(self, path: str, label: str,
+                        on_deleted=None) -> None:
+        """Show a confirmation dialog and delete a file if confirmed."""
+        name = Path(path).name
+
+        def _on_confirm(confirmed: bool) -> None:
+            if not confirmed:
+                return
+            try:
+                Path(path).unlink()
+                self._status(f"Deleted {label}: {name}", "green")
+                if on_deleted:
+                    on_deleted()
+            except OSError as e:
+                self._status(f"Delete failed: {e}", "red")
+
+        self.push_screen(
+            ConfirmDialog(f"Delete {label} '{name}'?"),
+            callback=_on_confirm,
+        )
+
     def _on_config_picked(self, result: tuple | None) -> None:
         if result is None:
             return
@@ -1335,6 +1384,18 @@ class SerialTerminal(App):
                 ConfigEditor(cfg, result[1]),
                 callback=self._on_config_result,
             )
+        elif action == "delete":
+            is_active = result[1] == self.config_path
+
+            def _after_delete():
+                if is_active:
+                    self.config_path = ""
+                    self.push_screen(
+                        ConfigPicker(""),
+                        callback=self._on_config_picked,
+                    )
+
+            self._confirm_delete(result[1], "config", on_deleted=_after_delete)
 
     def _on_config_result(self, result: tuple | None) -> None:
         if result is None:
@@ -1732,6 +1793,7 @@ class SerialTerminal(App):
                             self.call_from_thread(
                                 self._write_batch, [buf])
                             buf = ""
+                    time.sleep(0.01)  # avoid busy-spin when idle
                     continue
 
                 last_rx = time.monotonic()
@@ -2616,6 +2678,11 @@ class SerialTerminal(App):
                 ScriptEditor(self.repl.scripts_dir, result[1]),
                 callback=self._on_script_saved,
             )
+        elif action == "delete":
+            self._confirm_delete(
+                result[1], "script",
+                on_deleted=self._sync_scripts_button,
+            )
 
     def _on_script_saved(self, path: str | None) -> None:
         if path:
@@ -2647,6 +2714,11 @@ class SerialTerminal(App):
             self.push_screen(
                 ProtoEditor(self.repl.proto_dir, result[1]),
                 callback=self._on_proto_saved,
+            )
+        elif action == "delete":
+            self._confirm_delete(
+                result[1], "proto script",
+                on_deleted=self._sync_proto_button,
             )
 
     def _on_proto_saved(self, path: str | None) -> None:
@@ -2719,6 +2791,56 @@ class SerialTerminal(App):
         if path:
             self._run_script(path)
 
+    def _hook_run_profile(self, ctx, args: str) -> None:
+        path = self.repl.start_script(args)
+        if path:
+            self._run_script(path, profile=True)
+
+    def _prof_dir(self) -> Path | None:
+        """Return the prof/ directory, or None if no config loaded."""
+        if not self.config_path:
+            return None
+        return Path(self.config_path).parent / "prof"
+
+    def _hook_run_profile_show(self, ctx, args: str) -> None:
+        """Open the newest .prof file in the system viewer."""
+        prof_dir = self._prof_dir()
+        if not prof_dir:
+            ctx.write("No config loaded.", "red")
+            return
+        profs = sorted(prof_dir.glob("*.txt"), key=lambda f: f.stat().st_mtime)
+        if not profs:
+            ctx.write("No profile files found.", "dim")
+            return
+        newest = profs[-1]
+        ctx.write(f"Opening {newest.name}")
+        open_with_system(str(newest))
+
+    def _hook_run_profile_explore(self, ctx, args: str) -> None:
+        """Open the prof/ directory in file explorer."""
+        prof_dir = self._prof_dir()
+        if not prof_dir:
+            ctx.write("No config loaded.", "red")
+            return
+        prof_dir.mkdir(exist_ok=True)
+        open_with_system(str(prof_dir))
+
+    def _hook_run_profile_list(self, ctx, args: str) -> None:
+        """List .prof files."""
+        prof_dir = self._prof_dir()
+        if not prof_dir:
+            ctx.write("No config loaded.", "red")
+            return
+        if not prof_dir.exists():
+            ctx.write("  (no profile files)", "dim")
+            return
+        profs = sorted(prof_dir.glob("*.txt"))
+        if not profs:
+            ctx.write("  (no profile files)", "dim")
+            return
+        for f in profs:
+            ctx.write(f"  {f.name}")
+
     def _hook_cfg_load(self, ctx, args: str) -> None:
         """Switch to a different config by name or path."""
         name = args.strip()
@@ -2763,7 +2885,7 @@ class SerialTerminal(App):
             self.repl.write(f"  {f.name}")
 
     @work(thread=True)
-    def _run_script(self, path: Path) -> None:
+    def _run_script(self, path: Path, profile: bool = False) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
 
         def thread_safe_write(text: str, color: str = "dim") -> None:
@@ -2775,6 +2897,7 @@ class SerialTerminal(App):
         try:
             self.repl.run_script(
                 path, write=thread_safe_write, dispatch=thread_safe_dispatch,
+                profile=profile,
             )
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown

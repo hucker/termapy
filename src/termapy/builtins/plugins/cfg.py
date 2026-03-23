@@ -31,8 +31,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     parts = args.strip().split(None, 1)
     # /cfg — show all
     if not parts:
-        for k, v in ctx.cfg.items():
-            ctx.write(f"  {k}: {v!r}")
+        ctx.write(json.dumps(dict(ctx.cfg), indent=4))
         return
     key = parts[0]
     if key not in ctx.cfg:
@@ -133,10 +132,14 @@ _SECTIONS = [
     ("ss", "*"),
     ("viz", "*.py"),
     ("cap", "*"),
+    ("prof", "*.txt"),
 ]
 
 # Folders that support .clear (generated output, not user-authored)
-_CLEARABLE = {"ss", "cap"}
+_CLEARABLE = {"ss", "cap", "prof"}
+
+# Folders that support .show (open newest file in system viewer)
+_SHOWABLE = {"ss", "cap", "prof"}
 
 
 def _names(directory: Path, pattern: str) -> list[str]:
@@ -342,6 +345,29 @@ def _make_clear_handler(folder: str, pattern: str):
     return handler
 
 
+def _make_show_handler(folder: str, pattern: str):
+    """Create a handler that opens the newest file in system viewer."""
+    def handler(ctx: PluginContext, args: str) -> None:
+        if not ctx.config_path:
+            ctx.write("No config loaded.", "red")
+            return
+        data_dir = Path(ctx.config_path).parent / folder
+        if not data_dir.exists():
+            ctx.write(f"  {folder}/ is empty.", "dim")
+            return
+        if pattern == "*":
+            files = [f for f in data_dir.glob(pattern) if f.is_file()]
+        else:
+            files = list(data_dir.glob(pattern))
+        if not files:
+            ctx.write(f"  {folder}/ is empty.", "dim")
+            return
+        newest = max(files, key=lambda f: f.stat().st_mtime)
+        ctx.write(f"Opening {newest.name}")
+        open_with_system(str(newest))
+    return handler
+
+
 # ── Build per-folder subcommand dicts ────────────────────────────────────────
 
 
@@ -355,6 +381,11 @@ def _build_folder_subs() -> dict[str, Command]:
                 handler=_make_explore_handler(folder),
             ),
         }
+        if folder in _SHOWABLE:
+            nested["show"] = Command(
+                help=f"Open newest file in {folder}/.",
+                handler=_make_show_handler(folder, pattern),
+            )
         if folder in _CLEARABLE:
             nested["clear"] = Command(
                 help=f"Delete all files in {folder}/.",

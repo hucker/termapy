@@ -159,13 +159,14 @@ def _build_tree(config_path: str, sections: list[tuple[str, list[str]]],
         Tuple of (colored tree for terminal, plain tree for markdown).
     """
     config_name = Path(config_path).stem
+    abs_root = Path(config_path).parent.resolve().as_posix() + "/"
 
     _DIR = "cyan"
     _TREE = "dim"
     _FILE = "blue"
 
-    plain_lines: list[str] = [f"{config_name}/"]
-    color_lines: list[str] = [f"[{_DIR}]{config_name}/[/]"]
+    plain_lines: list[str] = [abs_root]
+    color_lines: list[str] = [f"[{_DIR}]{abs_root}[/]"]
 
     data_dir = Path(config_path).parent
 
@@ -248,6 +249,8 @@ def _handler_info(ctx: PluginContext, args: str) -> None:
             ctx.config_path, sections, global_names
         )
 
+        ctx.write_markup(colored_tree)
+
         # Build markdown report
         cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
         buttons = ctx.cfg.get("custom_buttons", [])
@@ -281,8 +284,6 @@ def _handler_info(ctx: PluginContext, args: str) -> None:
         data_dir = cfg_data_dir(ctx.config_path)
         report_path = data_dir / f"{config_name}.md"
         report_path.write_text("\n".join(md_lines), encoding="utf-8")
-
-        ctx.write_markup(colored_tree)
 
         if "--display" in args.lower():
             open_with_system(str(report_path))

@@ -137,7 +137,7 @@ class TestSeq:
         engine._seq_counters = {1: 5}
 
         # Act
-        engine.dispatch("seq reset")
+        engine.dispatch("seq.reset")
 
         # Assert
         assert engine._seq_counters == {}  # counters cleared

@@ -14,7 +14,12 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, OptionList, TextArea
 from textual.widgets.option_list import Option
 
-from termapy.config import cfg_dir, cfg_path_for_name, migrate_json_to_cfg, open_with_system
+from termapy.config import (
+    cfg_dir,
+    cfg_path_for_name,
+    migrate_json_to_cfg,
+    open_with_system,
+)
 from termapy.defaults import PROTO_TEMPLATE, SCRIPT_TEMPLATE
 
 # Shared CSS for modal dialog buttons
@@ -318,13 +323,27 @@ class ConfigPicker(ModalScreen[tuple | None]):
             yield ol
             has_configs = bool(json_files)
             with Horizontal(id="picker-buttons"):
-                yield Button("Load", id="picker-load", variant="success",
-                             disabled=not has_configs)
-                yield Button("Edit", id="picker-edit", variant="primary",
-                             disabled=not has_configs or self.read_only)
+                yield Button(
+                    "Load",
+                    id="picker-load",
+                    variant="success",
+                    disabled=not has_configs,
+                )
+                yield Button(
+                    "Edit",
+                    id="picker-edit",
+                    variant="primary",
+                    disabled=not has_configs or self.read_only,
+                )
                 new_btn = Button("New", id="picker-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                yield Button(
+                    "Delete",
+                    id="picker-delete",
+                    variant="warning",
+                    disabled=not has_configs or self.read_only,
+                )
                 yield Button("Cancel", id="picker-cancel", variant="error")
 
     def _selected_path(self) -> str | None:
@@ -332,6 +351,12 @@ class ConfigPicker(ModalScreen[tuple | None]):
         if ol.highlighted is not None:
             return str(ol.get_option_at_index(ol.highlighted).id)
         return None
+
+    @on(Button.Pressed, "#picker-delete")
+    def delete_config(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("delete", path))
 
     @on(Button.Pressed, "#picker-new")
     def new_config(self) -> None:
@@ -407,13 +432,24 @@ class ScriptPicker(ModalScreen[tuple | None]):
             yield ol
             has_scripts = bool(scripts)
             with Horizontal(id="script-buttons"):
-                yield Button("Run", id="script-run", variant="success",
-                             disabled=not has_scripts)
-                yield Button("Edit", id="script-edit", variant="primary",
-                             disabled=not has_scripts or self.read_only)
+                yield Button(
+                    "Run", id="script-run", variant="success", disabled=not has_scripts
+                )
+                yield Button(
+                    "Edit",
+                    id="script-edit",
+                    variant="primary",
+                    disabled=not has_scripts or self.read_only,
+                )
                 new_btn = Button("New", id="script-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                yield Button(
+                    "Delete",
+                    id="script-delete",
+                    variant="warning",
+                    disabled=not has_scripts or self.read_only,
+                )
                 yield Button("Cancel", id="script-cancel", variant="error")
 
     def _selected_path(self) -> str | None:
@@ -421,6 +457,12 @@ class ScriptPicker(ModalScreen[tuple | None]):
         if ol.highlighted is not None:
             return str(ol.get_option_at_index(ol.highlighted).id)
         return None
+
+    @on(Button.Pressed, "#script-delete")
+    def delete_script(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("delete", path))
 
     @on(Button.Pressed, "#script-new")
     def new_script(self) -> None:
@@ -495,15 +537,30 @@ class ProtoPicker(ModalScreen[tuple | None]):
             yield ol
             has_protos = bool(protos)
             with Horizontal(id="proto-buttons"):
-                yield Button("Run", id="proto-run", variant="success",
-                             disabled=not has_protos)
-                yield Button("Debug", id="proto-debug", variant="warning",
-                             disabled=not has_protos)
-                yield Button("Edit", id="proto-edit", variant="primary",
-                             disabled=not has_protos or self.read_only)
+                yield Button(
+                    "Run", id="proto-run", variant="success", disabled=not has_protos
+                )
+                yield Button(
+                    "Debug",
+                    id="proto-debug",
+                    variant="warning",
+                    disabled=not has_protos,
+                )
+                yield Button(
+                    "Edit",
+                    id="proto-edit",
+                    variant="primary",
+                    disabled=not has_protos or self.read_only,
+                )
                 new_btn = Button("New", id="proto-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
+                yield Button(
+                    "Delete",
+                    id="proto-delete",
+                    variant="warning",
+                    disabled=not has_protos or self.read_only,
+                )
                 yield Button("Cancel", id="proto-cancel", variant="error")
 
     def _selected_path(self) -> str | None:
@@ -516,6 +573,12 @@ class ProtoPicker(ModalScreen[tuple | None]):
         if ol.highlighted is not None:
             return str(ol.get_option_at_index(ol.highlighted).id)
         return None
+
+    @on(Button.Pressed, "#proto-delete")
+    def delete_proto(self) -> None:
+        path = self._selected_path()
+        if path:
+            self.dismiss(("delete", path))
 
     @on(Button.Pressed, "#proto-new")
     def new_proto(self) -> None:
@@ -554,7 +617,6 @@ class ProtoPicker(ModalScreen[tuple | None]):
     @on(Button.Pressed, "#proto-cancel")
     def cancel_picker(self) -> None:
         self.dismiss(None)
-
 
 
 class ProtoEditor(ModalScreen[str | None]):
@@ -695,8 +757,6 @@ class ProtoEditor(ModalScreen[str | None]):
     @on(Button.Pressed, "#ped-cancel")
     def cancel_editor(self) -> None:
         self.dismiss(None)
-
-
 
 
 class ScriptEditor(ModalScreen[str | None]):

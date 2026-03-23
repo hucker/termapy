@@ -35,6 +35,7 @@ def repl_env(tmp_path):
     )
     ctx = PluginContext(
         write=write,
+        write_markup=write,
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,

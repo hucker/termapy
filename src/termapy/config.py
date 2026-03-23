@@ -59,7 +59,7 @@ def cfg_data_dir(config_path: str) -> Path:
     new_cap = d / "cap"
     if old_cap.is_dir() and not new_cap.exists():
         old_cap.rename(new_cap)
-    for sub in ("plugins", "ss", "scripts", "proto", "viz", "cap"):
+    for sub in ("plugins", "ss", "scripts", "proto", "viz", "cap", "prof"):
         (d / sub).mkdir(exist_ok=True)
     return d
 

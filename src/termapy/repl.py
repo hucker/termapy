@@ -15,7 +15,7 @@ from types import MappingProxyType
 from typing import Callable
 
 from termapy.plugins import (
-    PluginContext, PluginInfo, TransformInfo,
+    DirectiveInfo, DirectiveResult, PluginContext, PluginInfo, TransformInfo,
     builtins_dir, load_plugins_from_dir,
 )
 from termapy.scripting import expand_template, parse_duration
@@ -59,6 +59,9 @@ class ReplEngine:
         self._serial_transforms: list[Callable] = []
         self._transform_infos: list[TransformInfo] = []
 
+        # Directive chain — pre-dispatch line rewriters
+        self._directives: list[DirectiveInfo] = []
+
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
 
@@ -69,6 +72,8 @@ class ReplEngine:
             self.register_plugin(info)
         for xform in result.transforms:
             self.register_transform(xform)
+        for directive in result.directives:
+            self.register_directive(directive)
 
     # -- Plugin management ----------------------------------------------------
 
@@ -87,6 +92,23 @@ class ReplEngine:
             self._repl_transforms.append(info.repl)
         if info.serial:
             self._serial_transforms.append(info.serial)
+
+    def register_directive(self, info: DirectiveInfo) -> None:
+        """Register a pre-dispatch directive. Appended in load order."""
+        self._directives.append(info)
+
+    def run_directives(self, line: str) -> DirectiveResult:
+        """Run all directives in load order against a raw input line.
+
+        Returns the first non-None DirectiveResult, or a "none" result
+        if no directive matched.
+        """
+        for d in self._directives:
+            if d.handler:
+                result = d.handler(line)
+                if result is not None:
+                    return result
+        return DirectiveResult()
 
     def register_hook(self, name: str, args: str, help_text: str,
                       handler: Callable, source: str = "built-in",

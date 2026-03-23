@@ -87,6 +87,65 @@ class Command:
 
 
 @dataclass
+class DirectiveResult:
+    """Result from a pre-dispatch directive handler.
+
+    Attributes:
+        action: What to do — ``"rewrite"`` dispatches payload as a REPL
+            command, ``"warn"`` shows payload in yellow, ``"error"`` shows
+            payload in red, ``"none"`` means no directive matched.
+        payload: Command string (for rewrite) or message (for warn/error).
+    """
+
+    action: str = "none"
+    payload: str = ""
+
+
+@dataclass
+class Directive:
+    """Pre-dispatch line rewriter declaration.
+
+    Plugin files that intercept raw input lines before REPL/serial routing
+    export a ``DIRECTIVE`` instance at module level.  Directives run in load
+    order — built-ins first, then global, then per-config.  A file may export
+    ``COMMAND``, ``TRANSFORM``, and/or ``DIRECTIVE``.
+
+    The handler receives the raw input line and returns a ``DirectiveResult``
+    or ``None`` to pass to the next directive.
+
+    Attributes:
+        name: Identifier for the directive (shown in /help).
+        help: One-line description.
+        pattern: Human-readable syntax hint (e.g. ``"$(NAME) = value"``).
+        handler: ``(str) -> DirectiveResult | None``.
+    """
+
+    name: str
+    help: str
+    pattern: str = ""
+    handler: Callable | None = None
+
+
+@dataclass
+class DirectiveInfo:
+    """Loaded directive with source metadata.
+
+    Attributes:
+        name: Identifier for the directive.
+        help: One-line description.
+        pattern: Human-readable syntax hint.
+        handler: Pre-dispatch rewriter function.
+        source: Where the directive was loaded from.
+    """
+
+    name: str
+    help: str
+    pattern: str = ""
+    handler: Callable | None = None
+    source: str = "built-in"
+
+
+@dataclass
 class Transform:
     """Input rewriter declaration.
 
@@ -139,6 +198,7 @@ class LoadResult:
 
     plugins: list = field(default_factory=list)
     transforms: list = field(default_factory=list)
+    directives: list = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -169,6 +229,7 @@ class EngineAPI:
     open_proto_debug: Callable = lambda path, script: None
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
+    directives: list = field(default_factory=list)
 
 
 @dataclass
@@ -345,12 +406,14 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         if py_file.name.startswith("_"):
             continue
         try:
-            infos, xforms = _load_plugin_file(py_file, source)
+            infos, xforms, dirs = _load_plugin_file(py_file, source)
             if infos:
                 result.plugins.extend(infos)
             if xforms:
                 result.transforms.extend(xforms)
-            if not infos and not xforms:
+            if dirs:
+                result.directives.extend(dirs)
+            if not infos and not xforms and not dirs:
                 result.skipped.append(py_file.name)
         except Exception as e:
             result.errors.append(f"{py_file.name}: {e}")
@@ -359,23 +422,24 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
 
 def _load_plugin_file(
     path: Path, source: str,
-) -> tuple[list[PluginInfo], list[TransformInfo]]:
-    """Import a single plugin file and extract commands and transforms.
+) -> tuple[list[PluginInfo], list[TransformInfo], list[DirectiveInfo]]:
+    """Import a single plugin file and extract commands, transforms, and directives.
 
     A valid plugin module may export a ``COMMAND`` instance (a ``Command``
-    dataclass) and/or a ``TRANSFORM`` instance (a ``Transform`` dataclass).
+    dataclass), a ``TRANSFORM`` instance (a ``Transform`` dataclass),
+    and/or a ``DIRECTIVE`` instance (a ``Directive`` dataclass).
 
     Args:
         path: Path to the .py plugin file.
         source: Label for the plugin's origin.
 
     Returns:
-        Tuple of (PluginInfo list, TransformInfo list).
+        Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list).
     """
     module_name = f"termapy_plugin_{path.stem}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
-        return [], []
+        return [], [], []
     mod = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
@@ -398,7 +462,19 @@ def _load_plugin_file(
             source=source,
         ))
 
-    return plugins, transforms
+    # Directives
+    directives: list[DirectiveInfo] = []
+    directive = getattr(mod, "DIRECTIVE", None)
+    if isinstance(directive, Directive) and directive.name:
+        directives.append(DirectiveInfo(
+            name=directive.name,
+            help=directive.help,
+            pattern=directive.pattern,
+            handler=directive.handler,
+            source=source,
+        ))
+
+    return plugins, transforms, directives
 
 
 def _flatten_command(

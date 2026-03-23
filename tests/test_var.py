@@ -1,5 +1,8 @@
 """Tests for the user-defined variables plugin (var.py)."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from termapy.builtins.plugins.var import (
@@ -11,6 +14,8 @@ from termapy.builtins.plugins.var import (
     rewrite_assignment,
     set_start_time_vars,
 )
+from termapy.plugins import DirectiveInfo, DirectiveResult
+from termapy.repl import ReplEngine
 
 
 @pytest.fixture(autouse=True)
@@ -496,3 +501,199 @@ class TestDynamicTimeVars:
         assert "$(DATE)" not in actual
         assert "$(TIME)" not in actual
         assert "$(DATETIME)" not in actual
+
+
+# ── DirectiveResult (isolated) ───────────────────────────────────────────────
+
+
+class TestDirectiveResult:
+    """Tests for the DirectiveResult dataclass."""
+
+    def test_default_is_none_action(self):
+        # Act
+        actual = DirectiveResult()
+
+        # Assert — defaults to no-op
+        assert actual.action == "none"
+        assert actual.payload == ""
+
+    def test_rewrite_result(self):
+        # Act
+        actual = DirectiveResult("rewrite", "var.set PORT COM7")
+
+        # Assert
+        assert actual.action == "rewrite"
+        assert actual.payload == "var.set PORT COM7"
+
+    def test_warn_result(self):
+        # Act
+        actual = DirectiveResult("warn", "Something wrong")
+
+        # Assert
+        assert actual.action == "warn"
+        assert actual.payload == "Something wrong"
+
+    def test_error_result(self):
+        # Act
+        actual = DirectiveResult("error", "Bad input")
+
+        # Assert
+        assert actual.action == "error"
+        assert actual.payload == "Bad input"
+
+
+# ── run_directives (isolated with manual registration) ───────────────────────
+
+
+class TestRunDirectivesIsolated:
+    """Test run_directives with manually registered directives."""
+
+    def test_no_directives_returns_none_action(self, tmp_path):
+        """With no directives registered, returns 'none' action."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+        engine._directives.clear()
+
+        # Act
+        actual = engine.run_directives("anything")
+
+        # Assert
+        assert actual.action == "none"
+
+    def test_matching_directive_returns_its_result(self, tmp_path):
+        """A directive that matches returns its DirectiveResult."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+        engine._directives.clear()
+        engine.register_directive(DirectiveInfo(
+            name="test",
+            help="Test directive.",
+            handler=lambda line: DirectiveResult("rewrite", "replaced")
+            if line == "match" else None,
+        ))
+
+        # Act
+        actual = engine.run_directives("match")
+
+        # Assert
+        assert actual.action == "rewrite"
+        assert actual.payload == "replaced"
+
+    def test_non_matching_directive_returns_none_action(self, tmp_path):
+        """A directive that doesn't match falls through to 'none'."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+        engine._directives.clear()
+        engine.register_directive(DirectiveInfo(
+            name="test",
+            help="Test directive.",
+            handler=lambda line: None,
+        ))
+
+        # Act
+        actual = engine.run_directives("anything")
+
+        # Assert
+        assert actual.action == "none"
+
+    def test_first_matching_directive_wins(self, tmp_path):
+        """When multiple directives match, the first one wins."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+        engine._directives.clear()
+        engine.register_directive(DirectiveInfo(
+            name="first",
+            help="First.",
+            handler=lambda line: DirectiveResult("rewrite", "first"),
+        ))
+        engine.register_directive(DirectiveInfo(
+            name="second",
+            help="Second.",
+            handler=lambda line: DirectiveResult("rewrite", "second"),
+        ))
+
+        # Act
+        actual = engine.run_directives("anything")
+
+        # Assert — first directive wins
+        assert actual.payload == "first"
+
+
+# ── Directive integration (with builtins) ────────────────────────────────────
+
+
+def _make_engine(tmp_path):
+    """Create a ReplEngine with a temp config for directive testing."""
+    cfg_dir = tmp_path / "test_cfg"
+    cfg_dir.mkdir()
+    cfg_path = cfg_dir / "test.cfg"
+    cfg_path.write_text(json.dumps({"config_version": 8}))
+    for sub in ("plugins", "ss", "scripts"):
+        (cfg_dir / sub).mkdir()
+    output = []
+    engine = ReplEngine(
+        {"config_version": 8}, str(cfg_path),
+        lambda t, c=None: output.append((t, c)),
+    )
+    return engine, output
+
+
+class TestDirectiveIntegration:
+    """Verify var_assign directive is loaded and wired through run_directives."""
+
+    def test_var_assign_directive_loaded(self, tmp_path):
+        """The var_assign directive should be registered by the builtin loader."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+
+        # Assert — at least one directive registered
+        assert len(engine._directives) >= 1  # directive registered
+        names = [d.name for d in engine._directives]
+        assert "var_assign" in names  # var_assign specifically
+
+    def test_run_directives_rewrites_assignment(self, tmp_path):
+        """run_directives should rewrite $(VAR) = value to var.set."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+
+        # Act
+        actual = engine.run_directives("$(PORT) = COM7")
+
+        # Assert — rewritten to var.set command
+        assert actual.action == "rewrite"
+        assert actual.payload == "var.set PORT COM7"
+
+    def test_run_directives_returns_none_for_normal_input(self, tmp_path):
+        """run_directives should return 'none' action for non-directive lines."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+
+        # Act
+        actual = engine.run_directives("AT+INFO")
+
+        # Assert — no directive matched
+        assert actual.action == "none"
+
+    def test_run_directives_warns_on_bare_dollar(self, tmp_path):
+        """run_directives should return a warn result for bare $VAR = syntax."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+
+        # Act
+        actual = engine.run_directives("$PORT = COM7")
+
+        # Assert — warning with helpful message
+        assert actual.action == "warn"
+        assert "$(PORT)" in actual.payload  # suggests correct syntax
+
+    def test_run_directives_errors_on_empty_value(self, tmp_path):
+        """run_directives should return error for $(VAR) = with no value."""
+        # Arrange
+        engine, _ = _make_engine(tmp_path)
+
+        # Act
+        actual = engine.run_directives("$(PORT) =")
+
+        # Assert — error, not sent to device
+        assert actual.action == "error"
+        assert "requires a value" in actual.payload

@@ -221,6 +221,14 @@ def _handler(ctx: PluginContext, args: str) -> None:
                         ctx, plugin, prefix, cmd_w, arg_w, depth=1
                     )
 
+        # Directives section
+        directives = ctx.engine.directives
+        if directives:
+            ctx.write_markup(f"[{_SEP}]── Directives ──[/]")
+            for d in directives:
+                pattern = _color_args(d.pattern) if d.pattern else ""
+                ctx.write_markup(f"  [{_CMD}]{pattern}[/]  {d.help}")
+
 
 def _handler_dev(ctx: PluginContext, args: str) -> None:
     """Show a command handler's Python docstring (developer info).

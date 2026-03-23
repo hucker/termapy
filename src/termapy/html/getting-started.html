@@ -549,6 +549,60 @@
   
   
     <li class="md-nav__item">
+      <a href="writing-plugins.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using with Git
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="demo.html" class="md-nav__link">
         
   
@@ -668,15 +722,15 @@
 
 
 <h1 id="getting-started">Getting Started</h1>
-<h2 id="launching-termapy">Launching Termapy</h2>
-<p>Run termapy from the command line:</p>
+<h2 id="launching-termapy">Launching <code>Termapy</code></h2>
+<p>Run <code>termapy</code> from the command line:</p>
 <pre><code class="language-text">termapy                          # auto-detect config
 termapy my_device.cfg            # load a specific config file
 termapy --cfg-dir /path/to/cfgs  # use a custom config directory
 termapy --check my_device.cfg    # validate config (no UI)
 </code></pre>
 <p><strong>Config file argument</strong> — pass the path to a JSON config file directly.
-If the file doesn't exist, termapy creates it with default settings.</p>
+If the file doesn't exist, <code>termapy</code> creates it with default settings.</p>
 <p><strong>--cfg-dir</strong> — override the config directory location. By default,
 termapy stores everything in a <code>termapy_cfg/</code> folder in the current
 working directory. Use this flag to point to a different location,
@@ -685,7 +739,7 @@ for example a shared network folder or a project-specific directory.</p>
 without launching the UI. Checks baud rate, parity, data bits, stop bits,
 flow control, encoding, and flags unknown keys. Read-only — never modifies
 the file.</p>
-<p><strong>No arguments</strong> — termapy looks in <code>termapy_cfg/</code> for config files:</p>
+<p><strong>No arguments</strong> — <code>termapy</code> looks in <code>termapy_cfg/</code> for config files:</p>
 <ul>
 <li>If one config exists, it loads automatically.</li>
 <li>If multiple configs exist, a picker dialog appears.</li>

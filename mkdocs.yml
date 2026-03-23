@@ -24,4 +24,6 @@ nav:
   - Scripting: scripting.md
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md
+  - Writing Plugins: writing-plugins.md
+  - Using with Git: using-git.md
   - Demo Mode: demo.md

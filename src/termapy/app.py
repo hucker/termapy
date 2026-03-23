@@ -611,6 +611,7 @@ class SerialTerminal(App):
             scripts_dir=self.repl.scripts_dir,
             proto_dir=self.repl.proto_dir,
             cap_dir=self.repl.cap_dir,
+            prof_dir=self.repl.prof_dir,
             confirm=self._confirm,
             notify=lambda text, **kw: self.notify(text, **kw),
             clear_screen=self._clear_output,
@@ -1684,7 +1685,7 @@ class SerialTerminal(App):
     _HELP_TOPICS = [
         "getting-started", "toolbar", "commands", "config",
         "custom-buttons", "scripting", "protocol-testing",
-        "data-capture", "demo",
+        "data-capture", "writing-plugins", "using-git", "demo",
     ]
 
     def _hook_help_open(self, ctx: "PluginContext", args: str) -> None:

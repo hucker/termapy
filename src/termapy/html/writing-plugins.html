@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="scripting.html">
+        <link rel="prev" href="data-capture.html">
       
       
-        <link rel="next" href="data-capture.html">
+        <link rel="next" href="using-git.html">
       
       
         
@@ -23,7 +23,7 @@
     
     
       
-        <title>Protocol Testing - Termapy Help</title>
+        <title>Writing Plugins - Termapy Help</title>
       
     
     
@@ -72,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#protocol-testing" class="md-skip">
+        <a href="#writing-plugins" class="md-skip">
           Skip to content
         </a>
       
@@ -108,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Protocol Testing
+              Writing Plugins
             
           </span>
         </div>
@@ -390,37 +390,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Protocol Testing
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="protocol-testing.html" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="protocol-testing.html" class="md-nav__link">
         
   
   
@@ -436,103 +409,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#interactive-send" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Interactive Send
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#protocol-test-scripts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Protocol Test Scripts
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#script-directives" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Script Directives
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#hex-display-mode" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Hex Display Mode
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#packet-visualizers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Packet Visualizers
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#format-spec-language" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Format Spec Language
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#crc-algorithms" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CRC Algorithms
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -568,10 +444,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="writing-plugins.html" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Plugins
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="writing-plugins.html" class="md-nav__link md-nav__link--active">
         
   
   
@@ -587,6 +490,186 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start-copy-and-modify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start: Copy and Modify
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-plugins-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Plugins Work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-handler-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Handler Function
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-file-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin File Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serial-io-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial I/O Pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugincontext-api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PluginContext API Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PluginContext API Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial I/O
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-ai-coding-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using AI Coding Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -672,10 +755,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#interactive-send" class="md-nav__link">
+  <a href="#quick-start-copy-and-modify" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Interactive Send
+        Quick Start: Copy and Modify
       
     </span>
   </a>
@@ -683,10 +766,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#protocol-test-scripts" class="md-nav__link">
+  <a href="#how-plugins-work" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Protocol Test Scripts
+        How Plugins Work
       
     </span>
   </a>
@@ -694,10 +777,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#script-directives" class="md-nav__link">
+  <a href="#the-handler-function" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Script Directives
+        The Handler Function
       
     </span>
   </a>
@@ -705,10 +788,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#hex-display-mode" class="md-nav__link">
+  <a href="#plugin-file-structure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hex Display Mode
+        Plugin File Structure
       
     </span>
   </a>
@@ -716,10 +799,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#packet-visualizers" class="md-nav__link">
+  <a href="#serial-io-pattern" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Packet Visualizers
+        Serial I/O Pattern
       
     </span>
   </a>
@@ -727,10 +810,82 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#format-spec-language" class="md-nav__link">
+  <a href="#plugincontext-api-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Format Spec Language
+        PluginContext API Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PluginContext API Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial I/O
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subcommands
       
     </span>
   </a>
@@ -738,10 +893,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#crc-algorithms" class="md-nav__link">
+  <a href="#example-plugins" class="md-nav__link">
     <span class="md-ellipsis">
       
-        CRC Algorithms
+        Example Plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-ai-coding-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using AI Coding Tools
       
     </span>
   </a>
@@ -765,102 +931,264 @@
 
 
 
-<h1 id="protocol-testing">Protocol Testing</h1>
-<p>The <code>/proto</code> command provides binary protocol testing for request-response serial protocols.</p>
-<h2 id="interactive-send">Interactive Send</h2>
-<p>Send raw hex bytes and see the response:</p>
-<pre><code class="language-text">/proto.send 01 03 00 00 00 0A C5 CD
-/proto.send &quot;HELLO\r&quot;
-/proto.send 02 &quot;DATA&quot; 03
-</code></pre>
-<h2 id="protocol-test-scripts">Protocol Test Scripts</h2>
-<p>Create <code>.pro</code> files in the per-config <code>proto/</code> folder with send/expect sequences:</p>
-<pre><code class="language-text"># example.pro
-@timeout 1000ms
-@frame_gap 50ms
-
-label: Read registers
-send: 01 03 00 00 00 0A C5 CD
-expect: 01 03 14 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
-
-label: Write register
-send: 01 06 00 01 00 03 98 0B
-expect: 01 06 00 01 00 03 98 0B
-timeout: 500ms
-
-# Text protocols work too
-label: AT query
-send: &quot;AT+VERSION?\r&quot;
-expect: &quot;V1.&quot; ** ** &quot;\r&quot;
-</code></pre>
-<p>Run with <code>/proto.run example.pro</code>. Each step reports PASS/FAIL.</p>
-<h2 id="script-directives">Script Directives</h2>
+<h1 id="writing-plugins">Writing Plugins</h1>
+<p>Plugins are <code>.py</code> files that add REPL commands. Drop a file into a
+<code>plugins/</code> folder and it loads automatically — no compilation, no
+registration, no restart.</p>
+<h2 id="quick-start-copy-and-modify">Quick Start: Copy and Modify</h2>
+<p>The fastest way to write a plugin is to copy an existing one:</p>
+<ol>
+<li>Copy <code>probe.py</code> from the demo plugins folder</li>
+<li>Rename it to <code>your_plugin.py</code></li>
+<li>Change the command name, help text, and handler logic</li>
+<li>Drop it into <code>termapy_cfg/plugins/</code> (all configs) or <code>termapy_cfg/&lt;config&gt;/plugins/</code> (one config)</li>
+</ol>
+<h2 id="how-plugins-work">How Plugins Work</h2>
+<p>When <code>termapy</code> starts, it scans the <code>plugins/</code> folders for <code>.py</code> files.
+Each file is imported and checked for a <code>COMMAND</code> object at module level.
+If found, that command is registered in the REPL — users can invoke it
+by typing its name with the command prefix (e.g. <code>/hello</code>).</p>
+<p>The <code>COMMAND</code> object tells <code>termapy</code>:</p>
 <ul>
-<li><code>@timeout &lt;duration&gt;</code> — default expect timeout (default 1000ms)</li>
-<li><code>@frame_gap &lt;duration&gt;</code> — silence gap to detect frame end (default 50ms)</li>
-<li><code>@strip_ansi</code> — strip ANSI escape sequences from responses before matching</li>
-<li><code>label: &lt;text&gt;</code> — name for the next step</li>
-<li><code>send: &lt;hex or "text"&gt;</code> — transmit raw bytes (no line ending appended)</li>
-<li><code>expect: &lt;pattern&gt;</code> — wait for response and match (<code>**</code> = any byte)</li>
-<li><code>timeout: &lt;duration&gt;</code> — per-step timeout override</li>
-<li><code>delay: &lt;duration&gt;</code> — fixed sleep</li>
-<li><code>flush: &lt;duration&gt;</code> — wait for serial silence, then discard received bytes</li>
-<li><code>cmd: &lt;text&gt;</code> — send a plain text command with config line ending</li>
+<li><strong>name</strong> — what the user types to invoke it (<code>/name</code>)</li>
+<li><strong>args</strong> — the argument syntax shown in <code>/help</code> (<code>{optional}</code> or <code>&lt;required&gt;</code>)</li>
+<li><strong>help</strong> — one-line description shown in <code>/help</code></li>
+<li><strong>handler</strong> — the Python function to call when the command runs</li>
 </ul>
-<h2 id="hex-display-mode">Hex Display Mode</h2>
-<p>Toggle hex display for all serial I/O with <code>/proto.hex on</code> / <code>/proto.hex off</code>.</p>
-<h2 id="packet-visualizers">Packet Visualizers</h2>
-<p>The proto debug screen uses pluggable visualizers to decode packet bytes into
-named columns. Built-in visualizers (Hex, Text, Modbus) ship with termapy. Add
-your own by dropping a <code>.py</code> file into <code>termapy_cfg/&lt;config&gt;/viz/</code>.</p>
-<p>Multiple visualizers can be active at once via the checklist. Enable "Show viz
-string" to display the raw format spec above each table.</p>
-<p><strong>Selecting visualizers in .pro files:</strong></p>
-<p>Use <code>viz</code> in the script header to limit which visualizers appear in the dropdown.
-Use <code>viz</code> in a <code>[[test]]</code> section to force that visualizer for the test:</p>
-<pre><code class="language-toml">viz = [&quot;Modbus&quot;]          # header: only show Hex, Text, Modbus in dropdown
-
-[[test]]
-name = &quot;Read registers&quot;
-viz = &quot;Modbus&quot;            # force Modbus view for this test
-send = &quot;01 03 00 00 00 01 84 0A&quot;
-expect = &quot;01 03 02 00 07 F9 86&quot;
-</code></pre>
-<h2 id="format-spec-language">Format Spec Language</h2>
-<p>Visualizers and binary capture use a format spec to map bytes to columns:</p>
-<pre><code class="language-text">Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le
-</code></pre>
-<p>Type codes: <code>H</code> (hex), <code>U</code> (unsigned), <code>I</code> (signed), <code>S</code> (string), <code>F</code> (float),
-<code>B</code> (bit field), <code>_</code> (padding), <code>crc*</code> (CRC verify). Byte indices are 1-based;
-byte order determines endianness (<code>U3-4</code> = big-endian, <code>U4-3</code> = little-endian).
-Use <code>H7-*</code> for variable-length fields.</p>
-<h2 id="crc-algorithms">CRC Algorithms</h2>
-<p>62 named CRC algorithms are built in: <code>crc16-modbus</code>, <code>crc16-xmodem</code>,
-<code>crc16-ccitt-false</code>, <code>crc8</code>, <code>crc32</code>, <code>crc32-iscsi</code>, and many more.</p>
+<h2 id="the-handler-function">The Handler Function</h2>
+<p>The handler is where your plugin logic lives. It is called whenever
+a user types your command in the REPL input, or when a <code>.run</code> script
+contains your command. The handler receives two arguments:</p>
 <ul>
-<li><code>/proto.crc.list</code> — browse all algorithms</li>
-<li><code>/proto.crc.help &lt;name&gt;</code> — show parameters</li>
-<li><code>/proto.crc.calc &lt;name&gt; {data}</code> — compute CRC interactively</li>
+<li><strong>ctx</strong> (PluginContext) — your interface to the terminal, serial port,
+  config, and filesystem. This is the only API your plugin needs.</li>
+<li><strong>args</strong> (str) — everything the user typed after the command name.
+  For <code>/hello world</code>, args is <code>"world"</code>. For <code>/hello</code>, args is <code>""</code>.</li>
 </ul>
-<p>Aliases: <code>crc16m</code> = <code>crc16-modbus</code>, <code>crc16x</code> = <code>crc16-xmodem</code>.
-Endianness suffix: <code>_le</code> or <code>_be</code>.</p>
-<hr />
+<p>The handler can do anything: print output, send commands to the serial
+device, read responses, write files, or chain other REPL commands.</p>
+<h2 id="plugin-file-structure">Plugin File Structure</h2>
+<p>A minimal plugin:</p>
+<pre><code class="language-python">from termapy.plugins import Command, PluginContext
+
+def _handler(ctx: PluginContext, args: str):
+    &quot;&quot;&quot;Called when the user types /hello.&quot;&quot;&quot;
+    name = args.strip() or &quot;world&quot;
+    ctx.write(f&quot;Hello, {name}!&quot;)
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name=&quot;hello&quot;,
+    args=&quot;{name}&quot;,          # {braces} = optional, &lt;angle&gt; = required
+    help=&quot;Say hello.&quot;,
+    handler=_handler,
+)
+</code></pre>
+<p>The <code>COMMAND</code> object must be defined after all the functions it references.
+<code>Termapy</code> looks for this specific name — if your file doesn't have a
+<code>COMMAND</code> object, it is silently skipped.</p>
+<h2 id="serial-io-pattern">Serial I/O Pattern</h2>
+<p>Most plugins follow this pattern: send a command, read the response, do something with it.</p>
+<pre><code class="language-python">def _handler(ctx: PluginContext, args: str):
+    if not ctx.is_connected():
+        ctx.write(&quot;Not connected.&quot;, &quot;red&quot;)
+        return
+
+    encoding = ctx.cfg.get(&quot;encoding&quot;, &quot;utf-8&quot;)
+    line_ending = ctx.cfg.get(&quot;line_ending&quot;, &quot;\r&quot;)
+
+    with ctx.serial_io():           # suppress terminal, claim serial
+        ctx.serial_drain()          # discard stale bytes
+        ctx.serial_write(f&quot;YOUR_COMMAND{line_ending}&quot;.encode(encoding))
+        raw = ctx.serial_read_raw() # read response with timeout
+        text = raw.decode(encoding, errors=&quot;replace&quot;).strip()
+
+    ctx.write(text)
+</code></pre>
+<p>Key points:</p>
+<ul>
+<li><code>serial_io()</code> suppresses the normal terminal display during I/O</li>
+<li><code>serial_drain()</code> clears any leftover bytes before your command</li>
+<li><code>serial_write()</code> sends raw bytes — you add the line ending</li>
+<li><code>serial_read_raw()</code> waits for a complete response (timeout-based framing)</li>
+</ul>
+<h2 id="plugincontext-api-reference">PluginContext API Reference</h2>
+<h3 id="output">Output</h3>
 <table>
 <thead>
 <tr>
-<th style="text-align: center;"></th>
-<th style="text-align: center;"></th>
-<th style="text-align: center;"></th>
+<th>Method</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: center;"><a href="scripting.html">← Scripting</a></td>
-<td style="text-align: center;"><a href="index.html">Index</a></td>
-<td style="text-align: center;"><a href="data-capture.html">Data Capture →</a></td>
+<td><code>ctx.write(text, color)</code></td>
+<td>Print to terminal. Color: <code>"red"</code>, <code>"green"</code>, <code>"cyan"</code>, <code>"dim"</code>, etc.</td>
+</tr>
+<tr>
+<td><code>ctx.write_markup(text)</code></td>
+<td>Print Rich markup (e.g. <code>[bold red]Warning![/]</code>)</td>
+</tr>
+<tr>
+<td><code>ctx.notify(text)</code></td>
+<td>Show a toast notification</td>
+</tr>
+<tr>
+<td><code>ctx.clear_screen()</code></td>
+<td>Clear the terminal</td>
 </tr>
 </tbody>
 </table>
+<h3 id="config">Config</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.cfg</code></td>
+<td>Read-only config dict</td>
+</tr>
+<tr>
+<td><code>ctx.config_path</code></td>
+<td>Path to the <code>.cfg</code> file</td>
+</tr>
+<tr>
+<td><code>ctx.cfg.get("key", default)</code></td>
+<td>Read a config value</td>
+</tr>
+</tbody>
+</table>
+<h3 id="serial-io">Serial I/O</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.is_connected()</code></td>
+<td>True if the serial port is open</td>
+</tr>
+<tr>
+<td><code>ctx.serial_io()</code></td>
+<td>Context manager for exclusive serial access</td>
+</tr>
+<tr>
+<td><code>ctx.serial_drain()</code></td>
+<td>Discard stale bytes in the receive buffer</td>
+</tr>
+<tr>
+<td><code>ctx.serial_write(data)</code></td>
+<td>Send raw bytes (no line ending added)</td>
+</tr>
+<tr>
+<td><code>ctx.serial_read_raw()</code></td>
+<td>Read response bytes with timeout framing</td>
+</tr>
+<tr>
+<td><code>ctx.serial_wait_idle()</code></td>
+<td>Wait for ~400ms of silence</td>
+</tr>
+</tbody>
+</table>
+<h3 id="filesystem">Filesystem</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.ss_dir</code></td>
+<td>Screenshots directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.scripts_dir</code></td>
+<td>Scripts directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.proto_dir</code></td>
+<td>Protocol test scripts directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.cap_dir</code></td>
+<td>Captures directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.prof_dir</code></td>
+<td>Profile output directory (Path)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="other">Other</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.dispatch(cmd)</code></td>
+<td>Run a REPL or serial command</td>
+</tr>
+<tr>
+<td><code>ctx.confirm(message)</code></td>
+<td>Yes/Cancel dialog → bool (background thread only)</td>
+</tr>
+<tr>
+<td><code>ctx.log(prefix, text)</code></td>
+<td>Write to session log (<code>"&gt;"</code> TX, <code>"&lt;"</code> RX, <code>"#"</code> status)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="subcommands">Subcommands</h2>
+<p>Use <code>sub_commands</code> for related operations (e.g. <code>/tool.run</code>, <code>/tool.status</code>):</p>
+<pre><code class="language-python">COMMAND = Command(
+    name=&quot;tool&quot;,
+    help=&quot;A tool with subcommands.&quot;,
+    sub_commands={
+        &quot;run&quot;:    Command(args=&quot;&lt;file&gt;&quot;, help=&quot;Run.&quot;, handler=_run),
+        &quot;status&quot;: Command(help=&quot;Show status.&quot;, handler=_status),
+    },
+)
+</code></pre>
+<h2 id="example-plugins">Example Plugins</h2>
+<p>The demo config ships with three plugins of increasing complexity:</p>
+<ul>
+<li><strong>cmd.py</strong> — minimal: wraps a single AT command in a custom name</li>
+<li><strong>probe.py</strong> — intermediate: send/receive cycle with formatted output, good starting template</li>
+<li><strong>temp_plot.py</strong> — advanced: repeated sampling, response parsing, ASCII sparkline visualization</li>
+</ul>
+<p><code>temp_plot.py</code> is the best example for real-world plugin development. It shows:</p>
+<ul>
+<li>Checking connection before I/O</li>
+<li>Reading config for encoding and line ending</li>
+<li>Using <code>serial_io()</code> for a multi-read loop</li>
+<li>Parsing numeric values from device responses</li>
+<li>Handling edge cases (no data, invalid count)</li>
+<li>Rendering results with Rich markup</li>
+</ul>
+<p>Run <code>/temp_plot</code> in demo mode to see it in action, then read the source.</p>
+<h2 id="using-ai-coding-tools">Using AI Coding Tools</h2>
+<p><code>temp_plot.py</code> was generated in one shot by Claude Code with full
+project context. If you use an AI coding assistant with access to the
+termapy source, describing what you want often produces a working
+plugin on the first try. The key is that the AI can see <code>probe.py</code>,
+the device protocol, and the PluginContext API all at once.</p>
+<p>Without full project context, expect to iterate — the serial I/O timing
+and response parsing are device-specific and hard to get right from an
+API reference alone.</p>
 
 
 
@@ -890,7 +1218,7 @@ Endianness suffix: <code>_le</code> or <code>_be</code>.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="scripting.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Scripting">
+          <a href="data-capture.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Data Capture">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -900,20 +1228,20 @@ Endianness suffix: <code>_le</code> or <code>_be</code>.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Scripting
+                Data Capture
               </div>
             </div>
           </a>
         
         
           
-          <a href="data-capture.html" class="md-footer__link md-footer__link--next" aria-label="Next: Data Capture">
+          <a href="using-git.html" class="md-footer__link md-footer__link--next" aria-label="Next: Using with Git">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Data Capture
+                Using with Git
               </div>
             </div>
             <div class="md-footer__button md-icon">

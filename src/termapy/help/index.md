@@ -1,6 +1,6 @@
 # Termapy Help
 
-Welcome to termapy — a TUI serial terminal with scripting, protocol testing, and data capture.
+Welcome to `termapy` — a TUI serial terminal with scripting, protocol testing, and data capture.
 
 Select a topic:
 

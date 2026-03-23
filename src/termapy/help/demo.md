@@ -1,6 +1,6 @@
 # Demo Mode
 
-Try termapy without hardware using the built-in simulated device:
+Try `termapy` without hardware using the built-in simulated device:
 
 ```sh
 termapy --demo
@@ -10,22 +10,22 @@ This creates a `termapy_cfg/demo/` config that auto-connects to a simulated seri
 
 ## Available Commands
 
-| Command                   | Response                             |
-| ------------------------- | ------------------------------------ |
-| `AT`                      | `OK`                                 |
-| `AT+INFO`                 | Device info, uptime, free memory     |
-| `AT+TEMP`                 | Simulated temperature reading        |
-| `AT+LED on\|off`          | Toggle LED state                     |
-| `AT+STATUS`               | LED state, uptime, connections       |
-| `AT+NAME` / `AT+NAME=val` | Query or set device name            |
-| `AT+BAUD` / `AT+BAUD=val` | Query or set baud rate              |
-| `AT+PROD-ID`              | Returns product ID (`BASSOMATIC-77`) |
-| `AT+RESET`                | Simulated reboot sequence            |
-| `mem <addr> [len]`        | Hex memory dump                      |
-| `AT+TEXTDUMP <n>`         | Emit n lines of text readings        |
+| Command                   | Response                                         |
+| ------------------------- | ------------------------------------------------ |
+| `AT`                      | `OK`                                             |
+| `AT+INFO`                 | Device info, uptime, free memory                 |
+| `AT+TEMP`                 | Simulated temperature reading                    |
+| `AT+LED on\|off`          | Toggle LED state                                 |
+| `AT+STATUS`               | LED state, uptime, connections                   |
+| `AT+NAME` / `AT+NAME=val` | Query or set device name                         |
+| `AT+BAUD` / `AT+BAUD=val` | Query or set baud rate                           |
+| `AT+PROD-ID`              | Returns product ID (`BASSOMATIC-77`)             |
+| `AT+RESET`                | Simulated reboot sequence                        |
+| `mem <addr> [len]`        | Hex memory dump                                  |
+| `AT+TEXTDUMP <n>`         | Emit n lines of text readings                    |
 | `AT+BINDUMP <n>`          | Emit n mixed 21-byte records (S10+U8+U16+U32+F4) |
-| `AT+BINDUMP <type> <n>`   | Emit n typed binary values           |
-| `help`                    | List available commands              |
+| `AT+BINDUMP <type> <n>`   | Emit n typed binary values                       |
+| `help`                    | List available commands                          |
 
 ## Bundled Files
 
@@ -120,6 +120,6 @@ Rotating capture files (data_000.csv, data_001.csv, ...):
 
 ---
 
-| | | |
-|:---:|:---:|:---:|
-| [← Data Capture](data-capture.md) | [Index](index.md) | |
+|                                   |                   |       |
+| :-------------------------------: | :---------------: | :---: |
+| [← Data Capture](data-capture.md) | [Index](index.md) |       |

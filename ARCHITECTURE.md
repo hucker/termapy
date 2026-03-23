@@ -271,7 +271,7 @@ termapy_cfg/
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread.
 
-## Built-in Plugins (20 files)
+## Built-in Plugins (19 files)
 
 | Plugin      | Command            | Purpose                                           |
 | ----------- | ------------------ | ------------------------------------------------- |
@@ -293,7 +293,6 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | ss.py       | /ss                | Screenshots (placeholder, hooks override)         |
 | stop.py     | /stop              | Abort running script                              |
 | text_cap.py | /text_cap          | Timed text capture                                |
-| timeit.py   | /timeit            | Time a command                                    |
 | var.py      | /var               | User variables                                    |
 
 ## Test Coverage

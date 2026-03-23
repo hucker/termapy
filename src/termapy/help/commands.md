@@ -77,6 +77,37 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/raw <text>`             | Send text to serial with no variable expansion or transforms                |
 | `/exit`                   | Exit termapy                                                                |
 
+## Script Profiling
+
+| Command                     | Description                                                  |
+| --------------------------- | ------------------------------------------------------------ |
+| `/run.profile <script>`     | Run a script with per-line timing (saves CSV to `prof/`)     |
+| `/run.profile.cmd <command>`| Profile a single command                                     |
+| `/run.profile.show`         | Open newest profile in system viewer                         |
+| `/run.profile.dump`         | Print newest profile to the terminal                         |
+| `/run.profile.explore`      | Open `prof/` folder in file explorer                         |
+| `/run.profile.list`         | List profile files                                           |
+
+## Config File Management
+
+Each config subfolder has a consistent set of subcommands:
+
+| Subcommand        | Action                                     | Folders                                         |
+| ----------------- | ------------------------------------------ | ----------------------------------------------- |
+| `/cfg.<folder>`   | List files                                 | scripts, proto, plugins, ss, viz, cap, prof      |
+| `.explore`        | Open folder in file explorer               | all                                              |
+| `.show`           | Open newest file in system viewer          | all                                              |
+| `.dump {name}`    | Print newest (or named) file to terminal   | scripts, proto, plugins, viz, cap, prof           |
+| `.clear`          | Delete all files                           | ss, cap, prof (generated output only)             |
+
+Examples:
+
+- `/cfg.scripts` — list script files
+- `/cfg.scripts.dump` — print newest script to terminal
+- `/cfg.proto.show` — open newest .pro file in editor
+- `/cfg.cap.clear` — delete all capture files
+- `/cfg.prof.dump` — print newest profile CSV to terminal
+
 ---
 
 | | | |

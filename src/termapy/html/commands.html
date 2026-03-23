@@ -294,6 +294,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Commands
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="commands.html" class="md-nav__link md-nav__link--active">
         
   
@@ -310,6 +328,47 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#script-profiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Script Profiling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-file-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config File Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -496,6 +555,36 @@
   
     
   
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#script-profiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Script Profiling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-file-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config File Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -812,6 +901,87 @@
 </tr>
 </tbody>
 </table>
+<h2 id="script-profiling">Script Profiling</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/run.profile &lt;script&gt;</code></td>
+<td>Run a script with per-line timing (saves CSV to <code>prof/</code>)</td>
+</tr>
+<tr>
+<td><code>/run.profile.cmd &lt;command&gt;</code></td>
+<td>Profile a single command</td>
+</tr>
+<tr>
+<td><code>/run.profile.show</code></td>
+<td>Open newest profile in system viewer</td>
+</tr>
+<tr>
+<td><code>/run.profile.dump</code></td>
+<td>Print newest profile to the terminal</td>
+</tr>
+<tr>
+<td><code>/run.profile.explore</code></td>
+<td>Open <code>prof/</code> folder in file explorer</td>
+</tr>
+<tr>
+<td><code>/run.profile.list</code></td>
+<td>List profile files</td>
+</tr>
+</tbody>
+</table>
+<h2 id="config-file-management">Config File Management</h2>
+<p>Each config subfolder has a consistent set of subcommands:</p>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Action</th>
+<th>Folders</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/cfg.&lt;folder&gt;</code></td>
+<td>List files</td>
+<td>scripts, proto, plugins, ss, viz, cap, prof</td>
+</tr>
+<tr>
+<td><code>.explore</code></td>
+<td>Open folder in file explorer</td>
+<td>all</td>
+</tr>
+<tr>
+<td><code>.show</code></td>
+<td>Open newest file in system viewer</td>
+<td>all</td>
+</tr>
+<tr>
+<td><code>.dump {name}</code></td>
+<td>Print newest (or named) file to terminal</td>
+<td>scripts, proto, plugins, viz, cap, prof</td>
+</tr>
+<tr>
+<td><code>.clear</code></td>
+<td>Delete all files</td>
+<td>ss, cap, prof (generated output only)</td>
+</tr>
+</tbody>
+</table>
+<p>Examples:</p>
+<ul>
+<li><code>/cfg.scripts</code> — list script files</li>
+<li><code>/cfg.scripts.dump</code> — print newest script to terminal</li>
+<li><code>/cfg.proto.show</code> — open newest .pro file in editor</li>
+<li><code>/cfg.cap.clear</code> — delete all capture files</li>
+<li><code>/cfg.prof.dump</code> — print newest profile CSV to terminal</li>
+</ul>
 <hr />
 <table>
 <thead>

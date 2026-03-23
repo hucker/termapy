@@ -548,17 +548,21 @@ Capture serial data to files without interrupting normal terminal display.
 
 The `fmt=` parameter uses the same format spec language as `/proto` — type codes `H` (hex), `U` (unsigned), `I` (signed), `S` (string), `F` (float), `B` (bit) with 1-based byte ranges. Byte range order determines endianness: `U1-2` = big-endian, `U2-1` = little-endian. Named columns (`Temp:U1-2`) produce a CSV header row; unnamed columns (`U1-2`) omit it.
 
-| Format spec | Meaning |
-|---|---|
-| `U1` | 1 unsigned byte |
-| `U1-2` | 2-byte unsigned, big-endian |
-| `U2-1` | 2-byte unsigned, little-endian |
-| `U1-4` | 4-byte unsigned, big-endian |
-| `I1-2` | 2-byte signed integer |
-| `F1-4` | 4-byte IEEE 754 float |
-| `F1-8` | 8-byte double |
-| `S1-10` | 10-byte ASCII string |
-| `H1-4` | 4 bytes as hex (e.g. `0A1BFF03`) |
+| Format spec | C type     | Meaning                        |
+|-------------|------------|--------------------------------|
+| `U1`        | `uint8_t`  | 1 unsigned byte                |
+| `U1-2`      | `uint16_t` | 2-byte unsigned, big-endian    |
+| `U2-1`      | `uint16_t` | 2-byte unsigned, little-endian |
+| `U1-4`      | `uint32_t` | 4-byte unsigned, big-endian    |
+| `U1-8`      | `uint64_t` | 8-byte unsigned, big-endian    |
+| `I1`        | `int8_t`   | 1 signed byte                  |
+| `I1-2`      | `int16_t`  | 2-byte signed, big-endian      |
+| `I1-4`      | `int32_t`  | 4-byte signed, big-endian      |
+| `I1-8`      | `int64_t`  | 8-byte signed, big-endian      |
+| `F1-4`      | `float`    | 4-byte IEEE 754 float          |
+| `F1-8`      | `double`   | 8-byte IEEE 754 double         |
+| `S1-10`     | `char[10]` | 10-byte ASCII string           |
+| `H1-4`      |            | 4 bytes as hex (e.g. `0A1BFF03`) |
 
 Auto-numbered filenames: use `$(n000)` for a 3-digit rotating sequence (000–999), tracked across sessions in a counter file.
 

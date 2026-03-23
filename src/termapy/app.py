@@ -756,6 +756,20 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "run.profile.cmd",
+            "<command>",
+            "Profile a single command.",
+            self._hook_run_profile_cmd,
+            source="app",
+        )
+        self.repl.register_hook(
+            "run.profile.dump",
+            "{filename}",
+            "Print newest (or named) profile to the terminal.",
+            self._hook_run_profile_dump,
+            source="app",
+        )
+        self.repl.register_hook(
             "run.profile.list",
             "",
             "List profile (.prof) files.",
@@ -865,6 +879,8 @@ class SerialTerminal(App):
                 ),
             )
         self._rebuild_suggester_commands()
+        # Clean up stale profile temp files
+        self._cleanup_profile_temps(self.repl.scripts_dir)
         # Open log file (deferred if no config loaded yet)
         self._open_log()
         self._sync_ss_button()
@@ -2791,10 +2807,44 @@ class SerialTerminal(App):
         if path:
             self._run_script(path)
 
+    _PROFILE_TMP_PREFIX = "_profile_tmp_"
+
     def _hook_run_profile(self, ctx, args: str) -> None:
         path = self.repl.start_script(args)
         if path:
             self._run_script(path, profile=True)
+
+    def _hook_run_profile_cmd(self, ctx, args: str) -> None:
+        """Profile a single command by writing a temp script."""
+        import time as _time
+        line = args.strip()
+        if not line:
+            ctx.write("Usage: /run.profile.cmd <command>", "red")
+            return
+        prefix = self.cfg.get("cmd_prefix", "/")
+        if not line.startswith(prefix) and "." in line.split()[0]:
+            line = prefix + line
+        ts = str(int(_time.time() * 1000))
+        tmp_name = f"{self._PROFILE_TMP_PREFIX}{ts}.run"
+        tmp_path = self.repl.scripts_dir / tmp_name
+        parts = line.replace("\\n", "\n").split("\n")
+        tmp_path.write_text(
+            "\n".join(p.strip() for p in parts) + "\n", encoding="utf-8"
+        )
+        path = self.repl.start_script(tmp_name)
+        if path:
+            self._run_script(path, profile=True)
+
+    @staticmethod
+    def _cleanup_profile_temps(scripts_dir: Path) -> None:
+        """Delete stale _profile_tmp_*.run files."""
+        if not scripts_dir.is_dir():
+            return
+        for f in scripts_dir.glob("_profile_tmp_*.run"):
+            try:
+                f.unlink()
+            except OSError:
+                pass
 
     def _prof_dir(self) -> Path | None:
         """Return the prof/ directory, or None if no config loaded."""
@@ -2808,13 +2858,37 @@ class SerialTerminal(App):
         if not prof_dir:
             ctx.write("No config loaded.", "red")
             return
-        profs = sorted(prof_dir.glob("*.txt"), key=lambda f: f.stat().st_mtime)
+        profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
         if not profs:
             ctx.write("No profile files found.", "dim")
             return
         newest = profs[-1]
         ctx.write(f"Opening {newest.name}")
         open_with_system(str(newest))
+
+    def _hook_run_profile_dump(self, ctx, args: str) -> None:
+        """Print newest (or named) profile to the terminal."""
+        prof_dir = self._prof_dir()
+        if not prof_dir:
+            ctx.write("No config loaded.", "red")
+            return
+        name = args.strip()
+        if name:
+            path = prof_dir / name
+            if not path.exists():
+                ctx.write(f"File not found: {name}", "red")
+                return
+        else:
+            profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
+            if not profs:
+                ctx.write("No profile files found.", "dim")
+                return
+            path = profs[-1]
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                ctx.write(line, "dim")
+        except OSError as e:
+            ctx.write(f"Read error: {e}", "red")
 
     def _hook_run_profile_explore(self, ctx, args: str) -> None:
         """Open the prof/ directory in file explorer."""
@@ -2834,7 +2908,7 @@ class SerialTerminal(App):
         if not prof_dir.exists():
             ctx.write("  (no profile files)", "dim")
             return
-        profs = sorted(prof_dir.glob("*.txt"))
+        profs = sorted(prof_dir.glob("*.csv"))
         if not profs:
             ctx.write("  (no profile files)", "dim")
             return

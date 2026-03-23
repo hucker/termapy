@@ -245,8 +245,7 @@ COMMAND = Command(
 Three modes:
   /help              — list all commands with subcommands
   /help <cmd>        — show usage, help text, and subcommands
-  /help proto.crc    — show help for a subcommand (dot notation)
-  /help.dev <cmd>    — show the handler's Python docstring (developer info)""",
+  /help proto.crc    — show help for a subcommand (dot notation)""",
     handler=_handler,
     sub_commands={
         "dev": Command(

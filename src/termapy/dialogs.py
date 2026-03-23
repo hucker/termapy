@@ -573,6 +573,9 @@ class ProtoEditor(ModalScreen[str | None]):
     #ped-editor {{ height: 1fr; border: thick $primary; }}
     #ped-name-row {{ height: 1; }}
     #ped-name {{ width: 1fr; height: 1; border: none; }}
+    #ped-save-as-row {{ height: 1; display: none; }}
+    #ped-save-as-row.visible {{ display: block; }}
+    #ped-save-as-input {{ width: 1fr; height: 1; border: none; }}
     #ped-error {{ height: 1; color: $error; display: none; }}
     #ped-error.visible {{ display: block; }}
     #ped-buttons {{ height: 1; align: right middle; }}
@@ -586,6 +589,8 @@ class ProtoEditor(ModalScreen[str | None]):
         super().__init__()
         self.proto_dir = proto_dir
         self.edit_path = path
+        self._save_as_mode = False
+        self._overwrite_ok = False
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -616,9 +621,15 @@ class ProtoEditor(ModalScreen[str | None]):
                     value=name,
                     id="ped-name",
                 )
+            with Horizontal(id="ped-save-as-row"):
+                yield Input(
+                    placeholder="new filename (without .pro)",
+                    id="ped-save-as-input",
+                )
             yield Static("", id="ped-error")
             with Horizontal(id="ped-buttons"):
                 yield Button("Save", id="ped-save", variant="success")
+                yield Button("Save As", id="ped-save-as", variant="primary")
                 yield Button("Cancel", id="ped-cancel", variant="error")
 
     def _show_error(self, msg: str) -> None:
@@ -635,6 +646,9 @@ class ProtoEditor(ModalScreen[str | None]):
 
     @on(Button.Pressed, "#ped-save")
     def save_proto(self) -> None:
+        if self._save_as_mode:
+            self._do_save_as()
+            return
         name = self.query_one("#ped-name", Input).value.strip()
         if not name:
             self._show_error("Enter a script name")
@@ -643,6 +657,34 @@ class ProtoEditor(ModalScreen[str | None]):
             name += ".pro"
         content = self.query_one("#ped-editor", TextArea).text
         path = self.proto_dir / name
+        path.write_text(content, encoding="utf-8")
+        self.dismiss(str(path))
+
+    @on(Button.Pressed, "#ped-save-as")
+    def save_as_proto(self) -> None:
+        self._save_as_mode = True
+        self._overwrite_ok = False
+        self.query_one("#ped-save-as-row").add_class("visible")
+        self.query_one("#ped-save-as").display = False
+        self.query_one("#ped-save-as-input", Input).focus()
+
+    @on(Input.Submitted, "#ped-save-as-input")
+    def save_as_on_enter(self) -> None:
+        self._do_save_as()
+
+    def _do_save_as(self) -> None:
+        name = self.query_one("#ped-save-as-input", Input).value.strip()
+        if not name:
+            self._show_error("Enter a filename")
+            return
+        if not name.endswith(".pro"):
+            name += ".pro"
+        path = self.proto_dir / name
+        if path.exists() and not self._overwrite_ok:
+            self._show_error(f"{name} exists — click Save again to overwrite")
+            self._overwrite_ok = True
+            return
+        content = self.query_one("#ped-editor", TextArea).text
         path.write_text(content, encoding="utf-8")
         self.dismiss(str(path))
 
@@ -673,6 +715,9 @@ class ScriptEditor(ModalScreen[str | None]):
     #sed-editor {{ height: 1fr; border: thick $primary; }}
     #sed-name-row {{ height: 1; }}
     #sed-name {{ width: 1fr; height: 1; border: none; }}
+    #sed-save-as-row {{ height: 1; display: none; }}
+    #sed-save-as-row.visible {{ display: block; }}
+    #sed-save-as-input {{ width: 1fr; height: 1; border: none; }}
     #sed-error {{ height: 1; color: $error; display: none; }}
     #sed-error.visible {{ display: block; }}
     #sed-buttons {{ height: 1; align: right middle; }}
@@ -686,6 +731,8 @@ class ScriptEditor(ModalScreen[str | None]):
         super().__init__()
         self.scripts_dir = scripts_dir
         self.edit_path = path
+        self._save_as_mode = False
+        self._overwrite_ok = False
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
@@ -716,9 +763,15 @@ class ScriptEditor(ModalScreen[str | None]):
                     value=name,
                     id="sed-name",
                 )
+            with Horizontal(id="sed-save-as-row"):
+                yield Input(
+                    placeholder="new filename (without .run)",
+                    id="sed-save-as-input",
+                )
             yield Static("", id="sed-error")
             with Horizontal(id="sed-buttons"):
                 yield Button("Save", id="sed-save", variant="success")
+                yield Button("Save As", id="sed-save-as", variant="primary")
                 yield Button("Cancel", id="sed-cancel", variant="error")
 
     def _show_error(self, msg: str) -> None:
@@ -730,6 +783,9 @@ class ScriptEditor(ModalScreen[str | None]):
 
     @on(Button.Pressed, "#sed-save")
     def save_script(self) -> None:
+        if self._save_as_mode:
+            self._do_save_as()
+            return
         name = self.query_one("#sed-name", Input).value.strip()
         if not name:
             self._show_error("Enter a script name")
@@ -738,6 +794,34 @@ class ScriptEditor(ModalScreen[str | None]):
             name += ".run"
         content = self.query_one("#sed-editor", TextArea).text
         path = self.scripts_dir / name
+        path.write_text(content, encoding="utf-8")
+        self.dismiss(str(path))
+
+    @on(Button.Pressed, "#sed-save-as")
+    def save_as_script(self) -> None:
+        self._save_as_mode = True
+        self._overwrite_ok = False
+        self.query_one("#sed-save-as-row").add_class("visible")
+        self.query_one("#sed-save-as").display = False
+        self.query_one("#sed-save-as-input", Input).focus()
+
+    @on(Input.Submitted, "#sed-save-as-input")
+    def save_as_on_enter(self) -> None:
+        self._do_save_as()
+
+    def _do_save_as(self) -> None:
+        name = self.query_one("#sed-save-as-input", Input).value.strip()
+        if not name:
+            self._show_error("Enter a filename")
+            return
+        if not name.endswith(".run"):
+            name += ".run"
+        path = self.scripts_dir / name
+        if path.exists() and not self._overwrite_ok:
+            self._show_error(f"{name} exists — click Save again to overwrite")
+            self._overwrite_ok = True
+            return
+        content = self.query_one("#sed-editor", TextArea).text
         path.write_text(content, encoding="utf-8")
         self.dismiss(str(path))
 

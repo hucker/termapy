@@ -2,9 +2,8 @@
 
 Termapy is a serial terminal workbench for embedded engineers — built for
 scripting, protocol testing, and automation in addition to general-purpose
-terminal emulation. It is new (2025), has one developer, requires Python 3.11+
-and `uv` to install, and has no community. This comparison is
-honest about that.
+terminal emulation. It is new (2026), has one developer, requires Python 3.11+
+and `uv` to install, and has no community.
 
 ## Feature Comparison
 
@@ -17,7 +16,7 @@ honest about that.
 | **Packet visualizers**      | Pluggable — Hex, Text, Modbus built-in; drop `.py` for custom decoders with per-column diff coloring      | No                                      | No                         | No                           | Predefined protocol decoders          | No                   |
 | **In-line tool commands**   | Yes — `/grep`, `/cfg`, `/proto`, `/seq` from the input bar                                                | No                                      | No                         | No                           | No                                    | No                   |
 | **Config management**       | JSON files with per-config dirs (scripts, plugins, screenshots, logs)                                     | Minimal                                 | Save/load connection files | INI file with GUI dialogs    | Project files                         | XML files            |
-| **Command history**         | Per-config, Up/Down arrow cycling with type-ahead                                                           | Basic                                   | Basic                      | Basic                        | N/A                                   | N/A                  |
+| **Command history**         | Per-config, Up/Down arrow cycling with type-ahead                                                         | Basic                                   | Basic                      | Basic                        | N/A                                   | N/A                  |
 | **Custom buttons**          | Configurable toolbar — serial, REPL, or script commands                                                   | No                                      | No                         | No                           | Predefined send sequences             | No                   |
 | **Screenshots**             | Built-in SVG + text capture                                                                               | No                                      | No                         | Unknown                      | No                                    | No                   |
 | **Search scrollback**       | `/grep` with regex                                                                                        | 200-line buffer, no search              | Hex view search only       | Unknown                      | Find Sequence                         | No                   |

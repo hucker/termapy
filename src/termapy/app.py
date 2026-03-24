@@ -299,11 +299,13 @@ class SerialTerminal(App):
         config_path: str,
         open_editor: bool = False,
         show_picker: bool = False,
+        first_run: bool = False,
     ) -> None:
         super().__init__()
         self.config_path = config_path
         self.open_editor_on_start = open_editor
         self.show_picker_on_start = show_picker
+        self._first_run = first_run
         self.ser: serial.Serial | None = None
         self.log_fh = None
         self.stop_event = Event()
@@ -899,6 +901,20 @@ class SerialTerminal(App):
             )
         elif self.open_editor_on_start:
             self._new_config()
+        elif self._first_run:
+            def _on_welcome_result(confirmed: bool) -> None:
+                if confirmed:
+                    self._connect()
+                else:
+                    self._new_config()
+
+            self.push_screen(
+                ConfirmDialog(
+                    "Welcome to Termapy! A demo device has been installed.\n"
+                    "Connect to the demo device now?",
+                ),
+                callback=_on_welcome_result,
+            )
         elif self.cfg.get("auto_connect"):
             self._connect()
         else:
@@ -937,7 +953,9 @@ class SerialTerminal(App):
             self.read_serial()
             auto_cmd = self.cfg.get("on_connect_cmd", "")
             if auto_cmd:
-                self._run_lines(auto_cmd.split("\n"), delay=0.2)
+                # Split on literal \n (from JSON \\n) and real newlines
+                parts = auto_cmd.replace("\\n", "\n").split("\n")
+                self._run_lines(parts, delay=0.2)
             return True
         except serial.SerialException as e:
             self.reader_stopped.set()
@@ -2279,7 +2297,8 @@ class SerialTerminal(App):
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix):].strip()
             self._log_line(">",f"{prefix}{repl_cmd}")
-            if self.repl.echo:
+            # Don't echo commands that change echo state (echo.quiet)
+            if self.repl.echo and not repl_cmd.startswith("echo.quiet"):
                 self._write_output_markup(f"[red]> {prefix}{repl_cmd}[/]")
             if self.repl.has_repl_transforms:
                 if not self.repl.command_has_raw_args(repl_cmd):
@@ -3208,9 +3227,16 @@ def main():
         app.run()
         _reset_terminal()
     else:
-        # No json files — start with defaults and open editor
-        cfg = dict(DEFAULT_CFG)
-        app = SerialTerminal(cfg, config_path="", open_editor=True)
+        # No configs found — install demo and auto-connect
+        from termapy.config import setup_demo_config
+
+        config_path = str(setup_demo_config(cfg_dir(), force=True))
+        try:
+            cfg = load_config(config_path)
+        except Exception as e:
+            print(f"termapy: failed to load demo config: {e}", file=sys.stderr)
+            sys.exit(1)
+        app = SerialTerminal(cfg, config_path=config_path, first_run=True)
         app.run()
         _reset_terminal()
 

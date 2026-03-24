@@ -46,12 +46,12 @@ class ConfigEditor(ModalScreen[tuple | None]):
     }}
     #config-title {{ height: 1; text-style: bold; }}
     #config-editor {{ height: 1fr; border: thick $primary; }}
-    #config-error {{ height: 1; color: $error; display: none; }}
+    #config-error {{ height: 3; color: $error; display: none; width: 1fr; overflow-y: auto; }}
     #config-error.visible {{ display: block; }}
     #save-as-row {{ height: 1; display: none; }}
     #save-as-row.visible {{ display: block; }}
     #save-as-input {{ width: 1fr; height: 1; border: none; }}
-    #config-buttons {{ height: 1; align: right middle; }}
+    #config-buttons {{ height: 3; align: right middle; }}
     """
 
     def action_dismiss_modal(self) -> None:
@@ -82,13 +82,13 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 show_line_numbers=True,
                 id="config-editor",
             )
-            yield Static("", id="config-error")
             with Horizontal(id="save-as-row"):
                 yield Input(
                     placeholder="filename.cfg",
                     id="save-as-input",
                 )
             with Horizontal(id="config-buttons"):
+                yield Static("", id="config-error")
                 yield Button("Save", id="cfg-save", variant="success")
                 yield Button("Save As", id="cfg-save-as", variant="primary")
                 yield Button("Cancel", id="cfg-cancel", variant="error")
@@ -116,6 +116,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
         new_cfg = self._validate_json()
         if new_cfg is None:
             return
+        # Validate config values before saving
+        from termapy.config import validate_config
+        warnings = validate_config(new_cfg)
+        if warnings:
+            from textual.widgets import Static
+            err = self.query_one("#config-error", Static)
+            err.update("\n".join(warnings))
+            err.add_class("visible")
+            return
         Path(self.config_path).parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_path, "w") as f:
             json.dump(new_cfg, f, indent=4)
@@ -135,6 +144,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
     def _do_save_as(self) -> None:
         new_cfg = self._validate_json()
         if new_cfg is None:
+            return
+        # Validate config values before saving
+        from termapy.config import validate_config
+        warnings = validate_config(new_cfg)
+        if warnings:
+            from textual.widgets import Static
+            err = self.query_one("#config-error", Static)
+            err.update("\n".join(warnings))
+            err.add_class("visible")
             return
         filename = self.query_one("#save-as-input", Input).value.strip()
         if not filename:
@@ -987,6 +1005,45 @@ class ConfirmDialog(ModalScreen[bool]):
     def cancel(self) -> None:
         """Dismiss with False."""
         self.dismiss(False)
+
+
+class WelcomeDialog(ModalScreen[None]):
+    """Modal welcome message with a single OK button."""
+
+    BINDINGS = _CTRL_Q_BINDING
+
+    CSS = f"""
+    WelcomeDialog {{ align: center middle; }}
+    WelcomeDialog Button {{ {_MODAL_BTN_CSS} }}
+    #welcome-dialog {{
+        width: 70; height: 12;
+        border: solid $primary; background: $surface; padding: 1 2;
+    }}
+    #welcome-title {{ height: 1; text-style: bold; }}
+    #welcome-msg {{ height: 1fr; }}
+    #welcome-buttons {{ height: 1; align: center middle; }}
+    """
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss(None)
+
+    def __init__(self, title: str, message: str) -> None:
+        super().__init__()
+        self.title_text = title
+        self.message = message
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        with Vertical(id="welcome-dialog"):
+            yield Static(self.title_text, id="welcome-title")
+            yield Static(self.message, id="welcome-msg")
+            with Horizontal(id="welcome-buttons"):
+                yield Button("OK", id="welcome-ok", variant="success")
+
+    @on(Button.Pressed, "#welcome-ok")
+    def ok_pressed(self) -> None:
+        self.dismiss(None)
 
 
 class PortPicker(ModalScreen[str | None]):

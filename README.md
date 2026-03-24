@@ -143,7 +143,7 @@ The most common ones:
 | `/ss.txt [name]`                 | Save text screenshot                                                             |
 | `/ss.dir`                        | Show the screenshot folder                                                       |
 | `/cls`                           | Clear the terminal screen                                                        |
-| `/run <filename>`                | Run a script file (checks `scripts/` folder then cwd); or use the Scripts button |
+| `/run <filename> {-v}`           | Run a script file (-v/--verbose for per-line timing); nests up to 5 levels deep  |
 | `/run.list`                      | List .run files in the scripts/ directory                                        |
 | `/run.load <filename>`           | Run a script file (same as /run)                                                 |
 | `/delay <duration>`              | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |

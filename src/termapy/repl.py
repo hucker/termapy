@@ -319,6 +319,7 @@ class ReplEngine:
         profile: bool = False,
         progress: Callable[[int, int], None] | None = None,
         on_nest: Callable[[], None] | None = None,
+        verbose: bool = False,
     ) -> None:
         """Execute a script file line by line (call from a background thread).
 
@@ -356,6 +357,7 @@ class ReplEngine:
                 prof_fh = open(prof_path, "w", encoding="utf-8")
                 prof_fh.write("Duration (sec),Command\n")
                 w(f"── profile: {path.name} → {prof_name} ──")
+            script_t0 = time.perf_counter()
             for step, raw_line in enumerate(lines, 1):
                 if self._script_stop.is_set():
                     w("Script stopped.")
@@ -363,6 +365,7 @@ class ReplEngine:
                 if progress:
                     progress(step, total)
                 stripped = raw_line.strip()
+                cmd_t0 = time.perf_counter()
                 # THREADING: run_script runs in a background thread, but
                 # dispatch() routes commands to the main thread via
                 # call_from_thread. Commands that block (delay, confirm)
@@ -397,11 +400,20 @@ class ReplEngine:
                             prof_fh.write(f"{elapsed:.6f},{stripped}\n")
                         else:
                             w(f"Delay {expanded} done.")
+                        if verbose:
+                            elapsed = time.perf_counter() - cmd_t0
+                            w(f"[{step}/{total}] /delay {expanded} ({elapsed:.3f}s)")
                         continue
                     if name.lower() in ("run", "run.profile"):
                         self.ctx.log(">", stripped)
                         nested_profile = name.lower() == "run.profile"
-                        nested_path = self.start_script(args.strip())
+                        run_args = args.strip()
+                        # Strip -v/--verbose from nested /run — inherited
+                        run_tokens = run_args.split()
+                        run_args = " ".join(
+                            t for t in run_tokens if t not in ("-v", "--verbose")
+                        )
+                        nested_path = self.start_script(run_args)
                         if nested_path:
                             if on_nest:
                                 on_nest()
@@ -413,7 +425,11 @@ class ReplEngine:
                                 profile=nested_profile,
                                 progress=progress,
                                 on_nest=on_nest,
+                                verbose=verbose,
                             )
+                            if verbose:
+                                elapsed = time.perf_counter() - t0
+                                w(f"[{step}/{total}] /run {nested_path.name} ({elapsed:.3f}s)")
                             if profile:
                                 elapsed = time.perf_counter() - t0
                                 profile_times.append((stripped, elapsed))
@@ -444,13 +460,19 @@ class ReplEngine:
                             (stripped + self.cfg.get("line_ending", "\r"))
                             .encode(self.cfg.get("encoding", "utf-8"))
                         )
+                elapsed = time.perf_counter() - t0
+                if verbose:
+                    label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
+                    w(f"[{step}/{total}] {label} ({elapsed:.3f}s)")
                 if profile:
-                    elapsed = time.perf_counter() - t0
                     label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
                     profile_times.append((label, elapsed))
                     prof_fh.write(f"{elapsed:.6f},{label}\n")
                 time.sleep(0.1)
             else:
+                if verbose:
+                    script_elapsed = time.perf_counter() - script_t0
+                    w(f"Script {path.name} done ({script_elapsed:.3f}s)")
                 if profile and profile_times:
                     total = sum(t for _, t in profile_times)
                     # Dump the CSV file to terminal
@@ -458,7 +480,7 @@ class ReplEngine:
                     for line in prof_path.read_text(encoding="utf-8").splitlines():
                         w(line)
                     w(f"── {total:.3f}s total ({len(profile_times)} commands) → {prof_name} ──")
-                else:
+                elif self._script_depth <= 1:
                     w("Script finished.")
         except Exception as e:
             w(f"Script error: {e}", "red")

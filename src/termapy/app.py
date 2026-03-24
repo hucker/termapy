@@ -8,7 +8,7 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
 import argparse
-import io
+from typing import IO, Any
 import json
 import queue
 import re
@@ -66,9 +66,11 @@ from termapy.repl import ReplEngine
 from termapy.protocol import apply_format
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
+from textual.message import Message
+from textual.timer import Timer
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, OptionList, ProgressBar, RichLog, Static
+from textual.widgets import Button, Input, OptionList, RichLog, Static
 from textual.widgets.option_list import Option
 from textual.suggester import Suggester
 
@@ -126,6 +128,26 @@ def _eol_label(line_ending: str) -> str:
 
 class SerialTerminal(App):
     """Textual app: scrolling output + local input line."""
+
+    class ScriptStarted(Message):
+        """Posted when a script starts or nests deeper."""
+        def __init__(self, stack: list[str]) -> None:
+            super().__init__()
+            self.stack = stack
+
+    class ScriptProgress(Message):
+        """Posted on each script line."""
+        def __init__(self, stack: list[str], step: int, total: int) -> None:
+            super().__init__()
+            self.stack = stack
+            self.step = step
+            self.total = total
+
+    class ScriptFinished(Message):
+        """Posted when a script finishes or returns from a nested call."""
+        def __init__(self, stack: list[str]) -> None:
+            super().__init__()
+            self.stack = stack
 
     TITLE = "termapy"
 
@@ -333,7 +355,7 @@ class SerialTerminal(App):
 
         # File capture state
         self._cap_suppress_display: bool = False  # True = hide serial output from screen
-        self._cap_fh: "io.TextIOWrapper | io.BufferedWriter | None" = None
+        self._cap_fh: "IO[Any] | None" = None
         self._cap_mode: str = ""          # "text" or "bin"
         self._cap_raw: bool = False       # True = raw binary (no type conversion)
         self._cap_path: Path | None = None
@@ -912,7 +934,7 @@ class SerialTerminal(App):
                 else:
                     self._new_config()
 
-            self.push_screen(
+            self.push_screen(  # type: ignore[call-overload]
                 ConfirmDialog(
                     "Welcome to Termapy! A demo device has been installed.\n"
                     "Connect to the demo device now?",
@@ -1188,7 +1210,7 @@ class SerialTerminal(App):
                 result[0] = confirmed
                 event.set()
 
-            self.push_screen(ConfirmDialog(message), callback=_on_result)
+            self.push_screen(ConfirmDialog(message), callback=_on_result)  # type: ignore[call-overload]
 
         try:
             self.call_from_thread(_show)
@@ -1394,7 +1416,7 @@ class SerialTerminal(App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(
+        self.push_screen(  # type: ignore[call-overload]
             ConfirmDialog(f"Delete {label} '{name}'?"),
             callback=_on_confirm,
         )
@@ -1502,7 +1524,7 @@ class SerialTerminal(App):
         if reset:
             self._btn_dtr.label = "DTR:0"
             self._btn_rts.label = "RTS:0"
-        elif self.is_connected:
+        elif self.is_connected and self.ser:
             try:
                 self._btn_dtr.label = f"DTR:{int(self.ser.dtr)}"
                 self._btn_rts.label = f"RTS:{int(self.ser.rts)}"
@@ -1536,21 +1558,21 @@ class SerialTerminal(App):
                     callback=self._on_config_picked,
                 )
         elif event.button.id == "btn-dtr":
-            if self.is_connected:
+            if self.is_connected and self.ser:
                 try:
                     self.ser.dtr = not self.ser.dtr
                     event.button.label = f"DTR:{int(self.ser.dtr)}"
                 except (OSError, serial.SerialException) as e:
                     self._status(f"DTR error: {e}", "red")
         elif event.button.id == "btn-rts":
-            if self.is_connected:
+            if self.is_connected and self.ser:
                 try:
                     self.ser.rts = not self.ser.rts
                     event.button.label = f"RTS:{int(self.ser.rts)}"
                 except (OSError, serial.SerialException) as e:
                     self._status(f"RTS error: {e}", "red")
         elif event.button.id == "btn-break":
-            if self.is_connected:
+            if self.is_connected and self.ser:
                 try:
                     self.ser.send_break(duration=0.25)
                     self.notify("Break sent", timeout=1.5)
@@ -1692,7 +1714,7 @@ class SerialTerminal(App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(
+        self.push_screen(  # type: ignore[call-overload]
             ConfirmDialog(f"Delete {Path(log_path).name}?"),
             callback=on_confirmed,
         )
@@ -1712,7 +1734,7 @@ class SerialTerminal(App):
         "data-capture", "writing-plugins", "using-git", "demo",
     ]
 
-    def _hook_help_open(self, ctx: "PluginContext", args: str) -> None:
+    def _hook_help_open(self, ctx: "PluginContext | None", args: str) -> None:
         """Open a help topic in the system browser."""
         from importlib.resources import files as pkg_files
         html_dir = pkg_files("termapy").joinpath("html")
@@ -2508,7 +2530,7 @@ class SerialTerminal(App):
     def action_clear_log(self) -> None:
         self.query_one("#output", RichLog).clear()
 
-    def action_screenshot(self) -> None:
+    def action_screenshot(self, filename: str | None = None, path: str | None = None) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         svg_path = str((self.repl.ss_dir / f"screenshot_{ts}.svg").resolve())
         self.save_screenshot(svg_path)
@@ -2740,7 +2762,7 @@ class SerialTerminal(App):
             if confirmed:
                 self.repl._apply_cfg(key, new_val)
 
-        self.push_screen(CfgConfirm(key, old_val, new_val), callback=on_result)
+        self.push_screen(CfgConfirm(key, old_val, new_val), callback=on_result)  # type: ignore[call-overload]
 
     def _on_script_picked(self, result: tuple | None) -> None:
         if result is None:
@@ -2871,9 +2893,23 @@ class SerialTerminal(App):
             )
 
     def _hook_run(self, ctx, args: str) -> None:
+        args, verbose = self._parse_run_flags(args)
         path = self.repl.start_script(args)
         if path:
-            self._run_script(path)
+            self._run_script(path, verbose=verbose)
+
+    @staticmethod
+    def _parse_run_flags(args: str) -> tuple[str, bool]:
+        """Extract -v/--verbose from /run args. Returns (clean_args, verbose)."""
+        tokens = args.split()
+        verbose = False
+        clean = []
+        for tok in tokens:
+            if tok in ("-v", "--verbose"):
+                verbose = True
+            else:
+                clean.append(tok)
+        return " ".join(clean), verbose
 
     _PROFILE_TMP_PREFIX = "_profile_tmp_"
 
@@ -3028,50 +3064,74 @@ class SerialTerminal(App):
 
     _script_last_label: str = ""
 
-    def _script_sync_ui(self, step: int = 0, total: int = 0) -> None:
-        """Sync the script overlay to match the current stack depth."""
+    def on_serial_terminal_script_started(self, event: ScriptStarted) -> None:
+        """Mount script overlay or update label when a script starts/nests."""
         try:
             bar = self.query_one("#bottom-bar")
             inp = self.query_one("#cmd", Input)
             has_overlay = bool(bar.query("#script-stop"))
-
-            if self.repl._script_depth > 0:
-                chain = " \u2192 ".join(self.repl._script_stack)
-                if step and total:
-                    text = f" {chain} [{step}/{total}]"
-                else:
-                    text = f" {chain}"
-                if not has_overlay:
-                    for child in bar.children:
-                        child.display = False
-                    label = Static(text, id="script-label")
-                    label.styles.width = "1fr"
-                    stop_btn = Button("Stop", id="script-stop", variant="error")
-                    bar.mount(label)
-                    bar.mount(stop_btn)
-                    inp.disabled = True
-                    self._script_last_label = text
-                else:
-                    label_w = bar.query_one("#script-label", Static)
-                    label_w.display = True
-                    bar.query_one("#script-stop").display = True
-                    if text != self._script_last_label:
-                        label_w.update(text)
-                        self._script_last_label = text
+            text = " " + " \u2192 ".join(event.stack)
+            if not has_overlay:
+                for child in bar.children:
+                    child.display = False
+                label = Static(text, id="script-label")
+                label.styles.width = "1fr"
+                stop_btn = Button("Stop", id="script-stop", variant="error")
+                bar.mount(label)
+                bar.mount(stop_btn)
+                inp.disabled = True
             else:
-                if has_overlay:
-                    for widget in bar.query("#script-label, #script-stop"):
-                        widget.remove()
-                    for child in bar.children:
-                        child.display = True
-                    self._script_last_label = ""
+                label_w = bar.query_one("#script-label", Static)
+                label_w.display = True
+                bar.query_one("#script-stop").display = True
+                label_w.update(text)
+            self._script_last_label = text
+        except Exception:
+            pass
+
+    def on_serial_terminal_script_progress(self, event: ScriptProgress) -> None:
+        """Update the script overlay label with step count."""
+        try:
+            chain = " \u2192 ".join(event.stack)
+            text = f" {chain} [{event.step}/{event.total}]"
+            if text != self._script_last_label:
+                label_w = self.query_one("#script-label", Static)
+                label_w.display = True
+                self.query_one("#script-stop").display = True
+                label_w.update(text)
+                self._script_last_label = text
+        except Exception:
+            pass
+
+    def on_serial_terminal_script_finished(self, event: ScriptFinished) -> None:
+        """Update or teardown script overlay when a script finishes."""
+        try:
+            bar = self.query_one("#bottom-bar")
+            inp = self.query_one("#cmd", Input)
+            if event.stack:
+                # Returned from nested script — update label to parent
+                text = " " + " \u2192 ".join(event.stack)
+                label_w = bar.query_one("#script-label", Static)
+                label_w.display = True
+                bar.query_one("#script-stop").display = True
+                label_w.update(text)
+                self._script_last_label = text
+            else:
+                # Top-level script done — teardown overlay
+                for widget in bar.query("#script-label, #script-stop"):
+                    widget.remove()
+                for child in bar.children:
+                    child.display = True
+                self._script_last_label = ""
                 inp.disabled = False
                 inp.focus()
         except Exception:
             pass
 
     @work(thread=True)
-    def _run_script(self, path: Path, profile: bool = False) -> None:
+    def _run_script(
+        self, path: Path, profile: bool = False, verbose: bool = False,
+    ) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
 
         def thread_safe_write(text: str, color: str = "dim") -> None:
@@ -3080,24 +3140,22 @@ class SerialTerminal(App):
         def thread_safe_dispatch(cmd: str) -> None:
             self.call_from_thread(self._dispatch_single, cmd)
 
-        def sync_ui(step: int = 0, total: int = 0) -> None:
-            try:
-                self.call_from_thread(self._script_sync_ui, step, total)
-            except RuntimeError:
-                pass
-
-        sync_ui()  # stack just changed (start_script pushed)
+        self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
         try:
             self.repl.run_script(
                 path, write=thread_safe_write, dispatch=thread_safe_dispatch,
-                profile=profile,
-                progress=lambda s, t: sync_ui(s, t),
-                on_nest=sync_ui,
+                profile=profile, verbose=verbose,
+                progress=lambda s, t: self.post_message(
+                    self.ScriptProgress(self.repl._script_stack[:], s, t)
+                ),
+                on_nest=lambda: self.post_message(
+                    self.ScriptStarted(self.repl._script_stack[:])
+                ),
             )
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
         finally:
-            sync_ui()
+            self.post_message(self.ScriptFinished(self.repl._script_stack[:]))
 
 
 def _find_config() -> tuple[str | None, bool]:

@@ -31,7 +31,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/ss.txt [name]`          | Save a text screenshot                                                      |
 | `/ss.dir`                 | Show the screenshot folder                                                  |
 | `/cls`                    | Clear the terminal                                                          |
-| `/run <file>`             | Run a script file                                                           |
+| `/run <file> {-v}`        | Run a script file (-v/--verbose for per-line timing)                        |
 | `/run.list`               | List .run files in the scripts/ directory                                   |
 | `/run.load <file>`        | Run a script file (same as /run)                                            |
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |

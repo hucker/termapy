@@ -97,7 +97,7 @@ class TestStartScript:
 
         # Assert
         assert actual == script  # returns the script path
-        assert eng._in_script is True  # marks script as running
+        assert eng._script_depth == 1  # marks script as running
 
     def test_file_found_in_scripts_dir(self, engine):
         # Arrange
@@ -112,12 +112,12 @@ class TestStartScript:
 
         # Assert
         assert actual == script  # resolves relative to scripts dir
-        assert eng._in_script is True  # marks script as running
+        assert eng._script_depth == 1  # marks script as running
 
-    def test_already_running(self, engine, tmp_path):
+    def test_max_depth_exceeded(self, engine, tmp_path):
         # Arrange
         eng, output = engine
-        eng._in_script = True
+        eng._script_depth = eng._max_script_depth
         script = tmp_path / "test.txt"
         script.write_text("rev\n")
 
@@ -125,8 +125,8 @@ class TestStartScript:
         actual = eng.start_script(str(script))
 
         # Assert
-        assert actual is None  # returns None when already running
-        assert any("already running" in t.lower() for t, _ in output)  # shows error
+        assert actual is None  # returns None when max depth reached
+        assert any("too deep" in t.lower() for t, _ in output)  # shows error
 
 
 # -- Properties ------------------------------------------------------------
@@ -248,7 +248,7 @@ class TestRunScript:
         eng.set_context(ctx)
         script = tmp_path / "test.run"
         script.write_text(script_text)
-        eng._in_script = True
+        eng._script_depth = 1
         return eng, output, serial_writes, script
 
     def test_serial_commands(self, tmp_path):
@@ -263,7 +263,7 @@ class TestRunScript:
         assert writes[0] == b"ATZ\r"  # first command with line ending
         assert writes[1] == b"AT+INFO\r"  # second command with line ending
         assert any("finished" in t for t, _ in output)  # completion message
-        assert eng._in_script is False  # script flag cleared
+        assert eng._script_depth == 0  # script flag cleared
 
     def test_comments_and_blanks_skipped(self, tmp_path):
         # Arrange
@@ -328,7 +328,7 @@ class TestRunScript:
 
         # Assert
         assert len(writes) == 0  # nothing sent when disconnected
-        assert eng._in_script is False  # script flag cleared
+        assert eng._script_depth == 0  # script flag cleared
 
     def test_script_error(self, tmp_path):
         # Arrange
@@ -340,7 +340,7 @@ class TestRunScript:
 
         # Assert
         assert any("error" in t.lower() for t, _ in output)  # error message shown
-        assert eng._in_script is False  # script flag cleared on error
+        assert eng._script_depth == 0  # script flag cleared on error
 
 
 # -- Transform chains -------------------------------------------------------

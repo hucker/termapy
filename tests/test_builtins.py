@@ -35,7 +35,7 @@ def repl_env(tmp_path):
         get_seq_counters=lambda: engine._seq_counters,
         set_seq_counters=lambda val: setattr(engine, "_seq_counters", val),
         reset_seq=engine._reset_seq,
-        in_script=lambda: engine._in_script,
+        in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
         coerce_type=ReplEngine._coerce_type,
@@ -156,7 +156,7 @@ class TestStop:
     def test_stop_with_script(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine._in_script = True
+        engine._script_depth = 1
 
         # Act
         engine.dispatch("stop")

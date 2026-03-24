@@ -70,10 +70,11 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
-| `/text_cap <m> <f> <dur>` | Capture serial text to file for a timed duration                            |
-| `/text_cap.stop`          | Stop an active text capture                                                 |
-| `/bin_cap <m> <f> ...`    | Capture binary serial data to file by byte/record count                     |
-| `/bin_cap.stop`           | Stop an active binary capture                                               |
+| `/cap.text <f> ...`       | Capture serial text to file for a timed duration                            |
+| `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
+| `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
+| `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
+| `/cap.stop`               | Stop an active capture                                                      |
 | `/raw <text>`             | Send text to serial with no variable expansion or transforms                |
 | `/exit`                   | Exit termapy                                                                |
 

@@ -272,6 +272,7 @@ class SerialTerminal(App):
         Binding("ctrl+p", "show_palette", "Command Palette", show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
+        Binding("escape", "stop_script", "Stop Script", show=False),
     ]
 
     PALETTE_CMDS = [
@@ -348,6 +349,8 @@ class SerialTerminal(App):
         self._cap_echo: bool = False      # echo formatted values to terminal
         self._cap_header_written: bool = False  # CSV header written
         self._cap_buf: bytearray = bytearray()  # binary accumulator
+        self._cap_hex: bool = False              # hex text → bytes mode
+        self._hex_line_buf: str = ""             # partial hex line buffer
 
     @property
     def cfg(self):
@@ -581,7 +584,7 @@ class SerialTerminal(App):
             get_seq_counters=lambda: self.repl._seq_counters,
             set_seq_counters=lambda val: setattr(self.repl, "_seq_counters", val),
             reset_seq=self.repl._reset_seq,
-            in_script=lambda: self.repl._in_script,
+            in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             save_cfg=self._hook_cfg_confirm,
             apply_cfg=self.repl._apply_cfg,
@@ -1586,6 +1589,8 @@ class SerialTerminal(App):
             )
         elif event.button.id == "cap-stop":
             self._cap_stop()
+        elif event.button.id == "script-stop":
+            self.repl._script_stop.set()
         elif event.button.id == "btn-exit":
             self._disconnect()
             self.exit()
@@ -1799,7 +1804,26 @@ class SerialTerminal(App):
 
                     # Binary capture tap — accumulate raw bytes
                     if self._cap_fh and self._cap_mode == "bin":
-                        self._cap_buf.extend(data)
+                        if self._cap_hex:
+                            # Hex mode: decode text, parse hex lines → bytes
+                            text = data.decode(
+                                self.cfg.get("encoding", "utf-8"),
+                                errors="replace",
+                            )
+                            self._hex_line_buf += text
+                            while "\n" in self._hex_line_buf:
+                                line, self._hex_line_buf = (
+                                    self._hex_line_buf.split("\n", 1)
+                                )
+                                line = line.strip()
+                                if line:
+                                    try:
+                                        from termapy.protocol import parse_hex
+                                        self._cap_buf.extend(parse_hex(line))
+                                    except ValueError:
+                                        pass
+                        else:
+                            self._cap_buf.extend(data)
                         if self._cap_target and len(self._cap_buf) >= self._cap_target:
                             # Trim to target
                             self._cap_buf = self._cap_buf[: self._cap_target]
@@ -1891,6 +1915,8 @@ class SerialTerminal(App):
         record_size: int = 0,
         sep: str = ",",
         echo: bool = False,
+        hex_mode: bool = False,
+        timeout: float = 0.0,
     ) -> bool:
         """Start a file capture session.
 
@@ -1930,6 +1956,8 @@ class SerialTerminal(App):
         self._cap_echo = echo
         self._cap_header_written = False
         self._cap_buf = bytearray()
+        self._cap_hex = hex_mode
+        self._hex_line_buf = ""
 
         if mode == "text":
             self._cap_end = time.monotonic() + duration
@@ -1942,7 +1970,11 @@ class SerialTerminal(App):
             self._cap_target = target_bytes
             self._cap_total = float(target_bytes)
             self._cap_end = 0.0
-            self._cap_timer = None
+            # Timeout timer for bin/struct/hex modes
+            if timeout > 0:
+                self._cap_timer = self.set_timer(timeout, self._cap_stop)
+            else:
+                self._cap_timer = None
 
         self._cap_show_progress()
         mode_label = "raw" if self._cap_raw else ("fmt" if self._cap_columns else "text")
@@ -1984,6 +2016,8 @@ class SerialTerminal(App):
         self._cap_echo = False
         self._cap_header_written = False
         self._cap_buf = bytearray()
+        self._cap_hex = False
+        self._hex_line_buf = ""
 
         if self._cap_timer:
             self._cap_timer.stop()
@@ -2061,6 +2095,8 @@ class SerialTerminal(App):
 
     def _cap_show_progress(self) -> None:
         """Mount a progress overlay in the bottom bar."""
+        if self.repl.in_script:
+            return  # script overlay owns the bar
         try:
             bar = self.query_one("#bottom-bar")
             for child in bar.children:
@@ -2071,7 +2107,9 @@ class SerialTerminal(App):
             bar.mount(label)
             bar.mount(stop_btn)
             self._cap_progress_timer = self.set_interval(0.5, self._cap_update_progress)
-            self.query_one("#cmd", Input).focus()
+            inp = self.query_one("#cmd", Input)
+            inp.disabled = True
+            inp.focus()
         except Exception:
             pass
 
@@ -2095,17 +2133,21 @@ class SerialTerminal(App):
             label.update(f" Capturing → {path_name}  [{pct}%]  {self._cap_bytes}/{self._cap_target} bytes")
 
     def _cap_hide_progress(self) -> None:
-        """Remove the progress overlay and restore normal buttons."""
+        """Remove the capture overlay and restore normal buttons."""
         if self._cap_progress_timer:
             self._cap_progress_timer.stop()
             self._cap_progress_timer = None
+        if self.repl.in_script:
+            return  # script overlay owns the bar
         try:
             bar = self.query_one("#bottom-bar")
             for widget in bar.query("#cap-label, #cap-stop"):
                 widget.remove()
             for child in bar.children:
                 child.display = True
-            self.query_one("#cmd", Input).focus()
+            inp = self.query_one("#cmd", Input)
+            inp.disabled = False
+            inp.focus()
         except Exception:
             pass
 
@@ -2457,6 +2499,11 @@ class SerialTerminal(App):
                 inp.value = self.history[self._history_idx]
             inp.action_end()
             event.prevent_default()
+
+    def action_stop_script(self) -> None:
+        """Stop a running script (Escape key)."""
+        if self.repl.in_script:
+            self.repl._script_stop.set()
 
     def action_clear_log(self) -> None:
         self.query_one("#output", RichLog).clear()
@@ -2979,6 +3026,50 @@ class SerialTerminal(App):
         for f in files:
             self.repl.write(f"  {f.name}")
 
+    _script_last_label: str = ""
+
+    def _script_sync_ui(self, step: int = 0, total: int = 0) -> None:
+        """Sync the script overlay to match the current stack depth."""
+        try:
+            bar = self.query_one("#bottom-bar")
+            inp = self.query_one("#cmd", Input)
+            has_overlay = bool(bar.query("#script-stop"))
+
+            if self.repl._script_depth > 0:
+                chain = " \u2192 ".join(self.repl._script_stack)
+                if step and total:
+                    text = f" {chain} [{step}/{total}]"
+                else:
+                    text = f" {chain}"
+                if not has_overlay:
+                    for child in bar.children:
+                        child.display = False
+                    label = Static(text, id="script-label")
+                    label.styles.width = "1fr"
+                    stop_btn = Button("Stop", id="script-stop", variant="error")
+                    bar.mount(label)
+                    bar.mount(stop_btn)
+                    inp.disabled = True
+                    self._script_last_label = text
+                else:
+                    label_w = bar.query_one("#script-label", Static)
+                    label_w.display = True
+                    bar.query_one("#script-stop").display = True
+                    if text != self._script_last_label:
+                        label_w.update(text)
+                        self._script_last_label = text
+            else:
+                if has_overlay:
+                    for widget in bar.query("#script-label, #script-stop"):
+                        widget.remove()
+                    for child in bar.children:
+                        child.display = True
+                    self._script_last_label = ""
+                inp.disabled = False
+                inp.focus()
+        except Exception:
+            pass
+
     @work(thread=True)
     def _run_script(self, path: Path, profile: bool = False) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
@@ -2989,13 +3080,24 @@ class SerialTerminal(App):
         def thread_safe_dispatch(cmd: str) -> None:
             self.call_from_thread(self._dispatch_single, cmd)
 
+        def sync_ui(step: int = 0, total: int = 0) -> None:
+            try:
+                self.call_from_thread(self._script_sync_ui, step, total)
+            except RuntimeError:
+                pass
+
+        sync_ui()  # stack just changed (start_script pushed)
         try:
             self.repl.run_script(
                 path, write=thread_safe_write, dispatch=thread_safe_dispatch,
                 profile=profile,
+                progress=lambda s, t: sync_ui(s, t),
+                on_nest=sync_ui,
             )
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
+        finally:
+            sync_ui()
 
 
 def _find_config() -> tuple[str | None, bool]:

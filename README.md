@@ -181,10 +181,11 @@ The most common ones:
 | `/env.list {pattern}`            | List environment variables (all, by name, or glob)                               |
 | `/env.set <name> <value>`        | Set a session-scoped environment variable                                        |
 | `/env.reload`                    | Re-snapshot variables from the OS environment                                    |
-| `/text_cap <m> <f> <dur>`        | Capture serial text to file for a timed duration                                 |
-| `/text_cap.stop`                 | Stop an active text capture                                                      |
-| `/bin_cap <m> <f> ...`           | Capture binary serial data to file by byte/element count                         |
-| `/bin_cap.stop`                  | Stop an active binary capture                                                    |
+| `/cap.text <f> ...`              | Capture serial text to file for a timed duration                                 |
+| `/cap.bin <f> ...`               | Capture raw binary bytes to a file                                               |
+| `/cap.struct <f> ...`            | Capture binary data, decode with format spec to CSV                              |
+| `/cap.hex <f> ...`               | Capture hex text lines, decode with format spec to CSV                           |
+| `/cap.stop`                      | Stop an active capture                                                           |
 | `/raw <text>`                    | Send text to serial with no variable expansion or transforms                     |
 | `/exit`                          | Exit termapy                                                                     |
 
@@ -526,24 +527,27 @@ Capture serial data to files without interrupting normal terminal display.
 **Text capture** — timed, writes decoded text lines:
 
 ```sh
-/text_cap n log.txt 3s cmd=AT+INFO         # capture 3 seconds of text
-/text_cap a session.txt 10s                 # append, just listen (no command)
+/cap.text log.txt timeout=3s cmd=AT+INFO              # capture 3 seconds of text
+/cap.text session.txt timeout=10s mode=append          # append, just listen (no command)
 ```
 
-**Binary capture** — sized, with format spec for structured output:
+**Binary capture** — raw bytes to file:
 
 ```sh
-# Raw binary (no format spec) — bytes straight to file
-/bin_cap n raw.bin cap_bytes=256 cmd=read_all
+/cap.bin raw.bin bytes=256 cmd=read_all
+```
 
+**Structured capture** — binary data decoded via format spec to CSV:
+
+```sh
 # Single-type column — 50 big-endian unsigned 16-bit values
-/bin_cap n data.csv fmt=Val:U1-2 cap_vals=50 cmd=AT+BINDUMP u16 50
+/cap.struct data.csv fmt=Val:U1-2 records=50 cmd=AT+BINDUMP u16 50
 
 # Mixed-type record — string + u8 + u16 + u32 + float (little-endian)
-/bin_cap n mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 cap_vals=20 cmd=AT+BINDUMP 20
+/cap.struct mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=20 cmd=AT+BINDUMP 20
 
 # Tab-separated output with echo to terminal
-/bin_cap n log.tsv fmt=A:U1-2 B:F3-6 cap_vals=100 sep=tab echo cmd=read
+/cap.struct log.tsv fmt=A:U1-2 B:F3-6 records=100 sep=tab echo=on cmd=read
 ```
 
 The `fmt=` parameter uses the same format spec language as `/proto` — type codes `H` (hex), `U` (unsigned), `I` (signed), `S` (string), `F` (float), `B` (bit) with 1-based byte ranges. Byte range order determines endianness: `U1-2` = big-endian, `U2-1` = little-endian. Named columns (`Temp:U1-2`) produce a CSV header row; unnamed columns (`U1-2`) omit it.
@@ -567,8 +571,8 @@ The `fmt=` parameter uses the same format spec language as `/proto` — type cod
 Auto-numbered filenames: use `$(n000)` for a 3-digit rotating sequence (000–999), tracked across sessions in a counter file.
 
 ```sh
-/text_cap n log_$(n000).txt 3s cmd=AT+INFO   # log_000.txt, log_001.txt, ...
-/bin_cap n data_$(n00).csv fmt=V:U1-2 cap_vals=100 cmd=read
+/cap.text log_$(n000).txt timeout=3s cmd=AT+INFO          # log_000.txt, log_001.txt, ...
+/cap.struct data_$(n00).csv fmt=V:U1-2 records=100 cmd=read
 ```
 
 A progress bar and Stop button overlay the toolbar during capture. The `Cap` button opens the cap/ folder.

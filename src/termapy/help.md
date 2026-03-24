@@ -154,7 +154,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/ss.txt [name]`          | Save a text screenshot                                                      |
 | `/ss.dir`                 | Show the screenshot folder                                                  |
 | `/cls`                    | Clear the terminal                                                          |
-| `/run <file>`             | Run a script file                                                           |
+| `/run <file> {-v}`        | Run a script file (-v/--verbose for per-line timing)                        |
 | `/run.list`               | List .run files in the scripts/ directory                                   |
 | `/run.load <file>`        | Run a script file (same as /run)                                            |
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
@@ -338,9 +338,13 @@ Script files support:
 
 - Serial commands (sent to the device)
 - `/` prefixed REPL commands (delays, screenshots, print, etc.)
+- Nested `/run` calls (up to 5 levels deep — scripts can call other scripts)
 - Comments (lines starting with `#`)
 - Blank lines (ignored)
 - Sequence counters with `{+counter}` for auto-incrementing values
+
+Use `/run script.run -v` (or `--verbose`) for per-line timing output.
+Press **Escape** or click the **Stop** button to abort a running script.
 
 ## Binary Protocol Testing
 

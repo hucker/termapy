@@ -5,6 +5,7 @@ Each is a self-contained ModalScreen with no dependency on SerialTerminal.
 """
 
 import json
+import re
 from pathlib import Path
 
 from textual import events, on
@@ -41,17 +42,19 @@ class ConfigEditor(ModalScreen[tuple | None]):
     ConfigEditor {{ align: center middle; }}
     ConfigEditor Button {{ {_MODAL_BTN_CSS} }}
     #config-dialog {{
-        width: 90%; height: 80%;
+        width: 95%; height: 90%;
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #config-title {{ height: 1; text-style: bold; }}
     #config-editor {{ height: 1fr; border: thick $primary; }}
+    #config-help {{ height: 3; width: 1fr; }}
     #config-error {{ height: 3; color: $error; display: none; width: 1fr; overflow-y: auto; }}
     #config-error.visible {{ display: block; }}
     #save-as-row {{ height: 1; display: none; }}
     #save-as-row.visible {{ display: block; }}
     #save-as-input {{ width: 1fr; height: 1; border: none; }}
-    #config-buttons {{ height: 3; align: right middle; }}
+    #config-bottom {{ height: 3; }}
+    #config-btn-col {{ width: auto; layout: horizontal; align: right middle; height: 3; content-align: right middle; }}
     """
 
     def action_dismiss_modal(self) -> None:
@@ -87,11 +90,13 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     placeholder="filename.cfg",
                     id="save-as-input",
                 )
-            with Horizontal(id="config-buttons"):
+            with Horizontal(id="config-bottom"):
+                yield Static("", id="config-help")
                 yield Static("", id="config-error")
-                yield Button("Save", id="cfg-save", variant="success")
-                yield Button("Save As", id="cfg-save-as", variant="primary")
-                yield Button("Cancel", id="cfg-cancel", variant="error")
+                with Horizontal(id="config-btn-col"):
+                    yield Button("Save", id="cfg-save", variant="success")
+                    yield Button("Save As", id="cfg-save-as", variant="primary")
+                    yield Button("Cancel", id="cfg-cancel", variant="error")
 
     def _validate_json(self) -> dict | None:
         from textual.widgets import Static
@@ -106,6 +111,107 @@ class ConfigEditor(ModalScreen[tuple | None]):
             return None
         err.remove_class("visible")
         return new_cfg
+
+    _JSON_KEY_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*(.*?)\s*,?\s*$')
+
+    # Quick validation for known value sets
+    _VALID_VALUES: dict[str, set] = {
+        "byte_size": {5, 6, 7, 8},
+        "parity": {"N", "E", "O", "M", "S"},
+        "stop_bits": {1, 1.5, 2},
+        "flow_control": {"none", "rtscts", "xonxoff", "manual"},
+    }
+    _BOOL_KEYS = {
+        "auto_connect", "auto_reconnect", "send_bare_enter",
+        "echo_input", "show_timestamps", "show_line_endings",
+        "show_traceback", "config_read_only", "os_cmd_enabled",
+        "enabled",
+    }
+    _INT_KEYS = {
+        "baud_rate", "max_lines", "cmd_delay_ms", "max_grep_lines",
+        "proto_frame_gap_ms", "byte_size",
+    }
+
+    def _validate_value(self, key: str, raw_val: str) -> str:
+        """Check a raw JSON value string. Return error message or empty."""
+        # Skip template values
+        if "$(" in raw_val:
+            return ""
+        # Strip quotes for string values
+        val = raw_val.strip().strip('"')
+        if key in self._BOOL_KEYS:
+            if raw_val.strip() not in ("true", "false"):
+                return "⚠ Must be true or false"
+        elif key in self._VALID_VALUES:
+            try:
+                parsed = json.loads(raw_val.strip())
+            except (json.JSONDecodeError, ValueError):
+                parsed = val
+            if parsed not in self._VALID_VALUES[key]:
+                opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
+                return f"⚠ Must be one of: {opts}"
+        elif key in self._INT_KEYS:
+            try:
+                v = json.loads(raw_val.strip())
+                if not isinstance(v, int):
+                    return "⚠ Must be an integer"
+                if v < 0:
+                    return "⚠ Must be positive"
+            except (json.JSONDecodeError, ValueError):
+                return "⚠ Must be an integer"
+        return ""
+
+    def _update_help(self) -> None:
+        """Update the help text based on the current cursor line."""
+        from termapy.defaults import CFG_HELP
+        from textual.widgets import Static
+
+        editor = self.query_one("#config-editor", TextArea)
+        help_widget = self.query_one("#config-help", Static)
+        row, _ = editor.cursor_location
+        line = str(editor.get_line(row))
+
+        m = self._JSON_KEY_RE.match(line)
+        if not m:
+            help_widget.update("")
+            return
+
+        key = m.group(1)
+        raw_val = m.group(2)
+        entry = CFG_HELP.get(key)
+        if not entry:
+            help_widget.update(f'"{key}"')
+            return
+
+        desc = entry[0]
+        valid = entry[1]
+        preview_fn = entry[2] if len(entry) > 2 else None
+
+        if callable(valid):
+            valid = valid()
+
+        error = self._validate_value(key, raw_val)
+
+        # Build help text: description, valid values, then preview or error
+        lines = [f"[dim]{desc}[/]", f"[dim]{valid}[/]"]
+        if error:
+            lines.append(error)
+        elif preview_fn:
+            try:
+                preview = preview_fn(raw_val)
+                if preview:
+                    lines.append(preview)
+            except Exception:
+                pass
+        help_widget.update("\n".join(lines))
+
+    def on_text_area_selection_changed(self, event) -> None:
+        """Update help when cursor moves."""
+        self._update_help()
+
+    def on_text_area_changed(self, event) -> None:
+        """Update help when text changes (live validation)."""
+        self._update_help()
 
     @on(Button.Pressed, "#cfg-save")
     def save_config(self) -> None:
@@ -972,10 +1078,10 @@ class ConfirmDialog(ModalScreen[bool]):
     ConfirmDialog {{ align: center middle; }}
     ConfirmDialog Button {{ {_MODAL_BTN_CSS} }}
     #confirm-dialog {{
-        width: 50; height: 7;
+        width: 60; height: auto; max-height: 15;
         border: solid $primary; background: $surface; padding: 1 2;
     }}
-    #confirm-msg {{ height: 1; }}
+    #confirm-msg {{ height: auto; }}
     #confirm-buttons {{ height: 1; align: right middle; }}
     """
 
@@ -995,6 +1101,9 @@ class ConfirmDialog(ModalScreen[bool]):
             with Horizontal(id="confirm-buttons"):
                 yield Button("Yes", id="confirm-yes", variant="success")
                 yield Button("Cancel", id="confirm-no", variant="error")
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm-yes", Button).focus()
 
     @on(Button.Pressed, "#confirm-yes")
     def confirm(self) -> None:

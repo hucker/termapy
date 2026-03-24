@@ -1,0 +1,1288 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="data-capture.html">
+      
+      
+        <link rel="next" href="using-git.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Writing Plugins - Termapy Help</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#writing-plugins" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="index.html" title="Termapy Help" class="md-header__button md-logo" aria-label="Termapy Help" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Termapy Help
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Writing Plugins
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="index.html" title="Termapy Help" class="md-nav__button md-logo" aria-label="Termapy Help" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Termapy Help
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="toolbar.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Toolbar & Shortcuts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="commands.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="config.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="custom-buttons.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Buttons
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="scripting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="protocol-testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="data-capture.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Capture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Plugins
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="writing-plugins.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start-copy-and-modify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start: Copy and Modify
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-plugins-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Plugins Work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-handler-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Handler Function
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-file-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin File Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serial-io-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial I/O Pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugincontext-api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PluginContext API Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PluginContext API Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial I/O
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-ai-coding-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using AI Coding Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using with Git
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="demo.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start-copy-and-modify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start: Copy and Modify
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-plugins-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Plugins Work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-handler-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Handler Function
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-file-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin File Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serial-io-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial I/O Pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plugincontext-api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PluginContext API Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PluginContext API Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial I/O
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-ai-coding-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using AI Coding Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="writing-plugins">Writing Plugins</h1>
+<p>Plugins are <code>.py</code> files that add REPL commands. Drop a file into a
+<code>plugins/</code> folder and it loads automatically — no compilation, no
+registration, no restart.</p>
+<h2 id="quick-start-copy-and-modify">Quick Start: Copy and Modify</h2>
+<p>The fastest way to write a plugin is to copy an existing one:</p>
+<ol>
+<li>Copy <code>probe.py</code> from the demo plugins folder</li>
+<li>Rename it to <code>your_plugin.py</code></li>
+<li>Change the command name, help text, and handler logic</li>
+<li>Drop it into <code>termapy_cfg/plugins/</code> (all configs) or <code>termapy_cfg/&lt;config&gt;/plugins/</code> (one config)</li>
+</ol>
+<h2 id="how-plugins-work">How Plugins Work</h2>
+<p>When <code>termapy</code> starts, it scans the <code>plugins/</code> folders for <code>.py</code> files.
+Each file is imported and checked for a <code>COMMAND</code> object at module level.
+If found, that command is registered in the REPL — users can invoke it
+by typing its name with the command prefix (e.g. <code>/hello</code>).</p>
+<p>The <code>COMMAND</code> object tells <code>termapy</code>:</p>
+<ul>
+<li><strong>name</strong> — what the user types to invoke it (<code>/name</code>)</li>
+<li><strong>args</strong> — the argument syntax shown in <code>/help</code> (<code>{optional}</code> or <code>&lt;required&gt;</code>)</li>
+<li><strong>help</strong> — one-line description shown in <code>/help</code></li>
+<li><strong>handler</strong> — the Python function to call when the command runs</li>
+</ul>
+<h2 id="the-handler-function">The Handler Function</h2>
+<p>The handler is where your plugin logic lives. It is called whenever
+a user types your command in the REPL input, or when a <code>.run</code> script
+contains your command. The handler receives two arguments:</p>
+<ul>
+<li><strong>ctx</strong> (PluginContext) — your interface to the terminal, serial port,
+  config, and filesystem. This is the only API your plugin needs.</li>
+<li><strong>args</strong> (str) — everything the user typed after the command name.
+  For <code>/hello world</code>, args is <code>"world"</code>. For <code>/hello</code>, args is <code>""</code>.</li>
+</ul>
+<p>The handler can do anything: print output, send commands to the serial
+device, read responses, write files, or chain other REPL commands.</p>
+<h2 id="plugin-file-structure">Plugin File Structure</h2>
+<p>A minimal plugin:</p>
+<pre><code class="language-python">from termapy.plugins import Command, PluginContext
+
+def _handler(ctx: PluginContext, args: str):
+    &quot;&quot;&quot;Called when the user types /hello.&quot;&quot;&quot;
+    name = args.strip() or &quot;world&quot;
+    ctx.write(f&quot;Hello, {name}!&quot;)
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name=&quot;hello&quot;,
+    args=&quot;{name}&quot;,          # {braces} = optional, &lt;angle&gt; = required
+    help=&quot;Say hello.&quot;,
+    handler=_handler,
+)
+</code></pre>
+<p>The <code>COMMAND</code> object must be defined after all the functions it references.
+<code>Termapy</code> looks for this specific name — if your file doesn't have a
+<code>COMMAND</code> object, it is silently skipped.</p>
+<h2 id="serial-io-pattern">Serial I/O Pattern</h2>
+<p>Most plugins follow this pattern: send a command, read the response, do something with it.</p>
+<pre><code class="language-python">def _handler(ctx: PluginContext, args: str):
+    if not ctx.is_connected():
+        ctx.write(&quot;Not connected.&quot;, &quot;red&quot;)
+        return
+
+    encoding = ctx.cfg.get(&quot;encoding&quot;, &quot;utf-8&quot;)
+    line_ending = ctx.cfg.get(&quot;line_ending&quot;, &quot;\r&quot;)
+
+    with ctx.serial_io():           # suppress terminal, claim serial
+        ctx.serial_drain()          # discard stale bytes
+        ctx.serial_write(f&quot;YOUR_COMMAND{line_ending}&quot;.encode(encoding))
+        raw = ctx.serial_read_raw() # read response with timeout
+        text = raw.decode(encoding, errors=&quot;replace&quot;).strip()
+
+    ctx.write(text)
+</code></pre>
+<p>Key points:</p>
+<ul>
+<li><code>serial_io()</code> suppresses the normal terminal display during I/O</li>
+<li><code>serial_drain()</code> clears any leftover bytes before your command</li>
+<li><code>serial_write()</code> sends raw bytes — you add the line ending</li>
+<li><code>serial_read_raw()</code> waits for a complete response (timeout-based framing)</li>
+</ul>
+<h2 id="plugincontext-api-reference">PluginContext API Reference</h2>
+<h3 id="output">Output</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.write(text, color)</code></td>
+<td>Print to terminal. Color: <code>"red"</code>, <code>"green"</code>, <code>"cyan"</code>, <code>"dim"</code>, etc.</td>
+</tr>
+<tr>
+<td><code>ctx.write_markup(text)</code></td>
+<td>Print Rich markup (e.g. <code>[bold red]Warning![/]</code>)</td>
+</tr>
+<tr>
+<td><code>ctx.notify(text)</code></td>
+<td>Show a toast notification</td>
+</tr>
+<tr>
+<td><code>ctx.clear_screen()</code></td>
+<td>Clear the terminal</td>
+</tr>
+</tbody>
+</table>
+<h3 id="config">Config</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.cfg</code></td>
+<td>Read-only config dict</td>
+</tr>
+<tr>
+<td><code>ctx.config_path</code></td>
+<td>Path to the <code>.cfg</code> file</td>
+</tr>
+<tr>
+<td><code>ctx.cfg.get("key", default)</code></td>
+<td>Read a config value</td>
+</tr>
+</tbody>
+</table>
+<h3 id="serial-io">Serial I/O</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.is_connected()</code></td>
+<td>True if the serial port is open</td>
+</tr>
+<tr>
+<td><code>ctx.serial_io()</code></td>
+<td>Context manager for exclusive serial access</td>
+</tr>
+<tr>
+<td><code>ctx.serial_drain()</code></td>
+<td>Discard stale bytes in the receive buffer</td>
+</tr>
+<tr>
+<td><code>ctx.serial_write(data)</code></td>
+<td>Send raw bytes (no line ending added)</td>
+</tr>
+<tr>
+<td><code>ctx.serial_read_raw()</code></td>
+<td>Read response bytes with timeout framing</td>
+</tr>
+<tr>
+<td><code>ctx.serial_wait_idle()</code></td>
+<td>Wait for ~400ms of silence</td>
+</tr>
+</tbody>
+</table>
+<h3 id="filesystem">Filesystem</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.ss_dir</code></td>
+<td>Screenshots directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.scripts_dir</code></td>
+<td>Scripts directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.proto_dir</code></td>
+<td>Protocol test scripts directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.cap_dir</code></td>
+<td>Captures directory (Path)</td>
+</tr>
+<tr>
+<td><code>ctx.prof_dir</code></td>
+<td>Profile output directory (Path)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="other">Other</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.dispatch(cmd)</code></td>
+<td>Run a REPL or serial command</td>
+</tr>
+<tr>
+<td><code>ctx.confirm(message)</code></td>
+<td>Yes/Cancel dialog → bool (background thread only)</td>
+</tr>
+<tr>
+<td><code>ctx.log(prefix, text)</code></td>
+<td>Write to session log (<code>"&gt;"</code> TX, <code>"&lt;"</code> RX, <code>"#"</code> status)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="subcommands">Subcommands</h2>
+<p>Use <code>sub_commands</code> for related operations (e.g. <code>/tool.run</code>, <code>/tool.status</code>):</p>
+<pre><code class="language-python">COMMAND = Command(
+    name=&quot;tool&quot;,
+    help=&quot;A tool with subcommands.&quot;,
+    sub_commands={
+        &quot;run&quot;:    Command(args=&quot;&lt;file&gt;&quot;, help=&quot;Run.&quot;, handler=_run),
+        &quot;status&quot;: Command(help=&quot;Show status.&quot;, handler=_status),
+    },
+)
+</code></pre>
+<h2 id="example-plugins">Example Plugins</h2>
+<p>The demo config ships with three plugins of increasing complexity:</p>
+<ul>
+<li><strong>cmd.py</strong> — minimal: wraps a single AT command in a custom name</li>
+<li><strong>probe.py</strong> — intermediate: send/receive cycle with formatted output, good starting template</li>
+<li><strong>temp_plot.py</strong> — advanced: repeated sampling, response parsing, ASCII sparkline visualization</li>
+</ul>
+<p><code>temp_plot.py</code> is the best example for real-world plugin development. It shows:</p>
+<ul>
+<li>Checking connection before I/O</li>
+<li>Reading config for encoding and line ending</li>
+<li>Using <code>serial_io()</code> for a multi-read loop</li>
+<li>Parsing numeric values from device responses</li>
+<li>Handling edge cases (no data, invalid count)</li>
+<li>Rendering results with Rich markup</li>
+</ul>
+<p>Run <code>/temp_plot</code> in demo mode to see it in action, then read the source.</p>
+<h2 id="using-ai-coding-tools">Using AI Coding Tools</h2>
+<p><code>temp_plot.py</code> was generated in one shot by Claude Code with full
+project context. If you use an AI coding assistant with access to the
+termapy source, describing what you want often produces a working
+plugin on the first try. The key is that the AI can see <code>probe.py</code>,
+the device protocol, and the PluginContext API all at once.</p>
+<p>Without full project context, expect to iterate — the serial I/O timing
+and response parsing are device-specific and hard to get right from an
+API reference alone.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="data-capture.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Data Capture">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Data Capture
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="using-git.html" class="md-footer__link md-footer__link--next" aria-label="Next: Using with Git">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Using with Git
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.instant", "navigation.footer"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

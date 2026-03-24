@@ -1,125 +1,116 @@
 # Demo Mode
 
-Try `termapy` without hardware using the built-in simulated device:
+`Termapy` includes a fully simulated serial device so you can explore
+every feature without hardware. On first run with no configs,
+`termapy` automatically installs the demo and offers to connect.
+
+You can also start it explicitly:
 
 ```sh
 termapy --demo
 ```
 
-This creates a `termapy_cfg/demo/` config that auto-connects to a simulated serial device. You can also set `"port": "DEMO"` in any config file.
+## What You Get
 
-## Available Commands
+The demo creates a complete project at `termapy_cfg/demo/` with:
+
+- A simulated device called **BASSOMATIC-77** that responds to AT
+  commands, GPS/NMEA queries, and binary Modbus RTU frames
+- **5 toolbar buttons**: Demo Help, AT Demo, Info, Probe, TempPlot
+- **6 scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo
+- **3 protocol test files**: at_test, bitfield_inline, modbus_inline
+- **3 plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline)
+
+On connect, a welcome script runs automatically showing available
+commands and features. The toolbar buttons run common actions with
+one click.
+
+## Device Commands
+
+The simulated device supports three protocols:
+
+### AT Commands (text)
 
 | Command                   | Response                                         |
 | ------------------------- | ------------------------------------------------ |
-| `AT`                      | `OK`                                             |
+| `AT`                      | `OK` — connection test                           |
 | `AT+INFO`                 | Device info, uptime, free memory                 |
-| `AT+TEMP`                 | Simulated temperature reading                    |
+| `AT+TEMP`                 | Simulated temperature reading (22–25°C)          |
 | `AT+LED on\|off`          | Toggle LED state                                 |
 | `AT+STATUS`               | LED state, uptime, connections                   |
-| `AT+NAME` / `AT+NAME=val` | Query or set device name                         |
-| `AT+BAUD` / `AT+BAUD=val` | Query or set baud rate                           |
-| `AT+PROD-ID`              | Returns product ID (`BASSOMATIC-77`)             |
+| `AT+NAME?` / `AT+NAME=val`| Query or set device name                        |
+| `AT+BAUD?` / `AT+BAUD=val`| Query or set baud rate                          |
+| `AT+PROD-ID`              | Product ID (`BASSOMATIC-77`)                     |
 | `AT+RESET`                | Simulated reboot sequence                        |
 | `mem <addr> [len]`        | Hex memory dump                                  |
-| `AT+TEXTDUMP <n>`         | Emit n lines of text readings                    |
-| `AT+BINDUMP <n>`          | Emit n mixed 21-byte records (S10+U8+U16+U32+F4) |
-| `AT+BINDUMP <type> <n>`   | Emit n typed binary values                       |
-| `help`                    | List available commands                          |
+| `help`                    | List all device commands                         |
 
-## Bundled Files
+### GPS / NMEA
 
-The demo config includes example scripts and protocol tests:
+| Command         | Response                                      |
+| --------------- | --------------------------------------------- |
+| `$GPGGA`        | Position fix (lat, lon, altitude, satellites)  |
+| `$GPRMC`        | Recommended minimum nav (pos, speed, date)     |
+| `$GPGSA`        | DOP and active satellites                      |
+| `$GPGSV`        | Satellites in view                             |
 
-- **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`
-- **Proto:** `at_test.pro` (AT command tests), `bitfield_inline.pro`, `modbus_inline.pro` (Modbus RTU tests)
-- **Plugin:** `probe.py` — demo plugin showing serial I/O (drain, write, read, parse). Try `/probe` to run a device survey, or `/help.dev probe` to see the annotated source as a plugin-writing guide.
+### Modbus RTU (binary)
 
-The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.
+Use `/proto.send` with hex bytes (CRC included):
 
-## Try These Commands
-
-```sh
-AT                              # connection test → OK
-AT+INFO                         # device info
-AT+LED on                       # turn LED on
-AT+STATUS                       # check LED state, uptime
-mem 0x1000 32                   # hex memory dump
-```
-
-For Modbus binary commands, use `/proto.send` with hex bytes (CRC included):
-
-```sh
-/proto.send 01 03 00 00 00 01 84 0A       # read 1 register from addr 0
+```text
+/proto.send 01 03 00 00 00 01 84 0A       # read 1 register
 /proto.send 01 06 00 05 04 D2 1B 56       # write register 5 = 1234
 /proto.send 01 03 00 05 00 01 94 0B       # read back register 5
 ```
 
-## Data Capture Demo
+Supports function codes 0x03 (read holding registers) and 0x06
+(write single register) with CRC16 enforced.
 
-### Text Capture
+## Data Capture Commands
 
-Capture 3 seconds of text output to a file:
+### Text capture
 
 ```text
 /text_cap n readings.txt 3s cmd=AT+TEXTDUMP 50
 ```
 
-Append to an existing file:
-
-```text
-/text_cap a readings.txt 2s cmd=AT+TEXTDUMP 20
-```
-
-Auto-numbered text captures (creates readings_000.txt, readings_001.txt, ...):
-
-```text
-/text_cap n readings_$(n000).txt 3s cmd=AT+TEXTDUMP 50
-```
-
-### Binary Capture — Mixed Record (CSV)
-
-The demo device streams 21-byte records with a string label, u8 counter,
-u16, u32, and float. Capture 20 records to CSV:
+### Binary capture — mixed record to CSV
 
 ```text
 /bin_cap n mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 cap_vals=20 cmd=AT+BINDUMP 20
 ```
 
-### Binary Capture — Single Type
-
-Capture 50 unsigned 16-bit values (little-endian) to CSV:
+### Binary capture — single type
 
 ```text
 /bin_cap n u16_data.csv fmt=Value:U2-1 cap_vals=50 cmd=AT+BINDUMP u16 50
 ```
 
-### Binary Capture — Tab-Separated with Echo
+## Demo Plugins
 
-Capture and also print values to the terminal:
+| Plugin      | Command       | What it does                                     |
+| ----------- | ------------- | ------------------------------------------------ |
+| cmd.py      | `/cmd`        | Custom shortcut — wraps a device command          |
+| probe.py    | `/probe`      | Device survey — send/receive cycle with output    |
+| temp_plot.py| `/temp_plot`  | Sample temperature N times, draw ASCII sparkline  |
 
-```text
-/bin_cap n debug.tsv fmt=A:U2-1 cap_vals=20 sep=tab echo cmd=AT+BINDUMP u16 20
-```
+`probe.py` is the best starting template for writing your own plugins.
+`temp_plot.py` was generated by Claude Code in one shot — see
+[Writing Plugins](writing-plugins.md) for the full story.
 
-### Binary Capture — Raw (No Format Spec)
+## Things to Try
 
-Save raw bytes to a binary file:
-
-```text
-/bin_cap n raw_dump.bin cap_bytes=200 cmd=AT+BINDUMP u16 100
-```
-
-### Binary Capture — Auto-Numbered
-
-Rotating capture files (data_000.csv, data_001.csv, ...):
-
-```text
-/bin_cap n data_$(n000).csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 cap_vals=10 cmd=AT+BINDUMP 10
-```
+1. Type `AT+INFO` — see the device respond
+2. Click **AT Demo** — runs the full AT command demo script
+3. Click **TempPlot** — watch a temperature sparkline build
+4. Type `/run.profile at_demo` — profile the demo script
+5. Click **Probe** — device survey with formatted output
+6. Type `/proto.send 01 03 00 00 00 01 84 0A` — binary Modbus query
+7. Type `/help` — see all available commands with colorized output
 
 ---
 
 |                                   |                   |       |
 | :-------------------------------: | :---------------: | :---: |
-| [← Data Capture](data-capture.md) | [Index](index.md) |       |
+| [← Writing Plugins](writing-plugins.md) | [Index](index.md) |       |

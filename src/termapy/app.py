@@ -564,7 +564,8 @@ class SerialTerminal(App):
 
     def _apply_border_color(self) -> None:
         """Apply border_color from config to title bar and output border."""
-        color = self.cfg.get("border_color", "") or "blue"
+        from termapy.defaults import resolve_color
+        color = resolve_color(self.cfg.get("border_color", "") or "blue")
         bar = self.query_one("#title-bar")
         bar.styles.background = color
         self.query_one("#output", RichLog).styles.border = ("solid", color)

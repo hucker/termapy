@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-638%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-733%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -1007,22 +1007,23 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test Coverage</strong> — 558 tests, 96% coverage of library code</summary>
+<summary><strong>Test Coverage</strong> — 733 tests, 62% overall coverage</summary>
 
-![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen) *of testable library code — see note below*
+![coverage](https://img.shields.io/badge/coverage-62%25-yellow) *overall — see note below*
 
-558 tests across 9 test files. Run with `uv run pytest`.
+733 tests across 14 test files. Run with `uv run pytest`.
 
-| Module         | Coverage | Test file                            |
-| -------------- | -------- | ------------------------------------ |
-| `scripting.py` | 100%     | `test_scripting.py`                  |
-| `migration.py` | 100%     | `test_migration.py`                  |
-| `hex_view.py`  | 100%     | `test_protocol.py`                   |
-| `text_view.py` | 97%      | `test_protocol.py`                   |
-| `plugins.py`   | 99%      | `test_plugins.py`                    |
-| `repl.py`      | 96%      | `test_engine.py`, `test_repl_cfg.py` |
-| `protocol.py`  | 88%      | `test_protocol.py`                   |
-| `config.py`    | 78%      | `test_app_config.py`                 |
+| Module           | Coverage | Test file                            |
+| ---------------- | -------- | ------------------------------------ |
+| `scripting.py`   | 97%      | `test_scripting.py`                  |
+| `migration.py`   | 98%      | `test_migration.py`                  |
+| `plugins.py`     | 89%      | `test_plugins.py`                    |
+| `repl.py`        | 88%      | `test_engine.py`, `test_repl_cfg.py` |
+| `protocol.py`    | 89%      | `test_protocol.py`                   |
+| `config.py`      | 86%      | `test_app_config.py`                 |
+| `port_control.py`| 23%      | `test_port_control.py`               |
+| `demo.py`        | 71%      | `test_demo.py`                       |
+| `defaults.py`    | 100%     | `test_app_config.py`                 |
 
 > [!CAUTION]
 > **Excluded from coverage!** `app.py` (~1500 lines, Textual UI), `proto_debug.py` (~1080 lines, modal debug screen), `builtins/*.py` (~200 lines, dynamic import). Pure logic lives in testable modules with high coverage; UI code is tested manually.

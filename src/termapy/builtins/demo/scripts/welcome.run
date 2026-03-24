@@ -1,0 +1,28 @@
+# Welcome script — runs automatically on connect
+/echo.quiet off
+/print
+/print ─────────────────────────────────────────────
+/print   Welcome to the Termapy Demo
+/print ─────────────────────────────────────────────
+/print
+/print   You are connected to a simulated device.
+/print   Try these commands:
+/print
+/print   AT              — connection test
+/print   AT+INFO         — device information
+/print   AT+TEMP         — read temperature
+/print   AT+STATUS       — device status
+/print   HELP            — full device command list
+/print
+/print   REPL commands (prefix /):
+/print   /help           — list all termapy commands
+/print   /run at_demo    — run the AT command demo script
+/print   /temp_plot      — sample temperature sparkline
+/print   /port.info      — show connection details
+/print   /cfg.info       — show project file tree
+/print
+/print   Buttons in the toolbar run common actions.
+/print   Press Ctrl+P for the command palette.
+/print ─────────────────────────────────────────────
+/print
+/echo.quiet on

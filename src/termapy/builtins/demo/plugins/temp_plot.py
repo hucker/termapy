@@ -75,7 +75,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
                     except (ValueError, IndexError):
                         pass
                     break
-            time.sleep(0.1)
+            time.sleep(0.025)
 
     if not readings:
         ctx.write("No temperature readings captured.", "red")

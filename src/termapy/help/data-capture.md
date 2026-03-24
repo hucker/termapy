@@ -5,52 +5,69 @@ Capture serial output to files without interrupting normal display or logging.
 ## Text Capture (timed)
 
 ```text
-/text_cap <mode> <file> <duration> {cmd=command...}
-/text_cap.stop
+/cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)}
+/cap.stop
 ```
 
-Modes: `append`/`a`, `new`/`n`. Duration: e.g. `2s`, `500ms`.
-Everything after `cmd=` is sent to the device after capture starts.
+File is always the first argument. All keywords can appear in any order
+except `cmd=` which must be last (it consumes everything after it).
+Mode defaults to `new`. Duration: e.g. `2s`, `500ms`.
 Data is written as ANSI-stripped text, one line at a time.
 
 ```text
-/text_cap n log.txt 3s cmd=AT+INFO
-/text_cap a session.txt 10s
+/cap.text log.txt timeout=3s cmd=AT+INFO
+/cap.text session.txt timeout=10s mode=append
 ```
 
-## Binary Capture (sized)
+## Binary Capture (raw bytes)
 
 ```text
-/bin_cap <mode> <file> {fmt=spec} <cap_vals=N|cap_bytes=N> {sep=comma|tab|space} {echo} {cmd=command...}
-/bin_cap.stop
+/cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}
+/cap.stop
+```
+
+Captures raw binary bytes straight to a file.
+
+```text
+/cap.bin raw.bin bytes=256 cmd=read_all
+```
+
+## Structured Capture (format spec to CSV)
+
+```text
+/cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}
+/cap.hex   <file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}
+/cap.stop
 ```
 
 Use `fmt=` with the format spec language to define the record structure.
-Byte ranges are 1-based. Omit `fmt=` for raw binary capture.
+`/cap.struct` reads raw bytes; `/cap.hex` reads hex-encoded text lines.
+Byte ranges are 1-based. Omit names for unnamed columns.
 
-- `cap_vals=N` — number of records (record size derived from format spec)
-- `cap_bytes=N` — total bytes (works with or without format spec)
+- `records=N` — number of records (record size derived from format spec)
+- `bytes=N` — alternative: total bytes (must be a multiple of record size)
 - `sep=comma|tab|space` — column separator (default comma, produces CSV)
-- `echo` — print formatted values to terminal
+- `echo=on|off` — print formatted values to terminal (default off)
+- `mode=new|append` — file mode (default new)
 - Header row written when columns have names (e.g. `Temp:U1-2`)
 
 ## Format Spec Examples
 
 ```text
 # Single unsigned 16-bit column (big-endian)
-/bin_cap n data.csv fmt=Val:U1-2 cap_vals=50 cmd=AT+BINDUMP u16 50
+/cap.struct data.csv fmt=Val:U1-2 records=50 cmd=AT+BINDUMP u16 50
 
 # Mixed-type record: string + integers + float (little-endian)
-/bin_cap n mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 cap_vals=20 cmd=AT+BINDUMP 20
+/cap.struct mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=20 cmd=AT+BINDUMP 20
 
 # Hex dump of raw bytes
-/bin_cap n packets.csv fmt=Header:H1-4 Payload:H5-20 cap_vals=100 cmd=stream
+/cap.struct packets.csv fmt=Header:H1-4 Payload:H5-20 records=100 cmd=stream
 
 # Tab-separated with echo
-/bin_cap n log.tsv fmt=A:U1-2 B:F3-6 cap_vals=100 sep=tab echo cmd=read
+/cap.struct log.tsv fmt=A:U1-2 B:F3-6 records=100 sep=tab echo=on cmd=read
 
 # Raw binary (no format spec)
-/bin_cap n raw.bin cap_bytes=256 cmd=read_all
+/cap.bin raw.bin bytes=256 cmd=read_all
 ```
 
 ## Format Spec Quick Reference
@@ -82,7 +99,7 @@ tracks the last-used number across sessions, with rollover.
 | `$(n000)`   | 000–999 |
 
 ```text
-/text_cap n log_$(n000).txt 3s cmd=AT+INFO
+/cap.text log_$(n000).txt timeout=3s cmd=AT+INFO
 # → log_000.txt, log_001.txt, log_002.txt, ...
 ```
 

@@ -41,8 +41,10 @@ class ReplEngine:
         self.prefix = prefix
         self._seq_counters: dict[int, int] = {}
         self._seq_start_time: str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self._in_script: bool = False
+        self._script_depth: int = 0
+        self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
+        self._max_script_depth: int = 5
         self._echo: bool = True         # echo ! command lines to screen
 
         # Plugin context — set by app.py after mount via set_context()
@@ -293,11 +295,17 @@ class ReplEngine:
                 if self.scripts_dir != Path("."):
                     self.write(f"  (also checked {self.scripts_dir})", "dim")
                 return None
-        if self._in_script:
-            self.write("Script already running. Use /stop first.", "red")
+        if self._script_depth >= self._max_script_depth:
+            self.write(
+                f"Script nesting too deep ({self._max_script_depth} levels). "
+                "Use /stop first.",
+                "red",
+            )
             return None
-        self._in_script = True
-        self._script_stop.clear()
+        if self._script_depth == 0:
+            self._script_stop.clear()
+        self._script_depth += 1
+        self._script_stack.append(path.name)
         self._seq_counters = {}
         self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.write(f"Running script: {filename}")
@@ -309,6 +317,8 @@ class ReplEngine:
         write: Callable | None = None,
         dispatch: Callable | None = None,
         profile: bool = False,
+        progress: Callable[[int, int], None] | None = None,
+        on_nest: Callable[[], None] | None = None,
     ) -> None:
         """Execute a script file line by line (call from a background thread).
 
@@ -331,7 +341,12 @@ class ReplEngine:
         profile_times: list[tuple[str, float]] = []
         prof_fh = None
         try:
-            lines = path.read_text(encoding="utf-8").splitlines()
+            all_lines = path.read_text(encoding="utf-8").splitlines()
+            lines = [
+                ln for ln in all_lines
+                if ln.strip() and not ln.strip().startswith("#")
+            ]
+            total = len(lines)
             if profile:
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 prof_name = f"{Path(self.config_path).stem}_{ts}.csv"
@@ -341,13 +356,13 @@ class ReplEngine:
                 prof_fh = open(prof_path, "w", encoding="utf-8")
                 prof_fh.write("Duration (sec),Command\n")
                 w(f"── profile: {path.name} → {prof_name} ──")
-            for raw_line in lines:
+            for step, raw_line in enumerate(lines, 1):
                 if self._script_stop.is_set():
                     w("Script stopped.")
                     break
+                if progress:
+                    progress(step, total)
                 stripped = raw_line.strip()
-                if not stripped or stripped.startswith("#"):
-                    continue
                 # THREADING: run_script runs in a background thread, but
                 # dispatch() routes commands to the main thread via
                 # call_from_thread. Commands that block (delay, confirm)
@@ -371,13 +386,38 @@ class ReplEngine:
                             w(str(e), "red")
                             break
                         t0 = time.perf_counter()
-                        time.sleep(seconds)
+                        # Sleep in small steps so _script_stop is responsive
+                        self._script_stop.wait(timeout=seconds)
+                        if self._script_stop.is_set():
+                            w("Script stopped.")
+                            break
                         if profile:
                             elapsed = time.perf_counter() - t0
                             profile_times.append((stripped, elapsed))
                             prof_fh.write(f"{elapsed:.6f},{stripped}\n")
                         else:
                             w(f"Delay {expanded} done.")
+                        continue
+                    if name.lower() in ("run", "run.profile"):
+                        self.ctx.log(">", stripped)
+                        nested_profile = name.lower() == "run.profile"
+                        nested_path = self.start_script(args.strip())
+                        if nested_path:
+                            if on_nest:
+                                on_nest()
+                            t0 = time.perf_counter()
+                            self.run_script(
+                                nested_path,
+                                write=w,
+                                dispatch=dispatch,
+                                profile=nested_profile,
+                                progress=progress,
+                                on_nest=on_nest,
+                            )
+                            if profile:
+                                elapsed = time.perf_counter() - t0
+                                profile_times.append((stripped, elapsed))
+                                prof_fh.write(f"{elapsed:.6f},{stripped}\n")
                         continue
                     if name.lower() == "confirm":
                         self.ctx.log(">", stripped)
@@ -423,7 +463,11 @@ class ReplEngine:
         except Exception as e:
             w(f"Script error: {e}", "red")
         finally:
-            self._in_script = False
+            self._script_depth -= 1
+            if self._script_stack:
+                self._script_stack.pop()
+            if on_nest:
+                on_nest()
             if prof_fh:
                 prof_fh.close()
 
@@ -470,4 +514,4 @@ class ReplEngine:
 
     @property
     def in_script(self) -> bool:
-        return self._in_script
+        return self._script_depth > 0

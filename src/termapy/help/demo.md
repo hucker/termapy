@@ -72,19 +72,19 @@ Supports function codes 0x03 (read holding registers) and 0x06
 ### Text capture
 
 ```text
-/text_cap n readings.txt 3s cmd=AT+TEXTDUMP 50
+/cap.text readings.txt timeout=3s cmd=AT+TEXTDUMP 50
 ```
 
 ### Binary capture — mixed record to CSV
 
 ```text
-/bin_cap n mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 cap_vals=20 cmd=AT+BINDUMP 20
+/cap.struct mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=20 cmd=AT+BINDUMP 20
 ```
 
 ### Binary capture — single type
 
 ```text
-/bin_cap n u16_data.csv fmt=Value:U2-1 cap_vals=50 cmd=AT+BINDUMP u16 50
+/cap.struct u16_data.csv fmt=Value:U2-1 records=50 cmd=AT+BINDUMP u16 50
 ```
 
 ## Demo Plugins

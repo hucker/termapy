@@ -193,10 +193,11 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |
 | `/env.set <name> <value>` | Set a session-scoped environment variable                                   |
 | `/env.reload`             | Re-snapshot variables from the OS environment                               |
-| `/text_cap <m> <f> <dur>` | Capture serial text to file for a timed duration                            |
-| `/text_cap.stop`          | Stop an active text capture                                                 |
-| `/bin_cap <m> <f> ...`    | Capture binary serial data to file by byte/element count                    |
-| `/bin_cap.stop`           | Stop an active binary capture                                               |
+| `/cap.text <f> ...`       | Capture serial text to file for a timed duration                            |
+| `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
+| `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
+| `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
+| `/cap.stop`               | Stop an active capture                                                      |
 | `/raw <text>`             | Send text to serial with no variable expansion or transforms                |
 | `/exit`                   | Exit termapy                                                                |
 
@@ -457,40 +458,55 @@ Capture serial output to files without interrupting normal display or logging.
 ### Text Capture (timed)
 
 ```
-/text_cap <mode> <file> <duration> {cmd=command...}
-/text_cap.stop
+/cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)}
+/cap.stop
 ```
 
-Modes: `append`/`a`, `new`/`n`. Duration: e.g. `2s`, `500ms`.
-Everything after `cmd=` is sent to the device after capture starts.
+File is always the first argument. All keywords can appear in any order
+except `cmd=` which must be last (it consumes everything after it).
+Mode defaults to `new`. Duration: e.g. `2s`, `500ms`.
 Data is written as ANSI-stripped text, one line at a time.
 
 ```
-/text_cap n log.txt 3s cmd=AT+INFO
-/text_cap a session.txt 10s
+/cap.text log.txt timeout=3s cmd=AT+INFO
+/cap.text session.txt timeout=10s mode=append
 ```
 
-### Binary Capture (sized)
+### Binary Capture (raw bytes)
 
 ```
-/bin_cap <mode> <file> {fmt=spec} <cap_vals=N|cap_bytes=N> {sep=comma|tab|space} {echo} {cmd=command...}
-/bin_cap.stop
+/cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}
+/cap.stop
+```
+
+Captures raw binary bytes straight to a file.
+
+```
+/cap.bin raw.bin bytes=256 cmd=read_all
+```
+
+### Structured Capture (format spec → CSV)
+
+```
+/cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}
+/cap.hex   <file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}
+/cap.stop
 ```
 
 Use `fmt=` with the protocol format spec language to define the record structure.
-Byte ranges are 1-based. Omit `fmt=` for raw binary capture.
+`/cap.struct` reads raw bytes; `/cap.hex` reads hex-encoded text lines.
 
-- `cap_vals=N`: number of records (record size derived from format spec)
-- `cap_bytes=N`: total bytes (works with or without format spec)
+- `records=N`: number of records (record size derived from format spec)
+- `bytes=N`: alternative — total byte count (must be multiple of record size)
 - `sep=comma|tab|space`: column separator (default comma)
-- `echo`: print formatted values to terminal
+- `echo=on|off`: print formatted values to terminal (default off)
+- `mode=new|append`: file mode (default new)
 - Header row written when columns have names (e.g. `Temp:U1-2`)
 
 ```
-/bin_cap n data.csv fmt=Val:U1-2 cap_vals=50 cmd=AT+BINDUMP u16 50
-/bin_cap n sensors.csv fmt=Temp:U1-2 Volts:F3-6 Status:H7 cap_vals=100 cmd=read
-/bin_cap n raw.bin cap_bytes=256 cmd=read_all
-/bin_cap n log.tsv fmt=A:U1-2 B:U3-4 cap_vals=50 sep=tab echo
+/cap.struct data.csv fmt=Val:U1-2 records=50 cmd=AT+BINDUMP u16 50
+/cap.struct sensors.csv fmt=Temp:U1-2 Volts:F3-6 Status:H7 records=100 cmd=read
+/cap.struct log.tsv fmt=A:U1-2 B:U3-4 records=50 sep=tab echo=on
 ```
 
 Bare filenames are saved to the per-config `cap/` directory.
@@ -509,7 +525,7 @@ tracks the last-used number across sessions, with rollover.
 | `$(n000)`   | 000–999 |
 
 ```
-/text_cap n log_$(n000).txt 3s cmd=AT+INFO
+/cap.text log_$(n000).txt timeout=3s cmd=AT+INFO
 # → log_000.txt, log_001.txt, log_002.txt, ...
 ```
 

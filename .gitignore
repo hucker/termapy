@@ -17,6 +17,7 @@ __pycache__/
 .tox/
 .vscode/
 termapy_cfg/
+junk/
 .coverage
 CLAUDE.md
 *.log

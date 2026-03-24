@@ -222,7 +222,7 @@ Input.on_submit → _execute_command()
 ### Binary Capture Flow
 
 ```text
-/bin_cap → start_capture(path, mode, target_bytes, columns, ...)
+/cap.struct → start_capture(path, mode, target_bytes, columns, ...)
   → serial read thread feeds raw bytes to capture buffer
   → on each record: apply format spec → write CSV row
   → on target reached: close file, show summary
@@ -271,11 +271,11 @@ termapy_cfg/
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread.
 
-## Built-in Plugins (19 files)
+## Built-in Plugins (18 files)
 
 | Plugin      | Command            | Purpose                                           |
 | ----------- | ------------------ | ------------------------------------------------- |
-| bin_cap.py  | /bin_cap           | Binary data capture to CSV/file                   |
+| cap.py      | /cap               | Unified data capture (text, bin, struct, hex)     |
 | cfg.py      | /cfg               | Config values, info, explore, per-folder file ops |
 | cls.py      | /cls               | Clear terminal                                    |
 | confirm.py  | /confirm           | Yes/Cancel dialog (scripts)                       |
@@ -292,7 +292,6 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | show.py     | /show              | Display files                                     |
 | ss.py       | /ss                | Screenshots (placeholder, hooks override)         |
 | stop.py     | /stop              | Abort running script                              |
-| text_cap.py | /text_cap          | Timed text capture                                |
 | var.py      | /var               | User variables                                    |
 
 ## Test Coverage

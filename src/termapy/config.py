@@ -1,4 +1,4 @@
-"""Config file management — paths, defaults, loading, and serial port setup.
+"""Config file management - paths, defaults, loading, and serial port setup.
 
 Pure functions with no UI dependency. Used by app.py and tests.
 """
@@ -35,7 +35,7 @@ def cfg_dir() -> Path:
 def migrate_json_to_cfg(directory: Path) -> None:
     """Rename any *.json config files to *.cfg (one-time migration).
 
-    Safe to call repeatedly — skips if the .cfg file already exists.
+    Safe to call repeatedly - skips if the .cfg file already exists.
 
     Args:
         directory: The config root directory to scan (e.g. termapy_cfg/).
@@ -54,7 +54,7 @@ def cfg_data_dir(config_path: str) -> Path:
     """
     d = Path(config_path).parent
     d.mkdir(parents=True, exist_ok=True)
-    # One-time rename: captures/ → cap/
+    # One-time rename: captures/ -> cap/
     old_cap = d / "captures"
     new_cap = d / "cap"
     if old_cap.is_dir() and not new_cap.exists():
@@ -65,7 +65,7 @@ def cfg_data_dir(config_path: str) -> Path:
     gitignore = d / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text(
-            "# Termapy — ignore transient/generated data\n"
+            "# Termapy - ignore transient/generated data\n"
             "*.log\n"
             ".cmd_history.txt\n"
             ".cap_seq\n"
@@ -194,7 +194,7 @@ def validate_config(cfg: dict) -> list[str]:
     _check_set(cfg, "stop_bits", (int, float), VALID_STOP_BITS, warnings)
     _check_set(cfg, "flow_control", str, VALID_FLOW_CONTROLS, warnings)
 
-    # Baud rate — warn on non-standard but don't reject
+    # Baud rate - warn on non-standard but don't reject
     val = cfg.get("baud_rate")
     if val is not None:
         if not isinstance(val, int):
@@ -205,7 +205,7 @@ def validate_config(cfg: dict) -> list[str]:
             rates = ", ".join(str(r) for r in STANDARD_BAUD_RATES)
             warnings.append(f"baud_rate: {val} is not a standard rate ({rates})")
 
-    # Encoding — must be a valid Python codec
+    # Encoding - must be a valid Python codec
     enc = cfg.get("encoding")
     if enc is not None:
         if not isinstance(enc, str):

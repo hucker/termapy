@@ -1,4 +1,4 @@
-"""CLI serial terminal — no Textual dependency.
+"""CLI serial terminal - no Textual dependency.
 
 Provides a plain-text interactive terminal using SerialEngine, ReplEngine,
 and CaptureEngine. Reads from stdin, writes to stdout, serial I/O on a
@@ -103,7 +103,7 @@ def run_cli(
 
     repl = ReplEngine(cfg, config_path, write=status, prefix=prefix)
 
-    # Set up a minimal PluginContext — no Textual callbacks
+    # Set up a minimal PluginContext - no Textual callbacks
     from termapy.plugins import EngineAPI, PluginContext
 
     engine_api = EngineAPI(
@@ -346,7 +346,7 @@ def run_cli(
         _orig_on_lines(lines)
 
     # Patch the reader's callback (thread already running, but dict lookup is atomic)
-    # This is a bit hacky — in a real refactor, SerialEngine.read_loop would
+    # This is a bit hacky - in a real refactor, SerialEngine.read_loop would
     # accept a text capture tap. For now it works.
 
     # -- Script mode (run and exit) -------------------------------------------
@@ -402,7 +402,7 @@ def run_cli(
             if line.strip().lower() in (prefix + "exit", prefix + "quit"):
                 break
 
-            # Full dispatch (no echo_markup — input() already shows the command)
+            # Full dispatch (no echo_markup - input() already shows the command)
             repl.dispatch_full(
                 line,
                 log=log,
@@ -451,9 +451,9 @@ def _cli_apply_port_effects(repl, effects):
 
 
 def _serial_write_raw(engine, cfg, text, echo_markup, status):
-    """Send raw text to serial — mimics app.py's _send_serial_raw."""
+    """Send raw text to serial - mimics app.py's _send_serial_raw."""
     if not engine.is_connected:
-        status("Not connected — command not sent", "red")
+        status("Not connected - command not sent", "red")
         return
     line_ending = cfg.get("line_ending", "\r")
     encoding = cfg.get("encoding", "utf-8")
@@ -462,9 +462,9 @@ def _serial_write_raw(engine, cfg, text, echo_markup, status):
 
 
 def _start_capture(engine, capture, cfg, **kwargs):
-    """Start a capture session (CLI version — no timers)."""
+    """Start a capture session (CLI version - no timers)."""
     if capture.active:
-        print("  Capture already active — use /cap.stop", flush=True)
+        print("  Capture already active - use /cap.stop", flush=True)
         return False
     started = capture.start(**kwargs)
     if not started:

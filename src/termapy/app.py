@@ -573,7 +573,7 @@ class SerialTerminal(App):
 
     def on_mount(self) -> None:
         self._apply_border_color()
-        # Build plugin context — the stable API for all plugins
+        # Build plugin context - the stable API for all plugins
         engine = EngineAPI(
             prefix=self.cfg.get("cmd_prefix", "/"),
             plugins=self.repl._plugins,
@@ -841,7 +841,7 @@ class SerialTerminal(App):
         elif self.cfg.get("auto_connect"):
             self._connect()
         else:
-            self._status(f"{self._port_info_str()} — press Connect to start")
+            self._status(f"{self._port_info_str()} - press Connect to start")
     def on_unmount(self) -> None:
         self._save_history()
         self._disconnect()
@@ -914,7 +914,7 @@ class SerialTerminal(App):
             path: Path to the .pro script file.
             script: Parsed ProtoScript instance.
         """
-        # Discover visualizers: built-in → per-config (later overrides)
+        # Discover visualizers: built-in -> per-config (later overrides)
         visualizers = load_visualizers_from_dir(builtins_viz_dir(), "built-in")
         if self.config_path:
             viz_dir = cfg_data_dir(self.config_path) / "viz"
@@ -1021,7 +1021,7 @@ class SerialTerminal(App):
     def _confirm(self, message: str) -> bool:
         """Show a Yes/Cancel dialog and block until the user responds.
 
-        THREADING: Must be called from a background thread — NOT the main
+        THREADING: Must be called from a background thread - NOT the main
         thread. Uses call_from_thread to post the dialog to the main thread,
         then event.wait() blocks the calling thread. If called from the main
         thread, call_from_thread raises RuntimeError. In scripts, this is
@@ -1108,7 +1108,7 @@ class SerialTerminal(App):
             self._disconnect()
         if migrated_from is not None:
             self._status(
-                f"Config migrated: v{migrated_from} → v{CURRENT_CONFIG_VERSION}",
+                f"Config migrated: v{migrated_from} -> v{CURRENT_CONFIG_VERSION}",
                 "yellow",
             )
         for w in cfg.pop("_config_warnings", []):
@@ -1162,7 +1162,7 @@ class SerialTerminal(App):
             )
         for name in result.skipped:
             self._status(
-                f"Skipped {name} — no COMMAND or TRANSFORM (see plugin docs)",
+                f"Skipped {name} - no COMMAND or TRANSFORM (see plugin docs)",
                 "yellow",
             )
         for err in result.errors:
@@ -1473,7 +1473,7 @@ class SerialTerminal(App):
     def _update_port(self, port: str) -> None:
         """Change serial port for this session and reconnect.
 
-        Does not write to disk — the config editor is the only path
+        Does not write to disk - the config editor is the only path
         that persists changes.  This keeps $(env.NAME) templates intact.
         """
         cfg = dict(self.cfg)
@@ -1678,7 +1678,7 @@ class SerialTerminal(App):
     ) -> bool:
         """Start a file capture session (delegates to CaptureEngine)."""
         if self._capture.active:
-            self._status("Capture already active — use .stop first.", "yellow")
+            self._status("Capture already active - use .stop first.", "yellow")
             return False
 
         started = self._capture.start(
@@ -1764,12 +1764,12 @@ class SerialTerminal(App):
             return
         if prog.mode == "text":
             label.update(
-                f" Capturing → {prog.path_name}  [{prog.pct}%]  "
+                f" Capturing -> {prog.path_name}  [{prog.pct}%]  "
                 f"{prog.remaining_s:.1f}s left  {prog.bytes_captured} bytes"
             )
         else:
             label.update(
-                f" Capturing → {prog.path_name}  [{prog.pct}%]  "
+                f" Capturing -> {prog.path_name}  [{prog.pct}%]  "
                 f"{prog.bytes_captured}/{prog.target_bytes} bytes"
             )
 
@@ -1825,7 +1825,7 @@ class SerialTerminal(App):
         for text in lines:
             self._log_line("<", ANSI_RE.sub("", text))
 
-        # Text capture tap — feed ANSI-stripped lines to capture engine
+        # Text capture tap - feed ANSI-stripped lines to capture engine
         if self._capture.active and self._capture.mode == "text":
             stripped = [ANSI_RE.sub("", t) for t in lines]
             self._capture.feed_text(stripped)
@@ -1920,7 +1920,7 @@ class SerialTerminal(App):
                 echo_text += eol_label(le)
             self._write_output_markup(fmt.replace("{cmd}", echo_text))
         if not self.is_connected:
-            self._status("Not connected — command not sent", "red")
+            self._status("Not connected - command not sent", "red")
             return
         line_ending = self.cfg.get("line_ending", "\r")
         try:
@@ -2585,7 +2585,7 @@ class SerialTerminal(App):
             bar = self.query_one("#bottom-bar")
             inp = self.query_one("#cmd", Input)
             if event.stack:
-                # Returned from nested script — update label to parent
+                # Returned from nested script - update label to parent
                 text = " " + " \u2192 ".join(event.stack)
                 label_w = bar.query_one("#script-label", Static)
                 label_w.display = True
@@ -2593,7 +2593,7 @@ class SerialTerminal(App):
                 label_w.update(text)
                 self._script_last_label = text
             else:
-                # Top-level script done — teardown overlay
+                # Top-level script done - teardown overlay
                 for widget in bar.query("#script-label, #script-stop"):
                     widget.remove()
                 for child in bar.children:
@@ -2638,9 +2638,9 @@ class SerialTerminal(App):
 def _find_config() -> tuple[str | None, bool]:
     """Find config in termapy_cfg/<name>/<name>.cfg. Returns (path, show_picker).
 
-    - 1 cfg file: (path, False) — auto-load
-    - 0 cfg files: (None, False) — show name picker for new config
-    - 2+ cfg files: (None, True) — show file picker
+    - 1 cfg file: (path, False) - auto-load
+    - 0 cfg files: (None, False) - show name picker for new config
+    - 2+ cfg files: (None, True) - show file picker
     """
     d = cfg_dir()
     migrate_json_to_cfg(d)
@@ -2678,7 +2678,7 @@ def _reset_terminal() -> None:
 def _run_check(args) -> None:
     """Validate config and print JSON result to stdout (no TUI).
 
-    Read-only — does not migrate or write to disk.
+    Read-only - does not migrate or write to disk.
     """
     # Resolve config
     if args.config:
@@ -2746,7 +2746,7 @@ def _infer_config_from_run_file(run_path: str) -> str | None:
 
 
 def _run_cli_mode(args) -> None:
-    """Run in CLI mode — plain text terminal, no TUI."""
+    """Run in CLI mode - plain text terminal, no TUI."""
     from termapy.cli import run_cli
 
     run_script = getattr(args, "run", None)
@@ -2953,13 +2953,13 @@ def main():
         app.run()
         _reset_terminal()
     elif show_picker:
-        # Multiple json files — start with defaults, show picker on load
+        # Multiple json files - start with defaults, show picker on load
         cfg = dict(DEFAULT_CFG)
         app = SerialTerminal(cfg, config_path="", show_picker=True)
         app.run()
         _reset_terminal()
     else:
-        # No configs found — install demo and auto-connect
+        # No configs found - install demo and auto-connect
         from termapy.config import setup_demo_config
 
         config_path = str(setup_demo_config(cfg_dir(), force=True))

@@ -1,4 +1,4 @@
-"""Built-in plugin: serial port control — list, connect, configure, signals."""
+"""Built-in plugin: serial port control - list, connect, configure, signals."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def _handler_root(ctx: PluginContext, args: str) -> None:
     if name:
         ctx.engine.update_port(name)
         return
-    # No args — list subcommands
+    # No args - list subcommands
     prefix = ctx.engine.prefix
     plugins = ctx.engine.plugins
     info = plugins.get("port")
@@ -42,7 +42,7 @@ def _handler_root(ctx: PluginContext, args: str) -> None:
             if child:
                 short = child_name.split(".")[-1]
                 arg_str = f" {child.args}" if child.args else ""
-                ctx.write(f"  {prefix}{child_name}{arg_str} — {child.help}")
+                ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
 
 
 def _handler_list(ctx: PluginContext, args: str) -> None:

@@ -1,4 +1,4 @@
-"""Capture engine — file capture state machine (no UI dependency).
+"""Capture engine - file capture state machine (no UI dependency).
 
 Handles text and binary capture sessions: buffering, format-spec decoding,
 CSV writing, and progress tracking. The caller feeds data in via `feed_bytes()`
@@ -43,7 +43,7 @@ class CaptureResult:
 
 
 class CaptureEngine:
-    """Stateful capture session — text or binary.
+    """Stateful capture session - text or binary.
 
     Lifecycle:
         1. Call ``start()`` to begin a capture.
@@ -52,10 +52,10 @@ class CaptureEngine:
         4. When target reached or ``stop()`` called, calls ``on_complete``.
 
     Callbacks:
-        on_progress(CaptureProgress) — periodic progress update.
-        on_echo(line: str) — echo formatted line to terminal (if enabled).
-        on_complete(CaptureResult) — capture finished.
-        on_flush() — binary buffer flushed (caller may need to dispatch stop).
+        on_progress(CaptureProgress) - periodic progress update.
+        on_echo(line: str) - echo formatted line to terminal (if enabled).
+        on_complete(CaptureResult) - capture finished.
+        on_flush() - binary buffer flushed (caller may need to dispatch stop).
     """
 
     def __init__(

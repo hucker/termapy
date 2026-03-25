@@ -1,4 +1,4 @@
-"""Plugin system for termapy — discovery, loading, and context API.
+"""Plugin system for termapy - discovery, loading, and context API.
 
 Plugins are .py files that export a ``COMMAND`` instance describing the
 command hierarchy::
@@ -91,7 +91,7 @@ class DirectiveResult:
     """Result from a pre-dispatch directive handler.
 
     Attributes:
-        action: What to do — ``"rewrite"`` dispatches payload as a REPL
+        action: What to do - ``"rewrite"`` dispatches payload as a REPL
             command, ``"warn"`` shows payload in yellow, ``"error"`` shows
             payload in red, ``"none"`` means no directive matched.
         payload: Command string (for rewrite) or message (for warn/error).
@@ -107,7 +107,7 @@ class Directive:
 
     Plugin files that intercept raw input lines before REPL/serial routing
     export a ``DIRECTIVE`` instance at module level.  Directives run in load
-    order — built-ins first, then global, then per-config.  A file may export
+    order - built-ins first, then global, then per-config.  A file may export
     ``COMMAND``, ``TRANSFORM``, and/or ``DIRECTIVE``.
 
     The handler receives the raw input line and returns a ``DirectiveResult``
@@ -150,7 +150,7 @@ class Transform:
     """Input rewriter declaration.
 
     Plugin files that rewrite command input export a ``TRANSFORM`` instance
-    at module level.  Transforms run in load order — built-ins first, then
+    at module level.  Transforms run in load order - built-ins first, then
     global, then per-config.  A file may export both ``COMMAND`` and
     ``TRANSFORM``.
 
@@ -207,7 +207,7 @@ class LoadResult:
 class EngineAPI:
     """Engine internals exposed to built-in plugins only.
 
-    External plugins should not use this — it may change between versions.
+    External plugins should not use this - it may change between versions.
     Access via ctx.engine from built-in command handlers.
     """
 
@@ -241,7 +241,7 @@ class PluginContext:
     """Stable API for plugin interaction with the terminal.
 
     Every plugin handler receives a PluginContext as its first argument.
-    This is the only interface plugins should use — it insulates them
+    This is the only interface plugins should use - it insulates them
     from Textual, pyserial, and internal engine details.
 
     Attributes:
@@ -252,27 +252,27 @@ class PluginContext:
             ``[bold red]text[/]``.
         log: Write a timestamped line to the session log file. Signature:
             ``log(prefix, text)`` where prefix is ``">"`` (TX), ``"<"`` (RX),
-            or ``"#"`` (status). Independent of screen output — always logged
+            or ``"#"`` (status). Independent of screen output - always logged
             regardless of echo settings.
         cfg: Read-only config dict (``MappingProxyType``). Access any config
             field with ``ctx.cfg.get("key", default)``. Do not mutate.
         config_path: Absolute path to the current JSON config file on disk.
         port: The underlying pyserial ``Serial`` object (or ``None`` when
-            disconnected). Returns the live object — properties like
+            disconnected). Returns the live object - properties like
             ``ctx.port().baudrate``, ``ctx.port().dtr``, etc. reflect current
             state. This is a callable; use ``ctx.port()`` not ``ctx.port``.
         is_connected: Returns ``True`` if the serial port is open.
         serial_write: Send raw bytes to the serial port. No line ending is
-            appended — pass exactly the bytes you want transmitted.
+            appended - pass exactly the bytes you want transmitted.
         serial_wait_idle: Block until the serial port has been quiet for ~400ms.
             Useful in scripts to wait for a device response before the next command.
         serial_read_raw: Collect raw bytes from the serial port with timeout-based
             framing. Signature: ``serial_read_raw(timeout_ms=1000) -> bytes``.
             Returns a complete frame (bytes) or ``b""`` on timeout.
         serial_claim: Suppress normal terminal display and claim exclusive access
-            to incoming serial bytes. Low-level primitive — prefer ``serial_io()``
+            to incoming serial bytes. Low-level primitive - prefer ``serial_io()``
             context manager instead.
-        serial_release: Resume normal terminal display. Low-level primitive —
+        serial_release: Resume normal terminal display. Low-level primitive -
             prefer ``serial_io()`` context manager instead.
         ss_dir: Path to the per-config screenshots directory (auto-created).
         scripts_dir: Path to the per-config scripts directory (auto-created).
@@ -292,7 +292,7 @@ class PluginContext:
         save_screenshot: Save the terminal view. Signature: ``save_screenshot(path)``.
         get_screen_text: Return all visible terminal output as a plain-text string.
         exit_app: Exit the application.
-        engine: Internal engine API (``EngineAPI``). **Built-in plugins only** —
+        engine: Internal engine API (``EngineAPI``). **Built-in plugins only** -
             this is unstable and may change between versions.
     """
 
@@ -302,7 +302,7 @@ class PluginContext:
     cfg: MappingProxyType | dict = field(default_factory=dict)
     config_path: str = ""
 
-    # Logging — log(prefix, text) writes a timestamped line to the session log.
+    # Logging - log(prefix, text) writes a timestamped line to the session log.
     # Prefixes: ">" TX (commands sent), "<" RX (device responses), "#" status.
     log: Callable = lambda prefix, text: None
 
@@ -323,7 +323,7 @@ class PluginContext:
     cap_dir: Path = field(default_factory=lambda: Path("."))
     prof_dir: Path = field(default_factory=lambda: Path("."))
 
-    # Dispatch — route a raw command through the full dispatch pipeline
+    # Dispatch - route a raw command through the full dispatch pipeline
     # (directives, transforms, REPL/serial). Thread-safe when wired via
     # call_from_thread in app.py.
     dispatch: Callable = lambda cmd: None  # dispatch(cmd) -> None
@@ -337,7 +337,7 @@ class PluginContext:
     open_file: Callable = lambda path: None  # open file in system viewer/editor
     exit_app: Callable = lambda: None
 
-    # Engine internals — used by built-in commands only
+    # Engine internals - used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
 
     @contextmanager
@@ -346,7 +346,7 @@ class PluginContext:
 
         While active, incoming bytes are queued for ``serial_read_raw()``
         instead of being displayed in the terminal.  Use this around any
-        drain → write → read cycle so responses are captured reliably.
+        drain -> write -> read cycle so responses are captured reliably.
 
         Usage::
 
@@ -524,7 +524,7 @@ def _flatten_command(
 
     handler = node.handler
     if not handler and children:
-        # Synthetic handler for interior nodes — lists subcommands
+        # Synthetic handler for interior nodes - lists subcommands
         handler = _make_interior_handler(full_name, children)
 
     if not handler:
@@ -568,5 +568,5 @@ def _make_interior_handler(
             if child:
                 short = child_name.rsplit(".", 1)[-1]
                 arg_str = f" {child.args}" if child.args else ""
-                ctx.write(f"  {prefix}{child_name}{arg_str} — {child.help}")
+                ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
     return _handler

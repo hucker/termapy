@@ -1,6 +1,6 @@
 """Built-in visualizer: raw hexadecimal byte values.
 
-Single-column layout using ``h1-*`` — all bytes displayed as
+Single-column layout using ``h1-*`` - all bytes displayed as
 spaced hex in one column with per-byte diff coloring.
 """
 
@@ -20,7 +20,7 @@ def format_spec(data: bytes) -> str:
     """Return the format spec string for the given data.
 
     Args:
-        data: Raw bytes (unused — spec is fixed).
+        data: Raw bytes (unused - spec is fixed).
 
     Returns:
         Format spec string.

@@ -1,4 +1,4 @@
-"""REPL engine for termapy — plugin-based command dispatch and scripting.
+"""REPL engine for termapy - plugin-based command dispatch and scripting.
 
 All commands (built-in and external) are plugins loaded as .py files.
 Built-in plugins ship in termapy/builtins/. External plugins are loaded
@@ -31,7 +31,7 @@ class ReplEngine:
         Args:
             cfg: Config dict (owned by the engine, wrapped in MappingProxyType).
             config_path: Path to the JSON config file on disk.
-            write: Callback for output — write(text, color="dim").
+            write: Callback for output - write(text, color="dim").
             prefix: REPL command prefix (default "/").
         """
         self._cfg_data = cfg
@@ -47,21 +47,21 @@ class ReplEngine:
         self._max_script_depth: int = 5
         self._echo: bool = True         # echo ! command lines to screen
 
-        # Plugin context — set by app.py after mount via set_context()
+        # Plugin context - set by app.py after mount via set_context()
         self.ctx = PluginContext(write=write)
 
-        # Unified plugin registry — all commands live here
+        # Unified plugin registry - all commands live here
         self._plugins: dict[str, PluginInfo] = {}
 
         # Config change callback (set by app.py)
         self._after_cfg = None  # callback: (key, new_val) -> None (post-apply refresh)
 
-        # Transform chains — populated during plugin/transform registration
+        # Transform chains - populated during plugin/transform registration
         self._repl_transforms: list[Callable] = []
         self._serial_transforms: list[Callable] = []
         self._transform_infos: list[TransformInfo] = []
 
-        # Directive chain — pre-dispatch line rewriters
+        # Directive chain - pre-dispatch line rewriters
         self._directives: list[DirectiveInfo] = []
 
         # Load built-in plugins from termapy/builtins/
@@ -175,15 +175,15 @@ class ReplEngine:
     ) -> None:
         """Route a raw command through the full pipeline.
 
-        Decides: /raw bypass → directives → REPL command → serial command.
+        Decides: /raw bypass -> directives -> REPL command -> serial command.
         Applies transforms and sends via callbacks. This is the testable
         core that app.py's ``_dispatch_single`` delegates to.
 
         Args:
             cmd: Raw command string (may have REPL prefix).
-            log: Log callback — log(direction, text).
+            log: Log callback - log(direction, text).
             echo_markup: Display markup text on screen.
-            status: Show status message — status(text, color).
+            status: Show status message - status(text, color).
             serial_write: Send encoded bytes to serial port.
             serial_write_raw: Send raw text to serial (no transforms).
             is_connected: Returns True if serial port is open.
@@ -194,7 +194,7 @@ class ReplEngine:
         _echo = echo_markup or (lambda _t: None)
         _status = status or (lambda _t, _c: None)
 
-        # 1. /raw bypass — no transforms, no directives
+        # 1. /raw bypass - no transforms, no directives
         if cmd.startswith(prefix + "raw "):
             raw_text = cmd[len(prefix) + 4:]
             _log(">", cmd)
@@ -204,7 +204,7 @@ class ReplEngine:
                 serial_write_raw(raw_text)
             return
 
-        # 2. Pre-dispatch directives (e.g. $(VAR) = value → /var.set)
+        # 2. Pre-dispatch directives (e.g. $(VAR) = value -> /var.set)
         result = self.run_directives(cmd)
         if result.action == "rewrite":
             _log(">", cmd)
@@ -241,7 +241,7 @@ class ReplEngine:
             self.dispatch(repl_cmd)
             return
 
-        # 4. Serial command — apply transforms, encode, send
+        # 4. Serial command - apply transforms, encode, send
         if self.has_serial_transforms:
             try:
                 cmd = self.transform_serial(cmd)
@@ -258,7 +258,7 @@ class ReplEngine:
             _echo(fmt.replace("{cmd}", echo_text))
 
         if is_connected and not is_connected():
-            _status("Not connected — command not sent", "red")
+            _status("Not connected - command not sent", "red")
             return
 
         line_ending = self.cfg.get("line_ending", "\r")
@@ -467,7 +467,7 @@ class ReplEngine:
                 prof_path = prof_dir / prof_name
                 prof_fh = open(prof_path, "w", encoding="utf-8")
                 prof_fh.write("Duration (sec),Command\n")
-                w(f"── profile: {path.name} → {prof_name} ──")
+                w(f"── profile: {path.name} -> {prof_name} ──")
             script_t0 = time.perf_counter()
             for step, raw_line in enumerate(lines, 1):
                 if self._script_stop.is_set():
@@ -480,7 +480,7 @@ class ReplEngine:
                 # THREADING: run_script runs in a background thread, but
                 # dispatch() routes commands to the main thread via
                 # call_from_thread. Commands that block (delay, confirm)
-                # MUST be handled here in the background thread — if they
+                # MUST be handled here in the background thread - if they
                 # run on the main thread, call_from_thread fails and
                 # blocking calls freeze the UI. When adding new commands
                 # that block or use call_from_thread internally, add them
@@ -519,7 +519,7 @@ class ReplEngine:
                         self.ctx.log(">", stripped)
                         nested_profile = name.lower() == "run.profile"
                         run_args = args.strip()
-                        # Strip -v/--verbose from nested /run — inherited
+                        # Strip -v/--verbose from nested /run - inherited
                         run_tokens = run_args.split()
                         run_args = " ".join(
                             t for t in run_tokens if t not in ("-v", "--verbose")
@@ -590,7 +590,7 @@ class ReplEngine:
                     prof_fh.flush()
                     for line in prof_path.read_text(encoding="utf-8").splitlines():
                         w(line)
-                    w(f"── {total:.3f}s total ({len(profile_times)} commands) → {prof_name} ──")
+                    w(f"── {total:.3f}s total ({len(profile_times)} commands) -> {prof_name} ──")
                 elif self._script_depth <= 1:
                     w("Script finished.")
         except Exception as e:

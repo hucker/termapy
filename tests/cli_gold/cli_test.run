@@ -1,0 +1,158 @@
+# CLI gold-standard test - deterministic commands only
+# Exercises device commands, REPL commands, variables, config, port control,
+# protocol CRC, environment variables, and error handling.
+# Skip: /delay, /confirm, /grep, /ss, /cls, /cap, /os, /run (nested)
+# Skip: AT+TEMP, AT+INFO, AT+STATUS, AT+RESET, NMEA (nondeterministic)
+# Skip: /port.list (hardware-dependent)
+
+# ── Device commands ──────────────────────────────────────────────────────────
+/print === section: device commands ===
+AT
+AT+PROD-ID
+AT+LED on
+AT+LED off
+AT+NAME?
+AT+NAME=TestDevice
+AT+NAME?
+AT+BAUD?
+help
+mem 0x1000 32
+mem 0x2000 16
+AT+TEXTDUMP 3
+BOGUS
+AT+LED on
+AT+LED off
+
+# ── REPL: print and echo ────────────────────────────────────────────────────
+/print === section: print and echo ===
+/echo off
+/print echo is off - this should appear
+/echo on
+/print echo is on - this should appear with echo line
+
+# ── REPL: variables (set/use/clear, but don't list all - times are dynamic)
+/print === section: variables ===
+$(DEVICE) = BASSOMATIC
+$(PORT_NUM) = 42
+/print device=$(DEVICE) port=$(PORT_NUM)
+/var DEVICE
+/var PORT_NUM
+/var.set DEVICE updated_value
+/var DEVICE
+/var.clear
+/var DEVICE
+
+# ── REPL: config queries ────────────────────────────────────────────────────
+/print === section: config read ===
+/cfg baud_rate
+/cfg encoding
+/cfg line_ending
+/cfg parity
+/cfg byte_size
+/cfg stop_bits
+/cfg flow_control
+/cfg echo_input
+/cfg send_bare_enter
+/cfg cmd_prefix
+
+# ── REPL: config auto-set (no confirmation dialog) ──────────────────────────
+/print === section: config auto-set ===
+/cfg.auto echo_input true
+/cfg echo_input
+/cfg.auto echo_input false
+/cfg echo_input
+
+# ── REPL: config dump (full JSON) ───────────────────────────────────────────
+/print === section: config dump ===
+/cfg.dump
+
+# ── REPL: config folder listings ────────────────────────────────────────────
+/print === section: config folders ===
+/cfg.scripts
+/cfg.proto
+
+# ── REPL: port control - read all properties ────────────────────────────────
+/print === section: port read ===
+/port.baud_rate
+/port.parity
+/port.byte_size
+/port.stop_bits
+/port.flow_control
+/port.dtr
+/port.rts
+/port.cts
+/port.dsr
+/port.ri
+/port.cd
+/port.info
+
+# ── REPL: port control - modify properties ──────────────────────────────────
+/print === section: port modify ===
+/port.dtr 0
+/port.dtr
+/port.dtr 1
+/port.dtr
+/port.rts 0
+/port.rts
+
+# ── REPL: port control - close and reopen ───────────────────────────────────
+/print === section: port close/open ===
+/port.close
+/port.baud_rate
+/port.open
+/port.baud_rate
+
+# ── REPL: port break ────────────────────────────────────────────────────────
+/print === section: port break ===
+/port.break
+/port.break 100
+
+# ── REPL: port subcommand listing ───────────────────────────────────────────
+/print === section: port subcommands ===
+/port
+
+# ── REPL: show_line_endings toggle ──────────────────────────────────────────
+/print === section: line endings ===
+/show_line_endings on
+/show_line_endings off
+
+# ── REPL: sequence counters ─────────────────────────────────────────────────
+/print === section: seq ===
+/seq
+/print seq1={seq1+} seq2={seq2+}
+/print seq1={seq1+} seq2={seq2}
+/seq
+/seq.reset
+/seq
+
+# ── REPL: protocol CRC tools ────────────────────────────────────────────────
+/print === section: proto crc ===
+/proto.crc.help crc16-modbus
+/proto.crc.calc crc16-modbus 01 03 00 00 00 0A
+/proto.crc.calc crc8-maxim 48 65 6C 6C 6F
+/proto.crc.calc crc32 01 02 03 04
+
+# ── REPL: help for specific commands ────────────────────────────────────────
+/print === section: help ===
+/help echo
+/help port
+/help cfg
+/help proto.crc
+/help var
+/help cap
+
+# ── REPL: environment variables ─────────────────────────────────────────────
+/print === section: env vars ===
+/env.set TEST_VAR hello_world
+/env.list TEST_VAR
+/env.set TEST_VAR updated
+/env.list TEST_VAR
+
+# ── REPL: error handling ────────────────────────────────────────────────────
+/print === section: errors ===
+/nonexistent_command
+/cfg nonexistent_key
+/port.baud_rate not_a_number
+/port.parity X
+/port.dtr maybe
+/port.break -5

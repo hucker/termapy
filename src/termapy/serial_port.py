@@ -5,7 +5,7 @@ detection, and queue draining. ``SerialReader`` processes raw bytes into
 display lines, handling encoding, line splitting, EOL markers, ANSI
 partial-escape buffering, and clear-screen detection.
 
-No Textual dependency — fully testable.
+No Textual dependency - fully testable.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ class SerialPort:
     Args:
         port: A ``serial.Serial`` or duck-typed equivalent (e.g. ``FakeSerial``).
         rx_queue: Queue fed by the background serial reader thread.
-        log: Logging callback — log(direction, text). Direction is ">" for TX.
+        log: Logging callback - log(direction, text). Direction is ">" for TX.
         encoding: Character encoding for decoding TX bytes for logging.
     """
 
@@ -174,7 +174,7 @@ class SerialReader:
     CaptureEngine when active.
 
     This class holds the text buffer state between ``process()`` calls
-    but has no threading or I/O — the caller drives it.
+    but has no threading or I/O - the caller drives it.
 
     Args:
         encoding: Character encoding for decoding bytes.
@@ -228,7 +228,7 @@ class SerialReader:
         result = ReaderResult()
 
         if data:
-            # Feed binary capture if active — consume data, skip display
+            # Feed binary capture if active - consume data, skip display
             cap = self._capture
             if cap and getattr(cap, "active", False) and getattr(cap, "mode", "") == "bin":
                 target_reached = cap.feed_bytes(data)
@@ -266,7 +266,7 @@ class SerialReader:
                     result.lines.append(line)
 
         else:
-            # No data — flush partial line after 200ms of silence
+            # No data - flush partial line after 200ms of silence
             if self._buf and (time.monotonic() - self._last_rx) >= 0.2:
                 if not PARTIAL_ANSI_RE.search(self._buf):
                     result.lines.append(self._buf)

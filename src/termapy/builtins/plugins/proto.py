@@ -42,7 +42,7 @@ def _display_bytes(ctx: PluginContext, direction: str, data: bytes,
 
     Args:
         ctx: Plugin context for output.
-        direction: Label prefix — ``"TX"`` (cyan) or ``"RX"`` (yellow).
+        direction: Label prefix - ``"TX"`` (cyan) or ``"RX"`` (yellow).
         data: Raw bytes to display.
         binary: If True, display short packets as hex instead of smart format.
     """
@@ -116,7 +116,7 @@ def _run_toml_script(ctx: PluginContext, path: Path,
     script_name = script.name or path.name
     ctx.write(f"{'─' * 40}")
     ctx.write(f"  {script_name}", "bold underline bright_white")
-    ctx.write(f"  {path.name} — {len(script.tests)} tests", "dim")
+    ctx.write(f"  {path.name} - {len(script.tests)} tests", "dim")
     ctx.write(f"{'─' * 40}")
 
     frame_gap = script.frame_gap_ms
@@ -194,7 +194,7 @@ def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
     script_name = settings.get("name") or path.name
     ctx.write(f"{'─' * 40}")
     ctx.write(f"  {script_name}", "bold underline bright_white")
-    ctx.write(f"  {path.name} — {len(steps)} steps", "dim")
+    ctx.write(f"  {path.name} - {len(steps)} steps", "dim")
     ctx.write(f"{'─' * 40}")
 
     pass_count = 0
@@ -565,7 +565,7 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
         if name in registry:
             alg = registry[name]
             ctx.write(f"  {name} (plugin, {alg.width * 8}-bit)")
-            ctx.write("  No catalogue parameters — loaded from plugin file.")
+            ctx.write("  No catalogue parameters - loaded from plugin file.")
             return
         ctx.write(f"Unknown algorithm: {name}", "red")
         ctx.write("Use '/proto.crc.list' to see available algorithms.")
@@ -641,7 +641,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
         ctx.write("Use '/proto.crc.list' to see available algorithms.")
         return
 
-    # No data provided — use the standard check string "123456789"
+    # No data provided - use the standard check string "123456789"
     check_mode = len(parts) < 2
     file_path: Path | None = None
     if check_mode:
@@ -702,13 +702,13 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
             expected = entry["check"]
             if crc_val == expected:
                 ctx.write(
-                    f"  Check:     PASS — matches expected "
+                    f"  Check:     PASS - matches expected "
                     f"0x{expected:0{hex_w}X}",
                     "green",
                 )
             else:
                 ctx.write(
-                    f"  Check:     FAIL — expected "
+                    f"  Check:     FAIL - expected "
                     f"0x{expected:0{hex_w}X}",
                     "red",
                 )
@@ -739,21 +739,21 @@ COMMAND = Command(
     help="Binary protocol tools: send, run, debug, hex, crc, status.",
     long_help="""\
 Send examples:
-  /proto.send 01 02 03         — send three hex bytes
-  /proto.send "AT\\r"           — send text with carriage return
-  /proto.send 0x01 "hello" 0D  — mix hex and text
+  /proto.send 01 02 03         - send three hex bytes
+  /proto.send "AT\\r"           - send text with carriage return
+  /proto.send 0x01 "hello" 0D  - mix hex and text
 
 Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
-  /proto.send crc16-modbus 01 03 00 00 00 0A            — append LE CRC (default)
-  /proto.send crc16-modbus_be 01 03 00 00 00 0A         — append BE CRC
-  /proto.send crc16-modbus_ascii "READ 0000"             — append CRC as hex text
-  /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   — BE CRC as hex text
+  /proto.send crc16-modbus 01 03 00 00 00 0A            - append LE CRC (default)
+  /proto.send crc16-modbus_be 01 03 00 00 00 0A         - append BE CRC
+  /proto.send crc16-modbus_ascii "READ 0000"             - append CRC as hex text
+  /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
 
 CRC tools:
-  /proto.crc.list              — list all 62 algorithms
-  /proto.crc.list *modbus*     — filter by glob pattern
-  /proto.crc.help crc16-modbus — show parameters for Modbus CRC
-  /proto.crc.calc crc16-modbus 01 03 00 00 00 01  — compute CRC
+  /proto.crc.list              - list all 62 algorithms
+  /proto.crc.list *modbus*     - filter by glob pattern
+  /proto.crc.help crc16-modbus - show parameters for Modbus CRC
+  /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
 
 Script files (.pro) support TOML format with [[test]] sections
 or flat format with send:/expect: directives. Scripts are found

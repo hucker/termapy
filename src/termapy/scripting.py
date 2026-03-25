@@ -76,9 +76,9 @@ def parse_script_lines(
 
     Returns:
         List of (kind, content) tuples where kind is one of:
-            'skip'   — blank line or comment (starts with #)
-            'repl'   — REPL command (prefix stripped)
-            'serial' — plain text to send to the device
+            'skip'   - blank line or comment (starts with #)
+            'repl'   - REPL command (prefix stripped)
+            'serial' - plain text to send to the device
     """
     result = []
     for line in lines:
@@ -124,7 +124,7 @@ def resolve_seq_filename(filename: str, directory: Path) -> str:
     width = len(zeros)
     if width > _MAX_SEQ_WIDTH:
         raise ValueError(
-            f"$(n{zeros}) too wide — max {_MAX_SEQ_WIDTH} digits."
+            f"$(n{zeros}) too wide - max {_MAX_SEQ_WIDTH} digits."
         )
 
     max_num = 10**width - 1

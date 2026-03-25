@@ -128,7 +128,7 @@ def _show_command_help(ctx: PluginContext, name: str,
         ctx.write(f"Unknown command: {name}", "red")
         return
     arg_str = f" {_color_args(plugin.args)}" if plugin.args else ""
-    ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} — {plugin.help}")
+    ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} - {plugin.help}")
     if dev_mode:
         docstring = getattr(plugin.handler, "__doc__", None)
         if docstring:
@@ -150,7 +150,7 @@ def _show_command_help(ctx: PluginContext, name: str,
                 suffix = f"  [{_SEP}]...[/]" if child.children else ""
                 ctx.write_markup(
                     f"    [{_CMD}]{prefix}{child_name}[/]{arg_str}"
-                    f" — {child.help}{suffix}"
+                    f" - {child.help}{suffix}"
                 )
     if plugin.source not in ("built-in", "app"):
         ctx.write_markup(f"  [{_SRC}](source: {plugin.source})[/]")
@@ -251,9 +251,9 @@ COMMAND = Command(
     help="List REPL commands, or show help for one command.",
     long_help="""\
 Three modes:
-  /help              — list all commands with subcommands
-  /help <cmd>        — show usage, help text, and subcommands
-  /help proto.crc    — show help for a subcommand (dot notation)""",
+  /help              - list all commands with subcommands
+  /help <cmd>        - show usage, help text, and subcommands
+  /help proto.crc    - show help for a subcommand (dot notation)""",
     handler=_handler,
     sub_commands={
         "dev": Command(

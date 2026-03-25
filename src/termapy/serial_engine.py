@@ -1,6 +1,6 @@
-"""SerialEngine — orchestrates serial port, reader, and capture.
+"""SerialEngine - orchestrates serial port, reader, and capture.
 
-Owns the connection lifecycle and reader loop. No Textual dependency —
+Owns the connection lifecycle and reader loop. No Textual dependency -
 the caller provides callbacks for UI events and runs ``read_loop`` in
 a background thread.
 """
@@ -28,7 +28,7 @@ class SerialEngine:
         cfg: Config dict (read for encoding, line endings, etc.).
         capture: CaptureEngine instance for data capture.
         open_fn: Callable that takes cfg and returns a serial port object.
-        log: Log callback — log(direction, text).
+        log: Log callback - log(direction, text).
     """
 
     def __init__(
@@ -147,7 +147,7 @@ class SerialEngine:
         on_error: Callable[[str], None] | None = None,
         on_disconnect: Callable[[], None] | None = None,
     ) -> None:
-        """Blocking reader loop — call from a background thread.
+        """Blocking reader loop - call from a background thread.
 
         Reads from the serial port, processes bytes through SerialReader,
         and calls callbacks for each event. Returns when stop_event is set

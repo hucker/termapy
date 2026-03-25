@@ -9,6 +9,7 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 ```text
 src/termapy/
 ├── app.py               # (3030 lines) Textual TUI — UI, modals, app hooks
+├── cli.py               # (500 lines)  Plain-text CLI frontend — no Textual
 ├── serial_engine.py     # (215 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py       # (280 lines)  Serial I/O wrapper + SerialReader data processor
 ├── capture.py           # (340 lines)  Capture state machine — text, binary, format spec
@@ -27,7 +28,7 @@ src/termapy/
 ├── help/                #              Markdown help pages (source for MkDocs)
 ├── html/                #              Generated HTML help (MkDocs Material output)
 ├── builtins/
-│   ├── plugins/         #              18 built-in REPL command plugins
+│   ├── plugins/         #              20 built-in REPL command plugins
 │   ├── viz/             #              Built-in packet visualizers (hex, text)
 │   ├── crc/             #              Built-in CRC plugins (sum8, sum16)
 │   └── demo/            #              Demo config, scripts, proto files, plugins
@@ -69,11 +70,12 @@ Every handler receives a `PluginContext` — the stable API boundary between plu
 ```text
 Output:          ctx.write(), ctx.write_markup(), ctx.notify()
 Config:          ctx.cfg, ctx.config_path
+Serial port:     ctx.port() — raw pyserial object (or None)
+                 ctx.is_connected()
 Serial I/O:     ctx.serial_write(), ctx.serial_read_raw(), ctx.serial_drain()
                  ctx.serial_wait_idle(), ctx.serial_io() (context manager)
-                 ctx.is_connected()
 Filesystem:      ctx.ss_dir, ctx.scripts_dir, ctx.proto_dir, ctx.cap_dir
-Interaction:     ctx.confirm(), ctx.clear_screen()
+Interaction:     ctx.confirm(), ctx.clear_screen(), ctx.open_file()
 Dispatch:        ctx.dispatch() — route a command through the full pipeline
 Engine:          ctx.engine — internal/unstable API for built-ins
 ```
@@ -83,13 +85,13 @@ External plugins use `PluginContext` only. `EngineAPI` is internal and may chang
 ### Loading Order (later overrides earlier)
 
 ```text
-1. builtins/plugins/         — 20 built-in commands (shipped with termapy)
+1. builtins/plugins/         — 22 built-in commands (shipped with termapy)
 2. termapy_cfg/plugins/      — user plugins (all configs on this machine)
 3. termapy_cfg/<name>/plugins/ — per-config plugins (one config only)
-4. App hooks (app.py)        — commands needing Textual access (connect, ss, run, port, etc.)
+4. App hooks (app.py/cli.py) — commands needing frontend access (ss, run, delay, etc.)
 ```
 
-A user plugin with the same name as a built-in replaces it. App hooks override everything — they need direct access to Textual widgets and serial state.
+A user plugin with the same name as a built-in replaces it. App hooks override everything — they need direct access to frontend-specific features (Textual widgets in TUI, readline in CLI).
 
 ### Transforms
 
@@ -155,7 +157,7 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 │  └──────────────────────────────────────────┘    │
 │  ┌──────────────────────────────────────────┐    │
 │  │ App Hooks — commands needing Textual     │    │
-│  │ port, ss, run, cfg.load, edit, help.open │    │
+│  │ ss, run, delay, cfg.load, edit, help.open│    │
 │  └──────────────────────────────────────────┘    │
 ├──────────────────────────────────────────────────┤
 │  serial_engine.py — SerialEngine                 │
@@ -203,6 +205,20 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 │  proto_runner.py   — protocol test execution     │
 └──────────────────────────────────────────────────┘
 ```
+
+## CLI Mode (`cli.py`)
+
+`termapy --cli` runs a plain-text terminal without Textual. It shares the same `ReplEngine`, `SerialEngine`, `PluginContext`, and all built-in plugins. The difference is how the frontend wires `PluginContext` callbacks:
+
+| Callback          | TUI (app.py)                 | CLI (cli.py)                  |
+| ----------------- | ---------------------------- | ----------------------------- |
+| `ctx.write()`     | `RichLog.write(Text(...))`   | `Rich Console.print()`        |
+| `ctx.confirm()`   | Modal dialog + `event.wait()`| `input()` prompt              |
+| `ctx.open_file()` | `open_with_system()`         | `open_with_system()`          |
+| `ctx.port()`      | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
+| `/delay`          | `set_timer()` (non-blocking) | `time.sleep()` + progress bar |
+
+CLI-specific features: readline tab completion, shared command history, `/color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer), no `/edit.cfg` (no config editor modal).
 
 ## Key Data Flows
 
@@ -304,28 +320,30 @@ termapy_cfg/
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread. `post_message` is used for script lifecycle events (thread-safe).
 
-## Built-in Plugins (18 files)
+## Built-in Plugins (20 files)
 
-| Plugin      | Command            | Purpose                                           |
-| ----------- | ------------------ | ------------------------------------------------- |
-| cap.py      | /cap               | Unified data capture (text, bin, struct, hex)     |
-| cfg.py      | /cfg               | Config values, info, explore, per-folder file ops |
-| cls.py      | /cls               | Clear terminal                                    |
-| confirm.py  | /confirm           | Yes/Cancel dialog (scripts)                       |
-| echo.py     | /echo              | Toggle command echo                               |
-| env_var.py  | /env               | Environment variable management                   |
-| eol.py      | /show_line_endings | Toggle line ending markers                        |
-| exit.py     | /exit              | Quit the app                                      |
-| grep.py     | /grep              | Search scrollback                                 |
-| help.py     | /help              | Colorized command listing and help                |
-| os_cmd.py   | /os                | Run shell commands                                |
-| print.py    | /print             | Print to terminal                                 |
-| proto.py    | /proto             | Binary protocol tools                             |
-| seq.py      | /seq               | Sequence counters                                 |
-| show.py     | /show              | Display files                                     |
-| ss.py       | /ss                | Screenshots (placeholder, hooks override)         |
-| stop.py     | /stop              | Abort running script                              |
-| var.py      | /var               | User variables                                    |
+| Plugin       | Command            | Purpose                                           |
+| ------------ | ------------------ | ------------------------------------------------- |
+| cap.py       | /cap               | Unified data capture (text, bin, struct, hex)     |
+| cfg.py       | /cfg               | Config values, info, explore, per-folder file ops |
+| cls.py       | /cls               | Clear terminal                                    |
+| confirm.py   | /confirm           | Yes/Cancel dialog (scripts)                       |
+| echo.py      | /echo              | Toggle command echo                               |
+| env_var.py   | /env               | Environment variable management                   |
+| eol.py       | /show_line_endings | Toggle line ending markers                        |
+| exit.py      | /exit              | Quit the app                                      |
+| grep.py      | /grep              | Search scrollback (TUI only)                      |
+| help.py      | /help              | Colorized command listing and help                |
+| os_cmd.py    | /os                | Run shell commands                                |
+| port.py      | /port              | Serial port control (17 subcommands)              |
+| print.py     | /print             | Print to terminal                                 |
+| proto.py     | /proto             | Binary protocol tools                             |
+| run_edit.py  | /run.edit          | Open .run scripts in system editor                |
+| seq.py       | /seq               | Sequence counters                                 |
+| show.py      | /show              | Display files                                     |
+| ss.py        | /ss                | Screenshots (placeholder, hooks override)         |
+| stop.py      | /stop              | Abort running script                              |
+| var.py       | /var               | User variables                                    |
 
 ## Test Coverage
 

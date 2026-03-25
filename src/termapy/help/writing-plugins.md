@@ -114,10 +114,11 @@ Key points:
 | `ctx.config_path` | Path to the `.cfg` file |
 | `ctx.cfg.get("key", default)` | Read a config value |
 
-### Serial I/O
+### Serial Port
 
 | Method | Description |
 | --- | --- |
+| `ctx.port()` | The raw pyserial object, or `None` when disconnected |
 | `ctx.is_connected()` | True if the serial port is open |
 | `ctx.serial_io()` | Context manager for exclusive serial access |
 | `ctx.serial_drain()` | Discard stale bytes in the receive buffer |
@@ -141,6 +142,7 @@ Key points:
 | --- | --- |
 | `ctx.dispatch(cmd)` | Run a REPL or serial command |
 | `ctx.confirm(message)` | Yes/Cancel dialog → bool (background thread only) |
+| `ctx.open_file(path)` | Open a file or folder in the system viewer/editor |
 | `ctx.log(prefix, text)` | Write to session log (`">"` TX, `"<"` RX, `"#"` status) |
 
 ## Subcommands

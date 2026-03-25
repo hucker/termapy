@@ -1,4 +1,4 @@
-"""Tests for SerialPort — serial I/O wrapper using FakeSerial."""
+"""Tests for SerialPort and SerialReader."""
 
 import queue
 import time
@@ -6,7 +6,7 @@ import time
 import pytest
 
 from termapy.demo import FakeSerial
-from termapy.serial_port import SerialPort
+from termapy.serial_port import SerialPort, SerialReader
 
 
 @pytest.fixture
@@ -199,3 +199,224 @@ class TestWaitForIdle:
 
         # Assert
         assert elapsed < 0.1  # returned immediately
+
+
+# -- SerialReader --------------------------------------------------------------
+
+
+class TestSerialReaderLines:
+    def test_complete_line(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"hello world\r\n")
+
+        # Assert
+        assert result.lines == ["hello world"]  # complete line extracted
+
+    def test_multiple_lines(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"line1\r\nline2\r\nline3\r\n")
+
+        # Assert
+        assert result.lines == ["line1", "line2", "line3"]  # all lines
+
+    def test_partial_line_buffered(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result1 = reader.process(b"hello ")
+        result2 = reader.process(b"world\r\n")
+
+        # Assert
+        assert result1.lines == []  # no newline yet
+        assert result2.lines == ["hello world"]  # assembled
+
+    def test_empty_lines_skipped(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"\r\n\r\nhello\r\n\r\n")
+
+        # Assert
+        assert result.lines == ["hello"]  # blanks skipped
+
+    def test_cr_stripped(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"hello\r\n")
+
+        # Assert
+        assert result.lines == ["hello"]  # \r stripped
+
+
+class TestSerialReaderIdleFlush:
+    def test_flush_partial_after_silence(self):
+        # Arrange
+        reader = SerialReader()
+        reader.process(b"partial")
+
+        # Simulate 200ms+ of silence
+        reader._last_rx = time.monotonic() - 0.3
+
+        # Act
+        result = reader.process(b"")
+
+        # Assert
+        assert result.lines == ["partial"]  # flushed
+
+    def test_no_flush_during_ansi_escape(self):
+        # Arrange
+        reader = SerialReader()
+        reader.process(b"text\x1b[")  # incomplete ANSI escape
+
+        # Simulate silence
+        reader._last_rx = time.monotonic() - 0.3
+
+        # Act
+        result = reader.process(b"")
+
+        # Assert
+        assert result.lines == []  # not flushed — waiting for escape to complete
+
+
+class TestSerialReaderClearScreen:
+    def test_clear_screen_detected(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"\x1b[2Jhello\r\n")
+
+        # Assert
+        assert result.clear_screen is True  # detected
+        assert result.lines == ["hello"]  # text after clear
+
+    def test_clear_screen_with_cursor_home(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"\x1b[H\x1b[2Jhello\r\n")
+
+        # Assert
+        assert result.clear_screen is True  # detected with home prefix
+
+
+class TestSerialReaderEOLMarkers:
+    def test_eol_markers_inserted(self):
+        # Arrange
+        reader = SerialReader(show_line_endings=True)
+
+        # Act
+        result = reader.process(b"hello\r\n")
+
+        # Assert
+        assert len(result.lines) == 1
+        assert "\\r" in result.lines[0]  # visible CR marker present
+
+    def test_no_markers_by_default(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        result = reader.process(b"hello\r\n")
+
+        # Assert
+        assert "\\r" not in result.lines[0]  # no markers
+
+
+class TestSerialReaderCapture:
+    def test_binary_capture_consumes_data(self):
+        # Arrange — mock capture engine
+        class MockCapture:
+            active = True
+            mode = "bin"
+            fed = []
+            def feed_bytes(self, data):
+                self.fed.append(data)
+                return False
+
+        cap = MockCapture()
+        reader = SerialReader(capture=cap)
+
+        # Act
+        result = reader.process(b"\x01\x02\x03")
+
+        # Assert
+        assert result.lines == []  # no display output
+        assert cap.fed == [b"\x01\x02\x03"]  # data went to capture
+
+    def test_capture_target_reached(self):
+        # Arrange
+        class MockCapture:
+            active = True
+            mode = "bin"
+            def feed_bytes(self, data):
+                return True  # target reached
+
+        reader = SerialReader(capture=MockCapture())
+
+        # Act
+        result = reader.process(b"\x01\x02")
+
+        # Assert
+        assert result.capture_target_reached is True
+
+    def test_text_capture_not_consumed(self):
+        # Arrange — text mode capture doesn't intercept in reader
+        class MockCapture:
+            active = True
+            mode = "text"
+
+        reader = SerialReader(capture=MockCapture())
+
+        # Act
+        result = reader.process(b"hello\r\n")
+
+        # Assert
+        assert result.lines == ["hello"]  # passed through to display
+
+
+class TestSerialReaderProtoActive:
+    def test_display_suppressed(self):
+        # Arrange
+        reader = SerialReader(proto_active=lambda: True)
+
+        # Act
+        result = reader.process(b"hello\r\n")
+
+        # Assert
+        assert result.lines == []  # suppressed
+
+    def test_display_not_suppressed(self):
+        # Arrange
+        reader = SerialReader(proto_active=lambda: False)
+
+        # Act
+        result = reader.process(b"hello\r\n")
+
+        # Assert
+        assert result.lines == ["hello"]  # normal
+
+
+class TestSerialReaderReset:
+    def test_reset_clears_buffer(self):
+        # Arrange
+        reader = SerialReader()
+        reader.process(b"partial")
+
+        # Act
+        reader.reset()
+        result = reader.process(b"new\r\n")
+
+        # Assert
+        assert result.lines == ["new"]  # no leftover from before reset

@@ -62,7 +62,7 @@ from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_f
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
-from termapy.serial_port import SerialPort
+from termapy.serial_port import SerialPort, SerialReader, eol_label
 from termapy.repl import ReplEngine
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
@@ -104,26 +104,6 @@ class CommandSuggester(Suggester):
 
 # Regex to strip ANSI escape sequences for plain-text logging
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
-# ANSI clear screen sequence (with optional cursor-home prefix)
-CLEAR_SCREEN_RE = re.compile(r"(\x1b\[H)?\x1b\[2J")
-# Incomplete ANSI escape at end of buffer: ESC, or ESC[ with optional digits/semicolons
-PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
-
-# Dim ANSI markers for visible EOL display (show_line_endings mode)
-_EOL_CR = "\x1b[2m\\r\x1b[0m"
-_EOL_LF = "\x1b[2m\\n\x1b[0m"
-
-
-def _eol_label(line_ending: str) -> str:
-    """Return a dim ANSI label for a line ending string.
-
-    Args:
-        line_ending: The line ending characters (e.g. "\\r", "\\n", "\\r\\n").
-
-    Returns:
-        Dim ANSI string showing the ending, e.g. ``\\r\\n`` for CR+LF.
-    """
-    return line_ending.replace("\r", _EOL_CR).replace("\n", _EOL_LF)
 
 
 class SerialTerminal(App):
@@ -962,6 +942,12 @@ class SerialTerminal(App):
                 log=self._log_line,
                 encoding=self.cfg.get("encoding", "utf-8"),
             )
+            self._reader = SerialReader(
+                encoding=self.cfg.get("encoding", "utf-8"),
+                show_line_endings=self.cfg.get("show_line_endings", False),
+                capture=self._capture,
+                proto_active=lambda: self._proto_active,
+            )
             self.notify(
                 f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", timeout=0.75
             )
@@ -1729,9 +1715,8 @@ class SerialTerminal(App):
     @work(thread=True)
     def read_serial(self) -> None:
         """Background thread: read serial port and post to output."""
+        reader = self._reader
         try:
-            buf = ""
-            last_rx = time.monotonic()
             while not self.stop_event.is_set():
                 if not self.ser or not self.ser.is_open:
                     break
@@ -1762,60 +1747,20 @@ class SerialTerminal(App):
                     # Feed raw bytes to protocol queue for /proto
                     self._raw_rx_queue.put(data)
 
-                    # Binary capture tap — feed bytes to capture engine
-                    # and skip display (capture consumes the data)
-                    if self._capture.active and self._capture.mode == "bin":
-                        target_reached = self._capture.feed_bytes(data)
-                        if target_reached:
-                            try:
-                                self.call_from_thread(self._cap_stop)
-                            except RuntimeError:
-                                pass
-                        continue
+                result = reader.process(data)
 
-                # Suppress normal display while proto script is running
-                if self._proto_active:
-                    if data:
-                        last_rx = time.monotonic()
-                        buf = ""
-                    continue
+                if result.capture_target_reached:
+                    try:
+                        self.call_from_thread(self._cap_stop)
+                    except RuntimeError:
+                        pass
+                if result.clear_screen:
+                    self.call_from_thread(self._clear_output)
+                if result.lines:
+                    self.call_from_thread(self._write_batch, result.lines)
 
                 if not data:
-                    # Flush partial line only after 200ms of silence
-                    if buf and (time.monotonic() - last_rx) >= 0.2:
-                        if not PARTIAL_ANSI_RE.search(buf):
-                            self.call_from_thread(
-                                self._write_batch, [buf])
-                            buf = ""
                     time.sleep(0.01)  # avoid busy-spin when idle
-                    continue
-
-                last_rx = time.monotonic()
-                text = data.decode(self.cfg.get("encoding", "utf-8"), errors="replace")
-
-                # Insert visible EOL markers before line splitting consumes them
-                if self.cfg.get("show_line_endings", False):
-                    text = text.replace("\r", _EOL_CR + "\r")
-                    text = text.replace("\n", _EOL_LF + "\n")
-
-                buf += text
-
-                # Check for clear screen in raw buffer before line splitting
-                # Discard everything before and including the clear sequence
-                m = CLEAR_SCREEN_RE.search(buf)
-                if m:
-                    buf = buf[m.end() :]
-                    self.call_from_thread(self._clear_output)
-
-                # Collect all complete lines, post as a single batch
-                lines = []
-                while "\n" in buf:
-                    line, buf = buf.split("\n", 1)
-                    line = line.strip("\r")
-                    if line:
-                        lines.append(line)
-                if lines:
-                    self.call_from_thread(self._write_batch, lines)
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
         finally:
@@ -2094,7 +2039,7 @@ class SerialTerminal(App):
             echo_text = text
             if self.cfg.get("show_line_endings", False):
                 le = self.cfg.get("line_ending", "\r")
-                echo_text += _eol_label(le)
+                echo_text += eol_label(le)
             self._write_output_markup(fmt.replace("{cmd}", echo_text))
         if not self.is_connected:
             self._status("Not connected — command not sent", "red")
@@ -2117,7 +2062,7 @@ class SerialTerminal(App):
             serial_write=self._serial_write,
             serial_write_raw=self._send_serial_raw,
             is_connected=lambda: self.is_connected,
-            eol_label=_eol_label,
+            eol_label=eol_label,
         )
         # Clear input (only for interactive commands, not scripts)
         if not self.repl.in_script:

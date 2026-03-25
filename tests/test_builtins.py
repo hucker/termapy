@@ -613,3 +613,268 @@ class TestGrep:
         assert any("first 5 of 20" in t for t in texts)  # assert config cap message
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
         assert len(grep_lines) == 5  # assert only 5 lines output
+
+
+# -- /cls -----------------------------------------------------------------
+
+
+class TestCls:
+    def test_cls_calls_clear_screen(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        cleared = []
+        engine.ctx.clear_screen = lambda: cleared.append(True)
+
+        # Act
+        engine.dispatch("cls")
+
+        # Assert
+        assert len(cleared) == 1  # clear_screen called
+
+
+# -- /show_line_endings ---------------------------------------------------
+
+
+class TestEol:
+    def test_eol_toggle_on(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+        cfg["show_line_endings"] = False
+
+        # Act
+        engine.dispatch("show_line_endings")
+
+        # Assert
+        assert cfg["show_line_endings"] is True  # toggled on
+
+    def test_eol_toggle_off(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+        cfg["show_line_endings"] = True
+
+        # Act
+        engine.dispatch("show_line_endings")
+
+        # Assert
+        assert cfg["show_line_endings"] is False  # toggled off
+
+    def test_eol_explicit_on(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+        cfg["show_line_endings"] = False
+
+        # Act
+        engine.dispatch("show_line_endings on")
+
+        # Assert
+        assert cfg["show_line_endings"] is True  # set to on
+
+    def test_eol_explicit_off(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+        cfg["show_line_endings"] = True
+
+        # Act
+        engine.dispatch("show_line_endings off")
+
+        # Assert
+        assert cfg["show_line_endings"] is False  # set to off
+
+
+# -- /cap (arg parsing) ---------------------------------------------------
+
+
+class TestCapArgParsing:
+    """Test cap.py keyword extraction — pure function, no serial needed."""
+
+    def test_extract_keywords_basic(self):
+        from termapy.builtins.plugins.cap import _extract_keyword_sections
+
+        # Act
+        result = _extract_keyword_sections(
+            "data.csv fmt=Val:U1-2 records=50 cmd=AT+BINDUMP u16 50"
+        )
+
+        # Assert
+        assert result["_positional"].strip() == "data.csv"
+        assert result["fmt"] == "Val:U1-2"
+        assert result["records"] == "50"
+        assert result["cmd"] == "AT+BINDUMP u16 50"
+
+    def test_extract_keywords_mode(self):
+        from termapy.builtins.plugins.cap import _extract_keyword_sections
+
+        # Act
+        result = _extract_keyword_sections("out.txt timeout=5s mode=append echo=on")
+
+        # Assert
+        assert result["timeout"] == "5s"
+        assert result["mode"] == "append"
+        assert result["echo"] == "on"
+
+    def test_extract_keywords_no_cmd(self):
+        from termapy.builtins.plugins.cap import _extract_keyword_sections
+
+        # Act
+        result = _extract_keyword_sections("data.bin bytes=256")
+
+        # Assert
+        assert "cmd" not in result
+        assert result["bytes"] == "256"
+
+    def test_extract_keywords_fmt_multiword(self):
+        from termapy.builtins.plugins.cap import _extract_keyword_sections
+
+        # Act
+        result = _extract_keyword_sections(
+            "out.csv fmt=A:U1-2 B:F3-6 records=10"
+        )
+
+        # Assert
+        assert result["fmt"] == "A:U1-2 B:F3-6"  # multi-word fmt preserved
+        assert result["records"] == "10"
+
+    def test_cap_text_missing_timeout(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("cap.text data.txt")
+
+        # Assert
+        assert any("Usage" in t for t, _ in output)  # shows usage
+
+    def test_cap_bin_missing_bytes(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("cap.bin data.bin")
+
+        # Assert
+        assert any("Usage" in t for t, _ in output)  # shows usage
+
+    def test_cap_struct_missing_fmt(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("cap.struct data.csv records=50")
+
+        # Assert
+        assert any("Usage" in t for t, _ in output)  # shows usage
+
+    def test_cap_stop_no_capture(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act — should not crash
+        engine.dispatch("cap.stop")
+
+    def test_parse_mode(self):
+        from termapy.builtins.plugins.cap import _parse_mode
+
+        # Assert
+        assert _parse_mode({"mode": "new"}) == "w"
+        assert _parse_mode({"mode": "n"}) == "w"
+        assert _parse_mode({"mode": "append"}) == "a"
+        assert _parse_mode({"mode": "a"}) == "a"
+        assert _parse_mode({}) == "w"  # default is new
+        assert _parse_mode({"mode": "bad"}) is None
+
+
+# -- /cap.text with mock start_capture ------------------------------------
+
+
+class TestCapTextHandler:
+    def test_cap_text_starts_capture(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        engine.ctx.engine.start_capture = lambda **kw: (
+            captures.append(kw) or True
+        )
+
+        # Act
+        engine.dispatch("cap.text log.txt timeout=3s")
+
+        # Assert
+        assert len(captures) == 1
+        assert captures[0]["mode"] == "text"
+        assert captures[0]["duration"] == 3.0
+
+    def test_cap_text_with_mode_append(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        engine.ctx.engine.start_capture = lambda **kw: (
+            captures.append(kw) or True
+        )
+
+        # Act
+        engine.dispatch("cap.text log.txt timeout=5s mode=append")
+
+        # Assert
+        assert captures[0]["file_mode"] == "a"
+
+
+# -- /cap.struct with mock start_capture -----------------------------------
+
+
+class TestCapStructHandler:
+    def test_cap_struct_starts_capture(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        engine.ctx.engine.start_capture = lambda **kw: (
+            captures.append(kw) or True
+        )
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=Val:U1-2 records=50")
+
+        # Assert
+        assert len(captures) == 1
+        assert captures[0]["mode"] == "bin"
+        assert len(captures[0]["columns"]) == 1  # one column
+        assert captures[0]["record_size"] == 2  # U1-2 = 2 bytes
+
+    def test_cap_struct_with_cmd(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        captures = []
+        dispatched = []
+        engine.ctx.engine.start_capture = lambda **kw: (
+            captures.append(kw) or True
+        )
+        engine.ctx.dispatch = lambda cmd: dispatched.append(cmd)
+        engine.ctx.serial_drain = lambda: None
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=Val:U1-2 records=50 cmd=AT+DUMP 50")
+
+        # Assert
+        assert len(captures) == 1
+        assert len(dispatched) == 1
+        assert dispatched[0] == "AT+DUMP 50"  # cmd dispatched after capture starts
+
+    def test_cap_struct_invalid_fmt(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=INVALID records=50")
+
+        # Assert
+        assert any("Invalid format" in t.lower() or "invalid" in t.lower()
+                    for t, _ in output)
+
+    def test_cap_struct_must_specify_size(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("cap.struct data.csv fmt=Val:U1-2")
+
+        # Assert
+        assert any("records=N" in t or "bytes=N" in t for t, _ in output)

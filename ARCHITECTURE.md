@@ -8,23 +8,26 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (3150 lines) Textual TUI — UI, serial I/O, modals, app hooks
-├── dialogs.py           # (890 lines)  Modal screens — config editor, pickers, confirm
+├── app.py               # (3030 lines) Textual TUI — UI, modals, app hooks
+├── serial_engine.py     # (215 lines)  Serial connection lifecycle, reader loop orchestrator
+├── serial_port.py       # (280 lines)  Serial I/O wrapper + SerialReader data processor
+├── capture.py           # (340 lines)  Capture state machine — text, binary, format spec
+├── dialogs.py           # (1200 lines) Modal screens — config editor, pickers, confirm
 ├── proto_debug.py       # (1160 lines) Interactive protocol debug screen
 ├── protocol.py          # (1770 lines) Protocol parsing, format specs, CRC, visualizers
-├── demo.py              # (910 lines)  Simulated device for --demo mode
-├── repl.py              # (405 lines)  REPL engine — dispatch, scripting, history
-├── plugins.py           # (484 lines)  Plugin system — Command, PluginContext, loading
-├── config.py            # (406 lines)  Config dirs, loading, validation, migration trigger
-├── port_control.py      # (230 lines)  Pure serial port control functions — no Textual
+├── demo.py              # (900 lines)  Simulated device for --demo mode (FakeSerial)
+├── repl.py              # (650 lines)  REPL engine — dispatch, scripting, transforms
+├── plugins.py           # (560 lines)  Plugin system — Command, PluginContext, loading
+├── config.py            # (430 lines)  Config dirs, loading, validation, migration trigger
+├── port_control.py      # (250 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (284 lines)  Protocol test script runner
 ├── scripting.py         # (154 lines)  Pure functions — templates, duration parsing
 ├── migration.py         # (130 lines)  Config schema migration chain (v1→v8)
-├── defaults.py          # (114 lines)  DEFAULT_CFG, templates
+├── defaults.py          # (380 lines)  DEFAULT_CFG, templates
 ├── help/                #              Markdown help pages (source for MkDocs)
 ├── html/                #              Generated HTML help (MkDocs Material output)
 ├── builtins/
-│   ├── plugins/         #              20 built-in REPL command plugins
+│   ├── plugins/         #              18 built-in REPL command plugins
 │   ├── viz/             #              Built-in packet visualizers (hex, text)
 │   ├── crc/             #              Built-in CRC plugins (sum8, sum16)
 │   └── demo/            #              Demo config, scripts, proto files, plugins
@@ -154,17 +157,27 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 │  │ App Hooks — commands needing Textual     │    │
 │  │ port, ss, run, cfg.load, edit, help.open │    │
 │  └──────────────────────────────────────────┘    │
-│  ┌──────────────────────────────────────────┐    │
-│  │ Serial I/O (pyserial)                    │    │
-│  │ read_serial() — background thread        │    │
-│  │ _raw_rx_queue — inter-thread byte queue  │    │
-│  └──────────────────────────────────────────┘    │
+├──────────────────────────────────────────────────┤
+│  serial_engine.py — SerialEngine                 │
+│  • Owns SerialPort, SerialReader, CaptureEngine  │
+│  • connect() / disconnect() / read_loop()        │
+│  • Callback-driven — no Textual dependency       │
+├──────────────────────────────────────────────────┤
+│  serial_port.py — SerialPort + SerialReader      │
+│  • SerialPort: write, read_raw, drain, idle wait │
+│  • SerialReader: bytes → lines, EOL, ANSI, clear │
+│  • Works with real serial.Serial or FakeSerial   │
+├──────────────────────────────────────────────────┤
+│  capture.py — CaptureEngine                      │
+│  • start/stop/feed_bytes/feed_text/get_progress  │
+│  • Format spec decoding, CSV writing, echo       │
+│  • No Textual dependency — fully testable        │
 ├──────────────────────────────────────────────────┤
 │  repl.py — ReplEngine                            │
-│  • Command dispatch (dotted name → handler)      │
-│  • Script runner (background thread)             │
+│  • dispatch_full() — full command routing        │
+│  • dispatch() — REPL command → plugin handler    │
+│  • Script runner with nested /run support        │
 │  • State: seq counters, echo, variables          │
-│  • History management                            │
 ├──────────────────────────────────────────────────┤
 │  plugins.py — Plugin System                      │
 │  • Command — declares name, args, handler, subs  │
@@ -196,11 +209,16 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 ### Serial Read (background thread)
 
 ```text
-serial.read() → _raw_rx_queue
-  → decode(encoding) → split on \n → batch lines
-  → call_from_thread → RichLog.write(Text.from_ansi())
-  → strip ANSI → log file
-  (if capture active: raw bytes also written to capture file)
+SerialEngine.read_loop() [background thread]
+  → serial.read() → rx_queue.put(data)
+  → SerialReader.process(data) → ReaderResult
+    → binary capture active? → CaptureEngine.feed_bytes() → skip display
+    → proto_active? → suppress display
+    → decode(encoding) → split on \n → batch lines
+  → callbacks: on_lines → call_from_thread → RichLog
+               on_clear → clear screen
+               on_capture_done → stop capture
+               on_error → status message
 ```
 
 ### Command Dispatch (user input or script)
@@ -208,25 +226,37 @@ serial.read() → _raw_rx_queue
 ```text
 Input.on_submit → _execute_command()
   → split on \n (multi-command)
-  → /raw? → send verbatim to serial (bypass everything)
-  → run_directives() → rewrite? dispatch rewritten command
-                      → warn/error? show message, stop
-  → starts with prefix? → repl.dispatch(name, args)
-      → apply REPL transforms (variable expansion, etc.)
-      → lookup dotted name in plugin registry
-      → call handler(ctx, args)
-  → else → apply serial transforms → ser.write(cmd + line_ending)
-  → optional echo to RichLog
+  → _dispatch_single() → repl.dispatch_full()
+    → /raw? → serial_write_raw (bypass everything)
+    → run_directives() → rewrite/warn/error
+    → starts with prefix? → apply transforms → repl.dispatch()
+      → lookup dotted name → call handler(ctx, args)
+    → else → apply serial transforms → serial_write(encoded bytes)
 ```
 
 ### Binary Capture Flow
 
 ```text
-/cap.struct → start_capture(path, mode, target_bytes, columns, ...)
-  → serial read thread feeds raw bytes to capture buffer
+/cap.struct → CaptureEngine.start(path, mode, target, columns, ...)
+  → SerialReader feeds bytes via CaptureEngine.feed_bytes()
   → on each record: apply format spec → write CSV row
-  → on target reached: close file, show summary
+  → on target reached: CaptureEngine.stop() → CaptureResult
   cmd= sends device trigger after capture starts + drain
+```
+
+### Script Execution
+
+```text
+/run script.run → _run_script [background thread]
+  → post ScriptStarted → mount overlay
+  → repl.run_script() processes lines:
+    → /delay → Event.wait (stop-aware)
+    → /run nested.run → inline recursive call (up to 5 deep)
+    → /confirm → dialog via call_from_thread
+    → other → dispatch callback → _dispatch_single
+  → post ScriptProgress → update overlay label
+  → post ScriptFinished → teardown overlay
+  Input disabled during execution, Escape or Stop button aborts
 ```
 
 ## Config & Filesystem
@@ -254,14 +284,17 @@ termapy_cfg/
 ```text
 ┌─────────────────────┐
 │ Main thread         │  Textual event loop — all UI updates
-│ (async)             │  dispatch, modals, button handlers
+│ (async)             │  dispatch, modals, button handlers,
+│                     │  Message handlers (ScriptStarted, etc.)
 ├─────────────────────┤
-│ read_serial()       │  Long-lived background thread
-│ @work(thread=True)  │  Reads serial data, posts to RichLog
+│ _run_reader()       │  Long-lived background thread
+│ @work(thread=True)  │  Calls SerialEngine.read_loop()
+│                     │  Callbacks post to main via call_from_thread
 ├─────────────────────┤
 │ _run_script()       │  Short-lived per script/command
 │ @work(thread=True)  │  Blocking commands (/delay, /confirm)
 │                     │  must run here, not on main thread
+│                     │  Nested /run executes inline (same thread)
 ├─────────────────────┤
 │ _auto_reconnect()   │  Short-lived, retries connection
 │ _send_test()        │  Short-lived, protocol test case
@@ -269,7 +302,7 @@ termapy_cfg/
 └─────────────────────┘
 ```
 
-At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread.
+At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread. `post_message` is used for script lifecycle events (thread-safe).
 
 ## Built-in Plugins (18 files)
 
@@ -296,23 +329,26 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test Coverage
 
-14 test files, 733 tests covering non-UI layers:
+17 test files, 834 tests, 65% overall coverage:
 
-| File                   | Covers                                      |
-| ---------------------- | ------------------------------------------- |
-| test_protocol.py       | Format specs, CRC, visualizers, diff        |
-| test_engine.py         | ReplEngine dispatch, scripting, config      |
-| test_app_config.py     | Config utilities, custom buttons, templates |
-| test_scripting.py      | Template expansion, duration parsing        |
-| test_plugins.py        | Plugin loading, context API                 |
-| test_builtins.py       | Built-in command handlers                   |
-| test_repl_cfg.py       | Config change mechanics                     |
-| test_migration.py      | Config schema migration                     |
-| test_demo.py           | Demo device simulation                      |
-| test_var.py            | User variable system                        |
-| test_env_var.py        | Environment variable commands               |
-| test_port_control.py   | Serial port control pure functions          |
-| test_proto_runner.py   | Protocol test runner                        |
-| test_proto_send_crc.py | CRC in proto.send                           |
+| File                   | Covers                                         |
+| ---------------------- | ---------------------------------------------- |
+| test_protocol.py       | Format specs, CRC, visualizers, diff           |
+| test_engine.py         | ReplEngine dispatch, dispatch_full, scripting  |
+| test_capture.py        | CaptureEngine lifecycle, text/bin/hex, progress|
+| test_serial_port.py    | SerialPort I/O, SerialReader data processing   |
+| test_serial_engine.py  | SerialEngine connect/disconnect, read_loop     |
+| test_app_config.py     | Config utilities, custom buttons, templates    |
+| test_scripting.py      | Template expansion, duration parsing           |
+| test_plugins.py        | Plugin loading, context API                    |
+| test_builtins.py       | Built-in command handlers                      |
+| test_repl_cfg.py       | Config change mechanics                        |
+| test_migration.py      | Config schema migration                        |
+| test_demo.py           | Demo device simulation (FakeSerial)            |
+| test_var.py            | User variable system                           |
+| test_env_var.py        | Environment variable commands                  |
+| test_port_control.py   | Serial port control pure functions             |
+| test_proto_runner.py   | Protocol test runner                           |
+| test_proto_send_crc.py | CRC in proto.send                              |
 
-`app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested — UI is tested manually.
+`app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested — UI is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.

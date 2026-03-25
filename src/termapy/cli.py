@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import threading
@@ -22,7 +23,7 @@ except ImportError:
     readline = None  # Windows without pyreadline3
 
 from termapy.capture import CaptureEngine
-from termapy.config import load_config, open_serial
+from termapy.config import load_config, open_serial, open_with_system
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
@@ -58,23 +59,24 @@ def run_cli(
 
     # -- Output helpers -------------------------------------------------------
 
+    from rich.console import Console
+
+    console = Console(no_color=no_color, highlight=False)
+
     def write(text: str, color: str = "") -> None:
-        if no_color:
-            text = _strip_ansi(text)
-        print(text, flush=True)
+        if color:
+            console.print(f"[{color}]{text}[/]")
+        else:
+            console.print(text)
 
     def write_markup(text: str) -> None:
-        # Strip Rich markup tags for plain text output
-        clean = re.sub(r"\[/?[^\]]*\]", "", text)
-        if no_color:
-            clean = _strip_ansi(clean)
-        if clean.strip():
-            print(clean, flush=True)
+        console.print(text)
 
     def status(text: str, color: str = "") -> None:
-        if no_color:
-            text = _strip_ansi(text)
-        print(f"  {text}", flush=True)
+        if color:
+            console.print(f"  [{color}]{text}[/]")
+        else:
+            console.print(f"  {text}")
 
     def log(direction: str, text: str) -> None:
         pass  # CLI doesn't write a log file (could be added)
@@ -118,6 +120,9 @@ def run_cli(
         stop_capture=lambda: _stop_capture(engine, capture),
         apply_cfg=repl._apply_cfg,
         coerce_type=ReplEngine._coerce_type,
+        connect=lambda port=None: _cli_connect(engine, cfg, port, write, status),
+        disconnect=lambda: _cli_disconnect(engine, write),
+        apply_port_effects=lambda effects: _cli_apply_port_effects(repl, effects),
     )
 
     ctx = PluginContext(
@@ -126,6 +131,7 @@ def run_cli(
         cfg=cfg,
         config_path=config_path,
         engine=engine_api,
+        port=lambda: engine.serial_port.port if engine.is_connected and engine.serial_port else None,
         is_connected=lambda: engine.is_connected,
         serial_write=lambda data: engine.serial_port.write(data) if engine.serial_port else None,
         serial_read_raw=lambda t=1000, g=50: (
@@ -148,11 +154,79 @@ def run_cli(
         confirm=lambda msg: _confirm_stdin(msg),
         notify=lambda text, **kw: write(f"[notice] {text}"),
         clear_screen=lambda: None,  # no screen to clear
+        open_file=lambda path: open_with_system(str(path)),
         exit_app=lambda: None,  # handled by KeyboardInterrupt
         log=log,
         get_screen_text=lambda: "",  # no screen content
     )
     repl.set_context(ctx)
+
+    # -- CLI-specific hooks ---------------------------------------------------
+
+    def _cli_delay(ctx, args: str) -> None:
+        from termapy.scripting import parse_duration
+        try:
+            seconds = parse_duration(args)
+        except ValueError as e:
+            status(str(e), "red")
+            return
+        try:
+            if seconds <= 3:
+                time.sleep(seconds)
+                status(f"Delay {args.strip()} done.")
+            else:
+                width = 30
+                step = seconds / width
+                for i in range(width):
+                    time.sleep(step)
+                    filled = "#" * (i + 1)
+                    empty = "-" * (width - i - 1)
+                    elapsed = int((i + 1) * step)
+                    print(f"\r  [{filled}{empty}] {elapsed}s", end="", flush=True)
+                msg = f"Delay {args.strip()} done."
+                print(f"\r  {msg}{' ' * (width + 10 - len(msg))}", flush=True)
+        except KeyboardInterrupt:
+            print(f"\r  Delay cancelled.{' ' * 30}", flush=True)
+
+    repl.register_hook("delay", "<duration>", "Wait for duration (e.g. 500ms, 1.5s).", _cli_delay, source="app")
+
+    def _cli_color(ctx, args: str) -> None:
+        val = args.strip().lower()
+        if val in ("on", "1", "true"):
+            console.no_color = False
+            status("Color enabled.", "green")
+        elif val in ("off", "0", "false"):
+            console.no_color = True
+            status("Color disabled.")
+        else:
+            state = "on" if not console.no_color else "off"
+            status(f"Color: {state}")
+
+    repl.register_hook("color", "{on|off}", "Show or toggle color output.", _cli_color, source="app")
+
+    def _cli_run(ctx, args: str) -> None:
+        script = args.strip()
+        if not script:
+            # List available .run files
+            scripts_dir = Path(config_path).parent / "scripts"
+            if not scripts_dir.is_dir():
+                status("No scripts/ directory found.")
+                return
+            files = sorted(scripts_dir.glob("*.run"))
+            if not files:
+                status("No .run files found in scripts/")
+                return
+            status("Available scripts:")
+            for f in files:
+                status(f"  {f.name}")
+            return
+        script, verbose = _parse_run_flags(script)
+        path = repl.start_script(script)
+        if path:
+            repl.run_script(path, write=status, dispatch=ctx.dispatch, verbose=verbose)
+
+    repl.register_hook("run", "{filename}", "Run a script file, or list available scripts.", _cli_run, source="app")
+
 
     # -- Connect --------------------------------------------------------------
 
@@ -162,19 +236,76 @@ def run_cli(
 
     port_name = cfg.get("port", "?")
     baud = cfg.get("baud_rate", "?")
-    write(f"Connected: {port_name} @ {baud}")
+    write(f"Connected: {port_name} @ {baud}", "green")
     # -- History (shared with TUI) --------------------------------------------
 
     history_path = Path(config_path).parent / ".cmd_history.txt"
+    _HISTORY_LIMIT = 30
     if readline:
+        # Load from the same plain-text format the TUI uses
         try:
-            readline.read_history_file(str(history_path))
+            for line in history_path.read_text(encoding="utf-8").splitlines()[-_HISTORY_LIMIT:]:
+                if line.strip():
+                    readline.add_history(line)
         except (FileNotFoundError, OSError):
             pass
-        readline.set_history_length(500)
+
+    def _save_history() -> None:
+        if not readline:
+            return
+        entries = [readline.get_history_item(i + 1)
+                   for i in range(readline.get_current_history_length())]
+        entries = [e for e in entries if e][-_HISTORY_LIMIT:]
+        try:
+            history_path.write_text("\n".join(entries), encoding="utf-8")
+        except OSError:
+            pass
+
+    # -- Tab completion -------------------------------------------------------
+
+    if readline:
+        scripts_dir = Path(config_path).parent / "scripts"
+        _file_cmds = (f"{prefix}run ", f"{prefix}run.edit ")
+
+        def _completer(text: str, state: int) -> str | None:
+            if state == 0:
+                line = readline.get_line_buffer()
+                _completer.matches = []
+
+                # File completion for /run and /run.edit args
+                for fc in _file_cmds:
+                    if line.startswith(fc):
+                        file_partial = line[len(fc):]
+                        if scripts_dir.is_dir():
+                            _completer.matches = [
+                                fc + f.name
+                                for f in sorted(scripts_dir.glob("*.run"))
+                                if f.name.startswith(file_partial)
+                            ]
+                        # Only complete if exactly one match
+                        if len(_completer.matches) != 1:
+                            _completer.matches = []
+                        return _completer.matches[0] if _completer.matches else None
+
+                # Command completion
+                if line.startswith(prefix):
+                    _completer.matches = sorted(
+                        f"{prefix}{name}"
+                        for name in repl._plugins
+                        if f"{prefix}{name}".startswith(line)
+                    )
+
+            if state < len(_completer.matches):
+                return _completer.matches[state]
+            return None
+
+        _completer.matches = []
+        readline.set_completer(_completer)
+        readline.parse_and_bind("tab: complete")
+        readline.set_completer_delims("")
 
     if not run_script:
-        write(f"Type commands, {prefix}help for REPL commands, Ctrl+C to quit")
+        write(f"Type commands, {prefix}help for REPL commands, Ctrl+C to quit", "dim")
 
     # -- Reader thread --------------------------------------------------------
 
@@ -240,7 +371,7 @@ def run_cli(
             except KeyboardInterrupt:
                 print("\nScript interrupted", flush=True)
         engine.disconnect()
-        write("Disconnected.")
+        write("Disconnected.", "red")
         return
 
     # -- Main input loop ------------------------------------------------------
@@ -266,19 +397,6 @@ def run_cli(
                     )
                 continue
 
-            # Check for /run with script execution
-            if line.startswith(prefix + "run "):
-                args = line[len(prefix) + 4:]
-                args, verbose = _parse_run_flags(args)
-                path = repl.start_script(args)
-                if path:
-                    repl.run_script(
-                        path,
-                        write=status,
-                        dispatch=ctx.dispatch,
-                        verbose=verbose,
-                    )
-                continue
 
             # Check for /exit
             if line.strip().lower() in (prefix + "exit", prefix + "quit"):
@@ -298,8 +416,38 @@ def run_cli(
     except KeyboardInterrupt:
         print("\nInterrupted", flush=True)
     finally:
+        _save_history()
         engine.disconnect()
-        write("Disconnected.")
+        write("Disconnected.", "red")
+
+
+def _cli_connect(engine, cfg, port_override, write, status):
+    """Connect to a serial port (CLI version)."""
+    if engine.is_connected:
+        status("Already connected", "yellow")
+        return
+    if port_override:
+        cfg["port"] = port_override
+    if engine.connect():
+        write(f"Connected: {cfg.get('port', '?')} @ {cfg.get('baud_rate', '?')}", "green")
+    else:
+        status(f"Cannot connect to {cfg.get('port', '?')}", "red")
+
+
+def _cli_disconnect(engine, write):
+    """Disconnect from the serial port (CLI version)."""
+    if not engine.is_connected:
+        write("Not connected", "yellow")
+        return
+    engine.disconnect()
+    write("Disconnected.", "red")
+
+
+def _cli_apply_port_effects(repl, effects):
+    """Apply port_control side effects (CLI version)."""
+    if effects.get("cfg_update"):
+        for key, val in effects["cfg_update"].items():
+            repl._cfg_data[key] = val
 
 
 def _serial_write_raw(engine, cfg, text, echo_markup, status):

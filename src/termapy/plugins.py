@@ -230,6 +230,10 @@ class EngineAPI:
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
     directives: list = field(default_factory=list)
+    connect: Callable = lambda port=None: None
+    disconnect: Callable = lambda: None
+    update_port: Callable = lambda name: None
+    apply_port_effects: Callable = lambda effects: None
 
 
 @dataclass
@@ -253,6 +257,10 @@ class PluginContext:
         cfg: Read-only config dict (``MappingProxyType``). Access any config
             field with ``ctx.cfg.get("key", default)``. Do not mutate.
         config_path: Absolute path to the current JSON config file on disk.
+        port: The underlying pyserial ``Serial`` object (or ``None`` when
+            disconnected). Returns the live object — properties like
+            ``ctx.port().baudrate``, ``ctx.port().dtr``, etc. reflect current
+            state. This is a callable; use ``ctx.port()`` not ``ctx.port``.
         is_connected: Returns ``True`` if the serial port is open.
         serial_write: Send raw bytes to the serial port. No line ending is
             appended — pass exactly the bytes you want transmitted.
@@ -299,6 +307,7 @@ class PluginContext:
     log: Callable = lambda prefix, text: None
 
     # Serial port
+    port: Callable = lambda: None   # -> serial.Serial | None
     is_connected: Callable = lambda: False
     serial_write: Callable = lambda data: None
     serial_wait_idle: Callable = lambda timeout_ms=400: None
@@ -325,6 +334,7 @@ class PluginContext:
     clear_screen: Callable = lambda: None
     save_screenshot: Callable = lambda path: None
     get_screen_text: Callable = lambda: ""
+    open_file: Callable = lambda path: None  # open file in system viewer/editor
     exit_app: Callable = lambda: None
 
     # Engine internals — used by built-in commands only

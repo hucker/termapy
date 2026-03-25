@@ -102,9 +102,9 @@ def get_set_prop(ser: Any | None, cfg: dict, key: str, args: str) -> Result:
     connected = ser is not None
     if not val:
         if not connected:
-            return _result([_msg(f"  {desc}: {cfg.get(key, '?')} (disconnected)")])
+            return _result([_msg(f"{cfg.get(key, '?')} (disconnected)")])
         try:
-            return _result([_msg(f"  {desc}: {getattr(ser, attr)}")])
+            return _result([_msg(f"{getattr(ser, attr)}")])
         except OSError as e:
             return _result([_msg(f"{desc} read error: {e}", "red")])
     if not connected:
@@ -141,7 +141,7 @@ def get_set_flow(ser: Any | None, cfg: dict, args: str) -> Result:
     if not val:
         fc = cfg.get("flow_control", "none")
         suffix = " (disconnected)" if not connected else ""
-        return _result([_msg(f"  Flow control: {fc}{suffix}")])
+        return _result([_msg(f"{fc}{suffix}")])
     if not connected:
         return _result([_msg("Not connected", "yellow")])
     if val not in VALID_FLOW_CONTROLS:
@@ -185,7 +185,7 @@ def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
         if not connected:
             return _result([_msg("Not connected", "yellow")])
         try:
-            return _result([_msg(f"  {label}: {int(getattr(ser, line))}")])
+            return _result([_msg(f"{int(getattr(ser, line))}")])
         except OSError as e:
             return _result([_msg(f"{label} read error: {e}", "red")])
     if not connected:
@@ -217,7 +217,7 @@ def read_signal(ser: Any | None, signal: str, args: str) -> Result:
     if ser is None:
         return _result([_msg("Not connected", "yellow")])
     try:
-        return _result([_msg(f"  {label}: {int(getattr(ser, signal))}")])
+        return _result([_msg(f"{int(getattr(ser, signal))}")])
     except OSError as e:
         return _result([_msg(f"{label} read error: {e}", "red")])
 

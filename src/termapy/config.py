@@ -94,6 +94,18 @@ def cfg_history_path(config_path: str) -> str:
     return str(cfg_data_dir(config_path) / ".cmd_history.txt")
 
 
+def cleanup_profile_temps(config_path: str) -> None:
+    """Delete stale _profile_tmp_*.run files from the scripts directory."""
+    scripts_dir = cfg_data_dir(config_path) / "scripts"
+    if not scripts_dir.is_dir():
+        return
+    for f in scripts_dir.glob("_profile_tmp_*.run"):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+
+
 def cfg_plugins_dir(config_path: str) -> Path:
     """Return the plugins directory for a config, creating it if needed."""
     return cfg_data_dir(config_path) / "plugins"
@@ -308,6 +320,7 @@ def load_config(path: str) -> dict:
     config_warnings = validate_config(cfg)
     if config_warnings:
         cfg["_config_warnings"] = config_warnings
+    cleanup_profile_temps(path)
     return cfg
 
 

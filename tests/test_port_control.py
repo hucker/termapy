@@ -221,7 +221,7 @@ class TestGetSetHwLine:
         msgs, _ = get_set_hw_line(ser, "dtr", "")
 
         # Assert
-        assert any("DTR" in t and "1" in t for t, _ in msgs)
+        assert any(t.strip() == "1" for t, _ in msgs)
 
     def test_set_dtr(self):
         # Arrange
@@ -265,7 +265,7 @@ class TestReadSignal:
         msgs, _ = read_signal(ser, "cts", "")
 
         # Assert
-        assert any("CTS" in t and "1" in t for t, _ in msgs)
+        assert any(t.strip() == "1" for t, _ in msgs)
 
     def test_read_only_rejects_value(self):
         # Arrange

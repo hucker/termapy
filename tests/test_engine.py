@@ -488,3 +488,167 @@ class TestTransformChains:
         # Assert
         assert len(eng._transform_infos) == before + 1  # new transform added
         assert eng._transform_infos[-1].name == "vars"  # correct name tracked
+
+
+# -- dispatch_full -------------------------------------------------------------
+
+
+class TestDispatchFull:
+    """Tests for the full command dispatch pipeline."""
+
+    @pytest.fixture
+    def dispatch_env(self, tmp_path):
+        """Create an engine with capture lists for all dispatch callbacks."""
+        cfg = {
+            "port": "COM4", "baud_rate": 115200,
+            "line_ending": "\r", "encoding": "utf-8",
+        }
+        config_path = tmp_path / "cfg" / "test.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps(cfg))
+        for sub in ("plugins", "ss", "scripts"):
+            (config_path.parent / sub).mkdir(exist_ok=True)
+
+        output = []
+        eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+
+        # Capture lists for callbacks
+        logged = []
+        echoed = []
+        statuses = []
+        serial_writes = []
+        raw_writes = []
+
+        ctx = PluginContext(
+            write=lambda t, c=None: output.append((t, c)),
+            cfg=cfg,
+            config_path=str(config_path),
+            is_connected=lambda: True,
+            serial_write=lambda data: serial_writes.append(data),
+        )
+        eng.set_context(ctx)
+
+        def do_dispatch(cmd, connected=True):
+            eng.dispatch_full(
+                cmd,
+                log=lambda d, t: logged.append((d, t)),
+                echo_markup=echoed.append,
+                status=lambda t, c: statuses.append((t, c)),
+                serial_write=serial_writes.append,
+                serial_write_raw=raw_writes.append,
+                is_connected=lambda: connected,
+            )
+
+        return eng, output, logged, echoed, statuses, serial_writes, raw_writes, do_dispatch
+
+    def test_serial_command_sent(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+
+        # Act
+        do("ATZ")
+
+        # Assert
+        assert writes == [b"ATZ\r"]  # command encoded with line ending
+        assert len(logged) == 0  # serial commands not logged through dispatch
+
+    def test_repl_command_dispatched(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+
+        # Act
+        do("/help")
+
+        # Assert
+        assert len(writes) == 0  # not sent to serial
+        assert any(">" in d for d, _ in logged)  # logged as REPL command
+        assert any("/help" in t for t in echoed)  # echoed
+
+    def test_raw_bypass(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+
+        # Act
+        do("/raw hello world")
+
+        # Assert
+        assert raw == ["hello world"]  # sent raw, no transforms
+        assert len(writes) == 0  # not through normal serial_write
+
+    def test_echo_off_suppresses_output(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng._echo = False
+
+        # Act
+        do("/help")
+
+        # Assert
+        assert len(echoed) == 0  # no echo when disabled
+
+    def test_not_connected_blocks_send(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+
+        # Act
+        eng.dispatch_full(
+            "ATZ",
+            status=lambda t, c: statuses.append((t, c)),
+            serial_write=writes.append,
+            is_connected=lambda: False,
+        )
+
+        # Assert
+        assert len(writes) == 0  # nothing sent
+        assert any("Not connected" in t for t, _ in statuses)  # error shown
+
+    def test_serial_write_error(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+
+        def bad_write(data):
+            raise OSError("port closed")
+
+        # Act
+        eng.dispatch_full(
+            "ATZ",
+            status=lambda t, c: statuses.append((t, c)),
+            serial_write=bad_write,
+            is_connected=lambda: True,
+        )
+
+        # Assert
+        assert any("Send error" in t for t, _ in statuses)  # error reported
+
+    def test_echo_input_config(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng._cfg_data["echo_input"] = True
+        eng._cfg_data["echo_input_fmt"] = "> {cmd}"
+
+        # Act
+        do("ATZ")
+
+        # Assert
+        assert any("> ATZ" in t for t in echoed)  # input echoed
+
+    def test_custom_line_ending(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        eng._cfg_data["line_ending"] = "\r\n"
+
+        # Act
+        do("ATZ")
+
+        # Assert
+        assert writes == [b"ATZ\r\n"]  # uses configured line ending
+
+    def test_repl_command_echo_quiet_suppressed(self, dispatch_env):
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+
+        # Act
+        do("/echo.quiet off")
+
+        # Assert — echo.quiet commands should not be echoed even with echo on
+        assert not any("echo.quiet" in t for t in echoed)  # suppressed

@@ -725,12 +725,22 @@
 <h2 id="launching-termapy">Launching <code>Termapy</code></h2>
 <p>Run <code>termapy</code> from the command line:</p>
 <pre><code class="language-text">termapy                          # auto-detect config
+termapy my_device                # find termapy_cfg/my_device/my_device.cfg
 termapy my_device.cfg            # load a specific config file
+termapy termapy_cfg/my_device    # load config from a folder
 termapy --cfg-dir /path/to/cfgs  # use a custom config directory
 termapy --check my_device.cfg    # validate config (no UI)
+termapy --cli my_device          # plain-text CLI mode
+termapy --cli smoke_test.run     # run a .run script in CLI mode
 </code></pre>
-<p><strong>Config file argument</strong> — pass the path to a JSON config file directly.
-If the file doesn't exist, <code>termapy</code> creates it with default settings.</p>
+<p><strong>Config resolution</strong> — termapy finds your config automatically. Pass a bare
+name like <code>my_device</code> and it looks in <code>termapy_cfg/my_device/my_device.cfg</code>.
+Pass a folder and it looks for <code>&lt;foldername&gt;.cfg</code> inside. Pass a <code>.cfg</code> file
+directly and it uses that.</p>
+<p><strong>Script files</strong> — passing a <code>.run</code> or <code>.pro</code> file infers the config from
+the file's location (walks up the directory tree to find a <code>.cfg</code> file).
+In CLI mode, <code>.run</code> files are executed automatically. In TUI mode, the
+config loads and you can run the script manually.</p>
 <p><strong>--cfg-dir</strong> — override the config directory location. By default,
 termapy stores everything in a <code>termapy_cfg/</code> folder in the current
 working directory. Use this flag to point to a different location,

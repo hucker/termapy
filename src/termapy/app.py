@@ -2778,23 +2778,47 @@ def _run_check(args) -> None:
     print(json.dumps(result, indent=2))
 
 
-def _resolve_config(name: str) -> str:
-    """Resolve a config name or path.
+def _resolve_config(name: str) -> str | None:
+    """Resolve a config name, path, or directory to a .cfg file.
 
-    Tries in order:
-    1. Direct path (if it exists)
-    2. termapy_cfg/<name>/<name>.cfg
-    3. Return as-is (let load_config fail with a good error)
+    Resolution chain (first match wins):
+    1. Exact file - path exists and is a file
+    2. Directory - look for <dirname>.cfg inside
+    3. cfg_dir/<name>/<name>.cfg - bare name via configured cfg dir
+    4. ./termapy_cfg/<name>/<name>.cfg - bare name via cwd
+    5. <name>.cfg appended - in case extension was omitted
+    6. None - not found
+
+    Args:
+        name: User-provided config name, path, or directory.
+
+    Returns:
+        Resolved path string, or None if not found.
     """
     p = Path(name)
-    if p.exists():
+    # 1. Exact file
+    if p.is_file():
         return str(p)
-    # Try termapy_cfg/<name>/<name>.cfg
+    # 2. Directory - look for <dirname>.cfg inside
+    if p.is_dir():
+        candidate = p / f"{p.name}.cfg"
+        if candidate.exists():
+            return str(candidate)
+    # 3. cfg_dir/<name>/<name>.cfg (configured cfg dir)
     stem = p.stem
     candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
     if candidate.exists():
         return str(candidate)
-    return name  # let load_config produce the error
+    # 4. ./termapy_cfg/<name>/<name>.cfg (cwd fallback)
+    candidate = Path("termapy_cfg") / stem / f"{stem}.cfg"
+    if candidate.exists():
+        return str(candidate)
+    # 5. Append .cfg
+    if not name.endswith(".cfg"):
+        candidate = Path(f"{name}.cfg")
+        if candidate.exists():
+            return str(candidate)
+    return None
 
 
 def _infer_config_from_run_file(run_path: str) -> str | None:
@@ -2834,6 +2858,10 @@ def _run_cli_mode(args) -> None:
             sys.exit(1)
     elif args.config:
         config_path = _resolve_config(args.config)
+        if config_path is None:
+            print(f"termapy: config not found: {args.config}", file=sys.stderr)
+            print("  Use --demo to create a demo config, or specify a .cfg file.", file=sys.stderr)
+            sys.exit(1)
     else:
         path, _ = _find_config()
         if not path:
@@ -2965,6 +2993,32 @@ def main():
     if args.cfg_dir:
         _cfg_mod.CFG_DIR = args.cfg_dir
 
+    # Normalize positional arg by extension - infer intent
+    if args.config:
+        ext = Path(args.config).suffix.lower()
+        if ext == ".run" and not args.run:
+            # .run file: infer config from location
+            args.run = args.config
+            args.config = None
+            if not args.cli:
+                # TUI mode: infer config, don't auto-run
+                inferred = _infer_config_from_run_file(args.run)
+                if inferred:
+                    args.config = inferred
+                    args.run = None  # don't auto-run in TUI
+                else:
+                    print(f"termapy: cannot infer config from {args.run}", file=sys.stderr)
+                    sys.exit(1)
+        elif ext == ".pro" and not args.proto:
+            # .pro file: infer config from location
+            inferred = _infer_config_from_run_file(args.config)
+            if inferred:
+                args.proto = args.config
+                args.config = inferred
+            else:
+                print(f"termapy: cannot infer config from {args.config}", file=sys.stderr)
+                sys.exit(1)
+
     if args.check:
         _run_check(args)
         return
@@ -2994,14 +3048,19 @@ def main():
         return
 
     if args.config:
+        config_path = _resolve_config(args.config)
+        if config_path is None:
+            print(f"termapy: config not found: {args.config}", file=sys.stderr)
+            print("  Use --demo to create a demo config, or specify a .cfg file.", file=sys.stderr)
+            sys.exit(1)
         try:
-            cfg = load_config(args.config)
+            cfg = load_config(config_path)
         except Exception as e:
             print(
-                f"termapy: failed to load config '{args.config}': {e}", file=sys.stderr
+                f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
             )
             sys.exit(1)
-        app = SerialTerminal(cfg, config_path=args.config)
+        app = SerialTerminal(cfg, config_path=config_path)
         app.run()
         _reset_terminal()
         return

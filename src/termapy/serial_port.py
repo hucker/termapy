@@ -1,14 +1,19 @@
-"""SerialPort — thin wrapper around a serial port for I/O operations.
+"""Serial port I/O wrapper and reader data processor.
 
-Wraps a ``serial.Serial`` or ``FakeSerial`` instance with logging,
-timeout-based frame reading, idle detection, and queue draining.
+``SerialPort`` wraps a serial port with logging, frame reading, idle
+detection, and queue draining. ``SerialReader`` processes raw bytes into
+display lines, handling encoding, line splitting, EOL markers, ANSI
+partial-escape buffering, and clear-screen detection.
+
 No Textual dependency — fully testable.
 """
 
 from __future__ import annotations
 
 import queue
+import re
 import time
+from dataclasses import dataclass, field
 from typing import Callable
 
 
@@ -130,3 +135,146 @@ class SerialPort:
             elif (time.monotonic() - last_data) >= timeout_ms / 1000.0:
                 return
             time.sleep(0.01)
+
+
+# Regexes for serial data processing (shared with app.py)
+CLEAR_SCREEN_RE = re.compile(r"(\x1b\[H)?\x1b\[2J")
+PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
+
+# Visible EOL markers (dim ANSI text)
+_EOL_CR = "\x1b[2m\\r\x1b[0m"
+_EOL_LF = "\x1b[2m\\n\x1b[0m"
+
+
+def eol_label(line_ending: str) -> str:
+    """Format a line ending string with visible markers."""
+    return line_ending.replace("\r", _EOL_CR).replace("\n", _EOL_LF)
+
+
+@dataclass
+class ReaderResult:
+    """Result of processing a chunk of serial data.
+
+    Attributes:
+        lines: Complete text lines ready for display.
+        clear_screen: True if a clear-screen escape was detected.
+        capture_target_reached: True if binary capture hit its target.
+    """
+
+    lines: list[str] = field(default_factory=list)
+    clear_screen: bool = False
+    capture_target_reached: bool = False
+
+
+class SerialReader:
+    """Processes raw serial bytes into display lines.
+
+    Handles encoding, line splitting, EOL markers, partial ANSI escape
+    buffering, and clear-screen detection. Feeds binary data to the
+    CaptureEngine when active.
+
+    This class holds the text buffer state between ``process()`` calls
+    but has no threading or I/O — the caller drives it.
+
+    Args:
+        encoding: Character encoding for decoding bytes.
+        show_line_endings: Insert visible EOL markers.
+        capture: Optional CaptureEngine for binary capture tap.
+        proto_active: Callable returning True when display should be suppressed.
+    """
+
+    def __init__(
+        self,
+        encoding: str = "utf-8",
+        show_line_endings: bool = False,
+        capture: object | None = None,
+        proto_active: Callable[[], bool] | None = None,
+    ) -> None:
+        self._encoding = encoding
+        self._show_line_endings = show_line_endings
+        self._capture = capture
+        self._proto_active = proto_active or (lambda: False)
+        self._buf: str = ""
+        self._last_rx: float = time.monotonic()
+
+    @property
+    def encoding(self) -> str:
+        return self._encoding
+
+    @encoding.setter
+    def encoding(self, value: str) -> None:
+        self._encoding = value
+
+    @property
+    def show_line_endings(self) -> bool:
+        return self._show_line_endings
+
+    @show_line_endings.setter
+    def show_line_endings(self, value: bool) -> None:
+        self._show_line_endings = value
+
+    def process(self, data: bytes) -> ReaderResult:
+        """Process a chunk of raw serial bytes.
+
+        Call this each time bytes arrive from the serial port. Returns
+        a ``ReaderResult`` with any complete lines and status flags.
+
+        Args:
+            data: Raw bytes from the serial port (may be empty for idle check).
+
+        Returns:
+            ReaderResult with lines, clear_screen flag, and capture status.
+        """
+        result = ReaderResult()
+
+        if data:
+            # Feed binary capture if active — consume data, skip display
+            cap = self._capture
+            if cap and getattr(cap, "active", False) and getattr(cap, "mode", "") == "bin":
+                target_reached = cap.feed_bytes(data)
+                if target_reached:
+                    result.capture_target_reached = True
+                return result
+
+            # Suppress display during protocol operations
+            if self._proto_active():
+                self._last_rx = time.monotonic()
+                self._buf = ""
+                return result
+
+            self._last_rx = time.monotonic()
+            text = data.decode(self._encoding, errors="replace")
+
+            # Insert visible EOL markers before line splitting
+            if self._show_line_endings:
+                text = text.replace("\r", _EOL_CR + "\r")
+                text = text.replace("\n", _EOL_LF + "\n")
+
+            self._buf += text
+
+            # Check for clear screen escape
+            m = CLEAR_SCREEN_RE.search(self._buf)
+            if m:
+                self._buf = self._buf[m.end():]
+                result.clear_screen = True
+
+            # Collect complete lines
+            while "\n" in self._buf:
+                line, self._buf = self._buf.split("\n", 1)
+                line = line.strip("\r")
+                if line:
+                    result.lines.append(line)
+
+        else:
+            # No data — flush partial line after 200ms of silence
+            if self._buf and (time.monotonic() - self._last_rx) >= 0.2:
+                if not PARTIAL_ANSI_RE.search(self._buf):
+                    result.lines.append(self._buf)
+                    self._buf = ""
+
+        return result
+
+    def reset(self) -> None:
+        """Clear the internal buffer."""
+        self._buf = ""
+        self._last_rx = time.monotonic()

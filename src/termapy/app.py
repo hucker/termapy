@@ -62,6 +62,7 @@ from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_f
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
+from termapy.serial_port import SerialPort
 from termapy.repl import ReplEngine
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
@@ -329,6 +330,7 @@ class SerialTerminal(App):
         self.show_picker_on_start = show_picker
         self._first_run = first_run
         self.ser: serial.Serial | None = None
+        self._serial_port: SerialPort | None = None
         self.log_fh = None
         self.stop_event = Event()
         self.reader_stopped = Event()
@@ -954,6 +956,12 @@ class SerialTerminal(App):
         try:
             self.reader_stopped.clear()
             self.ser = open_serial(self.cfg)
+            self._serial_port = SerialPort(
+                port=self.ser,
+                rx_queue=self._raw_rx_queue,
+                log=self._log_line,
+                encoding=self.cfg.get("encoding", "utf-8"),
+            )
             self.notify(
                 f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", timeout=0.75
             )
@@ -1028,70 +1036,22 @@ class SerialTerminal(App):
         self.push_screen(ProtoDebugScreen(path, ctx, script, final))
 
     def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
-        """Collect raw bytes from the serial port using timeout-based framing.
-
-        Drains the raw RX queue, accumulating bytes until a silence gap
-        indicates a complete frame, or the overall timeout expires.
-
-        Args:
-            timeout_ms: Maximum time to wait for a response in milliseconds.
-            frame_gap_ms: Silence gap to detect frame end. 0 = use config default.
-
-        Returns:
-            Complete frame bytes, or empty bytes on timeout.
-        """
-        from termapy.protocol import FrameCollector
-
+        """Collect raw bytes using timeout-based framing (delegates to SerialPort)."""
         frame_gap = frame_gap_ms or self.cfg.get("proto_frame_gap_ms", 50)
-        collector = FrameCollector(timeout_ms=frame_gap)
-        deadline = time.monotonic() + timeout_ms / 1000.0
-
-        while time.monotonic() < deadline:
-            try:
-                chunk = self._raw_rx_queue.get(timeout=0.01)
-                now = time.monotonic()
-                frame = collector.feed(chunk, now)
-                if frame is not None:
-                    return frame
-            except queue.Empty:
-                now = time.monotonic()
-                frame = collector.flush(now)
-                if frame is not None:
-                    return frame
-
-        # Final flush in case data arrived right at deadline
-        return collector.flush(time.monotonic()) or b""
+        if self._serial_port:
+            return self._serial_port.read_raw(timeout_ms, frame_gap)
+        return b""
 
     def _drain_rx_queue(self) -> int:
-        """Discard all pending bytes in the raw RX queue.
-
-        Returns:
-            Number of bytes discarded.
-        """
-        count = 0
-        while not self._raw_rx_queue.empty():
-            try:
-                count += len(self._raw_rx_queue.get_nowait())
-            except queue.Empty:
-                break
-        return count
+        """Discard all pending bytes in the RX queue (delegates to SerialPort)."""
+        if self._serial_port:
+            return self._serial_port.drain()
+        return 0
 
     def _wait_for_idle(self, timeout_ms: int = 100, max_wait_s: float = 3.0) -> None:
-        """Wait until no serial data arrives for timeout_ms, or max_wait_s elapses."""
-        deadline = time.monotonic() + max_wait_s
-        last_data = time.monotonic()
-        while time.monotonic() < deadline:
-            if not self.ser or not self.ser.is_open:
-                return
-            try:
-                waiting = self.ser.in_waiting
-            except (serial.SerialException, OSError):
-                return
-            if waiting > 0:
-                last_data = time.monotonic()
-            elif (time.monotonic() - last_data) >= timeout_ms / 1000.0:
-                return
-            time.sleep(0.01)
+        """Wait until no serial data arrives for timeout_ms (delegates to SerialPort)."""
+        if self._serial_port:
+            self._serial_port.wait_for_idle(timeout_ms, max_wait_s)
 
     @work(thread=True)
     def _run_lines(
@@ -1158,19 +1118,11 @@ class SerialTerminal(App):
                 pass
 
     def _serial_write(self, data: bytes) -> None:
-        """Write bytes to serial port and log the TX data.
-
-        All serial output — interactive, scripted, and plugin — flows
-        through this method so every TX is logged exactly once.
-        """
-        enc = self.cfg.get("encoding", "utf-8")
-        try:
-            text = data.decode(enc).rstrip("\r\n")
-        except (UnicodeDecodeError, LookupError):
-            text = data.hex(" ")
-        self._log_line(">", text)
-        if self.ser:
-            self.ser.write(data)
+        """Write bytes to serial port and log TX (delegates to SerialPort)."""
+        if self._serial_port:
+            self._serial_port.write(data)
+        else:
+            self._log_line(">", data.hex(" "))
 
     def _confirm(self, message: str) -> bool:
         """Show a Yes/Cancel dialog and block until the user responds.
@@ -1873,6 +1825,7 @@ class SerialTerminal(App):
                 except Exception:
                     pass  # port already closed or inaccessible
                 self.ser = None
+                self._serial_port = None
             self.reader_stopped.set()
 
     def _clear_output(self) -> None:

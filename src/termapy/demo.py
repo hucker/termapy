@@ -508,29 +508,23 @@ class FakeSerial:
         count = max(1, min(count, 1000))
         labels = self._MIXED_LABELS
 
-        def _stream() -> None:
-            for i in range(count):
-                if not self._is_open:
-                    break
-                label = labels[i % len(labels)].encode("ascii")[:10]
-                label = label.ljust(10)  # pad to 10 bytes
-                counter = i & 0xFF
-                val16 = (i * 137) & 0xFFFF
-                val32 = (i * 2654435761) & 0xFFFFFFFF
-                temp = 20.0 + (i % 50) * 0.3
-                record = (
-                    label
-                    + struct.pack("<B", counter)
-                    + struct.pack("<H", val16)
-                    + struct.pack("<I", val32)
-                    + struct.pack("<f", temp)
-                )
-                with self._lock:
-                    self._output_buf.extend(record)
-                time.sleep(0.02)
-
-        t = threading.Thread(target=_stream, daemon=True)
-        t.start()
+        data = bytearray()
+        for i in range(count):
+            label = labels[i % len(labels)].encode("ascii")[:10]
+            label = label.ljust(10)  # pad to 10 bytes
+            counter = i & 0xFF
+            val16 = (i * 137) & 0xFFFF
+            val32 = (i * 2654435761) & 0xFFFFFFFF
+            temp = 20.0 + (i % 50) * 0.3
+            record = (
+                label
+                + struct.pack("<B", counter)
+                + struct.pack("<H", val16)
+                + struct.pack("<I", val32)
+                + struct.pack("<f", temp)
+            )
+            data.extend(record)
+        self._enqueue(bytes(data))
         return b""
 
     def _bindump_typed(self, parts: list[str]) -> bytes:
@@ -549,27 +543,20 @@ class FakeSerial:
 
         fmt, width = info
 
-        def _stream() -> None:
-            for i in range(count):
-                if not self._is_open:
-                    break
-                if type_str.startswith("f"):
-                    val = float(i) * 1.5
-                    if type_str == "f8":
-                        val = float(i) * 1.5e6
-                else:
-                    val = (i * 2654435761) & ((1 << (width * 8)) - 1)
-                    if type_str.startswith("i"):
-                        max_signed = 1 << (width * 8 - 1)
-                        if val >= max_signed:
-                            val -= 1 << (width * 8)
-                sample = struct.pack(fmt, val)
-                with self._lock:
-                    self._output_buf.extend(sample)
-                time.sleep(0.02)
-
-        t = threading.Thread(target=_stream, daemon=True)
-        t.start()
+        data = bytearray()
+        for i in range(count):
+            if type_str.startswith("f"):
+                val = float(i) * 1.5
+                if type_str == "f8":
+                    val = float(i) * 1.5e6
+            else:
+                val = (i * 2654435761) & ((1 << (width * 8)) - 1)
+                if type_str.startswith("i"):
+                    max_signed = 1 << (width * 8 - 1)
+                    if val >= max_signed:
+                        val -= 1 << (width * 8)
+            data.extend(struct.pack(fmt, val))
+        self._enqueue(bytes(data))
         return b""
 
     def _uptime_str(self) -> str:

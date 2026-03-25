@@ -159,7 +159,118 @@ class ReplEngine:
         plugin = self._plugins.get(name)
         return plugin.raw_args if plugin else False
 
-    # -- Dispatch -------------------------------------------------------------
+    # -- Full dispatch pipeline ------------------------------------------------
+
+    def dispatch_full(
+        self,
+        cmd: str,
+        *,
+        log: Callable[[str, str], None] | None = None,
+        echo_markup: Callable[[str], None] | None = None,
+        status: Callable[[str, str], None] | None = None,
+        serial_write: Callable[[bytes], None] | None = None,
+        serial_write_raw: Callable[[str], None] | None = None,
+        is_connected: Callable[[], bool] | None = None,
+        eol_label: Callable[[str], str] | None = None,
+    ) -> None:
+        """Route a raw command through the full pipeline.
+
+        Decides: /raw bypass → directives → REPL command → serial command.
+        Applies transforms and sends via callbacks. This is the testable
+        core that app.py's ``_dispatch_single`` delegates to.
+
+        Args:
+            cmd: Raw command string (may have REPL prefix).
+            log: Log callback — log(direction, text).
+            echo_markup: Display markup text on screen.
+            status: Show status message — status(text, color).
+            serial_write: Send encoded bytes to serial port.
+            serial_write_raw: Send raw text to serial (no transforms).
+            is_connected: Returns True if serial port is open.
+            eol_label: Format a line ending string for display.
+        """
+        prefix = self.prefix
+        _log = log or (lambda _d, _t: None)
+        _echo = echo_markup or (lambda _t: None)
+        _status = status or (lambda _t, _c: None)
+
+        # 1. /raw bypass — no transforms, no directives
+        if cmd.startswith(prefix + "raw "):
+            raw_text = cmd[len(prefix) + 4:]
+            _log(">", cmd)
+            if self._echo:
+                _echo(f"[cyan]> {cmd}[/]")
+            if serial_write_raw:
+                serial_write_raw(raw_text)
+            return
+
+        # 2. Pre-dispatch directives (e.g. $(VAR) = value → /var.set)
+        result = self.run_directives(cmd)
+        if result.action == "rewrite":
+            _log(">", cmd)
+            if self._echo:
+                _echo(f"[cyan]> {cmd}[/]")
+            self.dispatch(result.payload)
+            return
+        if result.action == "warn":
+            _log(">", cmd)
+            if self._echo:
+                _echo(f"[cyan]> {cmd}[/]")
+            _status(f"Warning: {result.payload}", "yellow")
+            return
+        if result.action == "error":
+            _log(">", cmd)
+            if self._echo:
+                _echo(f"[cyan]> {cmd}[/]")
+            _status(f"Error: {result.payload}", "red")
+            return
+
+        # 3. REPL command (starts with prefix)
+        if cmd.startswith(prefix):
+            repl_cmd = cmd[len(prefix):].strip()
+            _log(">", f"{prefix}{repl_cmd}")
+            if self._echo and not repl_cmd.startswith("echo.quiet"):
+                _echo(f"[red]> {prefix}{repl_cmd}[/]")
+            if self.has_repl_transforms:
+                if not self.command_has_raw_args(repl_cmd):
+                    try:
+                        repl_cmd = self.transform_repl(repl_cmd)
+                    except ValueError as e:
+                        _status(str(e), "red")
+                        return
+            self.dispatch(repl_cmd)
+            return
+
+        # 4. Serial command — apply transforms, encode, send
+        if self.has_serial_transforms:
+            try:
+                cmd = self.transform_serial(cmd)
+            except ValueError as e:
+                _status(str(e), "red")
+                return
+
+        if self.cfg.get("echo_input"):
+            fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
+            echo_text = cmd
+            if self.cfg.get("show_line_endings", False) and eol_label:
+                le = self.cfg.get("line_ending", "\r")
+                echo_text += eol_label(le)
+            _echo(fmt.replace("{cmd}", echo_text))
+
+        if is_connected and not is_connected():
+            _status("Not connected — command not sent", "red")
+            return
+
+        line_ending = self.cfg.get("line_ending", "\r")
+        if serial_write:
+            try:
+                serial_write(
+                    (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+                )
+            except (OSError, Exception) as e:
+                _status(f"Send error: {e}", "red")
+
+    # -- REPL dispatch ---------------------------------------------------------
 
     def dispatch(self, line: str) -> None:
         """Parse and dispatch a REPL command (prefix already stripped).

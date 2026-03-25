@@ -109,11 +109,6 @@ class CaptureEngine:
     def target_bytes(self) -> int:
         return self._target
 
-    @property
-    def suppress_display(self) -> bool:
-        """True if the UI should suppress serial output (binary capture)."""
-        return self.active and self._mode == "bin"
-
     def start(
         self,
         *,

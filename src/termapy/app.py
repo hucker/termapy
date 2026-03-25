@@ -359,7 +359,6 @@ class SerialTerminal(App):
         )
         self._cap_timer: "Timer | None" = None
         self._cap_progress_timer: "Timer | None" = None
-        self._cap_suppress_display: bool = False
 
     @property
     def cfg(self):
@@ -1812,6 +1811,7 @@ class SerialTerminal(App):
                     self._raw_rx_queue.put(data)
 
                     # Binary capture tap — feed bytes to capture engine
+                    # and skip display (capture consumes the data)
                     if self._capture.active and self._capture.mode == "bin":
                         target_reached = self._capture.feed_bytes(data)
                         if target_reached:
@@ -1819,6 +1819,7 @@ class SerialTerminal(App):
                                 self.call_from_thread(self._cap_stop)
                             except RuntimeError:
                                 pass
+                        continue
 
                 # Suppress normal display while proto script is running
                 if self._proto_active:
@@ -1916,7 +1917,6 @@ class SerialTerminal(App):
         if mode == "text":
             self._cap_timer = self.set_timer(duration, self._cap_stop)
         else:
-            self._cap_suppress_display = True
             self._proto_active = True
             if timeout > 0:
                 self._cap_timer = self.set_timer(timeout, self._cap_stop)
@@ -1934,11 +1934,10 @@ class SerialTerminal(App):
         if not self._capture.active:
             return
 
-        was_bin = self._capture.mode == "bin"
-        if was_bin:
-            self._proto_active = False
-
         result = self._capture.stop()
+
+        if not self.repl.in_script:
+            self._proto_active = False
 
         if self._cap_timer:
             self._cap_timer.stop()
@@ -1953,16 +1952,10 @@ class SerialTerminal(App):
             self._log_line("#", f"capture end: {result.path} ({result.size_label})")
         self._sync_cap_button()
 
-        if self._cap_suppress_display:
-            self.set_timer(0.5, self._cap_clear_suppress)
-
     def _on_capture_complete(self, result: CaptureResult) -> None:
         """Called by CaptureEngine when capture finishes (unused for now)."""
         pass
 
-    def _cap_clear_suppress(self) -> None:
-        """Clear the binary capture display suppression flag."""
-        self._cap_suppress_display = False
 
     def _cap_show_progress(self) -> None:
         """Mount a progress overlay in the bottom bar."""
@@ -2032,11 +2025,6 @@ class SerialTerminal(App):
         Args:
             lines: Decoded text lines to display and log.
         """
-        # Suppress all output during binary capture — binary data decoded
-        # as text produces garbled output, ANSI escapes, bells, etc.
-        if self._cap_suppress_display:
-            return
-
         log = self.query_one("#output", RichLog)
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
@@ -2167,83 +2155,17 @@ class SerialTerminal(App):
             self._status(f"Send error: {e}", "red")
 
     def _dispatch_single(self, cmd: str) -> None:
-        """Dispatch a single command: REPL prefix goes to REPL, otherwise serial.
-
-        Args:
-            cmd: A single command string (no ``\\n`` separators).
-        """
-        # ── Dispatch directives (meta-syntax, before plugins/transforms) ──
-        prefix = self.cfg.get("cmd_prefix", "/")
-        if cmd.startswith(prefix + "raw "):
-            raw_text = cmd[len(prefix) + 4:]
-            self._log_line(">", cmd)
-            if self.repl.echo:
-                self._write_output_markup(f"[cyan]> {cmd}[/]")
-            self._send_serial_raw(raw_text)
-            return
-
-        # Pre-dispatch directives (e.g. $(VAR) = value → /var.set)
-        result = self.repl.run_directives(cmd)
-        if result.action == "rewrite":
-            self._log_line(">", cmd)
-            if self.repl.echo:
-                self._write_output_markup(f"[cyan]> {cmd}[/]")
-            self.repl.dispatch(result.payload)
-            return
-        elif result.action == "warn":
-            self._log_line(">", cmd)
-            if self.repl.echo:
-                self._write_output_markup(f"[cyan]> {cmd}[/]")
-            self._status(f"Warning: {result.payload}", "yellow")
-            return
-        elif result.action == "error":
-            self._log_line(">", cmd)
-            if self.repl.echo:
-                self._write_output_markup(f"[cyan]> {cmd}[/]")
-            self._status(f"Error: {result.payload}", "red")
-            return
-
-        if cmd.startswith(prefix):
-            repl_cmd = cmd[len(prefix):].strip()
-            self._log_line(">",f"{prefix}{repl_cmd}")
-            # Don't echo commands that change echo state (echo.quiet)
-            if self.repl.echo and not repl_cmd.startswith("echo.quiet"):
-                self._write_output_markup(f"[red]> {prefix}{repl_cmd}[/]")
-            if self.repl.has_repl_transforms:
-                if not self.repl.command_has_raw_args(repl_cmd):
-                    try:
-                        repl_cmd = self.repl.transform_repl(repl_cmd)
-                    except ValueError as e:
-                        self._status(str(e), "red")
-                        return
-            self.repl.dispatch(repl_cmd)
-            return
-        # Apply serial transforms
-        if self.repl.has_serial_transforms:
-            try:
-                cmd = self.repl.transform_serial(cmd)
-            except ValueError as e:
-                self._status(str(e), "red")
-                return
-        # Echo serial command locally if enabled
-        if self.cfg.get("echo_input"):
-            fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
-            echo_text = cmd
-            if self.cfg.get("show_line_endings", False):
-                le = self.cfg.get("line_ending", "\r")
-                echo_text += _eol_label(le)
-            self._write_output_markup(fmt.replace("{cmd}", echo_text))
-        if not self.is_connected:
-            self._status("Not connected — command not sent", "red")
-            return
-        line_ending = self.cfg.get("line_ending", "\r")
-        try:
-            self._serial_write(
-                (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-            )
-        except (OSError, serial.SerialException) as e:
-            self._status(f"Send error: {e}", "red")
-
+        """Dispatch a single command (delegates to repl.dispatch_full)."""
+        self.repl.dispatch_full(
+            cmd,
+            log=self._log_line,
+            echo_markup=self._write_output_markup,
+            status=self._status,
+            serial_write=self._serial_write,
+            serial_write_raw=self._send_serial_raw,
+            is_connected=lambda: self.is_connected,
+            eol_label=_eol_label,
+        )
         # Clear input (only for interactive commands, not scripts)
         if not self.repl.in_script:
             inp = self.query_one("#cmd", Input)
@@ -2970,6 +2892,7 @@ class SerialTerminal(App):
                 self._script_last_label = ""
                 inp.disabled = False
                 inp.focus()
+                self._proto_active = False
         except Exception:
             pass
 

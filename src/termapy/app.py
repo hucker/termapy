@@ -2854,6 +2854,78 @@ def _run_check(args) -> None:
     print(json.dumps(result, indent=2))
 
 
+def _resolve_config(name: str) -> str:
+    """Resolve a config name or path.
+
+    Tries in order:
+    1. Direct path (if it exists)
+    2. termapy_cfg/<name>/<name>.cfg
+    3. Return as-is (let load_config fail with a good error)
+    """
+    p = Path(name)
+    if p.exists():
+        return str(p)
+    # Try termapy_cfg/<name>/<name>.cfg
+    stem = p.stem
+    candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
+    if candidate.exists():
+        return str(candidate)
+    return name  # let load_config produce the error
+
+
+def _infer_config_from_run_file(run_path: str) -> str | None:
+    """Infer config path from a .run script path.
+
+    If the script is at termapy_cfg/<name>/scripts/foo.run,
+    the config is termapy_cfg/<name>/<name>.cfg.
+    """
+    p = Path(run_path).resolve()
+    # Walk up looking for a .cfg file in a parent
+    for parent in p.parents:
+        cfgs = list(parent.glob("*.cfg"))
+        if cfgs and parent.name != "termapy_cfg":
+            return str(cfgs[0])
+    return None
+
+
+def _run_cli_mode(args) -> None:
+    """Run in CLI mode — plain text terminal, no TUI."""
+    from termapy.cli import run_cli
+
+    run_script = getattr(args, "run", None)
+
+    # If a positional arg is a .run file, treat it as --run
+    if args.config and args.config.endswith(".run") and not run_script:
+        run_script = args.config
+        args.config = None
+
+    if args.demo:
+        from termapy.config import setup_demo_config
+        config_path = str(setup_demo_config(cfg_dir(), force=True))
+    elif run_script and not args.config:
+        # Infer config from the .run file's location
+        config_path = _infer_config_from_run_file(run_script)
+        if not config_path:
+            print(f"termapy: cannot infer config from {run_script}", file=sys.stderr)
+            sys.exit(1)
+    elif args.config:
+        config_path = _resolve_config(args.config)
+    else:
+        path, _ = _find_config()
+        if not path:
+            print("termapy: no config found. Use --demo or specify a config.", file=sys.stderr)
+            sys.exit(1)
+        config_path = path
+
+    try:
+        cfg = load_config(config_path)
+    except Exception as e:
+        print(f"termapy: failed to load config: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    run_cli(cfg, config_path, no_color=args.no_color, run_script=run_script)
+
+
 def _run_proto_headless(args) -> None:
     """Run a .pro test script headlessly (no TUI) and write JSON results."""
     from termapy.proto_runner import run_proto_tests
@@ -2948,6 +3020,22 @@ def main():
         action="store_true",
         help="Validate config and print JSON result to stdout (no TUI)",
     )
+    parser.add_argument(
+        "--cli",
+        action="store_true",
+        help="Run in CLI mode (plain text terminal, no TUI)",
+    )
+    parser.add_argument(
+        "--run",
+        default=None,
+        metavar="SCRIPT",
+        help="Run a .run script and exit (CLI mode, implies --cli)",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Strip ANSI color codes from output (CLI mode)",
+    )
     args = parser.parse_args()
 
     if args.cfg_dir:
@@ -2959,6 +3047,12 @@ def main():
 
     if args.proto is not None:
         _run_proto_headless(args)
+        return
+
+    if args.run:
+        args.cli = True  # --run implies --cli
+    if args.cli:
+        _run_cli_mode(args)
         return
 
     if args.demo:

@@ -8,7 +8,6 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
 import argparse
-from typing import IO, Any
 import json
 import queue
 import re
@@ -62,8 +61,8 @@ from termapy.dialogs import (
 from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_from_dir
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
+from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
 from termapy.repl import ReplEngine
-from termapy.protocol import apply_format
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
 from textual.message import Message
@@ -353,26 +352,14 @@ class SerialTerminal(App):
         self._proto_active: bool = False
         self._raw_rx_queue: "queue.Queue[bytes]" = queue.Queue()
 
-        # File capture state
-        self._cap_suppress_display: bool = False  # True = hide serial output from screen
-        self._cap_fh: "IO[Any] | None" = None
-        self._cap_mode: str = ""          # "text" or "bin"
-        self._cap_raw: bool = False       # True = raw binary (no type conversion)
-        self._cap_path: Path | None = None
-        self._cap_bytes: int = 0          # bytes captured so far
-        self._cap_target: int = 0         # target bytes (bin mode)
-        self._cap_end: float = 0.0        # monotonic deadline (text mode)
-        self._cap_total: float = 0.0      # total duration/bytes for progress calc
+        # File capture engine
+        self._capture = CaptureEngine(
+            on_echo=lambda line: self._status(line, "dim"),
+            on_complete=lambda result: self._on_capture_complete(result),
+        )
         self._cap_timer: "Timer | None" = None
         self._cap_progress_timer: "Timer | None" = None
-        self._cap_columns: list = []      # format spec columns (bin mode)
-        self._cap_record_size: int = 0    # bytes per record
-        self._cap_sep: str = ","          # column separator
-        self._cap_echo: bool = False      # echo formatted values to terminal
-        self._cap_header_written: bool = False  # CSV header written
-        self._cap_buf: bytearray = bytearray()  # binary accumulator
-        self._cap_hex: bool = False              # hex text → bytes mode
-        self._hex_line_buf: str = ""             # partial hex line buffer
+        self._cap_suppress_display: bool = False
 
     @property
     def cfg(self):
@@ -1241,7 +1228,7 @@ class SerialTerminal(App):
         self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
 
     def _disconnect(self) -> None:
-        if self._cap_fh:
+        if self._capture.active:
             self._cap_stop()
         was_open = self.is_connected
         self.stop_event.set()
@@ -1824,40 +1811,12 @@ class SerialTerminal(App):
                     # Feed raw bytes to protocol queue for /proto
                     self._raw_rx_queue.put(data)
 
-                    # Binary capture tap — accumulate raw bytes
-                    if self._cap_fh and self._cap_mode == "bin":
-                        if self._cap_hex:
-                            # Hex mode: decode text, parse hex lines → bytes
-                            text = data.decode(
-                                self.cfg.get("encoding", "utf-8"),
-                                errors="replace",
-                            )
-                            self._hex_line_buf += text
-                            while "\n" in self._hex_line_buf:
-                                line, self._hex_line_buf = (
-                                    self._hex_line_buf.split("\n", 1)
-                                )
-                                line = line.strip()
-                                if line:
-                                    try:
-                                        from termapy.protocol import parse_hex
-                                        self._cap_buf.extend(parse_hex(line))
-                                    except ValueError:
-                                        pass
-                        else:
-                            self._cap_buf.extend(data)
-                        if self._cap_target and len(self._cap_buf) >= self._cap_target:
-                            # Trim to target
-                            self._cap_buf = self._cap_buf[: self._cap_target]
+                    # Binary capture tap — feed bytes to capture engine
+                    if self._capture.active and self._capture.mode == "bin":
+                        target_reached = self._capture.feed_bytes(data)
+                        if target_reached:
                             try:
-                                self.call_from_thread(self._cap_flush_bin)
                                 self.call_from_thread(self._cap_stop)
-                            except RuntimeError:
-                                pass
-                        elif len(self._cap_buf) >= 4096:
-                            # Periodic flush for large captures
-                            try:
-                                self.call_from_thread(self._cap_flush_bin)
                             except RuntimeError:
                                 pass
 
@@ -1940,106 +1899,46 @@ class SerialTerminal(App):
         hex_mode: bool = False,
         timeout: float = 0.0,
     ) -> bool:
-        """Start a file capture session.
-
-        Args:
-            path: Output file path (resolved).
-            file_mode: File open mode ('a', 'w', 'ab', 'wb').
-            mode: 'text' or 'bin'.
-            duration: Capture duration in seconds (text mode).
-            target_bytes: Target byte count (bin mode).
-            columns: Parsed format spec columns (bin mode, None = raw).
-            record_size: Bytes per record (bin mode with format spec).
-            sep: Column separator for formatted output.
-            echo: Print formatted values to terminal (bin mode).
-
-        Returns:
-            True if capture started, False on error.
-        """
-        if self._cap_fh:
+        """Start a file capture session (delegates to CaptureEngine)."""
+        if self._capture.active:
             self._status("Capture already active — use .stop first.", "yellow")
             return False
 
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fh = open(path, file_mode, encoding=None if "b" in file_mode else "utf-8")
-        except OSError as e:
-            self._status(f"Cannot open capture file: {e}", "red")
+        started = self._capture.start(
+            path=path, file_mode=file_mode, mode=mode, duration=duration,
+            target_bytes=target_bytes, columns=columns, record_size=record_size,
+            sep=sep, echo=echo, hex_mode=hex_mode, timeout=timeout,
+        )
+        if not started:
+            self._status(f"Cannot open capture file: {path}", "red")
             return False
 
-        self._cap_fh = fh
-        self._cap_path = path
-        self._cap_mode = mode
-        self._cap_raw = not columns
-        self._cap_bytes = 0
-        self._cap_columns = columns or []
-        self._cap_record_size = record_size
-        self._cap_sep = sep
-        self._cap_echo = echo
-        self._cap_header_written = False
-        self._cap_buf = bytearray()
-        self._cap_hex = hex_mode
-        self._hex_line_buf = ""
-
         if mode == "text":
-            self._cap_end = time.monotonic() + duration
-            self._cap_total = duration
-            self._cap_target = 0
             self._cap_timer = self.set_timer(duration, self._cap_stop)
         else:
             self._cap_suppress_display = True
             self._proto_active = True
-            self._cap_target = target_bytes
-            self._cap_total = float(target_bytes)
-            self._cap_end = 0.0
-            # Timeout timer for bin/struct/hex modes
             if timeout > 0:
                 self._cap_timer = self.set_timer(timeout, self._cap_stop)
             else:
                 self._cap_timer = None
 
         self._cap_show_progress()
-        mode_label = "raw" if self._cap_raw else ("fmt" if self._cap_columns else "text")
+        raw = not columns
+        mode_label = "raw" if raw else ("fmt" if columns else "text")
         self._log_line("#", f"capture start: {path} mode={mode_label}")
         return True
 
     def _cap_stop(self) -> None:
-        """End file capture: flush, close, report, restore UI."""
-        if not self._cap_fh:
+        """End file capture: delegate to engine, restore UI."""
+        if not self._capture.active:
             return
 
-        # Flush any remaining binary buffer (complete elements only)
-        if self._cap_mode == "bin":
+        was_bin = self._capture.mode == "bin"
+        if was_bin:
             self._proto_active = False
-            if self._cap_buf:
-                self._cap_flush_bin()
 
-        path = self._cap_path
-        byte_count = self._cap_bytes
-        raw = self._cap_raw
-
-        try:
-            self._cap_fh.close()
-        except OSError:
-            pass
-
-        # Clear state
-        self._cap_fh = None
-        self._cap_path = None
-        self._cap_mode = ""
-        self._cap_raw = False
-        self._cap_bytes = 0
-        self._cap_target = 0
-        self._cap_end = 0.0
-        self._cap_total = 0.0
-        self._cap_columns = []
-        self._cap_record_size = 0
-        self._cap_sep = ","
-        self._cap_echo = False
-        self._cap_header_written = False
-        self._cap_buf = bytearray()
-        self._cap_hex = False
-        self._hex_line_buf = ""
+        result = self._capture.stop()
 
         if self._cap_timer:
             self._cap_timer.stop()
@@ -2047,73 +1946,23 @@ class SerialTerminal(App):
 
         self._cap_hide_progress()
 
-        if byte_count > 1024:
-            size = f"{byte_count / 1024:.1f} KB"
-        else:
-            size = f"{byte_count} bytes"
-        self._status(f"Capture complete: {path} ({size})", "green")
-        self._log_line("#", f"capture end: {path} ({size})")
+        if result:
+            self._status(
+                f"Capture complete: {result.path} ({result.size_label})", "green"
+            )
+            self._log_line("#", f"capture end: {result.path} ({result.size_label})")
         self._sync_cap_button()
 
-        # Clear display suppression after a delay so any stale
-        # _write_batch calls queued by the reader thread are discarded.
         if self._cap_suppress_display:
             self.set_timer(0.5, self._cap_clear_suppress)
+
+    def _on_capture_complete(self, result: CaptureResult) -> None:
+        """Called by CaptureEngine when capture finishes (unused for now)."""
+        pass
 
     def _cap_clear_suppress(self) -> None:
         """Clear the binary capture display suppression flag."""
         self._cap_suppress_display = False
-
-    def _cap_flush_bin(self) -> None:
-        """Write accumulated binary buffer to file (complete records only)."""
-        if not self._cap_fh or not self._cap_buf:
-            return
-
-        data = bytes(self._cap_buf)
-        if self._cap_raw:
-            # Raw binary — write as-is
-            try:
-                self._cap_fh.write(data)
-                self._cap_bytes += len(data)
-            except OSError:
-                pass
-        elif self._cap_record_size > 0:
-            # Format spec — convert records to text
-            usable = len(data) - (len(data) % self._cap_record_size)
-            if usable > 0:
-                lines: list[str] = []
-                sep = self._cap_sep
-                # Write header on first flush
-                if not self._cap_header_written:
-                    headers, _ = apply_format(
-                        data[: self._cap_record_size], self._cap_columns
-                    )
-                    # Only write header if any column has a name that
-                    # differs from its type code (i.e. user gave names)
-                    has_names = any(
-                        h != col.type_code
-                        for h, col in zip(headers, self._cap_columns)
-                        if col.type_code != "_"
-                    )
-                    if has_names:
-                        lines.append(sep.join(headers))
-                    self._cap_header_written = True
-
-                for offset in range(0, usable, self._cap_record_size):
-                    record = data[offset : offset + self._cap_record_size]
-                    _, values = apply_format(record, self._cap_columns)
-                    lines.append(sep.join(values))
-
-                text = "\n".join(lines) + "\n"
-                try:
-                    self._cap_fh.write(text)
-                    self._cap_bytes += usable
-                except OSError:
-                    pass
-                if self._cap_echo:
-                    for line in lines:
-                        self._status(line, "dim")
-        self._cap_buf.clear()
 
     def _cap_show_progress(self) -> None:
         """Mount a progress overlay in the bottom bar."""
@@ -2137,22 +1986,23 @@ class SerialTerminal(App):
 
     def _cap_update_progress(self) -> None:
         """Update the capture progress label."""
-        if not self._cap_fh:
+        prog = self._capture.get_progress()
+        if not prog:
             return
         try:
             label = self.query_one("#cap-label", Static)
         except Exception:
             return
-
-        path_name = self._cap_path.name if self._cap_path else "?"
-        if self._cap_mode == "text":
-            remaining = max(0.0, self._cap_end - time.monotonic())
-            elapsed = self._cap_total - remaining
-            pct = min(100, int(elapsed / self._cap_total * 100)) if self._cap_total > 0 else 100
-            label.update(f" Capturing → {path_name}  [{pct}%]  {remaining:.1f}s left  {self._cap_bytes} bytes")
+        if prog.mode == "text":
+            label.update(
+                f" Capturing → {prog.path_name}  [{prog.pct}%]  "
+                f"{prog.remaining_s:.1f}s left  {prog.bytes_captured} bytes"
+            )
         else:
-            pct = min(100, int(self._cap_bytes / self._cap_total * 100)) if self._cap_total > 0 else 0
-            label.update(f" Capturing → {path_name}  [{pct}%]  {self._cap_bytes}/{self._cap_target} bytes")
+            label.update(
+                f" Capturing → {prog.path_name}  [{prog.pct}%]  "
+                f"{prog.bytes_captured}/{prog.target_bytes} bytes"
+            )
 
     def _cap_hide_progress(self) -> None:
         """Remove the capture overlay and restore normal buttons."""
@@ -2211,16 +2061,10 @@ class SerialTerminal(App):
         for text in lines:
             self._log_line("<", ANSI_RE.sub("", text))
 
-        # Text capture tap — write ANSI-stripped lines to capture file
-        if self._cap_fh and self._cap_mode == "text":
-            try:
-                for text in lines:
-                    stripped = ANSI_RE.sub("", text)
-                    self._cap_fh.write(stripped + "\n")
-                    self._cap_bytes += len(stripped) + 1
-                self._cap_fh.flush()
-            except OSError:
-                pass
+        # Text capture tap — feed ANSI-stripped lines to capture engine
+        if self._capture.active and self._capture.mode == "text":
+            stripped = [ANSI_RE.sub("", t) for t in lines]
+            self._capture.feed_text(stripped)
 
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:
@@ -2400,9 +2244,10 @@ class SerialTerminal(App):
         except (OSError, serial.SerialException) as e:
             self._status(f"Send error: {e}", "red")
 
-        # Clear input
-        inp = self.query_one("#cmd", Input)
-        inp.value = ""
+        # Clear input (only for interactive commands, not scripts)
+        if not self.repl.in_script:
+            inp = self.query_one("#cmd", Input)
+            inp.value = ""
 
     def _show_commands(self) -> None:
         """Show the REPL command picker with smart arg handling."""

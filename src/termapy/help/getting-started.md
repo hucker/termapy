@@ -6,13 +6,24 @@ Run `termapy` from the command line:
 
 ```text
 termapy                          # auto-detect config
+termapy my_device                # find termapy_cfg/my_device/my_device.cfg
 termapy my_device.cfg            # load a specific config file
+termapy termapy_cfg/my_device    # load config from a folder
 termapy --cfg-dir /path/to/cfgs  # use a custom config directory
 termapy --check my_device.cfg    # validate config (no UI)
+termapy --cli my_device          # plain-text CLI mode
+termapy --cli smoke_test.run     # run a .run script in CLI mode
 ```
 
-**Config file argument** — pass the path to a JSON config file directly.
-If the file doesn't exist, `termapy` creates it with default settings.
+**Config resolution** — termapy finds your config automatically. Pass a bare
+name like `my_device` and it looks in `termapy_cfg/my_device/my_device.cfg`.
+Pass a folder and it looks for `<foldername>.cfg` inside. Pass a `.cfg` file
+directly and it uses that.
+
+**Script files** — passing a `.run` or `.pro` file infers the config from
+the file's location (walks up the directory tree to find a `.cfg` file).
+In CLI mode, `.run` files are executed automatically. In TUI mode, the
+config loads and you can run the script manually.
 
 **--cfg-dir** — override the config directory location. By default,
 termapy stores everything in a `termapy_cfg/` folder in the current

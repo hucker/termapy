@@ -28,14 +28,17 @@ That starts a simulated device — no hardware needed. You're typing commands in
 For a real device, just point at your config:
 
 ```sh
-termapy my_device.cfg
+termapy my_device              # finds termapy_cfg/my_device/my_device.cfg
+termapy my_device.cfg          # same, explicit extension
+termapy termapy_cfg/my_device  # same, explicit path to folder
 ```
 
 For a plain-text terminal (no TUI), use CLI mode:
 
 ```sh
-termapy --cli my_device.cfg          # interactive CLI
-termapy --cli my_device.cfg --run smoke_test.run  # run a script and exit
+termapy --cli my_device                  # interactive CLI
+termapy --cli smoke_test.run             # run a .run script and exit
+termapy --cli my_device --run test.run   # explicit config + script
 ```
 
 There's a lot more — scripting, binary protocol testing, 62 CRC algorithms, custom buttons, plugins, packet visualizers — expand any section below.
@@ -807,11 +810,13 @@ The demo comes with everything wired up so you can try each feature:
 `termapy --cli` runs a plain-text serial terminal in your existing terminal window - no Textual UI, no mouse, just keyboard input and text output. All built-in plugins, scripting, and serial I/O work the same as the TUI.
 
 ```sh
-termapy --cli my_device.cfg              # interactive terminal
-termapy --cli --demo                     # demo device, no hardware needed
-termapy --cli my_device.cfg --run test.run   # run a script and exit
-termapy --cli my_device.cfg --no-color       # strip ANSI color codes
+termapy --cli my_device              # interactive terminal
+termapy --cli --demo                 # demo device, no hardware needed
+termapy --cli smoke_test.run         # run a .run script and exit
+termapy --cli my_device --no-color   # strip ANSI color codes
 ```
+
+Passing a `.run` file to `--cli` automatically infers the config from the file's location and runs it. Passing a config name or path opens an interactive session.
 
 **Features:**
 

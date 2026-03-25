@@ -127,18 +127,14 @@ class TestDefaultCfg:
 
 
 class TestLoadConfig:
-    def test_creates_default_if_missing(self, tmp_path, monkeypatch):
+    def test_raises_if_missing(self, tmp_path):
         # Arrange
-        monkeypatch.chdir(tmp_path)
         config_path = tmp_path / "test" / "test.cfg"
 
-        # Act
-        actual = load_config(str(config_path))
-
-        # Assert
-        assert config_path.exists()  # file created on disk
-        assert actual["port"] == DEFAULT_CFG["port"]  # default port
-        assert "custom_buttons" in actual  # default buttons added
+        # Act / Assert - load_config no longer auto-creates files
+        import pytest
+        with pytest.raises(FileNotFoundError):
+            load_config(str(config_path))
 
     def test_adds_missing_keys(self, tmp_path):
         # Arrange

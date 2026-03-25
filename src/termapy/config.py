@@ -273,29 +273,21 @@ def _type_name(t: type | tuple[type, ...]) -> str:
 def load_config(path: str) -> dict:
     """Load and validate JSON config, applying defaults for missing fields.
 
-    If the file doesn't exist, creates it with DEFAULT_CFG. On load, runs
-    the migration chain and backfills any missing keys from defaults. Writes
-    the file back if anything changed.
+    Raises FileNotFoundError if the file doesn't exist. Config creation
+    is handled by the caller (--demo flag or TUI interactive prompt).
 
     Args:
         path: Path to the JSON config file.
 
     Returns:
         Config dict with migrations applied and all defaults present.
+
+    Raises:
+        FileNotFoundError: If the config file does not exist.
     """
     p = Path(path)
     if not p.exists():
-        print(f"Config file not found: {path}", file=sys.stderr)
-        # Ensure it goes into termapy_cfg/<name>/<name>.cfg
-        if not p.parent or p.parent == Path("."):
-            name = p.stem
-            p = cfg_path_for_name(name)
-            path = str(p)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Creating default config at {p}")
-        with open(p, "w") as f:
-            json.dump(DEFAULT_CFG, f, indent=4)
-        return dict(DEFAULT_CFG)
+        raise FileNotFoundError(f"Config file not found: {path}")
 
     with open(path) as f:
         cfg = json.load(f)

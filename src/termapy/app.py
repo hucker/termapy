@@ -62,7 +62,8 @@ from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_f
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
-from termapy.serial_port import SerialPort, SerialReader, eol_label
+from termapy.serial_engine import SerialEngine
+from termapy.serial_port import eol_label
 from termapy.repl import ReplEngine
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
@@ -309,12 +310,7 @@ class SerialTerminal(App):
         self.open_editor_on_start = open_editor
         self.show_picker_on_start = show_picker
         self._first_run = first_run
-        self.ser: serial.Serial | None = None
-        self._serial_port: SerialPort | None = None
         self.log_fh = None
-        self.stop_event = Event()
-        self.reader_stopped = Event()
-        self.reader_stopped.set()  # no reader running initially
         self.last_screenshot: str | None = None
         self.repl = ReplEngine(
             cfg,
@@ -331,13 +327,19 @@ class SerialTerminal(App):
         self._show_line_numbers: bool = False
         self._line_counter: int = 0
         self._proto_hex_mode: bool = False
-        self._proto_active: bool = False
-        self._raw_rx_queue: "queue.Queue[bytes]" = queue.Queue()
 
         # File capture engine
         self._capture = CaptureEngine(
             on_echo=lambda line: self._status(line, "dim"),
             on_complete=lambda result: self._on_capture_complete(result),
+        )
+
+        # Serial engine (owns port, reader, connection state)
+        self._engine = SerialEngine(
+            cfg=cfg,
+            capture=self._capture,
+            open_fn=open_serial,
+            log=self._log_line,
         )
         self._cap_timer: "Timer | None" = None
         self._cap_progress_timer: "Timer | None" = None
@@ -349,7 +351,12 @@ class SerialTerminal(App):
 
     @property
     def is_connected(self) -> bool:
-        return self.ser is not None and self.ser.is_open
+        return self._engine.is_connected
+
+    @property
+    def ser(self):
+        """The underlying serial port object (for DTR/RTS/break access)."""
+        return self._engine.port_obj
 
     def _history_path(self) -> str:
         if self.config_path:
@@ -581,7 +588,7 @@ class SerialTerminal(App):
             coerce_type=ReplEngine._coerce_type,
             get_hex_mode=lambda: self._proto_hex_mode,
             set_hex_mode=self._set_hex_mode,
-            set_proto_active=lambda active: setattr(self, "_proto_active", active),
+            set_proto_active=lambda active: setattr(self._engine, "proto_active", active),
             open_proto_debug=lambda path, script: self.call_later(
                 self._open_proto_debug, path, script
             ),
@@ -600,8 +607,8 @@ class SerialTerminal(App):
             serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
             serial_read_raw=self._serial_read_raw,
             serial_drain=self._drain_rx_queue,
-            serial_claim=lambda: setattr(self, "_proto_active", True),
-            serial_release=lambda: setattr(self, "_proto_active", False),
+            serial_claim=lambda: setattr(self._engine, "proto_active", True),
+            serial_release=lambda: setattr(self._engine, "proto_active", False),
             dispatch=self._dispatch_single,
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
@@ -916,7 +923,7 @@ class SerialTerminal(App):
     def on_unmount(self) -> None:
         self._save_history()
         self._disconnect()
-        self.reader_stopped.wait(timeout=0.2)
+        self._engine.reader_stopped.wait(timeout=0.2)
         if self.log_fh:
             self.log_fh.close()
             self.log_fh = None
@@ -926,69 +933,47 @@ class SerialTerminal(App):
             return
         if port:
             self.repl._cfg_data["port"] = port
-        # Wait for any previous reader thread to finish
-        self.reader_stopped.wait(timeout=0.3)
-        self.stop_event.clear()
+        self._engine.reader_stopped.wait(timeout=0.3)
         self._try_open_port()
 
     def _try_open_port(self) -> bool:
         """Attempt to open the serial port. Returns True on success."""
-        try:
-            self.reader_stopped.clear()
-            self.ser = open_serial(self.cfg)
-            self._serial_port = SerialPort(
-                port=self.ser,
-                rx_queue=self._raw_rx_queue,
-                log=self._log_line,
-                encoding=self.cfg.get("encoding", "utf-8"),
-            )
-            self._reader = SerialReader(
-                encoding=self.cfg.get("encoding", "utf-8"),
-                show_line_endings=self.cfg.get("show_line_endings", False),
-                capture=self._capture,
-                proto_active=lambda: self._proto_active,
-            )
-            self.notify(
-                f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", timeout=0.75
-            )
-            self._set_conn_status("Connected")
-            inp = self.query_one("#cmd", Input)
-            inp.placeholder = "REPL:type command, Enter to send"
-            inp.focus()
-            self._sync_hw_buttons()
-            self.read_serial()
-            auto_cmd = self.cfg.get("on_connect_cmd", "")
-            if auto_cmd:
-                # Split on literal \n (from JSON \\n) and real newlines
-                parts = auto_cmd.replace("\\n", "\n").split("\n")
-                self._run_lines(parts, delay=0.2)
-            return True
-        except serial.SerialException as e:
-            self.reader_stopped.set()
-            self._status(f"Serial error: {e}", "red")
+        if not self._engine.connect():
+            self._engine.reader_stopped.set()
+            self._status(f"Serial error: cannot open {self.cfg.get('port')}", "red")
             self._set_conn_status("Disconnected")
             if self.cfg.get("auto_reconnect"):
                 self._auto_reconnect()
             return False
 
+        self.notify(
+            f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", timeout=0.75
+        )
+        self._set_conn_status("Connected")
+        inp = self.query_one("#cmd", Input)
+        inp.placeholder = "REPL:type command, Enter to send"
+        inp.focus()
+        self._sync_hw_buttons()
+        self._run_reader()
+        auto_cmd = self.cfg.get("on_connect_cmd", "")
+        if auto_cmd:
+            parts = auto_cmd.replace("\\n", "\n").split("\n")
+            self._run_lines(parts, delay=0.2)
+        return True
+
     @work(thread=True)
     def _auto_reconnect(self) -> None:
         """Background thread: retry connecting every second until success or stop."""
         try:
-            while not self.stop_event.is_set():
+            while not self._engine.stop_event.is_set():
                 time.sleep(1.0)
-                if self.stop_event.is_set():
+                if self._engine.stop_event.is_set():
                     break
                 self.call_from_thread(self._set_conn_status, "Retrying...")
-                try:
-                    ser = open_serial(self.cfg)
-                    # Success — hand off to the main thread to finish setup
-                    ser.close()
+                if self._engine.try_reconnect():
                     self.call_from_thread(self._try_open_port)
                     return
-                except (serial.SerialException, OSError):
-                    self.call_from_thread(self._set_conn_status, "Disconnected")
-                    continue
+                self.call_from_thread(self._set_conn_status, "Disconnected")
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
 
@@ -1024,20 +1009,20 @@ class SerialTerminal(App):
     def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
         """Collect raw bytes using timeout-based framing (delegates to SerialPort)."""
         frame_gap = frame_gap_ms or self.cfg.get("proto_frame_gap_ms", 50)
-        if self._serial_port:
-            return self._serial_port.read_raw(timeout_ms, frame_gap)
+        if self._engine.serial_port:
+            return self._engine.serial_port.read_raw(timeout_ms, frame_gap)
         return b""
 
     def _drain_rx_queue(self) -> int:
         """Discard all pending bytes in the RX queue (delegates to SerialPort)."""
-        if self._serial_port:
-            return self._serial_port.drain()
+        if self._engine.serial_port:
+            return self._engine.serial_port.drain()
         return 0
 
     def _wait_for_idle(self, timeout_ms: int = 100, max_wait_s: float = 3.0) -> None:
         """Wait until no serial data arrives for timeout_ms (delegates to SerialPort)."""
-        if self._serial_port:
-            self._serial_port.wait_for_idle(timeout_ms, max_wait_s)
+        if self._engine.serial_port:
+            self._engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
 
     @work(thread=True)
     def _run_lines(
@@ -1105,8 +1090,8 @@ class SerialTerminal(App):
 
     def _serial_write(self, data: bytes) -> None:
         """Write bytes to serial port and log TX (delegates to SerialPort)."""
-        if self._serial_port:
-            self._serial_port.write(data)
+        if self._engine.serial_port:
+            self._engine.serial_port.write(data)
         else:
             self._log_line(">", data.hex(" "))
 
@@ -1168,8 +1153,7 @@ class SerialTerminal(App):
         if self._capture.active:
             self._cap_stop()
         was_open = self.is_connected
-        self.stop_event.set()
-        self.reader_stopped.wait(timeout=0.3)
+        self._engine.disconnect()
         try:
             if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
@@ -1713,65 +1697,35 @@ class SerialTerminal(App):
         self.exit()
 
     @work(thread=True)
-    def read_serial(self) -> None:
-        """Background thread: read serial port and post to output."""
-        reader = self._reader
+    @work(thread=True)
+    def _run_reader(self) -> None:
+        """Background thread: delegates to SerialEngine.read_loop."""
+        def on_error(detail: str) -> None:
+            self.call_from_thread(
+                self._status, f"Serial read error: {detail}", "red"
+            )
+
+        def on_disconnect() -> None:
+            self.call_from_thread(
+                self.notify, "Serial disconnected",
+                severity="warning", timeout=1.5,
+            )
+            self.call_from_thread(self._set_conn_status, "Disconnected")
+            if self.cfg.get("auto_reconnect"):
+                self.call_from_thread(self._auto_reconnect)
+
         try:
-            while not self.stop_event.is_set():
-                if not self.ser or not self.ser.is_open:
-                    break
-                try:
-                    waiting = self.ser.in_waiting or 1
-                    data = self.ser.read(min(waiting, 4096))
-                except (serial.SerialException, OSError, AttributeError) as exc:
-                    detail = f"{exc.__class__.__name__}: {exc}"
-                    if self.cfg.get("show_traceback", False):
-                        detail += f"\n{traceback.format_exc()}"
-                    self.call_from_thread(
-                        self._status,
-                        f"Serial read error: {detail}",
-                        "red",
-                    )
-                    self.call_from_thread(
-                        self.notify,
-                        "Serial disconnected",
-                        severity="warning",
-                        timeout=1.5,
-                    )
-                    self.call_from_thread(self._set_conn_status, "Disconnected")
-                    if self.cfg.get("auto_reconnect"):
-                        self.call_from_thread(self._auto_reconnect)
-                    break
-
-                if data:
-                    # Feed raw bytes to protocol queue for /proto
-                    self._raw_rx_queue.put(data)
-
-                result = reader.process(data)
-
-                if result.capture_target_reached:
-                    try:
-                        self.call_from_thread(self._cap_stop)
-                    except RuntimeError:
-                        pass
-                if result.clear_screen:
-                    self.call_from_thread(self._clear_output)
-                if result.lines:
-                    self.call_from_thread(self._write_batch, result.lines)
-
-                if not data:
-                    time.sleep(0.01)  # avoid busy-spin when idle
+            self._engine.read_loop(
+                on_lines=lambda lines: self.call_from_thread(
+                    self._write_batch, lines
+                ),
+                on_clear=lambda: self.call_from_thread(self._clear_output),
+                on_capture_done=lambda: self.call_from_thread(self._cap_stop),
+                on_error=on_error,
+                on_disconnect=on_disconnect,
+            )
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
-        finally:
-            if self.ser:
-                try:
-                    self.ser.close()
-                except Exception:
-                    pass  # port already closed or inaccessible
-                self.ser = None
-                self._serial_port = None
-            self.reader_stopped.set()
 
     def _clear_output(self) -> None:
         self.query_one("#output", RichLog).clear()
@@ -1815,7 +1769,7 @@ class SerialTerminal(App):
         if mode == "text":
             self._cap_timer = self.set_timer(duration, self._cap_stop)
         else:
-            self._proto_active = True
+            self._engine.proto_active = True
             if timeout > 0:
                 self._cap_timer = self.set_timer(timeout, self._cap_stop)
             else:
@@ -1835,7 +1789,7 @@ class SerialTerminal(App):
         result = self._capture.stop()
 
         if not self.repl.in_script:
-            self._proto_active = False
+            self._engine.proto_active = False
 
         if self._cap_timer:
             self._cap_timer.stop()
@@ -2790,7 +2744,7 @@ class SerialTerminal(App):
                 self._script_last_label = ""
                 inp.disabled = False
                 inp.focus()
-                self._proto_active = False
+                self._engine.proto_active = False
         except Exception:
             pass
 

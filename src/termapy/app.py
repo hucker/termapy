@@ -731,6 +731,9 @@ class SerialTerminal(App):
             self._hook_line_no,
             source="app",
         )
+        # /edit — TUI overrides root (Textual modals for .run/.pro)
+        # This wipes all edit.* children from the plugin, so we must
+        # re-register every subcommand the TUI wants to expose.
         self.repl.register_hook(
             "edit",
             "<filename>",
@@ -759,6 +762,43 @@ class SerialTerminal(App):
             lambda ctx, args: self._hook_edit_info(),
             source="app",
         )
+        # Re-register folder subcommands (wiped by /edit override)
+        from termapy.builtins.plugins.edit import (
+            _make_edit_handler, _make_list_handler, _make_explore_handler,
+        )
+        for folder, get_dir, ext, pat in (
+            ("scripts", lambda ctx: ctx.scripts_dir, ".run", "*.run"),
+            ("proto", lambda ctx: ctx.proto_dir, ".pro", "*.pro"),
+            ("plugins", lambda ctx: Path(ctx.config_path).parent / "plugins"
+             if ctx.config_path else Path("."), ".py", "*.py"),
+        ):
+            # TUI uses Textual modals for scripts and proto edit
+            if folder in ("scripts", "proto"):
+                self.repl.register_hook(
+                    f"edit.{folder}", "{{filename}}",
+                    f"Edit a {ext} file.",
+                    (lambda f=folder, e=ext: lambda ctx, args: self._hook_edit_folder(ctx, args, f, e))(),
+                    source="app",
+                )
+            else:
+                self.repl.register_hook(
+                    f"edit.{folder}", "{{filename}}",
+                    f"Open a {ext} file in the system editor.",
+                    _make_edit_handler(get_dir, ext),
+                    source="app",
+                )
+            self.repl.register_hook(
+                f"edit.{folder}.list", "",
+                f"List {ext} files.",
+                _make_list_handler(get_dir, pat),
+                source="app",
+            )
+            self.repl.register_hook(
+                f"edit.{folder}.explore", "",
+                f"Open {folder}/ in file explorer.",
+                _make_explore_handler(get_dir),
+                source="app",
+            )
         self.repl.register_hook(
             "cfg.load",
             "<name>",
@@ -2375,6 +2415,33 @@ class SerialTerminal(App):
         elif ext == ".pro":
             self.push_screen(
                 ProtoEditor(self.repl.proto_dir, str(path)),
+                callback=self._on_proto_saved,
+            )
+
+    def _hook_edit_folder(self, ctx, args: str, folder: str, ext: str) -> None:
+        """Edit a file from a specific folder using Textual modal."""
+        name = args.strip()
+        if not name:
+            self.repl.write(f"Usage: /edit.{folder} <filename>", "red")
+            return
+        if not name.endswith(ext):
+            name += ext
+        dir_map = {"scripts": self.repl.scripts_dir, "proto": self.repl.proto_dir}
+        base = dir_map.get(folder)
+        if not base:
+            return
+        path = base / name
+        if not path.exists():
+            self.repl.write(f"File not found: {name}", "red")
+            return
+        if ext == ".run":
+            self.push_screen(
+                ScriptEditor(base, str(path)),
+                callback=self._on_script_saved,
+            )
+        elif ext == ".pro":
+            self.push_screen(
+                ProtoEditor(base, str(path)),
                 callback=self._on_proto_saved,
             )
 

@@ -802,6 +802,38 @@ The demo comes with everything wired up so you can try each feature:
 </details>
 
 <details>
+<summary><strong>CLI Mode</strong> — plain-text terminal, no TUI</summary>
+
+`termapy --cli` runs a plain-text serial terminal in your existing terminal window - no Textual UI, no mouse, just keyboard input and text output. All built-in plugins, scripting, and serial I/O work the same as the TUI.
+
+```sh
+termapy --cli my_device.cfg              # interactive terminal
+termapy --cli --demo                     # demo device, no hardware needed
+termapy --cli my_device.cfg --run test.run   # run a script and exit
+termapy --cli my_device.cfg --no-color       # strip ANSI color codes
+```
+
+**Features:**
+
+- Rich colored output (toggle with `/color on|off` or `--no-color`)
+- Command history shared with TUI (up/down arrows, persisted across sessions)
+- Tab completion for REPL commands
+- Script execution with `/run` (same scripts work in both TUI and CLI)
+- `/delay` with progress bar for waits over 3 seconds (Ctrl+C to cancel)
+- All `/port`, `/cfg`, `/var`, `/env`, `/proto.crc`, `/edit` commands work
+
+**TUI-only features** (not available in CLI mode):
+
+- `/ss.svg`, `/ss.txt` - screenshots (prints "not supported" message)
+- `/grep` - scrollback search (no scrollback buffer in CLI)
+- `/edit.cfg` - opens in system editor instead of built-in config editor
+- Mouse interaction, modal dialogs, custom buttons
+
+**Exit:** `/exit`, `/quit`, or Ctrl+C.
+
+</details>
+
+<details>
 <summary><strong>Extending Termapy</strong> — plugins, subcommands, visualizers</summary>
 
 ### Plugins

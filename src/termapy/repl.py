@@ -132,6 +132,17 @@ class ReplEngine:
             long_help: Extended help for ``/help <cmd>`` (default "").
             raw_args: Skip REPL transforms for this command (default False).
         """
+        # Tree override: remove all children of this command from plugins.
+        # When a hook takes ownership of a command, it owns the full subtree.
+        prefix = name + "."
+        children_to_remove = [n for n in self._plugins if n.startswith(prefix)]
+        for child in children_to_remove:
+            del self._plugins[child]
+        # Also clean up the old entry's children list (if it existed)
+        old = self._plugins.get(name)
+        if old and old.children:
+            old.children.clear()
+
         self._plugins[name] = PluginInfo(
             name=name, args=args, help=help_text,
             handler=handler, long_help=long_help, source=source,

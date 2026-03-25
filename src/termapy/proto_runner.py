@@ -1,6 +1,6 @@
 """Headless protocol test runner with JSON result output.
 
-Runs .pro test scripts without the Textual TUI — opens the serial port
+Runs .pro test scripts without the Textual TUI - opens the serial port
 directly, executes tests, writes a JSON result file, and exits.
 
 No Textual dependency.  Reuses parsing and matching from protocol.py
@@ -131,11 +131,11 @@ def expand_result_template(template: str, proto_name: str,
 
     Supported placeholders:
 
-    - ``{name}`` — config/project name (e.g. ``demo``)
-    - ``{proto_name}`` — .pro file stem (e.g. ``at_test``)
-    - ``{datetime}`` — ``YYYY-MM-DD-HH-MM-SS``
-    - ``{date}`` — ``YYYYMMDD``
-    - ``{time}`` — ``HHMMSS``
+    - ``{name}`` - config/project name (e.g. ``demo``)
+    - ``{proto_name}`` - .pro file stem (e.g. ``at_test``)
+    - ``{datetime}`` - ``YYYY-MM-DD-HH-MM-SS``
+    - ``{date}`` - ``YYYYMMDD``
+    - ``{time}`` - ``HHMMSS``
 
     For backward compatibility, ``{name}`` falls back to the proto file
     stem when no config name is provided.
@@ -184,7 +184,7 @@ def run_proto_tests(
     fmt, parsed = load_proto_script(text)
     if fmt != "toml":
         raise ValueError(
-            f"{pro_path.name} is flat format — only TOML scripts with "
+            f"{pro_path.name} is flat format - only TOML scripts with "
             f"[[test]] sections are supported for JSON test results"
         )
     script: ProtoScript = parsed  # type: ignore[assignment]
@@ -272,7 +272,7 @@ def run_proto_tests(
         "source": text,
     }
 
-    # Write JSON file — script-level json_file overrides config template
+    # Write JSON file - script-level json_file overrides config template
     effective_template = script.json_file or template
     config_name = Path(cfg.get("_config_path", "")).stem or ""
     filename = expand_result_template(effective_template, pro_path.stem,

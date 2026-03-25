@@ -60,14 +60,14 @@ def _handler(ctx: PluginContext, args: str) -> None:
         if rx.search(line) and not _is_grep_noise(line)
     ]
     if not matches:
-        ctx.write(f"  grep: '{pattern}' — no matches")
+        ctx.write(f"  grep: '{pattern}' - no matches")
         return
     total = len(matches)
     shown = matches[:max_matches]
     if total > max_matches:
-        ctx.write(f"  grep: '{pattern}' — showing first {max_matches} of {total} matches")
+        ctx.write(f"  grep: '{pattern}' - showing first {max_matches} of {total} matches")
     else:
-        ctx.write(f"  grep: '{pattern}' — {total} match(es)")
+        ctx.write(f"  grep: '{pattern}' - {total} match(es)")
     for lineno, line in shown:
         clean = _ANSI_RE.sub("", line)
         ctx.write(f"  grep: {lineno:>5} | {clean}")
@@ -86,8 +86,8 @@ before display. Grep's own output is excluded from results.
 Max results controlled by max_grep_lines config (default 100).
 
 Examples:
-  /grep error          — find lines containing 'error'
-  /grep ^OK            — lines starting with 'OK'
-  /grep temp.*\\d+      — 'temp' followed by digits""",
+  /grep error          - find lines containing 'error'
+  /grep ^OK            - lines starting with 'OK'
+  /grep temp.*\\d+      - 'temp' followed by digits""",
     handler=_handler,
 )

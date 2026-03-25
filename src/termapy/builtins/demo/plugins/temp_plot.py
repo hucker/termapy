@@ -47,7 +47,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     try:
         count = int(args.strip()) if args.strip() else 20
         if count < 1 or count > 200:
-            ctx.write("Sample count must be 1–200.", "red")
+            ctx.write("Sample count must be 1-200.", "red")
             return
     except ValueError:
         ctx.write("Usage: /temp_plot {count}", "red")
@@ -66,7 +66,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
             raw = ctx.serial_read_raw()
             text = raw.decode(encoding, errors="replace").strip()
 
-            # Parse "+TEMP: 23.4C" → 23.4
+            # Parse "+TEMP: 23.4C" -> 23.4
             for line in text.splitlines():
                 if "+TEMP:" in line:
                     try:
@@ -86,7 +86,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     hi = max(readings)
     avg = sum(readings) / len(readings)
 
-    # ASCII sparkline — map values to block characters
+    # ASCII sparkline - map values to block characters
     bars = "▁▂▃▄▅▆▇█"
     span = hi - lo or 1
     spark = ""
@@ -109,9 +109,9 @@ COMMAND = Command(
     long_help="""\
 Send AT+TEMP to the device repeatedly and visualize the results.
 
-  /temp_plot        — 20 samples (default)
-  /temp_plot 50     — 50 samples
-  /temp_plot 5      — quick 5-sample check
+  /temp_plot        - 20 samples (default)
+  /temp_plot 50     - 50 samples
+  /temp_plot 5      - quick 5-sample check
 
 This plugin was generated with an LLM using the PluginContext API.
 See the source code for the prompt and pattern.""",

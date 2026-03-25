@@ -19,7 +19,7 @@ MIGRATIONS: dict[int, Callable] = {}
 
 
 def _migrate_v1_to_v2(cfg: dict) -> dict:
-    """Rename add_date_to_cmd → show_timestamps."""
+    """Rename add_date_to_cmd -> show_timestamps."""
     if "add_date_to_cmd" in cfg:
         cfg["show_timestamps"] = cfg.pop("add_date_to_cmd")
     return cfg
@@ -43,7 +43,7 @@ _KEY_RENAMES_V4 = {
 
 
 def _migrate_v3_to_v4(cfg: dict) -> dict:
-    """Remove command_history_items, add read_only, rename keys, prefix ! → /."""
+    """Remove command_history_items, add read_only, rename keys, prefix ! -> /."""
     cfg.pop("command_history_items", None)
     cfg.setdefault("read_only", False)
     if cfg.get("repl_prefix") == "!":

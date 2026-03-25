@@ -1,4 +1,4 @@
-"""16-bit checksum — sum of all bytes mod 65536."""
+"""16-bit checksum - sum of all bytes mod 65536."""
 
 NAME = "sum16"
 WIDTH = 2

@@ -1,13 +1,13 @@
-"""Pure functions for serial port control — no Textual, no pyserial imports.
+"""Pure functions for serial port control - no Textual, no pyserial imports.
 
 Each function accepts a serial-like object (or None), config dict, and args,
 and returns a list of (text, color) message tuples plus a dict of side effects
 for the caller to apply.
 
 Side effects dict keys:
-    update_title: bool — refresh the title bar
-    sync_hw: bool — update hardware button visibility/state
-    cfg_update: dict — keys to update in the in-memory config
+    update_title: bool - refresh the title bar
+    sync_hw: bool - update hardware button visibility/state
+    cfg_update: dict - keys to update in the in-memory config
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ SERIAL_KEYS = {
     "flow_control",
 }
 
-# Maps config key → (pyserial attribute, type coercion, description, valid values)
+# Maps config key -> (pyserial attribute, type coercion, description, valid values)
 PORT_PROPS = {
     "baud_rate": ("baudrate", int, "Baud rate", None),
     "byte_size": ("bytesize", int, "Data bits", VALID_BYTE_SIZES),
@@ -118,7 +118,7 @@ def get_set_prop(ser: Any | None, cfg: dict, key: str, args: str) -> Result:
             return _result([_msg(f"Invalid {desc.lower()}: {val} (use {opts})", "red")])
         setattr(ser, attr, typed)
         return _result(
-            [_msg(f"{desc} → {typed}")],
+            [_msg(f"{desc} -> {typed}")],
             update_title=True,
             cfg_update={key: typed},
         )
@@ -152,7 +152,7 @@ def get_set_flow(ser: Any | None, cfg: dict, args: str) -> Result:
         ser.rtscts = (val == "rtscts")
         ser.xonxoff = (val == "xonxoff")
         return _result(
-            [_msg(f"Flow control → {val}")],
+            [_msg(f"Flow control -> {val}")],
             update_title=True,
             sync_hw=True,
             cfg_update={"flow_control": val},
@@ -196,7 +196,7 @@ def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
     try:
         setattr(ser, line, state)
         return _result(
-            [_msg(f"{label} → {int(state)}")],
+            [_msg(f"{label} -> {int(state)}")],
             sync_hw=True,
         )
     except OSError as e:

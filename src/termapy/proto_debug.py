@@ -536,7 +536,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             return
 
         # Calculate column widths: max of header, all row values.
-        # For "mixed" status, values contain Rich markup — measure visible
+        # For "mixed" status, values contain Rich markup - measure visible
         # cell length instead of raw string length.
         def _visible_len(val: str, status: str) -> int:
             if status == "mixed":
@@ -614,7 +614,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                 val = act_values[i] if i < len(act_values) else ""
                 status = act_statuses[i] if i < len(act_statuses) else "match"
                 if status == "mixed":
-                    # Per-byte markup — parse and pad to column width
+                    # Per-byte markup - parse and pad to column width
                     styled = Text.from_markup(val)
                     pad = col_widths[i] - styled.cell_len
                     if pad > 0:
@@ -1115,7 +1115,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             # don't call _show_test_detail (which clears the log).
             self.app.call_from_thread(setattr, self, "_running", False)
         except RuntimeError:
-            # call_from_thread fails during app shutdown — ignore
+            # call_from_thread fails during app shutdown - ignore
             pass
         except Exception as e:
             self._log(f"Test runner error: {e}")
@@ -1154,7 +1154,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                 self._set_status,
                 f"{label}: done ({len(cmds)} commands)", "dim")
         except RuntimeError:
-            # call_from_thread fails during app shutdown — exit silently
+            # call_from_thread fails during app shutdown - exit silently
             self._ctx.engine.set_proto_active(False)
         except Exception as e:
             self._ctx.engine.set_proto_active(False)

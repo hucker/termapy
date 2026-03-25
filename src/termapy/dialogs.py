@@ -141,7 +141,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         val = raw_val.strip().strip('"')
         if key in self._BOOL_KEYS:
             if raw_val.strip() not in ("true", "false"):
-                return "⚠ Must be true or false"
+                return "! Must be true or false"
         elif key in self._VALID_VALUES:
             try:
                 parsed = json.loads(raw_val.strip())
@@ -149,16 +149,16 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 parsed = val
             if parsed not in self._VALID_VALUES[key]:
                 opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
-                return f"⚠ Must be one of: {opts}"
+                return f"! Must be one of: {opts}"
         elif key in self._INT_KEYS:
             try:
                 v = json.loads(raw_val.strip())
                 if not isinstance(v, int):
-                    return "⚠ Must be an integer"
+                    return "! Must be an integer"
                 if v < 0:
-                    return "⚠ Must be positive"
+                    return "! Must be positive"
             except (json.JSONDecodeError, ValueError):
-                return "⚠ Must be an integer"
+                return "! Must be an integer"
         return ""
 
     def _update_help(self) -> None:
@@ -289,7 +289,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         base = p.stem
         old_title = new_cfg.get("title", "")
         if old_title and base not in old_title:
-            new_cfg["title"] = f"{old_title} — {base}"
+            new_cfg["title"] = f"{old_title} - {base}"
         elif not old_title:
             new_cfg["title"] = base
         with open(filename, "w") as f:
@@ -867,7 +867,7 @@ class ProtoEditor(ModalScreen[str | None]):
             name += ".pro"
         path = self.proto_dir / name
         if path.exists() and not self._overwrite_ok:
-            self._show_error(f"{name} exists — click Save again to overwrite")
+            self._show_error(f"{name} exists - click Save again to overwrite")
             self._overwrite_ok = True
             return
         content = self.query_one("#ped-editor", TextArea).text
@@ -1002,7 +1002,7 @@ class ScriptEditor(ModalScreen[str | None]):
             name += ".run"
         path = self.scripts_dir / name
         if path.exists() and not self._overwrite_ok:
-            self._show_error(f"{name} exists — click Save again to overwrite")
+            self._show_error(f"{name} exists - click Save again to overwrite")
             self._overwrite_ok = True
             return
         content = self.query_one("#sed-editor", TextArea).text
@@ -1049,7 +1049,7 @@ class CfgConfirm(ModalScreen[bool]):
 
         with Vertical(id="cfg-confirm-dialog"):
             yield Static(
-                f"{self.key}: {self.old_val!r} → {self.new_val!r}",
+                f"{self.key}: {self.old_val!r} -> {self.new_val!r}",
                 id="cfg-confirm-msg",
             )
             with Horizontal(id="cfg-confirm-buttons"):

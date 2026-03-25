@@ -1,6 +1,6 @@
 """Default config values and file templates.
 
-Pure data — no logic, no I/O, no dependencies beyond migration version.
+Pure data - no logic, no I/O, no dependencies beyond migration version.
 """
 
 from termapy.migration import CURRENT_CONFIG_VERSION
@@ -96,7 +96,7 @@ def _list_ports() -> str:
         return "(cannot list ports)"
 
 
-# Common color names that Rich doesn't recognize → hex equivalents
+# Common color names that Rich doesn't recognize -> hex equivalents
 COLOR_ALIASES: dict[str, str] = {
     "brown": "#8B4513",
     "pink": "#FFB6C1",
@@ -147,7 +147,7 @@ COLOR_ALIASES: dict[str, str] = {
 def resolve_color(color: str) -> str:
     """Resolve a color name, falling back to COLOR_ALIASES for common names.
 
-    Also handles light/dark prefixes: lightpink → light pink → #FFB6C1
+    Also handles light/dark prefixes: lightpink -> light pink -> #FFB6C1
     brightened/darkened via Rich's color system.
     """
     c = color.lower().strip()
@@ -159,7 +159,7 @@ def resolve_color(color: str) -> str:
         if c.startswith(prefix):
             base = c[len(prefix):].strip("_").strip()
             if base in COLOR_ALIASES:
-                # Map to Rich-style name: dark_orange → dark_orange3
+                # Map to Rich-style name: dark_orange -> dark_orange3
                 rich_name = f"{prefix}_{base}"
                 try:
                     from rich.color import Color
@@ -183,7 +183,7 @@ def _preview_color(raw_val: str) -> str:
         # Get truecolor hex for reliable rendering
         triplet = parsed.get_truecolor()
         hex_color = f"#{triplet.red:02x}{triplet.green:02x}{triplet.blue:02x}"
-        label = f"{color} → {hex_color}" if resolved != color else f"{color} ({hex_color})"
+        label = f"{color} -> {hex_color}" if resolved != color else f"{color} ({hex_color})"
         return f"[on {hex_color}]    [/] {label}"
     except Exception:
         return f"[bold red]????[/] unknown color: {color}"
@@ -316,7 +316,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     # Meta
     "config_version": (
-        "Schema version — managed automatically.",
+        "Schema version - managed automatically.",
         "Do not edit. Current version: " + str(CURRENT_CONFIG_VERSION),
     ),
     "custom_buttons": (

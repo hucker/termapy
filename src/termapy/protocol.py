@@ -1,4 +1,4 @@
-"""Binary protocol utilities — hex parsing, framing, pattern matching, script parsing.
+"""Binary protocol utilities - hex parsing, framing, pattern matching, script parsing.
 
 Pure functions and classes with no Textual or pyserial dependencies.
 Used by the ``/proto`` builtin plugin for binary serial protocol testing.
@@ -84,7 +84,7 @@ def parse_data(text: str) -> bytes:
     (``\\r``, ``\\n``, ``\\t``, ``\\\\``, ``\\0``).
     Hex bytes and quoted strings can be freely mixed.
 
-    Example: ``'02 "HELLO\\r" 03'`` → ``b'\\x02HELLO\\r\\x03'``.
+    Example: ``'02 "HELLO\\r" 03'`` -> ``b'\\x02HELLO\\r\\x03'``.
 
     Args:
         text: Mixed hex/text string.
@@ -131,7 +131,7 @@ def parse_data(text: str) -> bytes:
 def format_hex(data: bytes) -> str:
     """Format bytes as a single-line hex string.
 
-    Example: ``b'\\x01\\x03\\x00\\x0a'`` → ``'01 03 00 0A'``.
+    Example: ``b'\\x01\\x03\\x00\\x0a'`` -> ``'01 03 00 0A'``.
     """
     return " ".join(f"{b:02X}" for b in data)
 
@@ -145,9 +145,9 @@ def format_smart(data: bytes) -> str:
     Runs of printable ASCII (plus common escapes) are shown as quoted
     strings. Non-printable bytes are shown as hex. Examples::
 
-        b"fw\\r"           → ``"fw\\r"``
-        b"\\x02HELLO\\x03" → ``02 "HELLO" 03``
-        b"\\x01\\x02\\x03" → ``01 02 03``
+        b"fw\\r"           -> ``"fw\\r"``
+        b"\\x02HELLO\\x03" -> ``02 "HELLO" 03``
+        b"\\x01\\x02\\x03" -> ``01 02 03``
 
     Args:
         data: Raw bytes to format.
@@ -183,8 +183,8 @@ def format_spaced(data: bytes, binary: bool = False) -> str:
 
     Two modes with consistent per-byte width:
 
-    - **Hex mode** (``binary=True``): ``XX `` — 3 chars per byte.
-    - **Text mode** (``binary=False``): ``c `` — 2 chars per byte.
+    - **Hex mode** (``binary=True``): ``XX `` - 3 chars per byte.
+    - **Text mode** (``binary=False``): ``c `` - 2 chars per byte.
       Escapes render as ``\\r``, ``\\n``, ``\\t``, ``\\0`` (2 chars).
       Other unprintable bytes render as ``.`` + space (2 chars).
 
@@ -276,7 +276,7 @@ def parse_pattern(text: str) -> tuple[bytes, bytes]:
             pos += 2
             continue
 
-        # Quoted string — every byte must match
+        # Quoted string - every byte must match
         if text[pos] == '"':
             m = _QUOTED_STR.match(text, pos)
             if not m:
@@ -287,7 +287,7 @@ def parse_pattern(text: str) -> tuple[bytes, bytes]:
             pos = m.end()
             continue
 
-        # Hex byte — must match
+        # Hex byte - must match
         m = _HEX_TOKEN.match(text, pos)
         if m:
             data.append(int(m.group(1), 16))
@@ -304,7 +304,7 @@ def match_response(expected: bytes, actual: bytes, mask: bytes) -> bool:
     """Compare actual response against expected, respecting wildcard mask.
 
     Mask byte ``0xFF`` = must match, ``0x00`` = any value accepted.
-    Length must match exactly — overflow (extra bytes) is a failure.
+    Length must match exactly - overflow (extra bytes) is a failure.
 
     Args:
         expected: Expected byte pattern.
@@ -414,7 +414,7 @@ class Step:
     """A single step in a protocol test script.
 
     Attributes:
-        action: Step type — ``"send"``, ``"expect"``, ``"delay"``.
+        action: Step type - ``"send"``, ``"expect"``, ``"delay"``.
         data: Byte payload for send/expect steps.
         mask: Wildcard mask for expect steps (0xFF=match, 0x00=any).
         timeout_ms: Timeout for expect steps.
@@ -445,11 +445,11 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
     Script format supports:
     - ``# comments``
     - ``@timeout 1000ms`` / ``@frame_gap 50ms`` / ``@strip_ansi`` directives
-    - ``label: <text>`` — name for the next step
-    - ``send: <hex or "text">`` — bytes to transmit
-    - ``expect: <pattern>`` — expected response (with ``**`` wildcards)
-    - ``timeout: <duration>`` — per-step timeout override
-    - ``delay: <duration>`` — pause between steps
+    - ``label: <text>`` - name for the next step
+    - ``send: <hex or "text">`` - bytes to transmit
+    - ``expect: <pattern>`` - expected response (with ``**`` wildcards)
+    - ``timeout: <duration>`` - per-step timeout override
+    - ``delay: <duration>`` - pause between steps
 
     Args:
         text: Full script file content.
@@ -683,7 +683,7 @@ def parse_toml_script(text: str) -> ProtoScript:
         teardown=doc.get("teardown", []),
         viz=doc.get("viz", []),
         send_fmt=doc.get("send_fmt", ""),
-        expect_fmt=doc.get("expect_fmt", doc.get("recv_fmt", "")),  # recv_fmt compat — remove after v7
+        expect_fmt=doc.get("expect_fmt", doc.get("recv_fmt", "")),  # recv_fmt compat - remove after v7
         json_file=doc.get("json_file", ""),
     )
 
@@ -704,7 +704,7 @@ def parse_toml_script(text: str) -> ProtoScript:
         if "timeout" in entry:
             timeout = _parse_duration_ms(str(entry["timeout"]))
 
-        # Per-test setup/teardown — support both list and legacy "cmd" string
+        # Per-test setup/teardown - support both list and legacy "cmd" string
         test_setup: list[str] = entry.get("setup", [])
         if not test_setup and "cmd" in entry:
             test_setup = [entry["cmd"]]
@@ -724,7 +724,7 @@ def parse_toml_script(text: str) -> ProtoScript:
             timeout_ms=timeout,
             viz=entry.get("viz", ""),
             send_fmt=entry.get("send_fmt", script.send_fmt),
-            expect_fmt=entry.get("expect_fmt", entry.get("recv_fmt", script.expect_fmt)),  # recv_fmt compat — remove after v7
+            expect_fmt=entry.get("expect_fmt", entry.get("recv_fmt", script.expect_fmt)),  # recv_fmt compat - remove after v7
         ))
 
     return script
@@ -755,7 +755,7 @@ def diff_bytes(expected: bytes, actual: bytes, mask: bytes) -> list[str]:
     """Compare expected and actual bytes with mask, returning per-byte status.
 
     Only compares up to ``len(expected)`` bytes. Extra bytes in actual
-    are not included in the diff list — use ``overflow_count()`` to
+    are not included in the diff list - use ``overflow_count()`` to
     detect overflow.
 
     Args:
@@ -846,7 +846,7 @@ def format_diff_markup(
 
 
 # ---------------------------------------------------------------------------
-# Generic CRC engine — Rocksoft/Williams parameterization
+# Generic CRC engine - Rocksoft/Williams parameterization
 # ---------------------------------------------------------------------------
 
 
@@ -920,11 +920,11 @@ def _generic_crc(
 
 
 # ---------------------------------------------------------------------------
-# CRC catalogue — named algorithms from the reveng catalogue
+# CRC catalogue - named algorithms from the reveng catalogue
 # ---------------------------------------------------------------------------
 # Source: https://reveng.sourceforge.io/crc-catalogue/all.htm
 # Each entry: width, poly (normal form), init, refin, refout, xorout, check.
-# check = CRC of b"123456789" — used as test vectors.
+# check = CRC of b"123456789" - used as test vectors.
 
 CRC_CATALOGUE: dict[str, dict] = {
     # ---- CRC-8 (20 algorithms) ----
@@ -1052,7 +1052,7 @@ def load_crc_plugins(
         *dirs: Directories to scan. Later entries override earlier.
 
     Returns:
-        Dict of algorithm name → CrcAlgorithm.
+        Dict of algorithm name -> CrcAlgorithm.
     """
     algorithms: dict[str, CrcAlgorithm] = {}
     for folder in dirs:
@@ -1088,7 +1088,7 @@ def load_crc_plugins(
     return algorithms
 
 
-# Module-level CRC registry — populated on first use
+# Module-level CRC registry - populated on first use
 _crc_registry: dict[str, CrcAlgorithm] | None = None
 
 
@@ -1099,7 +1099,7 @@ def get_crc_registry() -> dict[str, CrcAlgorithm]:
     catalogue entries of the same name.
 
     Returns:
-        Dict of algorithm name → CrcAlgorithm.
+        Dict of algorithm name -> CrcAlgorithm.
     """
     global _crc_registry
     if _crc_registry is None:
@@ -1123,7 +1123,7 @@ def reset_crc_registry() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Format spec language — column-based packet visualization
+# Format spec language - column-based packet visualization
 # ---------------------------------------------------------------------------
 
 
@@ -1205,7 +1205,7 @@ def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
         return indices, False
 
     # Explicit multi-byte sequence: check for concatenated numbers
-    # "1234" with all single digits → bytes 1,2,3,4
+    # "1234" with all single digits -> bytes 1,2,3,4
     # But "12" could be byte 12. We use a heuristic:
     # If all characters are digits and length > 1, try to parse as
     # concatenated single-digit refs first (each char is a byte index 1-9)
@@ -1216,9 +1216,9 @@ def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
         # If any digit is 0, it's not valid as a 1-based index, so treat
         # the whole thing as a single number
         if "0" not in text and len(text) > 2:
-            # Concatenated single-digit refs: "1234" → [0,1,2,3]
+            # Concatenated single-digit refs: "1234" -> [0,1,2,3]
             return [int(ch) - 1 for ch in text], False
-        # Single number: "12" → [11]
+        # Single number: "12" -> [11]
         return [int(text) - 1], False
 
     return [], False
@@ -1228,9 +1228,9 @@ def _parse_crc_spec(type_body: str) -> ColumnSpec:
     """Parse a CRC type specification.
 
     Formats:
-    - ``crc16m_le`` — algorithm + endianness
-    - ``crc16m_le(1-6)`` — with explicit data range
-    - ``crc8`` — no endianness needed for 1-byte CRC
+    - ``crc16m_le`` - algorithm + endianness
+    - ``crc16m_le(1-6)`` - with explicit data range
+    - ``crc8`` - no endianness needed for 1-byte CRC
 
     Args:
         type_body: Everything after ``Name:`` in the column spec.
@@ -1302,10 +1302,10 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
         type_body = token[colon + 1:]
 
         # Bit field: B/b prefix with dot separator
-        #   B1.3 — single bit, display as integer
-        #   B1-2.7-9 — multi-byte bit range, display as integer
-        #   b1-2.0-7 — same but display as binary string (0-7 = MSB first)
-        #   b1-2.7-0 — binary string (7-0 = LSB first)
+        #   B1.3 - single bit, display as integer
+        #   B1-2.7-9 - multi-byte bit range, display as integer
+        #   b1-2.0-7 - same but display as binary string (0-7 = MSB first)
+        #   b1-2.7-0 - binary string (7-0 = LSB first)
         if type_body[0] in "Bb" and "." in type_body:
             type_code = type_body[0]
             byte_part, bit_part = type_body[1:].split(".", 1)
@@ -1341,7 +1341,7 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
             columns.append(col)
             continue
 
-        # Unknown — treat as hex
+        # Unknown - treat as hex
         byte_indices, wildcard = _parse_byte_refs(type_body)
         columns.append(ColumnSpec(
             name=name, type_code="H",
@@ -1426,7 +1426,7 @@ def _format_column_value(
     """
     indices = col.byte_indices
 
-    # Bit field — B (integer) or b (binary string)
+    # Bit field - B (integer) or b (binary string)
     if col.type_code in ("B", "b") and col.bit is not None:
         if not indices or indices[0] >= len(data):
             return "?"
@@ -1468,7 +1468,7 @@ def _format_column_value(
     if not raw:
         return ""
 
-    # CRC — show hex value
+    # CRC - show hex value
     if col.type_code == "crc":
         registry = get_crc_registry()
         algo = registry.get(col.crc_algo or "")
@@ -1525,14 +1525,14 @@ def apply_format(
         columns: Parsed column specs (from ``parse_format_spec``).
 
     Returns:
-        Tuple of (headers, values) — parallel lists of strings.
+        Tuple of (headers, values) - parallel lists of strings.
     """
     resolved = _resolve_wildcards(columns, len(data))
     headers: list[str] = []
     values: list[str] = []
     for col in resolved:
         if col.type_code == "_":
-            continue  # padding — accounted for but not displayed
+            continue  # padding - accounted for but not displayed
         headers.append(col.name)
         values.append(_format_column_value(data, col))
     return headers, values
@@ -1575,7 +1575,7 @@ def diff_columns(
 
     for col in resolved:
         if col.type_code == "_":
-            continue  # padding — accounted for but not displayed
+            continue  # padding - accounted for but not displayed
         headers.append(col.name)
         exp_values.append(_format_column_value(expected, col))
         act_values.append(_format_column_value(actual, col))

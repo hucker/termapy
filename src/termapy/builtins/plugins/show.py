@@ -69,9 +69,9 @@ Reads a file and prints its contents to the terminal.
 Regular filenames are resolved relative to the working directory.
 
 Examples:
-  /show.cfg              — view current config
-  /show my_script.run    — view a script file
-  /show ../notes.txt     — relative path""",
+  /show.cfg              - view current config
+  /show my_script.run    - view a script file
+  /show ../notes.txt     - relative path""",
     handler=_handler,
     sub_commands={
         "cfg": Command(

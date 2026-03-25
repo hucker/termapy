@@ -2,7 +2,7 @@
 
 Provides ``FakeSerial``, a duck-typed replacement for ``serial.Serial``
 that responds to ASCII text commands and binary Modbus RTU frames.
-No Textual or pyserial dependencies — safe to import anywhere.
+No Textual or pyserial dependencies - safe to import anywhere.
 
 Note: The DEMO port simulates most serial port properties but is not a
 perfect substitute.  Use real hardware for testing real projects.
@@ -22,7 +22,7 @@ class FakeSerial:
 
     Duck-types ``serial.Serial`` so the app can use it transparently
     when port is set to ``"DEMO"``.  Serial properties (baud rate, parity,
-    etc.) are accepted but cosmetic — they do not affect timing or framing.
+    etc.) are accepted but cosmetic - they do not affect timing or framing.
     Use real hardware for testing real projects.
 
     Args:
@@ -232,7 +232,7 @@ class FakeSerial:
         self._is_open = False
 
     def send_break(self, duration: float = 0.25) -> None:
-        """Send break — no-op for simulated device."""
+        """Send break - no-op for simulated device."""
 
     # -- Internal processing ------------------------------------------------
 
@@ -807,18 +807,18 @@ class FakeSerial:
             # Read holding registers
             return self._modbus_read_registers(slave_id, frame)
         elif func_code == 0x06:
-            # Write single register — store value and echo back
+            # Write single register - store value and echo back
             if len(frame) >= 6:
                 reg_addr = struct.unpack(">H", frame[2:4])[0]
                 reg_val = struct.unpack(">H", frame[4:6])[0]
                 self._registers[reg_addr] = reg_val
             return _modbus_add_crc(frame[:-2])
         else:
-            # Unsupported function — exception code 0x01
+            # Unsupported function - exception code 0x01
             return _modbus_exception(slave_id, func_code, 0x01)
 
     def _modbus_read_registers(self, slave_id: int, frame: bytes) -> bytes:
-        """Handle Modbus function 0x03 — read holding registers.
+        """Handle Modbus function 0x03 - read holding registers.
 
         Args:
             slave_id: Modbus slave address.

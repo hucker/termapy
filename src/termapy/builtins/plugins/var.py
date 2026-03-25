@@ -11,10 +11,10 @@ from termapy.plugins import Command, Directive, DirectiveResult, Transform
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-# Module-level variable storage — cleared on script start.
+# Module-level variable storage - cleared on script start.
 _VARS: dict[str, str] = {}
 
-# Match $(NAME) — letters, digits, underscore; must start with letter or _
+# Match $(NAME) - letters, digits, underscore; must start with letter or _
 _VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_]*)\)")
 
 # Match $(NAME) = value assignment (with or without spaces around =)
@@ -83,7 +83,7 @@ def check_bare_dollar(line: str) -> str | None:
     return None
 
 
-# Launch-time variables — frozen when the module loads (app start).
+# Launch-time variables - frozen when the module loads (app start).
 _LAUNCH_TIME = datetime.now()
 _LAUNCH_VARS: dict[str, str] = {
     "LAUNCH_DATE": _LAUNCH_TIME.strftime("%Y-%m-%d"),
@@ -91,7 +91,7 @@ _LAUNCH_VARS: dict[str, str] = {
     "LAUNCH_DATETIME": _LAUNCH_TIME.strftime("%Y-%m-%d %H:%M:%S"),
 }
 
-# Dynamic built-in variables — resolved at expansion time.
+# Dynamic built-in variables - resolved at expansion time.
 _DYNAMIC_VARS: dict[str, str] = {
     "DATE": "%Y-%m-%d",
     "TIME": "%H:%M:%S",
@@ -107,10 +107,10 @@ def expand_vars(text: str) -> str:
 
     Resolution order:
     1. User-defined variables in ``_VARS``
-    2. Dynamic built-ins (``$(DATE)``, ``$(TIME)``, ``$(DATETIME)``) — current clock
+    2. Dynamic built-ins (``$(DATE)``, ``$(TIME)``, ``$(DATETIME)``) - current clock
     3. Unknown names are left as literal ``$(NAME)``
 
-    Use ``\\$`` to escape a literal ``$`` (e.g. ``\\$(PORT)`` → ``$(PORT)``).
+    Use ``\\$`` to escape a literal ``$`` (e.g. ``\\$(PORT)`` -> ``$(PORT)``).
 
     Args:
         text: String potentially containing $(NAME) references.
@@ -118,7 +118,7 @@ def expand_vars(text: str) -> str:
     Returns:
         String with known variables expanded.
     """
-    # Swap \$ → sentinel so the regex doesn't see it as a var reference
+    # Swap \$ -> sentinel so the regex doesn't see it as a var reference
     text = text.replace("\\$", _ESCAPE_SENTINEL)
 
     def _replace(m: re.Match) -> str:
@@ -135,7 +135,7 @@ def expand_vars(text: str) -> str:
         return m.group(0)
 
     text = _VAR_REF_RE.sub(_replace, text)
-    # Restore sentinel → literal $
+    # Restore sentinel -> literal $
     return text.replace(_ESCAPE_SENTINEL, "$")
 
 
@@ -163,7 +163,7 @@ def _handler_list(ctx: PluginContext, args: str) -> None:
         if val is not None:
             ctx.write(f"  $({name}) = {val}")
         else:
-            ctx.write(f"  $({name}) — not defined", "red")
+            ctx.write(f"  $({name}) - not defined", "red")
         return
     if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS:
         ctx.write("  (no variables defined)")
@@ -227,29 +227,29 @@ Using variables in commands:
   AT+PORT=$(PORT)
 
 Commands:
-  /var               — list all variables
-  /var PORT          — show one variable (bare name or $(PORT))
-  /var.set PORT val  — set a variable (bare name or $(PORT))
-  /var.clear         — clear all variables
+  /var               - list all variables
+  /var PORT          - show one variable (bare name or $(PORT))
+  /var.set PORT val  - set a variable (bare name or $(PORT))
+  /var.clear         - clear all variables
 
 Dynamic variables (current clock at point of use):
-  $(DATE)              — current date (YYYY-MM-DD)
-  $(TIME)              — current time (HH:MM:SS)
-  $(DATETIME)          — current date and time
+  $(DATE)              - current date (YYYY-MM-DD)
+  $(TIME)              - current time (HH:MM:SS)
+  $(DATETIME)          - current date and time
 
 Launch variables (frozen when the app starts):
-  $(LAUNCH_DATE)       — app start date
-  $(LAUNCH_TIME)       — app start time
-  $(LAUNCH_DATETIME)   — app start date and time
+  $(LAUNCH_DATE)       - app start date
+  $(LAUNCH_TIME)       - app start time
+  $(LAUNCH_DATETIME)   - app start date and time
 
 Session variables (set once per script launch, frozen):
-  $(SESSION_DATE)      — script start date
-  $(SESSION_TIME)      — script start time
-  $(SESSION_DATETIME)  — script start date and time
+  $(SESSION_DATE)      - script start date
+  $(SESSION_TIME)      - script start time
+  $(SESSION_DATETIME)  - script start date and time
 
 Escaping (when your data contains literal $):
-  \\$(PORT)           — literal $(PORT) (not expanded)
-  /raw $(GPS),NMEA,0 — send entire line verbatim (no expansion)
+  \\$(PORT)           - literal $(PORT) (not expanded)
+  /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
 
 Scope: variables persist for the session. They are cleared
 automatically when a script is launched from the Scripts button

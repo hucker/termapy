@@ -1,4 +1,4 @@
-"""Built-in plugin: unified data capture — text, binary, struct, hex."""
+"""Built-in plugin: unified data capture - text, binary, struct, hex."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _extract_keyword_sections(args: str) -> dict[str, str]:
     Positional tokens before any keyword go under '_positional'.
     """
     result: dict[str, str] = {}
-    # Extract cmd= first (everything after it is the command — must be last)
+    # Extract cmd= first (everything after it is the command - must be last)
     cmd = ""
     if "cmd=" in args:
         before, cmd = args.split("cmd=", 1)

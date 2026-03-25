@@ -29,7 +29,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Optional ``"key"`` or ``"key value"`` string.
     """
     parts = args.strip().split(None, 1)
-    # /cfg — show all
+    # /cfg - show all
     if not parts:
         ctx.write(json.dumps(dict(ctx.cfg), indent=4))
         return
@@ -37,11 +37,11 @@ def _handler(ctx: PluginContext, args: str) -> None:
     if key not in ctx.cfg:
         ctx.write(f"Unknown config key: {key}", "red")
         return
-    # /cfg key — show value
+    # /cfg key - show value
     if len(parts) == 1:
         ctx.write(f"  {key}: {ctx.cfg[key]!r}")
         return
-    # /cfg key value — validate and delegate for confirmation
+    # /cfg key value - validate and delegate for confirmation
     value_str = parts[1]
     try:
         new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])
@@ -450,9 +450,9 @@ COMMAND = Command(
     help="Show or change config values.",
     long_help="""\
 Three modes:
-  /cfg              — show all config key/value pairs
-  /cfg baud_rate    — show current value of 'baud_rate'
-  /cfg baud_rate 115200 — change with confirmation dialog
+  /cfg              - show all config key/value pairs
+  /cfg baud_rate    - show current value of 'baud_rate'
+  /cfg baud_rate 115200 - change with confirmation dialog
 
 Type is auto-detected from the existing value (int, float,
 bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.

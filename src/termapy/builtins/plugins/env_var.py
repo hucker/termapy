@@ -12,7 +12,7 @@ from termapy.plugins import Command, Transform
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-# Snapshot environment at plugin load time — frozen for the session.
+# Snapshot environment at plugin load time - frozen for the session.
 _ENV = dict(os.environ)
 
 
@@ -20,8 +20,8 @@ def _cli_transform(text: str) -> str:
     """Replace $(env.NAME) placeholders with environment variable values.
 
     Syntax:
-        $(env.NAME)          — expand; error if not set
-        $(env.NAME|default)  — expand; use 'default' if not set
+        $(env.NAME)          - expand; error if not set
+        $(env.NAME|default)  - expand; use 'default' if not set
 
     Variable names must be word characters (a-z, A-Z, 0-9, _).
 
@@ -39,7 +39,7 @@ def _cli_transform(text: str) -> str:
             return val
         if fallback is not None:
             return fallback
-        raise ValueError(f"$(env.{name}) — variable not set (use |fallback for a default)")
+        raise ValueError(f"$(env.{name}) - variable not set (use |fallback for a default)")
 
     return re.sub(
         r"\$\(env\.(\w+)(?:\|([^)]*))?\)",
@@ -74,7 +74,7 @@ def _handler_list(ctx: PluginContext, args: str) -> None:
         if val is not None:
             ctx.write(f"  {pattern}={val}")
         else:
-            ctx.write(f"  {pattern} — not set", "red")
+            ctx.write(f"  {pattern} - not set", "red")
         return
     ctx.write(f"Environment snapshot ({len(_ENV)} vars):")
     for k in sorted(_ENV):
@@ -84,7 +84,7 @@ def _handler_list(ctx: PluginContext, args: str) -> None:
 def _handler_set(ctx: PluginContext, args: str) -> None:
     """Set a session-scoped environment variable.
 
-    Updates only the in-memory snapshot — does not modify the OS
+    Updates only the in-memory snapshot - does not modify the OS
     environment.  The value is available immediately for $(env.NAME)
     expansion and persists until the app is restarted or /env.reload
     is called.
@@ -127,14 +127,14 @@ The $(env.NAME) transform expands placeholders in REPL commands
 using a snapshot of the process environment taken at startup.
 
 Syntax:
-  $(env.PORT)            — expand, error if not set
-  $(env.PORT|COM3)       — expand, use COM3 as fallback
+  $(env.PORT)            - expand, error if not set
+  $(env.PORT|COM3)       - expand, use COM3 as fallback
 
 Commands:
-  /env.list              — list all captured variables
-  /env.list PATH         — show a single variable's value
-  /env.set PORT COM7     — set a session-scoped variable
-  /env.reload            — re-snapshot from OS environment""",
+  /env.list              - list all captured variables
+  /env.list PATH         - show a single variable's value
+  /env.set PORT COM7     - set a session-scoped variable
+  /env.reload            - re-snapshot from OS environment""",
     sub_commands={
         "list": Command(
             args="{pattern}",

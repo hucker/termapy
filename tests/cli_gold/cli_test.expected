@@ -1,0 +1,476 @@
+Connected: DEMO @ 115200
+> /print === section: device commands ===
+  === section: device commands ===
+> AT
+OK
+> AT+PROD-ID
++PROD-ID:BASSOMATIC-77
+> AT+LED on
+OK
+> AT+LED off
+OK
+> AT+NAME?
++NAME:Bassomatic v77
+> AT+NAME=TestDevice
+OK
+> AT+NAME?
++NAME:TestDevice
+> AT+BAUD?
++BAUD:115200
+> help
+Available commands:
+  AT          - Connection test
+  AT+PROD-ID  - Product identifier
+  AT+INFO     - Device information
+  AT+TEMP     - Read temperature
+  AT+LED on|off - Control LED
+  AT+NAME?    - Query device name
+  AT+NAME=val - Set device name
+  AT+BAUD?    - Query baud rate
+  AT+BAUD=val - Set baud rate
+  AT+STATUS   - Device status
+  AT+RESET    - Reset device
+  $GPGGA      - NMEA position fix
+  $GPRMC      - NMEA nav data
+  $GPGSA      - NMEA DOP/active satellites
+  $GPGSV      - NMEA satellites in view
+  $PMTK...    - GPS config (simulated)
+  mem <addr> [len] - Memory dump
+  AT+TEXTDUMP <n> - Emit n text readings
+  AT+BINDUMP <n>        - Emit n mixed 21-byte records
+  AT+BINDUMP <type> <n> - Emit n typed binary values
+  help        - This help
+> mem 0x1000 32
+  00001000: 00 B1 62 13 C4 75 26 D7 88 39 EA 9B 4C FD AE 5F  ..b..u&..9..L.._
+  00001010: 10 C1 72 23 D4 85 36 E7 98 49 FA AB 5C 0D BE 6F  ..r#..6..I..\..o
+> mem 0x2000 16
+  00002000: 00 B1 62 13 C4 75 26 D7 88 39 EA 9B 4C FD AE 5F  ..b..u&..9..L.._
+> AT+TEXTDUMP 3
+[000000ms] temp=22.0C voltage=3.3V sample=0
+[000050ms] temp=22.7C voltage=3.43V sample=1
+[000100ms] temp=23.4C voltage=3.36V sample=2
+> BOGUS
+ERROR: Unknown command 'BOGUS'
+> AT+LED on
+OK
+> AT+LED off
+OK
+> /print === section: print and echo ===
+  === section: print and echo ===
+> /echo off
+  REPL echo off.
+  echo is off - this should appear
+  REPL echo on.
+> /print echo is on - this should appear with echo line
+  echo is on - this should appear with echo line
+> /print === section: variables ===
+  === section: variables ===
+> $(DEVICE) = BASSOMATIC
+    $(DEVICE) = BASSOMATIC
+> $(PORT_NUM) = 42
+    $(PORT_NUM) = 42
+> /print device=$(DEVICE) port=$(PORT_NUM)
+  device=BASSOMATIC port=42
+> /var DEVICE
+    $(DEVICE) = BASSOMATIC
+> /var PORT_NUM
+    $(PORT_NUM) = 42
+> /var.set DEVICE updated_value
+    $(DEVICE) = updated_value
+> /var DEVICE
+    $(DEVICE) = updated_value
+> /var.clear
+  Cleared 2 variable(s).
+> /var DEVICE
+    $(DEVICE) - not defined
+> /print === section: config read ===
+  === section: config read ===
+> /cfg baud_rate
+    baud_rate: 115200
+> /cfg encoding
+    encoding: 'utf-8'
+> /cfg line_ending
+    line_ending: '\r'
+> /cfg parity
+    parity: 'N'
+> /cfg byte_size
+    byte_size: 8
+> /cfg stop_bits
+    stop_bits: 1
+> /cfg flow_control
+    flow_control: 'none'
+> /cfg echo_input
+    echo_input: True
+> /cfg send_bare_enter
+    send_bare_enter: False
+> /cfg cmd_prefix
+    cmd_prefix: '/'
+> /print === section: config auto-set ===
+  === section: config auto-set ===
+> /cfg.auto echo_input true
+  echo_input = True  (session)
+> /cfg echo_input
+    echo_input: True
+> /cfg.auto echo_input false
+  echo_input = False  (session)
+> /cfg echo_input
+    echo_input: False
+> /print === section: config dump ===
+  === section: config dump ===
+> /cfg.dump
+  {
+    "config_version": 8,
+    "title": "Demo Device",
+    "border_color": "",
+    "max_lines": 10000,
+    "cmd_prefix": "/",
+    "config_read_only": false,
+    "os_cmd_enabled": false,
+    "port": "DEMO",
+    "baud_rate": 115200,
+    "byte_size": 8,
+    "parity": "N",
+    "stop_bits": 1,
+    "flow_control": "none",
+    "encoding": "utf-8",
+    "cmd_delay_ms": 0,
+    "auto_connect": true,
+    "auto_reconnect": false,
+    "on_connect_cmd": "/run welcome",
+    "line_ending": "\r",
+    "send_bare_enter": false,
+    "echo_input": false,
+    "echo_input_fmt": "> {cmd}",
+    "log_file": "",
+    "show_timestamps": false,
+    "show_line_endings": false,
+    "show_traceback": true,
+    "proto_results_template": "{name}_results.json",
+    "max_grep_lines": 100,
+    "custom_buttons": [
+        {
+            "enabled": true,
+            "name": "Demo Help",
+            "command": "/cls\\nHELP",
+            "tooltip": "Clear screen and show device commands"
+        },
+        {
+            "enabled": true,
+            "name": "AT Demo",
+            "command": "/cls\\n/run at_demo.run",
+            "tooltip": "Run all AT commands with delays"
+        },
+        {
+            "enabled": true,
+            "name": "Info",
+            "command": "/cfg.info",
+            "tooltip": "Project info"
+        },
+        {
+            "enabled": true,
+            "name": "Probe",
+            "command": "/probe",
+            "tooltip": "Demo plugin: query the device"
+        },
+        {
+            "enabled": true,
+            "name": "TempPlot",
+            "command": "/temp_plot 30",
+            "tooltip": "Demo plugin: temperature sparkline"
+        }
+    ]
+}
+> /print === section: config folders ===
+  === section: config folders ===
+> /cfg.scripts
+    scripts/
+      at_demo.run
+      gps_demo.run
+      smoke_test.run
+      status_check.run
+      var_demo.run
+      welcome.run
+> /cfg.proto
+    proto/
+      at_test.pro
+      bitfield_inline.pro
+      modbus_inline.pro
+> /print === section: port read ===
+  === section: port read ===
+> /port.baud_rate
+  115200
+> /port.parity
+  N
+> /port.byte_size
+  8
+> /port.stop_bits
+  1
+> /port.flow_control
+  none
+> /port.dtr
+  1
+> /port.rts
+  1
+> /port.cts
+  1
+> /port.dsr
+  1
+> /port.ri
+  0
+> /port.cd
+  1
+> /port.info
+    Port:         DEMO  (connected)
+    Baud rate:    115200
+    Frame:        8N1
+    Flow control: none
+    Encoding:     utf-8
+    DTR:          1
+    RTS:          1
+    CTS:          1
+    DSR:          1
+    RI:          0
+    CD:          1
+> /print === section: port modify ===
+  === section: port modify ===
+> /port.dtr 0
+  DTR -> 0
+> /port.dtr
+  0
+> /port.dtr 1
+  DTR -> 1
+> /port.dtr
+  1
+> /port.rts 0
+  RTS -> 0
+> /port.rts
+  0
+> /print === section: port close/open ===
+  === section: port close/open ===
+> /port.close
+Disconnected.
+> /port.baud_rate
+  115200 (disconnected)
+> /port.open
+Connected: DEMO @ 115200
+> /port.baud_rate
+  115200
+> /print === section: port break ===
+  === section: port break ===
+> /port.break
+  Break sent (250ms)
+> /port.break 100
+  Break sent (100ms)
+> /print === section: port subcommands ===
+  === section: port subcommands ===
+> /port
+  Subcommands of /port:
+    /port.baud_rate {value} - Show or set baud rate.
+    /port.break {duration_ms} - Send a break signal (default 250ms).
+    /port.byte_size {value} - Show or set data bits.
+    /port.cd - Show Carrier Detect state (read-only).
+    /port.close - Disconnect from the serial port.
+    /port.cts - Show CTS state (read-only).
+    /port.dsr - Show DSR state (read-only).
+    /port.dtr {0|1} - Show or set DTR line (hardware only).
+    /port.flow_control {mode} - Show or set flow control
+(none/rtscts/xonxoff/manual).
+    /port.info - Show port status, serial parameters, and hardware lines.
+    /port.list - List available serial ports.
+    /port.open {name} - Connect to the serial port (optional port override).
+    /port.parity {value} - Show or set parity.
+    /port.ri - Show Ring Indicator state (read-only).
+    /port.rts {0|1} - Show or set RTS line (hardware only).
+    /port.stop_bits {value} - Show or set stop bits.
+> /print === section: line endings ===
+  === section: line endings ===
+> /show_line_endings on
+  show_line_endings = True  (session)
+> /show_line_endings off
+  show_line_endings = False  (session)
+> /print === section: seq ===
+  === section: seq ===
+> /seq
+  No counters set.
+> /print seq1={seq1+} seq2={seq2+}
+  seq1=1 seq2=1
+> /print seq1={seq1+} seq2={seq2}
+  seq1=1 seq2=1
+> /seq
+  Counters: seq1=1, seq2=1
+> /seq.reset
+  Sequence counters reset.
+> /seq
+  No counters set.
+> /print === section: proto crc ===
+  === section: proto crc ===
+> /proto.crc.help crc16-modbus
+    crc16-modbus
+    Modbus RTU serial protocol
+    Width:   16 bits (2 bytes)
+    Poly:    0x8005
+    Init:    0xFFFF
+    RefIn:   True
+    RefOut:  True
+    XorOut:  0x0000
+    Check:   0x4B37  (CRC of '123456789')
+    Spec:    CRC:crc16-modbus_le  or  CRC:crc16-modbus_be
+> /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
+    Algorithm: crc16-modbus
+    Data:      01 03 00 00 00 0A  (6 bytes)
+    CRC:       0xCDC5
+    Bytes LE:  C5 CD
+    Bytes BE:  CD C5
+> /proto.crc.calc crc8-maxim 48 65 6C 6C 6F
+    Algorithm: crc8-maxim
+    Data:      48 65 6C 6C 6F  (5 bytes)
+    CRC:       0xEB
+    Byte:      EB
+> /proto.crc.calc crc32 01 02 03 04
+    Algorithm: crc32
+    Data:      01 02 03 04  (4 bytes)
+    CRC:       0xB63CFBCD
+    Bytes LE:  CD FB 3C B6
+    Bytes BE:  B6 3C FB CD
+> /print === section: help ===
+  === section: help ===
+> /help echo
+/echo {on | off} - Toggle REPL command echo, or set on/off. Output is not
+affected.
+  Subcommands:
+    /echo.quiet <on | off> - Set echo on/off silently (no output message).
+> /help port
+/port {name} - Serial port tools: open, close, list, configure.
+  Subcommands:
+    /port.baud_rate {value} - Show or set baud rate.
+    /port.break {duration_ms} - Send a break signal (default 250ms).
+    /port.byte_size {value} - Show or set data bits.
+    /port.cd - Show Carrier Detect state (read-only).
+    /port.close - Disconnect from the serial port.
+    /port.cts - Show CTS state (read-only).
+    /port.dsr - Show DSR state (read-only).
+    /port.dtr {0|1} - Show or set DTR line (hardware only).
+    /port.flow_control {mode} - Show or set flow control
+(none/rtscts/xonxoff/manual).
+    /port.info - Show port status, serial parameters, and hardware lines.
+    /port.list - List available serial ports.
+    /port.open {name} - Connect to the serial port (optional port override).
+    /port.parity {value} - Show or set parity.
+    /port.ri - Show Ring Indicator state (read-only).
+    /port.rts {0|1} - Show or set RTS line (hardware only).
+    /port.stop_bits {value} - Show or set stop bits.
+> /help cfg
+/cfg {key {value}} - Show or change config values.
+    Three modes:
+      /cfg              - show all config key/value pairs
+      /cfg baud_rate    - show current value of 'baud_rate'
+      /cfg baud_rate 115200 - change with confirmation dialog
+
+    Type is auto-detected from the existing value (int, float,
+    bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
+    Changes are saved to the JSON config file.
+
+    Use /cfg.auto to set values without confirmation (for scripts).
+  Subcommands:
+    /cfg.auto <key> <value> - Set immediately (no confirmation).
+    /cfg.cap - List files in cap/.  ...
+    /cfg.configs - List all config files.
+    /cfg.dump - Print current config as JSON to the terminal.
+    /cfg.explore - Open config directory in file explorer.
+    /cfg.info {--display} - Show project summary. --display opens full report.
+    /cfg.plugins - List files in plugins/.  ...
+    /cfg.prof - List files in prof/.  ...
+    /cfg.proto - List files in proto/.  ...
+    /cfg.scripts - List files in scripts/.  ...
+    /cfg.ss - List files in ss/.  ...
+    /cfg.viz - List files in viz/.  ...
+> /help proto.crc
+/proto.crc - Browse and compute CRC algorithms.
+  Subcommands:
+    /proto.crc.calc <name> {data} - Compute CRC over hex bytes, text, or file.
+    /proto.crc.help <name> - Show algorithm parameters and description.
+    /proto.crc.list {pattern} - List algorithms (optional glob filter).
+> /help var
+/var {name} - List user variables, or show one by name.
+    User-defined variables use $(NAME) syntax (case-sensitive).
+
+    Setting variables (no / prefix needed):
+      $(PORT) = COM7
+      $(ADDR) = 01
+
+    Using variables in commands:
+      /print $(PORT)
+      AT+PORT=$(PORT)
+
+    Commands:
+      /var               - list all variables
+      /var PORT          - show one variable (bare name or $(PORT))
+      /var.set PORT val  - set a variable (bare name or $(PORT))
+      /var.clear         - clear all variables
+
+    Dynamic variables (current clock at point of use):
+      $(DATE)              - current date (YYYY-MM-DD)
+      $(TIME)              - current time (HH:MM:SS)
+      $(DATETIME)          - current date and time
+
+    Launch variables (frozen when the app starts):
+      $(LAUNCH_DATE)       - app start date
+      $(LAUNCH_TIME)       - app start time
+      $(LAUNCH_DATETIME)   - app start date and time
+
+    Session variables (set once per script launch, frozen):
+      $(SESSION_DATE)      - script start date
+      $(SESSION_TIME)      - script start time
+      $(SESSION_DATETIME)  - script start date and time
+
+    Escaping (when your data contains literal $):
+      \$(PORT)           - literal $(PORT) (not expanded)
+      /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
+
+    Scope: variables persist for the session. They are cleared
+    automatically when a script is launched from the Scripts button
+    or the Run menu, but NOT when /run is typed interactively.
+    Use /var.clear to reset manually.
+  Subcommands:
+    /var.clear - Clear all user variables.
+    /var.set <NAME> <value> - Set a user variable.
+> /help cap
+/cap - Data capture tools.
+  Subcommands:
+    /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must
+be last)} - Capture raw binary bytes to a file.
+    /cap.hex <file> fmt=<spec> records=<N> {mode=new|append} {sep=...}
+{echo=on|off} {timeout=<dur>} {cmd=... (must be last)} - Capture hex text
+lines, decode with format spec to CSV.
+    /cap.stop - Stop an active capture.
+    /cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=...}
+{echo=on|off} {timeout=<dur>} {cmd=... (must be last)} - Capture raw bytes,
+decode with format spec to CSV.
+    /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=...
+(must be last)} - Capture serial text to a file for a timed duration.
+> /print === section: env vars ===
+  === section: env vars ===
+> /env.set TEST_VAR hello_world
+    TEST_VAR=hello_world
+> /env.list TEST_VAR
+    TEST_VAR=hello_world
+> /env.set TEST_VAR updated
+    TEST_VAR=updated
+> /env.list TEST_VAR
+    TEST_VAR=updated
+> /print === section: errors ===
+  === section: errors ===
+> /nonexistent_command
+  Unknown REPL command: nonexistent_command
+> /cfg nonexistent_key
+  Unknown config key: nonexistent_key
+> /port.baud_rate not_a_number
+  Invalid baud rate: not_a_number
+> /port.parity X
+  Invalid parity: X (use E, M, N, O, S)
+> /port.dtr maybe
+  Invalid DTR value: maybe (use 0/1/on/off)
+> /port.break -5
+  Invalid duration (use milliseconds, e.g. 250)
+  Script finished.
+Disconnected.

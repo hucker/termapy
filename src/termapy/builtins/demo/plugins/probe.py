@@ -4,7 +4,7 @@ This plugin is a working example showing how to build a termapy plugin
 that interacts with a serial device.  It demonstrates the key pattern
 that most plugin authors will need:
 
-    serial_io() → drain → write → read → parse → display
+    serial_io() -> drain -> write -> read -> parse -> display
 
 Copy this file as a starting point for your own plugins.
 """
@@ -22,11 +22,11 @@ if TYPE_CHECKING:
 _LONG_HELP = """\
 Send an AT command to the device, read the response, and display it.
 
-  /probe              — run a standard device survey (ID, temp, status)
-  /probe AT+TEMP      — send one command and show the response
-  /probe AT+INFO      — send any command the device supports
+  /probe              - run a standard device survey (ID, temp, status)
+  /probe AT+TEMP      - send one command and show the response
+  /probe AT+INFO      - send any command the device supports
 
-This is a demo plugin — read the source to learn how to write your own.
+This is a demo plugin - read the source to learn how to write your own.
 Key concepts demonstrated:
   • serial_io() context manager  (suppress terminal display during I/O)
   • serial_drain / serial_write / serial_read_raw  (the I/O cycle)
@@ -38,7 +38,7 @@ Key concepts demonstrated:
 def _send_cmd(ctx: PluginContext, command: str) -> str | None:
     """Send one AT command and return the decoded response text.
 
-    Performs the drain → write → read cycle that most device-interaction
+    Performs the drain -> write -> read cycle that most device-interaction
     plugins need.  Returns ``None`` when there is no response (timeout).
 
     Args:
@@ -52,14 +52,14 @@ def _send_cmd(ctx: PluginContext, command: str) -> str | None:
     encoding = ctx.cfg.get("encoding", "utf-8")
     line_ending = ctx.cfg.get("line_ending", "\r")
 
-    # 1. Drain — discard any stale bytes sitting in the receive buffer
+    # 1. Drain - discard any stale bytes sitting in the receive buffer
     ctx.serial_drain()
 
-    # 2. Write — send the command with the configured line ending
+    # 2. Write - send the command with the configured line ending
     payload = (command + line_ending).encode(encoding)
     ctx.serial_write(payload)
 
-    # 3. Read — wait for the device to reply (up to 1 second)
+    # 3. Read - wait for the device to reply (up to 1 second)
     raw = ctx.serial_read_raw(timeout_ms=1000)
     if not raw:
         return None
@@ -112,7 +112,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Optional AT command to send. Empty = run full survey.
     """
     if not ctx.is_connected():
-        ctx.write("Not connected — open the port first.", "red")
+        ctx.write("Not connected - open the port first.", "red")
         return
 
     # serial_io() suppresses terminal display and guarantees cleanup,

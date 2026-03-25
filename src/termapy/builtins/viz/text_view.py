@@ -1,6 +1,6 @@
 """Built-in visualizer: ASCII text with escape sequences.
 
-Single-column layout using ``S1-*`` — all bytes displayed as
+Single-column layout using ``S1-*`` - all bytes displayed as
 ASCII text in one column.
 """
 
@@ -20,7 +20,7 @@ def format_spec(data: bytes) -> str:
     """Return the format spec string for the given data.
 
     Args:
-        data: Raw bytes (unused — spec is fixed).
+        data: Raw bytes (unused - spec is fixed).
 
     Returns:
         Format spec string.

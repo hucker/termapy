@@ -878,3 +878,133 @@ class TestCapStructHandler:
 
         # Assert
         assert any("records=N" in t or "bytes=N" in t for t, _ in output)
+
+
+# -- /exit ----------------------------------------------------------------
+
+
+class TestExit:
+    def test_exit_calls_exit_app(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        exited = []
+        engine.ctx.exit_app = lambda: exited.append(True)
+
+        # Act
+        engine.dispatch("exit")
+
+        # Assert
+        assert len(exited) == 1  # exit_app called
+
+
+# -- /confirm -------------------------------------------------------------
+
+
+class TestConfirm:
+    def test_confirm_yes_continues(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        engine.ctx.confirm = lambda msg: True  # user clicks Yes
+
+        # Act
+        engine.dispatch("confirm Are you sure?")
+
+        # Assert — no "Cancelled" message, script_stop not called
+        assert not any("Cancelled" in t for t, _ in output)
+
+    def test_confirm_cancel_stops_script(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        engine.ctx.confirm = lambda msg: False  # user clicks Cancel
+
+        # Act
+        engine.dispatch("confirm Are you sure?")
+
+        # Assert
+        assert any("Cancelled" in t for t, _ in output)  # shows cancelled
+        assert engine._script_stop.is_set()  # script stop triggered
+
+    def test_confirm_default_message(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        messages = []
+        engine.ctx.confirm = lambda msg: (messages.append(msg) or True)
+
+        # Act
+        engine.dispatch("confirm")
+
+        # Assert
+        assert messages == ["Continue?"]  # default message
+
+    def test_confirm_custom_message(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        messages = []
+        engine.ctx.confirm = lambda msg: (messages.append(msg) or True)
+
+        # Act
+        engine.dispatch("confirm Deploy to production?")
+
+        # Assert
+        assert messages == ["Deploy to production?"]  # custom message
+
+
+# -- /cfg (read operations) -----------------------------------------------
+
+
+class TestCfgRead:
+    def test_cfg_no_args_shows_all(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+
+        # Act
+        engine.dispatch("cfg")
+
+        # Assert — should list config keys
+        texts = [t for t, _ in output]
+        assert any("port" in t for t in texts)  # shows port key
+        assert any("baud_rate" in t or "115200" in t for t in texts)
+
+    def test_cfg_specific_key(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+
+        # Act
+        engine.dispatch("cfg port")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("COM4" in t for t in texts)  # shows port value
+
+    def test_cfg_unknown_key(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("cfg nonexistent_key")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("not found" in t.lower() or "unknown" in t.lower()
+                    for t in texts)  # error message
+
+    def test_cfg_info(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("cfg.info")
+
+        # Assert — should output something about the config
+        assert len(output) > 0  # produced some output
+
+    def test_cfg_dump(self, repl_env):
+        # Arrange
+        engine, cfg, _, output = repl_env
+
+        # Act
+        engine.dispatch("cfg.dump")
+
+        # Assert — should dump JSON
+        texts = [t for t, _ in output]
+        assert any("port" in t for t in texts)  # JSON includes port

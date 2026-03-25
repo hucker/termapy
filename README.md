@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-834%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
+![tests](https://img.shields.io/badge/tests-844%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen)
 
 *Pronounced "ter-map-ee"*
 
@@ -1011,11 +1011,11 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test Coverage</strong> — 834 tests, 65% overall coverage</summary>
+<summary><strong>Test Coverage</strong> — 844 tests, 65% overall</summary>
 
-![coverage](https://img.shields.io/badge/coverage-65%25-yellow) *overall — see note below*
+844 tests across 17 test files. Run with `uv run pytest`.
 
-834 tests across 17 test files. Run with `uv run pytest`.
+**Core logic** (serial engine, capture, REPL, protocol, config):
 
 | Module             | Coverage | Test file                            |
 | ------------------ | -------- | ------------------------------------ |
@@ -1027,11 +1027,12 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 | `serial_port.py`   | 92%      | `test_serial_port.py`                |
 | `protocol.py`      | 89%      | `test_protocol.py`                   |
 | `config.py`        | 87%      | `test_app_config.py`                 |
-| `repl.py`          | 72%      | `test_engine.py`, `test_repl_cfg.py` |
 | `port_control.py`  | 80%      | `test_port_control.py`               |
+| `repl.py`          | 72%      | `test_engine.py`, `test_repl_cfg.py` |
 | `demo.py`          | 73%      | `test_demo.py`                       |
 
-> [!CAUTION]
-> **Excluded from coverage!** `app.py` (~3000 lines, Textual UI), `proto_debug.py` (~1160 lines, modal debug screen), `builtins/*.py` (~200 lines, dynamic import). Business logic has been extracted into testable modules (`serial_engine.py`, `serial_port.py`, `capture.py`, `repl.py`); UI code is tested manually.
+**Built-in plugins** — 15 of 18 plugins tested via mock `PluginContext` in `test_builtins.py`.
+
+**UI code** — `app.py` (~3000 lines), `proto_debug.py` (~1160 lines), `dialogs.py` (~1200 lines) are Textual UI and tested manually. The 65% overall figure reflects these large untested UI files. Core logic coverage is higher — the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>

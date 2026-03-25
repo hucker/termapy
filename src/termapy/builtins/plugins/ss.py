@@ -20,6 +20,10 @@ def _handler_dir(ctx: PluginContext, args: str) -> None:
     ctx.write(f"Screenshot dir: {ctx.ss_dir.resolve()}")
 
 
+def _handler_not_supported(ctx: PluginContext, args: str) -> None:
+    ctx.write("Screenshots are not supported in CLI mode.", "yellow")
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="ss",
@@ -28,6 +32,16 @@ COMMAND = Command(
         "dir": Command(
             help="Show the screenshot folder path.",
             handler=_handler_dir,
+        ),
+        "svg": Command(
+            args="{name}",
+            help="Save SVG screenshot (TUI only).",
+            handler=_handler_not_supported,
+        ),
+        "txt": Command(
+            args="{name}",
+            help="Save text screenshot (TUI only).",
+            handler=_handler_not_supported,
         ),
     },
 )

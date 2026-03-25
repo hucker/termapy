@@ -75,6 +75,8 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
 | `/cap.stop`               | Stop an active capture                                                      |
+| `/run.edit <file>`        | Open a .run script in the system editor                                     |
+| `/color {on\|off}`        | Show or toggle color output (CLI mode only)                                 |
 | `/raw <text>`             | Send text to serial with no variable expansion or transforms                |
 | `/exit`                   | Exit termapy                                                                |
 

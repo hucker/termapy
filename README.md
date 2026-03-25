@@ -31,6 +31,13 @@ For a real device, just point at your config:
 termapy my_device.cfg
 ```
 
+For a plain-text terminal (no TUI), use CLI mode:
+
+```sh
+termapy --cli my_device.cfg          # interactive CLI
+termapy --cli my_device.cfg --run smoke_test.run  # run a script and exit
+```
+
 There's a lot more — scripting, binary protocol testing, 62 CRC algorithms, custom buttons, plugins, packet visualizers — expand any section below.
 
 ---
@@ -823,7 +830,7 @@ COMMAND = Command(
 1. **Built-in** — shipped with termapy, always available
 2. **Global** — `termapy_cfg/plugins/*.py`, shared across all configs
 3. **Per-config** — `termapy_cfg/<name>/plugins/*.py`, specific to one config
-4. **App hooks** — commands that need Textual access (screenshots, connect, etc.)
+4. **App hooks** — frontend-specific commands (`/ss`, `/delay`, `/run`, etc.)
 
 <details>
 <summary>Subcommands</summary>
@@ -865,6 +872,7 @@ The `ctx` object passed to every handler:
 | `ctx.write_markup(text)`    | Print Rich markup text (e.g. `[bold red]Warning![/]`)              |
 | `ctx.cfg`                   | Current config dict (read-only access)                             |
 | `ctx.config_path`           | Path to the current `.cfg` config file                             |
+| `ctx.port()`                | The raw pyserial object, or `None` when disconnected               |
 | `ctx.is_connected()`        | Check if the serial port is open                                   |
 | `ctx.log(prefix, text)`     | Write to session log: `">"` TX, `"<"` RX, `"#"` status             |
 | `ctx.serial_write(data)`    | Send bytes to the serial port (auto-logged as TX to session log)   |
@@ -878,6 +886,7 @@ The `ctx` object passed to every handler:
 | `ctx.clear_screen()`        | Clear the terminal output                                          |
 | `ctx.save_screenshot(path)` | Save an SVG screenshot to a file                                   |
 | `ctx.get_screen_text()`     | Get terminal content as plain text                                 |
+| `ctx.open_file(path)`       | Open a file or folder in the system viewer/editor                  |
 
 There is also `ctx.engine` which exposes internal engine state (sequence counters, echo, config save, etc.). This is used by built-in commands and may change between versions — external plugins should avoid it.
 

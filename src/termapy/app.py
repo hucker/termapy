@@ -360,7 +360,8 @@ class SerialTerminal(App):
 
     def _history_path(self) -> str:
         if self.config_path:
-            return cfg_history_path(self.config_path)
+            p = Path(self.config_path)
+            return str(p.parent / f"{p.stem}.history")
         return str(cfg_dir() / ".cmd_history.txt")
 
     _HISTORY_LIMIT = 30
@@ -595,6 +596,10 @@ class SerialTerminal(App):
             start_capture=self._cap_start,
             stop_capture=self._cap_stop,
             directives=self.repl._directives,
+            connect=self._connect,
+            disconnect=self._disconnect,
+            update_port=self._update_port,
+            apply_port_effects=self._apply_port_effects,
         )
         ctx = PluginContext(
             write=self._status,
@@ -602,6 +607,7 @@ class SerialTerminal(App):
             log=self._log_line,
             cfg=self.cfg,
             config_path=self.config_path,
+            port=lambda: self.ser if self.is_connected else None,
             is_connected=lambda: self.is_connected,
             serial_write=self._serial_write,
             serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
@@ -620,6 +626,7 @@ class SerialTerminal(App):
             clear_screen=self._clear_output,
             save_screenshot=self.save_screenshot,
             get_screen_text=self._get_screen_text,
+            open_file=lambda path: open_with_system(str(path)),
             exit_app=self.exit,
             engine=engine,
         )
@@ -645,90 +652,6 @@ class SerialTerminal(App):
             "<duration>",
             "Wait for duration (e.g. 500ms, 1.5s).",
             self._hook_delay,
-            source="app",
-        )
-        self.repl.register_hook(
-            "port",
-            "{name}",
-            "Serial port tools: open, close, list.",
-            self._hook_port,
-            source="app",
-        )
-        self.repl.register_hook(
-            "port.list",
-            "",
-            "List available serial ports.",
-            self._hook_port_list,
-            source="app",
-        )
-        self.repl.register_hook(
-            "port.open",
-            "{name}",
-            "Connect to the serial port (optional port override).",
-            lambda ctx, args: self._connect(args.strip() if args.strip() else None),
-            source="app",
-        )
-        self.repl.register_hook(
-            "port.close",
-            "",
-            "Disconnect from the serial port.",
-            lambda ctx, args: self._disconnect(),
-            source="app",
-        )
-        self.repl.register_hook(
-            "port.info",
-            "",
-            "Show port status, serial parameters, and hardware lines.",
-            self._hook_port_info,
-            source="app",
-        )
-        for key, (_, _, desc, _) in port_control.PORT_PROPS.items():
-            self.repl.register_hook(
-                f"port.{key}",
-                "{value}",
-                f"Show or set {desc.lower()} (hardware only).",
-                lambda ctx, args, k=key: self._hook_port_prop(ctx, args, k),
-                source="app",
-            )
-        self.repl.register_hook(
-            "port.flow_control",
-            "{mode}",
-            "Show or set flow control (none/rtscts/xonxoff/manual).",
-            self._hook_port_flow,
-            source="app",
-        )
-        self.repl.register_hook(
-            "port.dtr",
-            "{0|1}",
-            "Show or set DTR line (hardware only).",
-            lambda ctx, args: self._hook_port_hw_line(ctx, args, "dtr"),
-            source="app",
-        )
-        self.repl.register_hook(
-            "port.rts",
-            "{0|1}",
-            "Show or set RTS line (hardware only).",
-            lambda ctx, args: self._hook_port_hw_line(ctx, args, "rts"),
-            source="app",
-        )
-        for sig, desc in (
-            ("cts", "Clear To Send"),
-            ("dsr", "Data Set Ready"),
-            ("ri", "Ring Indicator"),
-            ("cd", "Carrier Detect"),
-        ):
-            self.repl.register_hook(
-                f"port.{sig}",
-                "",
-                f"Show {desc} state (read-only).",
-                lambda ctx, args, s=sig: self._hook_port_signal(ctx, args, s),
-                source="app",
-            )
-        self.repl.register_hook(
-            "port.break",
-            "{duration_ms}",
-            "Send a break signal (default 250ms).",
-            self._hook_port_break,
             source="app",
         )
         self.repl.register_hook(
@@ -884,7 +807,6 @@ class SerialTerminal(App):
             )
         self._rebuild_suggester_commands()
         # Clean up stale profile temp files
-        self._cleanup_profile_temps(self.repl.scripts_dir)
         # Open log file (deferred if no config loaded yet)
         self._open_log()
         self._sync_ss_button()
@@ -949,6 +871,7 @@ class SerialTerminal(App):
         self.notify(
             f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", timeout=0.75
         )
+        self._status(f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", "green")
         self._set_conn_status("Connected")
         inp = self.query_one("#cmd", Input)
         inp.placeholder = "REPL:type command, Enter to send"
@@ -1157,6 +1080,7 @@ class SerialTerminal(App):
         try:
             if was_open:
                 self.notify("Disconnected", severity="warning", timeout=0.75)
+                self._status("Disconnected", "red")
             self._set_conn_status("Disconnected")
             try:
                 inp = self.query_one("#cmd", Input)
@@ -2292,38 +2216,8 @@ class SerialTerminal(App):
         else:
             self._status("Usage: line_no on|off", "yellow")
 
-    def _hook_port(self, ctx, args: str) -> None:
-        """Open a port by name, or show subcommands if no name given."""
-        name = args.strip()
-        if not name:
-            ctx.write("Usage: /port <name> to switch, or use subcommands:")
-            ctx.write("  /port.list          — list available ports")
-            ctx.write("  /port.open          — connect (optional port override)")
-            ctx.write("  /port.close         — disconnect")
-            ctx.write("  /port.info          — show port status and parameters")
-            ctx.write("  /port.baud_rate     — show or set baud rate")
-            ctx.write("  /port.byte_size     — show or set data bits")
-            ctx.write("  /port.parity        — show or set parity")
-            ctx.write("  /port.stop_bits     — show or set stop bits")
-            ctx.write("  /port.flow_control  — show or set flow control")
-            ctx.write("  /port.dtr           — show or set DTR line")
-            ctx.write("  /port.rts           — show or set RTS line")
-            ctx.write("  /port.cts           — show CTS state (read-only)")
-            ctx.write("  /port.dsr           — show DSR state (read-only)")
-            ctx.write("  /port.ri            — show RI state (read-only)")
-            ctx.write("  /port.cd            — show CD state (read-only)")
-            ctx.write("  /port.break         — send break signal (default 250ms)")
-            return
-        self._update_port(name)
-
-    def _apply_port_result(self, ctx, result) -> None:
-        """Apply messages and side effects from a port_control function."""
-        msgs, effects = result
-        for text, color in msgs:
-            if color:
-                ctx.write(text, color)
-            else:
-                ctx.write(text)
+    def _apply_port_effects(self, effects: dict) -> None:
+        """Apply side effects from a port_control function (used by port plugin)."""
         if effects.get("cfg_update"):
             for key, val in effects["cfg_update"].items():
                 self.repl._cfg_data[key] = val
@@ -2332,33 +2226,6 @@ class SerialTerminal(App):
         if effects.get("sync_hw"):
             self._sync_hw_visibility()
             self._sync_hw_buttons()
-
-    def _hook_port_list(self, ctx, args: str) -> None:
-        self._apply_port_result(ctx, port_control.list_ports())
-
-    def _hook_port_info(self, ctx, args: str) -> None:
-        ser = self.ser if self.is_connected else None
-        self._apply_port_result(ctx, port_control.port_info(self.cfg, ser))
-
-    def _hook_port_prop(self, ctx, args: str, key: str) -> None:
-        ser = self.ser if self.is_connected else None
-        self._apply_port_result(ctx, port_control.get_set_prop(ser, self.cfg, key, args))
-
-    def _hook_port_flow(self, ctx, args: str) -> None:
-        ser = self.ser if self.is_connected else None
-        self._apply_port_result(ctx, port_control.get_set_flow(ser, self.cfg, args))
-
-    def _hook_port_hw_line(self, ctx, args: str, line: str) -> None:
-        ser = self.ser if self.is_connected else None
-        self._apply_port_result(ctx, port_control.get_set_hw_line(ser, line, args))
-
-    def _hook_port_break(self, ctx, args: str) -> None:
-        ser = self.ser if self.is_connected else None
-        self._apply_port_result(ctx, port_control.send_break(ser, args))
-
-    def _hook_port_signal(self, ctx, args: str, signal: str) -> None:
-        ser = self.ser if self.is_connected else None
-        self._apply_port_result(ctx, port_control.read_signal(ser, signal, args))
 
     def _refresh_after_cfg(self, key: str, new_val) -> None:
         was_connected = self.is_connected
@@ -2559,16 +2426,6 @@ class SerialTerminal(App):
             self._run_script(path, profile=True)
 
     @staticmethod
-    def _cleanup_profile_temps(scripts_dir: Path) -> None:
-        """Delete stale _profile_tmp_*.run files."""
-        if not scripts_dir.is_dir():
-            return
-        for f in scripts_dir.glob("_profile_tmp_*.run"):
-            try:
-                f.unlink()
-            except OSError:
-                pass
-
     def _prof_dir(self) -> Path | None:
         """Return the prof/ directory, or None if no config loaded."""
         if not self.config_path:
@@ -2854,6 +2711,78 @@ def _run_check(args) -> None:
     print(json.dumps(result, indent=2))
 
 
+def _resolve_config(name: str) -> str:
+    """Resolve a config name or path.
+
+    Tries in order:
+    1. Direct path (if it exists)
+    2. termapy_cfg/<name>/<name>.cfg
+    3. Return as-is (let load_config fail with a good error)
+    """
+    p = Path(name)
+    if p.exists():
+        return str(p)
+    # Try termapy_cfg/<name>/<name>.cfg
+    stem = p.stem
+    candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
+    if candidate.exists():
+        return str(candidate)
+    return name  # let load_config produce the error
+
+
+def _infer_config_from_run_file(run_path: str) -> str | None:
+    """Infer config path from a .run script path.
+
+    If the script is at termapy_cfg/<name>/scripts/foo.run,
+    the config is termapy_cfg/<name>/<name>.cfg.
+    """
+    p = Path(run_path).resolve()
+    # Walk up looking for a .cfg file in a parent
+    for parent in p.parents:
+        cfgs = list(parent.glob("*.cfg"))
+        if cfgs and parent.name != "termapy_cfg":
+            return str(cfgs[0])
+    return None
+
+
+def _run_cli_mode(args) -> None:
+    """Run in CLI mode — plain text terminal, no TUI."""
+    from termapy.cli import run_cli
+
+    run_script = getattr(args, "run", None)
+
+    # If a positional arg is a .run file, treat it as --run
+    if args.config and args.config.endswith(".run") and not run_script:
+        run_script = args.config
+        args.config = None
+
+    if args.demo:
+        from termapy.config import setup_demo_config
+        config_path = str(setup_demo_config(cfg_dir(), force=True))
+    elif run_script and not args.config:
+        # Infer config from the .run file's location
+        config_path = _infer_config_from_run_file(run_script)
+        if not config_path:
+            print(f"termapy: cannot infer config from {run_script}", file=sys.stderr)
+            sys.exit(1)
+    elif args.config:
+        config_path = _resolve_config(args.config)
+    else:
+        path, _ = _find_config()
+        if not path:
+            print("termapy: no config found. Use --demo or specify a config.", file=sys.stderr)
+            sys.exit(1)
+        config_path = path
+
+    try:
+        cfg = load_config(config_path)
+    except Exception as e:
+        print(f"termapy: failed to load config: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    run_cli(cfg, config_path, no_color=args.no_color, run_script=run_script)
+
+
 def _run_proto_headless(args) -> None:
     """Run a .pro test script headlessly (no TUI) and write JSON results."""
     from termapy.proto_runner import run_proto_tests
@@ -2948,6 +2877,22 @@ def main():
         action="store_true",
         help="Validate config and print JSON result to stdout (no TUI)",
     )
+    parser.add_argument(
+        "--cli",
+        action="store_true",
+        help="Run in CLI mode (plain text terminal, no TUI)",
+    )
+    parser.add_argument(
+        "--run",
+        default=None,
+        metavar="SCRIPT",
+        help="Run a .run script and exit (CLI mode, implies --cli)",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Strip ANSI color codes from output (CLI mode)",
+    )
     args = parser.parse_args()
 
     if args.cfg_dir:
@@ -2959,6 +2904,12 @@ def main():
 
     if args.proto is not None:
         _run_proto_headless(args)
+        return
+
+    if args.run:
+        args.cli = True  # --run implies --cli
+    if args.cli:
+        _run_cli_mode(args)
         return
 
     if args.demo:

@@ -596,10 +596,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#serial-io" class="md-nav__link">
+  <a href="#serial-port" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Serial I/O
+        Serial Port
       
     </span>
   </a>
@@ -844,10 +844,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#serial-io" class="md-nav__link">
+  <a href="#serial-port" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Serial I/O
+        Serial Port
       
     </span>
   </a>
@@ -1063,7 +1063,7 @@ COMMAND = Command(
 </tr>
 </tbody>
 </table>
-<h3 id="serial-io">Serial I/O</h3>
+<h3 id="serial-port">Serial Port</h3>
 <table>
 <thead>
 <tr>
@@ -1072,6 +1072,10 @@ COMMAND = Command(
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>ctx.port()</code></td>
+<td>The raw pyserial object, or <code>None</code> when disconnected</td>
+</tr>
 <tr>
 <td><code>ctx.is_connected()</code></td>
 <td>True if the serial port is open</td>
@@ -1145,6 +1149,10 @@ COMMAND = Command(
 <tr>
 <td><code>ctx.confirm(message)</code></td>
 <td>Yes/Cancel dialog → bool (background thread only)</td>
+</tr>
+<tr>
+<td><code>ctx.open_file(path)</code></td>
+<td>Open a file or folder in the system viewer/editor</td>
 </tr>
 <tr>
 <td><code>ctx.log(prefix, text)</code></td>

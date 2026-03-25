@@ -774,8 +774,8 @@
 <td>Clear the terminal</td>
 </tr>
 <tr>
-<td><code>/run &lt;file&gt;</code></td>
-<td>Run a script file</td>
+<td><code>/run &lt;file&gt; {-v}</code></td>
+<td>Run a script file (-v/--verbose for per-line timing)</td>
 </tr>
 <tr>
 <td><code>/run.list</code></td>
@@ -930,20 +930,32 @@
 <td>Re-snapshot variables from the OS environment</td>
 </tr>
 <tr>
-<td><code>/text_cap &lt;m&gt; &lt;f&gt; &lt;dur&gt;</code></td>
+<td><code>/cap.text &lt;f&gt; ...</code></td>
 <td>Capture serial text to file for a timed duration</td>
 </tr>
 <tr>
-<td><code>/text_cap.stop</code></td>
-<td>Stop an active text capture</td>
+<td><code>/cap.bin &lt;f&gt; ...</code></td>
+<td>Capture raw binary bytes to a file</td>
 </tr>
 <tr>
-<td><code>/bin_cap &lt;m&gt; &lt;f&gt; ...</code></td>
-<td>Capture binary serial data to file by byte/record count</td>
+<td><code>/cap.struct &lt;f&gt; ...</code></td>
+<td>Capture binary data, decode with format spec to CSV</td>
 </tr>
 <tr>
-<td><code>/bin_cap.stop</code></td>
-<td>Stop an active binary capture</td>
+<td><code>/cap.hex &lt;f&gt; ...</code></td>
+<td>Capture hex text lines, decode with format spec to CSV</td>
+</tr>
+<tr>
+<td><code>/cap.stop</code></td>
+<td>Stop an active capture</td>
+</tr>
+<tr>
+<td><code>/run.edit &lt;file&gt;</code></td>
+<td>Open a .run script in the system editor</td>
+</tr>
+<tr>
+<td><code>/color {on\|off}</code></td>
+<td>Show or toggle color output (CLI mode only)</td>
 </tr>
 <tr>
 <td><code>/raw &lt;text&gt;</code></td>

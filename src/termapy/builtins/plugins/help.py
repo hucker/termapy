@@ -100,7 +100,7 @@ def _list_children(ctx: PluginContext, plugin, prefix: str,
         depth: Indentation depth (0 for top-level).
     """
     plugins = ctx.engine.plugins
-    for child_name in plugin.children:
+    for child_name in sorted(plugin.children):
         child = plugins.get(child_name)
         if not child:
             continue
@@ -143,7 +143,7 @@ def _show_command_help(ctx: PluginContext, name: str,
     if plugin.children:
         ctx.write_markup(f"  [{_SEP}]Subcommands:[/]")
         plugins = ctx.engine.plugins
-        for child_name in plugin.children:
+        for child_name in sorted(plugin.children):
             child = plugins.get(child_name)
             if child:
                 arg_str = f" {_color_args(child.args)}" if child.args else ""
@@ -211,7 +211,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         for source in sorted_sources:
             label = _SOURCE_LABELS.get(source, f"{source} Plugins")
             ctx.write_markup(f"[{_SEP}]── {label} ──[/]")
-            for cmd_name, plugin in groups[source]:
+            for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
                 cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
                 args_text = _truncate_args(plugin.args or "", prefix, cmd_name)
                 arg_col = _pad(_color_args(args_text), arg_w)

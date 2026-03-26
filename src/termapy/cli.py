@@ -48,11 +48,13 @@ class CLITerminal:
     def __init__(
         self, cfg: dict, config_path: str,
         no_color: bool = False, run_script: str | None = None,
+        term_width: int | None = None,
     ) -> None:
         self.cfg = cfg
         self.config_path = config_path
         self.no_color = no_color
         self.run_script = run_script
+        self.term_width = term_width
         self.prefix = cfg.get("cmd_prefix", "/")
 
         # Ensure stdout handles unicode on Windows
@@ -61,7 +63,7 @@ class CLITerminal:
 
         # Rich console for colored output
         from rich.console import Console
-        self.console = Console(no_color=no_color, highlight=False)
+        self.console = Console(no_color=no_color, highlight=False, width=term_width)
 
         # Engines
         self.capture = CaptureEngine(

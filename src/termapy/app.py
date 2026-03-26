@@ -2889,7 +2889,10 @@ def _run_cli_mode(args) -> None:
         print(f"termapy: failed to load config: {e}", file=sys.stderr)
         sys.exit(1)
 
-    CLITerminal(cfg, config_path, no_color=args.no_color, run_script=run_script).run()
+    CLITerminal(
+        cfg, config_path, no_color=args.no_color, run_script=run_script,
+        term_width=getattr(args, "term_width", None),
+    ).run()
 
 
 def _run_proto_headless(args) -> None:
@@ -3010,6 +3013,12 @@ def main():
         "--no-color",
         action="store_true",
         help="Strip ANSI color codes from output (CLI mode)",
+    )
+    parser.add_argument(
+        "--term-width",
+        type=int,
+        default=None,
+        help="Override terminal width for CLI mode (default: auto-detect)",
     )
     args = parser.parse_args()
 

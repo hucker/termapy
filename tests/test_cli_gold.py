@@ -28,7 +28,7 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> str:
             "import sys; "
             f"sys.argv = ['termapy', '--cli', '--demo', "
             f"'--run', {str(script_path)!r}, "
-            f"'--no-color', "
+            f"'--no-color', '--term-width', '120', "
             f"'--cfg-dir', {str(tmp_path)!r}]; "
             "from termapy.app import main; main()",
         ],

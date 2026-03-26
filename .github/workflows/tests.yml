@@ -17,6 +17,21 @@ jobs:
       - name: Run tests
         run: uv run --python ${{ matrix.python-version }} pytest
 
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Run tests with coverage
+        run: uv run --python 3.14 pytest --cov=termapy --cov-report=xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   audit:
     runs-on: ubuntu-latest
     steps:
@@ -26,4 +41,4 @@ jobs:
         run: uv sync
       - name: Run pip-audit
         run: uvx pip-audit --strict --require-hashes=false -r <(uv pip freeze)
-        continue-on-error: true  # don't block on known unfixed vulns (pygments)
+        continue-on-error: true

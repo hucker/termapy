@@ -302,10 +302,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-with-uv-recommended" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install with uv (recommended)
+        Install
       
     </span>
   </a>
@@ -313,10 +313,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-with-pip" class="md-nav__link">
+  <a href="#try-without-installing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install with pip
+        Try without installing
       
     </span>
   </a>
@@ -328,6 +328,17 @@
     <span class="md-ellipsis">
       
         Verify
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uninstall" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uninstall
       
     </span>
   </a>
@@ -677,10 +688,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-with-uv-recommended" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install with uv (recommended)
+        Install
       
     </span>
   </a>
@@ -688,10 +699,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-with-pip" class="md-nav__link">
+  <a href="#try-without-installing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install with pip
+        Try without installing
       
     </span>
   </a>
@@ -703,6 +714,17 @@
     <span class="md-ellipsis">
       
         Verify
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uninstall" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uninstall
       
     </span>
   </a>
@@ -730,24 +752,27 @@
 <h2 id="requirements">Requirements</h2>
 <ul>
 <li>Python 3.11 or later</li>
-<li><a href="https://docs.astral.sh/uv/">uv</a> (recommended) or pip</li>
+<li><a href="https://docs.astral.sh/uv/">uv</a></li>
 </ul>
-<h2 id="install-with-uv-recommended">Install with uv (recommended)</h2>
-<p>Try it without installing:</p>
+<p>If you don't have <code>uv</code>:</p>
+<pre><code class="language-sh">curl -LsSf https://astral.sh/uv/install.sh | sh          # Mac/Linux
+powershell -c &quot;irm https://astral.sh/uv/install.ps1 | iex&quot;  # Windows
+</code></pre>
+<h2 id="install">Install</h2>
+<pre><code class="language-sh">uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.31.0
+</code></pre>
+<p>This puts <code>termapy</code> on your PATH as a standalone command. <code>uv</code> downloads Python 3.14 automatically if it's not already installed.</p>
+<h2 id="try-without-installing">Try without installing</h2>
 <pre><code class="language-sh">uvx --from git+https://github.com/hucker/termapy@v0.31.0 termapy --demo
 </code></pre>
-<p>Or install permanently:</p>
-<pre><code class="language-sh">uv pip install git+https://github.com/hucker/termapy@v0.31.0
-</code></pre>
-<h2 id="install-with-pip">Install with pip</h2>
-<pre><code class="language-sh">pip install git+https://github.com/hucker/termapy@v0.31.0
-</code></pre>
+<p>This runs termapy in a temporary environment that is cleaned up automatically.</p>
 <h2 id="verify">Verify</h2>
 <pre><code class="language-sh">termapy --version
 termapy --demo
 </code></pre>
-<p><code>--version</code> prints the version number. <code>--demo</code> launches a simulated
-device so you can try everything without hardware.</p>
+<h2 id="uninstall">Uninstall</h2>
+<pre><code class="language-sh">uv tool uninstall termapy
+</code></pre>
 
 
 

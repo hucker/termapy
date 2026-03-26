@@ -10,17 +10,17 @@ A serial interface terminal like PuTTY or Tera Term — but it runs in your term
 
 ## Install and Connect
 
-One command if you have [uv](https://docs.astral.sh/uv/):
+Install with [uv](https://docs.astral.sh/uv/):
+
+```sh
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.31.0
+termapy --demo
+```
+
+Or try it without installing:
 
 ```sh
 uvx --from git+https://github.com/hucker/termapy@v0.31.0 termapy --demo
-```
-
-Or with pip:
-
-```sh
-pip install git+https://github.com/hucker/termapy@v0.31.0
-termapy --demo
 ```
 
 That starts a simulated device — no hardware needed. You're typing commands in seconds.

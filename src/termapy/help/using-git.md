@@ -60,8 +60,16 @@ your_project/
 
 ## What Gets Committed
 
-`Termapy` automatically creates a `.gitignore` in each config folder
-that excludes transient data:
+**Tracked** (shared with your team):
+
+- `<name>.cfg` — the config file
+- `scripts/*.run` — automation scripts
+- `proto/*.pro` — protocol test files
+- `plugins/*.py` — custom plugins
+- `viz/*.py` — custom visualizers
+- `.gitignore` — auto-generated
+
+**Ignored** (local to each developer):
 
 - `*.log` — session logs
 - `.cmd_history.txt` — REPL history
@@ -71,8 +79,8 @@ that excludes transient data:
 - `cap/` — data captures
 - `prof/` — profile output
 
-Scripts, proto files, plugins, the config, and visualizers are tracked.
-Logs, screenshots, captures, and profiles are not.
+`Termapy` automatically creates a `.gitignore` in each config folder
+that excludes the transient data above.
 
 ## Handling COM Ports Across Machines
 

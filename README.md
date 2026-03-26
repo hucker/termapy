@@ -13,13 +13,13 @@ A serial interface terminal like PuTTY or Tera Term — but it runs in your term
 One command if you have [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uvx --from git+https://github.com/hucker/termapy termapy --demo
+uvx --from git+https://github.com/hucker/termapy@v0.31.0 termapy --demo
 ```
 
 Or with pip:
 
 ```sh
-pip install git+https://github.com/hucker/termapy
+pip install git+https://github.com/hucker/termapy@v0.31.0
 termapy --demo
 ```
 
@@ -1057,9 +1057,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test Coverage</strong> — 844 tests, 65% overall</summary>
+<summary><strong>Test Coverage</strong> — 861 tests, 61% overall</summary>
 
-844 tests across 17 test files. Run with `uv run pytest`.
+861 tests across 19 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 

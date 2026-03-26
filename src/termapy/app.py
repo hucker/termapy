@@ -2942,8 +2942,17 @@ def _run_proto_headless(args) -> None:
 def main():
     import termapy.config as _cfg_mod
 
+    from importlib.metadata import version as _get_version
+    try:
+        _version = _get_version("termapy")
+    except Exception:
+        _version = "unknown"
+
     parser = argparse.ArgumentParser(
         description="TUI serial terminal with ANSI color support"
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"termapy {_version}",
     )
     parser.add_argument(
         "config",

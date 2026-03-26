@@ -95,5 +95,3 @@ Type `/help` to see all available REPL commands.
 ---
 
 |       |                   |                                     |
-| :---: | :---------------: | :---------------------------------: |
-|       | [Index](index.md) | [Toolbar & Shortcuts →](toolbar.md) |

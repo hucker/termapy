@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.31.0 (2026-03-25)
 
 Initial public release.
 
@@ -8,14 +8,18 @@ Initial public release.
 
 - **TUI terminal** - full-featured Textual UI with serial I/O, modals, config editor, custom buttons
 - **CLI mode** (`--cli`) - plain-text terminal for automation, scripting, SSH, and CI/CD
-- **Plugin system** - drop a `.py` file in a folder to add commands. 22 built-in plugins.
+- **Plugin system** - drop a `.py` file in a folder to add commands. 23 built-in plugins.
 - **Scripting** - `.run` scripts with delays, prompts, variables, sequence counters
 - **Protocol testing** - binary send/expect tests with 62 CRC algorithms and packet visualizers
 - **Data capture** - text, binary, struct, and hex capture modes with format spec decoding
 - **Demo mode** (`--demo`) - simulated device for trying everything without hardware
 - **Smart config resolution** - bare names, folders, and file extensions resolved automatically
 - **Port control** - full serial port management as a plugin (`/port.*` with 17 subcommands)
+- **Environment variables** - `$(env.PORT)` in configs and scripts with fallback defaults
+- **Git-friendly** - config folders with .gitignore, scripts/plugins/tests versioned together
+- **Version** - `--version` flag and `/ver` REPL command
 - **Cross-platform** - Windows, macOS, Linux. Python 3.11-3.14.
+- **MIT licensed**
 
 ### Architecture
 

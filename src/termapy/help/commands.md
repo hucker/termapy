@@ -96,7 +96,6 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 Each config subfolder has a consistent set of subcommands:
 
 | Subcommand        | Action                                     | Folders                                         |
-| ----------------- | ------------------------------------------ | ----------------------------------------------- |
 | `/cfg.<folder>`   | List files                                 | scripts, proto, plugins, ss, viz, cap, prof      |
 | `.explore`        | Open folder in file explorer               | all                                              |
 | `.show`           | Open newest file in system viewer          | all                                              |
@@ -114,5 +113,3 @@ Examples:
 ---
 
 | | | |
-|:---:|:---:|:---:|
-| [← Toolbar & Shortcuts](toolbar.md) | [Index](index.md) | [Configuration →](config.md) |

@@ -90,7 +90,6 @@ Supports function codes 0x03 (read holding registers) and 0x06
 ## Demo Plugins
 
 | Plugin      | Command       | What it does                                     |
-| ----------- | ------------- | ------------------------------------------------ |
 | cmd.py      | `/cmd`        | Custom shortcut — wraps a device command          |
 | probe.py    | `/probe`      | Device survey — send/receive cycle with output    |
 | temp_plot.py| `/temp_plot`  | Sample temperature N times, draw ASCII sparkline  |
@@ -112,5 +111,3 @@ Supports function codes 0x03 (read holding registers) and 0x06
 ---
 
 |                                   |                   |       |
-| :-------------------------------: | :---------------: | :---: |
-| [← Writing Plugins](writing-plugins.md) | [Index](index.md) |       |

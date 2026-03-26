@@ -1,4 +1,4 @@
-site_name: Termapy Help
+site_name: Termapy Help v0.31.0
 docs_dir: src/termapy/help
 site_dir: src/termapy/html
 
@@ -16,14 +16,15 @@ theme:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
+  - Demo Mode: demo.md
   - Getting Started: getting-started.md
-  - Toolbar & Shortcuts: toolbar.md
-  - REPL Commands: commands.md
   - Configuration: config.md
   - Custom Buttons: custom-buttons.md
+  - Toolbar & Shortcuts: toolbar.md
+  - REPL Commands: commands.md
   - Scripting: scripting.md
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md
   - Writing Plugins: writing-plugins.md
   - Using with Git: using-git.md
-  - Demo Mode: demo.md

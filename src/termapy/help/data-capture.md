@@ -110,5 +110,3 @@ The **Cap** button opens the cap/ folder.
 ---
 
 | | | |
-|:---:|:---:|:---:|
-| [← Protocol Testing](protocol-testing.md) | [Index](index.md) | [Demo Mode →](demo.md) |

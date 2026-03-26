@@ -28,7 +28,7 @@ src/termapy/
 ├── help/                #              Markdown help pages (source for MkDocs)
 ├── html/                #              Generated HTML help (MkDocs Material output)
 ├── builtins/
-│   ├── plugins/         #              20 built-in REPL command plugins
+│   ├── plugins/         #              22 built-in REPL command plugins
 │   ├── viz/             #              Built-in packet visualizers (hex, text)
 │   ├── crc/             #              Built-in CRC plugins (sum8, sum16)
 │   └── demo/            #              Demo config, scripts, proto files, plugins
@@ -320,7 +320,7 @@ termapy_cfg/
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread. `post_message` is used for script lifecycle events (thread-safe).
 
-## Built-in Plugins (20 files)
+## Built-in Plugins (22 files)
 
 | Plugin       | Command            | Purpose                                           |
 | ------------ | ------------------ | ------------------------------------------------- |
@@ -329,6 +329,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | cls.py       | /cls               | Clear terminal                                    |
 | confirm.py   | /confirm           | Yes/Cancel dialog (scripts)                       |
 | echo.py      | /echo              | Toggle command echo                               |
+| edit.py      | /edit              | Open project files (scripts, proto, plugins, cfg) |
 | env_var.py   | /env               | Environment variable management                   |
 | eol.py       | /show_line_endings | Toggle line ending markers                        |
 | exit.py      | /exit              | Quit the app                                      |
@@ -341,13 +342,14 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | run_edit.py  | /run.edit          | Open .run scripts in system editor                |
 | seq.py       | /seq               | Sequence counters                                 |
 | show.py      | /show              | Display files                                     |
-| ss.py        | /ss                | Screenshots (placeholder, hooks override)         |
+| ss.py        | /ss                | Screenshots (TUI only, stub in CLI)               |
 | stop.py      | /stop              | Abort running script                              |
 | var.py       | /var               | User variables                                    |
+| ver.py       | /ver               | Show termapy version                              |
 
 ## Test Coverage
 
-17 test files, 844 tests, 65% overall coverage:
+19 test files, 861 tests, 61% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |
@@ -368,5 +370,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | test_port_control.py   | Serial port control pure functions             |
 | test_proto_runner.py   | Protocol test runner                           |
 | test_proto_send_crc.py | CRC in proto.send                              |
+| test_resolve_config.py | Config resolution chain (16 tests)             |
+| test_cli_gold.py       | CLI gold-standard integration test             |
 
 `app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested — UI is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.

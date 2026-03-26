@@ -128,20 +128,30 @@ class ConfigEditor(ModalScreen[tuple | None]):
         "enabled",
     }
     _INT_KEYS = {
-        "baud_rate", "max_lines", "cmd_delay_ms", "max_grep_lines",
-        "proto_frame_gap_ms", "byte_size",
+        "max_lines", "cmd_delay_ms", "max_grep_lines",
+        "proto_frame_gap_ms",
+    }
+    _STANDARD_BAUDS = {
+        300, 1200, 2400, 4800, 9600, 19200, 38400, 57600,
+        115200, 230400, 460800, 921600,
     }
 
-    def _validate_value(self, key: str, raw_val: str) -> str:
-        """Check a raw JSON value string. Return error message or empty."""
+    def _validate_value(self, key: str, raw_val: str) -> tuple[str, str]:
+        """Check a raw JSON value string.
+
+        Returns:
+            (status_line, error) - status_line shows key = value in green
+            (valid), yellow (non-standard), or red (invalid).
+            error is the detail message or empty string.
+        """
         # Skip template values
         if "$(" in raw_val:
-            return ""
-        # Strip quotes for string values
+            return f"[dim]{key} = {raw_val.strip()}[/]", ""
         val = raw_val.strip().strip('"')
+        error = ""
         if key in self._BOOL_KEYS:
             if raw_val.strip() not in ("true", "false"):
-                return "! Must be true or false"
+                error = "must be true or false"
         elif key in self._VALID_VALUES:
             try:
                 parsed = json.loads(raw_val.strip())
@@ -149,17 +159,28 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 parsed = val
             if parsed not in self._VALID_VALUES[key]:
                 opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
-                return f"! Must be one of: {opts}"
+                error = f"must be one of: {opts}"
+        elif key == "baud_rate":
+            try:
+                v = json.loads(raw_val.strip())
+                if not isinstance(v, int) or v <= 0:
+                    error = "must be a positive integer"
+                elif v not in self._STANDARD_BAUDS:
+                    return f"[yellow]{key} = {val}[/]", "non-standard baud rate"
+            except (json.JSONDecodeError, ValueError):
+                error = "must be a positive integer"
         elif key in self._INT_KEYS:
             try:
                 v = json.loads(raw_val.strip())
                 if not isinstance(v, int):
-                    return "! Must be an integer"
-                if v < 0:
-                    return "! Must be positive"
+                    error = "must be an integer"
+                elif v < 0:
+                    error = "must be positive"
             except (json.JSONDecodeError, ValueError):
-                return "! Must be an integer"
-        return ""
+                error = "must be an integer"
+        if error:
+            return f"[red]{key} = {val}[/]", error
+        return f"[green]{key} = {val}[/]", ""
 
     def _update_help(self) -> None:
         """Update the help text based on the current cursor line."""
@@ -190,12 +211,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
         if callable(valid):
             valid = valid()
 
-        error = self._validate_value(key, raw_val)
+        status_line, error = self._validate_value(key, raw_val)
 
-        # Build help text: description, valid values, then preview or error
-        lines = [f"[dim]{desc}[/]", f"[dim]{valid}[/]"]
+        # Build help text: description, valid values, current value, error/preview
+        lines = [f"[dim]{desc}[/]"]
+        if valid:
+            lines.append(f"Valid: [dim]{valid}[/]")
+        lines.append(f"Value: {status_line}")
         if error:
-            lines.append(error)
+            lines.append(f"[red]{error}[/]")
         elif preview_fn:
             try:
                 preview = preview_fn(raw_val)

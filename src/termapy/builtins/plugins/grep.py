@@ -7,11 +7,10 @@ import re
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import ANSI_RE as _ANSI_RE
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
-
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def _handler(ctx: PluginContext, args: str) -> None:

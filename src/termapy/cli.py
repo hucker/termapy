@@ -31,7 +31,9 @@ from termapy.scripting import ANSI_RE, strip_ansi as _strip_ansi
 
 
 def run_cli(
-    cfg: dict, config_path: str, no_color: bool = False,
+    cfg: dict,
+    config_path: str,
+    no_color: bool = False,
     run_script: str | None = None,
 ) -> None:
     """Run the interactive CLI terminal.
@@ -125,9 +127,13 @@ def run_cli(
         cfg=cfg,
         config_path=config_path,
         engine=engine_api,
-        port=lambda: engine.serial_port.port if engine.is_connected and engine.serial_port else None,
+        port=lambda: engine.serial_port.port
+        if engine.is_connected and engine.serial_port
+        else None,
         is_connected=lambda: engine.is_connected,
-        serial_write=lambda data: engine.serial_port.write(data) if engine.serial_port else None,
+        serial_write=lambda data: engine.serial_port.write(data)
+        if engine.serial_port
+        else None,
         serial_read_raw=lambda t=1000, g=50: (
             engine.serial_port.read_raw(t, g) if engine.serial_port else b""
         ),
@@ -140,8 +146,12 @@ def run_cli(
             log=log,
             echo_markup=write_markup,
             status=status,
-            serial_write=lambda data: engine.serial_port.write(data) if engine.serial_port else None,
-            serial_write_raw=lambda text: _serial_write_raw(engine, cfg, text, write_markup, status),
+            serial_write=lambda data: engine.serial_port.write(data)
+            if engine.serial_port
+            else None,
+            serial_write_raw=lambda text: _serial_write_raw(
+                engine, cfg, text, write_markup, status
+            ),
             is_connected=lambda: engine.is_connected,
             eol_label=eol_label,
         ),
@@ -157,7 +167,9 @@ def run_cli(
 
     # -- CLI-specific hooks ---------------------------------------------------
 
-    def _cli_delay(ctx, args: str) -> None:
+    def _cli_delay_quiet(ctx, args: str) -> None:
+        """Wait silently - no progress bar, no output. For scripts
+        where delay output would clutter results."""
         from termapy.scripting import parse_duration
         try:
             seconds = parse_duration(args)
@@ -165,24 +177,76 @@ def run_cli(
             status(str(e), "red")
             return
         try:
-            if seconds <= 3:
+            time.sleep(seconds)
+        except KeyboardInterrupt:
+            pass
+
+    def _cli_delay(ctx, args: str) -> None:
+        """Wait with progress bar (>=1s) or silently (<1s).
+        Shows elapsed/total time and sub-character resolution bar.
+        Ctrl+C cancels."""
+        from termapy.scripting import parse_duration
+
+        try:
+            seconds = parse_duration(args)
+        except ValueError as e:
+            status(str(e), "red")
+            return
+        try:
+            if seconds < 1:
                 time.sleep(seconds)
                 status(f"Delay {args.strip()} done.")
             else:
                 width = 30
-                step = seconds / width
-                for i in range(width):
-                    time.sleep(step)
-                    filled = "#" * (i + 1)
-                    empty = "-" * (width - i - 1)
-                    elapsed = int((i + 1) * step)
-                    print(f"\r  [{filled}{empty}] {elapsed}s", end="", flush=True)
+                if no_color:
+                    _SUB = " .-=#"  # ASCII: 4 sub-steps per cell
+                else:
+                    _SUB = " \u2591\u2592\u2593\u2588"  # Unicode: ░▒▓█
+                sub_n = len(_SUB) - 1
+                sub_steps = width * sub_n
+                full_ch = _SUB[-1]
+                t0 = time.perf_counter()
+                while True:
+                    elapsed = time.perf_counter() - t0
+                    if elapsed >= seconds:
+                        break
+                    frac = elapsed / seconds
+                    # Cap at sub_steps - 1 so bar never looks 100% before done
+                    pos = min(frac * sub_steps, sub_steps - 1)
+                    full = int(pos // sub_n)
+                    partial = int(pos % sub_n)
+                    bar = full_ch * full
+                    if full < width:
+                        bar += _SUB[partial] + " " * (width - full - 1)
+                    print(
+                        f"\r  [{bar}] {int(elapsed)}s/{int(seconds)}s",
+                        end="",
+                        flush=True,
+                    )
+                    time.sleep(0.25)
+                bar = full_ch * width
+                print(
+                    f"\r  [{bar}] {int(seconds)}s/{int(seconds)}s", end="", flush=True
+                )
                 msg = f"Delay {args.strip()} done."
                 print(f"\r  {msg}{' ' * (width + 10 - len(msg))}", flush=True)
         except KeyboardInterrupt:
             print(f"\r  Delay cancelled.{' ' * 30}", flush=True)
 
-    repl.register_hook("delay", "<duration>", "Wait for duration (e.g. 500ms, 1.5s).", _cli_delay, source="app")
+    repl.register_hook(
+        "delay",
+        "<duration>",
+        "Wait for duration with progress bar (e.g. 500ms, 1.5s).",
+        _cli_delay,
+        source="app",
+    )
+    repl.register_hook(
+        "delay.quiet",
+        "<duration>",
+        "Wait silently (no progress bar or output).",
+        _cli_delay_quiet,
+        source="app",
+    )
 
     def _cli_color(ctx, args: str) -> None:
         val = args.strip().lower()
@@ -196,7 +260,9 @@ def run_cli(
             state = "on" if not console.no_color else "off"
             status(f"Color: {state}")
 
-    repl.register_hook("color", "{on|off}", "Show or toggle color output.", _cli_color, source="app")
+    repl.register_hook(
+        "color", "{on|off}", "Show or toggle color output.", _cli_color, source="app"
+    )
 
     def _cli_run(ctx, args: str) -> None:
         script = args.strip()
@@ -219,8 +285,13 @@ def run_cli(
         if path:
             repl.run_script(path, write=status, dispatch=ctx.dispatch, verbose=verbose)
 
-    repl.register_hook("run", "{filename}", "Run a script file, or list available scripts.", _cli_run, source="app")
-
+    repl.register_hook(
+        "run",
+        "{filename}",
+        "Run a script file, or list available scripts.",
+        _cli_run,
+        source="app",
+    )
 
     # -- Connect --------------------------------------------------------------
 
@@ -238,7 +309,9 @@ def run_cli(
     if readline:
         # Load from the same plain-text format the TUI uses
         try:
-            for line in history_path.read_text(encoding="utf-8").splitlines()[-_HISTORY_LIMIT:]:
+            for line in history_path.read_text(encoding="utf-8").splitlines()[
+                -_HISTORY_LIMIT:
+            ]:
                 if line.strip():
                     readline.add_history(line)
         except (FileNotFoundError, OSError):
@@ -247,8 +320,10 @@ def run_cli(
     def _save_history() -> None:
         if not readline:
             return
-        entries = [readline.get_history_item(i + 1)
-                   for i in range(readline.get_current_history_length())]
+        entries = [
+            readline.get_history_item(i + 1)
+            for i in range(readline.get_current_history_length())
+        ]
         entries = [e for e in entries if e][-_HISTORY_LIMIT:]
         try:
             history_path.write_text("\n".join(entries), encoding="utf-8")
@@ -269,7 +344,7 @@ def run_cli(
                 # File completion for /run and /run.edit args
                 for fc in _file_cmds:
                     if line.startswith(fc):
-                        file_partial = line[len(fc):]
+                        file_partial = line[len(fc) :]
                         if scripts_dir.is_dir():
                             _completer.matches = [
                                 fc + f.name
@@ -384,13 +459,16 @@ def run_cli(
                         "",
                         log=log,
                         status=status,
-                        serial_write=lambda data: engine.serial_port.write(data) if engine.serial_port else None,
-                        serial_write_raw=lambda text: _serial_write_raw(engine, cfg, text, write_markup, status),
+                        serial_write=lambda data: engine.serial_port.write(data)
+                        if engine.serial_port
+                        else None,
+                        serial_write_raw=lambda text: _serial_write_raw(
+                            engine, cfg, text, write_markup, status
+                        ),
                         is_connected=lambda: engine.is_connected,
                         eol_label=eol_label,
                     )
                 continue
-
 
             # Check for /exit
             if line.strip().lower() in (prefix + "exit", prefix + "quit"):
@@ -401,8 +479,12 @@ def run_cli(
                 line,
                 log=log,
                 status=status,
-                serial_write=lambda data: engine.serial_port.write(data) if engine.serial_port else None,
-                serial_write_raw=lambda text: _serial_write_raw(engine, cfg, text, write_markup, status),
+                serial_write=lambda data: engine.serial_port.write(data)
+                if engine.serial_port
+                else None,
+                serial_write_raw=lambda text: _serial_write_raw(
+                    engine, cfg, text, write_markup, status
+                ),
                 is_connected=lambda: engine.is_connected,
                 eol_label=eol_label,
             )
@@ -423,7 +505,9 @@ def _cli_connect(engine, cfg, port_override, write, status):
     if port_override:
         cfg["port"] = port_override
     if engine.connect():
-        write(f"Connected: {cfg.get('port', '?')} @ {cfg.get('baud_rate', '?')}", "green")
+        write(
+            f"Connected: {cfg.get('port', '?')} @ {cfg.get('baud_rate', '?')}", "green"
+        )
     else:
         status(f"Cannot connect to {cfg.get('port', '?')}", "red")
 

@@ -653,6 +653,13 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "delay.quiet",
+            "<duration>",
+            "Wait silently (no output).",
+            self._hook_delay_quiet,
+            source="app",
+        )
+        self.repl.register_hook(
             "run",
             "<filename>",
             "Run a script file. Checks scripts/ folder then cwd.",
@@ -2241,6 +2248,15 @@ class SerialTerminal(App):
             self._status(str(e), "red")
             return
         self.set_timer(seconds, lambda: self._status(f"Delay {args} done."))
+
+    def _hook_delay_quiet(self, ctx, args: str) -> None:
+        """Wait silently - non-blocking timer, no output."""
+        try:
+            seconds = parse_duration(args)
+        except ValueError as e:
+            self._status(str(e), "red")
+            return
+        self.set_timer(seconds, lambda: None)
 
     def _hook_line_no(self, ctx, args: str) -> None:
         """Toggle line numbers on or off."""

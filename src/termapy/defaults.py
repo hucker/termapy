@@ -183,8 +183,9 @@ def _preview_color(raw_val: str) -> str:
         # Get truecolor hex for reliable rendering
         triplet = parsed.get_truecolor()
         hex_color = f"#{triplet.red:02x}{triplet.green:02x}{triplet.blue:02x}"
-        label = f"{color} -> {hex_color}" if resolved != color else f"{color} ({hex_color})"
-        return f"[on {hex_color}]    [/] {label}"
+        if resolved != color:
+            return f"[green]Color: {color} -> {hex_color}[/]"
+        return f"[green]Color: {hex_color}[/]"
     except Exception:
         return f"[bold red]????[/] unknown color: {color}"
 
@@ -316,8 +317,8 @@ CFG_HELP: dict[str, tuple] = {
     ),
     # Meta
     "config_version": (
-        "Schema version - managed automatically.",
-        "Do not edit. Current version: " + str(CURRENT_CONFIG_VERSION),
+        "[bold red]DO NOT EDIT[/] - schema version, managed automatically.",
+        "Current version: " + str(CURRENT_CONFIG_VERSION),
     ),
     "custom_buttons": (
         "Array of custom toolbar button objects.",

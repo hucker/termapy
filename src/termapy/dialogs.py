@@ -156,7 +156,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             resolved = expand_env_str(template)
             if resolved == template:
                 return (f"[yellow]{key}[/] = {highlighted}",
-                        "variable - not resolved")
+                        "[yellow]variable - not resolved[/]")
             # Recurse: validate the resolved value
             fake_raw = f'"{resolved}"' if isinstance(resolved, str) else str(resolved)
             status, error = self._validate_value(key, fake_raw)
@@ -166,7 +166,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         error = ""
         if key in self._BOOL_KEYS:
             if raw_val.strip() not in ("true", "false"):
-                error = "must be true or false"
+                error = "[red]must be true or false[/]"
         elif key in self._VALID_VALUES:
             try:
                 parsed = json.loads(raw_val.strip())
@@ -174,28 +174,44 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 parsed = val
             if parsed not in self._VALID_VALUES[key]:
                 opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
-                error = f"must be one of: {opts}"
+                error = f"[red]must be one of: {opts}[/]"
+        elif key == "port":
+            try:
+                from serial.tools.list_ports import comports
+                available = {p.device for p in comports()}
+                if val in available:
+                    return f"[green]{key} = {val}[/]", ""
+                if available:
+                    return f"[yellow]{key} = {val}[/]", f"[yellow]port not found (available: {', '.join(sorted(available))})[/]"
+                return f"[dim]{key} = {val}[/]", ""
+            except Exception:
+                return f"[dim]{key} = {val}[/]", ""
         elif key == "baud_rate":
             try:
                 v = json.loads(raw_val.strip())
                 if not isinstance(v, int) or v <= 0:
-                    error = "must be a positive integer"
+                    error = "[red]must be a positive integer[/]"
                 elif v not in self._STANDARD_BAUDS:
-                    return f"[yellow]{key} = {val}[/]", "non-standard baud rate"
+                    return f"[yellow]{key} = {val}[/]", "[yellow]non-standard baud rate[/]"
             except (json.JSONDecodeError, ValueError):
-                error = "must be a positive integer"
+                error = "[red]must be a positive integer[/]"
         elif key in self._INT_KEYS:
             try:
                 v = json.loads(raw_val.strip())
                 if not isinstance(v, int):
-                    error = "must be an integer"
+                    error = "[red]must be an integer[/]"
                 elif v < 0:
-                    error = "must be positive"
+                    error = "[red]must be positive[/]"
             except (json.JSONDecodeError, ValueError):
-                error = "must be an integer"
+                error = "[red]must be an integer[/]"
         if error:
             return f"[red]{key} = {val}[/]", error
-        return f"[green]{key} = {val}[/]", ""
+        # Green = actively validated and passed. Dim = no validation rule.
+        validated = (key in self._BOOL_KEYS or key in self._VALID_VALUES
+                     or key in ("baud_rate", "port") or key in self._INT_KEYS)
+        if validated:
+            return f"[green]{key} = {val}[/]", ""
+        return f"[dim]{key} = {val}[/]", ""
 
     def _update_help(self) -> None:
         """Update the help text based on the current cursor line."""
@@ -234,7 +250,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             lines.append(f"Valid: [dim italic]{valid}[/]")
         lines.append(f"Value: {status_line}")
         if error:
-            lines.append(f"[red]{error}[/]")
+            lines.append(error)
         elif preview_fn:
             try:
                 preview = preview_fn(raw_val)

@@ -945,24 +945,40 @@ A more complete example ships with `--demo`: the `probe.py` plugin demonstrates 
 
 ### Packet Visualizers
 
-The proto debug screen displays packet data using pluggable visualizers. Three are built-in (Hex, Text, Modbus), and you can add your own by dropping a `.py` file into `viz/`.
+When you test binary protocols (`.pro` files), the device sends raw bytes. A visualizer is a **binary packet decoder** - it takes those raw bytes and shows you named columns like "Temp: 23", "Pressure: 1013", "CRC: OK" instead of just hex. Think of it as a Wireshark-style packet dissector, but for your custom protocol.
+
+Termapy ships three visualizers (Hex, Text, Modbus). You add your own by dropping a `.py` file into `viz/`.
+
+**Where visualizers appear:** In the proto debug screen, each send/expect step shows the raw hex bytes. Below that, each enabled visualizer adds a row of decoded columns. When comparing expected vs actual bytes, columns show green (match) or red (mismatch) per field.
 
 <details>
 <summary>Writing a visualizer</summary>
 
+**Quick start:** Copy the template below into `termapy_cfg/<config>/viz/my_protocol.py`. Change `NAME`, `DESCRIPTION`, and `_SPEC` to match your protocol's byte layout. The two functions are always the same - they're just plumbing between your format spec and the display. You only edit the `_SPEC` string.
+
+Say your device sends 13-byte sensor packets:
+
+```text
+Bytes:  [serial (8)] [counter (2)] [temp (1)] [humid (1)] [press (1)] [crc16 (2)]
+```
+
+You write a format spec that maps byte positions to named columns, then wrap it in a visualizer file:
+
 ```python
-# sensor_view.py — drop into termapy_cfg/<config>/viz/
+# sensor_view.py - drop into termapy_cfg/<config>/viz/
 from termapy.protocol import apply_format, parse_format_spec
 from termapy.protocol import diff_columns as proto_diff_columns
 
 NAME = "Sensor"
-DESCRIPTION = "Sensor protocol — serial, counter, sensors, CRC"
+DESCRIPTION = "Sensor protocol - serial, counter, sensors, CRC"
 SORT_ORDER = 30
 
+# Format spec: Name:TypeByteRange for each field
+# S = string, U = unsigned int, crc = CRC check
 _SPEC = "Serial:S1-8 Counter:U9-10 Temp:U11 Humid:U12 Press:U13 CRC:crc16x_be"
 
 def format_columns(data: bytes) -> tuple[list[str], list[str]]:
-    """Return (headers, values) for display."""
+    """Decode one packet into (column_headers, column_values)."""
     if not data:
         return ["Sensor"], [""]
     return apply_format(data, parse_format_spec(_SPEC))
@@ -970,13 +986,53 @@ def format_columns(data: bytes) -> tuple[list[str], list[str]]:
 def diff_columns(
     actual: bytes, expected: bytes, mask: bytes
 ) -> tuple[list[str], list[str], list[str], list[str]]:
-    """Return (headers, expected_values, actual_values, statuses)."""
+    """Compare expected vs actual, return per-column pass/fail."""
     if not expected and not actual:
         return ["Sensor"], [""], [""], ["match"]
     return proto_diff_columns(actual, expected, mask, parse_format_spec(_SPEC))
 ```
 
-**Format spec language** — maps packet bytes to named columns:
+Every visualizer must export:
+
+- **`NAME`** - label shown in the proto debug screen checkbox and column header
+- **`DESCRIPTION`** - tooltip for the checkbox
+- **`SORT_ORDER`** - controls checkbox order (lower = first, built-ins use 10/20)
+- **`format_columns(data)`** - decodes raw bytes into column headers and values. This defines what the user sees: the column name comes from the format spec (e.g. "Temp"), the value is the decoded byte representation (e.g. "23")
+- **`diff_columns(actual, expected, mask)`** - compares expected vs actual packets field-by-field. Returns four parallel lists: headers, expected values, actual values, and per-column status (match/mismatch). This is what drives the green/red coloring in test results.
+
+The format spec string is the core - it defines the packet layout. Both functions just pass it through to the built-in decoder. Most visualizers look exactly like this template with only the `_SPEC` string changed.
+
+</details>
+
+<details>
+<summary>Format spec language</summary>
+
+The format spec maps byte positions to named, typed columns. Syntax: `Name:TypeByteRange`
+
+The purpose: your device sends fixed-format binary packets. The format spec tells termapy how to decode those bytes into the data types you expect - so you can see "Temp: 200" instead of "00 C8". When running protocol tests, termapy decodes both the expected and actual bytes using your spec, then shows a per-column comparison (green = match, red = mismatch).
+
+A format spec defines columns. Each column has a name, a type, and a byte range:
+
+```text
+Spec: "ID:H1 Temp:U2-3 Signed:I4-5 Status:H6"
+
+This defines 4 columns:
+  ID     - bytes 1     as hex         (H)
+  Temp   - bytes 2-3   as unsigned    (U) big-endian
+  Signed - bytes 4-5   as signed int  (I) big-endian
+  Status - byte 6      as hex         (H)
+
+Expected: 01 00 C8 FF FE 0A  ->  ID:01  Temp:200     Signed:-2    Status:0A
+Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201     Signed:-2    Status:0A
+                                  match  MISMATCH     match        match
+```
+
+**Byte order controls endianness** - the same bytes decode differently:
+
+- `U2-3` = big-endian: `00 C8` = 200
+- `U3-2` = little-endian: `C8 00` = 51200
+
+This matters because some devices send big-endian (Modbus) and others send little-endian (x86). The byte order in the spec matches the wire order - no separate endianness flags or prefixes needed. You read the spec the same way you read the protocol datasheet.
 
 | Code   | Meaning          | Example            | Output       |
 | ------ | ---------------- | ------------------ | ------------ |
@@ -989,9 +1045,9 @@ def diff_columns(
 | `_`    | Padding (hidden) | `_:_3-4`           | *(skipped)*  |
 | `crc*` | CRC verify       | `crc16m_le`        | green/red    |
 
-Byte indexing is 1-based. Endianness by byte order: `U3-4` = big-endian, `U4-3` = little-endian, `H7-*` = wildcard to end. Bit fields: `B1.3` = single bit, `B1-2.7-9` = multi-byte bit range (LSB-0).
+Byte indexing is 1-based. `H7-*` = wildcard to end of packet. Bit fields: `B1.3` = single bit at position 3, `B1-2.7-9` = multi-byte bit range (LSB-0).
 
-CRC columns use `_le`/`_be` suffix: `CRC:crc16-modbus_le`, `CRC:crc16-xmodem_be`, `CRC:crc8-maxim`.
+CRC columns use `_le`/`_be` suffix: `CRC:crc16-modbus_le`, `CRC:crc16-xmodem_be`, `CRC:crc8-maxim`. Termapy includes 62 algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more). Run `/proto.crc.list` for the full catalog or `/proto.crc.help <name>` for parameters.
 
 **Custom CRC plugins** for non-standard checksums are `.py` files in `builtins/crc/` or `termapy_cfg/<name>/crc/`:
 
@@ -1010,9 +1066,9 @@ def compute(data: bytes) -> int:
 
 | Export                                 | Required | Default | Description                                                |
 | -------------------------------------- | -------- | ------- | ---------------------------------------------------------- |
-| `NAME`                                 | yes      | —       | Checkbox label and table header                            |
-| `format_columns(data)`                 | yes      | —       | Return `(headers, values)` lists for TX/Expected rows      |
-| `diff_columns(actual, expected, mask)` | yes      | —       | Return `(headers, exp_vals, act_vals, statuses)` for diffs |
+| `NAME`                                 | yes      |         | Checkbox label and table header                            |
+| `format_columns(data)`                 | yes      |         | Decode raw bytes into `(headers, values)` column lists     |
+| `diff_columns(actual, expected, mask)` | yes      |         | Compare two packets: `(headers, exp_vals, act_vals, statuses)` |
 | `format_spec(data)`                    | no       | `""`    | Return the raw format spec string for display              |
 | `DESCRIPTION`                          | no       | `""`    | Tooltip text for the checkbox                              |
 | `SORT_ORDER`                           | no       | `50`    | Checkbox ordering (lower = first, built-ins use 10/20)     |

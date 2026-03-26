@@ -1,6 +1,6 @@
 # termapy
 
-[![Tests](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![license](https://img.shields.io/badge/license-MIT-green)
+[![CI](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/hucker/termapy/graph/badge.svg)](https://codecov.io/gh/hucker/termapy) ![python](https://img.shields.io/badge/python-3.11--3.14-blue) ![license](https://img.shields.io/badge/license-MIT-green)
 
 *Pronounced "ter-map-ee"*
 

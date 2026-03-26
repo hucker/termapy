@@ -8,8 +8,8 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (3110 lines) Textual TUI — UI, modals, app hooks
-├── cli.py               # (500 lines)  Plain-text CLI frontend — no Textual
+├── app.py               # (3126 lines) Textual TUI — UI, modals, app hooks
+├── cli.py               # (581 lines)  Plain-text CLI frontend — CLITerminal class
 ├── serial_engine.py     # (215 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py       # (280 lines)  Serial I/O wrapper + SerialReader data processor
 ├── capture.py           # (336 lines)  Capture state machine — text, binary, format spec
@@ -349,7 +349,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test Coverage
 
-19 test files, 861 tests, 61% overall coverage:
+19 test files, 854 tests, 60% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |

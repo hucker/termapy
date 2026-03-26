@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.32.0 (2026-03-26)
+
+### Improvements
+
+- **CLI refactored to class** - `CLITerminal` replaces closure-based `run_cli()`
+- **Progress bar** - real elapsed time, sub-character resolution (ASCII/Unicode), never shows 100% early
+- **`/delay.quiet`** - silent delay subcommand for scripts
+- **Config editor** - port validated against available ports, `$(env)` vars resolved and validated, cyan highlighting for variables, italic valid values, bold red "DO NOT EDIT" on config_version, baud rate yellow warning for non-standard values
+- **Hook tree override** - registering a hook clears all children from plugins (clean ownership)
+- **`/edit` plugin** - uniform edit tree for scripts, proto, plugins, cfg, log, info
+- **Visualizer docs** - rewritten with byte-level examples, expected vs actual comparison
+- **Smart config resolution** - bare names, directories, file extensions resolved automatically
+- **`/ss` stubs** - "not supported in CLI mode" instead of unknown command
+- **`/ver` command** and `--version` flag
+- **ANSI regex consolidated** - shared `ANSI_RE` and `strip_ansi()` in `scripting.py`
+- **Dead code removed** - `parse_script_lines` and 7 tests
+- **Unicode cleanup** - 285 em dashes, right arrows, en dashes replaced with ASCII
+- **`cfg_dir()` safety** - rejects paths with file extensions
+- **`load_config()` safety** - raises `FileNotFoundError` instead of auto-creating configs
+
+### Documentation
+
+- Installation page (uv-only, no pip)
+- CLI Mode section in README
+- Reordered help nav: Install -> Demo -> Getting Started -> Config
+- Removed manual prev/next nav tables
+- CRC catalog note (62 algorithms)
+- CONTRIBUTING.md, CHANGELOG.md, LICENSE (MIT)
+
+### Testing
+
+- 854 tests across 19 test files
+- CLI gold-standard integration test (476 lines)
+- 16 tests for config resolution chain
+
 ## 0.31.0 (2026-03-25)
 
 Initial public release.

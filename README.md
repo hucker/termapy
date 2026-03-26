@@ -1,6 +1,6 @@
 # termapy
 
-![tests](https://img.shields.io/badge/tests-861%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen) ![license](https://img.shields.io/badge/license-MIT-green)
+![tests](https://img.shields.io/badge/tests-854%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![3.11](https://img.shields.io/badge/3.11-pass-brightgreen) ![3.12](https://img.shields.io/badge/3.12-pass-brightgreen) ![3.13](https://img.shields.io/badge/3.13-pass-brightgreen) ![3.14](https://img.shields.io/badge/3.14-pass-brightgreen) ![license](https://img.shields.io/badge/license-MIT-green)
 
 *Pronounced "ter-map-ee"*
 
@@ -13,14 +13,14 @@ A serial interface terminal like PuTTY or Tera Term — but it runs in your term
 Install with [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.31.0
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.32.0
 termapy --demo
 ```
 
 Or try it without installing:
 
 ```sh
-uvx --from git+https://github.com/hucker/termapy@v0.31.0 termapy --demo
+uvx --from git+https://github.com/hucker/termapy@v0.32.0 termapy --demo
 ```
 
 That starts a simulated device — no hardware needed. You're typing commands in seconds.
@@ -1113,9 +1113,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test Coverage</strong> — 861 tests, 61% overall</summary>
+<summary><strong>Test Coverage</strong> — 854 tests, 61% overall</summary>
 
-861 tests across 19 test files. Run with `uv run pytest`.
+854 tests across 19 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 

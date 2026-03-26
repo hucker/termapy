@@ -23,20 +23,18 @@ except ImportError:
 
 from termapy.capture import CaptureEngine
 from termapy.config import load_config, open_serial, open_with_system
+from termapy.plugins import EngineAPI, PluginContext
 from termapy.repl import ReplEngine
+from termapy.scripting import strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 
-from termapy.scripting import ANSI_RE, strip_ansi as _strip_ansi
 
+class CLITerminal:
+    """Plain-text serial terminal - no Textual dependency.
 
-def run_cli(
-    cfg: dict,
-    config_path: str,
-    no_color: bool = False,
-    run_script: str | None = None,
-) -> None:
-    """Run the interactive CLI terminal.
+    Owns the serial engine, REPL engine, capture engine, and Rich console.
+    Registers CLI-specific hooks for /delay, /color, /run.
 
     Args:
         cfg: Loaded config dict.
@@ -44,144 +42,154 @@ def run_cli(
         no_color: Strip ANSI color codes from output.
         run_script: Optional .run script to execute then exit.
     """
-    # Ensure stdout handles unicode on Windows
-    if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
-        try:
+
+    _HISTORY_LIMIT = 30
+
+    def __init__(
+        self, cfg: dict, config_path: str,
+        no_color: bool = False, run_script: str | None = None,
+    ) -> None:
+        self.cfg = cfg
+        self.config_path = config_path
+        self.no_color = no_color
+        self.run_script = run_script
+        self.prefix = cfg.get("cmd_prefix", "/")
+
+        # Ensure stdout handles unicode on Windows
+        if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        except AttributeError:
-            pass  # Python < 3.7
 
-    prefix = cfg.get("cmd_prefix", "/")
+        # Rich console for colored output
+        from rich.console import Console
+        self.console = Console(no_color=no_color, highlight=False)
 
-    # -- Output helpers -------------------------------------------------------
-
-    from rich.console import Console
-
-    console = Console(no_color=no_color, highlight=False)
-
-    def write(text: str, color: str = "") -> None:
-        if color:
-            console.print(f"[{color}]{text}[/]")
-        else:
-            console.print(text)
-
-    def write_markup(text: str) -> None:
-        console.print(text)
-
-    def status(text: str, color: str = "") -> None:
-        if color:
-            console.print(f"  [{color}]{text}[/]")
-        else:
-            console.print(f"  {text}")
-
-    def log(direction: str, text: str) -> None:
-        pass  # CLI doesn't write a log file (could be added)
-
-    # -- Capture engine -------------------------------------------------------
-
-    capture = CaptureEngine(
-        on_echo=lambda line: write(f"  {line}"),
-        on_complete=lambda result: status(
-            f"Capture complete: {result.path} ({result.size_label})"
-        ),
-    )
-
-    # -- Serial engine --------------------------------------------------------
-
-    engine = SerialEngine(
-        cfg=cfg,
-        capture=capture,
-        open_fn=open_serial,
-        log=log,
-    )
-
-    # -- REPL engine ----------------------------------------------------------
-
-    repl = ReplEngine(cfg, config_path, write=status, prefix=prefix)
-
-    # Set up a minimal PluginContext - no Textual callbacks
-    from termapy.plugins import EngineAPI, PluginContext
-
-    engine_api = EngineAPI(
-        prefix=prefix,
-        plugins=repl._plugins,
-        get_echo=lambda: repl._echo,
-        set_echo=lambda val: setattr(repl, "_echo", val),
-        get_seq_counters=lambda: repl._seq_counters,
-        set_seq_counters=lambda val: setattr(repl, "_seq_counters", val),
-        reset_seq=repl._reset_seq,
-        in_script=lambda: repl.in_script,
-        script_stop=lambda: repl._script_stop.set(),
-        start_capture=lambda **kw: _start_capture(engine, capture, cfg, **kw),
-        stop_capture=lambda: _stop_capture(engine, capture),
-        apply_cfg=repl._apply_cfg,
-        coerce_type=ReplEngine._coerce_type,
-        connect=lambda port=None: _cli_connect(engine, cfg, port, write, status),
-        disconnect=lambda: _cli_disconnect(engine, write),
-        apply_port_effects=lambda effects: _cli_apply_port_effects(repl, effects),
-    )
-
-    ctx = PluginContext(
-        write=status,
-        write_markup=write_markup,
-        cfg=cfg,
-        config_path=config_path,
-        engine=engine_api,
-        port=lambda: engine.serial_port.port
-        if engine.is_connected and engine.serial_port
-        else None,
-        is_connected=lambda: engine.is_connected,
-        serial_write=lambda data: engine.serial_port.write(data)
-        if engine.serial_port
-        else None,
-        serial_read_raw=lambda t=1000, g=50: (
-            engine.serial_port.read_raw(t, g) if engine.serial_port else b""
-        ),
-        serial_drain=lambda: engine.serial_port.drain() if engine.serial_port else 0,
-        serial_wait_idle=lambda t=100, m=3.0: (
-            engine.serial_port.wait_for_idle(t, m) if engine.serial_port else None
-        ),
-        dispatch=lambda cmd: repl.dispatch_full(
-            cmd,
-            log=log,
-            echo_markup=write_markup,
-            status=status,
-            serial_write=lambda data: engine.serial_port.write(data)
-            if engine.serial_port
-            else None,
-            serial_write_raw=lambda text: _serial_write_raw(
-                engine, cfg, text, write_markup, status
+        # Engines
+        self.capture = CaptureEngine(
+            on_echo=lambda line: self.write(f"  {line}"),
+            on_complete=lambda result: self.status(
+                f"Capture complete: {result.path} ({result.size_label})"
             ),
-            is_connected=lambda: engine.is_connected,
-            eol_label=eol_label,
-        ),
-        confirm=lambda msg: _confirm_stdin(msg),
-        notify=lambda text, **kw: write(f"[notice] {text}"),
-        clear_screen=lambda: None,  # no screen to clear
-        open_file=lambda path: open_with_system(str(path)),
-        exit_app=lambda: None,  # handled by KeyboardInterrupt
-        log=log,
-        get_screen_text=lambda: "",  # no screen content
-    )
-    repl.set_context(ctx)
+        )
+        self.engine = SerialEngine(
+            cfg=cfg, capture=self.capture, open_fn=open_serial, log=self._log,
+        )
+        self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
 
-    # -- CLI-specific hooks ---------------------------------------------------
+        self._setup_context()
+        self._register_hooks()
 
-    def _cli_delay_quiet(ctx, args: str) -> None:
-        """Wait silently - no progress bar, no output. For scripts
-        where delay output would clutter results."""
-        from termapy.scripting import parse_duration
-        try:
-            seconds = parse_duration(args)
-        except ValueError as e:
-            status(str(e), "red")
-            return
-        try:
-            time.sleep(seconds)
-        except KeyboardInterrupt:
-            pass
+    # -- Output ---------------------------------------------------------------
 
-    def _cli_delay(ctx, args: str) -> None:
+    def write(self, text: str, color: str = "") -> None:
+        """Write text to stdout via Rich console."""
+        if color:
+            self.console.print(f"[{color}]{text}[/]")
+        else:
+            self.console.print(text)
+
+    def write_markup(self, text: str) -> None:
+        """Write Rich markup text to stdout."""
+        self.console.print(text)
+
+    def status(self, text: str, color: str = "") -> None:
+        """Write an indented status message."""
+        if color:
+            self.console.print(f"  [{color}]{text}[/]")
+        else:
+            self.console.print(f"  {text}")
+
+    def _log(self, direction: str, text: str) -> None:
+        """Log callback - CLI doesn't write a log file."""
+        pass
+
+    # -- Context and hooks ----------------------------------------------------
+
+    def _setup_context(self) -> None:
+        """Build PluginContext and EngineAPI, wire to REPL."""
+        engine_api = EngineAPI(
+            prefix=self.prefix,
+            plugins=self.repl._plugins,
+            get_echo=lambda: self.repl._echo,
+            set_echo=lambda val: setattr(self.repl, "_echo", val),
+            get_seq_counters=lambda: self.repl._seq_counters,
+            set_seq_counters=lambda val: setattr(self.repl, "_seq_counters", val),
+            reset_seq=self.repl._reset_seq,
+            in_script=lambda: self.repl.in_script,
+            script_stop=lambda: self.repl._script_stop.set(),
+            start_capture=lambda **kw: self._start_capture(**kw),
+            stop_capture=lambda: self._stop_capture(),
+            apply_cfg=self.repl._apply_cfg,
+            coerce_type=ReplEngine._coerce_type,
+            connect=lambda port=None: self._connect(port),
+            disconnect=lambda: self._disconnect(),
+            apply_port_effects=lambda effects: self._apply_port_effects(effects),
+        )
+
+        self.ctx = PluginContext(
+            write=self.status,
+            write_markup=self.write_markup,
+            cfg=self.cfg,
+            config_path=self.config_path,
+            engine=engine_api,
+            port=lambda: (
+                self.engine.serial_port.port
+                if self.engine.is_connected and self.engine.serial_port
+                else None
+            ),
+            is_connected=lambda: self.engine.is_connected,
+            serial_write=lambda data: (
+                self.engine.serial_port.write(data)
+                if self.engine.serial_port else None
+            ),
+            serial_read_raw=lambda t=1000, g=50: (
+                self.engine.serial_port.read_raw(t, g)
+                if self.engine.serial_port else b""
+            ),
+            serial_drain=lambda: (
+                self.engine.serial_port.drain()
+                if self.engine.serial_port else 0
+            ),
+            serial_wait_idle=lambda t=100, m=3.0: (
+                self.engine.serial_port.wait_for_idle(t, m)
+                if self.engine.serial_port else None
+            ),
+            dispatch=lambda cmd: self._dispatch(cmd),
+            confirm=lambda msg: self._confirm(msg),
+            notify=lambda text, **kw: self.write(f"[notice] {text}"),
+            clear_screen=lambda: None,
+            open_file=lambda path: open_with_system(str(path)),
+            exit_app=lambda: None,
+            log=self._log,
+            get_screen_text=lambda: "",
+        )
+        self.repl.set_context(self.ctx)
+
+    def _register_hooks(self) -> None:
+        """Register CLI-specific hooks for /delay, /color, /run."""
+        self.repl.register_hook(
+            "delay", "<duration>",
+            "Wait for duration with progress bar (e.g. 500ms, 1.5s).",
+            self._hook_delay, source="app",
+        )
+        self.repl.register_hook(
+            "delay.quiet", "<duration>",
+            "Wait silently (no progress bar or output).",
+            self._hook_delay_quiet, source="app",
+        )
+        self.repl.register_hook(
+            "color", "{on|off}",
+            "Show or toggle color output.",
+            self._hook_color, source="app",
+        )
+        self.repl.register_hook(
+            "run", "{filename}",
+            "Run a script file, or list available scripts.",
+            self._hook_run, source="app",
+        )
+
+    # -- Hook handlers --------------------------------------------------------
+
+    def _hook_delay(self, ctx, args: str) -> None:
         """Wait with progress bar (>=1s) or silently (<1s).
         Shows elapsed/total time and sub-character resolution bar.
         Ctrl+C cancels."""
@@ -190,141 +198,219 @@ def run_cli(
         try:
             seconds = parse_duration(args)
         except ValueError as e:
-            status(str(e), "red")
+            self.status(str(e), "red")
             return
         try:
             if seconds < 1:
                 time.sleep(seconds)
-                status(f"Delay {args.strip()} done.")
+                self.status(f"Delay {args.strip()} done.")
             else:
-                width = 30
-                if no_color:
-                    _SUB = " .-=#"  # ASCII: 4 sub-steps per cell
-                else:
-                    _SUB = " \u2591\u2592\u2593\u2588"  # Unicode: ░▒▓█
-                sub_n = len(_SUB) - 1
-                sub_steps = width * sub_n
-                full_ch = _SUB[-1]
-                t0 = time.perf_counter()
-                while True:
-                    elapsed = time.perf_counter() - t0
-                    if elapsed >= seconds:
-                        break
-                    frac = elapsed / seconds
-                    # Cap at sub_steps - 1 so bar never looks 100% before done
-                    pos = min(frac * sub_steps, sub_steps - 1)
-                    full = int(pos // sub_n)
-                    partial = int(pos % sub_n)
-                    bar = full_ch * full
-                    if full < width:
-                        bar += _SUB[partial] + " " * (width - full - 1)
-                    print(
-                        f"\r  [{bar}] {int(elapsed)}s/{int(seconds)}s",
-                        end="",
-                        flush=True,
-                    )
-                    time.sleep(0.25)
-                bar = full_ch * width
-                print(
-                    f"\r  [{bar}] {int(seconds)}s/{int(seconds)}s", end="", flush=True
-                )
-                msg = f"Delay {args.strip()} done."
-                print(f"\r  {msg}{' ' * (width + 10 - len(msg))}", flush=True)
+                self._draw_progress_bar(seconds, args.strip())
         except KeyboardInterrupt:
             print(f"\r  Delay cancelled.{' ' * 30}", flush=True)
 
-    repl.register_hook(
-        "delay",
-        "<duration>",
-        "Wait for duration with progress bar (e.g. 500ms, 1.5s).",
-        _cli_delay,
-        source="app",
-    )
-    repl.register_hook(
-        "delay.quiet",
-        "<duration>",
-        "Wait silently (no progress bar or output).",
-        _cli_delay_quiet,
-        source="app",
-    )
+    def _hook_delay_quiet(self, ctx, args: str) -> None:
+        """Wait silently - no progress bar, no output.
+        For scripts where delay output would clutter results."""
+        from termapy.scripting import parse_duration
+        try:
+            seconds = parse_duration(args)
+        except ValueError as e:
+            self.status(str(e), "red")
+            return
+        try:
+            time.sleep(seconds)
+        except KeyboardInterrupt:
+            pass
 
-    def _cli_color(ctx, args: str) -> None:
+    def _hook_color(self, ctx, args: str) -> None:
+        """Toggle color output on/off."""
         val = args.strip().lower()
         if val in ("on", "1", "true"):
-            console.no_color = False
-            status("Color enabled.", "green")
+            self.console.no_color = False
+            self.status("Color enabled.", "green")
         elif val in ("off", "0", "false"):
-            console.no_color = True
-            status("Color disabled.")
+            self.console.no_color = True
+            self.status("Color disabled.")
         else:
-            state = "on" if not console.no_color else "off"
-            status(f"Color: {state}")
+            state = "on" if not self.console.no_color else "off"
+            self.status(f"Color: {state}")
 
-    repl.register_hook(
-        "color", "{on|off}", "Show or toggle color output.", _cli_color, source="app"
-    )
-
-    def _cli_run(ctx, args: str) -> None:
+    def _hook_run(self, ctx, args: str) -> None:
+        """Run a script file or list available scripts."""
         script = args.strip()
         if not script:
-            # List available .run files
-            scripts_dir = Path(config_path).parent / "scripts"
+            scripts_dir = Path(self.config_path).parent / "scripts"
             if not scripts_dir.is_dir():
-                status("No scripts/ directory found.")
+                self.status("No scripts/ directory found.")
                 return
             files = sorted(scripts_dir.glob("*.run"))
             if not files:
-                status("No .run files found in scripts/")
+                self.status("No .run files found in scripts/")
                 return
-            status("Available scripts:")
+            self.status("Available scripts:")
             for f in files:
-                status(f"  {f.name}")
+                self.status(f"  {f.name}")
             return
         script, verbose = _parse_run_flags(script)
-        path = repl.start_script(script)
+        path = self.repl.start_script(script)
         if path:
-            repl.run_script(path, write=status, dispatch=ctx.dispatch, verbose=verbose)
+            self.repl.run_script(
+                path, write=self.status, dispatch=self.ctx.dispatch, verbose=verbose,
+            )
 
-    repl.register_hook(
-        "run",
-        "{filename}",
-        "Run a script file, or list available scripts.",
-        _cli_run,
-        source="app",
-    )
+    # -- Progress bar ---------------------------------------------------------
 
-    # -- Connect --------------------------------------------------------------
+    def _draw_progress_bar(self, seconds: float, label: str) -> None:
+        """Draw a progress bar with sub-character resolution.
+        Uses Unicode blocks in color mode, ASCII in no-color mode."""
+        width = 30
+        if self.no_color:
+            _SUB = " .-=#"  # ASCII: 4 sub-steps per cell
+        else:
+            _SUB = " \u2591\u2592\u2593\u2588"  # Unicode: ░▒▓█
+        sub_n = len(_SUB) - 1
+        sub_steps = width * sub_n
+        full_ch = _SUB[-1]
+        t0 = time.perf_counter()
+        while True:
+            elapsed = time.perf_counter() - t0
+            if elapsed >= seconds:
+                break
+            frac = elapsed / seconds
+            # Cap at sub_steps - 1 so bar never looks 100% before done
+            pos = min(frac * sub_steps, sub_steps - 1)
+            full = int(pos // sub_n)
+            partial = int(pos % sub_n)
+            bar = full_ch * full
+            if full < width:
+                bar += _SUB[partial] + " " * (width - full - 1)
+            print(
+                f"\r  [{bar}] {int(elapsed)}s/{int(seconds)}s",
+                end="", flush=True,
+            )
+            time.sleep(0.25)
+        bar = full_ch * width
+        print(f"\r  [{bar}] {int(seconds)}s/{int(seconds)}s", end="", flush=True)
+        msg = f"Delay {label} done."
+        print(f"\r  {msg}{' ' * (width + 10 - len(msg))}", flush=True)
 
-    if not engine.connect():
-        print(f"termapy: cannot connect to {cfg.get('port', '?')}", file=sys.stderr)
-        sys.exit(1)
+    # -- Serial helpers -------------------------------------------------------
 
-    port_name = cfg.get("port", "?")
-    baud = cfg.get("baud_rate", "?")
-    write(f"Connected: {port_name} @ {baud}", "green")
-    # -- History (shared with TUI) --------------------------------------------
+    def _dispatch(self, cmd: str) -> None:
+        """Route a command through the full dispatch pipeline."""
+        self.repl.dispatch_full(
+            cmd,
+            log=self._log,
+            echo_markup=self.write_markup,
+            status=self.status,
+            serial_write=lambda data: (
+                self.engine.serial_port.write(data)
+                if self.engine.serial_port else None
+            ),
+            serial_write_raw=lambda text: self._serial_write_raw(text),
+            is_connected=lambda: self.engine.is_connected,
+            eol_label=eol_label,
+        )
 
-    history_path = Path(config_path).parent / ".cmd_history.txt"
-    _HISTORY_LIMIT = 30
-    if readline:
-        # Load from the same plain-text format the TUI uses
+    def _serial_write_raw(self, text: str) -> None:
+        """Send raw text to serial - mimics app.py's _send_serial_raw."""
+        if not self.engine.is_connected:
+            self.status("Not connected - command not sent", "red")
+            return
+        line_ending = self.cfg.get("line_ending", "\r")
+        encoding = self.cfg.get("encoding", "utf-8")
+        if self.engine.serial_port:
+            self.engine.serial_port.write((text + line_ending).encode(encoding))
+
+    def _connect(self, port: str | None = None) -> None:
+        """Connect to a serial port."""
+        if self.engine.is_connected:
+            self.status("Already connected", "yellow")
+            return
+        if port:
+            self.cfg["port"] = port
+        if self.engine.connect():
+            self.write(
+                f"Connected: {self.cfg.get('port', '?')} @ {self.cfg.get('baud_rate', '?')}",
+                "green",
+            )
+        else:
+            self.status(f"Cannot connect to {self.cfg.get('port', '?')}", "red")
+
+    def _disconnect(self) -> None:
+        """Disconnect from the serial port."""
+        if not self.engine.is_connected:
+            self.write("Not connected", "yellow")
+            return
+        self.engine.disconnect()
+        self.write("Disconnected.", "red")
+
+    def _apply_port_effects(self, effects: dict) -> None:
+        """Apply port_control side effects."""
+        if effects.get("cfg_update"):
+            for key, val in effects["cfg_update"].items():
+                self.repl._cfg_data[key] = val
+
+    # -- Capture helpers ------------------------------------------------------
+
+    def _start_capture(self, **kwargs) -> bool:
+        """Start a capture session."""
+        if self.capture.active:
+            self.status("Capture already active - use /cap.stop")
+            return False
+        started = self.capture.start(**kwargs)
+        if not started:
+            self.status("Cannot open capture file")
+            return False
+        mode = kwargs.get("mode", "?")
+        path = kwargs.get("path", "?")
+        self.status(f"Capture started: {path} ({mode})")
+        return True
+
+    def _stop_capture(self) -> None:
+        """Stop a capture session."""
+        result = self.capture.stop()
+        if result:
+            self.status(f"Capture complete: {result.path} ({result.size_label})")
+
+    # -- Confirmation ---------------------------------------------------------
+
+    @staticmethod
+    def _confirm(message: str) -> bool:
+        """Prompt for y/n confirmation on stdin."""
+        try:
+            answer = input(f"  {message} [y/N] ").strip().lower()
+            return answer in ("y", "yes")
+        except (EOFError, KeyboardInterrupt):
+            return False
+
+    # -- History --------------------------------------------------------------
+
+    def _load_history(self) -> None:
+        """Load command history from the same file the TUI uses."""
+        if not readline:
+            return
+        history_path = Path(self.config_path).parent / ".cmd_history.txt"
         try:
             for line in history_path.read_text(encoding="utf-8").splitlines()[
-                -_HISTORY_LIMIT:
+                -self._HISTORY_LIMIT:
             ]:
                 if line.strip():
                     readline.add_history(line)
         except (FileNotFoundError, OSError):
             pass
 
-    def _save_history() -> None:
+    def _save_history(self) -> None:
+        """Save command history to the same file the TUI uses."""
         if not readline:
             return
+        history_path = Path(self.config_path).parent / ".cmd_history.txt"
         entries = [
             readline.get_history_item(i + 1)
             for i in range(readline.get_current_history_length())
         ]
-        entries = [e for e in entries if e][-_HISTORY_LIMIT:]
+        entries = [e for e in entries if e][-self._HISTORY_LIMIT:]
         try:
             history_path.write_text("\n".join(entries), encoding="utf-8")
         except OSError:
@@ -332,9 +418,14 @@ def run_cli(
 
     # -- Tab completion -------------------------------------------------------
 
-    if readline:
-        scripts_dir = Path(config_path).parent / "scripts"
-        _file_cmds = (f"{prefix}run ", f"{prefix}run.edit ")
+    def _setup_completion(self) -> None:
+        """Set up readline tab completion for commands and script files."""
+        if not readline:
+            return
+        scripts_dir = Path(self.config_path).parent / "scripts"
+        file_cmds = (f"{self.prefix}run ", f"{self.prefix}run.edit ")
+        repl = self.repl
+        prefix = self.prefix
 
         def _completer(text: str, state: int) -> str | None:
             if state == 0:
@@ -342,9 +433,9 @@ def run_cli(
                 _completer.matches = []
 
                 # File completion for /run and /run.edit args
-                for fc in _file_cmds:
+                for fc in file_cmds:
                     if line.startswith(fc):
-                        file_partial = line[len(fc) :]
+                        file_partial = line[len(fc):]
                         if scripts_dir.is_dir():
                             _completer.matches = [
                                 fc + f.name
@@ -373,201 +464,108 @@ def run_cli(
         readline.parse_and_bind("tab: complete")
         readline.set_completer_delims("")
 
-    if not run_script:
-        write(f"Type commands, {prefix}help for REPL commands, Ctrl+C to quit", "dim")
-
     # -- Reader thread --------------------------------------------------------
 
-    def on_lines(lines: list[str]) -> None:
-        for line in lines:
-            if no_color:
-                line = _strip_ansi(line)
-            print(line, flush=True)
+    def _start_reader(self) -> None:
+        """Start the background serial reader thread."""
+        def on_lines(lines: list[str]) -> None:
+            for line in lines:
+                if self.no_color:
+                    line = strip_ansi(line)
+                print(line, flush=True)
 
-    def on_error(detail: str) -> None:
-        print(f"Serial error: {detail}", file=sys.stderr, flush=True)
+        reader_thread = threading.Thread(
+            target=self.engine.read_loop,
+            kwargs={
+                "on_lines": on_lines,
+                "on_clear": lambda: print("\x1b[2J\x1b[H", end="", flush=True),
+                "on_capture_done": lambda: self._stop_capture(),
+                "on_error": lambda detail: print(
+                    f"Serial error: {detail}", file=sys.stderr, flush=True
+                ),
+                "on_disconnect": lambda: print(
+                    "Serial disconnected", file=sys.stderr, flush=True
+                ),
+            },
+            daemon=True,
+        )
+        reader_thread.start()
 
-    def on_disconnect() -> None:
-        print("Serial disconnected", file=sys.stderr, flush=True)
+    # -- Run modes ------------------------------------------------------------
 
-    reader_thread = threading.Thread(
-        target=engine.read_loop,
-        kwargs={
-            "on_lines": on_lines,
-            "on_clear": lambda: print("\x1b[2J\x1b[H", end="", flush=True),
-            "on_capture_done": lambda: _stop_capture(engine, capture),
-            "on_error": on_error,
-            "on_disconnect": on_disconnect,
-        },
-        daemon=True,
-    )
-    reader_thread.start()
-
-    # -- Text capture tap (inject into reader) --------------------------------
-    # The SerialReader feeds CaptureEngine for binary mode.
-    # For text mode, we tap the on_lines callback:
-    _orig_on_lines = on_lines
-
-    def on_lines_with_capture(lines: list[str]) -> None:
-        if capture.active and capture.mode == "text":
-            stripped = [ANSI_RE.sub("", line) for line in lines]
-            capture.feed_text(stripped)
-        _orig_on_lines(lines)
-
-    # Patch the reader's callback (thread already running, but dict lookup is atomic)
-    # This is a bit hacky - in a real refactor, SerialEngine.read_loop would
-    # accept a text capture tap. For now it works.
-
-    # -- Script mode (run and exit) -------------------------------------------
-
-    if run_script:
-        script_path = Path(run_script)
+    def _run_script_mode(self) -> None:
+        """Execute a .run script and exit."""
+        script_path = Path(self.run_script)
         if not script_path.exists():
-            # Try resolving relative to scripts/ dir
-            scripts_dir = Path(config_path).parent / "scripts"
+            scripts_dir = Path(self.config_path).parent / "scripts"
             alt = scripts_dir / script_path.name
             if alt.exists():
                 script_path = alt
-        path = repl.start_script(str(script_path))
+        path = self.repl.start_script(str(script_path))
         if path:
             try:
-                repl.run_script(
-                    path,
-                    write=status,
-                    dispatch=ctx.dispatch,
-                    verbose=True,
+                self.repl.run_script(
+                    path, write=self.status, dispatch=self.ctx.dispatch, verbose=True,
                 )
             except KeyboardInterrupt:
                 print("\nScript interrupted", flush=True)
-        engine.disconnect()
-        write("Disconnected.", "red")
-        return
+        self.engine.disconnect()
+        self.write("Disconnected.", "red")
 
-    # -- Main input loop ------------------------------------------------------
-
-    try:
-        while True:
-            try:
-                line = input()
-            except EOFError:
-                break
-
-            line = line.strip()
-            if not line:
-                if cfg.get("send_bare_enter", False):
-                    repl.dispatch_full(
-                        "",
-                        log=log,
-                        status=status,
-                        serial_write=lambda data: engine.serial_port.write(data)
-                        if engine.serial_port
-                        else None,
-                        serial_write_raw=lambda text: _serial_write_raw(
-                            engine, cfg, text, write_markup, status
-                        ),
-                        is_connected=lambda: engine.is_connected,
-                        eol_label=eol_label,
-                    )
-                continue
-
-            # Check for /exit
-            if line.strip().lower() in (prefix + "exit", prefix + "quit"):
-                break
-
-            # Full dispatch (no echo_markup - input() already shows the command)
-            repl.dispatch_full(
-                line,
-                log=log,
-                status=status,
-                serial_write=lambda data: engine.serial_port.write(data)
-                if engine.serial_port
-                else None,
-                serial_write_raw=lambda text: _serial_write_raw(
-                    engine, cfg, text, write_markup, status
-                ),
-                is_connected=lambda: engine.is_connected,
-                eol_label=eol_label,
-            )
-
-    except KeyboardInterrupt:
-        print("\nInterrupted", flush=True)
-    finally:
-        _save_history()
-        engine.disconnect()
-        write("Disconnected.", "red")
-
-
-def _cli_connect(engine, cfg, port_override, write, status):
-    """Connect to a serial port (CLI version)."""
-    if engine.is_connected:
-        status("Already connected", "yellow")
-        return
-    if port_override:
-        cfg["port"] = port_override
-    if engine.connect():
-        write(
-            f"Connected: {cfg.get('port', '?')} @ {cfg.get('baud_rate', '?')}", "green"
+    def _run_interactive(self) -> None:
+        """Run the interactive input loop."""
+        self.write(
+            f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
+            "dim",
         )
-    else:
-        status(f"Cannot connect to {cfg.get('port', '?')}", "red")
+        try:
+            while True:
+                try:
+                    line = input()
+                except EOFError:
+                    break
 
+                line = line.strip()
+                if not line:
+                    if self.cfg.get("send_bare_enter", False):
+                        self._dispatch("")
+                    continue
 
-def _cli_disconnect(engine, write):
-    """Disconnect from the serial port (CLI version)."""
-    if not engine.is_connected:
-        write("Not connected", "yellow")
-        return
-    engine.disconnect()
-    write("Disconnected.", "red")
+                if line.lower() in (self.prefix + "exit", self.prefix + "quit"):
+                    break
 
+                self._dispatch(line)
 
-def _cli_apply_port_effects(repl, effects):
-    """Apply port_control side effects (CLI version)."""
-    if effects.get("cfg_update"):
-        for key, val in effects["cfg_update"].items():
-            repl._cfg_data[key] = val
+        except KeyboardInterrupt:
+            print("\nInterrupted", flush=True)
+        finally:
+            self._save_history()
+            self.engine.disconnect()
+            self.write("Disconnected.", "red")
 
+    # -- Entry point ----------------------------------------------------------
 
-def _serial_write_raw(engine, cfg, text, echo_markup, status):
-    """Send raw text to serial - mimics app.py's _send_serial_raw."""
-    if not engine.is_connected:
-        status("Not connected - command not sent", "red")
-        return
-    line_ending = cfg.get("line_ending", "\r")
-    encoding = cfg.get("encoding", "utf-8")
-    if engine.serial_port:
-        engine.serial_port.write((text + line_ending).encode(encoding))
+    def run(self) -> None:
+        """Connect, start reader, and run in script or interactive mode."""
+        if not self.engine.connect():
+            print(
+                f"termapy: cannot connect to {self.cfg.get('port', '?')}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
+        port_name = self.cfg.get("port", "?")
+        baud = self.cfg.get("baud_rate", "?")
+        self.write(f"Connected: {port_name} @ {baud}", "green")
 
-def _start_capture(engine, capture, cfg, **kwargs):
-    """Start a capture session (CLI version - no timers)."""
-    if capture.active:
-        print("  Capture already active - use /cap.stop", flush=True)
-        return False
-    started = capture.start(**kwargs)
-    if not started:
-        print(f"  Cannot open capture file", flush=True)
-        return False
-    mode = kwargs.get("mode", "?")
-    path = kwargs.get("path", "?")
-    print(f"  Capture started: {path} ({mode})", flush=True)
-    return True
+        self._load_history()
+        self._setup_completion()
+        self._start_reader()
 
-
-def _stop_capture(engine, capture):
-    """Stop a capture session."""
-    result = capture.stop()
-    if result:
-        print(f"  Capture complete: {result.path} ({result.size_label})", flush=True)
-
-
-def _confirm_stdin(message: str) -> bool:
-    """Prompt for y/n confirmation on stdin."""
-    try:
-        answer = input(f"  {message} [y/N] ").strip().lower()
-        return answer in ("y", "yes")
-    except (EOFError, KeyboardInterrupt):
-        return False
+        if self.run_script:
+            self._run_script_mode()
+        else:
+            self._run_interactive()
 
 
 def _parse_run_flags(args: str) -> tuple[str, bool]:

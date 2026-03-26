@@ -2852,7 +2852,7 @@ def _infer_config_from_run_file(run_path: str) -> str | None:
 
 def _run_cli_mode(args) -> None:
     """Run in CLI mode - plain text terminal, no TUI."""
-    from termapy.cli import run_cli
+    from termapy.cli import CLITerminal
 
     run_script = getattr(args, "run", None)
 
@@ -2889,7 +2889,7 @@ def _run_cli_mode(args) -> None:
         print(f"termapy: failed to load config: {e}", file=sys.stderr)
         sys.exit(1)
 
-    run_cli(cfg, config_path, no_color=args.no_color, run_script=run_script)
+    CLITerminal(cfg, config_path, no_color=args.no_color, run_script=run_script).run()
 
 
 def _run_proto_headless(args) -> None:

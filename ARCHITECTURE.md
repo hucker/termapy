@@ -8,23 +8,23 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (3030 lines) Textual TUI — UI, modals, app hooks
+├── app.py               # (3110 lines) Textual TUI — UI, modals, app hooks
 ├── cli.py               # (500 lines)  Plain-text CLI frontend — no Textual
 ├── serial_engine.py     # (215 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py       # (280 lines)  Serial I/O wrapper + SerialReader data processor
-├── capture.py           # (340 lines)  Capture state machine — text, binary, format spec
-├── dialogs.py           # (1200 lines) Modal screens — config editor, pickers, confirm
-├── proto_debug.py       # (1160 lines) Interactive protocol debug screen
+├── capture.py           # (336 lines)  Capture state machine — text, binary, format spec
+├── dialogs.py           # (1227 lines) Modal screens — config editor, pickers, confirm
+├── proto_debug.py       # (1161 lines) Interactive protocol debug screen
 ├── protocol.py          # (1770 lines) Protocol parsing, format specs, CRC, visualizers
-├── demo.py              # (900 lines)  Simulated device for --demo mode (FakeSerial)
-├── repl.py              # (650 lines)  REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (560 lines)  Plugin system — Command, PluginContext, loading
-├── config.py            # (430 lines)  Config dirs, loading, validation, migration trigger
-├── port_control.py      # (250 lines)  Pure serial port control functions — no Textual
+├── demo.py              # (896 lines)  Simulated device for --demo mode (FakeSerial)
+├── repl.py              # (661 lines)  REPL engine — dispatch, scripting, transforms
+├── plugins.py           # (572 lines)  Plugin system — Command, PluginContext, loading
+├── config.py            # (440 lines)  Config dirs, loading, validation, migration trigger
+├── port_control.py      # (247 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (284 lines)  Protocol test script runner
-├── scripting.py         # (154 lines)  Pure functions — templates, duration parsing
-├── migration.py         # (130 lines)  Config schema migration chain (v1→v8)
-├── defaults.py          # (380 lines)  DEFAULT_CFG, templates
+├── scripting.py         # (136 lines)  Pure functions — templates, duration parsing, ANSI
+├── migration.py         # (130 lines)  Config schema migration chain (v1->v8)
+├── defaults.py          # (377 lines)  DEFAULT_CFG, templates
 ├── help/                #              Markdown help pages (source for MkDocs)
 ├── html/                #              Generated HTML help (MkDocs Material output)
 ├── builtins/

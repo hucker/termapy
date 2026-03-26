@@ -273,8 +273,7 @@ Connected: DEMO @ 115200
     /port.cts - Show CTS state (read-only).
     /port.dsr - Show DSR state (read-only).
     /port.dtr {0|1} - Show or set DTR line (hardware only).
-    /port.flow_control {mode} - Show or set flow control
-(none/rtscts/xonxoff/manual).
+    /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
     /port.info - Show port status, serial parameters, and hardware lines.
     /port.list - List available serial ports.
     /port.open {name} - Connect to the serial port (optional port override).
@@ -335,8 +334,7 @@ Connected: DEMO @ 115200
 > /print === section: help ===
   === section: help ===
 > /help echo
-/echo {on | off} - Toggle REPL command echo, or set on/off. Output is not
-affected.
+/echo {on | off} - Toggle REPL command echo, or set on/off. Output is not affected.
   Subcommands:
     /echo.quiet <on | off> - Set echo on/off silently (no output message).
 > /help port
@@ -350,8 +348,7 @@ affected.
     /port.cts - Show CTS state (read-only).
     /port.dsr - Show DSR state (read-only).
     /port.dtr {0|1} - Show or set DTR line (hardware only).
-    /port.flow_control {mode} - Show or set flow control
-(none/rtscts/xonxoff/manual).
+    /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
     /port.info - Show port status, serial parameters, and hardware lines.
     /port.list - List available serial ports.
     /port.open {name} - Connect to the serial port (optional port override).
@@ -437,17 +434,15 @@ affected.
 > /help cap
 /cap - Data capture tools.
   Subcommands:
-    /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must
-be last)} - Capture raw binary bytes to a file.
-    /cap.hex <file> fmt=<spec> records=<N> {mode=new|append} {sep=...}
-{echo=on|off} {timeout=<dur>} {cmd=... (must be last)} - Capture hex text
-lines, decode with format spec to CSV.
+    /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)} - Capture raw binary bytes to a
+file.
+    /cap.hex <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be
+last)} - Capture hex text lines, decode with format spec to CSV.
     /cap.stop - Stop an active capture.
-    /cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=...}
-{echo=on|off} {timeout=<dur>} {cmd=... (must be last)} - Capture raw bytes,
-decode with format spec to CSV.
-    /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=...
-(must be last)} - Capture serial text to a file for a timed duration.
+    /cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must
+be last)} - Capture raw bytes, decode with format spec to CSV.
+    /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)} - Capture serial text to a
+file for a timed duration.
 > /print === section: env vars ===
   === section: env vars ===
 > /env.set TEST_VAR hello_world

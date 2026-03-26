@@ -144,9 +144,19 @@ class ConfigEditor(ModalScreen[tuple | None]):
             (valid), yellow (non-standard), or red (invalid).
             error is the detail message or empty string.
         """
-        # Skip template values
+        # Template values - resolve, show expansion, then validate resolved value
         if "$(" in raw_val:
-            return f"[dim]{key} = {raw_val.strip()}[/]", ""
+            from termapy.config import expand_env_str
+            template = raw_val.strip().strip('"')
+            resolved = expand_env_str(template)
+            if resolved == template:
+                return (f"[yellow]{key} = {template}[/]",
+                        "variable - not resolved")
+            # Recurse: validate the resolved value
+            fake_raw = f'"{resolved}"' if isinstance(resolved, str) else str(resolved)
+            status, error = self._validate_value(key, fake_raw)
+            info = f"[dim]{template}[/] -> {status}"
+            return (info, error)
         val = raw_val.strip().strip('"')
         error = ""
         if key in self._BOOL_KEYS:

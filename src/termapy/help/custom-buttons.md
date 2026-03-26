@@ -27,5 +27,3 @@ system buttons (Log, SS, Cap, Exit), with a small gap separating them.
 ---
 
 | | | |
-|:---:|:---:|:---:|
-| [← Configuration](config.md) | [Index](index.md) | [Scripting →](scripting.md) |

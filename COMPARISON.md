@@ -3,7 +3,7 @@
 Termapy is a serial terminal workbench for embedded engineers — built for
 scripting, protocol testing, and automation in addition to general-purpose
 terminal emulation. It is new (2026), has one developer, requires Python 3.11+
-and `uv` to install, and has no community.
+and `uv` to install, is MIT licensed, and has no community yet.
 
 ## Feature Comparison
 
@@ -28,7 +28,11 @@ and `uv` to install, and has no community.
 | **Cost**                    | Free, open source                                                                                         | Free, open source                       | Free (donationware)        | Free, open source            | ~$190 (free eval)                     | Free                 |
 | **Line ending control**     | CR/LF/CRLF configurable                                                                                   | Yes                                     | Yes                        | Yes                          | Full byte control                     | Yes                  |
 | **Demo/simulation mode**    | `--demo` or `/demo` — simulated device, no hardware needed                                                | No                                      | No                         | No                           | No                                    | No                   |
-| **Maturity**                | New (2025)                                                                                                | ~15 years                               | ~10 years                  | 25+ years                    | ~15 years                             | ~10 years            |
+| **CLI mode**                | `--cli` plain-text terminal for automation, SSH, CI/CD                                                    | No                                      | No                         | No                           | No                                    | No                   |
+| **Git-friendly**            | Designed to work with git. Config folders with .gitignore, scripts/plugins/tests versioned together       | No                                      | No                         | No                           | No                                    | No                   |
+| **Environment variables**   | `$(env.PORT)` in configs and scripts, `$(env.NAME\|fallback)` with defaults, `/env` commands              | No                                      | No                         | No                           | No                                    | No                   |
+| **Data capture**            | Text (timed), binary, struct/hex decode to CSV with format specs                                          | Binary capture                          | Text/binary logging        | Binary logging               | Sequence recording                    | Binary logging       |
+| **Maturity**                | New (2025-2026)                                                                                           | ~15 years                               | ~10 years                  | 25+ years                    | ~15 years                             | ~10 years            |
 | **Community**               | None                                                                                                      | SourceForge forums                      | User forums                | Active open-source community | Commercial support                    | Minimal              |
 | **Installer**               | Requires Python + uv                                                                                      | Windows .exe                            | Native installer           | Windows .exe                 | Windows installer                     | Standalone binary    |
 
@@ -36,7 +40,7 @@ and `uv` to install, and has no community.
 
 Termapy has two distinct automation layers that serve different users:
 
-### Script files (`.run`) — for technicians
+### Script files (`.run`) — for technicians/board bring up/testing
 
 Linear sequences of serial commands, delays, and REPL commands. Comparable to
 Tera Term macros or Docklight send sequences. No programming required — they
@@ -54,7 +58,7 @@ AT+RESET
 /delay 1s
 ```
 
-### Python plugins (`.py`) — for engineers
+### Python plugins (`.py`) — for engineers/tool builders
 
 Full Python with access to the serial port, config, and UI through a stable
 API. Can implement arbitrary protocol logic, CRC calculations, state machines,
@@ -86,7 +90,7 @@ Sent: '123456789' 31C3
 ```
 
 No equivalent exists in the other tools. Tera Term has DLL extensions but
-those require C/C++ and a compiler. Docklight has VBScript but it's sandboxed
+those require C/C++ and a compiler. Docklight has VBScript but it's sand-boxed
 to a small object model. Termapy plugins also work through a defined API
 (the `PluginContext`), but they're full Python — you can import any library,
 do file I/O, make network calls, or spin up threads. They're plain `.py`
@@ -101,9 +105,9 @@ reviewed. That said, this is true of any machine with Python installed; the
 plugin system doesn't create an attack surface that `python script.py`
 doesn't already have.
 
-This is also where AI-assisted development works well — the plugin API surface
-is small enough (6 core functions) that an LLM can generate a working plugin
-from a one-paragraph description.
+This is also where AI-assisted development works well - the PluginContext API
+is well-defined (~27 methods, but a typical plugin uses 3-4) and an LLM can
+generate a working plugin from a one-paragraph description.
 
 ## Where Others Win
 
@@ -119,8 +123,8 @@ from a one-paragraph description.
   knowledge, Stack Overflow answers, and one-click installers.
 
 Termapy has none of that history. It compensates with architecture — a plugin
-system and REPL that make it extensible in ways the others aren't — but
-architecture isn't a substitute for maturity.
+system, a REPL, cli that could be in used in CI that make it extensible in ways
+the others aren't.
 
 ## Note on Serial Studio
 

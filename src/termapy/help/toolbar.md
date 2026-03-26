@@ -5,7 +5,6 @@
 The bottom bar has buttons. Some appear based on context:
 
 | Button      | When Visible                 | Action                              |
-| ----------- | ---------------------------- | ----------------------------------- |
 | **/**       | Always                       | Show REPL command picker            |
 | **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line        |
 | **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line        |
@@ -51,5 +50,3 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 ---
 
 | | | |
-|:---:|:---:|:---:|
-| [← Getting Started](getting-started.md) | [Index](index.md) | [REPL Commands →](commands.md) |

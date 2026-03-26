@@ -26,8 +26,17 @@ CFG_DIR = "termapy_cfg"
 
 
 def cfg_dir() -> Path:
-    """Return the config directory, creating it if needed."""
+    """Return the config directory, creating it if needed.
+
+    Raises:
+        ValueError: If the path has a file extension (likely a file, not a dir).
+    """
     d = Path(CFG_DIR)
+    if d.suffix:
+        raise ValueError(
+            f"Config directory looks like a file: {CFG_DIR} "
+            f"(has extension '{d.suffix}'). Use --cfg-dir for directories."
+        )
     d.mkdir(exist_ok=True)
     return d
 

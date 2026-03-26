@@ -107,5 +107,3 @@ Endianness suffix: `_le` or `_be`.
 ---
 
 | | | |
-|:---:|:---:|:---:|
-| [← Scripting](scripting.md) | [Index](index.md) | [Data Capture →](data-capture.md) |

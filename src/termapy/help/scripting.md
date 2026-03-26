@@ -35,5 +35,3 @@ AT+STATUS
 ---
 
 | | | |
-|:---:|:---:|:---:|
-| [← Custom Buttons](custom-buttons.md) | [Index](index.md) | [Protocol Testing →](protocol-testing.md) |

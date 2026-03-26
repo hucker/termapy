@@ -146,16 +146,21 @@ class ConfigEditor(ModalScreen[tuple | None]):
         """
         # Template values - resolve, show expansion, then validate resolved value
         if "$(" in raw_val:
+            import re as _re
             from termapy.config import expand_env_str
             template = raw_val.strip().strip('"')
+            # Highlight $(var) references in cyan
+            highlighted = _re.sub(
+                r"(\$\([^)]+\))", r"[cyan]\1[/]", template
+            )
             resolved = expand_env_str(template)
             if resolved == template:
-                return (f"[yellow]{key} = {template}[/]",
+                return (f"[yellow]{key}[/] = {highlighted}",
                         "variable - not resolved")
             # Recurse: validate the resolved value
             fake_raw = f'"{resolved}"' if isinstance(resolved, str) else str(resolved)
             status, error = self._validate_value(key, fake_raw)
-            info = f"[dim]{template}[/] -> {status}"
+            info = f"{highlighted} -> {status}"
             return (info, error)
         val = raw_val.strip().strip('"')
         error = ""
@@ -226,7 +231,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         # Build help text: description, valid values, current value, error/preview
         lines = [f"[dim]{desc}[/]"]
         if valid:
-            lines.append(f"Valid: [dim]{valid}[/]")
+            lines.append(f"Valid: [dim italic]{valid}[/]")
         lines.append(f"Value: {status_line}")
         if error:
             lines.append(f"[red]{error}[/]")

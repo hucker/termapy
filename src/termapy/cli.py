@@ -11,7 +11,6 @@ Usage:
 from __future__ import annotations
 
 import os
-import re
 import sys
 import threading
 import time
@@ -28,12 +27,7 @@ from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 
-# ANSI strip regex (for --no-color mode)
-ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-
-
-def _strip_ansi(text: str) -> str:
-    return ANSI_RE.sub("", text)
+from termapy.scripting import ANSI_RE, strip_ansi as _strip_ansi
 
 
 def run_cli(

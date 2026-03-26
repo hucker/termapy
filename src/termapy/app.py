@@ -10,7 +10,6 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 import argparse
 import json
 import queue
-import re
 import sys
 import time
 import traceback
@@ -103,8 +102,7 @@ class CommandSuggester(Suggester):
         return None
 
 
-# Regex to strip ANSI escape sequences for plain-text logging
-ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+from termapy.scripting import ANSI_RE  # noqa: E402 - used for log stripping
 
 
 class SerialTerminal(App):

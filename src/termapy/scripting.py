@@ -8,6 +8,15 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+# Shared ANSI escape regex - matches all CSI sequences (color, cursor, clear, etc.).
+# Use strip_ansi() to remove them from text.
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    return ANSI_RE.sub("", text)
+
 
 def expand_template(
     text: str, counters: dict[int, int], start_time: str = ""

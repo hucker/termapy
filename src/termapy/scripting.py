@@ -65,33 +65,6 @@ def parse_duration(text: str) -> float:
     return value / 1000.0 if unit == "ms" else value
 
 
-def parse_script_lines(
-    lines: list[str], prefix: str = "/"
-) -> list[tuple[str, str]]:
-    """Classify script lines for the /run command.
-
-    Args:
-        lines: Raw lines from a script file.
-        prefix: REPL command prefix to detect local commands.
-
-    Returns:
-        List of (kind, content) tuples where kind is one of:
-            'skip'   - blank line or comment (starts with #)
-            'repl'   - REPL command (prefix stripped)
-            'serial' - plain text to send to the device
-    """
-    result = []
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            result.append(("skip", stripped))
-        elif stripped.startswith(prefix):
-            result.append(("repl", stripped[len(prefix) :].strip()))
-        else:
-            result.append(("serial", stripped))
-    return result
-
-
 # ── Sequence-numbered filenames ───────────────────────────────────────────────
 
 _SEQ_RE = re.compile(r"\$\(n(0+)\)")

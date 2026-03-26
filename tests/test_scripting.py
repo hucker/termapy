@@ -8,7 +8,6 @@ import pytest
 from termapy.scripting import (
     expand_template,
     parse_duration,
-    parse_script_lines,
     resolve_seq_filename,
 )
 
@@ -164,60 +163,6 @@ class TestParseDuration:
     def test_empty(self):
         with pytest.raises(ValueError):  # empty string rejected
             parse_duration("")
-
-
-# ── parse_script_lines ───────────────────────────────────────────
-
-
-class TestParseScriptLines:
-    def test_comment(self):
-        actual = parse_script_lines(["# a comment"])
-        assert actual == [("skip", "# a comment")]  # comment classified as skip
-
-    def test_blank_line(self):
-        actual = parse_script_lines(["", "   "])
-        assert actual == [("skip", ""), ("skip", "")]  # blanks classified as skip
-
-    def test_serial_command(self):
-        actual = parse_script_lines(["rev"])
-        assert actual == [("serial", "rev")]  # plain text is serial
-
-    def test_repl_command(self):
-        actual = parse_script_lines(["/delay 500ms"])
-        assert actual == [("repl", "delay 500ms")]  # prefix stripped
-
-    def test_repl_command_with_leading_space(self):
-        actual = parse_script_lines(["  /ss.svg test"])
-        assert actual == [("repl", "ss.svg test")]  # leading space stripped
-
-    def test_custom_prefix(self):
-        actual = parse_script_lines(["@@delay 1s"], prefix="@@")
-        assert actual == [("repl", "delay 1s")]  # custom prefix works
-
-    def test_mixed_script(self):
-        # Arrange
-        lines = [
-            "# smoke test",
-            "",
-            "rev",
-            "/delay 500ms",
-            "/ss.svg test_{seq1+}",
-            "help",
-        ]
-        expected = [
-            ("skip", "# smoke test"),
-            ("skip", ""),
-            ("serial", "rev"),
-            ("repl", "delay 500ms"),
-            ("repl", "ss.svg test_{seq1+}"),
-            ("serial", "help"),
-        ]
-
-        # Act
-        actual = parse_script_lines(lines)
-
-        # Assert
-        assert actual == expected  # all line types classified correctly
 
 
 # ── resolve_seq_filename ────────────────────────────────────────

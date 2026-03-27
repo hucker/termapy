@@ -1308,7 +1308,7 @@ class SerialTerminal(App):
         except Exception:
             available = set()
 
-        if port and port in available:
+        if port and (port in available or port.upper() == "DEMO"):
             self._switch_config(cfg, path)
             self._status(f"Loaded config: {path}", "green")
         elif available:

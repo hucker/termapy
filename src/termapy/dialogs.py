@@ -197,6 +197,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
             try:
                 from serial.tools.list_ports import comports
                 available = {p.device for p in comports()}
+                if val.upper() == "DEMO":
+                    return f"[green]{key} = {val}[/] [dim](simulated port)[/]", ""
                 if val in available:
                     return f"[green]{key} = {val}[/]", ""
                 if available:

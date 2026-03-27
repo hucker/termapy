@@ -17,14 +17,14 @@ A serial interface terminal like PuTTY or Tera Term — but it runs in your term
 Install with [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.32.0
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.33.0
 termapy --demo
 ```
 
 Or try it without installing:
 
 ```sh
-uvx --from git+https://github.com/hucker/termapy@v0.32.0 termapy --demo
+uvx --from git+https://github.com/hucker/termapy@v0.33.0 termapy --demo
 ```
 
 That starts a simulated device — no hardware needed. You're typing commands in seconds.
@@ -479,7 +479,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | Field                | Default                | Description                                                                                              |
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `config_version`     | `5`                    | Schema version — managed automatically by the migration system, do not edit                              |
-| `port`               | `"COM4"`               | Serial port name (supports `$(env.NAME\|fallback)` expansion)                                            |
+| `port`               | `""`                   | Serial port name -- auto-detected when only one port available (supports `$(env.NAME\|fallback)`)        |
 | `baud_rate`          | `115200`               | Baud rate                                                                                                |
 | `byte_size`          | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
 | `parity`             | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |

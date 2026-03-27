@@ -1298,6 +1298,37 @@ class SerialTerminal(App):
             callback=_on_confirm,
         )
 
+    def _check_port_and_switch(self, cfg: dict, path: str) -> None:
+        """If the configured port doesn't exist, prompt with PortPicker."""
+        port = cfg.get("port", "")
+        try:
+            from serial.tools.list_ports import comports
+
+            available = {p.device for p in comports()}
+        except Exception:
+            available = set()
+
+        if port and port in available:
+            self._switch_config(cfg, path)
+            self._status(f"Loaded config: {path}", "green")
+        elif available:
+            self._pending_cfg = cfg
+            self._pending_config_path = path
+            if port:
+                self._status(f"Port {port} not found", "yellow")
+            self.push_screen(PortPicker(), callback=self._on_load_port_picked)
+        else:
+            self._switch_config(cfg, path)
+            self._status(f"Loaded config: {path} (no ports found)", "yellow")
+
+    def _on_load_port_picked(self, port: str | None) -> None:
+        cfg = self._pending_cfg
+        path = self._pending_config_path
+        if port is not None:
+            cfg["port"] = port
+        self._switch_config(cfg, path)
+        self._status(f"Loaded config: {path}", "green")
+
     def _on_config_picked(self, result: tuple | None) -> None:
         if result is None:
             return
@@ -1308,8 +1339,7 @@ class SerialTerminal(App):
             except Exception as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
-            self._switch_config(cfg, result[1])
-            self._status(f"Loaded config: {result[1]}", "green")
+            self._check_port_and_switch(cfg, result[1])
         elif action == "new":
             self._new_config()
         elif action == "edit":
@@ -1548,6 +1578,37 @@ class SerialTerminal(App):
         config_path = str(cfg_path_for_name(name))
         cfg = dict(DEFAULT_CFG)
         cfg["title"] = name
+
+        # Auto-detect serial port for new configs
+        try:
+            from serial.tools.list_ports import comports
+
+            ports = sorted(p.device for p in comports())
+        except Exception:
+            ports = []
+
+        if len(ports) == 1:
+            cfg["port"] = ports[0]
+            self.push_screen(
+                ConfigEditor(cfg, config_path),
+                callback=self._on_config_result,
+            )
+        elif len(ports) > 1:
+            # Stash cfg/path for the port picker callback
+            self._pending_cfg = cfg
+            self._pending_config_path = config_path
+            self.push_screen(PortPicker(), callback=self._on_port_picked)
+        else:
+            self.push_screen(
+                ConfigEditor(cfg, config_path, highlight_key="port"),
+                callback=self._on_config_result,
+            )
+
+    def _on_port_picked(self, port: str | None) -> None:
+        cfg = self._pending_cfg
+        config_path = self._pending_config_path
+        if port is not None:
+            cfg["port"] = port
         self.push_screen(
             ConfigEditor(cfg, config_path),
             callback=self._on_config_result,
@@ -2061,6 +2122,9 @@ class SerialTerminal(App):
     def on_key(self, event) -> None:
         """Handle Up/Down for history cycling, Escape to dismiss popup or clear."""
         if event.key not in ("up", "down", "escape"):
+            return
+        # Don't intercept keys when a modal screen is active
+        if len(self.screen_stack) > 1:
             return
 
         inp = self.query_one("#cmd", Input)

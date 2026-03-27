@@ -61,11 +61,17 @@ class ConfigEditor(ModalScreen[tuple | None]):
         """Close the modal on Ctrl+Q."""
         self.dismiss(None)
 
-    def __init__(self, cfg: dict, config_path: str) -> None:
+    def __init__(
+        self,
+        cfg: dict,
+        config_path: str,
+        highlight_key: str = "",
+    ) -> None:
         super().__init__()
         self.cfg = cfg
         self.config_path = config_path
         self._save_as_mode = False
+        self._highlight_key = highlight_key
         # Read raw JSON from disk so $(env.NAME) templates are visible
         try:
             with open(config_path) as f:
@@ -97,6 +103,18 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     yield Button("Save", id="cfg-save", variant="success")
                     yield Button("Save As", id="cfg-save-as", variant="primary")
                     yield Button("Cancel", id="cfg-cancel", variant="error")
+
+    def on_mount(self) -> None:
+        """Position cursor on highlight_key line."""
+        if not self._highlight_key:
+            return
+        editor = self.query_one("#config-editor", TextArea)
+        for row in range(editor.document.line_count):
+            line = str(editor.get_line(row))
+            m = self._JSON_KEY_RE.match(line)
+            if m and m.group(1) == self._highlight_key:
+                editor.cursor_location = (row, 0)
+                break
 
     def _validate_json(self) -> dict | None:
         from textual.widgets import Static

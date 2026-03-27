@@ -48,7 +48,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
 | Field                    | Default               | Description                                                             |
 |--------------------------|----------------------|-------------------------------------------------------------------------|
-| `port`                   | `COM4`                | Serial port name (e.g. COM4, /dev/ttyUSB0)                              |
+| `port`                   | `""`                  | Serial port name (e.g. COM4, /dev/ttyUSB0) -- auto-detected when only one port is available |
 | `baud_rate`              | `115200`              | Serial baud rate                                                        |
 | `byte_size`              | `8`                   | Data bits per byte (5, 6, 7, or 8)                                      |
 | `parity`                 | `N`                   | Parity: None, Even, Odd, Mark, or Space                                 |
@@ -83,9 +83,9 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 Click the **Cfg** button in the title bar, click the config name, or use the
 command palette to open the config picker. The picker has four actions:
 
-- **New** — create a new config from defaults (prompts for a name, then opens the editor)
+- **New** — create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.
 - **Edit** — open the highlighted config in the JSON editor
-- **Load** — switch to the highlighted config
+- **Load** — switch to the highlighted config. If the configured port is not available, a port picker is shown.
 - **Cancel** — close the picker
 
 The JSON editor provides:

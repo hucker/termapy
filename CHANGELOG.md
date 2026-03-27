@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.33.0 (2026-03-27)
+
+### Improvements
+
+- **Port auto-detection** -- new configs auto-select the port when only one is available; prompts with a port picker when multiple ports exist
+- **Port validation on load** -- loading a config whose port is missing prompts the port picker instead of silently failing
+- **Default port changed** -- default port is now empty (`""`) instead of `COM4`, making configs portable across platforms
+- **Modal key handling** -- up/down/escape keys no longer leak through to the REPL when a modal dialog is open
+
+### Documentation
+
+- **README badge rows** -- Project Status, Powered by, and Built with badge sections
+- **Docs badge** -- links to GitHub Pages site
+- **GitHub Actions docs workflow** -- automatic docs deployment on push to main
+- **Config help** -- fixed missing table separator, removed empty table, documented port auto-detection
+
 ## 0.32.0 (2026-03-26)
 
 ### Improvements

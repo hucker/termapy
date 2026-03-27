@@ -249,7 +249,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
 | Field                   | Default              | Description                                                                                                     |
 | ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `port`                  | `COM4`               | Serial port name (e.g. COM4, /dev/ttyUSB0)                                                                      |
+| `port`                  | `""`                 | Serial port name (e.g. COM4, /dev/ttyUSB0) -- auto-detected when only one port is available                      |
 | `baud_rate`             | `115200`             | Serial baud rate                                                                                                |
 | `byte_size`             | `8`                  | Number of data bits per byte (5, 6, 7, or 8)                                                                    |
 | `parity`                | `N`                  | Parity checking: None, Even, Odd, Mark, or Space                                                                |

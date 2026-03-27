@@ -40,7 +40,7 @@ DEFAULT_CFG = {
     "config_read_only": False,
     "os_cmd_enabled": False,
     # Serial
-    "port": "COM4",
+    "port": "",
     "baud_rate": 115200,
     "byte_size": 8,
     "parity": "N",

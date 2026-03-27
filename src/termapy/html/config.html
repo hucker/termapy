@@ -23,7 +23,7 @@
     
     
       
-        <title>Configuration - Termapy Help v0.32.0</title>
+        <title>Configuration - Termapy Help v0.33.0</title>
       
     
     
@@ -95,7 +95,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.32.0" class="md-header__button md-logo" aria-label="Termapy Help v0.32.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.33.0" class="md-header__button md-logo" aria-label="Termapy Help v0.33.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -109,7 +109,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.32.0
+            Termapy Help v0.33.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -180,13 +180,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.32.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.32.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.33.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.33.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.32.0
+    Termapy Help v0.33.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -749,8 +749,8 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 <tbody>
 <tr>
 <td><code>port</code></td>
-<td><code>COM4</code></td>
-<td>Serial port name (e.g. COM4, /dev/ttyUSB0)</td>
+<td><code>""</code></td>
+<td>Serial port name (e.g. COM4, /dev/ttyUSB0) -- auto-detected when only one port is available</td>
 </tr>
 <tr>
 <td><code>baud_rate</code></td>
@@ -898,9 +898,9 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 <p>Click the <strong>Cfg</strong> button in the title bar, click the config name, or use the
 command palette to open the config picker. The picker has four actions:</p>
 <ul>
-<li><strong>New</strong> — create a new config from defaults (prompts for a name, then opens the editor)</li>
+<li><strong>New</strong> — create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.</li>
 <li><strong>Edit</strong> — open the highlighted config in the JSON editor</li>
-<li><strong>Load</strong> — switch to the highlighted config</li>
+<li><strong>Load</strong> — switch to the highlighted config. If the configured port is not available, a port picker is shown.</li>
 <li><strong>Cancel</strong> — close the picker</li>
 </ul>
 <p>The JSON editor provides:</p>

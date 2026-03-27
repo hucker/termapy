@@ -47,6 +47,3 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 - Show Newest Text Capture
 - Exit
 
----
-
-| | | |

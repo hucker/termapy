@@ -23,7 +23,3 @@ Each button object has these fields:
 
 Custom buttons appear in the toolbar between the hardware buttons and the
 system buttons (Log, SS, Cap, Exit), with a small gap separating them.
-
----
-
-| | | |

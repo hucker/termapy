@@ -81,29 +81,130 @@ expect = "01 03 02 00 07 F9 86"
 
 ## Format Spec Language
 
-Visualizers and binary capture use a format spec to map bytes to columns:
+Format specs decode raw bytes into named, typed fields. One line defines your
+entire packet layout. Used in protocol testing (`.pro` files), data capture
+(`/cap.struct`, `/cap.hex`), and the proto debug screen.
+
+### Syntax
+
+Each field: `Name:TypeByteRange`. Fields separated by spaces.
 
 ```text
-Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le
+"ID:H1 Temp:U2-3 Signed:I4-5 Status:H6"
 ```
 
-Type codes: `H` (hex), `U` (unsigned), `I` (signed), `S` (string), `F` (float),
-`B` (bit field), `_` (padding), `crc*` (CRC verify). Byte indices are 1-based;
-byte order determines endianness (`U3-4` = big-endian, `U4-3` = little-endian).
-Use `H7-*` for variable-length fields.
+Given the bytes `01 00 C8 FF FE 0A`, this decodes to:
+
+```text
+  ID     = 01      (byte 1 as hex)
+  Temp   = 200     (bytes 2-3 as unsigned int, big-endian)
+  Signed = -2      (bytes 4-5 as signed int, big-endian)
+  Status = 0A      (byte 6 as hex)
+```
+
+In protocol tests, termapy decodes both expected and actual bytes, then
+shows per-column pass/fail:
+
+```text
+Expected: 01 00 C8 FF FE 0A  ->  ID:01  Temp:200   Signed:-2   Status:0A
+Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
+                                  match  MISMATCH   match       match
+```
+
+### Type Reference
+
+| Code   | Meaning          | Example             | Output        |
+| ------ | ---------------- | ------------------- | ------------- |
+| `H`    | Hex bytes        | `H1`, `H3-4`        | `0A`, `01FF`  |
+| `U`    | Unsigned integer | `U1`, `U3-4`        | `10`, `256`   |
+| `I`    | Signed integer   | `I1`, `I3-4`        | `-1`, `+127`  |
+| `S`    | ASCII string     | `S5-12`             | `Hello...`    |
+| `F`    | IEEE 754 float   | `F1-4`              | `3.14`        |
+| `B`    | Bit field        | `B1.3`, `B1-2.7-9`  | `1`, `5`      |
+| `_`    | Padding (hidden) | `_:_3-4`            | *(skipped)*   |
+| `crc*` | CRC verify       | `CRC:crc16m_le`     | pass/fail     |
+
+Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or
+8-byte (F64). Byte indexing is 1-based. `H7-*` = wildcard to end of packet.
+
+### Endianness
+
+Byte order in the spec IS the endianness - no separate flags needed:
+
+- `U2-3` = bytes 2 then 3 = big-endian: `00 C8` = 200
+- `U3-2` = bytes 3 then 2 = little-endian: `C8 00` = 51200
+- `I4-5` = big-endian signed: `FF FE` = -2
+- `I5-4` = little-endian signed: `FE FF` = -257
+
+You read the spec the same way you read the protocol datasheet. Modbus
+devices are big-endian (`U2-3`), x86-based devices are little-endian (`U3-2`).
+
+### Bit Fields
+
+Extract individual bits or bit ranges from bytes:
+
+- `B4.0` - bit 0 of byte 4 (LSB)
+- `B4.7` - bit 7 of byte 4 (MSB)
+- `B4.5-7` - bits 5-7 of byte 4 (3-bit value)
+- `B4-5.0-15` - 16-bit range across bytes 4-5
+
+Example: a status byte where each bit means something:
+
+```text
+"Temp:U1-2 Humid:U3 MotorOn:B4.0 AlarmHi:B4.1 AlarmLo:B4.2 Mode:B4.5-7"
+```
+
+### Real-World Examples
+
+**Modbus RTU response** (read 2 holding registers):
+
+```text
+"Slave:H1 Func:H2 Len:U3 Reg0:U4-5 Reg1:U6-7 CRC:crc16-modbus_le"
+```
+
+Decodes `01 03 04 00 C8 01 F4 XX XX` to Slave:01 Func:03 Len:4
+Reg0:200 Reg1:500 CRC:pass
+
+**GPS binary packet** (mixed types):
+
+```text
+"Sync:H1-2 MsgID:U3 Lat:F4-7 Lon:F8-11 Alt:F12-15 Sats:U16 _:_17 CRC:crc8-maxim"
+```
+
+**Sensor with string ID and padding**:
+
+```text
+"Serial:S1-8 _:_9-10 Temp:U11-12 Humid:U13-14 CRC:crc16x_be"
+```
 
 ## CRC Algorithms
 
-62 named CRC algorithms are built in: `crc16-modbus`, `crc16-xmodem`,
-`crc16-ccitt-false`, `crc8`, `crc32`, `crc32-iscsi`, and many more.
+62 named CRC algorithms are built in covering CRC-8, CRC-16, and CRC-32
+families (Modbus, XMODEM, CCITT, USB, and more).
 
-- `/proto.crc.list` — browse all algorithms
-- `/proto.crc.help <name>` — show parameters
-- `/proto.crc.calc <name> {data}` — compute CRC interactively
+In format specs, CRC columns verify data integrity automatically:
+
+- `CRC:crc16-modbus_le` - little-endian Modbus CRC-16
+- `CRC:crc16-xmodem_be` - big-endian XMODEM CRC-16
+- `CRC:crc8-maxim` - 1-byte CRC (no endianness needed)
+
+REPL commands:
+
+- `/proto.crc.list` - show all 62 algorithms
+- `/proto.crc.list *modbus*` - filter by pattern
+- `/proto.crc.help crc16-modbus` - show algorithm parameters
+- `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
 
 Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.
-Endianness suffix: `_le` or `_be`.
+Endianness suffix: `_le` (little-endian) or `_be` (big-endian).
 
----
+**Custom CRC plugins** for non-standard checksums:
 
-| | | |
+```python
+# sum8.py - drop into builtins/crc/ or termapy_cfg/<name>/crc/
+NAME = "sum8"
+WIDTH = 1
+
+def compute(data: bytes) -> int:
+    return sum(data) & 0xFF
+```

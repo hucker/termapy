@@ -31,7 +31,3 @@ AT+INFO
 AT+STATUS
 /ss.svg smoke_{seq1+}
 ```
-
----
-
-| | | |

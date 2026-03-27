@@ -23,3 +23,5 @@ CLAUDE.md
 *.log
 .cmd_history.txt
 coverage.xml
+.secret
+.secrets

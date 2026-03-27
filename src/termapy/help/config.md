@@ -47,6 +47,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 ## Config Field Reference
 
 | Field                    | Default               | Description                                                             |
+|--------------------------|----------------------|-------------------------------------------------------------------------|
 | `port`                   | `COM4`                | Serial port name (e.g. COM4, /dev/ttyUSB0)                              |
 | `baud_rate`              | `115200`              | Serial baud rate                                                        |
 | `byte_size`              | `8`                   | Data bits per byte (5, 6, 7, or 8)                                      |
@@ -96,5 +97,3 @@ The JSON editor provides:
 Invalid JSON is caught before saving, with the error shown inline.
 
 ---
-
-|                                |                   |                                       |

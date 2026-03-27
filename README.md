@@ -1,6 +1,10 @@
 # termapy
 
-[![CI](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/hucker/termapy/graph/badge.svg)](https://codecov.io/gh/hucker/termapy) ![python](https://img.shields.io/badge/python-3.11--3.14-blue) ![license](https://img.shields.io/badge/license-MIT-green)
+**Project Status:** [![CI](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/hucker/termapy/graph/badge.svg)](https://codecov.io/gh/hucker/termapy) ![license](https://img.shields.io/badge/license-MIT-green) [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hucker.github.io/termapy/)
+
+**Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
+
+**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-testing-yellow)](https://coverage.readthedocs.io/)
 
 *Pronounced "ter-map-ee"*
 

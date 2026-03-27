@@ -109,7 +109,3 @@ Examples:
 - `/cfg.proto.show` — open newest .pro file in editor
 - `/cfg.cap.clear` — delete all capture files
 - `/cfg.prof.dump` — print newest profile CSV to terminal
-
----
-
-| | | |

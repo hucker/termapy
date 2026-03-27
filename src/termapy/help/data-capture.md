@@ -106,7 +106,3 @@ tracks the last-used number across sessions, with rollover.
 Bare filenames are saved to the per-config `cap/` directory.
 A progress bar and Stop button overlay the toolbar during capture.
 The **Cap** button opens the cap/ folder.
-
----
-
-| | | |

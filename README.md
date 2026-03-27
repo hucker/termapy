@@ -943,113 +943,97 @@ A more complete example ships with `--demo`: the `probe.py` plugin demonstrates 
 
 </details>
 
-### Packet Visualizers
+### Binary Format Specs
 
-When you test binary protocols (`.pro` files), the device sends raw bytes. A visualizer is a **binary packet decoder** - it takes those raw bytes and shows you named columns like "Temp: 23", "Pressure: 1013", "CRC: OK" instead of just hex. Think of it as a Wireshark-style packet dissector, but for your custom protocol.
+Embedded protocols send raw bytes. Format specs decode them into human-readable fields - so you see "Temp: 200" and "CRC: OK" instead of `00 C8 ... XX XX`. Used in protocol testing (`.pro` files), data capture (`/cap.struct`, `/cap.hex`), and the proto debug screen.
 
-Termapy ships three visualizers (Hex, Text, Modbus). You add your own by dropping a `.py` file into `viz/`.
-
-**Where visualizers appear:** In the proto debug screen, each send/expect step shows the raw hex bytes. Below that, each enabled visualizer adds a row of decoded columns. When comparing expected vs actual bytes, columns show green (match) or red (mismatch) per field.
-
-<details>
-<summary>Writing a visualizer</summary>
-
-**Quick start:** Copy the template below into `termapy_cfg/<config>/viz/my_protocol.py`. Change `NAME`, `DESCRIPTION`, and `_SPEC` to match your protocol's byte layout. The two functions are always the same - they're just plumbing between your format spec and the display. You only edit the `_SPEC` string.
-
-Say your device sends 13-byte sensor packets:
+A format spec is a one-line definition of your packet layout. Each field has a name, a type, and a byte range:
 
 ```text
-Bytes:  [serial (8)] [counter (2)] [temp (1)] [humid (1)] [press (1)] [crc16 (2)]
+"ID:H1 Temp:U2-3 Signed:I4-5 Status:H6"
 ```
 
-You write a format spec that maps byte positions to named columns, then wrap it in a visualizer file:
+Given the bytes `01 00 C8 FF FE 0A`, this decodes to:
 
-```python
-# sensor_view.py - drop into termapy_cfg/<config>/viz/
-from termapy.protocol import apply_format, parse_format_spec
-from termapy.protocol import diff_columns as proto_diff_columns
-
-NAME = "Sensor"
-DESCRIPTION = "Sensor protocol - serial, counter, sensors, CRC"
-SORT_ORDER = 30
-
-# Format spec: Name:TypeByteRange for each field
-# S = string, U = unsigned int, crc = CRC check
-_SPEC = "Serial:S1-8 Counter:U9-10 Temp:U11 Humid:U12 Press:U13 CRC:crc16x_be"
-
-def format_columns(data: bytes) -> tuple[list[str], list[str]]:
-    """Decode one packet into (column_headers, column_values)."""
-    if not data:
-        return ["Sensor"], [""]
-    return apply_format(data, parse_format_spec(_SPEC))
-
-def diff_columns(
-    actual: bytes, expected: bytes, mask: bytes
-) -> tuple[list[str], list[str], list[str], list[str]]:
-    """Compare expected vs actual, return per-column pass/fail."""
-    if not expected and not actual:
-        return ["Sensor"], [""], [""], ["match"]
-    return proto_diff_columns(actual, expected, mask, parse_format_spec(_SPEC))
+```text
+  ID     = 01      (byte 1 as hex)
+  Temp   = 200     (bytes 2-3 as unsigned int, big-endian)
+  Signed = -2      (bytes 4-5 as signed int, big-endian)
+  Status = 0A      (byte 6 as hex)
 ```
 
-Every visualizer must export:
+In protocol tests, termapy decodes both expected and actual bytes using your spec, then shows per-column pass/fail:
 
-- **`NAME`** - label shown in the proto debug screen checkbox and column header
-- **`DESCRIPTION`** - tooltip for the checkbox
-- **`SORT_ORDER`** - controls checkbox order (lower = first, built-ins use 10/20)
-- **`format_columns(data)`** - decodes raw bytes into column headers and values. This defines what the user sees: the column name comes from the format spec (e.g. "Temp"), the value is the decoded byte representation (e.g. "23")
-- **`diff_columns(actual, expected, mask)`** - compares expected vs actual packets field-by-field. Returns four parallel lists: headers, expected values, actual values, and per-column status (match/mismatch). This is what drives the green/red coloring in test results.
+```text
+Expected: 01 00 C8 FF FE 0A  ->  ID:01  Temp:200   Signed:-2   Status:0A
+Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
+                                  match  MISMATCH   match       match
+```
 
-The format spec string is the core - it defines the packet layout. Both functions just pass it through to the built-in decoder. Most visualizers look exactly like this template with only the `_SPEC` string changed.
+<details>
+<summary>Supported types</summary>
+
+| Code   | Meaning          | Example             | Output        |
+| ------ | ---------------- | ------------------- | ------------- |
+| `H`    | Hex bytes        | `H1`, `H3-4`        | `0A`, `01FF`  |
+| `U`    | Unsigned integer | `U1`, `U3-4`        | `10`, `256`   |
+| `I`    | Signed integer   | `I1`, `I3-4`        | `-1`, `+127`  |
+| `S`    | ASCII string     | `S5-12`             | `Hello...`    |
+| `F`    | IEEE 754 float   | `F1-4`              | `3.14`        |
+| `B`    | Bit field        | `B1.3`, `B1-2.7-9`  | `1`, `5`      |
+| `_`    | Padding (hidden) | `_:_3-4`            | *(skipped)*   |
+| `crc*` | CRC verify       | `CRC:crc16m_le`     | pass/fail     |
+
+Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or 8-byte (F64).
 
 </details>
 
 <details>
-<summary>Format spec language</summary>
+<summary>Endianness</summary>
 
-The format spec maps byte positions to named, typed columns. Syntax: `Name:TypeByteRange`
+Byte order in the spec IS the endianness - no flags needed:
 
-The purpose: your device sends fixed-format binary packets. The format spec tells termapy how to decode those bytes into the data types you expect - so you can see "Temp: 200" instead of "00 C8". When running protocol tests, termapy decodes both the expected and actual bytes using your spec, then shows a per-column comparison (green = match, red = mismatch).
+- `U2-3` = bytes 2 then 3 = big-endian: `00 C8` = 200
+- `U3-2` = bytes 3 then 2 = little-endian: `C8 00` = 51200
+- `I4-5` = big-endian signed: `FF FE` = -2
+- `I5-4` = little-endian signed: `FE FF` = -257
 
-A format spec defines columns. Each column has a name, a type, and a byte range:
+You read the spec the same way you read the protocol datasheet. Modbus devices are big-endian (`U2-3`), x86-based devices are little-endian (`U3-2`).
+
+</details>
+
+<details>
+<summary>Real-world examples</summary>
+
+**Modbus RTU response** (read 2 holding registers):
 
 ```text
-Spec: "ID:H1 Temp:U2-3 Signed:I4-5 Status:H6"
-
-This defines 4 columns:
-  ID     - bytes 1     as hex         (H)
-  Temp   - bytes 2-3   as unsigned    (U) big-endian
-  Signed - bytes 4-5   as signed int  (I) big-endian
-  Status - byte 6      as hex         (H)
-
-Expected: 01 00 C8 FF FE 0A  ->  ID:01  Temp:200     Signed:-2    Status:0A
-Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201     Signed:-2    Status:0A
-                                  match  MISMATCH     match        match
+"Slave:H1 Func:H2 Len:U3 Reg0:U4-5 Reg1:U6-7 CRC:crc16-modbus_le"
 ```
 
-**Byte order controls endianness** - the same bytes decode differently:
+Decodes: `01 03 04 00 C8 01 F4 XX XX` -> Slave:01 Func:03 Len:4 Reg0:200 Reg1:500 CRC:pass
 
-- `U2-3` = big-endian: `00 C8` = 200
-- `U3-2` = little-endian: `C8 00` = 51200
+**GPS binary packet** (mixed types):
 
-This matters because some devices send big-endian (Modbus) and others send little-endian (x86). The byte order in the spec matches the wire order - no separate endianness flags or prefixes needed. You read the spec the same way you read the protocol datasheet.
+```text
+"Sync:H1-2 MsgID:U3 Lat:F4-7 Lon:F8-11 Alt:F12-15 Sats:U16 _:_17 CRC:crc8-maxim"
+```
 
-| Code   | Meaning          | Example            | Output       |
-| ------ | ---------------- | ------------------ | ------------ |
-| `H`    | Hex bytes        | `H1`, `H3-4`       | `0A`, `01FF` |
-| `U`    | Unsigned decimal | `U1`, `U3-4`       | `10`, `256`  |
-| `I`    | Signed decimal   | `I1`               | `-1`, `+127` |
-| `S`    | ASCII string     | `S5-12`            | `Hello...`   |
-| `F`    | IEEE 754 float   | `F1-4`             | `3.14`       |
-| `B`    | Bit / bit field  | `B1.0`, `B1-2.7-9` | `0`, `5`     |
-| `_`    | Padding (hidden) | `_:_3-4`           | *(skipped)*  |
-| `crc*` | CRC verify       | `crc16m_le`        | green/red    |
+**Sensor with bit flags** (status byte with packed bits):
 
-Byte indexing is 1-based. `H7-*` = wildcard to end of packet. Bit fields: `B1.3` = single bit at position 3, `B1-2.7-9` = multi-byte bit range (LSB-0).
+```text
+"Temp:U1-2 Humid:U3 MotorOn:B4.0 AlarmHi:B4.1 AlarmLo:B4.2 Mode:B4.5-7"
+```
 
-CRC columns use `_le`/`_be` suffix: `CRC:crc16-modbus_le`, `CRC:crc16-xmodem_be`, `CRC:crc8-maxim`. Termapy includes 62 algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more). Run `/proto.crc.list` for the full catalog or `/proto.crc.help <name>` for parameters.
+Decodes byte 4 into individual bit fields: MotorOn=1, AlarmHi=0, AlarmLo=0, Mode=3
 
-**Custom CRC plugins** for non-standard checksums are `.py` files in `builtins/crc/` or `termapy_cfg/<name>/crc/`:
+**Simple checksum** (not CRC - custom sum):
+
+```text
+"Header:H1 Payload:H2-9 Sum:H10"
+```
+
+For non-standard checksums, add a CRC plugin (3 lines of Python):
 
 ```python
 NAME = "sum8"
@@ -1059,29 +1043,26 @@ def compute(data: bytes) -> int:
     return sum(data) & 0xFF
 ```
 
+Drop into `builtins/crc/` or `termapy_cfg/<name>/crc/`.
+
 </details>
 
 <details>
-<summary>Visualizer API reference</summary>
+<summary>CRC support</summary>
 
-| Export                                 | Required | Default | Description                                                |
-| -------------------------------------- | -------- | ------- | ---------------------------------------------------------- |
-| `NAME`                                 | yes      |         | Checkbox label and table header                            |
-| `format_columns(data)`                 | yes      |         | Decode raw bytes into `(headers, values)` column lists     |
-| `diff_columns(actual, expected, mask)` | yes      |         | Compare two packets: `(headers, exp_vals, act_vals, statuses)` |
-| `format_spec(data)`                    | no       | `""`    | Return the raw format spec string for display              |
-| `DESCRIPTION`                          | no       | `""`    | Tooltip text for the checkbox                              |
-| `SORT_ORDER`                           | no       | `50`    | Checkbox ordering (lower = first, built-ins use 10/20)     |
+62 built-in algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
 
-**Utilities from `termapy.protocol`:**
+In format specs, CRC columns verify data integrity automatically:
 
-| Function                                        | Description                                                             |
-| ----------------------------------------------- | ----------------------------------------------------------------------- |
-| `parse_format_spec(spec)`                       | Parse a format spec string into `list[ColumnSpec]`                      |
-| `apply_format(data, columns)`                   | Apply column specs to data, return `(headers, values)`                  |
-| `diff_columns(actual, expected, mask, columns)` | Compare with per-column status: `match`, `mismatch`, `extra`, `missing` |
-| `diff_bytes(expected, actual, mask)`            | Per-byte comparison returning status list                               |
-| `get_crc_registry()`                            | Get loaded CRC algorithms dict                                          |
+- `CRC:crc16-modbus_le` - little-endian Modbus CRC-16
+- `CRC:crc16-xmodem_be` - big-endian XMODEM CRC-16
+- `CRC:crc8-maxim` - 1-byte CRC (no endianness needed)
+
+From the REPL:
+
+- `/proto.crc.list` - show all 62 algorithms
+- `/proto.crc.help crc16-modbus` - show parameters
+- `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
 
 </details>
 

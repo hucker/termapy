@@ -17,7 +17,7 @@ def _handler(ctx: PluginContext, args: str):
         ctx.write("Not connected.", "red")
         return
     start = time.perf_counter()
-    ctx.serial_write((cmd + "\r\n").encode())
+    ctx.serial_send(cmd)
     ctx.serial_wait_idle()
     ms = (time.perf_counter() - start) * 1000
     ctx.write(f"{cmd} — {ms:.0f}ms", "green")

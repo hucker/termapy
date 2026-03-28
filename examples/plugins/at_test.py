@@ -16,7 +16,7 @@ def _handler(ctx, args):
         ctx.write("Not connected.", "red")
         return
     ctx.write(f"> {cmd}", "purple")
-    ctx.serial_write((cmd + "\r\n").encode())
+    ctx.serial_send(cmd)
     ctx.serial_wait_idle()
 
 

@@ -310,11 +310,13 @@ class PluginContext:
     port: Callable = lambda: None   # -> serial.Serial | None
     is_connected: Callable = lambda: False
     serial_write: Callable = lambda data: None
+    serial_send: Callable = lambda text: None  # send text with configured line ending + encoding
     serial_wait_idle: Callable = lambda timeout_ms=400: None
     serial_read_raw: Callable = lambda timeout_ms=1000, frame_gap_ms=0: b""
     serial_drain: Callable = lambda: 0
     serial_claim: Callable = lambda: None    # suppress terminal display, claim raw bytes
     serial_release: Callable = lambda: None  # resume normal terminal display
+    wait_for_match: Callable = lambda predicate, timeout=5.0: None  # block until line matches
 
     # Filesystem
     ss_dir: Path = field(default_factory=lambda: Path("."))

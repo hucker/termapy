@@ -46,6 +46,18 @@ class ReplEngine:
         self._script_stop = Event()
         self._max_script_depth: int = 5
         self._echo: bool = True         # echo ! command lines to screen
+        # Expect watcher — predicate set by wait_for_match(), checked by feed_lines()
+        self._expect_predicate: Callable[[str], bool] | None = None
+        self._expect_event = Event()
+        self._expect_matched_line: str = ""
+        # Ring buffer of recent serial lines (ANSI-stripped).
+        # Solves the race where a device responds before /expect sets the
+        # predicate: wait_for_match() sets the predicate FIRST, then scans
+        # this buffer for retroactive matches. feed_lines() always appends
+        # here regardless of whether a predicate is active.
+        # deque with maxlen is thread-safe for append/iterate in CPython.
+        from collections import deque
+        self._recent_lines: deque[str] = deque(maxlen=100)
 
         # Plugin context - set by app.py after mount via set_context()
         self.ctx = PluginContext(write=write)
@@ -76,6 +88,71 @@ class ReplEngine:
             self.register_transform(xform)
         for directive in result.directives:
             self.register_directive(directive)
+
+    # -- Expect / pattern matching ---------------------------------------------
+
+    def wait_for_match(
+        self, predicate: Callable[[str], bool], timeout: float = 5.0,
+    ) -> str | None:
+        """Block until a serial line matches predicate or timeout expires.
+
+        Must be called from a background thread. Serial data continues
+        to display normally — feed_lines() checks the predicate as lines
+        arrive.
+
+        Race-condition safety: the predicate is installed BEFORE scanning
+        the recent-lines buffer. This eliminates the gap where a line
+        could arrive after the buffer check but before the predicate is
+        active — feed_lines() would catch it in that window.
+
+        Args:
+            predicate: Callable that takes a stripped line and returns True
+                on match.
+            timeout: Seconds to wait before giving up.
+
+        Returns:
+            The matched line, or None on timeout.
+        """
+        seconds = timeout
+        self._expect_event.clear()
+        self._expect_matched_line = ""
+        # Install predicate FIRST so feed_lines() catches new arrivals
+        self._expect_predicate = predicate
+        # Now scan the buffer for lines that already arrived
+        for line in list(self._recent_lines):
+            if predicate(line):
+                self._expect_matched_line = line
+                self._expect_predicate = None
+                return line
+        try:
+            self._expect_event.wait(timeout=seconds)
+        finally:
+            self._expect_predicate = None
+        if self._expect_event.is_set():
+            return self._expect_matched_line
+        return None
+
+    def feed_lines(self, lines: list[str]) -> None:
+        """Feed serial output lines to the expect watcher.
+
+        Called from the serial display path (app._write_batch).
+        Always appends to the recent-lines ring buffer so that
+        wait_for_match() can retroactively scan lines that arrived
+        before the predicate was set. If a predicate is active,
+        each line is also tested for an immediate match.
+        """
+        from termapy.scripting import strip_ansi
+
+        for line in lines:
+            clean = strip_ansi(line)
+            # Always buffer — wait_for_match() scans this retroactively
+            self._recent_lines.append(clean)
+            # Live match if a predicate is active
+            predicate = self._expect_predicate
+            if predicate is not None and predicate(clean):
+                self._expect_matched_line = clean
+                self._expect_event.set()
+                return
 
     # -- Plugin management ----------------------------------------------------
 
@@ -569,6 +646,50 @@ class ReplEngine:
                             profile_times.append((stripped, elapsed))
                             prof_fh.write(f"{elapsed:.6f},{stripped}\n")
                         continue
+                    if name.lower() in ("expect", "expect.quiet"):
+                        quiet = name.lower() == "expect.quiet"
+                        self.ctx.log(">", stripped)
+                        # /expect {timeout} <pattern>
+                        # Timeout is optional first arg; pattern is rest of line.
+                        expect_args = args.strip()
+                        parts = expect_args.split(None, 1)
+                        if not parts:
+                            w("Expect: missing pattern", "red")
+                            break
+                        # Try first token as duration; if it fails, it's the pattern
+                        try:
+                            timeout = parse_duration(parts[0])
+                            pattern = parts[1] if len(parts) > 1 else ""
+                            timeout_str = parts[0]
+                        except ValueError:
+                            timeout = 5.0
+                            pattern = expect_args
+                            timeout_str = "5s"
+                        if not pattern:
+                            w("Expect: missing pattern", "red")
+                            break
+                        t0 = time.perf_counter()
+                        # Arms watcher, scans buffer, then blocks
+                        match = self.wait_for_match(
+                            lambda line, p=pattern: p in line,
+                            timeout=timeout,
+                        )
+                        if self._script_stop.is_set():
+                            w("Script stopped.")
+                            break
+                        if match is None:
+                            w(f'Expect "{pattern}" timeout after {timeout_str}', "red")
+                            self._script_stop.set()
+                        elif not quiet:
+                            w(f'Expect "{pattern}" matched', "green")
+                        if profile:
+                            elapsed = time.perf_counter() - t0
+                            profile_times.append((stripped, elapsed))
+                            prof_fh.write(f"{elapsed:.6f},{stripped}\n")
+                        if verbose and match is not None:
+                            elapsed = time.perf_counter() - t0
+                            w(f'[{step}/{total}] /expect "{pattern}" matched ({elapsed:.3f}s)')
+                        continue
                 # Everything else goes through the full dispatch pipeline
                 t0 = time.perf_counter()
                 if dispatch:
@@ -603,7 +724,10 @@ class ReplEngine:
                         w(line)
                     w(f"── {total:.3f}s total ({len(profile_times)} commands) -> {prof_name} ──")
                 elif self._script_depth <= 1:
-                    w("Script finished.")
+                    if self._script_stop.is_set():
+                        w("Script aborted.", "red")
+                    else:
+                        w("Script finished.")
         except Exception as e:
             w(f"Script error: {e}", "red")
         finally:

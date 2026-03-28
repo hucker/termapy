@@ -185,6 +185,7 @@ OK
 > /cfg.scripts
     scripts/
       at_demo.run
+      expect_test.run
       gps_demo.run
       smoke_test.run
       status_check.run

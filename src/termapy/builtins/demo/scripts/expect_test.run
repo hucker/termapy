@@ -1,0 +1,12 @@
+# Expect command test
+# Test 1: AT returns OK — should match
+AT
+/expect 2s OK
+
+# Test 2: AT+INFO returns Bassomatic — should match
+AT+INFO
+/expect 2s Bassomatic
+
+# Test 3: AT returns OK, not NOPE — should timeout and abort
+AT
+/expect 2s NOPE

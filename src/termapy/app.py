@@ -608,11 +608,13 @@ class SerialTerminal(App):
             port=lambda: self.ser if self.is_connected else None,
             is_connected=lambda: self.is_connected,
             serial_write=self._serial_write,
+            serial_send=self._serial_send,
             serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
             serial_read_raw=self._serial_read_raw,
             serial_drain=self._drain_rx_queue,
             serial_claim=lambda: setattr(self._engine, "proto_active", True),
             serial_release=lambda: setattr(self._engine, "proto_active", False),
+            wait_for_match=self.repl.wait_for_match,
             dispatch=self._dispatch_single,
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
@@ -1062,6 +1064,12 @@ class SerialTerminal(App):
             self._engine.serial_port.write(data)
         else:
             self._log_line(">", data.hex(" "))
+
+    def _serial_send(self, text: str) -> None:
+        """Send text with configured line ending and encoding."""
+        ending = self.cfg.get("line_ending", "\r")
+        encoding = self.cfg.get("encoding", "utf-8")
+        self._serial_write((text + ending).encode(encoding))
 
     def _confirm(self, message: str) -> bool:
         """Show a Yes/Cancel dialog and block until the user responds.
@@ -1930,6 +1938,9 @@ class SerialTerminal(App):
                 log.write(Text.from_ansi(f"{prefix}{text}"))
         for text in lines:
             self._log_line("<", ANSI_RE.sub("", text))
+
+        # Expect watcher tap - feed lines to script pattern matcher
+        self.repl.feed_lines(lines)
 
         # Text capture tap - feed ANSI-stripped lines to capture engine
         if self._capture.active and self._capture.mode == "text":

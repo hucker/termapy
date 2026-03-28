@@ -29,7 +29,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         ctx.write("Usage: /crcsend <text>", "red")
         return
     crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
-    ctx.serial_write(f"{args} {crc:04X}\n".encode())
+    ctx.serial_send(f"{args} {crc:04X}")
     ctx.write(f"Sent: {args} {crc:04X}", "green")
 
 

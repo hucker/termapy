@@ -457,8 +457,13 @@ class SerialTerminal(App):
         with Horizontal(id="title-bar"):
             from textual.widgets import Static
 
+            from importlib.metadata import version as _get_version
+            try:
+                ver = _get_version("termapy")
+            except Exception:
+                ver = "?"
             help_btn = Button("?", id="btn-help")
-            help_btn.tooltip = "Show help guide."
+            help_btn.tooltip = f"Termapy v{ver} -- Show help guide."
             yield help_btn
             cfg_btn = Button("Cfg", id="btn-cfg")
             cfg_btn.tooltip = "New / Edit / Load config."

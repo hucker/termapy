@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.34.0 (2026-03-28)
+
+### New Features
+
+- **`/expect` command** -- wait for serial output containing a pattern in scripts. `/expect {timeout} <pattern>` blocks until matched or aborts on timeout.
+- **`/expect.quiet`** -- silent on success, red on timeout
+- **`ctx.wait_for_match(predicate, timeout)`** -- engine primitive for plugins to build custom matching (regex, exact, numeric, etc.)
+- **`ctx.serial_send(text)`** -- send text with configured line ending and encoding. Plugins no longer need to manually assemble line endings.
+
+### Improvements
+
+- **DEMO port recognized** -- config editor shows green with "(simulated port)" hint, port picker skipped on load
+- **Script abort message** -- scripts that fail on expect timeout show "Script aborted" instead of "Script finished"
+- **Demo expect_test.run** -- test script exercising expect match and timeout
+
+### Bug Fixes
+
+- **cmd.py hardcoded line ending** -- crcsend plugin now uses `ctx.serial_send()` instead of hardcoded `\n`
+
 ## 0.33.0 (2026-03-27)
 
 ### Improvements

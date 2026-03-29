@@ -926,10 +926,10 @@ class SerialTerminal(App):
                 self._auto_reconnect()
             return False
 
-        self.notify(
-            f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", timeout=0.75
-        )
-        self._status(f"Connected: {self.cfg['port']} @ {self.cfg['baud_rate']}", "green")
+        from termapy.config import connection_string
+        conn = connection_string(self.cfg)
+        self.notify(f"Connected: {conn}", timeout=0.75)
+        self._status(f"Connected: {conn}", "green")
         self._set_conn_status("Connected")
         inp = self.query_one("#cmd", Input)
         inp.placeholder = "REPL:type command, Enter to send"
@@ -1401,13 +1401,9 @@ class SerialTerminal(App):
         self._status(f"Config saved: {new_path}", "green")
 
     def _port_info_str(self) -> str:
-        """Format port info like 'COM4 115200 8N1'."""
-        sb = self.cfg.get("stop_bits", 1)
-        sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-        return (
-            f"\\[{self.cfg['port']} {self.cfg['baud_rate']}"
-            f" {self.cfg.get('parity', 'N')}{self.cfg.get('byte_size', 8)}{sb_str}]"
-        )
+        """Format port info like '[COM4 115200 8N1]' for title bar."""
+        from termapy.config import connection_string
+        return f"\\[{connection_string(self.cfg, 'short')}]"
 
     def _update_title(self) -> None:
         title = self.cfg.get("title", "") or self.config_path

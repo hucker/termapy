@@ -94,6 +94,37 @@ def cfg_path_for_name(name: str) -> Path:
     return cfg_dir() / name / f"{name}.cfg"
 
 
+def connection_string(cfg: dict, level: str = "medium") -> str:
+    """Format connection info from config at different detail levels.
+
+    Args:
+        cfg: Config dict with serial parameters.
+        level: "short" (port baud 8N1), "medium" (+ flow control if non-default),
+            or "full" (+ encoding and line ending).
+
+    Returns:
+        Formatted connection string.
+    """
+    port = cfg.get("port", "?")
+    baud = cfg.get("baud_rate", "?")
+    bits = cfg.get("byte_size", 8)
+    parity = cfg.get("parity", "N")
+    sb = cfg.get("stop_bits", 1)
+    sb_str = str(int(sb)) if sb == int(sb) else str(sb)
+    fc = cfg.get("flow_control", "none")
+
+    base = f"{port} {baud} {bits}{parity}{sb_str}"
+    if level == "short":
+        return base
+    if fc != "none":
+        base += f" {fc}"
+    if level == "medium":
+        return base
+    enc = cfg.get("encoding", "utf-8")
+    le = repr(cfg.get("line_ending", "\r"))
+    return f"{base} {enc} {le}"
+
+
 def cfg_log_path(config_path: str) -> str:
     """Return the default log file path for a config."""
     name = Path(config_path).stem + ".log"

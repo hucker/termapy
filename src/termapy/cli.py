@@ -411,10 +411,8 @@ class CLITerminal:
         if port:
             self.cfg["port"] = port
         if self.engine.connect():
-            self.write(
-                f"Connected: {self.cfg.get('port', '?')} @ {self.cfg.get('baud_rate', '?')}",
-                "green",
-            )
+            from termapy.config import connection_string
+            self.write(f"Connected: {connection_string(self.cfg)}", "green")
         else:
             self.status(f"Cannot connect to {self.cfg.get('port', '?')}", "red")
 
@@ -636,9 +634,8 @@ class CLITerminal:
             )
             sys.exit(1)
 
-        port_name = self.cfg.get("port", "?")
-        baud = self.cfg.get("baud_rate", "?")
-        self.write(f"Connected: {port_name} @ {baud}", "green")
+        from termapy.config import connection_string
+        self.write(f"Connected: {connection_string(self.cfg)}", "green")
 
         self._load_history()
         self._setup_completion()

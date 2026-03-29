@@ -1,4 +1,4 @@
-Connected: DEMO @ 115200
+Connected: DEMO 115200 8N1
 > /print === section: device commands ===
   === section: device commands ===
 > AT
@@ -254,7 +254,7 @@ Disconnected.
 > /port.baud_rate
   115200 (disconnected)
 > /port.open
-Connected: DEMO @ 115200
+Connected: DEMO 115200 8N1
 > /port.baud_rate
   115200
 > /print === section: port break ===

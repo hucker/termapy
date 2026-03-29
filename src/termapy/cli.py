@@ -639,8 +639,10 @@ class CLITerminal:
 
     def _run_interactive(self) -> None:
         """Run the interactive input loop."""
-        # Readline shows input — no need to echo commands
+        # Readline shows REPL commands — no need to echo those.
+        # Serial echo is off — we sync manually with wait_for_idle after dispatch.
         self.repl._echo = False
+        self.cfg["echo_input"] = False
         self.write(
             f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
             "dim",
@@ -662,6 +664,11 @@ class CLITerminal:
                     break
 
                 self._dispatch(line)
+                # Wait for device response to finish printing before
+                # readline draws the next prompt. Without this, the
+                # background reader prints over readline's prompt.
+                if self.engine.is_connected and self.engine.serial_port:
+                    self.engine.serial_port.wait_for_idle()
 
         except KeyboardInterrupt:
             print("\nInterrupted", flush=True)

@@ -540,7 +540,7 @@ class ReplEngine:
         self._script_stack.append(path.name)
         self._seq_counters = {}
         self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.write(f"Running script: {filename}")
+        self.ctx.status(f"Running script: {filename}")
         return path
 
     def run_script(
@@ -760,35 +760,37 @@ class ReplEngine:
                     elapsed = time.perf_counter() - t0
                 if verbose:
                     label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
-                    w(f"[{step}/{total}] {label} ({elapsed:.3f}s)")
+                    fmt = f"{elapsed:.6f}" if elapsed < 0.001 else f"{elapsed:.3f}"
+                    w(f"[{step}/{total}] {label} ({fmt}s)")
                 if profile:
                     label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
-                    profile_times.append((label, elapsed))
+                    success = cmd_result.success if cmd_result else True
+                    profile_times.append((label, elapsed, success))
                     prof_fh.write(f"{elapsed:.6f},{label}\n")
-                # Wait for device to finish responding before next command.
-                # serial_wait_idle adapts to actual response time; the fixed
-                # sleep is a fallback when not connected.
-                try:
-                    self.ctx.serial_wait_idle()
-                except Exception:
-                    time.sleep(0.1)
+                # Wait for device to finish responding — only needed for
+                # serial commands (not REPL commands which don't talk to the port).
+                if not stripped.startswith(prefix):
+                    try:
+                        self.ctx.serial_wait_idle()
+                    except Exception:
+                        time.sleep(0.1)
             else:
                 if verbose:
                     script_elapsed = time.perf_counter() - script_t0
-                    w(f"Script {path.name} done ({script_elapsed:.3f}s)")
+                    fmt = f"{script_elapsed:.6f}" if script_elapsed < 0.001 else f"{script_elapsed:.3f}"
+                    w(f"Script {path.name} done ({fmt}s)")
                 if profile and profile_times:
-                    total = sum(t for _, t in profile_times)
+                    total = sum(t for _, t, *_ in profile_times)
+                    fmt = f"{total:.6f}" if total < 0.001 else f"{total:.3f}"
                     # Dump the CSV file to terminal
                     prof_fh.flush()
                     for line in prof_path.read_text(encoding="utf-8").splitlines():
                         w(line)
-                    w(
-                        f"── {total:.3f}s total ({len(profile_times)} commands) -> {prof_name} ──"
-                    )
+                    w(f"── {fmt}s total ({len(profile_times)} commands) -> {prof_name} ──")
                 elif self._script_depth <= 1:
                     if self._script_stop.is_set():
                         w("Script aborted.", "red")
-                    else:
+                    elif self.ctx.verbose:
                         w("Script finished.")
         except Exception as e:
             w(f"Script error: {e}", "red")

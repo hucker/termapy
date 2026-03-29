@@ -109,8 +109,9 @@ MIGRATIONS[7] = _migrate_v7_to_v8
 
 
 def _migrate_v8_to_v9(cfg: dict) -> dict:
-    """Add cli_prompt option (default '> ')."""
+    """Add cli_prompt and cli_echo_input options."""
     cfg.setdefault("cli_prompt", "> ")
+    cfg.setdefault("cli_echo_input", False)
     return cfg
 
 

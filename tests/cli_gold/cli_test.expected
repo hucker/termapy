@@ -1,4 +1,4 @@
-Connected: DEMO 115200 8N1
+Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
 > /print === section: device commands ===
   === section: device commands ===
 > AT
@@ -231,8 +231,8 @@ OK
     RTS:          1
     CTS:          1
     DSR:          1
-    RI:          0
-    CD:          1
+    RI:           0
+    CD:           1
 > /print === section: port modify ===
   === section: port modify ===
 > /port.dtr 0
@@ -254,7 +254,7 @@ Disconnected.
 > /port.baud_rate
   115200 (disconnected)
 > /port.open
-Connected: DEMO 115200 8N1
+Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
 > /port.baud_rate
   115200
 > /print === section: port break ===

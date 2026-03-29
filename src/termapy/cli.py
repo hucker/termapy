@@ -411,8 +411,11 @@ class CLITerminal:
         if port:
             self.cfg["port"] = port
         if self.engine.connect():
-            from termapy.config import connection_string
-            self.write(f"Connected: {connection_string(self.cfg)}", "green")
+            from termapy.config import connection_string, hardware_signals
+            conn = connection_string(self.cfg)
+            hw = hardware_signals(self.engine.port_obj)
+            full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
+            self.write(full, "green")
         else:
             self.status(f"Cannot connect to {self.cfg.get('port', '?')}", "red")
 
@@ -634,8 +637,11 @@ class CLITerminal:
             )
             sys.exit(1)
 
-        from termapy.config import connection_string
-        self.write(f"Connected: {connection_string(self.cfg)}", "green")
+        from termapy.config import connection_string, hardware_signals
+        conn = connection_string(self.cfg)
+        hw = hardware_signals(self.engine.port_obj)
+        full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
+        self.write(full, "green")
 
         self._load_history()
         self._setup_completion()

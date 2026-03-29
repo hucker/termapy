@@ -125,6 +125,7 @@ OK
     "max_lines": 10000,
     "cmd_prefix": "/",
     "cli_prompt": "> ",
+    "cli_echo_input": false,
     "config_read_only": false,
     "os_cmd_enabled": false,
     "port": "DEMO",

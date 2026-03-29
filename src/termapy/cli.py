@@ -25,7 +25,7 @@ from termapy.capture import CaptureEngine
 from termapy.config import load_config, open_serial, open_with_system
 from termapy.plugins import EngineAPI, PluginContext
 from termapy.repl import ReplEngine
-from termapy.scripting import strip_ansi
+from termapy.scripting import CmdResult, strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 
@@ -169,7 +169,7 @@ class CLITerminal:
             dispatch=lambda cmd: self._dispatch(cmd),
             confirm=lambda msg: self._confirm(msg),
             notify=lambda text, **kw: self.write(f"[notice] {text}"),
-            clear_screen=lambda: None,
+            clear_screen=lambda: print("\x1b[2J\x1b[H", end="", flush=True),
             open_file=lambda path: open_with_system(str(path)),
             exit_app=lambda: None,
             log=self._log,
@@ -214,6 +214,22 @@ class CLITerminal:
             "Reset demo config to defaults.",
             lambda ctx, args: self._hook_demo(ctx, "--force"),
             source="app",
+        )
+        self.repl.register_hook(
+            "clr", "",
+            "Clear the terminal screen (alias for /cls).",
+            lambda ctx, args: (ctx.clear_screen(), CmdResult.ok())[-1],
+            source="app",
+        )
+        self.repl.register_hook(
+            "raw", "<text>",
+            "Send raw text to serial (no transforms or line ending).",
+            self._hook_raw, source="app",
+        )
+        self.repl.register_hook(
+            "help.open", "{topic}",
+            "Open help in browser.",
+            self._hook_help_open, source="app",
         )
 
     # -- Hook handlers --------------------------------------------------------
@@ -338,6 +354,34 @@ class CLITerminal:
             return CmdResult.ok()
         except Exception as e:
             return CmdResult.fail(msg=f"Demo setup failed: {e}")
+
+    def _hook_raw(self, ctx, args: str):
+        """Send raw text to serial without transforms or line ending."""
+        from termapy.scripting import CmdResult
+        if not self.engine.is_connected:
+            return CmdResult.fail(msg="Not connected.")
+        if not args:
+            return CmdResult.fail(msg="Usage: /raw <text>")
+        if self.engine.serial_port:
+            self.engine.serial_port.write(args.encode(self.cfg.get("encoding", "utf-8")))
+        return CmdResult.ok()
+
+    def _hook_help_open(self, ctx, args: str):
+        """Open help topic in system browser."""
+        from importlib.resources import files as pkg_files
+        from termapy.scripting import CmdResult
+        html_dir = pkg_files("termapy").joinpath("html")
+        topic = args.strip()
+        if not topic:
+            path = html_dir.joinpath("index.html")
+        else:
+            topic = topic.replace(".md", "").replace(".html", "")
+            path = html_dir.joinpath(f"{topic}.html")
+        if not Path(str(path)).exists():
+            return CmdResult.fail(msg=f"Unknown help topic: {topic}")
+        from termapy.config import open_with_system
+        open_with_system(str(path))
+        return CmdResult.ok()
 
     # -- Progress bar ---------------------------------------------------------
 
@@ -595,8 +639,10 @@ class CLITerminal:
 
     def _run_interactive(self) -> None:
         """Run the interactive input loop."""
-        # Readline shows input — no need to echo commands
+        # Readline shows REPL commands — no need to echo those.
+        # Serial echo is off — we sync manually with wait_for_idle after dispatch.
         self.repl._echo = False
+        self.cfg["echo_input"] = False
         self.write(
             f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
             "dim",
@@ -618,6 +664,11 @@ class CLITerminal:
                     break
 
                 self._dispatch(line)
+                # Wait for device response to finish printing before
+                # readline draws the next prompt. Without this, the
+                # background reader prints over readline's prompt.
+                if self.engine.is_connected and self.engine.serial_port:
+                    self.engine.serial_port.wait_for_idle()
 
         except KeyboardInterrupt:
             print("\nInterrupted", flush=True)

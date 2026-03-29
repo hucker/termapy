@@ -38,6 +38,7 @@ DEFAULT_CFG = {
     "max_lines": 10000,
     "cmd_prefix": "/",
     "cli_prompt": "> ",
+    "cli_echo_input": False,
     "config_read_only": False,
     "os_cmd_enabled": False,
     # Serial
@@ -267,6 +268,10 @@ CFG_HELP: dict[str, tuple] = {
     "cli_prompt": (
         "Prompt string for CLI mode input.",
         "Default: '> '",
+    ),
+    "cli_echo_input": (
+        "Echo sent commands in CLI mode (readline already shows input).",
+        "true, false. Default: false",
     ),
     # Display
     "title": (

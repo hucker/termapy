@@ -12,6 +12,7 @@ from pathlib import Path
 
 import serial
 
+from termapy.folders import FOLDER_MIGRATIONS, FOLDER_NAMES, HISTORY_FILE, PROFILE_TMP_GLOB
 from termapy.defaults import (
     DEFAULT_CFG,
     STANDARD_BAUD_RATES,
@@ -64,12 +65,12 @@ def cfg_data_dir(config_path: str) -> Path:
     d = Path(config_path).parent
     d.mkdir(parents=True, exist_ok=True)
     # One-time folder renames (migration)
-    for old_name, new_name in [("captures", "cap"), ("scripts", "run"), ("plugins", "plugin")]:
+    for old_name, new_name in FOLDER_MIGRATIONS:
         old = d / old_name
         new = d / new_name
         if old.is_dir() and not new.exists():
             old.rename(new)
-    for sub in ("plugin", "ss", "run", "proto", "viz", "cap", "prof"):
+    for sub in FOLDER_NAMES:
         (d / sub).mkdir(exist_ok=True)
     # Write .gitignore for transient data (only if it doesn't exist)
     gitignore = d / ".gitignore"
@@ -101,7 +102,7 @@ def cfg_log_path(config_path: str) -> str:
 
 def cfg_history_path(config_path: str) -> str:
     """Return the command history file path for a config."""
-    return str(cfg_data_dir(config_path) / ".cmd_history.txt")
+    return str(cfg_data_dir(config_path) / HISTORY_FILE)
 
 
 def cleanup_profile_temps(config_path: str) -> None:
@@ -109,7 +110,7 @@ def cleanup_profile_temps(config_path: str) -> None:
     run_dir = cfg_data_dir(config_path) / "run"
     if not run_dir.is_dir():
         return
-    for f in run_dir.glob("_profile_tmp_*.run"):
+    for f in run_dir.glob(PROFILE_TMP_GLOB):
         try:
             f.unlink()
         except OSError:

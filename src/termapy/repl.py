@@ -23,6 +23,7 @@ from termapy.plugins import (
     builtins_dir,
     load_plugins_from_dir,
 )
+from termapy.folders import CAP, PROF, PROTO, RUN, SS
 from termapy.scripting import CmdResult, expand_template, parse_duration, parse_keywords
 
 
@@ -800,40 +801,36 @@ class ReplEngine:
 
     # -- Properties -----------------------------------------------------------
 
-    @property
-    def ss_dir(self) -> Path:
-        """Screenshot directory, derived from config_path."""
+    def _data_subdir(self, folder: str) -> Path:
+        """Return a per-config data subdirectory, or cwd if no config."""
         if self.config_path:
-            return Path(self.config_path).parent / "ss"
+            return Path(self.config_path).parent / folder
         return Path(".")
 
     @property
+    def ss_dir(self) -> Path:
+        """Screenshot directory, derived from config_path."""
+        return self._data_subdir(SS)
+
+    @property
     def scripts_dir(self) -> Path:
-        """Scripts directory, derived from config_path."""
-        if self.config_path:
-            return Path(self.config_path).parent / "run"
-        return Path(".")
+        """Run scripts directory, derived from config_path."""
+        return self._data_subdir(RUN)
 
     @property
     def proto_dir(self) -> Path:
         """Protocol test scripts directory, derived from config_path."""
-        if self.config_path:
-            return Path(self.config_path).parent / "proto"
-        return Path(".")
+        return self._data_subdir(PROTO)
 
     @property
     def cap_dir(self) -> Path:
         """Captures directory, derived from config_path."""
-        if self.config_path:
-            return Path(self.config_path).parent / "cap"
-        return Path(".")
+        return self._data_subdir(CAP)
 
     @property
     def prof_dir(self) -> Path:
         """Profile directory, derived from config_path."""
-        if self.config_path:
-            return Path(self.config_path).parent / "prof"
-        return Path(".")
+        return self._data_subdir(PROF)
 
     @property
     def echo(self) -> bool:

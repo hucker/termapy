@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
+from termapy.folders import CLEARABLE, DUMPABLE, FOLDERS, SHOWABLE
 from termapy.plugins import Command
 from termapy.scripting import CmdResult
 
@@ -123,26 +124,6 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
 # ── Tree-building helpers (shared by info and folder listings) ────────────────
 
 
-# Directory sections: (folder_name, glob_pattern)
-_SECTIONS = [
-    ("run", "*.run"),
-    ("proto", "*.pro"),
-    ("plugin", "*.py"),
-    ("ss", "*"),
-    ("viz", "*.py"),
-    ("cap", "*"),
-    ("prof", "*.csv"),
-]
-
-# Folders that support .clear (generated output, not user-authored)
-_CLEARABLE = {"ss", "cap", "prof"}
-
-# Folders that support .show (open newest file in system viewer)
-_SHOWABLE = {"ss", "cap", "prof", "run", "proto", "plugin", "viz"}
-
-# Folders that support .dump (print newest/named text file to terminal)
-_DUMPABLE = {"cap", "prof", "run", "proto", "plugin", "viz"}
-
 
 def _names(directory: Path, pattern: str) -> list[str]:
     """Return sorted filenames matching pattern in directory."""
@@ -224,8 +205,8 @@ def _all_sections(config_path: str) -> list[tuple[str, list[str]]]:
         (f"{config_name}.cfg", []),
         (f"{config_name}.log", []),
     ]
-    for folder, pattern in _SECTIONS:
-        sections.append((f"{folder}/", _names(data_dir / folder, pattern)))
+    for spec in FOLDERS:
+        sections.append((f"{spec.name}/", _names(data_dir / spec.name, spec.pattern)))
     return sections
 
 
@@ -408,34 +389,34 @@ def _make_dump_handler(folder: str, pattern: str):
 
 
 def _build_folder_subs() -> dict[str, Command]:
-    """Build top-level subcommands for each folder in _SECTIONS."""
+    """Build top-level subcommands for each folder in FOLDERS."""
     subs = {}
-    for folder, pattern in _SECTIONS:
+    for spec in FOLDERS:
         nested: dict[str, Command] = {
             "explore": Command(
-                help=f"Open {folder}/ in file explorer.",
-                handler=_make_explore_handler(folder),
+                help=f"Open {spec.name}/ in file explorer.",
+                handler=_make_explore_handler(spec.name),
             ),
         }
-        if folder in _SHOWABLE:
+        if spec.showable:
             nested["show"] = Command(
-                help=f"Open newest file in {folder}/.",
-                handler=_make_show_handler(folder, pattern),
+                help=f"Open newest file in {spec.name}/.",
+                handler=_make_show_handler(spec.name, spec.pattern),
             )
-        if folder in _DUMPABLE:
+        if spec.dumpable:
             nested["dump"] = Command(
                 args="{filename}",
-                help=f"Print newest (or named) file from {folder}/ to terminal.",
-                handler=_make_dump_handler(folder, pattern),
+                help=f"Print newest (or named) file from {spec.name}/ to terminal.",
+                handler=_make_dump_handler(spec.name, spec.pattern),
             )
-        if folder in _CLEARABLE:
+        if spec.clearable:
             nested["clear"] = Command(
-                help=f"Delete all files in {folder}/.",
-                handler=_make_clear_handler(folder, pattern),
+                help=f"Delete all files in {spec.name}/.",
+                handler=_make_clear_handler(spec.name, spec.pattern),
             )
-        subs[folder] = Command(
-            help=f"List files in {folder}/.",
-            handler=_make_folder_handler(folder, pattern),
+        subs[spec.name] = Command(
+            help=f"List files in {spec.name}/.",
+            handler=_make_folder_handler(spec.name, spec.pattern),
             sub_commands=nested,
         )
     return subs

@@ -202,6 +202,17 @@ class CLITerminal:
             "Run a script with per-command timing.",
             self._hook_run_profile, source="app",
         )
+        self.repl.register_hook(
+            "demo", "",
+            "Set up and switch to the demo device config.",
+            self._hook_demo, source="app",
+        )
+        self.repl.register_hook(
+            "demo.force", "",
+            "Reset demo config to defaults.",
+            lambda ctx, args: self._hook_demo(ctx, "--force"),
+            source="app",
+        )
 
     # -- Hook handlers --------------------------------------------------------
 
@@ -297,6 +308,34 @@ class CLITerminal:
             )
             return CmdResult.ok()
         return CmdResult.fail(msg=f"Script not found: {script}")
+
+    def _hook_demo(self, ctx, args: str):
+        """Set up and switch to demo device config."""
+        from termapy.config import cfg_dir, load_config, setup_demo_config
+        from termapy.scripting import CmdResult
+
+        force = "--force" in args.lower()
+        try:
+            self.status("Setting up demo files...", "dim")
+            config_path = setup_demo_config(cfg_dir(), force=force)
+            self.status("Loading demo config...", "dim")
+            cfg = load_config(str(config_path))
+            # Disconnect current, switch config, reconnect
+            if self.engine.is_connected:
+                self.engine.disconnect()
+            self.repl.replace_cfg(cfg, str(config_path))
+            self.config_path = str(config_path)
+            self.cfg = cfg
+            self._setup_context()
+            if self.engine.connect():
+                self._start_reader()
+            msg = "Switched to demo device"
+            if force:
+                msg += " (config reset)"
+            self.status(msg, "green")
+            return CmdResult.ok()
+        except Exception as e:
+            return CmdResult.fail(msg=f"Demo setup failed: {e}")
 
     # -- Progress bar ---------------------------------------------------------
 

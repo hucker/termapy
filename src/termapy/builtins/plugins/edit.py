@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import cfg_log_path, open_with_system
+from termapy.folders import EXT_TO_FOLDER
 from termapy.plugins import Command
 from termapy.scripting import CmdResult
 
@@ -42,8 +43,12 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
             return path if path.exists() else None
 
     ext = Path(name).suffix.lower()
-    ext_map = {".run": ctx.scripts_dir, ".pro": ctx.proto_dir, ".py": ctx.scripts_dir.parent / "plugin"}
-    base = ext_map.get(ext)
+    _folder_dirs = {
+        "run": ctx.scripts_dir,
+        "proto": ctx.proto_dir,
+        "plugin": ctx.scripts_dir.parent / "plugin",
+    }
+    base = _folder_dirs.get(EXT_TO_FOLDER.get(ext, ""))
     if base:
         path = base / name
         return path if path.exists() else None

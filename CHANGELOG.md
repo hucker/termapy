@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.36.0 (2026-03-29)
+
+### New Features
+
+- **Output channels** -- `ctx.result()`, `ctx.output()`, `ctx.status()` for structured output
+- **`/verbose` toggle** -- suppress status messages with `/verbose off`
+- **`CmdResult.value`** -- commands return programmatic values (e.g. `/ver` returns `"0.36.0"`)
+- **`folders.py`** -- single source of truth for folder names, patterns, and capabilities
+- **`connection_string()`** -- centralized formatting with hardware signals (DTR/RTS/CTS/DSR/RI/CD)
+- **`/ping` built-in** -- serial response timing with `serial_io` for accuracy
+- **`/clr`** -- alias for `/cls`
+- **`/raw`**, **`/help.open`** -- now available in CLI mode
+- **`/demo`**, **`/demo.force`** -- work in CLI mode
+- **`$(FRONT_END)`** -- launch variable (`cli` or `textual`)
+- **`cli_prompt`** -- configurable CLI prompt (default `"> "`)
+- **`cli_echo_input`** -- control serial echo in CLI (default off)
+
+### Improvements
+
+- **Folder renames** -- `scripts/` -> `run/`, `plugins/` -> `plugin/` with auto-migration
+- **All handlers return `CmdResult`** -- structured success/failure with timing
+- **`/var` output colorized** -- cyan names, green values
+- **`/cfg <key>` returns clean value** -- `115200` not `baud_rate: 115200`
+- **`/echo`, `/verbose`, `/show_line_endings` return on/off** -- clean programmatic values
+- **`/env` root handler** -- lists variables (same as `/env.list`)
+- **CLI echo off** -- readline shows input, no redundant echo
+- **`wait_for_idle` only for serial commands** -- scripts with `/print` run instantly
+- **Sub-millisecond timing** -- shows 6 digits when `< 0.001s`
+- **CLI `wait_for_idle` 20ms** -- test suite 43s -> 21s
+- **`--no-ff` merges** -- preserve branch history in git graph
+
+### Bug Fixes
+
+- **CLI `serial_send`/`serial_claim` not wired** -- now available
+- **CLI `/cls` was no-op** -- now clears terminal
+- **`/port.info` RI/CD alignment** -- fixed column spacing
+- **Null handler guard** -- parent commands with no root handler no longer crash
+
 ## 0.35.0 (2026-03-29)
 
 ### New Features

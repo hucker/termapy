@@ -343,6 +343,24 @@ class PluginContext:
     # Engine internals - used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
 
+    # Verbose flag - controls ctx.status() visibility
+    verbose: bool = True
+
+    # -- Output channels -------------------------------------------------------
+
+    def result(self, text: str, color: str = "green") -> None:
+        """Write a command result (single-line answer). Always shown."""
+        self.write(text, color)
+
+    def output(self, text: str, color: str = "dim") -> None:
+        """Write data output (listings, dumps, file contents). Always shown."""
+        self.write(text, color)
+
+    def status(self, text: str) -> None:
+        """Write a status/progress message. Suppressed when verbose is off."""
+        if self.verbose:
+            self.write(text, "dim")
+
     @contextmanager
     def serial_io(self) -> Generator[None, None, None]:
         """Claim exclusive serial access, suppressing terminal display.

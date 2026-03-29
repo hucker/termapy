@@ -30,8 +30,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     else:
         ctx.engine.set_echo(not ctx.engine.get_echo())
     state = "on" if ctx.engine.get_echo() else "off"
-    ctx.write(f"REPL echo {state}.", "green")
-    return CmdResult.ok()
+    ctx.result(state)
+    return CmdResult.ok(value=state)
 
 
 def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
@@ -51,7 +51,8 @@ def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
         ctx.engine.set_echo(False)
     else:
         return CmdResult.fail(msg="Usage: /echo.quiet <on|off>")
-    return CmdResult.ok()
+    state = "on" if ctx.engine.get_echo() else "off"
+    return CmdResult.ok(value=state)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

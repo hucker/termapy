@@ -77,6 +77,8 @@ class CLITerminal:
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
 
+        from termapy.builtins.plugins.var import set_launch_var
+        set_launch_var("FRONT_END", "cli")
         self._setup_context()
         self._register_hooks()
 
@@ -160,7 +162,7 @@ class CLITerminal:
             ),
             serial_claim=lambda: setattr(self.engine, "proto_active", True),
             serial_release=lambda: setattr(self.engine, "proto_active", False),
-            serial_wait_idle=lambda timeout_ms=200, max_wait_s=3.0: (
+            serial_wait_idle=lambda timeout_ms=20, max_wait_s=3.0: (
                 self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
                 if self.engine.serial_port else None
             ),
@@ -316,9 +318,9 @@ class CLITerminal:
 
         force = "--force" in args.lower()
         try:
-            self.status("Setting up demo files...", "dim")
+            ctx.status("Setting up demo files...")
             config_path = setup_demo_config(cfg_dir(), force=force)
-            self.status("Loading demo config...", "dim")
+            ctx.status("Loading demo config...")
             cfg = load_config(str(config_path))
             # Disconnect current, switch config, reconnect
             if self.engine.is_connected:
@@ -592,6 +594,8 @@ class CLITerminal:
 
     def _run_interactive(self) -> None:
         """Run the interactive input loop."""
+        # Readline shows input — no need to echo commands
+        self.repl._echo = False
         self.write(
             f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
             "dim",
@@ -599,7 +603,7 @@ class CLITerminal:
         try:
             while True:
                 try:
-                    line = input()
+                    line = input(self.cfg.get("cli_prompt", "> "))
                 except EOFError:
                     break
 

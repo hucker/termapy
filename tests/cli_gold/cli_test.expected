@@ -58,27 +58,27 @@ OK
 > /print === section: print and echo ===
   === section: print and echo ===
 > /echo off
-  REPL echo off.
+  off
   echo is off - this should appear
-  REPL echo on.
+  on
 > /print echo is on - this should appear with echo line
   echo is on - this should appear with echo line
 > /print === section: variables ===
   === section: variables ===
 > $(DEVICE) = BASSOMATIC
-    $(DEVICE) = BASSOMATIC
+  $(DEVICE) = BASSOMATIC
 > $(PORT_NUM) = 42
-    $(PORT_NUM) = 42
+  $(PORT_NUM) = 42
 > /print device=$(DEVICE) port=$(PORT_NUM)
   device=BASSOMATIC port=42
 > /var DEVICE
-    $(DEVICE) = BASSOMATIC
+  $(DEVICE) = BASSOMATIC
 > /var PORT_NUM
-    $(PORT_NUM) = 42
+  $(PORT_NUM) = 42
 > /var.set DEVICE updated_value
-    $(DEVICE) = updated_value
+  $(DEVICE) = updated_value
 > /var DEVICE
-    $(DEVICE) = updated_value
+  $(DEVICE) = updated_value
 > /var.clear
   Cleared 2 variable(s).
 > /var DEVICE
@@ -86,44 +86,45 @@ OK
 > /print === section: config read ===
   === section: config read ===
 > /cfg baud_rate
-    baud_rate: 115200
+  115200
 > /cfg encoding
-    encoding: 'utf-8'
+  utf-8
 > /cfg line_ending
-    line_ending: '\r'
+
 > /cfg parity
-    parity: 'N'
+  N
 > /cfg byte_size
-    byte_size: 8
+  8
 > /cfg stop_bits
-    stop_bits: 1
+  1
 > /cfg flow_control
-    flow_control: 'none'
+  none
 > /cfg echo_input
-    echo_input: True
+  True
 > /cfg send_bare_enter
-    send_bare_enter: False
+  False
 > /cfg cmd_prefix
-    cmd_prefix: '/'
+  /
 > /print === section: config auto-set ===
   === section: config auto-set ===
 > /cfg.auto echo_input true
   echo_input = True  (session)
 > /cfg echo_input
-    echo_input: True
+  True
 > /cfg.auto echo_input false
   echo_input = False  (session)
 > /cfg echo_input
-    echo_input: False
+  False
 > /print === section: config dump ===
   === section: config dump ===
 > /cfg.dump
   {
-    "config_version": 8,
+    "config_version": 9,
     "title": "Demo Device",
     "border_color": "",
     "max_lines": 10000,
     "cmd_prefix": "/",
+    "cli_prompt": "> ",
     "config_read_only": false,
     "os_cmd_enabled": false,
     "port": "DEMO",
@@ -286,8 +287,10 @@ Connected: DEMO @ 115200
   === section: line endings ===
 > /show_line_endings on
   show_line_endings = True  (session)
+  on
 > /show_line_endings off
   show_line_endings = False  (session)
+  off
 > /print === section: seq ===
   === section: seq ===
 > /seq

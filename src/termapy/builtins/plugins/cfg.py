@@ -40,8 +40,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
     # /cfg key - show value
     if len(parts) == 1:
-        ctx.write(f"  {key}: {ctx.cfg[key]!r}")
-        return CmdResult.ok()
+        val = ctx.cfg[key]
+        ctx.result(str(val))
+        return CmdResult.ok(value=str(val))
     # /cfg key value - validate and delegate for confirmation
     value_str = parts[1]
     try:
@@ -50,7 +51,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Type error: {e}")
     old_val = ctx.cfg[key]
     if new_val == old_val:
-        ctx.write(f"{key} is already {old_val!r}", "dim")
+        ctx.output(f"{key} is already {old_val!r}")
         return CmdResult.ok()
     if ctx.engine.save_cfg:
         ctx.engine.save_cfg(key, new_val)
@@ -96,7 +97,7 @@ def _handler_configs(ctx: PluginContext, args: str) -> CmdResult:
     d = cfg_dir()
     files = sorted(d.glob("*/*.cfg"))
     if not files:
-        ctx.write("  (no config files)", "dim")
+        ctx.output("  (no config files)")
         return CmdResult.ok()
     for f in files:
         marker = " *" if str(f) == ctx.config_path else ""
@@ -288,7 +289,7 @@ def _make_folder_handler(folder: str, pattern: str):
         data_dir = Path(ctx.config_path).parent
         files = _names(data_dir / folder, pattern)
         if not files:
-            ctx.write(f"  {folder}/ (empty)", "dim")
+            ctx.output(f"  {folder}/ (empty)")
             return CmdResult.ok()
         ctx.write(f"  {folder}/")
         for fname in files:
@@ -319,7 +320,7 @@ def _make_clear_handler(folder: str, pattern: str):
         else:
             files = list(data_dir.glob(pattern))
         if not files:
-            ctx.write(f"  {folder}/ is already empty.", "dim")
+            ctx.output(f"  {folder}/ is already empty.")
             return CmdResult.ok()
         for f in files:
             f.unlink()
@@ -335,14 +336,14 @@ def _make_show_handler(folder: str, pattern: str):
             return CmdResult.fail(msg="No config loaded.")
         data_dir = Path(ctx.config_path).parent / folder
         if not data_dir.exists():
-            ctx.write(f"  {folder}/ is empty.", "dim")
+            ctx.output(f"  {folder}/ is empty.")
             return CmdResult.ok()
         if pattern == "*":
             files = [f for f in data_dir.glob(pattern) if f.is_file()]
         else:
             files = list(data_dir.glob(pattern))
         if not files:
-            ctx.write(f"  {folder}/ is empty.", "dim")
+            ctx.output(f"  {folder}/ is empty.")
             return CmdResult.ok()
         newest = max(files, key=lambda f: f.stat().st_mtime)
         ctx.write(f"Opening {newest.name}")
@@ -366,19 +367,19 @@ def _make_dump_handler(folder: str, pattern: str):
         else:
             # Newest file
             if not data_dir.exists():
-                ctx.write(f"  {folder}/ is empty.", "dim")
+                ctx.output(f"  {folder}/ is empty.")
                 return CmdResult.ok()
             if pattern == "*":
                 files = [f for f in data_dir.glob(pattern) if f.is_file()]
             else:
                 files = list(data_dir.glob(pattern))
             if not files:
-                ctx.write(f"  {folder}/ is empty.", "dim")
+                ctx.output(f"  {folder}/ is empty.")
                 return CmdResult.ok()
             path = max(files, key=lambda f: f.stat().st_mtime)
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
-                ctx.write(line, "dim")
+                ctx.output(line)
         except OSError as e:
             return CmdResult.fail(msg=f"Read error: {e}")
         return CmdResult.ok()
@@ -460,7 +461,7 @@ Use /cfg.auto to set values without confirmation (for scripts).""",
         ),
         "dump": Command(
             help="Print current config as JSON to the terminal.",
-            handler=lambda ctx, args: (ctx.write(json.dumps(dict(ctx.cfg), indent=4), "dim"), CmdResult.ok())[-1],
+            handler=lambda ctx, args: (ctx.output(json.dumps(dict(ctx.cfg), indent=4)), CmdResult.ok())[-1],
         ),
         **_build_folder_subs(),
     },

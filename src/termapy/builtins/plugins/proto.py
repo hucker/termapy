@@ -77,7 +77,7 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
         else:
             ctx.write(f"File not found: {filename}", "red")
             if ctx.proto_dir != Path("."):
-                ctx.write(f"  (also checked {ctx.proto_dir})", "dim")
+                ctx.output(f"  (also checked {ctx.proto_dir})")
             return None
     return path
 
@@ -95,11 +95,11 @@ def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int,
     line_ending = ctx.cfg.get("line_ending", "\r")
     enc = ctx.cfg.get("encoding", "utf-8")
     if not quiet:
-        ctx.write(f"  CMD: {cmd_text}", "dim")
+        ctx.output(f"  CMD: {cmd_text}")
     ctx.serial_write((cmd_text + line_ending).encode(enc))
     response = ctx.serial_read_raw(1000, frame_gap)
     if not quiet:
-        ctx.write(f"  CMD: flushed {len(response)} bytes", "dim")
+        ctx.output(f"  CMD: flushed {len(response)} bytes")
 
 
 def _run_toml_script(ctx: PluginContext, path: Path,
@@ -117,7 +117,7 @@ def _run_toml_script(ctx: PluginContext, path: Path,
     script_name = script.name or path.name
     ctx.write(f"{'─' * 40}")
     ctx.write(f"  {script_name}", "bold underline bright_white")
-    ctx.write(f"  {path.name} - {len(script.tests)} tests", "dim")
+    ctx.output(f"  {path.name} - {len(script.tests)} tests")
     ctx.write(f"{'─' * 40}")
 
     frame_gap = script.frame_gap_ms
@@ -146,7 +146,7 @@ def _run_toml_script(ctx: PluginContext, path: Path,
         if script.strip_ansi:
             response = strip_ansi(response)
 
-        ctx.write(f"  Expected: {format_spaced(tc.expect_data, tc.binary)}", "dim")
+        ctx.output(f"  Expected: {format_spaced(tc.expect_data, tc.binary)}")
         if response:
             ctx.write(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
             if match_response(tc.expect_data, response, tc.expect_mask):
@@ -195,7 +195,7 @@ def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
     script_name = settings.get("name") or path.name
     ctx.write(f"{'─' * 40}")
     ctx.write(f"  {script_name}", "bold underline bright_white")
-    ctx.write(f"  {path.name} - {len(steps)} steps", "dim")
+    ctx.output(f"  {path.name} - {len(steps)} steps")
     ctx.write(f"{'─' * 40}")
 
     pass_count = 0
@@ -245,7 +245,7 @@ def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
             if do_strip_ansi:
                 response = strip_ansi(response)
 
-            ctx.write(f"  Expected: {format_spaced(step.data, step.binary)}", "dim")
+            ctx.output(f"  Expected: {format_spaced(step.data, step.binary)}")
             if response:
                 ctx.write(f"  Actual:   {format_spaced(response, step.binary)}", "yellow")
                 if match_response(step.data, response, step.mask):
@@ -532,7 +532,7 @@ def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
         for name in groups[width]:
             entry = CRC_CATALOGUE.get(name)
             desc = entry.get("desc", "") if entry else "(plugin)"
-            ctx.write(f"    {name:<30s} {desc}", "dim")
+            ctx.output(f"    {name:<30s} {desc}")
 
     total = sum(len(g) for g in groups.values())
     ctx.write(f"  {total} algorithms available")
@@ -710,11 +710,11 @@ def _cmd_list(ctx: PluginContext, args: str) -> CmdResult:
     """
     d = ctx.proto_dir
     if not d.exists():
-        ctx.write("  (no proto/ directory)", "dim")
+        ctx.output("  (no proto/ directory)")
         return CmdResult.ok()
     files = sorted(d.glob("*.pro"))
     if not files:
-        ctx.write("  (no .pro files)", "dim")
+        ctx.output("  (no .pro files)")
         return CmdResult.ok()
     for f in files:
         ctx.write(f"  {f.name}")

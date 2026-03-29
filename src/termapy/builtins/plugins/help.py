@@ -132,10 +132,10 @@ def _show_command_help(ctx: PluginContext, name: str,
     if dev_mode:
         docstring = getattr(plugin.handler, "__doc__", None)
         if docstring:
-            ctx.write("  ── developer docstring ──", "dim")
+            ctx.output("  ── developer docstring ──")
             _write_docstring(ctx, docstring)
         else:
-            ctx.write("  (no docstring)", "dim")
+            ctx.output("  (no docstring)")
     elif plugin.long_help:
         for line in plugin.long_help.strip().splitlines():
             ctx.write(f"  {line}")

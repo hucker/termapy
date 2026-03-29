@@ -385,3 +385,11 @@ class TestCmdResult:
 
         # Assert
         assert actual.elapsed_s == 0.123  # dispatch sets this
+
+    def test_value_default_empty(self):
+        actual = CmdResult.ok()
+        assert actual.value == ""  # default no value
+
+    def test_value_set(self):
+        actual = CmdResult(value="0.35.0")
+        assert actual.value == "0.35.0"  # value captured

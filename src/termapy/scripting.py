@@ -27,11 +27,12 @@ class CmdResult:
     success: bool = True
     error: str = ""
     elapsed_s: float = 0.0
+    value: str = ""
 
     @classmethod
-    def ok(cls) -> CmdResult:
-        """Return a successful result."""
-        return cls()
+    def ok(cls, value: str = "") -> CmdResult:
+        """Return a successful result, optionally with a value."""
+        return cls(value=value)
 
     @classmethod
     def fail(cls, msg: str = "") -> CmdResult:

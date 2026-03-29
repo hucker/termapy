@@ -15,7 +15,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 ## Install
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.35.0
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.36.0
 ```
 
 This puts `termapy` on your PATH as a standalone command. `uv` downloads Python 3.14 automatically if it's not already installed.
@@ -23,7 +23,7 @@ This puts `termapy` on your PATH as a standalone command. `uv` downloads Python 
 ## Try without installing
 
 ```sh
-uvx --from git+https://github.com/hucker/termapy@v0.35.0 termapy --demo
+uvx --from git+https://github.com/hucker/termapy@v0.36.0 termapy --demo
 ```
 
 This runs termapy in a temporary environment that is cleaned up automatically.

@@ -49,9 +49,9 @@ your_project/
     └── main_board/
         ├── main_board.cfg    # ← the config (always committed)
         ├── .gitignore          # ← auto-generated (excludes transient data)
-        ├── scripts/            # .run script files (committed)
+        ├── run/                # .run script files (committed)
         ├── proto/              # .pro protocol test files (committed)
-        ├── plugins/            # custom plugins (committed)
+        ├── plugin/             # custom plugins (committed)
         ├── viz/                # custom visualizers (committed)
         ├── ss/                 # screenshots (ignored)
         ├── cap/                # data captures (ignored)
@@ -63,9 +63,9 @@ your_project/
 **Tracked** (shared with your team):
 
 - `<name>.cfg` — the config file
-- `scripts/*.run` — automation scripts
+- `run/*.run` — automation scripts
 - `proto/*.pro` — protocol test files
-- `plugins/*.py` — custom plugins
+- `plugin/*.py` — custom plugins
 - `viz/*.py` — custom visualizers
 - `.gitignore` — auto-generated
 

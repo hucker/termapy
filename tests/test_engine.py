@@ -17,7 +17,7 @@ def engine(tmp_path):
     config_path = tmp_path / "sub" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
-    for sub in ("plugins", "ss", "scripts"):
+    for sub in ("plugin", "ss", "run"):
         (config_path.parent / sub).mkdir(exist_ok=True)
     output = []
     return ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c))), output
@@ -142,7 +142,7 @@ class TestProperties:
     def test_scripts_dir(self, engine):
         eng, _ = engine
         actual = eng.scripts_dir
-        assert actual.name == "scripts"  # correct subdir name
+        assert actual.name == "run"  # correct subdir name
 
     def test_ss_dir_no_config(self):
         eng = ReplEngine({}, "", lambda t, c=None: None)
@@ -232,7 +232,7 @@ class TestRunScript:
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
-        for sub in ("plugins", "ss", "scripts"):
+        for sub in ("plugin", "ss", "run"):
             (config_path.parent / sub).mkdir(exist_ok=True)
         output = []
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
@@ -506,7 +506,7 @@ class TestDispatchFull:
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
-        for sub in ("plugins", "ss", "scripts"):
+        for sub in ("plugin", "ss", "run"):
             (config_path.parent / sub).mkdir(exist_ok=True)
 
         output = []

@@ -319,9 +319,9 @@ class TestDemoConfigSetup:
         config_path = setup_demo_config(tmp_path)
         # Assert
         assert config_path.exists()  # config file created
-        assert (tmp_path / "demo" / "scripts").is_dir()  # scripts dir created
+        assert (tmp_path / "demo" / "run").is_dir()  # run dir created
         assert (tmp_path / "demo" / "proto").is_dir()  # proto dir created
-        assert (tmp_path / "demo" / "plugins" / "probe.py").exists()  # demo plugin copied
+        assert (tmp_path / "demo" / "plugin" / "probe.py").exists()  # demo plugin copied
 
     def test_setup_idempotent(self, tmp_path) -> None:
         from termapy.config import setup_demo_config

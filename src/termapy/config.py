@@ -63,12 +63,13 @@ def cfg_data_dir(config_path: str) -> Path:
     """
     d = Path(config_path).parent
     d.mkdir(parents=True, exist_ok=True)
-    # One-time rename: captures/ -> cap/
-    old_cap = d / "captures"
-    new_cap = d / "cap"
-    if old_cap.is_dir() and not new_cap.exists():
-        old_cap.rename(new_cap)
-    for sub in ("plugins", "ss", "scripts", "proto", "viz", "cap", "prof"):
+    # One-time folder renames (migration)
+    for old_name, new_name in [("captures", "cap"), ("scripts", "run"), ("plugins", "plugin")]:
+        old = d / old_name
+        new = d / new_name
+        if old.is_dir() and not new.exists():
+            old.rename(new)
+    for sub in ("plugin", "ss", "run", "proto", "viz", "cap", "prof"):
         (d / sub).mkdir(exist_ok=True)
     # Write .gitignore for transient data (only if it doesn't exist)
     gitignore = d / ".gitignore"
@@ -104,11 +105,11 @@ def cfg_history_path(config_path: str) -> str:
 
 
 def cleanup_profile_temps(config_path: str) -> None:
-    """Delete stale _profile_tmp_*.run files from the scripts directory."""
-    scripts_dir = cfg_data_dir(config_path) / "scripts"
-    if not scripts_dir.is_dir():
+    """Delete stale _profile_tmp_*.run files from the run directory."""
+    run_dir = cfg_data_dir(config_path) / "run"
+    if not run_dir.is_dir():
         return
-    for f in scripts_dir.glob("_profile_tmp_*.run"):
+    for f in run_dir.glob("_profile_tmp_*.run"):
         try:
             f.unlink()
         except OSError:
@@ -116,13 +117,13 @@ def cleanup_profile_temps(config_path: str) -> None:
 
 
 def cfg_plugins_dir(config_path: str) -> Path:
-    """Return the plugins directory for a config, creating it if needed."""
-    return cfg_data_dir(config_path) / "plugins"
+    """Return the plugin directory for a config, creating it if needed."""
+    return cfg_data_dir(config_path) / "plugin"
 
 
 def global_plugins_dir() -> Path:
-    """Return the global plugins directory, creating it if needed."""
-    d = cfg_dir() / "plugins"
+    """Return the global plugin directory, creating it if needed."""
+    d = cfg_dir() / "plugin"
     d.mkdir(exist_ok=True)
     return d
 
@@ -397,14 +398,14 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
         src = pkg / "demo.cfg"
         config_path.write_bytes(src.read_bytes())
 
-    # Copy scripts
-    scripts_dir = demo_dir / "scripts"
-    scripts_dir.mkdir(exist_ok=True)
-    scripts_pkg = pkg / "scripts"
+    # Copy run scripts
+    run_dir = demo_dir / "run"
+    run_dir.mkdir(exist_ok=True)
+    run_pkg = pkg / "run"
     for name in ("welcome.run", "at_demo.run", "gps_demo.run", "smoke_test.run", "status_check.run", "var_demo.run", "expect_test.run"):
-        dest = scripts_dir / name
+        dest = run_dir / name
         if force or not dest.exists():
-            src = scripts_pkg / name
+            src = run_pkg / name
             dest.write_bytes(src.read_bytes())
 
     # Copy proto files
@@ -418,13 +419,13 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
             dest.write_bytes(src.read_bytes())
 
     # Copy demo plugins
-    plugins_dir = demo_dir / "plugins"
-    plugins_dir.mkdir(exist_ok=True)
-    plugins_pkg = pkg / "plugins"
+    plugin_dir = demo_dir / "plugin"
+    plugin_dir.mkdir(exist_ok=True)
+    plugin_pkg = pkg / "plugin"
     for name in ("cmd.py", "probe.py", "temp_plot.py"):
-        dest = plugins_dir / name
+        dest = plugin_dir / name
         if force or not dest.exists():
-            src = plugins_pkg / name
+            src = plugin_pkg / name
             dest.write_bytes(src.read_bytes())
 
     # Copy .gitignore for transient data

@@ -125,9 +125,9 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
 
 # Directory sections: (folder_name, glob_pattern)
 _SECTIONS = [
-    ("scripts", "*.run"),
+    ("run", "*.run"),
     ("proto", "*.pro"),
-    ("plugins", "*.py"),
+    ("plugin", "*.py"),
     ("ss", "*"),
     ("viz", "*.py"),
     ("cap", "*"),
@@ -138,10 +138,10 @@ _SECTIONS = [
 _CLEARABLE = {"ss", "cap", "prof"}
 
 # Folders that support .show (open newest file in system viewer)
-_SHOWABLE = {"ss", "cap", "prof", "scripts", "proto", "plugins", "viz"}
+_SHOWABLE = {"ss", "cap", "prof", "run", "proto", "plugin", "viz"}
 
 # Folders that support .dump (print newest/named text file to terminal)
-_DUMPABLE = {"cap", "prof", "scripts", "proto", "plugins", "viz"}
+_DUMPABLE = {"cap", "prof", "run", "proto", "plugin", "viz"}
 
 
 def _names(directory: Path, pattern: str) -> list[str]:
@@ -205,9 +205,9 @@ def _build_tree(config_path: str, sections: list[tuple[str, list[str]]],
 
     if global_names:
         plain_lines.append("")
-        plain_lines.append("plugins/ (global)")
+        plain_lines.append("plugin/ (global)")
         color_lines.append("")
-        color_lines.append(f"[{_DIR}]plugins/ (global)[/]")
+        color_lines.append(f"[{_DIR}]plugin/ (global)[/]")
         for i, fname in enumerate(global_names):
             connector = "└── " if i == len(global_names) - 1 else "├── "
             plain_lines.append(f"{connector}{fname}")

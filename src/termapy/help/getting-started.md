@@ -53,12 +53,12 @@ termapy_cfg/
 │   ├── iot_device.log         # session log
 │   ├── .cmd_history.txt       # command history
 │   ├── ss/                    # screenshots
-│   ├── scripts/               # script files
+│   ├── run/                   # script files
 │   ├── proto/                 # protocol test scripts (.pro)
 │   ├── cap/                   # data capture output files
 │   ├── viz/                   # per-config packet visualizers
-│   └── plugins/               # per-config plugins
-└── plugins/                   # global plugins (all configs)
+│   └── plugin/                # per-config plugins
+└── plugin/                    # global plugins (all configs)
 ```
 
 ## Title Bar

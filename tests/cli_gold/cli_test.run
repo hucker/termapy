@@ -68,7 +68,7 @@ $(PORT_NUM) = 42
 
 # ── REPL: config folder listings ────────────────────────────────────────────
 /print === section: config folders ===
-/cfg.scripts
+/cfg.run
 /cfg.proto
 
 # ── REPL: port control - read all properties ────────────────────────────────

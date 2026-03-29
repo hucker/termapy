@@ -1,10 +1,10 @@
 """Built-in plugin: open project files in the system editor.
 
-Provides a uniform /edit tree for all file types: scripts, proto,
-plugins, config, log, and info report. Each folder type gets the
+Provides a uniform /edit tree for all file types: run, proto,
+plugin, config, log, and info report. Each folder type gets the
 same subcommands: edit by name, list files, open folder.
 
-In the TUI, hooks override /edit, /edit.cfg, /edit.scripts, and
+In the TUI, hooks override /edit, /edit.cfg, /edit.run, and
 /edit.proto to use Textual modal editors. Everything else (list,
 explore, log, info) works the same in both frontends via ctx.open_file().
 """
@@ -28,10 +28,10 @@ if TYPE_CHECKING:
 def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
     """Resolve a filename to a project file path.
 
-    Checks scripts/, proto/, plugins/ dirs by prefix or extension.
+    Checks run/, proto/, plugin/ dirs by prefix or extension.
     """
     dir_map = {
-        "scripts": (ctx.scripts_dir, ".run"),
+        "run": (ctx.scripts_dir, ".run"),
         "proto": (ctx.proto_dir, ".pro"),
     }
     parts = Path(name).parts
@@ -42,7 +42,7 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
             return path if path.exists() else None
 
     ext = Path(name).suffix.lower()
-    ext_map = {".run": ctx.scripts_dir, ".pro": ctx.proto_dir, ".py": ctx.scripts_dir.parent / "plugins"}
+    ext_map = {".run": ctx.scripts_dir, ".pro": ctx.proto_dir, ".py": ctx.scripts_dir.parent / "plugin"}
     base = ext_map.get(ext)
     if base:
         path = base / name
@@ -168,14 +168,14 @@ COMMAND = Command(
     help="Open a project file in the system editor.",
     handler=_handler_root,
     sub_commands={
-        "scripts": _build_folder_sub(
+        "run": _build_folder_sub(
             lambda ctx: ctx.scripts_dir, ".run", "*.run",
         ),
         "proto": _build_folder_sub(
             lambda ctx: ctx.proto_dir, ".pro", "*.pro",
         ),
-        "plugins": _build_folder_sub(
-            lambda ctx: Path(ctx.config_path).parent / "plugins" if ctx.config_path else Path("."),
+        "plugin": _build_folder_sub(
+            lambda ctx: Path(ctx.config_path).parent / "plugin" if ctx.config_path else Path("."),
             ".py", "*.py",
         ),
         "cfg": Command(

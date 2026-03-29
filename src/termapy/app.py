@@ -383,8 +383,8 @@ class SerialTerminal(App):
     def _project_files(self) -> list[str]:
         """Return suggestion names for all editable project files.
 
-        Scans scripts/ (.run) and proto/ (.pro).
-        Skips ss/, plugins/, viz/, and .py files.
+        Scans run/ (.run) and proto/ (.pro).
+        Skips ss/, plugin/, viz/, and .py files.
         """
         names: list[str] = []
         for d, pattern in [
@@ -400,18 +400,18 @@ class SerialTerminal(App):
     def _resolve_project_file(self, name: str) -> Path | None:
         """Resolve a user-supplied filename to an absolute path.
 
-        Handles prefixed paths (scripts/foo.run, proto/bar.pro).
+        Handles prefixed paths (run/foo.run, proto/bar.pro).
         Falls back to extension-based lookup for bare filenames.
 
         Args:
-            name: User input (e.g. "scripts/demo.run", "test.pro").
+            name: User input (e.g. "run/demo.run", "test.pro").
 
         Returns:
             Resolved Path, or None if not found.
         """
-        # Prefixed path: "scripts/foo.run" or "proto/bar.pro"
+        # Prefixed path: "run/foo.run" or "proto/bar.pro"
         dir_map = {
-            "scripts": self.repl.scripts_dir,
+            "run": self.repl.scripts_dir,
             "proto": self.repl.proto_dir,
         }
         parts = Path(name).parts
@@ -783,13 +783,13 @@ class SerialTerminal(App):
             _make_edit_handler, _make_list_handler, _make_explore_handler,
         )
         for folder, get_dir, ext, pat in (
-            ("scripts", lambda ctx: ctx.scripts_dir, ".run", "*.run"),
+            ("run", lambda ctx: ctx.scripts_dir, ".run", "*.run"),
             ("proto", lambda ctx: ctx.proto_dir, ".pro", "*.pro"),
-            ("plugins", lambda ctx: Path(ctx.config_path).parent / "plugins"
+            ("plugin", lambda ctx: Path(ctx.config_path).parent / "plugin"
              if ctx.config_path else Path("."), ".py", "*.py"),
         ):
-            # TUI uses Textual modals for scripts and proto edit
-            if folder in ("scripts", "proto"):
+            # TUI uses Textual modals for run and proto edit
+            if folder in ("run", "proto"):
                 self.repl.register_hook(
                     f"edit.{folder}", "{{filename}}",
                     f"Edit a {ext} file.",
@@ -2544,7 +2544,7 @@ class SerialTerminal(App):
             return CmdResult.fail(msg=f"Usage: /edit.{folder} <filename>")
         if not name.endswith(ext):
             name += ext
-        dir_map = {"scripts": self.repl.scripts_dir, "proto": self.repl.proto_dir}
+        dir_map = {"run": self.repl.scripts_dir, "proto": self.repl.proto_dir}
         base = dir_map.get(folder)
         if not base:
             return CmdResult.fail(msg=f"Unknown folder: {folder}")
@@ -2725,10 +2725,10 @@ class SerialTerminal(App):
         return CmdResult.ok()
 
     def _hook_run_list(self, ctx, args: str) -> CmdResult:
-        """List .run files in the scripts/ directory."""
+        """List .run files in the run/ directory."""
         d = self.repl.scripts_dir
         if not d.exists():
-            self.repl.write("  (no scripts/ directory)", "dim")
+            self.repl.write("  (no run/ directory)", "dim")
             return CmdResult.ok()
         files = sorted(d.glob("*.run"))
         if not files:

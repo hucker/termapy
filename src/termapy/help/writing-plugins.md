@@ -1,7 +1,7 @@
 # Writing Plugins
 
 Plugins are `.py` files that add REPL commands. Drop a file into a
-`plugins/` folder and it loads automatically — no compilation, no
+`plugin/` folder and it loads automatically — no compilation, no
 registration, no restart.
 
 ## Quick Start: Copy and Modify
@@ -11,11 +11,11 @@ The fastest way to write a plugin is to copy an existing one:
 1. Copy `probe.py` from the demo plugins folder
 2. Rename it to `your_plugin.py`
 3. Change the command name, help text, and handler logic
-4. Drop it into `termapy_cfg/plugins/` (all configs) or `termapy_cfg/<config>/plugins/` (one config)
+4. Drop it into `termapy_cfg/plugin/` (all configs) or `termapy_cfg/<config>/plugin/` (one config)
 
 ## How Plugins Work
 
-When `termapy` starts, it scans the `plugins/` folders for `.py` files.
+When `termapy` starts, it scans the `plugin/` folders for `.py` files.
 Each file is imported and checked for a `COMMAND` object at module level.
 If found, that command is registered in the REPL — users can invoke it
 by typing its name with the command prefix (e.g. `/hello`).

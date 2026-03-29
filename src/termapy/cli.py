@@ -259,13 +259,13 @@ class CLITerminal:
         from termapy.scripting import CmdResult
         script = args.strip()
         if not script:
-            scripts_dir = Path(self.config_path).parent / "scripts"
+            scripts_dir = Path(self.config_path).parent / "run"
             if not scripts_dir.is_dir():
-                self.status("No scripts/ directory found.")
+                self.status("No run/ directory found.")
                 return CmdResult.ok()
             files = sorted(scripts_dir.glob("*.run"))
             if not files:
-                self.status("No .run files found in scripts/")
+                self.status("No .run files found in run/")
                 return CmdResult.ok()
             self.status("Available scripts:")
             for f in files:
@@ -461,7 +461,7 @@ class CLITerminal:
         """Set up readline tab completion for commands and script files."""
         if not readline:
             return
-        scripts_dir = Path(self.config_path).parent / "scripts"
+        scripts_dir = Path(self.config_path).parent / "run"
         file_cmds = (f"{self.prefix}run ", f"{self.prefix}run.edit ")
         repl = self.repl
         prefix = self.prefix
@@ -536,7 +536,7 @@ class CLITerminal:
         """Execute a .run script and exit."""
         script_path = Path(self.run_script)
         if not script_path.exists():
-            scripts_dir = Path(self.config_path).parent / "scripts"
+            scripts_dir = Path(self.config_path).parent / "run"
             alt = scripts_dir / script_path.name
             if alt.exists():
                 script_path = alt

@@ -158,7 +158,7 @@ The most common ones:
 | `/ss.dir`                        | Show the screenshot folder                                                       |
 | `/cls`                           | Clear the terminal screen                                                        |
 | `/run <filename> {-v}`           | Run a script file (-v/--verbose for per-line timing); nests up to 5 levels deep  |
-| `/run.list`                      | List .run files in the scripts/ directory                                        |
+| `/run.list`                      | List .run files in the run/ directory                                            |
 | `/run.load <filename>`           | Run a script file (same as /run)                                                 |
 | `/delay <duration>`              | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
 | `/confirm {message}`             | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)        |
@@ -171,7 +171,7 @@ The most common ones:
 | `/show.cfg`                      | Show the current config file                                                     |
 | `/echo [on \| off]`              | Toggle REPL command echo                                                         |
 | `/echo.quiet <on \| off>`        | Set echo on/off silently (for scripts and on_connect_cmd)                        |
-| `/edit <file>`                   | Edit a project file (`scripts/`/`proto/` path)                                   |
+| `/edit <file>`                   | Edit a project file (`run/`/`proto/` path)                                       |
 | `/edit.cfg`                      | Edit the current config file                                                     |
 | `/edit.log`                      | Open the session log in the system viewer                                        |
 | `/edit.info`                     | Open the info report in the system viewer                                        |
@@ -218,17 +218,17 @@ Everything termapy creates — configs, scripts, test files, plugins, logs — l
 
 ```text
 termapy_cfg/
-├── plugins/                            # global plugins (all configs)
+├── plugin/                             # global plugins (all configs)
 └── demo/
     ├── demo.cfg                        # config file
     ├── demo.log                        # session log
     ├── .cmd_history.txt                # command history
     ├── ss/                             # screenshots
-    ├── scripts/                        # script files for /run
+    ├── run/                            # script files for /run
     │   ├── at_demo.run
     │   ├── smoke_test.run
     │   └── status_check.run
-    ├── plugins/                        # per-config plugins
+    ├── plugin/                         # per-config plugins
     │   └── probe.py
     ├── cap/                            # data capture output files
     └── proto/                          # protocol test scripts
@@ -850,7 +850,7 @@ Passing a `.run` file to `--cli` automatically infers the config from the file's
 Add custom REPL commands by dropping a `.py` file in a plugin folder. No classes to subclass, no registration:
 
 ```python
-# hello.py — drop into termapy_cfg/plugins/ or termapy_cfg/<config>/plugins/
+# hello.py — drop into termapy_cfg/plugin/ or termapy_cfg/<config>/plugin/
 from termapy.plugins import Command, PluginContext
 
 def _handler(ctx: PluginContext, args: str):
@@ -869,8 +869,8 @@ COMMAND = Command(
 **Plugin locations** (loaded in order, later overrides earlier):
 
 1. **Built-in** — shipped with termapy, always available
-2. **Global** — `termapy_cfg/plugins/*.py`, shared across all configs
-3. **Per-config** — `termapy_cfg/<name>/plugins/*.py`, specific to one config
+2. **Global** — `termapy_cfg/plugin/*.py`, shared across all configs
+3. **Per-config** — `termapy_cfg/<name>/plugin/*.py`, specific to one config
 4. **App hooks** — frontend-specific commands (`/ss`, `/delay`, `/run`, etc.)
 
 <details>

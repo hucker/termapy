@@ -628,7 +628,7 @@ def _make_engine(tmp_path):
     cfg_dir.mkdir()
     cfg_path = cfg_dir / "test.cfg"
     cfg_path.write_text(json.dumps({"config_version": 8}))
-    for sub in ("plugins", "ss", "scripts"):
+    for sub in ("plugin", "ss", "run"):
         (cfg_dir / sub).mkdir()
     output = []
     engine = ReplEngine(

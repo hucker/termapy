@@ -811,7 +811,7 @@ class ReplEngine:
     def scripts_dir(self) -> Path:
         """Scripts directory, derived from config_path."""
         if self.config_path:
-            return Path(self.config_path).parent / "scripts"
+            return Path(self.config_path).parent / "run"
         return Path(".")
 
     @property

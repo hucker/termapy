@@ -32,7 +32,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/ss.dir`                 | Show the screenshot folder                                                  |
 | `/cls`                    | Clear the terminal                                                          |
 | `/run <file> {-v}`        | Run a script file (-v/--verbose for per-line timing)                        |
-| `/run.list`               | List .run files in the scripts/ directory                                   |
+| `/run.list`               | List .run files in the run/ directory                                       |
 | `/run.load <file>`        | Run a script file (same as /run)                                            |
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
 | `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                       |
@@ -48,7 +48,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive)                      |
 | `/show_line_endings {on\|off}` | Toggle visible `\r` `\n` markers in serial output                      |
-| `/edit <file>`            | Edit a project file (`scripts/`/`proto/` path)                              |
+| `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.log`               | Open the session log in the system viewer                                   |
 | `/edit.info`              | Open the info report in the system viewer                                   |

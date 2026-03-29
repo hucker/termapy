@@ -10,7 +10,7 @@ The script picker has four actions:
 
 The script editor provides syntax highlighting (bash-style) for comments
 and a name field. Scripts are saved with a `.run` extension in the per-config
-`scripts/` folder.
+`run/` folder.
 
 ## Script File Format
 

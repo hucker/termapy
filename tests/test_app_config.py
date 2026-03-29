@@ -34,7 +34,7 @@ class TestCfgDataDir:
 
         # Assert
         assert actual == config_path.parent  # returns parent directory
-        for sub in ("plugins", "ss", "scripts"):
+        for sub in ("plugin", "ss", "run"):
             assert (actual / sub).is_dir()  # all subdirs created
 
     def test_idempotent(self, tmp_path):
@@ -58,7 +58,7 @@ class TestCfgDataDir:
 
         # Assert
         assert actual.exists()  # parent dir created
-        assert (actual / "plugins").is_dir()  # subdirs created
+        assert (actual / "plugin").is_dir()  # subdirs created
 
 
 # -- cfg helper functions ---------------------------------------------------
@@ -86,7 +86,7 @@ class TestCfgHelpers:
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_plugins_dir(str(config_path))
-        assert actual.name == "plugins"  # correct subdir name
+        assert actual.name == "plugin"  # correct subdir name
         assert actual.is_dir()  # directory created
 
 

@@ -82,7 +82,8 @@ def port_info(cfg: dict, ser: Any | None) -> Result:
     if connected:
         try:
             for name in ("dtr", "rts", "cts", "dsr", "ri", "cd"):
-                msgs.append(_msg(f"  {name.upper()}:          {int(getattr(ser, name))}"))
+                label = f"{name.upper()}:"
+                msgs.append(_msg(f"  {label:<14s}{int(getattr(ser, name))}"))
         except OSError:
             pass
     return _result(msgs)

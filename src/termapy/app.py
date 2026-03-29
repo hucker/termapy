@@ -926,10 +926,12 @@ class SerialTerminal(App):
                 self._auto_reconnect()
             return False
 
-        from termapy.config import connection_string
+        from termapy.config import connection_string, hardware_signals
         conn = connection_string(self.cfg)
-        self.notify(f"Connected: {conn}", timeout=0.75)
-        self._status(f"Connected: {conn}", "green")
+        hw = hardware_signals(self.ser)
+        full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
+        self.notify(full, timeout=0.75)
+        self._status(full, "green")
         self._set_conn_status("Connected")
         inp = self.query_one("#cmd", Input)
         inp.placeholder = "REPL:type command, Enter to send"

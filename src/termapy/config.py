@@ -125,6 +125,26 @@ def connection_string(cfg: dict, level: str = "medium") -> str:
     return f"{base} {enc} {le}"
 
 
+def hardware_signals(port_obj: object) -> str:
+    """Format hardware signal states from a serial port object.
+
+    Args:
+        port_obj: Serial port object (Serial or FakeSerial).
+
+    Returns:
+        String like "DTR=1 RTS=1 CTS=0 DSR=0 RI=0 CD=0", or empty if unavailable.
+    """
+    try:
+        parts = []
+        for name, attr in [("DTR", "dtr"), ("RTS", "rts"),
+                           ("CTS", "cts"), ("DSR", "dsr"),
+                           ("RI", "ri"), ("CD", "cd")]:
+            parts.append(f"{name}={int(getattr(port_obj, attr, 0))}")
+        return " ".join(parts)
+    except (OSError, Exception):
+        return ""
+
+
 def cfg_log_path(config_path: str) -> str:
     """Return the default log file path for a config."""
     name = Path(config_path).stem + ".log"

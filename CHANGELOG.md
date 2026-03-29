@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.35.0 (2026-03-29)
+
+### New Features
+
+- **`CmdResult` dataclass** -- all plugin/hook handlers return structured success/failure with error messages and elapsed time
+- **`/ping` built-in command** -- measure serial response time with `serial_io` for accurate first-byte timing
+- **`/ping.quiet`** -- suppresses device response output
+- **`/run.profile` in CLI mode** -- script profiling now works in both TUI and CLI
+- **`/expect` keyword syntax** -- `match=`, `timeout=`, `quiet=on` keywords; `parse_keywords()` shared utility
+- **`/expect.regex`** -- regex pattern matching in scripts
+- **`ctx.serial_send()`** -- send text with configured line ending and encoding
+- **`ctx.serial_wait_for_data()`** -- wait for first byte from device
+- **`parse_keywords()`** -- shared keyword argument parser in `scripting.py` with space normalization
+
+### Improvements
+
+- **Centralized error display** -- `dispatch()` handles all error messages in red; handlers just return `CmdResult.fail()`
+- **`dispatch()` returns `CmdResult`** -- callers can detect command success/failure and read elapsed time
+- **Profiler uses `CmdResult.elapsed_s`** -- timing from dispatch when available, local fallback for TUI
+- **`call_from_thread` returns results** -- TUI dispatch now propagates `CmdResult` back to script thread
+- **`serial_claim`/`serial_release` wired in CLI** -- `serial_io()` works in CLI mode
+- **REPL command echo in cyan** -- was red, now cyan; red reserved for errors
+- **Script `wait_for_idle`** -- replaces fixed 100ms sleep between commands, adapts to device response time
+- **CLI lambda param names** -- consistent with `PluginContext` signatures
+
+### Bug Fixes
+
+- **CLI gold test flaky TEXTDUMP** -- `wait_for_idle` fixes race condition with multi-line responses
+
 ## 0.34.0 (2026-03-28)
 
 ### New Features

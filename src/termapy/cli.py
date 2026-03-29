@@ -143,16 +143,25 @@ class CLITerminal:
                 self.engine.serial_port.write(data)
                 if self.engine.serial_port else None
             ),
-            serial_read_raw=lambda t=1000, g=50: (
-                self.engine.serial_port.read_raw(t, g)
+            serial_send=lambda text: (
+                self.engine.serial_port.write(
+                    (text + self.cfg.get("line_ending", "\r"))
+                    .encode(self.cfg.get("encoding", "utf-8"))
+                )
+                if self.engine.serial_port else None
+            ),
+            serial_read_raw=lambda timeout_ms=1000, frame_gap_ms=50: (
+                self.engine.serial_port.read_raw(timeout_ms, frame_gap_ms)
                 if self.engine.serial_port else b""
             ),
             serial_drain=lambda: (
                 self.engine.serial_port.drain()
                 if self.engine.serial_port else 0
             ),
-            serial_wait_idle=lambda t=100, m=3.0: (
-                self.engine.serial_port.wait_for_idle(t, m)
+            serial_claim=lambda: setattr(self.engine, "proto_active", True),
+            serial_release=lambda: setattr(self.engine, "proto_active", False),
+            serial_wait_idle=lambda timeout_ms=200, max_wait_s=3.0: (
+                self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
                 if self.engine.serial_port else None
             ),
             dispatch=lambda cmd: self._dispatch(cmd),

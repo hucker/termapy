@@ -18,7 +18,7 @@ from termapy.plugins import (
     DirectiveInfo, DirectiveResult, PluginContext, PluginInfo, TransformInfo,
     builtins_dir, load_plugins_from_dir,
 )
-from termapy.scripting import expand_template, parse_duration
+from termapy.scripting import expand_template, parse_duration, parse_keywords
 
 
 class ReplEngine:
@@ -646,34 +646,33 @@ class ReplEngine:
                             profile_times.append((stripped, elapsed))
                             prof_fh.write(f"{elapsed:.6f},{stripped}\n")
                         continue
-                    if name.lower() in ("expect", "expect.quiet"):
-                        quiet = name.lower() == "expect.quiet"
+                    if name.lower() in ("expect", "expect.regex"):
+                        use_regex = name.lower() == "expect.regex"
                         self.ctx.log(">", stripped)
-                        # /expect {timeout} <pattern>
-                        # Timeout is optional first arg; pattern is rest of line.
-                        expect_args = args.strip()
-                        parts = expect_args.split(None, 1)
-                        if not parts:
-                            w("Expect: missing pattern", "red")
-                            break
-                        # Try first token as duration; if it fails, it's the pattern
-                        try:
-                            timeout = parse_duration(parts[0])
-                            pattern = parts[1] if len(parts) > 1 else ""
-                            timeout_str = parts[0]
-                        except ValueError:
-                            timeout = 5.0
-                            pattern = expect_args
-                            timeout_str = "5s"
-                        if not pattern:
-                            w("Expect: missing pattern", "red")
-                            break
-                        t0 = time.perf_counter()
-                        # Arms watcher, scans buffer, then blocks
-                        match = self.wait_for_match(
-                            lambda line, p=pattern: p in line,
-                            timeout=timeout,
+                        # /expect match=<pattern> {timeout=<dur>} {quiet=on}
+                        # /expect.regex match=<pattern> {timeout=<dur>} {quiet=on}
+                        kw = parse_keywords(
+                            args, {"timeout", "quiet", "match"},
+                            rest_keyword="match",
                         )
+                        pattern = kw.get("match", "").strip()
+                        if not pattern:
+                            w("Expect: missing match= keyword", "red")
+                            break
+                        try:
+                            timeout_s = parse_duration(kw["timeout"]) if "timeout" in kw else 0.25
+                        except ValueError as e:
+                            w(f"Expect: {e}", "red")
+                            break
+                        quiet = kw.get("quiet", "").lower() == "on"
+                        timeout_str = kw.get("timeout", "250ms")
+                        t0 = time.perf_counter()
+                        if use_regex:
+                            import re as _re
+                            predicate = lambda line, p=pattern: bool(_re.search(p, line))
+                        else:
+                            predicate = lambda line, p=pattern: p in line
+                        match = self.wait_for_match(predicate, timeout=timeout_s)
                         if self._script_stop.is_set():
                             w("Script stopped.")
                             break
@@ -711,7 +710,13 @@ class ReplEngine:
                     label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
                     profile_times.append((label, elapsed))
                     prof_fh.write(f"{elapsed:.6f},{label}\n")
-                time.sleep(0.1)
+                # Wait for device to finish responding before next command.
+                # serial_wait_idle adapts to actual response time; the fixed
+                # sleep is a fallback when not connected.
+                try:
+                    self.ctx.serial_wait_idle()
+                except Exception:
+                    time.sleep(0.1)
             else:
                 if verbose:
                     script_elapsed = time.perf_counter() - script_t0

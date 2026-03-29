@@ -311,6 +311,7 @@ class PluginContext:
     is_connected: Callable = lambda: False
     serial_write: Callable = lambda data: None
     serial_send: Callable = lambda text: None  # send text with configured line ending + encoding
+    serial_wait_for_data: Callable = lambda timeout_ms=250: False  # wait for first byte
     serial_wait_idle: Callable = lambda timeout_ms=400: None
     serial_read_raw: Callable = lambda timeout_ms=1000, frame_gap_ms=0: b""
     serial_drain: Callable = lambda: 0

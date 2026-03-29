@@ -114,6 +114,28 @@ class SerialPort:
                 break
         return count
 
+    def wait_for_data(self, timeout_ms: int = 250) -> bool:
+        """Wait until at least one byte arrives, or timeout expires.
+
+        Checks the rx_queue (not the raw port) because the background
+        reader thread drains in_waiting continuously — by the time we
+        check, the bytes are already in the queue.
+
+        Args:
+            timeout_ms: Maximum time to wait (milliseconds).
+
+        Returns:
+            True if data arrived, False on timeout.
+        """
+        deadline = time.monotonic() + timeout_ms / 1000.0
+        while time.monotonic() < deadline:
+            if not self.is_open:
+                return False
+            if not self._rx_queue.empty():
+                return True
+            time.sleep(0.005)
+        return False
+
     def wait_for_idle(self, timeout_ms: int = 100, max_wait_s: float = 3.0) -> None:
         """Wait until no serial data arrives for timeout_ms, or max_wait_s elapses.
 

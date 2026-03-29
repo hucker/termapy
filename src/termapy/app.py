@@ -614,6 +614,10 @@ class SerialTerminal(App):
             is_connected=lambda: self.is_connected,
             serial_write=self._serial_write,
             serial_send=self._serial_send,
+            serial_wait_for_data=lambda timeout_ms=250: (
+                self._engine.serial_port.wait_for_data(timeout_ms)
+                if self._engine.serial_port else False
+            ),
             serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
             serial_read_raw=self._serial_read_raw,
             serial_drain=self._drain_rx_queue,

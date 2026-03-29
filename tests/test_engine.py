@@ -652,3 +652,96 @@ class TestDispatchFull:
 
         # Assert — echo.quiet commands should not be echoed even with echo on
         assert not any("echo.quiet" in t for t in echoed)  # suppressed
+
+
+# ── wait_for_match / feed_lines ──────────────────────────────────
+
+
+class TestWaitForMatch:
+    def test_immediate_from_buffer(self, engine):
+        """Match found in recent_lines buffer returns immediately."""
+        # Arrange
+        eng, _ = engine
+        eng._recent_lines.append("OK")
+
+        # Act
+        actual = eng.wait_for_match(lambda line: "OK" in line, timeout=0.05)
+
+        # Assert
+        assert actual == "OK"  # found in buffer
+
+    def test_timeout_returns_none(self, engine):
+        """No match within timeout returns None."""
+        # Arrange
+        eng, _ = engine
+
+        # Act
+        actual = eng.wait_for_match(lambda line: "NOPE" in line, timeout=0.05)
+
+        # Assert
+        assert actual is None  # timed out
+
+    def test_match_via_feed_lines(self, engine):
+        """Match found via feed_lines from another thread."""
+        import threading
+
+        # Arrange
+        eng, _ = engine
+        result = [None]
+
+        def wait():
+            result[0] = eng.wait_for_match(lambda line: "OK" in line, timeout=2.0)
+
+        # Act
+        t = threading.Thread(target=wait)
+        t.start()
+        import time
+        time.sleep(0.05)  # let wait_for_match install predicate
+        eng.feed_lines(["OK"])
+        t.join(timeout=2.0)
+
+        # Assert
+        assert result[0] == "OK"  # matched via feed_lines
+
+    def test_regex_predicate(self, engine):
+        """Regex predicate matches correctly."""
+        import re
+
+        # Arrange
+        eng, _ = engine
+        eng._recent_lines.append("+TEMP: 23.5C")
+
+        # Act
+        actual = eng.wait_for_match(
+            lambda line: bool(re.search(r"\d+\.\d+C", line)), timeout=0.05
+        )
+
+        # Assert
+        assert actual == "+TEMP: 23.5C"  # regex matched
+
+
+class TestFeedLines:
+    def test_strips_ansi(self, engine):
+        """Feed lines strips ANSI escape codes before buffering."""
+        # Arrange
+        eng, _ = engine
+
+        # Act
+        eng.feed_lines(["\x1b[32mOK\x1b[0m"])
+
+        # Assert
+        actual = list(eng._recent_lines)
+        assert actual == ["OK"]  # ANSI stripped
+
+    def test_buffers_without_predicate(self, engine):
+        """Lines are buffered even when no predicate is active."""
+        # Arrange
+        eng, _ = engine
+        assert eng._expect_predicate is None  # no predicate
+
+        # Act
+        eng.feed_lines(["line1", "line2"])
+
+        # Assert
+        actual = list(eng._recent_lines)
+        assert actual == ["line1", "line2"]  # buffered

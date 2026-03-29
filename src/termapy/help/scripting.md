@@ -25,20 +25,25 @@ and a name field. Scripts are saved with a `.run` extension in the per-config
 | Command | Description |
 |---------|-------------|
 | `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`) |
-| `/expect {timeout} <pattern>` | Wait for serial output containing pattern (default 5s). Shows green on match, red on timeout. Aborts script on timeout. |
-| `/expect.quiet {timeout} <pattern>` | Same as `/expect` but silent on success. |
+| `/expect match=<pattern> {timeout=<dur>} {quiet=on}` | Wait for serial line containing pattern (default 250ms). Aborts on timeout. |
+| `/expect.regex match=<pattern> {timeout=<dur>} {quiet=on}` | Same but pattern is a regex. |
 | `/confirm {message}` | Show Yes/Cancel dialog. Cancelling stops the script. |
 | `/run <script>` | Run a nested script (max 5 levels deep) |
 | `/run.profile <script>` | Run nested script with per-command timing |
 
+Keywords use `key=value` syntax (spaces around `=` are OK). `match=` must be
+last -- everything after it is the pattern.
+
 ## Example Script
 
 ```text
-# smoke_test.run — quick device check
+# smoke_test.run -- quick device check
 AT
-/expect 2s OK
+/expect match=OK
 AT+INFO
-/delay 500ms
+/expect timeout=2s match=Bassomatic
+AT+TEMP
+/expect.regex timeout=2s match=\d+\.\d+C
 AT+STATUS
 /ss.svg smoke_{seq1+}
 ```

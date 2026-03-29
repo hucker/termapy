@@ -1,12 +1,16 @@
 # Expect command test
-# Test 1: AT returns OK — should match
+# Test 1: AT returns OK -- should match
 AT
-/expect 2s OK
+/expect match=OK
 
-# Test 2: AT+INFO returns Bassomatic — should match
+# Test 2: AT+INFO returns Bassomatic -- should match
 AT+INFO
-/expect 2s Bassomatic
+/expect timeout=2s match=Bassomatic
 
-# Test 3: AT returns OK, not NOPE — should timeout and abort
+# Test 3: regex match on temperature
+AT+TEMP
+/expect.regex timeout=2s match=\d+\.\d+C
+
+# Test 4: should timeout and abort
 AT
-/expect 2s NOPE
+/expect timeout=2s match=NOPE

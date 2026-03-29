@@ -8,6 +8,7 @@ import pytest
 from termapy.scripting import (
     expand_template,
     parse_duration,
+    parse_keywords,
     resolve_seq_filename,
 )
 
@@ -261,3 +262,90 @@ class TestResolveSeqFilename:
         # Assert
         assert actual == "f_00.txt"  # works
         assert subdir.exists()  # directory created
+
+
+# ── parse_keywords ──────────────────────────────────────────────
+
+
+class TestParseKeywords:
+    def test_basic(self):
+        # Act
+        actual = parse_keywords("timeout=2s match=OK", {"timeout", "match"}, rest_keyword="match")
+
+        # Assert
+        assert actual["timeout"] == "2s"  # keyword extracted
+        assert actual["match"] == "OK"  # rest keyword extracted
+
+    def test_rest_keyword_consumes_to_eol(self):
+        # Act
+        actual = parse_keywords(
+            "timeout=2s match=hello world", {"timeout", "match"}, rest_keyword="match"
+        )
+
+        # Assert
+        assert actual["match"] == "hello world"  # everything after match=
+        assert actual["timeout"] == "2s"  # keyword before rest
+
+    def test_spaces_around_equals(self):
+        # Act
+        actual = parse_keywords(
+            "timeout = 2s match = OK", {"timeout", "match"}, rest_keyword="match"
+        )
+
+        # Assert
+        assert actual["timeout"] == "2s"  # normalized despite spaces
+        assert actual["match"] == "OK"  # normalized despite spaces
+
+    def test_no_keywords_gives_positional(self):
+        # Act
+        actual = parse_keywords("just positional", {"timeout"})
+
+        # Assert
+        assert actual["_positional"] == "just positional"  # no keywords matched
+
+    def test_unknown_keyword_goes_to_positional(self):
+        # Act
+        actual = parse_keywords("foo=bar match=OK", {"match"}, rest_keyword="match")
+
+        # Assert
+        assert actual["match"] == "OK"  # recognized keyword
+        assert actual["_positional"] == "foo=bar"  # unrecognized → positional
+
+    def test_missing_rest_keyword(self):
+        # Act
+        actual = parse_keywords("timeout=2s", {"timeout", "match"}, rest_keyword="match")
+
+        # Assert
+        assert "match" not in actual  # rest keyword absent
+        assert actual["timeout"] == "2s"  # other keyword present
+
+    def test_case_insensitive(self):
+        # Act
+        actual = parse_keywords("Timeout=2s Match=OK", {"timeout", "match"}, rest_keyword="match")
+
+        # Assert
+        assert actual["timeout"] == "2s"  # case-insensitive match
+        assert actual["match"] == "OK"  # case-insensitive match
+
+    def test_only_rest_keyword(self):
+        # Act
+        actual = parse_keywords("match=device is ready", {"match"}, rest_keyword="match")
+
+        # Assert
+        assert actual["match"] == "device is ready"  # rest keyword only
+
+    def test_empty_string(self):
+        # Act
+        actual = parse_keywords("", {"timeout", "match"}, rest_keyword="match")
+
+        # Assert
+        assert "match" not in actual  # nothing parsed
+        assert "timeout" not in actual  # nothing parsed
+
+    def test_no_rest_keyword_specified(self):
+        # Act
+        actual = parse_keywords("timeout=2s quiet=on", {"timeout", "quiet"})
+
+        # Assert
+        assert actual["timeout"] == "2s"  # keyword extracted
+        assert actual["quiet"] == "on"  # keyword extracted

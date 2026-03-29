@@ -74,6 +74,68 @@ def parse_duration(text: str) -> float:
     return value / 1000.0 if unit == "ms" else value
 
 
+# ── Keyword argument parsing ──────────────────────────────────────────────────
+
+_KW_NORMALIZE_RE = re.compile(r"(\w+)\s*=\s*")
+
+
+def parse_keywords(
+    text: str,
+    keywords: set[str],
+    rest_keyword: str = "",
+) -> dict[str, str]:
+    """Parse key=value pairs from a command argument string.
+
+    Handles spaces around ``=`` by normalizing ``key = value`` to
+    ``key=value`` before parsing.  Unrecognized tokens accumulate
+    under the ``_positional`` key.
+
+    Args:
+        text: Raw argument string
+            (e.g. ``"timeout=2s quiet=on match=hello world"``).
+        keywords: Set of recognized keyword names
+            (e.g. ``{"timeout", "quiet", "match"}``).
+        rest_keyword: If set, this keyword consumes everything to end
+            of line.  Must appear last in the input (e.g. ``"match"``
+            or ``"cmd"``).
+
+    Returns:
+        Dict mapping keyword name to value string.  Unrecognized tokens
+        go under ``"_positional"``.  Missing keywords are absent.
+    """
+    # Normalize "key = value" and "key =value" to "key=value"
+    text = _KW_NORMALIZE_RE.sub(r"\1=", text)
+
+    result: dict[str, str] = {}
+
+    # Extract rest_keyword first — it consumes everything after it
+    if rest_keyword:
+        rk_lower = rest_keyword.lower() + "="
+        text_lower = text.lower()
+        idx = text_lower.find(rk_lower)
+        if idx != -1:
+            result[rest_keyword.lower()] = text[idx + len(rk_lower):].strip()
+            text = text[:idx]
+
+    # Parse remaining tokens
+    positional_parts: list[str] = []
+    kw_lower = {k.lower() for k in keywords} - ({rest_keyword.lower()} if rest_keyword else set())
+    for tok in text.split():
+        matched = False
+        for kw in kw_lower:
+            if tok.lower().startswith(kw + "="):
+                result[kw] = tok.split("=", 1)[1]
+                matched = True
+                break
+        if not matched:
+            positional_parts.append(tok)
+
+    if positional_parts:
+        result["_positional"] = " ".join(positional_parts)
+
+    return result
+
+
 # ── Sequence-numbered filenames ───────────────────────────────────────────────
 
 _SEQ_RE = re.compile(r"\$\(n(0+)\)")

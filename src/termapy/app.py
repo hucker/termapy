@@ -575,6 +575,8 @@ class SerialTerminal(App):
         self.query_one("#output", RichLog).styles.border = ("solid", color)
 
     def on_mount(self) -> None:
+        from termapy.builtins.plugins.var import set_launch_var
+        set_launch_var("FRONT_END", "textual")
         self._apply_border_color()
         # Build plugin context - the stable API for all plugins
         engine = EngineAPI(
@@ -1218,9 +1220,8 @@ class SerialTerminal(App):
             self.repl.register_directive(directive)
             loaded.append(f"@{directive.name}")
         if loaded:
-            self._status(
+            self.repl.ctx.status(
                 f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),
-                "dim",
             )
         for name in result.skipped:
             self._status(
@@ -1249,9 +1250,8 @@ class SerialTerminal(App):
         for name in to_remove:
             del self.repl._plugins[name]
         if to_remove:
-            self._status(
+            self.repl.ctx.status(
                 f"Unloaded {len(to_remove)} plugin(s): " + ", ".join(to_remove),
-                "dim",
             )
         self._load_and_report(
             load_plugins_from_dir(
@@ -1275,13 +1275,16 @@ class SerialTerminal(App):
     def _start_demo_async(self, force: bool) -> None:
         """Background thread for demo setup so status messages render."""
         try:
-            self.call_from_thread(self._status, "Setting up demo files...", "dim")
+            if self.repl.ctx.verbose:
+                self.call_from_thread(self._status, "Setting up demo files...", "dim")
             config_path = setup_demo_config(cfg_dir(), force=force)
 
-            self.call_from_thread(self._status, "Loading demo config...", "dim")
+            if self.repl.ctx.verbose:
+                self.call_from_thread(self._status, "Loading demo config...", "dim")
             cfg = load_config(str(config_path))
 
-            self.call_from_thread(self._status, "Switching to demo device...", "dim")
+            if self.repl.ctx.verbose:
+                self.call_from_thread(self._status, "Switching to demo device...", "dim")
             self.call_from_thread(self._switch_config, cfg, str(config_path))
 
             msg = "Switched to demo device"
@@ -2632,7 +2635,7 @@ class SerialTerminal(App):
             return CmdResult.fail(msg="No config loaded.")
         profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
         if not profs:
-            ctx.write("No profile files found.", "dim")
+            ctx.output("No profile files found.")
             return CmdResult.fail(msg="No profile files found.")
         newest = profs[-1]
         ctx.write(f"Opening {newest.name}")
@@ -2654,12 +2657,12 @@ class SerialTerminal(App):
         else:
             profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
             if not profs:
-                ctx.write("No profile files found.", "dim")
+                ctx.output("No profile files found.")
                 return CmdResult.fail(msg="No profile files found.")
             path = profs[-1]
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
-                ctx.write(line, "dim")
+                ctx.output(line)
         except OSError as e:
             ctx.write(f"Read error: {e}", "red")
             return CmdResult.fail(msg=f"Read error: {e}")
@@ -2682,11 +2685,11 @@ class SerialTerminal(App):
             ctx.write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         if not prof_dir.exists():
-            ctx.write("  (no profile files)", "dim")
+            ctx.output("  (no profile files)")
             return CmdResult.ok()
         profs = sorted(prof_dir.glob("*.csv"))
         if not profs:
-            ctx.write("  (no profile files)", "dim")
+            ctx.output("  (no profile files)")
             return CmdResult.ok()
         for f in profs:
             ctx.write(f"  {f.name}")
@@ -2728,11 +2731,11 @@ class SerialTerminal(App):
         """List .run files in the run/ directory."""
         d = self.repl.scripts_dir
         if not d.exists():
-            self.repl.write("  (no run/ directory)", "dim")
+            ctx.output("  (no run/ directory)")
             return CmdResult.ok()
         files = sorted(d.glob("*.run"))
         if not files:
-            self.repl.write("  (no .run files)", "dim")
+            ctx.output("  (no .run files)")
             return CmdResult.ok()
         for f in files:
             self.repl.write(f"  {f.name}")

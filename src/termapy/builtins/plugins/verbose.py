@@ -1,4 +1,4 @@
-"""Built-in plugin: show termapy version."""
+"""Built-in plugin: toggle verbose status output."""
 
 from __future__ import annotations
 
@@ -12,19 +12,20 @@ if TYPE_CHECKING:
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    from importlib.metadata import version
-    try:
-        ver = version("termapy")
-    except Exception:
-        ver = "unknown"
-    ver_str = f"termapy v{ver}"
-    ctx.result(ver_str)
-    return CmdResult.ok(value=ver_str)
+    val = args.strip().lower()
+    if val in ("on", "1", "true"):
+        ctx.verbose = True
+    elif val in ("off", "0", "false"):
+        ctx.verbose = False
+    state = "on" if ctx.verbose else "off"
+    ctx.result(state)
+    return CmdResult.ok(value=state)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
-    name="ver",
-    help="Show termapy version.",
+    "Show or toggle verbose status output.",
+    name="verbose",
+    args="{on|off}",
     handler=_handler,
 )

@@ -90,7 +90,13 @@ _LAUNCH_VARS: dict[str, str] = {
     "LAUNCH_DATE": _LAUNCH_TIME.strftime("%Y-%m-%d"),
     "LAUNCH_TIME": _LAUNCH_TIME.strftime("%H:%M:%S"),
     "LAUNCH_DATETIME": _LAUNCH_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+    "FRONT_END": "unknown",
 }
+
+
+def set_launch_var(name: str, value: str) -> None:
+    """Set a launch-time variable (called by app.py/cli.py at startup)."""
+    _LAUNCH_VARS[name] = value
 
 # Dynamic built-in variables - resolved at expansion time.
 _DYNAMIC_VARS: dict[str, str] = {
@@ -162,20 +168,20 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
             if fmt is not None:
                 val = datetime.now().strftime(fmt)
         if val is not None:
-            ctx.write(f"  $({name}) = {val}")
+            ctx.write_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
         else:
             ctx.write(f"  $({name}) - not defined", "red")
         return CmdResult.ok()
     if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS:
-        ctx.write("  (no variables defined)")
-        return
+        ctx.output("  (no variables defined)")
+        return CmdResult.ok()
     for k in sorted(_VARS):
-        ctx.write(f"  $({k}) = {_VARS[k]}")
+        ctx.write_markup(f"  [cyan]$({k})[/] = [green]{_VARS[k]}[/]")
     for k in sorted(_LAUNCH_VARS):
-        ctx.write(f"  $({k}) = {_LAUNCH_VARS[k]}  (launch)")
+        ctx.write_markup(f"  [cyan]$({k})[/] = [green]{_LAUNCH_VARS[k]}[/]  [dim](launch)[/]")
     now = datetime.now()
     for k, fmt in sorted(_DYNAMIC_VARS.items()):
-        ctx.write(f"  $({k}) = {now.strftime(fmt)}  (dynamic)")
+        ctx.write_markup(f"  [cyan]$({k})[/] = [green]{now.strftime(fmt)}[/]  [dim](dynamic)[/]")
     return CmdResult.ok()
 
 
@@ -195,7 +201,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
     value = parts[1]
     _VARS[name] = value
-    ctx.write(f"  $({name}) = {value}", "green")
+    ctx.write_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
     return CmdResult.ok()
 
 

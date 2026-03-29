@@ -124,11 +124,11 @@ def _make_list_handler(get_dir, pattern):
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         if not folder.is_dir():
-            ctx.write(f"  (no directory)", "dim")
+            ctx.output(f"  (no directory)")
             return CmdResult.ok()
         files = sorted(folder.glob(pattern))
         if not files:
-            ctx.write(f"  (empty)", "dim")
+            ctx.output(f"  (empty)")
             return CmdResult.ok()
         for f in files:
             ctx.write(f"  {f.name}")

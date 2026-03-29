@@ -124,6 +124,8 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="env",
+    args="{pattern}",
+    handler=_handler_list,
     help="Manage $(env.NAME) expansion for CLI commands.",
     long_help="""\
 The $(env.NAME) transform expands placeholders in REPL commands

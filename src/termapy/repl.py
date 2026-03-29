@@ -411,6 +411,8 @@ class ReplEngine:
             try:
                 t0 = time.perf_counter()
                 result = plugin.handler(self.ctx, args)
+                if result is None:
+                    result = CmdResult.ok()
                 result.elapsed_s = time.perf_counter() - t0
             except Exception as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")

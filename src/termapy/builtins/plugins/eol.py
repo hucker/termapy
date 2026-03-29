@@ -35,7 +35,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     else:
         new = not current
     ctx.engine.apply_cfg("show_line_endings", new)
-    return CmdResult.ok()
+    state = "on" if new else "off"
+    ctx.result(state)
+    return CmdResult.ok(value=state)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

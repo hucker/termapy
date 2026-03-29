@@ -37,6 +37,7 @@ DEFAULT_CFG = {
     "border_color": "",
     "max_lines": 10000,
     "cmd_prefix": "/",
+    "cli_prompt": "> ",
     "config_read_only": False,
     "os_cmd_enabled": False,
     # Serial
@@ -262,6 +263,10 @@ CFG_HELP: dict[str, tuple] = {
     "cmd_prefix": (
         "Prefix for local REPL commands.",
         "Default: /. Example: ! would make commands like !help",
+    ),
+    "cli_prompt": (
+        "Prompt string for CLI mode input.",
+        "Default: '> '",
     ),
     # Display
     "title": (

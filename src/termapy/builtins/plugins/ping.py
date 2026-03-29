@@ -43,14 +43,20 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
             if not quiet:
                 text = response.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace").strip()
                 if text:
-                    ctx.write(f"  {text}", "dim")
+                    ctx.output(f"  {text}")
         else:
             ctx.write(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
     if count > 1:
         avg = sum(times) / len(times)
         lo = min(times)
         hi = max(times)
-        ctx.write(f"{count} pings: avg={avg:.0f}ms min={lo:.0f}ms max={hi:.0f}ms", "dim")
+        result_text = f"{count} pings: avg={avg:.0f}ms min={lo:.0f}ms max={hi:.0f}ms"
+        ctx.result(result_text)
+        return CmdResult.ok(value=result_text)
+    if count == 1 and times:
+        ms = times[0]
+        result_text = f"{ms:.0f}ms"
+        return CmdResult.ok(value=result_text)
     return CmdResult.ok()
 
 

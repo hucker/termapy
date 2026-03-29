@@ -93,5 +93,3 @@ The bottom bar contains a text input for sending commands to the serial device.
 Type `/help` to see all available REPL commands.
 
 ---
-
-|       |                   |                                     |

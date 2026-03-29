@@ -109,5 +109,3 @@ Supports function codes 0x03 (read holding registers) and 0x06
 7. Type `/help` — see all available commands with colorized output
 
 ---
-
-|                                   |                   |       |

@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Show current sequence counter values.
 
     Sequence counters are auto-incremented by ``{seq}`` template
@@ -26,9 +27,10 @@ def _handler(ctx: PluginContext, args: str) -> None:
         ctx.write(f"Counters: {', '.join(parts)}")
     else:
         ctx.write("No counters set.")
+    return CmdResult.ok()
 
 
-def _handler_reset(ctx: PluginContext, args: str) -> None:
+def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
     """Reset all sequence counters to zero.
 
     Args:
@@ -37,6 +39,7 @@ def _handler_reset(ctx: PluginContext, args: str) -> None:
     """
     ctx.engine.reset_seq()
     ctx.write("Sequence counters reset.")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

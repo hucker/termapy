@@ -6,6 +6,7 @@ import re
 import pytest
 
 from termapy.scripting import (
+    CmdResult,
     expand_template,
     parse_duration,
     parse_keywords,
@@ -349,3 +350,38 @@ class TestParseKeywords:
         # Assert
         assert actual["timeout"] == "2s"  # keyword extracted
         assert actual["quiet"] == "on"  # keyword extracted
+
+
+# ── CmdResult ───────────────────────────────────────────────────
+
+
+class TestCmdResult:
+    def test_ok(self):
+        actual = CmdResult.ok()
+        assert actual.success is True  # success
+        assert actual.error == ""  # no error
+        assert actual.elapsed_s == 0.0  # no timing yet
+
+    def test_fail_with_message(self):
+        actual = CmdResult.fail(msg="bad input")
+        assert actual.success is False  # failure
+        assert actual.error == "bad input"  # error message
+
+    def test_fail_no_message(self):
+        actual = CmdResult.fail()
+        assert actual.success is False  # failure
+        assert actual.error == ""  # no message
+
+    def test_default_is_success(self):
+        actual = CmdResult()
+        assert actual.success is True  # default = success
+
+    def test_elapsed_mutable(self):
+        # Arrange
+        actual = CmdResult.ok()
+
+        # Act
+        actual.elapsed_s = 0.123
+
+        # Assert
+        assert actual.elapsed_s == 0.123  # dispatch sets this

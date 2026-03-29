@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 # ── /cfg handler ───────────────────────────────────────────────────────────────
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Show all config, a single key, or set a key with confirmation.
 
     With no arguments, prints every key/value pair. With a key only,
@@ -32,36 +33,35 @@ def _handler(ctx: PluginContext, args: str) -> None:
     # /cfg - show all
     if not parts:
         ctx.write(json.dumps(dict(ctx.cfg), indent=4))
-        return
+        return CmdResult.ok()
     key = parts[0]
     if key not in ctx.cfg:
-        ctx.write(f"Unknown config key: {key}", "red")
-        return
+        return CmdResult.fail(msg=f"Unknown config key: {key}")
     # /cfg key - show value
     if len(parts) == 1:
         ctx.write(f"  {key}: {ctx.cfg[key]!r}")
-        return
+        return CmdResult.ok()
     # /cfg key value - validate and delegate for confirmation
     value_str = parts[1]
     try:
         new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])
     except (ValueError, TypeError) as e:
-        ctx.write(f"Type error: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"Type error: {e}")
     old_val = ctx.cfg[key]
     if new_val == old_val:
         ctx.write(f"{key} is already {old_val!r}", "dim")
-        return
+        return CmdResult.ok()
     if ctx.engine.save_cfg:
         ctx.engine.save_cfg(key, new_val)
     else:
         ctx.engine.apply_cfg(key, new_val)
+    return CmdResult.ok()
 
 
 # ── /cfg.auto handler ─────────────────────────────────────────────────────────
 
 
-def _handler_auto(ctx: PluginContext, args: str) -> None:
+def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     """Set a config key immediately without confirmation dialog.
 
     Args:
@@ -70,24 +70,22 @@ def _handler_auto(ctx: PluginContext, args: str) -> None:
     """
     parts = args.strip().split(None, 1)
     if not parts or len(parts) < 2:
-        ctx.write("Usage: /cfg.auto <key> <value>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /cfg.auto <key> <value>")
     key, value_str = parts[0], parts[1]
     if key not in ctx.cfg:
-        ctx.write(f"Unknown config key: {key}", "red")
-        return
+        return CmdResult.fail(msg=f"Unknown config key: {key}")
     try:
         new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])
     except (ValueError, TypeError) as e:
-        ctx.write(f"Type error: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"Type error: {e}")
     ctx.engine.apply_cfg(key, new_val)
+    return CmdResult.ok()
 
 
 # ── /cfg.configs handler ──────────────────────────────────────────────────────
 
 
-def _handler_configs(ctx: PluginContext, args: str) -> None:
+def _handler_configs(ctx: PluginContext, args: str) -> CmdResult:
     """List all config files in the config directory.
 
     Args:
@@ -98,16 +96,17 @@ def _handler_configs(ctx: PluginContext, args: str) -> None:
     files = sorted(d.glob("*/*.cfg"))
     if not files:
         ctx.write("  (no config files)", "dim")
-        return
+        return CmdResult.ok()
     for f in files:
         marker = " *" if str(f) == ctx.config_path else ""
         ctx.write(f"  {f.parent.name}/{f.name}{marker}")
+    return CmdResult.ok()
 
 
 # ── /cfg.explore handler ──────────────────────────────────────────────────────
 
 
-def _handler_explore(ctx: PluginContext, args: str) -> None:
+def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
     """Open the config data directory in the system file explorer.
 
     Args:
@@ -115,10 +114,10 @@ def _handler_explore(ctx: PluginContext, args: str) -> None:
         args: Unused.
     """
     if not ctx.config_path:
-        ctx.write("No config loaded.", "red")
-        return
+        return CmdResult.fail(msg="No config loaded.")
     data_dir = Path(ctx.config_path).parent
     open_with_system(str(data_dir))
+    return CmdResult.ok()
 
 
 # ── Tree-building helpers (shared by info and folder listings) ────────────────
@@ -233,7 +232,7 @@ def _all_sections(config_path: str) -> list[tuple[str, list[str]]]:
 # ── /cfg.info handler ──────────────────────────────────────────────────────────
 
 
-def _handler_info(ctx: PluginContext, args: str) -> None:
+def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Generate project info report and print summary to output.
 
     Writes ``<config_name>.md`` to the config data directory
@@ -245,8 +244,7 @@ def _handler_info(ctx: PluginContext, args: str) -> None:
         args: ``"--display"`` to open report externally.
     """
     if not ctx.config_path:
-        ctx.write("No config loaded.", "red")
-        return
+        return CmdResult.fail(msg="No config loaded.")
 
     try:
         sections = _all_sections(ctx.config_path)
@@ -294,7 +292,8 @@ def _handler_info(ctx: PluginContext, args: str) -> None:
         if "--display" in args.lower():
             open_with_system(str(report_path))
     except Exception as e:
-        ctx.write(f"Info error: {e}", "red")
+        return CmdResult.fail(msg=f"Info error: {e}")
+    return CmdResult.ok()
 
 
 # ── Per-folder subcommand factories ──────────────────────────────────────────
@@ -302,38 +301,37 @@ def _handler_info(ctx: PluginContext, args: str) -> None:
 
 def _make_folder_handler(folder: str, pattern: str):
     """Create a handler that lists files in a single folder."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
-            ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         data_dir = Path(ctx.config_path).parent
         files = _names(data_dir / folder, pattern)
         if not files:
             ctx.write(f"  {folder}/ (empty)", "dim")
-            return
+            return CmdResult.ok()
         ctx.write(f"  {folder}/")
         for fname in files:
             ctx.write(f"    {fname}")
+        return CmdResult.ok()
     return handler
 
 
 def _make_explore_handler(folder: str):
     """Create a handler that opens a folder in the system file explorer."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
-            ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         path = Path(ctx.config_path).parent / folder
         open_with_system(str(path))
+        return CmdResult.ok()
     return handler
 
 
 def _make_clear_handler(folder: str, pattern: str):
     """Create a handler that deletes all files in a folder."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
-            ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         data_dir = Path(ctx.config_path).parent / folder
         if pattern == "*":
             files = [f for f in data_dir.glob(pattern) if f.is_file()]
@@ -341,68 +339,68 @@ def _make_clear_handler(folder: str, pattern: str):
             files = list(data_dir.glob(pattern))
         if not files:
             ctx.write(f"  {folder}/ is already empty.", "dim")
-            return
+            return CmdResult.ok()
         for f in files:
             f.unlink()
         ctx.write(f"  Deleted {len(files)} file(s) from {folder}/.")
+        return CmdResult.ok()
     return handler
 
 
 def _make_show_handler(folder: str, pattern: str):
     """Create a handler that opens the newest file in system viewer."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
-            ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         data_dir = Path(ctx.config_path).parent / folder
         if not data_dir.exists():
             ctx.write(f"  {folder}/ is empty.", "dim")
-            return
+            return CmdResult.ok()
         if pattern == "*":
             files = [f for f in data_dir.glob(pattern) if f.is_file()]
         else:
             files = list(data_dir.glob(pattern))
         if not files:
             ctx.write(f"  {folder}/ is empty.", "dim")
-            return
+            return CmdResult.ok()
         newest = max(files, key=lambda f: f.stat().st_mtime)
         ctx.write(f"Opening {newest.name}")
         open_with_system(str(newest))
+        return CmdResult.ok()
     return handler
 
 
 def _make_dump_handler(folder: str, pattern: str):
     """Create a handler that prints the newest (or named) file to the terminal."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
-            ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         data_dir = Path(ctx.config_path).parent / folder
         name = args.strip()
         if name:
             # Named file
             path = data_dir / name
             if not path.exists():
-                ctx.write(f"File not found: {name}", "red")
-                return
+                return CmdResult.fail(msg=f"File not found: {name}")
         else:
             # Newest file
             if not data_dir.exists():
                 ctx.write(f"  {folder}/ is empty.", "dim")
-                return
+                return CmdResult.ok()
             if pattern == "*":
                 files = [f for f in data_dir.glob(pattern) if f.is_file()]
             else:
                 files = list(data_dir.glob(pattern))
             if not files:
                 ctx.write(f"  {folder}/ is empty.", "dim")
-                return
+                return CmdResult.ok()
             path = max(files, key=lambda f: f.stat().st_mtime)
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
                 ctx.write(line, "dim")
         except OSError as e:
-            ctx.write(f"Read error: {e}", "red")
+            return CmdResult.fail(msg=f"Read error: {e}")
+        return CmdResult.ok()
     return handler
 
 
@@ -481,7 +479,7 @@ Use /cfg.auto to set values without confirmation (for scripts).""",
         ),
         "dump": Command(
             help="Print current config as JSON to the terminal.",
-            handler=lambda ctx, args: ctx.write(json.dumps(dict(ctx.cfg), indent=4), "dim"),
+            handler=lambda ctx, args: (ctx.write(json.dumps(dict(ctx.cfg), indent=4), "dim"), CmdResult.ok())[-1],
         ),
         **_build_folder_subs(),
     },

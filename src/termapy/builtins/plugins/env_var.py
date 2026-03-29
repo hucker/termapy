@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command, Transform
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -48,7 +49,7 @@ def _cli_transform(text: str) -> str:
     )
 
 
-def _handler_list(ctx: PluginContext, args: str) -> None:
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List environment variables available for $(env.NAME) expansion.
 
     With no arguments, lists all captured variables (sorted).
@@ -68,20 +69,21 @@ def _handler_list(ctx: PluginContext, args: str) -> None:
                 for k in sorted(matches):
                     ctx.write(f"  {k}={matches[k]}")
             else:
-                ctx.write(f"  No variables matching {pattern}", "red")
-            return
+                return CmdResult.fail(msg=f"  No variables matching {pattern}")
+            return CmdResult.ok()
         val = _ENV.get(pattern)
         if val is not None:
             ctx.write(f"  {pattern}={val}")
         else:
-            ctx.write(f"  {pattern} - not set", "red")
-        return
+            return CmdResult.fail(msg=f"  {pattern} - not set")
+        return CmdResult.ok()
     ctx.write(f"Environment snapshot ({len(_ENV)} vars):")
     for k in sorted(_ENV):
         ctx.write(f"  {k}={_ENV[k]}")
+    return CmdResult.ok()
 
 
-def _handler_set(ctx: PluginContext, args: str) -> None:
+def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     """Set a session-scoped environment variable.
 
     Updates only the in-memory snapshot - does not modify the OS
@@ -95,14 +97,14 @@ def _handler_set(ctx: PluginContext, args: str) -> None:
     """
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
-        ctx.write("Usage: /env.set <name> <value>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /env.set <name> <value>")
     name, value = parts
     _ENV[name] = value
     ctx.write(f"  {name}={value}", "green")
+    return CmdResult.ok()
 
 
-def _handler_reload(ctx: PluginContext, args: str) -> None:
+def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
     """Re-snapshot the process environment.
 
     Replaces the frozen environment dict with a fresh copy of
@@ -116,6 +118,7 @@ def _handler_reload(ctx: PluginContext, args: str) -> None:
     _ENV.clear()
     _ENV.update(os.environ)
     ctx.write(f"Environment reloaded ({len(_ENV)} vars).", "green")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

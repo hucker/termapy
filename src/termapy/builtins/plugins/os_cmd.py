@@ -6,12 +6,13 @@ import subprocess
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Run a shell command and display its output.
 
     Requires ``os_cmd_enabled: true`` in the config. Runs the command
@@ -23,11 +24,9 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Shell command string to execute.
     """
     if not ctx.cfg.get("os_cmd_enabled"):
-        ctx.write("/os is disabled. Set os_cmd_enabled: true in config.", "red")
-        return
+        return CmdResult.fail(msg="/os is disabled. Set os_cmd_enabled: true in config.")
     if not args.strip():
-        ctx.write("Usage: /os <command>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /os <command>")
     try:
         result = subprocess.run(
             args, shell=True, capture_output=True, text=True, timeout=10
@@ -37,7 +36,8 @@ def _handler(ctx: PluginContext, args: str) -> None:
         for line in result.stderr.splitlines():
             ctx.write(line, "red")
     except subprocess.TimeoutExpired:
-        ctx.write("Command timed out (10s limit)", "red")
+        return CmdResult.fail(msg="Command timed out (10s limit)")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

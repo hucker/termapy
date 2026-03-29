@@ -222,12 +222,12 @@ class TestSendCrcEdgeCases:
         args = "crc16-modbus"
 
         # Act
-        _cmd_send(ctx, args)
+        result = _cmd_send(ctx, args)
 
         # Assert
         assert len(tx_bytes) == 0  # nothing sent
-        actual = [t for t, c in output if c == "red"]
-        assert any("No data" in t for t in actual)  # error shown
+        assert not result.success  # handler reports failure
+        assert "No data" in result.error  # error returned
 
     def test_no_data_after_algo_with_suffix(self, send_env):
         # Arrange
@@ -235,12 +235,12 @@ class TestSendCrcEdgeCases:
         args = "crc16-modbus_ascii"
 
         # Act
-        _cmd_send(ctx, args)
+        result = _cmd_send(ctx, args)
 
         # Assert
         assert len(tx_bytes) == 0  # nothing sent
-        actual = [t for t, c in output if c == "red"]
-        assert any("No data" in t for t in actual)  # error shown
+        assert not result.success  # handler reports failure
+        assert "No data" in result.error  # error returned
 
     def test_no_algo_sends_raw(self, send_env):
         # Arrange — first word is NOT a CRC algo, so plain send
@@ -276,23 +276,23 @@ class TestSendCrcEdgeCases:
         )
 
         # Act
-        _cmd_send(ctx, "crc16-modbus 01 03")
+        result = _cmd_send(ctx, "crc16-modbus 01 03")
 
         # Assert
-        actual = [t for t, c in output if c == "red"]
-        assert any("Not connected" in t for t in actual)  # error shown
+        assert not result.success  # handler reports failure
+        assert "Not connected" in result.error  # error returned
 
     def test_empty_args(self, send_env):
         # Arrange
         ctx, output, tx_bytes = send_env
 
         # Act
-        _cmd_send(ctx, "")
+        result = _cmd_send(ctx, "")
 
         # Assert
         assert len(tx_bytes) == 0  # nothing sent
-        actual = [t for t, c in output if c == "red"]
-        assert any("Usage" in t for t in actual)  # usage shown
+        assert not result.success  # handler reports failure
+        assert "Usage" in result.error  # usage returned
 
 
 class TestSendCrcAlgorithms:

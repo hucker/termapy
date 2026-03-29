@@ -64,7 +64,7 @@ from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.repl import ReplEngine
-from termapy.scripting import parse_duration
+from termapy.scripting import CmdResult, parse_duration
 from textual.app import App, ComposeResult
 from textual.message import Message
 from textual.timer import Timer
@@ -840,7 +840,7 @@ class SerialTerminal(App):
             "raw",
             "<text>",
             "Send text to serial with no variable expansion or transforms.",
-            lambda ctx, args: self._send_serial_raw(args),
+            lambda ctx, args: self._hook_raw(args),
             source="app",
         )
         self.repl.register_hook(
@@ -1261,7 +1261,7 @@ class SerialTerminal(App):
         )
         self._rebuild_suggester_commands()
 
-    def _start_demo(self, args: str = "") -> None:
+    def _start_demo(self, args: str = "") -> CmdResult:
         """Set up and switch to the built-in demo device config.
 
         Args:
@@ -1269,6 +1269,7 @@ class SerialTerminal(App):
         """
         force = "--force" in args.lower()
         self._start_demo_async(force)
+        return CmdResult.ok()
 
     @work(thread=True)
     def _start_demo_async(self, force: bool) -> None:
@@ -1689,7 +1690,7 @@ class SerialTerminal(App):
         "data-capture", "writing-plugins", "using-git", "demo",
     ]
 
-    def _hook_help_open(self, ctx: "PluginContext | None", args: str) -> None:
+    def _hook_help_open(self, ctx: "PluginContext | None", args: str) -> CmdResult:
         """Open a help topic in the system browser."""
         from importlib.resources import files as pkg_files
         html_dir = pkg_files("termapy").joinpath("html")
@@ -1701,13 +1702,14 @@ class SerialTerminal(App):
             topic = topic.replace(".md", "").replace(".html", "")
             path = html_dir.joinpath(f"{topic}.html")
         if not Path(str(path)).exists():
-            self._status(
+            msg = (
                 f"Unknown topic: {topic!r}. "
-                f"Available: {', '.join(self._HELP_TOPICS)}",
-                "red",
+                f"Available: {', '.join(self._HELP_TOPICS)}"
             )
-            return
+            self._status(msg, "red")
+            return CmdResult.fail(msg=msg)
         open_with_system(str(path))
+        return CmdResult.ok()
 
     def _palette_help(self) -> None:
         self._hook_help_open(None, "")
@@ -2056,9 +2058,14 @@ class SerialTerminal(App):
         except (OSError, serial.SerialException) as e:
             self._status(f"Send error: {e}", "red")
 
-    def _dispatch_single(self, cmd: str) -> None:
+    def _hook_raw(self, text: str) -> CmdResult:
+        """Hook wrapper for /raw — sends text with no transforms."""
+        self._send_serial_raw(text)
+        return CmdResult.ok()
+
+    def _dispatch_single(self, cmd: str) -> CmdResult:
         """Dispatch a single command (delegates to repl.dispatch_full)."""
-        self.repl.dispatch_full(
+        result = self.repl.dispatch_full(
             cmd,
             log=self._log_line,
             echo_markup=self._write_output_markup,
@@ -2072,6 +2079,7 @@ class SerialTerminal(App):
         if not self.repl.in_script:
             inp = self.query_one("#cmd", Input)
             inp.value = ""
+        return result
 
     def _show_commands(self) -> None:
         """Show the REPL command picker with smart arg handling."""
@@ -2306,7 +2314,7 @@ class SerialTerminal(App):
 
     # -- REPL hook implementations (app-coupled commands) ----------------------
 
-    def _hook_ss_svg(self, ctx, args: str) -> None:
+    def _hook_ss_svg(self, ctx, args: str) -> CmdResult:
         base = args.strip() or "screenshot"
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = str((self.repl.ss_dir / f"{base}_{ts}.svg").resolve())
@@ -2314,8 +2322,9 @@ class SerialTerminal(App):
         self.last_screenshot = path
         self._status(f"SVG screenshot saved: {path}", "green")
         self._sync_ss_button()
+        return CmdResult.ok()
 
-    def _hook_ss_txt(self, ctx, args: str) -> None:
+    def _hook_ss_txt(self, ctx, args: str) -> CmdResult:
         base = args.strip() or "screenshot"
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = str((self.repl.ss_dir / f"{base}_{ts}.txt").resolve())
@@ -2324,35 +2333,41 @@ class SerialTerminal(App):
         self.last_screenshot = path
         self._status(f"Text screenshot saved: {path}", "green")
         self._sync_ss_button()
+        return CmdResult.ok()
 
-    def _hook_delay(self, ctx, args: str) -> None:
+    def _hook_delay(self, ctx, args: str) -> CmdResult:
         try:
             seconds = parse_duration(args)
         except ValueError as e:
             self._status(str(e), "red")
-            return
+            return CmdResult.fail(msg=str(e))
         self.set_timer(seconds, lambda: self._status(f"Delay {args} done."))
+        return CmdResult.ok()
 
-    def _hook_delay_quiet(self, ctx, args: str) -> None:
+    def _hook_delay_quiet(self, ctx, args: str) -> CmdResult:
         """Wait silently - non-blocking timer, no output."""
         try:
             seconds = parse_duration(args)
         except ValueError as e:
             self._status(str(e), "red")
-            return
+            return CmdResult.fail(msg=str(e))
         self.set_timer(seconds, lambda: None)
+        return CmdResult.ok()
 
-    def _hook_line_no(self, ctx, args: str) -> None:
+    def _hook_line_no(self, ctx, args: str) -> CmdResult:
         """Toggle line numbers on or off."""
         arg = args.strip().lower()
         if arg == "on":
             self._show_line_numbers = True
             self._status("Line numbers ON")
+            return CmdResult.ok()
         elif arg == "off":
             self._show_line_numbers = False
             self._status("Line numbers OFF")
+            return CmdResult.ok()
         else:
             self._status("Usage: line_no on|off", "yellow")
+            return CmdResult.fail(msg="Usage: line_no on|off")
 
     def _apply_port_effects(self, effects: dict) -> None:
         """Apply side effects from a port_control function (used by port plugin)."""
@@ -2461,30 +2476,34 @@ class SerialTerminal(App):
             self._status(f"Proto script saved: {Path(path).name}", "green")
             self._sync_proto_button()
 
-    def _hook_edit_cfg(self) -> None:
+    def _hook_edit_cfg(self) -> CmdResult:
         """Open the config editor modal."""
         self.push_screen(
             ConfigEditor(dict(self.cfg), self.config_path),
             callback=self._on_config_result,
         )
+        return CmdResult.ok()
 
-    def _hook_edit_log(self) -> None:
+    def _hook_edit_log(self) -> CmdResult:
         """Open the session log in the system viewer."""
         open_with_system(self._log_path())
+        return CmdResult.ok()
 
-    def _hook_edit_info(self) -> None:
+    def _hook_edit_info(self) -> CmdResult:
         """Open the info report in the system viewer."""
         if not self.config_path:
             self.repl.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         stem = Path(self.config_path).stem
         path = Path(self.config_path).parent / f"{stem}.md"
         if path.exists():
             open_with_system(str(path))
+            return CmdResult.ok()
         else:
             self.repl.write("No info report yet. Run /cfg.info first.", "red")
+            return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
 
-    def _hook_edit(self, ctx, args: str) -> None:
+    def _hook_edit(self, ctx, args: str) -> CmdResult:
         """Edit a project file using the same dialogs as the UI menus.
 
         Routes to ScriptEditor (.run) or ProtoEditor (.pro).
@@ -2496,13 +2515,13 @@ class SerialTerminal(App):
         filename = args.strip()
         if not filename:
             self.repl.write("Usage: /edit <filename>", "red")
-            return
+            return CmdResult.fail(msg="Usage: /edit <filename>")
 
         # Resolve prefixed or bare filename
         path = self._resolve_project_file(filename)
         if path is None:
             self.repl.write(f"File not found: {filename}", "red")
-            return
+            return CmdResult.fail(msg=f"File not found: {filename}")
 
         ext = path.suffix.lower()
         if ext == ".run":
@@ -2515,23 +2534,24 @@ class SerialTerminal(App):
                 ProtoEditor(self.repl.proto_dir, str(path)),
                 callback=self._on_proto_saved,
             )
+        return CmdResult.ok()
 
-    def _hook_edit_folder(self, ctx, args: str, folder: str, ext: str) -> None:
+    def _hook_edit_folder(self, ctx, args: str, folder: str, ext: str) -> CmdResult:
         """Edit a file from a specific folder using Textual modal."""
         name = args.strip()
         if not name:
             self.repl.write(f"Usage: /edit.{folder} <filename>", "red")
-            return
+            return CmdResult.fail(msg=f"Usage: /edit.{folder} <filename>")
         if not name.endswith(ext):
             name += ext
         dir_map = {"scripts": self.repl.scripts_dir, "proto": self.repl.proto_dir}
         base = dir_map.get(folder)
         if not base:
-            return
+            return CmdResult.fail(msg=f"Unknown folder: {folder}")
         path = base / name
         if not path.exists():
             self.repl.write(f"File not found: {name}", "red")
-            return
+            return CmdResult.fail(msg=f"File not found: {name}")
         if ext == ".run":
             self.push_screen(
                 ScriptEditor(base, str(path)),
@@ -2542,12 +2562,15 @@ class SerialTerminal(App):
                 ProtoEditor(base, str(path)),
                 callback=self._on_proto_saved,
             )
+        return CmdResult.ok()
 
-    def _hook_run(self, ctx, args: str) -> None:
+    def _hook_run(self, ctx, args: str) -> CmdResult:
         args, verbose = self._parse_run_flags(args)
         path = self.repl.start_script(args)
         if path:
             self._run_script(path, verbose=verbose)
+            return CmdResult.ok()
+        return CmdResult.fail(msg="Script not found")
 
     @staticmethod
     def _parse_run_flags(args: str) -> tuple[str, bool]:
@@ -2564,18 +2587,20 @@ class SerialTerminal(App):
 
     _PROFILE_TMP_PREFIX = "_profile_tmp_"
 
-    def _hook_run_profile(self, ctx, args: str) -> None:
+    def _hook_run_profile(self, ctx, args: str) -> CmdResult:
         path = self.repl.start_script(args)
         if path:
             self._run_script(path, profile=True)
+            return CmdResult.ok()
+        return CmdResult.fail(msg="Script not found")
 
-    def _hook_run_profile_cmd(self, ctx, args: str) -> None:
+    def _hook_run_profile_cmd(self, ctx, args: str) -> CmdResult:
         """Profile a single command by writing a temp script."""
         import time as _time
         line = args.strip()
         if not line:
             ctx.write("Usage: /run.profile.cmd <command>", "red")
-            return
+            return CmdResult.fail(msg="Usage: /run.profile.cmd <command>")
         prefix = self.cfg.get("cmd_prefix", "/")
         if not line.startswith(prefix) and "." in line.split()[0]:
             line = prefix + line
@@ -2589,6 +2614,8 @@ class SerialTerminal(App):
         path = self.repl.start_script(tmp_name)
         if path:
             self._run_script(path, profile=True)
+            return CmdResult.ok()
+        return CmdResult.fail(msg="Script not found")
 
     @staticmethod
     def _prof_dir(self) -> Path | None:
@@ -2597,75 +2624,80 @@ class SerialTerminal(App):
             return None
         return Path(self.config_path).parent / "prof"
 
-    def _hook_run_profile_show(self, ctx, args: str) -> None:
+    def _hook_run_profile_show(self, ctx, args: str) -> CmdResult:
         """Open the newest .prof file in the system viewer."""
         prof_dir = self._prof_dir()
         if not prof_dir:
             ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
         if not profs:
             ctx.write("No profile files found.", "dim")
-            return
+            return CmdResult.fail(msg="No profile files found.")
         newest = profs[-1]
         ctx.write(f"Opening {newest.name}")
         open_with_system(str(newest))
+        return CmdResult.ok()
 
-    def _hook_run_profile_dump(self, ctx, args: str) -> None:
+    def _hook_run_profile_dump(self, ctx, args: str) -> CmdResult:
         """Print newest (or named) profile to the terminal."""
         prof_dir = self._prof_dir()
         if not prof_dir:
             ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         name = args.strip()
         if name:
             path = prof_dir / name
             if not path.exists():
                 ctx.write(f"File not found: {name}", "red")
-                return
+                return CmdResult.fail(msg=f"File not found: {name}")
         else:
             profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
             if not profs:
                 ctx.write("No profile files found.", "dim")
-                return
+                return CmdResult.fail(msg="No profile files found.")
             path = profs[-1]
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
                 ctx.write(line, "dim")
         except OSError as e:
             ctx.write(f"Read error: {e}", "red")
+            return CmdResult.fail(msg=f"Read error: {e}")
+        return CmdResult.ok()
 
-    def _hook_run_profile_explore(self, ctx, args: str) -> None:
+    def _hook_run_profile_explore(self, ctx, args: str) -> CmdResult:
         """Open the prof/ directory in file explorer."""
         prof_dir = self._prof_dir()
         if not prof_dir:
             ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         prof_dir.mkdir(exist_ok=True)
         open_with_system(str(prof_dir))
+        return CmdResult.ok()
 
-    def _hook_run_profile_list(self, ctx, args: str) -> None:
+    def _hook_run_profile_list(self, ctx, args: str) -> CmdResult:
         """List .prof files."""
         prof_dir = self._prof_dir()
         if not prof_dir:
             ctx.write("No config loaded.", "red")
-            return
+            return CmdResult.fail(msg="No config loaded.")
         if not prof_dir.exists():
             ctx.write("  (no profile files)", "dim")
-            return
+            return CmdResult.ok()
         profs = sorted(prof_dir.glob("*.csv"))
         if not profs:
             ctx.write("  (no profile files)", "dim")
-            return
+            return CmdResult.ok()
         for f in profs:
             ctx.write(f"  {f.name}")
+        return CmdResult.ok()
 
-    def _hook_cfg_load(self, ctx, args: str) -> None:
+    def _hook_cfg_load(self, ctx, args: str) -> CmdResult:
         """Switch to a different config by name or path."""
         name = args.strip()
         if not name:
             self.repl.write("Usage: /cfg.load <name>", "red")
-            return
+            return CmdResult.fail(msg="Usage: /cfg.load <name>")
         path = Path(name)
         # Try as a bare name: termapy_cfg/<name>/<name>.cfg
         if not path.exists():
@@ -2676,32 +2708,35 @@ class SerialTerminal(App):
             path = Path(str(path) + ".cfg")
         if not path.exists():
             self.repl.write(f"Config not found: {name}", "red")
-            return
+            return CmdResult.fail(msg=f"Config not found: {name}")
         try:
             from termapy.config import load_config
             cfg = load_config(str(path))
         except Exception as e:
             self.repl.write(f"Failed to load config: {e}", "red")
-            return
+            return CmdResult.fail(msg=f"Failed to load config: {e}")
         self._switch_config(cfg, str(path))
         self._status(f"Loaded config: {path.stem}", "green")
+        return CmdResult.ok()
 
-    def _hook_proto_load(self, ctx, args: str) -> None:
+    def _hook_proto_load(self, ctx, args: str) -> CmdResult:
         """Run a protocol test script (delegates to /proto.run)."""
         self.repl.dispatch(f"proto.run {args}")
+        return CmdResult.ok()
 
-    def _hook_run_list(self, ctx, args: str) -> None:
+    def _hook_run_list(self, ctx, args: str) -> CmdResult:
         """List .run files in the scripts/ directory."""
         d = self.repl.scripts_dir
         if not d.exists():
             self.repl.write("  (no scripts/ directory)", "dim")
-            return
+            return CmdResult.ok()
         files = sorted(d.glob("*.run"))
         if not files:
             self.repl.write("  (no .run files)", "dim")
-            return
+            return CmdResult.ok()
         for f in files:
             self.repl.write(f"  {f.name}")
+        return CmdResult.ok()
 
     _script_last_label: str = ""
 
@@ -2779,8 +2814,8 @@ class SerialTerminal(App):
         def thread_safe_write(text: str, color: str = "dim") -> None:
             self.call_from_thread(self._status, text, color)
 
-        def thread_safe_dispatch(cmd: str) -> None:
-            self.call_from_thread(self._dispatch_single, cmd)
+        def thread_safe_dispatch(cmd: str):
+            return self.call_from_thread(self._dispatch_single, cmd)
 
         self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
         try:

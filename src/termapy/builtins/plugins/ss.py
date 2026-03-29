@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler_dir(ctx: PluginContext, args: str) -> None:
+def _handler_dir(ctx: PluginContext, args: str) -> CmdResult:
     """Print the resolved screenshot directory path.
 
     Args:
@@ -18,10 +19,12 @@ def _handler_dir(ctx: PluginContext, args: str) -> None:
         args: Ignored.
     """
     ctx.write(f"Screenshot dir: {ctx.ss_dir.resolve()}")
+    return CmdResult.ok()
 
 
-def _handler_not_supported(ctx: PluginContext, args: str) -> None:
+def _handler_not_supported(ctx: PluginContext, args: str) -> CmdResult:
     ctx.write("Screenshots are not supported in CLI mode.", "yellow")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

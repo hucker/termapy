@@ -7,6 +7,7 @@ import re
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -114,7 +115,7 @@ def _list_children(ctx: PluginContext, plugin, prefix: str,
 
 
 def _show_command_help(ctx: PluginContext, name: str,
-                      dev_mode: bool = False) -> None:
+                      dev_mode: bool = False) -> CmdResult:
     """Show help for a single command by name.
 
     Args:
@@ -125,8 +126,7 @@ def _show_command_help(ctx: PluginContext, name: str,
     prefix = ctx.engine.prefix
     plugin = ctx.engine.plugins.get(name)
     if not plugin:
-        ctx.write(f"Unknown command: {name}", "red")
-        return
+        return CmdResult.fail(msg=f"Unknown command: {name}")
     arg_str = f" {_color_args(plugin.args)}" if plugin.args else ""
     ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} - {plugin.help}")
     if dev_mode:
@@ -154,9 +154,10 @@ def _show_command_help(ctx: PluginContext, name: str,
                 )
     if plugin.source not in ("built-in", "app"):
         ctx.write_markup(f"  [{_SRC}](source: {plugin.source})[/]")
+    return CmdResult.ok()
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """List all REPL commands or show detailed help for one.
 
     With no arguments, lists all registered commands grouped by source
@@ -171,8 +172,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     name = args.strip().lower() if isinstance(args, str) else ""
     prefix = ctx.engine.prefix
     if name:
-        _show_command_help(ctx, name)
-        return
+        return _show_command_help(ctx, name)
     else:
         # Group top-level commands by source, with display labels and order
         _SOURCE_ORDER = {"app": 0, "built-in": 1, "global": 2}
@@ -228,9 +228,10 @@ def _handler(ctx: PluginContext, args: str) -> None:
             for d in directives:
                 pattern = _color_args(d.pattern) if d.pattern else ""
                 ctx.write_markup(f"  [{_CMD}]{pattern}[/]  {d.help}")
+    return CmdResult.ok()
 
 
-def _handler_dev(ctx: PluginContext, args: str) -> None:
+def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
     """Show a command handler's Python docstring (developer info).
 
     Args:
@@ -239,9 +240,8 @@ def _handler_dev(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip().lower() if isinstance(args, str) else ""
     if not name:
-        ctx.write("Usage: /help.dev <cmd>", "red")
-        return
-    _show_command_help(ctx, name, dev_mode=True)
+        return CmdResult.fail(msg="Usage: /help.dev <cmd>")
+    return _show_command_help(ctx, name, dev_mode=True)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

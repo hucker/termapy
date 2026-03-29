@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -31,7 +32,7 @@ def _show_file(ctx: PluginContext, path: Path) -> None:
         ctx.write(f"Error reading {path}: {e}", "red")
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Display file contents in the terminal.
 
     Args:
@@ -40,12 +41,12 @@ def _handler(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip()
     if not name:
-        ctx.write("Usage: /show <name>  (or /show.cfg for config)", "red")
-        return
+        return CmdResult.fail(msg="Usage: /show <name>  (or /show.cfg for config)")
     _show_file(ctx, Path(name))
+    return CmdResult.ok()
 
 
-def _handler_cfg(ctx: PluginContext, args: str) -> None:
+def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
     """Show the current config file contents.
 
     Args:
@@ -53,9 +54,9 @@ def _handler_cfg(ctx: PluginContext, args: str) -> None:
         args: Unused.
     """
     if not ctx.config_path:
-        ctx.write("No config file loaded.", "red")
-        return
+        return CmdResult.fail(msg="No config file loaded.")
     _show_file(ctx, Path(ctx.config_path))
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

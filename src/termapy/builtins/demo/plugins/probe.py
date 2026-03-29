@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -96,7 +97,7 @@ def _survey(ctx: PluginContext) -> None:
     ctx.write("── end survey ──")
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Query a device over the serial port and display results.
 
     With no arguments, runs a survey of common device queries
@@ -112,8 +113,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Optional AT command to send. Empty = run full survey.
     """
     if not ctx.is_connected():
-        ctx.write("Not connected - open the port first.", "red")
-        return
+        return CmdResult.fail(msg="Not connected - open the port first.")
 
     # serial_io() suppresses terminal display and guarantees cleanup,
     # even if an exception occurs inside the block.
@@ -121,7 +121,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         command = args.strip()
         if not command:
             _survey(ctx)
-            return
+            return CmdResult.ok()
 
         # Single command mode
         resp = _send_cmd(ctx, command)
@@ -130,6 +130,8 @@ def _handler(ctx: PluginContext, args: str) -> None:
         else:
             for line in resp.splitlines():
                 ctx.write(f"  {line}")
+
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

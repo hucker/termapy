@@ -25,6 +25,7 @@ from termapy.protocol import (
 )
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -64,7 +65,7 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
         filename: Filename or path to resolve.
 
     Returns:
-        Resolved Path, or None if not found (error already written).
+        Resolved Path, or None if not found (message written to ctx).
     """
     path = Path(filename)
     if not path.exists() and not path.suffix:
@@ -312,7 +313,7 @@ def _parse_send_algo(
     return None, False, False
 
 
-def _cmd_send(ctx: PluginContext, args: str) -> None:
+def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send raw bytes to the serial port and display the response.
 
     Parses hex and/or quoted text into bytes, transmits them (no line
@@ -328,12 +329,10 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
         args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
     """
     if not args.strip():
-        ctx.write("Usage: /proto.send [algo[_le|_be][_ascii]] "
-                  "<hex bytes or \"text\">", "red")
-        return
+        return CmdResult.fail(msg="Usage: /proto.send [algo[_le|_be][_ascii]] "
+                              "<hex bytes or \"text\">")
     if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
+        return CmdResult.fail(msg="Not connected.")
 
     # Check if the first word is a CRC algorithm name (with optional suffixes)
     first, _, rest = args.strip().partition(" ")
@@ -346,8 +345,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
             data = parse_data(args)
         else:
             if not rest.strip():
-                ctx.write(f"No data after CRC algorithm '{first}'", "red")
-                return
+                return CmdResult.fail(msg=f"No data after CRC algorithm '{first}'")
             data = parse_data(rest.strip())
             crc_value = algo.compute(data)
             if ascii_crc:
@@ -363,8 +361,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
                     crc_bytes = crc_bytes[::-1]
                 data += crc_bytes
     except ValueError as e:
-        ctx.write(f"Parse error: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"Parse error: {e}")
 
     if algo is not None:
         endian_label = "BE" if big_endian else "LE"
@@ -386,9 +383,10 @@ def _cmd_send(ctx: PluginContext, args: str) -> None:
         ctx.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
         ctx.write("  RX: (no response)", "red")
+    return CmdResult.ok()
 
 
-def _cmd_run(ctx: PluginContext, args: str) -> None:
+def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
     """Execute a ``.pro`` test script (TOML or flat format).
 
     Auto-detects the format: TOML (structured with ``[[test]]`` sections)
@@ -400,39 +398,35 @@ def _cmd_run(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: /proto.run <file.pro>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /proto.run <file.pro>")
 
     path = _resolve_proto_file(ctx, filename)
     if path is None:
-        return
+        return CmdResult.fail(msg=f"File not found: {filename}")
 
     if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
+        return CmdResult.fail(msg="Not connected.")
 
     try:
         text = path.read_text(encoding="utf-8")
         fmt, parsed = load_proto_script(text)
     except (ValueError, OSError) as e:
-        ctx.write(f"Script error: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"Script error: {e}")
 
     if fmt == "toml":
         script = parsed
         if not script.tests:
-            ctx.write("Script has no tests.", "red")
-            return
+            return CmdResult.fail(msg="Script has no tests.")
         _run_toml_script(ctx, path, script)
     else:
         settings, steps = parsed
         if not steps:
-            ctx.write("Script has no steps.", "red")
-            return
+            return CmdResult.fail(msg="Script has no steps.")
         _run_flat_script(ctx, path, settings, steps)
+    return CmdResult.ok()
 
 
-def _cmd_debug(ctx: PluginContext, args: str) -> None:
+def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
     """Open the interactive protocol debug screen for a TOML .pro script.
 
     Args:
@@ -441,32 +435,29 @@ def _cmd_debug(ctx: PluginContext, args: str) -> None:
     """
     filename = args.strip()
     if not filename:
-        ctx.write("Usage: /proto.debug <file.pro>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /proto.debug <file.pro>")
 
     path = _resolve_proto_file(ctx, filename)
     if path is None:
-        return
+        return CmdResult.fail(msg=f"File not found: {filename}")
 
     if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
+        return CmdResult.fail(msg="Not connected.")
 
     try:
         text = path.read_text(encoding="utf-8")
         script = parse_toml_script(text)
     except (ValueError, OSError) as e:
-        ctx.write(f"Script error: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"Script error: {e}")
 
     if not script.tests:
-        ctx.write("Script has no tests.", "red")
-        return
+        return CmdResult.fail(msg="Script has no tests.")
 
     ctx.engine.open_proto_debug(path, script)
+    return CmdResult.ok()
 
 
-def _cmd_hex(ctx: PluginContext, args: str) -> None:
+def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
     """Toggle hex display mode for all serial I/O.
 
     When enabled, received serial data is shown as hex bytes instead of
@@ -489,9 +480,10 @@ def _cmd_hex(ctx: PluginContext, args: str) -> None:
         ctx.engine.set_hex_mode(not current)
         state = "enabled" if not current else "disabled"
         ctx.write(f"Hex display mode {state}.", "bright_green")
+    return CmdResult.ok()
 
 
-def _cmd_status(ctx: PluginContext, args: str) -> None:
+def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
     """Show current protocol mode state.
 
     Displays hex display mode and connection status.
@@ -504,11 +496,12 @@ def _cmd_status(ctx: PluginContext, args: str) -> None:
     connected = ctx.is_connected()
     ctx.write(f"Hex mode: {'on' if hex_mode else 'off'}")
     ctx.write(f"Connected: {'yes' if connected else 'no'}")
+    return CmdResult.ok()
 
 
 # ---- CRC subcommand handlers ----------------------------------------------
 
-def _crc_list(ctx: PluginContext, args: str) -> None:
+def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
     """List available CRC algorithms, optionally filtered by glob pattern.
 
     Args:
@@ -525,8 +518,7 @@ def _crc_list(ctx: PluginContext, args: str) -> None:
         names = [n for n in names if fnmatch.fnmatch(n, pattern)]
 
     if not names:
-        ctx.write(f"No algorithms matching '{pattern}'", "red")
-        return
+        return CmdResult.fail(msg=f"No algorithms matching '{pattern}'")
 
     # Group by width
     groups: dict[int, list[str]] = {}
@@ -544,9 +536,10 @@ def _crc_list(ctx: PluginContext, args: str) -> None:
 
     total = sum(len(g) for g in groups.values())
     ctx.write(f"  {total} algorithms available")
+    return CmdResult.ok()
 
 
-def _crc_help(ctx: PluginContext, args: str) -> None:
+def _crc_help(ctx: PluginContext, args: str) -> CmdResult:
     """Show detailed parameters for a named CRC algorithm.
 
     Args:
@@ -555,8 +548,7 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
     """
     name = args.strip().lower()
     if not name:
-        ctx.write("Usage: /proto.crc.help <name>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /proto.crc.help <name>")
 
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
@@ -566,10 +558,9 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
             alg = registry[name]
             ctx.write(f"  {name} (plugin, {alg.width * 8}-bit)")
             ctx.write("  No catalogue parameters - loaded from plugin file.")
-            return
-        ctx.write(f"Unknown algorithm: {name}", "red")
+            return CmdResult.ok()
         ctx.write("Use '/proto.crc.list' to see available algorithms.")
-        return
+        return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     w = entry["width"]
     hex_w = w // 4
@@ -589,6 +580,7 @@ def _crc_help(ctx: PluginContext, args: str) -> None:
         ctx.write(f"  Spec:    CRC:{name}")
     else:
         ctx.write(f"  Spec:    CRC:{name}_le  or  CRC:{name}_be")
+    return CmdResult.ok()
 
 
 def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
@@ -614,7 +606,7 @@ def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
     return data_str.encode("utf-8"), False
 
 
-def _crc_calc(ctx: PluginContext, args: str) -> None:
+def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     """Compute a CRC over the provided data.
 
     Auto-detects hex bytes vs plain text: if every token is a valid
@@ -627,19 +619,15 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
     """
     parts = args.strip().split(None, 1)
     if not parts:
-        ctx.write(
-            "Usage: /proto.crc.calc <name> {hex bytes or text}", "red"
-        )
-        return
+        return CmdResult.fail(msg="Usage: /proto.crc.calc <name> {hex bytes or text}")
 
     name = parts[0].lower()
 
     registry = get_crc_registry()
     alg = registry.get(name)
     if alg is None:
-        ctx.write(f"Unknown algorithm: {name}", "red")
         ctx.write("Use '/proto.crc.list' to see available algorithms.")
-        return
+        return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     # No data provided - use the standard check string "123456789"
     check_mode = len(parts) < 2
@@ -658,14 +646,12 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
                 data = file_path.read_bytes()
                 is_hex = False
             except OSError as e:
-                ctx.write(f"Cannot read file: {e}", "red")
-                return
+                return CmdResult.fail(msg=f"Cannot read file: {e}")
         else:
             data, is_hex = _parse_crc_data(data_str)
 
     if not data:
-        ctx.write("No data to compute CRC over.", "red")
-        return
+        return CmdResult.fail(msg="No data to compute CRC over.")
 
     crc_val = alg.compute(data)
     hex_w = alg.width * 2
@@ -712,9 +698,10 @@ def _crc_calc(ctx: PluginContext, args: str) -> None:
                     f"0x{expected:0{hex_w}X}",
                     "red",
                 )
+    return CmdResult.ok()
 
 
-def _cmd_list(ctx: PluginContext, args: str) -> None:
+def _cmd_list(ctx: PluginContext, args: str) -> CmdResult:
     """List .pro files in the proto/ directory.
 
     Args:
@@ -724,13 +711,14 @@ def _cmd_list(ctx: PluginContext, args: str) -> None:
     d = ctx.proto_dir
     if not d.exists():
         ctx.write("  (no proto/ directory)", "dim")
-        return
+        return CmdResult.ok()
     files = sorted(d.glob("*.pro"))
     if not files:
         ctx.write("  (no .pro files)", "dim")
-        return
+        return CmdResult.ok()
     for f in files:
         ctx.write(f"  {f.name}")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

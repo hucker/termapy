@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Write a message to the terminal output.
 
     Prints the argument text directly to the terminal. Useful in
@@ -21,9 +22,10 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Text to print.
     """
     ctx.write(args)
+    return CmdResult.ok()
 
 
-def _handler_rich(ctx: PluginContext, args: str) -> None:
+def _handler_rich(ctx: PluginContext, args: str) -> CmdResult:
     """Write Rich markup text to the terminal output.
 
     Unlike ``/print`` which outputs plain text, ``/print.r`` passes
@@ -35,6 +37,7 @@ def _handler_rich(ctx: PluginContext, args: str) -> None:
         args: Rich markup text to render.
     """
     ctx.write_markup(args)
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

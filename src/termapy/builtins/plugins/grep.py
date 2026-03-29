@@ -7,13 +7,13 @@ import re
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
-from termapy.scripting import ANSI_RE as _ANSI_RE
+from termapy.scripting import ANSI_RE as _ANSI_RE, CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Search the scrollback for lines matching a regex pattern.
 
     Performs a case-insensitive regex search across all visible terminal
@@ -26,20 +26,18 @@ def _handler(ctx: PluginContext, args: str) -> None:
     """
     pattern = args.strip()
     if not pattern:
-        ctx.write("Usage: /grep <pattern>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /grep <pattern>")
     try:
         rx = re.compile(pattern, re.IGNORECASE)
     except re.error as e:
-        ctx.write(f"  grep: invalid pattern: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"  grep: invalid pattern: {e}")
     max_matches = ctx.cfg.get("max_grep_lines", 100)
     prefix = ctx.cfg.get("cmd_prefix", "/")
     grep_cmd = f"{prefix}grep"
     text = ctx.get_screen_text()
     if not text:
         ctx.write("  grep: not available (no scrollback in CLI mode)", "yellow")
-        return
+        return CmdResult.ok()
     lines = text.splitlines()
 
     def _is_grep_noise(line: str) -> bool:
@@ -60,7 +58,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     ]
     if not matches:
         ctx.write(f"  grep: '{pattern}' - no matches")
-        return
+        return CmdResult.ok()
     total = len(matches)
     shown = matches[:max_matches]
     if total > max_matches:
@@ -70,6 +68,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     for lineno, line in shown:
         clean = _ANSI_RE.sub("", line)
         ctx.write(f"  grep: {lineno:>5} | {clean}")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

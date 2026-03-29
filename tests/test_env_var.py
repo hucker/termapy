@@ -138,10 +138,11 @@ class TestEnvCommands:
         ctx, output = self._ctx()
 
         # Act
-        _handler_set(ctx, "ONLY_NAME")
+        result = _handler_set(ctx, "ONLY_NAME")
 
         # Assert
-        assert any("Usage" in t for t, _ in output)  # usage error shown
+        assert not result.success  # handler reports failure
+        assert "Usage" in result.error  # usage error returned
 
     def test_set_value_with_spaces(self):
         # Arrange
@@ -197,10 +198,11 @@ class TestEnvCommands:
         ctx, output = self._ctx()
 
         # Act
-        _handler_list(ctx, "ZZNOEXIST_*")
+        result = _handler_list(ctx, "ZZNOEXIST_*")
 
         # Assert
-        assert any("No variables matching" in t for t, _ in output)  # error shown
+        assert not result.success  # handler reports failure
+        assert "No variables matching" in result.error  # error returned
 
     def test_list_unknown_var(self):
         # Arrange
@@ -208,10 +210,11 @@ class TestEnvCommands:
         _ENV.pop("NOPE_XYZ", None)
 
         # Act
-        _handler_list(ctx, "NOPE_XYZ")
+        result = _handler_list(ctx, "NOPE_XYZ")
 
         # Assert
-        assert any("not set" in t for t, _ in output)  # error shown
+        assert not result.success  # handler reports failure
+        assert "not set" in result.error  # error returned
 
     def test_reload_resets_snapshot(self):
         # Arrange

@@ -15,17 +15,23 @@ from types import MappingProxyType
 from typing import Callable
 
 from termapy.plugins import (
-    DirectiveInfo, DirectiveResult, PluginContext, PluginInfo, TransformInfo,
-    builtins_dir, load_plugins_from_dir,
+    DirectiveInfo,
+    DirectiveResult,
+    PluginContext,
+    PluginInfo,
+    TransformInfo,
+    builtins_dir,
+    load_plugins_from_dir,
 )
-from termapy.scripting import expand_template, parse_duration, parse_keywords
+from termapy.scripting import CmdResult, expand_template, parse_duration, parse_keywords
 
 
 class ReplEngine:
     """Plugin-based REPL command engine."""
 
-    def __init__(self, cfg: dict, config_path: str,
-                 write: Callable, prefix: str = "/") -> None:
+    def __init__(
+        self, cfg: dict, config_path: str, write: Callable, prefix: str = "/"
+    ) -> None:
         """Initialize the REPL engine with config and plugin loading.
 
         Args:
@@ -37,7 +43,7 @@ class ReplEngine:
         self._cfg_data = cfg
         self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
-        self.write = write              # write(text, color="dim") callback
+        self.write = write  # write(text, color="dim") callback
         self.prefix = prefix
         self._seq_counters: dict[int, int] = {}
         self._seq_start_time: str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -45,7 +51,7 @@ class ReplEngine:
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
-        self._echo: bool = True         # echo ! command lines to screen
+        self._echo: bool = True  # echo ! command lines to screen
         # Expect watcher — predicate set by wait_for_match(), checked by feed_lines()
         self._expect_predicate: Callable[[str], bool] | None = None
         self._expect_event = Event()
@@ -57,6 +63,7 @@ class ReplEngine:
         # here regardless of whether a predicate is active.
         # deque with maxlen is thread-safe for append/iterate in CPython.
         from collections import deque
+
         self._recent_lines: deque[str] = deque(maxlen=100)
 
         # Plugin context - set by app.py after mount via set_context()
@@ -92,7 +99,9 @@ class ReplEngine:
     # -- Expect / pattern matching ---------------------------------------------
 
     def wait_for_match(
-        self, predicate: Callable[[str], bool], timeout: float = 5.0,
+        self,
+        predicate: Callable[[str], bool],
+        timeout: float = 5.0,
     ) -> str | None:
         """Block until a serial line matches predicate or timeout expires.
 
@@ -189,10 +198,16 @@ class ReplEngine:
                     return result
         return DirectiveResult()
 
-    def register_hook(self, name: str, args: str, help_text: str,
-                      handler: Callable, source: str = "built-in",
-                      long_help: str = "",
-                      raw_args: bool = False) -> None:
+    def register_hook(
+        self,
+        name: str,
+        args: str,
+        help_text: str,
+        handler: Callable,
+        source: str = "built-in",
+        long_help: str = "",
+        raw_args: bool = False,
+    ) -> None:
         """Register an app-coupled command as a plugin.
 
         Bridge for commands that need Textual access (screenshots, connect,
@@ -221,8 +236,12 @@ class ReplEngine:
             old.children.clear()
 
         self._plugins[name] = PluginInfo(
-            name=name, args=args, help=help_text,
-            handler=handler, long_help=long_help, source=source,
+            name=name,
+            args=args,
+            help=help_text,
+            handler=handler,
+            long_help=long_help,
+            source=source,
             raw_args=raw_args,
         )
         # Auto-update parent's children list for dotted names
@@ -260,7 +279,7 @@ class ReplEngine:
         serial_write_raw: Callable[[str], None] | None = None,
         is_connected: Callable[[], bool] | None = None,
         eol_label: Callable[[str], str] | None = None,
-    ) -> None:
+    ) -> CmdResult:
         """Route a raw command through the full pipeline.
 
         Decides: /raw bypass -> directives -> REPL command -> serial command.
@@ -276,6 +295,9 @@ class ReplEngine:
             serial_write_raw: Send raw text to serial (no transforms).
             is_connected: Returns True if serial port is open.
             eol_label: Format a line ending string for display.
+
+        Returns:
+            CmdResult with success/error status and elapsed time.
         """
         prefix = self.prefix
         _log = log or (lambda _d, _t: None)
@@ -284,13 +306,13 @@ class ReplEngine:
 
         # 1. /raw bypass - no transforms, no directives
         if cmd.startswith(prefix + "raw "):
-            raw_text = cmd[len(prefix) + 4:]
+            raw_text = cmd[len(prefix) + 4 :]
             _log(">", cmd)
             if self._echo:
                 _echo(f"[cyan]> {cmd}[/]")
             if serial_write_raw:
                 serial_write_raw(raw_text)
-            return
+            return CmdResult.ok()
 
         # 2. Pre-dispatch directives (e.g. $(VAR) = value -> /var.set)
         result = self.run_directives(cmd)
@@ -298,36 +320,34 @@ class ReplEngine:
             _log(">", cmd)
             if self._echo:
                 _echo(f"[cyan]> {cmd}[/]")
-            self.dispatch(result.payload)
-            return
+            return self.dispatch(result.payload)
         if result.action == "warn":
             _log(">", cmd)
             if self._echo:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Warning: {result.payload}", "yellow")
-            return
+            return CmdResult.ok()
         if result.action == "error":
             _log(">", cmd)
             if self._echo:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Error: {result.payload}", "red")
-            return
+            return CmdResult.fail(msg=result.payload)
 
         # 3. REPL command (starts with prefix)
         if cmd.startswith(prefix):
-            repl_cmd = cmd[len(prefix):].strip()
+            repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
             if self._echo and not repl_cmd.startswith("echo.quiet"):
-                _echo(f"[red]> {prefix}{repl_cmd}[/]")
+                _echo(f"[cyan]> {prefix}{repl_cmd}[/]")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
                     try:
                         repl_cmd = self.transform_repl(repl_cmd)
                     except ValueError as e:
                         _status(str(e), "red")
-                        return
-            self.dispatch(repl_cmd)
-            return
+                        return CmdResult.fail(msg=str(e))
+            return self.dispatch(repl_cmd)
 
         # 4. Serial command - apply transforms, encode, send
         if self.has_serial_transforms:
@@ -335,7 +355,7 @@ class ReplEngine:
                 cmd = self.transform_serial(cmd)
             except ValueError as e:
                 _status(str(e), "red")
-                return
+                return CmdResult.fail(msg=str(e))
 
         if self.cfg.get("echo_input"):
             fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
@@ -347,7 +367,7 @@ class ReplEngine:
 
         if is_connected and not is_connected():
             _status("Not connected - command not sent", "red")
-            return
+            return CmdResult.fail(msg="Not connected - command not sent")
 
         line_ending = self.cfg.get("line_ending", "\r")
         if serial_write:
@@ -357,10 +377,12 @@ class ReplEngine:
                 )
             except (OSError, Exception) as e:
                 _status(f"Send error: {e}", "red")
+                return CmdResult.fail(msg=f"Send error: {e}")
+        return CmdResult.ok()
 
     # -- REPL dispatch ---------------------------------------------------------
 
-    def dispatch(self, line: str) -> None:
+    def dispatch(self, line: str) -> CmdResult:
         """Parse and dispatch a REPL command (prefix already stripped).
 
         Splits the line into command name and args, expands sequence
@@ -368,13 +390,16 @@ class ReplEngine:
 
         Args:
             line: Command string without the REPL prefix (e.g. "grep error").
+
+        Returns:
+            CmdResult with success/error status and elapsed time.
         """
         parts = line.split(None, 1)
         if not parts:
             plugin = self._plugins.get("help")
             if plugin:
                 plugin.handler(self.ctx, "")
-            return
+            return CmdResult.ok()
         name = parts[0].lower()
         raw_args = parts[1] if len(parts) > 1 else ""
         args, self._seq_counters = expand_template(
@@ -383,11 +408,16 @@ class ReplEngine:
         plugin = self._plugins.get(name)
         if plugin:
             try:
-                plugin.handler(self.ctx, args)
+                t0 = time.perf_counter()
+                result = plugin.handler(self.ctx, args)
+                result.elapsed_s = time.perf_counter() - t0
             except Exception as e:
-                self.write(f"Plugin error ({name}): {e}", "red")
+                result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
         else:
-            self.write(f"Unknown REPL command: {name}", "red")
+            result = CmdResult.fail(msg=f"Unknown REPL command: {name}")
+        if not result.success and result.error:
+            self.write(result.error, "red")
+        return result
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
 
@@ -543,8 +573,7 @@ class ReplEngine:
         try:
             all_lines = path.read_text(encoding="utf-8").splitlines()
             lines = [
-                ln for ln in all_lines
-                if ln.strip() and not ln.strip().startswith("#")
+                ln for ln in all_lines if ln.strip() and not ln.strip().startswith("#")
             ]
             total = len(lines)
             if profile:
@@ -574,12 +603,13 @@ class ReplEngine:
                 # that block or use call_from_thread internally, add them
                 # here as special cases.
                 if stripped.startswith(prefix):
-                    cmd = stripped[len(prefix):].strip()
+                    cmd = stripped[len(prefix) :].strip()
                     name, _, args = cmd.partition(" ")
                     if name.lower() == "delay":
                         self.ctx.log(">", stripped)
                         expanded, self._seq_counters = expand_template(
-                            args.strip(), self._seq_counters,
+                            args.strip(),
+                            self._seq_counters,
                             self._seq_start_time,
                         )
                         try:
@@ -628,7 +658,9 @@ class ReplEngine:
                             )
                             if verbose:
                                 elapsed = time.perf_counter() - t0
-                                w(f"[{step}/{total}] /run {nested_path.name} ({elapsed:.3f}s)")
+                                w(
+                                    f"[{step}/{total}] /run {nested_path.name} ({elapsed:.3f}s)"
+                                )
                             if profile:
                                 elapsed = time.perf_counter() - t0
                                 profile_times.append((stripped, elapsed))
@@ -652,7 +684,8 @@ class ReplEngine:
                         # /expect match=<pattern> {timeout=<dur>} {quiet=on}
                         # /expect.regex match=<pattern> {timeout=<dur>} {quiet=on}
                         kw = parse_keywords(
-                            args, {"timeout", "quiet", "match"},
+                            args,
+                            {"timeout", "quiet", "match"},
                             rest_keyword="match",
                         )
                         pattern = kw.get("match", "").strip()
@@ -660,7 +693,11 @@ class ReplEngine:
                             w("Expect: missing match= keyword", "red")
                             break
                         try:
-                            timeout_s = parse_duration(kw["timeout"]) if "timeout" in kw else 0.25
+                            timeout_s = (
+                                parse_duration(kw["timeout"])
+                                if "timeout" in kw
+                                else 0.25
+                            )
                         except ValueError as e:
                             w(f"Expect: {e}", "red")
                             break
@@ -669,7 +706,10 @@ class ReplEngine:
                         t0 = time.perf_counter()
                         if use_regex:
                             import re as _re
-                            predicate = lambda line, p=pattern: bool(_re.search(p, line))
+
+                            predicate = lambda line, p=pattern: bool(
+                                _re.search(p, line)
+                            )
                         else:
                             predicate = lambda line, p=pattern: p in line
                         match = self.wait_for_match(predicate, timeout=timeout_s)
@@ -687,22 +727,34 @@ class ReplEngine:
                             prof_fh.write(f"{elapsed:.6f},{stripped}\n")
                         if verbose and match is not None:
                             elapsed = time.perf_counter() - t0
-                            w(f'[{step}/{total}] /expect "{pattern}" matched ({elapsed:.3f}s)')
+                            w(
+                                f'[{step}/{total}] /expect "{pattern}" matched ({elapsed:.3f}s)'
+                            )
                         continue
                 # Everything else goes through the full dispatch pipeline
                 t0 = time.perf_counter()
                 if dispatch:
-                    dispatch(stripped)
+                    cmd_result = dispatch(stripped)
                 else:
                     # Fallback for tests: classify and handle locally
                     if stripped.startswith(prefix):
-                        self.dispatch(stripped[len(prefix):].strip())
+                        cmd_result = self.dispatch(stripped[len(prefix) :].strip())
                     elif self.ctx.is_connected():
                         self.ctx.serial_write(
-                            (stripped + self.cfg.get("line_ending", "\r"))
-                            .encode(self.cfg.get("encoding", "utf-8"))
+                            (stripped + self.cfg.get("line_ending", "\r")).encode(
+                                self.cfg.get("encoding", "utf-8")
+                            )
                         )
-                elapsed = time.perf_counter() - t0
+                        cmd_result = None
+                    else:
+                        cmd_result = None
+                # Use CmdResult.elapsed_s when available (CLI, tests);
+                # fall back to local timing when dispatch callback doesn't
+                # return a result (TUI uses call_from_thread which is void).
+                if cmd_result and cmd_result.elapsed_s > 0:
+                    elapsed = cmd_result.elapsed_s
+                else:
+                    elapsed = time.perf_counter() - t0
                 if verbose:
                     label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
                     w(f"[{step}/{total}] {label} ({elapsed:.3f}s)")
@@ -727,7 +779,9 @@ class ReplEngine:
                     prof_fh.flush()
                     for line in prof_path.read_text(encoding="utf-8").splitlines():
                         w(line)
-                    w(f"── {total:.3f}s total ({len(profile_times)} commands) -> {prof_name} ──")
+                    w(
+                        f"── {total:.3f}s total ({len(profile_times)} commands) -> {prof_name} ──"
+                    )
                 elif self._script_depth <= 1:
                     if self._script_stop.is_set():
                         w("Script aborted.", "red")

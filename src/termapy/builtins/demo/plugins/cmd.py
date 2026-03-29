@@ -13,9 +13,10 @@ if TYPE_CHECKING:
 
 from termapy.plugins import Command
 from termapy.protocol import get_crc_registry
+from termapy.scripting import CmdResult
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Send text with an XMODEM CRC-16 appended.
 
     Computes the CRC over the argument bytes and transmits
@@ -26,11 +27,11 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Text to send.
     """
     if not args.strip():
-        ctx.write("Usage: /crcsend <text>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /crcsend <text>")
     crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
     ctx.serial_send(f"{args} {crc:04X}")
     ctx.write(f"Sent: {args} {crc:04X}", "green")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

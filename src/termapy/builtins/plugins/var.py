@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command, Directive, DirectiveResult, Transform
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -142,7 +143,7 @@ def expand_vars(text: str) -> str:
 # -- Handlers ----------------------------------------------------------------
 
 
-def _handler_list(ctx: PluginContext, args: str) -> None:
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List all defined variables, or show one by name.
 
     Args:
@@ -164,7 +165,7 @@ def _handler_list(ctx: PluginContext, args: str) -> None:
             ctx.write(f"  $({name}) = {val}")
         else:
             ctx.write(f"  $({name}) - not defined", "red")
-        return
+        return CmdResult.ok()
     if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS:
         ctx.write("  (no variables defined)")
         return
@@ -175,9 +176,10 @@ def _handler_list(ctx: PluginContext, args: str) -> None:
     now = datetime.now()
     for k, fmt in sorted(_DYNAMIC_VARS.items()):
         ctx.write(f"  $({k}) = {now.strftime(fmt)}  (dynamic)")
+    return CmdResult.ok()
 
 
-def _handler_set(ctx: PluginContext, args: str) -> None:
+def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     """Set a user variable.
 
     Args:
@@ -186,19 +188,18 @@ def _handler_set(ctx: PluginContext, args: str) -> None:
     """
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
-        ctx.write("Usage: /var.set <NAME> <value>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /var.set <NAME> <value>")
     m = _STRIP_WRAPPER_RE.match(parts[0])
     name = m.group(1) if m else parts[0]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
-        ctx.write("Variable names must be letters, digits, or underscore", "red")
-        return
+        return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
     value = parts[1]
     _VARS[name] = value
     ctx.write(f"  $({name}) = {value}", "green")
+    return CmdResult.ok()
 
 
-def _handler_clear(ctx: PluginContext, args: str) -> None:
+def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
     """Clear all user variables.
 
     Args:
@@ -208,6 +209,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> None:
     count = len(_VARS)
     _VARS.clear()
     ctx.write(f"Cleared {count} variable(s).", "green")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

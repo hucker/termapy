@@ -197,20 +197,24 @@ class CLITerminal:
             "Run a script file, or list available scripts.",
             self._hook_run, source="app",
         )
+        self.repl.register_hook(
+            "run.profile", "{filename}",
+            "Run a script with per-command timing.",
+            self._hook_run_profile, source="app",
+        )
 
     # -- Hook handlers --------------------------------------------------------
 
-    def _hook_delay(self, ctx, args: str) -> None:
+    def _hook_delay(self, ctx, args: str):
         """Wait with progress bar (>=1s) or silently (<1s).
         Shows elapsed/total time and sub-character resolution bar.
         Ctrl+C cancels."""
-        from termapy.scripting import parse_duration
+        from termapy.scripting import CmdResult, parse_duration
 
         try:
             seconds = parse_duration(args)
         except ValueError as e:
-            self.status(str(e), "red")
-            return
+            return CmdResult.fail(msg=str(e))
         try:
             if seconds < 1:
                 time.sleep(seconds)
@@ -219,23 +223,25 @@ class CLITerminal:
                 self._draw_progress_bar(seconds, args.strip())
         except KeyboardInterrupt:
             print(f"\r  Delay cancelled.{' ' * 30}", flush=True)
+        return CmdResult.ok()
 
-    def _hook_delay_quiet(self, ctx, args: str) -> None:
+    def _hook_delay_quiet(self, ctx, args: str):
         """Wait silently - no progress bar, no output.
         For scripts where delay output would clutter results."""
-        from termapy.scripting import parse_duration
+        from termapy.scripting import CmdResult, parse_duration
         try:
             seconds = parse_duration(args)
         except ValueError as e:
-            self.status(str(e), "red")
-            return
+            return CmdResult.fail(msg=str(e))
         try:
             time.sleep(seconds)
         except KeyboardInterrupt:
             pass
+        return CmdResult.ok()
 
-    def _hook_color(self, ctx, args: str) -> None:
+    def _hook_color(self, ctx, args: str):
         """Toggle color output on/off."""
+        from termapy.scripting import CmdResult
         val = args.strip().lower()
         if val in ("on", "1", "true"):
             self.console.no_color = False
@@ -246,29 +252,51 @@ class CLITerminal:
         else:
             state = "on" if not self.console.no_color else "off"
             self.status(f"Color: {state}")
+        return CmdResult.ok()
 
-    def _hook_run(self, ctx, args: str) -> None:
+    def _hook_run(self, ctx, args: str):
         """Run a script file or list available scripts."""
+        from termapy.scripting import CmdResult
         script = args.strip()
         if not script:
             scripts_dir = Path(self.config_path).parent / "scripts"
             if not scripts_dir.is_dir():
                 self.status("No scripts/ directory found.")
-                return
+                return CmdResult.ok()
             files = sorted(scripts_dir.glob("*.run"))
             if not files:
                 self.status("No .run files found in scripts/")
-                return
+                return CmdResult.ok()
             self.status("Available scripts:")
             for f in files:
                 self.status(f"  {f.name}")
-            return
+            return CmdResult.ok()
         script, verbose = _parse_run_flags(script)
         path = self.repl.start_script(script)
         if path:
             self.repl.run_script(
                 path, write=self.status, dispatch=self.ctx.dispatch, verbose=verbose,
             )
+            return CmdResult.ok()
+        return CmdResult.fail(msg=f"Script not found: {script}")
+
+    def _hook_run_profile(self, ctx, args: str):
+        """Run a script with per-command timing."""
+        from termapy.scripting import CmdResult
+
+        script = args.strip()
+        if not script:
+            self.status("Usage: /run.profile <script>", "red")
+            return CmdResult.fail(msg="Usage: /run.profile <script>")
+        script, verbose = _parse_run_flags(script)
+        path = self.repl.start_script(script)
+        if path:
+            self.repl.run_script(
+                path, write=self.status, dispatch=self.ctx.dispatch,
+                profile=True, verbose=verbose,
+            )
+            return CmdResult.ok()
+        return CmdResult.fail(msg=f"Script not found: {script}")
 
     # -- Progress bar ---------------------------------------------------------
 
@@ -308,9 +336,9 @@ class CLITerminal:
 
     # -- Serial helpers -------------------------------------------------------
 
-    def _dispatch(self, cmd: str) -> None:
+    def _dispatch(self, cmd: str):
         """Route a command through the full dispatch pipeline."""
-        self.repl.dispatch_full(
+        return self.repl.dispatch_full(
             cmd,
             log=self._log,
             echo_markup=self.write_markup,

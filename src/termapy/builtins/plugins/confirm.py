@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Pause execution and show a Yes/Cancel confirmation dialog.
 
     If the user clicks Yes, execution continues. If Cancel, the
@@ -25,6 +26,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     if not ctx.confirm(message):
         ctx.write("Cancelled.", "yellow")
         ctx.engine.script_stop()
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

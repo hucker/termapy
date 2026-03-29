@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import cfg_log_path, open_with_system
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -52,46 +53,45 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
 # ── Handlers ─────────────────────────────────────────────────────────────────
 
 
-def _handler_root(ctx: PluginContext, args: str) -> None:
+def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
-        ctx.write("Usage: /edit <filename>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /edit <filename>")
     path = _resolve_file(ctx, name)
     if path is None:
-        ctx.write(f"File not found: {name}", "red")
-        return
+        return CmdResult.fail(msg=f"File not found: {name}")
     ctx.open_file(path)
+    return CmdResult.ok()
 
 
-def _handler_cfg(ctx: PluginContext, args: str) -> None:
+def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
-        ctx.write("No config loaded.", "red")
-        return
+        return CmdResult.fail(msg="No config loaded.")
     ctx.open_file(Path(ctx.config_path))
+    return CmdResult.ok()
 
 
-def _handler_log(ctx: PluginContext, args: str) -> None:
+def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
-        ctx.write("No config loaded.", "red")
-        return
+        return CmdResult.fail(msg="No config loaded.")
     configured = ctx.cfg.get("log_file", "")
     if configured:
         ctx.open_file(Path(configured).resolve())
     else:
         ctx.open_file(Path(cfg_log_path(ctx.config_path)))
+    return CmdResult.ok()
 
 
-def _handler_info(ctx: PluginContext, args: str) -> None:
+def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
-        ctx.write("No config loaded.", "red")
-        return
+        return CmdResult.fail(msg="No config loaded.")
     stem = Path(ctx.config_path).stem
     path = Path(ctx.config_path).parent / f"{stem}.md"
     if path.exists():
         ctx.open_file(path)
+        return CmdResult.ok()
     else:
-        ctx.write("No info report yet. Run /cfg.info first.", "red")
+        return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
 
 
 # ── Folder subcommand factories ──────────────────────────────────────────────
@@ -99,44 +99,45 @@ def _handler_info(ctx: PluginContext, args: str) -> None:
 
 def _make_edit_handler(get_dir, ext):
     """Create a handler that opens a file by name from a folder."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         name = args.strip()
         if not name:
-            ctx.write(f"Usage: /edit.<folder> <filename>", "red")
-            return
+            return CmdResult.fail(msg=f"Usage: /edit.<folder> <filename>")
         folder = get_dir(ctx)
         if not name.endswith(ext):
             name += ext
         path = folder / name
         if not path.exists():
-            ctx.write(f"File not found: {name}", "red")
-            return
+            return CmdResult.fail(msg=f"File not found: {name}")
         ctx.open_file(path)
+        return CmdResult.ok()
     return handler
 
 
 def _make_list_handler(get_dir, pattern):
     """Create a handler that lists files in a folder."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         if not folder.is_dir():
             ctx.write(f"  (no directory)", "dim")
-            return
+            return CmdResult.ok()
         files = sorted(folder.glob(pattern))
         if not files:
             ctx.write(f"  (empty)", "dim")
-            return
+            return CmdResult.ok()
         for f in files:
             ctx.write(f"  {f.name}")
+        return CmdResult.ok()
     return handler
 
 
 def _make_explore_handler(get_dir):
     """Create a handler that opens a folder in the system file explorer."""
-    def handler(ctx: PluginContext, args: str) -> None:
+    def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         folder.mkdir(parents=True, exist_ok=True)
         ctx.open_file(folder)
+        return CmdResult.ok()
     return handler
 
 

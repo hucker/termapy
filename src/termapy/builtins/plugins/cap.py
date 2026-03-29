@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
 from termapy.protocol import parse_format_spec
-from termapy.scripting import parse_duration, resolve_seq_filename
+from termapy.scripting import CmdResult, parse_duration, resolve_seq_filename
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -89,7 +89,7 @@ def _resolve_path(filename: str, cap_dir: Path) -> Path | None:
 # ── /cap.text handler ────────────────────────────────────────────────────────
 
 
-def _handler_text(ctx: PluginContext, args: str) -> None:
+def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
     """Capture decoded serial text to a file for a timed duration.
 
     Syntax: /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=...}
@@ -102,26 +102,22 @@ def _handler_text(ctx: PluginContext, args: str) -> None:
     positional = sections.get("_positional", "").split()
 
     if len(positional) < 1 or "timeout" not in sections:
-        ctx.write(
-            "Usage: /cap.text <file> timeout=<dur> {mode=new|append} "
-            "{echo=on|off} {cmd=... (must be last)}",
-            "yellow",
+        return CmdResult.fail(
+            msg="Usage: /cap.text <file> timeout=<dur> {mode=new|append} "
+            "{echo=on|off} {cmd=... (must be last)}"
         )
-        return
 
     filename = positional[0]
     file_mode = _parse_mode(sections)
     if file_mode is None:
-        ctx.write(
-            f"Invalid mode: {sections['mode']!r}. Use new/n or append/a.", "red"
+        return CmdResult.fail(
+            msg=f"Invalid mode: {sections['mode']!r}. Use new/n or append/a."
         )
-        return
 
     try:
         seconds = parse_duration(sections["timeout"])
     except ValueError as e:
-        ctx.write(str(e), "red")
-        return
+        return CmdResult.fail(msg=str(e))
 
     cmd = sections.get("cmd", "")
     echo = sections.get("echo", "off").lower() == "on"
@@ -129,8 +125,7 @@ def _handler_text(ctx: PluginContext, args: str) -> None:
     try:
         filename = resolve_seq_filename(filename, ctx.cap_dir)
     except ValueError as e:
-        ctx.write(str(e), "red")
-        return
+        return CmdResult.fail(msg=str(e))
 
     path = _resolve_path(filename, ctx.cap_dir)
 
@@ -144,12 +139,13 @@ def _handler_text(ctx: PluginContext, args: str) -> None:
 
     if started and cmd:
         ctx.dispatch(cmd)
+    return CmdResult.ok()
 
 
 # ── /cap.bin handler ─────────────────────────────────────────────────────────
 
 
-def _handler_bin(ctx: PluginContext, args: str) -> None:
+def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     """Capture raw binary bytes to a file.
 
     Syntax: /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=...}
@@ -162,42 +158,36 @@ def _handler_bin(ctx: PluginContext, args: str) -> None:
     positional = sections.get("_positional", "").split()
 
     if len(positional) < 1 or "bytes" not in sections:
-        ctx.write(
-            "Usage: /cap.bin <file> bytes=<N> {mode=new|append} "
-            "{timeout=<dur>} {cmd=... (must be last)}",
-            "yellow",
+        return CmdResult.fail(
+            msg="Usage: /cap.bin <file> bytes=<N> {mode=new|append} "
+            "{timeout=<dur>} {cmd=... (must be last)}"
         )
-        return
 
     filename = positional[0]
     file_mode = _parse_mode(sections)
     if file_mode is None:
-        ctx.write(
-            f"Invalid mode: {sections['mode']!r}. Use new/n or append/a.", "red"
+        return CmdResult.fail(
+            msg=f"Invalid mode: {sections['mode']!r}. Use new/n or append/a."
         )
-        return
 
     try:
         cap_bytes = int(sections["bytes"])
     except ValueError:
-        ctx.write(f"Invalid bytes: {sections['bytes']!r}", "red")
-        return
+        return CmdResult.fail(msg=f"Invalid bytes: {sections['bytes']!r}")
 
     timeout_s = 0.0
     if "timeout" in sections:
         try:
             timeout_s = parse_duration(sections["timeout"])
         except ValueError as e:
-            ctx.write(str(e), "red")
-            return
+            return CmdResult.fail(msg=str(e))
 
     cmd = sections.get("cmd", "")
 
     try:
         filename = resolve_seq_filename(filename, ctx.cap_dir)
     except ValueError as e:
-        ctx.write(str(e), "red")
-        return
+        return CmdResult.fail(msg=str(e))
 
     path = _resolve_path(filename, ctx.cap_dir)
 
@@ -212,12 +202,13 @@ def _handler_bin(ctx: PluginContext, args: str) -> None:
     if started and cmd:
         ctx.serial_drain()
         ctx.dispatch(cmd)
+    return CmdResult.ok()
 
 
 # ── /cap.struct and /cap.hex shared handler ──────────────────────────────────
 
 
-def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -> None:
+def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -> CmdResult:
     """Capture binary data with format spec decoding to CSV.
 
     Used by both /cap.struct (raw bytes) and /cap.hex (hex text lines).
@@ -232,21 +223,18 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     positional = sections.get("_positional", "").split()
 
     if len(positional) < 1 or "fmt" not in sections:
-        ctx.write(
-            f"Usage: /{label} <file> fmt=<spec> records=<N> "
+        return CmdResult.fail(
+            msg=f"Usage: /{label} <file> fmt=<spec> records=<N> "
             "{mode=new|append} {sep=comma|tab|space} {echo=on|off} "
-            "{timeout=<dur>} {cmd=... (must be last)}",
-            "yellow",
+            "{timeout=<dur>} {cmd=... (must be last)}"
         )
-        return
 
     filename = positional[0]
     raw_file_mode = _parse_mode(sections)
     if raw_file_mode is None:
-        ctx.write(
-            f"Invalid mode: {sections['mode']!r}. Use new/n or append/a.", "red"
+        return CmdResult.fail(
+            msg=f"Invalid mode: {sections['mode']!r}. Use new/n or append/a."
         )
-        return
 
     fmt_spec = sections["fmt"]
     cmd = sections.get("cmd", "")
@@ -256,39 +244,33 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     sep_map = {"comma": ",", "tab": "\t", "space": " "}
     sep = sep_map.get(sep_name)
     if sep is None:
-        ctx.write(f"Invalid sep: {sep_name!r}. Use comma, tab, or space.", "red")
-        return
+        return CmdResult.fail(msg=f"Invalid sep: {sep_name!r}. Use comma, tab, or space.")
 
     try:
         records = int(sections["records"]) if "records" in sections else 0
     except ValueError:
-        ctx.write(f"Invalid records: {sections['records']!r}", "red")
-        return
+        return CmdResult.fail(msg=f"Invalid records: {sections['records']!r}")
 
     try:
         cap_bytes = int(sections["bytes"]) if "bytes" in sections else 0
     except ValueError:
-        ctx.write(f"Invalid bytes: {sections['bytes']!r}", "red")
-        return
+        return CmdResult.fail(msg=f"Invalid bytes: {sections['bytes']!r}")
 
     if not records and not cap_bytes:
-        ctx.write("Must specify records=N or bytes=N.", "red")
-        return
+        return CmdResult.fail(msg="Must specify records=N or bytes=N.")
 
     timeout_s = 0.0
     if "timeout" in sections:
         try:
             timeout_s = parse_duration(sections["timeout"])
         except ValueError as e:
-            ctx.write(str(e), "red")
-            return
+            return CmdResult.fail(msg=str(e))
 
     # Parse format spec
     try:
         columns = parse_format_spec(fmt_spec)
     except Exception as e:
-        ctx.write(f"Invalid format spec: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"Invalid format spec: {e}")
 
     max_idx = 0
     for col in columns:
@@ -296,8 +278,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
             max_idx = max(max_idx, max(col.byte_indices))
     record_size = max_idx + 1
     if record_size == 0:
-        ctx.write("Format spec has no byte references.", "red")
-        return
+        return CmdResult.fail(msg="Format spec has no byte references.")
 
     # Calculate target bytes
     if records:
@@ -305,18 +286,15 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     else:
         target_bytes = cap_bytes
         if target_bytes % record_size != 0:
-            ctx.write(
-                f"bytes={cap_bytes} is not a multiple of "
-                f"record size ({record_size} bytes).",
-                "red",
+            return CmdResult.fail(
+                msg=f"bytes={cap_bytes} is not a multiple of "
+                f"record size ({record_size} bytes)."
             )
-            return
 
     try:
         filename = resolve_seq_filename(filename, ctx.cap_dir)
     except ValueError as e:
-        ctx.write(str(e), "red")
-        return
+        return CmdResult.fail(msg=str(e))
 
     path = _resolve_path(filename, ctx.cap_dir)
 
@@ -336,24 +314,26 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     if started and cmd:
         ctx.serial_drain()
         ctx.dispatch(cmd)
+    return CmdResult.ok()
 
 
-def _handler_struct(ctx: PluginContext, args: str) -> None:
+def _handler_struct(ctx: PluginContext, args: str) -> CmdResult:
     """Capture raw bytes, decode with format spec to CSV."""
-    _handler_structured(ctx, args, hex_mode=False)
+    return _handler_structured(ctx, args, hex_mode=False)
 
 
-def _handler_hex(ctx: PluginContext, args: str) -> None:
+def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     """Capture hex text lines, decode with format spec to CSV."""
-    _handler_structured(ctx, args, hex_mode=True)
+    return _handler_structured(ctx, args, hex_mode=True)
 
 
 # ── /cap.stop handler ────────────────────────────────────────────────────────
 
 
-def _handler_stop(ctx: PluginContext, args: str) -> None:
+def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
     """Stop an active capture."""
     ctx.engine.stop_capture()
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

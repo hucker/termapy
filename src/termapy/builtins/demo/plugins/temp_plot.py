@@ -25,12 +25,13 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Sample temperature N times and display an ASCII sparkline.
 
     Sends AT+TEMP to the device, parses the numeric response,
@@ -41,17 +42,14 @@ def _handler(ctx: PluginContext, args: str) -> None:
         args: Number of samples (default 20).
     """
     if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
+        return CmdResult.fail(msg="Not connected.")
 
     try:
         count = int(args.strip()) if args.strip() else 20
         if count < 1 or count > 200:
-            ctx.write("Sample count must be 1-200.", "red")
-            return
+            return CmdResult.fail(msg="Sample count must be 1-200.")
     except ValueError:
-        ctx.write("Usage: /temp_plot {count}", "red")
-        return
+        return CmdResult.fail(msg="Usage: /temp_plot {count}")
 
     encoding = ctx.cfg.get("encoding", "utf-8")
     line_ending = ctx.cfg.get("line_ending", "\r")
@@ -78,8 +76,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
             time.sleep(0.025)
 
     if not readings:
-        ctx.write("No temperature readings captured.", "red")
-        return
+        return CmdResult.fail(msg="No temperature readings captured.")
 
     # Stats
     lo = min(readings)
@@ -99,6 +96,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
         f"  {len(readings)} samples: "
         f"min={lo:.1f}°C  max={hi:.1f}°C  avg={avg:.1f}°C"
     )
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

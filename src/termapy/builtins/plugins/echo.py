@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Toggle or set REPL command echo on/off.
 
     When echo is on, REPL commands are printed to the terminal
@@ -30,9 +31,10 @@ def _handler(ctx: PluginContext, args: str) -> None:
         ctx.engine.set_echo(not ctx.engine.get_echo())
     state = "on" if ctx.engine.get_echo() else "off"
     ctx.write(f"REPL echo {state}.", "green")
+    return CmdResult.ok()
 
 
-def _handler_quiet(ctx: PluginContext, args: str) -> None:
+def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
     """Set REPL echo on/off silently (no output).
 
     Useful in on_connect_cmd and scripts where you want to
@@ -48,7 +50,8 @@ def _handler_quiet(ctx: PluginContext, args: str) -> None:
     elif arg == "off":
         ctx.engine.set_echo(False)
     else:
-        ctx.write("Usage: /echo.quiet <on|off>", "red")
+        return CmdResult.fail(msg="Usage: /echo.quiet <on|off>")
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

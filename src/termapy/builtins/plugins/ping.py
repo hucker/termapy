@@ -6,34 +6,29 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
-from termapy.scripting import parse_duration, parse_keywords
+from termapy.scripting import CmdResult, parse_duration, parse_keywords
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> None:
+def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult:
     kw = parse_keywords(args, {"cmd", "count", "timeout"}, rest_keyword="cmd")
     cmd = kw.get("cmd", "")
     if not cmd:
-        ctx.write("Usage: /ping {count=<N>} {timeout=<dur>} cmd=<command>", "red")
-        return
+        return CmdResult.fail(msg="Usage: /ping {count=<N>} {timeout=<dur>} cmd=<command>")
     try:
         count = int(kw.get("count", "1"))
     except ValueError:
-        ctx.write("Ping: count must be an integer", "red")
-        return
+        return CmdResult.fail(msg="Ping: count must be an integer")
     if count < 1:
-        ctx.write("Ping: count must be >= 1", "red")
-        return
+        return CmdResult.fail(msg="Ping: count must be >= 1")
     try:
         timeout_ms = int(parse_duration(kw.get("timeout", "250ms")) * 1000)
     except ValueError as e:
-        ctx.write(f"Ping: {e}", "red")
-        return
+        return CmdResult.fail(msg=f"Ping: {e}")
     if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
+        return CmdResult.fail(msg="Not connected.")
     times: list[float] = []
     for i in range(count):
         with ctx.serial_io():
@@ -56,10 +51,11 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> None:
         lo = min(times)
         hi = max(times)
         ctx.write(f"{count} pings: avg={avg:.0f}ms min={lo:.0f}ms max={hi:.0f}ms", "dim")
+    return CmdResult.ok()
 
 
-def _handler_quiet(ctx: PluginContext, args: str) -> None:
-    _handler(ctx, args, quiet=True)
+def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
+    return _handler(ctx, args, quiet=True)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

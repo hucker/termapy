@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from termapy import port_control
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -26,11 +27,11 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
 # ── Handlers ────────────────────────────────────────────────────────────────
 
 
-def _handler_root(ctx: PluginContext, args: str) -> None:
+def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if name:
         ctx.engine.update_port(name)
-        return
+        return CmdResult.ok()
     # No args - list subcommands
     prefix = ctx.engine.prefix
     plugins = ctx.engine.plugins
@@ -43,47 +44,57 @@ def _handler_root(ctx: PluginContext, args: str) -> None:
                 short = child_name.split(".")[-1]
                 arg_str = f" {child.args}" if child.args else ""
                 ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
+    return CmdResult.ok()
 
 
-def _handler_list(ctx: PluginContext, args: str) -> None:
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     _apply(ctx, port_control.list_ports())
+    return CmdResult.ok()
 
 
-def _handler_open(ctx: PluginContext, args: str) -> None:
+def _handler_open(ctx: PluginContext, args: str) -> CmdResult:
     ctx.engine.connect(args.strip() if args.strip() else None)
+    return CmdResult.ok()
 
 
-def _handler_close(ctx: PluginContext, args: str) -> None:
+def _handler_close(ctx: PluginContext, args: str) -> CmdResult:
     ctx.engine.disconnect()
+    return CmdResult.ok()
 
 
-def _handler_info(ctx: PluginContext, args: str) -> None:
+def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     _apply(ctx, port_control.port_info(ctx.cfg, ctx.port()))
+    return CmdResult.ok()
 
 
-def _handler_flow(ctx: PluginContext, args: str) -> None:
+def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
     _apply(ctx, port_control.get_set_flow(ctx.port(), ctx.cfg, args))
+    return CmdResult.ok()
 
 
-def _handler_break(ctx: PluginContext, args: str) -> None:
+def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
     _apply(ctx, port_control.send_break(ctx.port(), args))
+    return CmdResult.ok()
 
 
 def _make_prop_handler(key: str):
-    def _handler(ctx: PluginContext, args: str) -> None:
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
         _apply(ctx, port_control.get_set_prop(ctx.port(), ctx.cfg, key, args))
+        return CmdResult.ok()
     return _handler
 
 
 def _make_hw_handler(line: str):
-    def _handler(ctx: PluginContext, args: str) -> None:
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
         _apply(ctx, port_control.get_set_hw_line(ctx.port(), line, args))
+        return CmdResult.ok()
     return _handler
 
 
 def _make_signal_handler(signal: str):
-    def _handler(ctx: PluginContext, args: str) -> None:
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
         _apply(ctx, port_control.read_signal(ctx.port(), signal, args))
+        return CmdResult.ok()
     return _handler
 
 

@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Toggle or set EOL marker visibility.
 
     When enabled, dim ``\\r`` and ``\\n`` markers appear inline in
@@ -34,6 +35,7 @@ def _handler(ctx: PluginContext, args: str) -> None:
     else:
         new = not current
     ctx.engine.apply_cfg("show_line_endings", new)
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

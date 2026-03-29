@@ -8,16 +8,17 @@ Demonstrates using the serial port through the plugin context.
 
 
 from termapy.plugins import Command
+from termapy.scripting import CmdResult
 
 
 def _handler(ctx, args):
     cmd = args.strip() or "AT"
     if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
+        return CmdResult.fail(msg="Not connected.")
     ctx.write(f"> {cmd}", "purple")
     ctx.serial_send(cmd)
     ctx.serial_wait_idle()
+    return CmdResult.ok()
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

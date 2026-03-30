@@ -36,8 +36,9 @@ DEFAULT_CFG = {
     "title": "",
     "border_color": "",
     "max_lines": 10000,
+    "default_ui": "tui",
     "cmd_prefix": "/",
-    "cli_prompt": "> ",
+    "cli_prompt": "$(CFG)> ",
     "cli_echo_input": False,
     "config_read_only": False,
     "os_cmd_enabled": False,
@@ -59,7 +60,7 @@ DEFAULT_CFG = {
     "send_bare_enter": False,
     # Input echo
     "echo_input": False,
-    "echo_input_fmt": "[purple]> {cmd}[/]",
+    "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
     # Logging
     "log_file": "",
     # Diagnostics
@@ -260,6 +261,10 @@ CFG_HELP: dict[str, tuple] = {
         "Rich markup format for echoed commands.",
         "{cmd} is replaced. Example: [purple]> {cmd}[/]",
         _preview_markup,
+    ),
+    "default_ui": (
+        "Default UI mode when launching without --cli flag.",
+        "tui, cli. Default: tui",
     ),
     "cmd_prefix": (
         "Prefix for local REPL commands.",

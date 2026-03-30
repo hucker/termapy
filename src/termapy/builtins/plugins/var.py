@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from termapy.plugins import Command, Directive, DirectiveResult, Transform
 from termapy.scripting import CmdResult
@@ -105,6 +105,14 @@ _DYNAMIC_VARS: dict[str, str] = {
     "DATETIME": "%Y-%m-%d %H:%M:%S",
 }
 
+# Context variables - resolved via callable at expansion time.
+_CONTEXT_VARS: dict[str, Callable[[], str]] = {}
+
+
+def set_context_var(name: str, fn: Callable[[], str]) -> None:
+    """Register a context variable resolved by callable at expansion time."""
+    _CONTEXT_VARS[name] = fn
+
 
 _ESCAPE_SENTINEL = "\x00"
 
@@ -139,6 +147,9 @@ def expand_vars(text: str) -> str:
         fmt = _DYNAMIC_VARS.get(name)
         if fmt is not None:
             return datetime.now().strftime(fmt)
+        ctx_fn = _CONTEXT_VARS.get(name)
+        if ctx_fn is not None:
+            return ctx_fn()
         return m.group(0)
 
     text = _VAR_REF_RE.sub(_replace, text)
@@ -167,12 +178,16 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
             fmt = _DYNAMIC_VARS.get(name)
             if fmt is not None:
                 val = datetime.now().strftime(fmt)
+        if val is None:
+            ctx_fn = _CONTEXT_VARS.get(name)
+            if ctx_fn is not None:
+                val = ctx_fn()
         if val is not None:
             ctx.write_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
         else:
             ctx.write(f"  $({name}) - not defined", "red")
         return CmdResult.ok()
-    if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS:
+    if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS and not _CONTEXT_VARS:
         ctx.output("  (no variables defined)")
         return CmdResult.ok()
     for k in sorted(_VARS):
@@ -182,6 +197,8 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     now = datetime.now()
     for k, fmt in sorted(_DYNAMIC_VARS.items()):
         ctx.write_markup(f"  [cyan]$({k})[/] = [green]{now.strftime(fmt)}[/]  [dim](dynamic)[/]")
+    for k in sorted(_CONTEXT_VARS):
+        ctx.write_markup(f"  [cyan]$({k})[/] = [green]{_CONTEXT_VARS[k]()}[/]  [dim](context)[/]")
     return CmdResult.ok()
 
 

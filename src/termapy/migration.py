@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 9
+CURRENT_CONFIG_VERSION = 10
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
@@ -110,12 +110,21 @@ MIGRATIONS[7] = _migrate_v7_to_v8
 
 def _migrate_v8_to_v9(cfg: dict) -> dict:
     """Add cli_prompt and cli_echo_input options."""
-    cfg.setdefault("cli_prompt", "> ")
+    cfg.setdefault("cli_prompt", "$(CFG)> ")
     cfg.setdefault("cli_echo_input", False)
     return cfg
 
 
 MIGRATIONS[8] = _migrate_v8_to_v9
+
+
+def _migrate_v9_to_v10(cfg: dict) -> dict:
+    """Add default_ui option (default 'tui')."""
+    cfg.setdefault("default_ui", "tui")
+    return cfg
+
+
+MIGRATIONS[9] = _migrate_v9_to_v10
 
 
 def migrate_config(cfg: dict) -> dict:

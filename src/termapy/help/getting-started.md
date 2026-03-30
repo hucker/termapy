@@ -41,6 +41,33 @@ the file.
 - If multiple configs exist, a picker dialog appears.
 - If no configs exist, you are prompted to name a new one and an editor opens with defaults.
 
+## User Interface Modes
+
+Termapy has two interface modes that you can switch between at any time:
+
+**TUI mode** (default) — a full-screen terminal UI built with Textual.
+Includes a title bar, toolbar buttons, scrollable output, command input
+with ghost-text suggestions, and modal dialogs for config, port selection,
+scripts, and more.
+
+**CLI mode** — a plain-text terminal with no UI framework. Reads from
+stdin and writes to stdout. Useful for headless environments, SSH sessions,
+piping output, or when you prefer a minimal interface. Start with
+`termapy --cli` or set `"default_ui": "cli"` in your config.
+
+### Switching modes
+
+Use the `/tui` and `/cli` REPL commands to switch modes during a session.
+The serial connection and config carry over — only the interface changes.
+
+You can also set the default mode in your config:
+
+```json
+"default_ui": "tui"
+```
+
+Set to `"cli"` to always start in CLI mode without the `--cli` flag.
+
 ## Folder Layout
 
 All data for each config (logs, screenshots, scripts, command history,

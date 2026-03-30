@@ -14,6 +14,31 @@ Each button object has these fields:
 | `command` | Command to execute when clicked               |
 | `tooltip` | Hover text for the button                     |
 
+## Example
+
+```json
+"custom_buttons": [
+    {
+        "enabled": true,
+        "name": "Info",
+        "command": "/cfg.info",
+        "tooltip": "Project info"
+    },
+    {
+        "enabled": true,
+        "name": "Reset",
+        "command": "ATZ",
+        "tooltip": "Send ATZ reset"
+    },
+    {
+        "enabled": false,
+        "name": "Btn3",
+        "command": "",
+        "tooltip": "Custom button 3"
+    }
+]
+```
+
 ## Command Format
 
 - Plain text is sent to the serial device (e.g. `"ATZ"`)

@@ -11,6 +11,15 @@ Here is an example config for a device called `iot_device`:
 ```json
 {
     "config_version": 3,
+    "title": "IoT Device",
+    "border_color": "blue",
+    "max_lines": 10000,
+    "default_ui": "tui",
+    "cmd_prefix": "/",
+    "cli_prompt": "$(CFG)> ",
+    "cli_echo_input": false,
+    "config_read_only": false,
+    "os_cmd_enabled": false,
     "port": "COM4",
     "baud_rate": 115200,
     "byte_size": 8,
@@ -19,22 +28,19 @@ Here is an example config for a device called `iot_device`:
     "flow_control": "none",
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
-    "line_ending": "\r",
-    "send_bare_enter": false,
     "auto_connect": true,
     "auto_reconnect": true,
     "on_connect_cmd": "status\nhelp",
+    "line_ending": "\r",
+    "send_bare_enter": false,
     "echo_input": true,
-    "echo_input_fmt": "[purple]> {cmd}[/]",
+    "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
     "log_file": "",
-    "show_timestamps": false,
-    "max_grep_lines": 100,
-    "title": "IoT Device",
-    "border_color": "blue",
-    "max_lines": 10000,
-    "cmd_prefix": "/",
-    "os_cmd_enabled": false,
     "show_traceback": false,
+    "proto_results_template": "{name}_results.json",
+    "show_timestamps": false,
+    "show_line_endings": false,
+    "max_grep_lines": 100,
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
         {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200", "tooltip": "Reset and set baud"}
@@ -72,7 +78,10 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `title`                  | ` `                   | Title bar text (defaults to config filename)                                                |
 | `border_color`           | ` `                   | Title bar color (CSS name or hex like `#ff6600`)                                            |
 | `max_lines`              | `10000`               | Scrollback buffer size                                                                      |
+| `default_ui`             | `tui`                 | Default UI mode: `tui` or `cli`                                                             |
 | `cmd_prefix`             | `/`                   | Prefix for local REPL commands                                                              |
+| `cli_prompt`             | `$(CFG)>`             | Prompt string in CLI mode (supports variables)                                              |
+| `cli_echo_input`         | `false`               | Echo sent commands in CLI mode                                                              |
 | `config_read_only`       | `false`               | Disable Edit button in pickers (`/cfg` still changes in-memory values)                      |
 | `os_cmd_enabled`         | `false`               | Allow `/os` to run shell commands                                                           |
 | `show_traceback`         | `false`               | Show full stack trace on serial errors                                                      |

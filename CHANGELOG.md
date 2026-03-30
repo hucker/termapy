@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.37.0 (2026-03-29)
+
+### New Features
+
+- **Mode switching** -- `/tui` and `/cli` commands switch between TUI and CLI modes
+- **`$(CFG)` variable** -- context variable resolves to current config name, usable in prompts
+- **`default_ui` config** -- choose default launch mode (`tui` or `cli`), `--cli` flag overrides
+- **Unified echo** -- single `_echo_cmd` function for both REPL and serial command echo
+- **CLI `on_connect_cmd`** -- CLI now runs startup commands after connecting (was TUI-only)
+
+### Improvements
+
+- **`CmdResult.err_msg`** -- consistent "Error: " prefix on all error messages
+- **run_script refactored** -- `ScriptCtx`, `BLOCKING_COMMANDS` dispatch table, context manager
+- **`start_script` returns `(Path, CmdResult)`** -- no more double error messages
+- **TUI title tooltip** -- full connection info, features, config path on hover
+- **`echo_input_fmt` supports `$(CFG)`** -- prompt shows config name in both modes
+- **Config migration v9->v10** -- adds `default_ui`
+- **`/ss` and `/grep` CLI errors** -- proper `CmdResult.fail()` instead of yellow warnings
+- **Sub-millisecond timing** -- 6-digit precision when `< 0.001s`
+
+### Bug Fixes
+
+- **No more double error on missing script** -- `start_script` owns error display
+- **`/tui` in TUI and `/cli` in CLI** -- no-op instead of unknown command error
+- **Demo table in help** -- missing separator row and column alignment fixed
+- **Unused `json` import** -- removed from repl.py
+
 ## 0.36.0 (2026-03-29)
 
 ### New Features

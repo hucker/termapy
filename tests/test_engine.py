@@ -69,22 +69,24 @@ class TestStartScript:
         eng, output = engine
 
         # Act
-        actual = eng.start_script("")
+        path, result = eng.start_script("")
 
         # Assert
-        assert actual is None  # returns None on missing filename
-        assert any("Usage" in t for t, _ in output)  # shows usage message
+        assert path is None  # no path on missing filename
+        assert not result.success  # failure result
+        assert "Usage" in result.error  # error message
 
     def test_file_not_found(self, engine):
         # Arrange
         eng, output = engine
 
         # Act
-        actual = eng.start_script("nonexistent.txt")
+        path, result = eng.start_script("nonexistent.txt")
 
         # Assert
-        assert actual is None  # returns None when file missing
-        assert any("not found" in t.lower() for t, _ in output)  # shows error
+        assert path is None  # no path when file missing
+        assert not result.success  # failure result
+        assert "not found" in result.error.lower()  # error message
 
     def test_file_found_directly(self, engine, tmp_path):
         # Arrange
@@ -93,10 +95,11 @@ class TestStartScript:
         script.write_text("rev\n")
 
         # Act
-        actual = eng.start_script(str(script))
+        path, result = eng.start_script(str(script))
 
         # Assert
-        assert actual == script  # returns the script path
+        assert path == script  # returns the script path
+        assert result.success  # success result
         assert eng._script_depth == 1  # marks script as running
 
     def test_file_found_in_scripts_dir(self, engine):
@@ -108,10 +111,11 @@ class TestStartScript:
         script.write_text("rev\n")
 
         # Act
-        actual = eng.start_script("init.txt")
+        path, result = eng.start_script("init.txt")
 
         # Assert
-        assert actual == script  # resolves relative to scripts dir
+        assert path == script  # resolves relative to scripts dir
+        assert result.success  # success result
         assert eng._script_depth == 1  # marks script as running
 
     def test_max_depth_exceeded(self, engine, tmp_path):
@@ -122,11 +126,12 @@ class TestStartScript:
         script.write_text("rev\n")
 
         # Act
-        actual = eng.start_script(str(script))
+        path, result = eng.start_script(str(script))
 
         # Assert
-        assert actual is None  # returns None when max depth reached
-        assert any("too deep" in t.lower() for t, _ in output)  # shows error
+        assert path is None  # no path when max depth reached
+        assert not result.success  # failure result
+        assert "too deep" in result.error.lower()  # error message
 
 
 # -- Properties ------------------------------------------------------------

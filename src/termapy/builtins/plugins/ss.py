@@ -23,8 +23,7 @@ def _handler_dir(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_not_supported(ctx: PluginContext, args: str) -> CmdResult:
-    ctx.write("Screenshots are not supported in CLI mode.", "yellow")
-    return CmdResult.ok()
+    return CmdResult.fail(msg="Screenshots are not supported in CLI mode.")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

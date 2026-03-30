@@ -461,9 +461,9 @@ file for a timed duration.
 > /print === section: errors ===
   === section: errors ===
 > /nonexistent_command
-  Unknown REPL command: nonexistent_command
+  Error: Unknown REPL command: nonexistent_command
 > /cfg nonexistent_key
-  Unknown config key: nonexistent_key
+  Error: Unknown config key: nonexistent_key
 > /port.baud_rate not_a_number
   Invalid baud rate: not_a_number
 > /port.parity X

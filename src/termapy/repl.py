@@ -7,6 +7,8 @@ and exposes it through PluginContext lambdas.
 """
 
 import time
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import datetime
 from io import TextIOWrapper
 from pathlib import Path
@@ -25,6 +27,50 @@ from termapy.plugins import (
 )
 from termapy.folders import CAP, PROF, PROTO, RUN, SS
 from termapy.scripting import CmdResult, expand_template, parse_duration, parse_keywords
+
+
+@dataclass
+class ScriptCtx:
+    """Shared state for script execution."""
+
+    w: Callable
+    dispatch_fn: Callable | None
+    prefix: str
+    profile: bool
+    verbose: bool
+    progress: Callable | None
+    on_nest: Callable | None
+    lines: list = field(default_factory=list)
+    step: int = 0
+    total: int = 0
+    profile_times: list = field(default_factory=list)
+    prof_fh: TextIOWrapper | None = None
+    script_t0: float = 0.0
+    prof_name: str = ""
+    prof_path: Path | None = None
+
+    def record(self, label: str, elapsed: float) -> None:
+        """Record timing for profile and verbose output."""
+        if self.verbose:
+            fmt = f"{elapsed:.6f}" if elapsed < 0.001 else f"{elapsed:.3f}"
+            self.w(f"[{self.step}/{self.total}] {label} ({fmt}s)")
+        if self.profile and self.prof_fh:
+            self.profile_times.append((label, elapsed))
+            self.prof_fh.write(f"{elapsed:.6f},{label}\n")
+
+    def finish(self, script_name: str) -> None:
+        """Display summary after successful script completion."""
+        if self.verbose:
+            elapsed = time.perf_counter() - self.script_t0
+            fmt = f"{elapsed:.6f}" if elapsed < 0.001 else f"{elapsed:.3f}"
+            self.w(f"Script {script_name} done ({fmt}s)")
+        if self.profile and self.profile_times and self.prof_fh and self.prof_path:
+            total_t = sum(t for _, t in self.profile_times)
+            fmt = f"{total_t:.6f}" if total_t < 0.001 else f"{total_t:.3f}"
+            self.prof_fh.flush()
+            for line in self.prof_path.read_text(encoding="utf-8").splitlines():
+                self.w(line)
+            self.w(f"── {fmt}s total ({len(self.profile_times)} commands) -> {self.prof_name} ──")
 
 
 class ReplEngine:
@@ -419,7 +465,7 @@ class ReplEngine:
         else:
             result = CmdResult.fail(msg=f"Unknown REPL command: {name}")
         if not result.success and result.error:
-            self.write(result.error, "red")
+            self.write(result.err_msg, "red")
         return result
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
@@ -498,42 +544,34 @@ class ReplEngine:
 
     # -- Scripting ------------------------------------------------------------
 
-    def start_script(self, args: str) -> Path | None:
+    def start_script(self, args: str) -> tuple[Path | None, CmdResult]:
         """Validate and prepare for script execution.
 
-        Resolves the filename (checking scripts/ dir as fallback), validates
-        that no script is already running, and resets sequence counters.
+        Resolves the filename (checking run/ dir as fallback), validates
+        nesting depth, and resets sequence counters.
 
         Args:
             args: Filename string from the /run command.
 
         Returns:
-            Resolved Path if ready to run, None if validation failed.
+            Tuple of (resolved Path, CmdResult). Path is None on failure.
         """
         filename = args.strip()
         if not filename:
-            self.write("Usage: /run <filename>", "red")
-            return None
+            return None, CmdResult.fail(msg="Usage: /run <filename>")
         path = Path(filename)
         if not path.exists() and not path.suffix:
             path = Path(filename + ".run")
         if not path.exists():
-            # Try resolving relative to the per-config scripts/ folder
             alt = self.scripts_dir / path.name
             if alt.exists():
                 path = alt
             else:
-                self.write(f"File not found: {filename}", "red")
-                if self.scripts_dir != Path("."):
-                    self.write(f"  (also checked {self.scripts_dir})", "dim")
-                return None
+                return None, CmdResult.fail(msg=f"File not found: {filename}")
         if self._script_depth >= self._max_script_depth:
-            self.write(
-                f"Script nesting too deep ({self._max_script_depth} levels). "
-                "Use /stop first.",
-                "red",
+            return None, CmdResult.fail(
+                msg=f"Script nesting too deep ({self._max_script_depth} levels). Use /stop first."
             )
-            return None
         if self._script_depth == 0:
             self._script_stop.clear()
         self._script_depth += 1
@@ -541,7 +579,190 @@ class ReplEngine:
         self._seq_counters = {}
         self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.ctx.status(f"Running script: {filename}")
-        return path
+        return path, CmdResult.ok()
+
+    # -- Script blocking command handlers ----------------------------------------
+
+    def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
+        """Handle /delay in scripts — sleep on background thread."""
+        expanded, self._seq_counters = expand_template(
+            args.strip(), self._seq_counters, self._seq_start_time,
+        )
+        try:
+            seconds = parse_duration(expanded)
+        except ValueError as e:
+            return CmdResult.fail(msg=str(e))
+        t0 = time.perf_counter()
+        self._script_stop.wait(timeout=seconds)
+        if self._script_stop.is_set():
+            return CmdResult.fail(msg="Script stopped.")
+        elapsed = time.perf_counter() - t0
+        if not sctx.profile:
+            sctx.w(f"Delay {expanded} done.")
+        return CmdResult.ok()
+
+    def _script_confirm(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
+        """Handle /confirm in scripts — show dialog, block on background thread."""
+        message = args.strip() or "Continue?"
+        if not self.ctx.confirm(message):
+            sctx.w("Script cancelled by user.")
+            self._script_stop.set()
+        return CmdResult.ok()
+
+    def _script_run(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
+        """Handle /run and /run.profile in scripts — nested execution."""
+        nested_profile = name == "run.profile"
+        run_args = args.strip()
+        run_tokens = run_args.split()
+        run_args = " ".join(t for t in run_tokens if t not in ("-v", "--verbose"))
+        nested_path, result = self.start_script(run_args)
+        if nested_path:
+            if sctx.on_nest:
+                sctx.on_nest()
+            self.run_script(
+                nested_path,
+                write=sctx.w,
+                dispatch=sctx.dispatch_fn,
+                profile=nested_profile,
+                progress=sctx.progress,
+                on_nest=sctx.on_nest,
+                verbose=sctx.verbose,
+            )
+        return result
+
+    def _script_expect(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
+        """Handle /expect and /expect.regex in scripts — wait for serial pattern."""
+        use_regex = name == "expect.regex"
+        kw = parse_keywords(args, {"timeout", "quiet", "match"}, rest_keyword="match")
+        pattern = kw.get("match", "").strip()
+        if not pattern:
+            return CmdResult.fail(msg="Expect: missing match= keyword")
+        try:
+            timeout_s = parse_duration(kw["timeout"]) if "timeout" in kw else 0.25
+        except ValueError as e:
+            return CmdResult.fail(msg=f"Expect: {e}")
+        quiet = kw.get("quiet", "").lower() == "on"
+        timeout_str = kw.get("timeout", "250ms")
+        if use_regex:
+            import re as _re
+
+            def predicate(line: str) -> bool:
+                return bool(_re.search(pattern, line))
+        else:
+
+            def predicate(line: str) -> bool:
+                return pattern in line
+        match = self.wait_for_match(predicate, timeout=timeout_s)
+        if self._script_stop.is_set():
+            return CmdResult.fail(msg="Script stopped.")
+        if match is None:
+            self._script_stop.set()
+            return CmdResult.fail(msg=f'Expect "{pattern}" timeout after {timeout_str}')
+        if not quiet:
+            sctx.w(f'Expect "{pattern}" matched', "green")
+        return CmdResult.ok()
+
+    # Blocking commands — must run on the script's background thread because
+    # they block (sleep, wait for serial, show dialog). Regular commands are
+    # dispatched to the main thread via call_from_thread.
+    _BLOCKING_COMMANDS: dict[str, Callable] = {
+        "delay": _script_delay,
+        "delay.quiet": _script_delay,
+        "expect": _script_expect,
+        "expect.regex": _script_expect,
+        "confirm": _script_confirm,
+        "run": _script_run,
+        "run.profile": _script_run,
+    }
+
+    def _run_line(self, stripped: str, sctx: ScriptCtx) -> CmdResult:
+        """Execute one script line — blocking command or normal dispatch."""
+        if stripped.startswith(sctx.prefix):
+            cmd = stripped[len(sctx.prefix):].strip()
+            name, _, args = cmd.partition(" ")
+            handler = self._BLOCKING_COMMANDS.get(name.lower())
+            if handler:
+                self.ctx.log(">", stripped)
+                t0 = time.perf_counter()
+                result = handler(self, name.lower(), args, sctx)
+                result.elapsed_s = time.perf_counter() - t0
+                # Display errors here (same as dispatch does for normal commands)
+                if not result.success and result.error:
+                    sctx.w(result.err_msg, "red")
+                return result
+        # Normal dispatch (REPL commands and serial)
+        t0 = time.perf_counter()
+        if sctx.dispatch_fn:
+            cmd_result = sctx.dispatch_fn(stripped)
+        else:
+            if stripped.startswith(sctx.prefix):
+                cmd_result = self.dispatch(stripped[len(sctx.prefix):].strip())
+            elif self.ctx.is_connected():
+                self.ctx.serial_write(
+                    (stripped + self.cfg.get("line_ending", "\r")).encode(
+                        self.cfg.get("encoding", "utf-8")
+                    )
+                )
+                cmd_result = None
+            else:
+                cmd_result = None
+        if cmd_result and cmd_result.elapsed_s > 0:
+            elapsed = cmd_result.elapsed_s
+        else:
+            elapsed = time.perf_counter() - t0
+        result = cmd_result or CmdResult.ok()
+        result.elapsed_s = elapsed
+        # Wait for device response after serial commands
+        if not stripped.startswith(sctx.prefix):
+            try:
+                self.ctx.serial_wait_idle()
+            except Exception:
+                time.sleep(0.1)
+        return result
+
+    @contextmanager
+    def _script_session(self, path, w, dispatch, profile, verbose, progress, on_nest):
+        """Context manager for script lifecycle — setup, yield, teardown."""
+        sctx = ScriptCtx(
+            w=w, dispatch_fn=dispatch, prefix=self.prefix,
+            profile=profile, verbose=verbose,
+            progress=progress, on_nest=on_nest,
+        )
+        try:
+            all_lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as e:
+            w(f"Script error: {e}", "red")
+            self._script_depth -= 1
+            if self._script_stack:
+                self._script_stack.pop()
+            yield sctx  # yield empty context so 'with' block runs (lines is empty)
+            return
+        sctx.lines = [
+            ln for ln in all_lines if ln.strip() and not ln.strip().startswith("#")
+        ]
+        sctx.total = len(sctx.lines)
+        if profile:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            sctx.prof_name = f"{Path(self.config_path).stem}_{ts}.csv"
+            prof_dir = Path(self.config_path).parent / "prof"
+            prof_dir.mkdir(exist_ok=True)
+            sctx.prof_path = prof_dir / sctx.prof_name
+            sctx.prof_fh = open(sctx.prof_path, "w", encoding="utf-8")
+            sctx.prof_fh.write("Duration (sec),Command\n")
+            w(f"── profile: {path.name} -> {sctx.prof_name} ──")
+        sctx.script_t0 = time.perf_counter()
+        try:
+            yield sctx
+        except Exception as e:
+            w(f"Script error: {e}", "red")
+        finally:
+            self._script_depth -= 1
+            if self._script_stack:
+                self._script_stack.pop()
+            if on_nest:
+                on_nest()
+            if sctx.prof_fh:
+                sctx.prof_fh.close()
 
     def run_script(
         self,
@@ -555,253 +776,39 @@ class ReplEngine:
     ) -> None:
         """Execute a script file line by line (call from a background thread).
 
-        Every non-blank, non-comment line is routed through the full dispatch
-        pipeline (directives, transforms, REPL/serial). The only exception is
-        ``/delay`` which sleeps in the background thread to avoid blocking the
-        UI event loop.
-
         Args:
             path: Path to the script file to execute.
             write: Optional write callback override for thread-safe output.
-                Falls back to ``self.write`` when None (e.g. in tests).
-            dispatch: Optional dispatch callback that routes a raw command
-                through the full pipeline (``_dispatch_single`` via
-                ``call_from_thread``). Falls back to a local REPL-only
-                dispatch when None (e.g. in tests).
+            dispatch: Optional dispatch callback for the full pipeline.
+            profile: Enable per-command timing with CSV output.
+            progress: Callback for progress updates (step, total).
+            on_nest: Callback when a nested script starts.
+            verbose: Show per-command timing output.
         """
         w = write or self.write
-        prefix = self.prefix
-        profile_times: list[tuple[str, float]] = []
-        prof_fh: TextIOWrapper | None = None
-        try:
-            all_lines = path.read_text(encoding="utf-8").splitlines()
-            lines = [
-                ln for ln in all_lines if ln.strip() and not ln.strip().startswith("#")
-            ]
-            total = len(lines)
-            if profile:
-                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                prof_name = f"{Path(self.config_path).stem}_{ts}.csv"
-                prof_dir = Path(self.config_path).parent / "prof"
-                prof_dir.mkdir(exist_ok=True)
-                prof_path = prof_dir / prof_name
-                prof_fh = open(prof_path, "w", encoding="utf-8")
-                prof_fh.write("Duration (sec),Command\n")
-                w(f"── profile: {path.name} -> {prof_name} ──")
-            script_t0 = time.perf_counter()
-            for step, raw_line in enumerate(lines, 1):
+        with self._script_session(path, w, dispatch, profile, verbose, progress, on_nest) as sctx:
+            for step, raw_line in enumerate(sctx.lines, 1):
                 if self._script_stop.is_set():
                     w("Script stopped.")
                     break
-                if progress:
-                    progress(step, total)
+                if sctx.progress:
+                    sctx.progress(step, sctx.total)
+                sctx.step = step
                 stripped = raw_line.strip()
-                cmd_t0 = time.perf_counter()
-                # THREADING: run_script runs in a background thread, but
-                # dispatch() routes commands to the main thread via
-                # call_from_thread. Commands that block (delay, confirm)
-                # MUST be handled here in the background thread - if they
-                # run on the main thread, call_from_thread fails and
-                # blocking calls freeze the UI. When adding new commands
-                # that block or use call_from_thread internally, add them
-                # here as special cases.
-                if stripped.startswith(prefix):
-                    cmd = stripped[len(prefix) :].strip()
-                    name, _, args = cmd.partition(" ")
-                    if name.lower() == "delay":
-                        self.ctx.log(">", stripped)
-                        expanded, self._seq_counters = expand_template(
-                            args.strip(),
-                            self._seq_counters,
-                            self._seq_start_time,
-                        )
-                        try:
-                            seconds = parse_duration(expanded)
-                        except ValueError as e:
-                            w(str(e), "red")
-                            break
-                        t0 = time.perf_counter()
-                        # Sleep in small steps so _script_stop is responsive
-                        self._script_stop.wait(timeout=seconds)
-                        if self._script_stop.is_set():
-                            w("Script stopped.")
-                            break
-                        if profile:
-                            elapsed = time.perf_counter() - t0
-                            profile_times.append((stripped, elapsed))
-                            prof_fh.write(f"{elapsed:.6f},{stripped}\n")
-                        else:
-                            w(f"Delay {expanded} done.")
-                        if verbose:
-                            elapsed = time.perf_counter() - cmd_t0
-                            w(f"[{step}/{total}] /delay {expanded} ({elapsed:.3f}s)")
-                        continue
-                    if name.lower() in ("run", "run.profile"):
-                        self.ctx.log(">", stripped)
-                        nested_profile = name.lower() == "run.profile"
-                        run_args = args.strip()
-                        # Strip -v/--verbose from nested /run - inherited
-                        run_tokens = run_args.split()
-                        run_args = " ".join(
-                            t for t in run_tokens if t not in ("-v", "--verbose")
-                        )
-                        nested_path = self.start_script(run_args)
-                        if nested_path:
-                            if on_nest:
-                                on_nest()
-                            t0 = time.perf_counter()
-                            self.run_script(
-                                nested_path,
-                                write=w,
-                                dispatch=dispatch,
-                                profile=nested_profile,
-                                progress=progress,
-                                on_nest=on_nest,
-                                verbose=verbose,
-                            )
-                            if verbose:
-                                elapsed = time.perf_counter() - t0
-                                w(
-                                    f"[{step}/{total}] /run {nested_path.name} ({elapsed:.3f}s)"
-                                )
-                            if profile:
-                                elapsed = time.perf_counter() - t0
-                                profile_times.append((stripped, elapsed))
-                                prof_fh.write(f"{elapsed:.6f},{stripped}\n")
-                        continue
-                    if name.lower() == "confirm":
-                        self.ctx.log(">", stripped)
-                        message = args.strip() or "Continue?"
-                        t0 = time.perf_counter()
-                        if not self.ctx.confirm(message):
-                            w("Script cancelled by user.")
-                            self._script_stop.set()
-                        if profile:
-                            elapsed = time.perf_counter() - t0
-                            profile_times.append((stripped, elapsed))
-                            prof_fh.write(f"{elapsed:.6f},{stripped}\n")
-                        continue
-                    if name.lower() in ("expect", "expect.regex"):
-                        use_regex = name.lower() == "expect.regex"
-                        self.ctx.log(">", stripped)
-                        # /expect match=<pattern> {timeout=<dur>} {quiet=on}
-                        # /expect.regex match=<pattern> {timeout=<dur>} {quiet=on}
-                        kw = parse_keywords(
-                            args,
-                            {"timeout", "quiet", "match"},
-                            rest_keyword="match",
-                        )
-                        pattern = kw.get("match", "").strip()
-                        if not pattern:
-                            w("Expect: missing match= keyword", "red")
-                            break
-                        try:
-                            timeout_s = (
-                                parse_duration(kw["timeout"])
-                                if "timeout" in kw
-                                else 0.25
-                            )
-                        except ValueError as e:
-                            w(f"Expect: {e}", "red")
-                            break
-                        quiet = kw.get("quiet", "").lower() == "on"
-                        timeout_str = kw.get("timeout", "250ms")
-                        t0 = time.perf_counter()
-                        if use_regex:
-                            import re as _re
 
-                            predicate = lambda line, p=pattern: bool(
-                                _re.search(p, line)
-                            )
-                        else:
-                            predicate = lambda line, p=pattern: p in line
-                        match = self.wait_for_match(predicate, timeout=timeout_s)
-                        if self._script_stop.is_set():
-                            w("Script stopped.")
-                            break
-                        if match is None:
-                            w(f'Expect "{pattern}" timeout after {timeout_str}', "red")
-                            self._script_stop.set()
-                        elif not quiet:
-                            w(f'Expect "{pattern}" matched', "green")
-                        if profile:
-                            elapsed = time.perf_counter() - t0
-                            profile_times.append((stripped, elapsed))
-                            prof_fh.write(f"{elapsed:.6f},{stripped}\n")
-                        if verbose and match is not None:
-                            elapsed = time.perf_counter() - t0
-                            w(
-                                f'[{step}/{total}] /expect "{pattern}" matched ({elapsed:.3f}s)'
-                            )
-                        continue
-                # Everything else goes through the full dispatch pipeline
-                t0 = time.perf_counter()
-                if dispatch:
-                    cmd_result = dispatch(stripped)
-                else:
-                    # Fallback for tests: classify and handle locally
-                    if stripped.startswith(prefix):
-                        cmd_result = self.dispatch(stripped[len(prefix) :].strip())
-                    elif self.ctx.is_connected():
-                        self.ctx.serial_write(
-                            (stripped + self.cfg.get("line_ending", "\r")).encode(
-                                self.cfg.get("encoding", "utf-8")
-                            )
-                        )
-                        cmd_result = None
-                    else:
-                        cmd_result = None
-                # Use CmdResult.elapsed_s when available (CLI, tests);
-                # fall back to local timing when dispatch callback doesn't
-                # return a result (TUI uses call_from_thread which is void).
-                if cmd_result and cmd_result.elapsed_s > 0:
-                    elapsed = cmd_result.elapsed_s
-                else:
-                    elapsed = time.perf_counter() - t0
-                if verbose:
-                    label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
-                    fmt = f"{elapsed:.6f}" if elapsed < 0.001 else f"{elapsed:.3f}"
-                    w(f"[{step}/{total}] {label} ({fmt}s)")
-                if profile:
-                    label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
-                    success = cmd_result.success if cmd_result else True
-                    profile_times.append((label, elapsed, success))
-                    prof_fh.write(f"{elapsed:.6f},{label}\n")
-                # Wait for device to finish responding — only needed for
-                # serial commands (not REPL commands which don't talk to the port).
-                if not stripped.startswith(prefix):
-                    try:
-                        self.ctx.serial_wait_idle()
-                    except Exception:
-                        time.sleep(0.1)
+                result = self._run_line(stripped, sctx)
+                if not result.success and self._script_stop.is_set():
+                    break
+                label = stripped if len(stripped) <= 60 else stripped[:57] + "..."
+                sctx.record(label, result.elapsed_s)
             else:
-                if verbose:
-                    script_elapsed = time.perf_counter() - script_t0
-                    fmt = f"{script_elapsed:.6f}" if script_elapsed < 0.001 else f"{script_elapsed:.3f}"
-                    w(f"Script {path.name} done ({fmt}s)")
-                if profile and profile_times:
-                    total = sum(t for _, t, *_ in profile_times)
-                    fmt = f"{total:.6f}" if total < 0.001 else f"{total:.3f}"
-                    # Dump the CSV file to terminal
-                    prof_fh.flush()
-                    for line in prof_path.read_text(encoding="utf-8").splitlines():
-                        w(line)
-                    w(f"── {fmt}s total ({len(profile_times)} commands) -> {prof_name} ──")
-                elif self._script_depth <= 1:
+                # Loop completed without break
+                sctx.finish(path.name)
+                if not profile and self._script_depth <= 1:
                     if self._script_stop.is_set():
                         w("Script aborted.", "red")
                     elif self.ctx.verbose:
                         w("Script finished.")
-        except Exception as e:
-            w(f"Script error: {e}", "red")
-        finally:
-            self._script_depth -= 1
-            if self._script_stack:
-                self._script_stack.pop()
-            if on_nest:
-                on_nest()
-            if prof_fh:
-                prof_fh.close()
 
     # -- Properties -----------------------------------------------------------
 

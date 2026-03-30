@@ -2411,7 +2411,7 @@ class SerialTerminal(App):
         if action == "run":
             clear_vars()
             set_start_time_vars()
-            path = self.repl.start_script(result[1])
+            path, _ = self.repl.start_script(result[1])
             if path:
                 self._run_script(path)
         elif action == "new":
@@ -2567,11 +2567,10 @@ class SerialTerminal(App):
 
     def _hook_run(self, ctx, args: str) -> CmdResult:
         args, verbose = self._parse_run_flags(args)
-        path = self.repl.start_script(args)
+        path, result = self.repl.start_script(args)
         if path:
             self._run_script(path, verbose=verbose)
-            return CmdResult.ok()
-        return CmdResult.fail(msg="Script not found")
+        return result
 
     @staticmethod
     def _parse_run_flags(args: str) -> tuple[str, bool]:
@@ -2589,11 +2588,10 @@ class SerialTerminal(App):
     _PROFILE_TMP_PREFIX = "_profile_tmp_"
 
     def _hook_run_profile(self, ctx, args: str) -> CmdResult:
-        path = self.repl.start_script(args)
+        path, result = self.repl.start_script(args)
         if path:
             self._run_script(path, profile=True)
-            return CmdResult.ok()
-        return CmdResult.fail(msg="Script not found")
+        return result
 
     def _hook_run_profile_cmd(self, ctx, args: str) -> CmdResult:
         """Profile a single command by writing a temp script."""
@@ -2612,11 +2610,10 @@ class SerialTerminal(App):
         tmp_path.write_text(
             "\n".join(p.strip() for p in parts) + "\n", encoding="utf-8"
         )
-        path = self.repl.start_script(tmp_name)
+        path, result = self.repl.start_script(tmp_name)
         if path:
             self._run_script(path, profile=True)
-            return CmdResult.ok()
-        return CmdResult.fail(msg="Script not found")
+        return result
 
     @staticmethod
     def _prof_dir(self) -> Path | None:

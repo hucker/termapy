@@ -39,6 +39,13 @@ class CmdResult:
         """Return a failure result with an error message."""
         return cls(success=False, error=msg)
 
+    @property
+    def err_msg(self) -> str:
+        """Formatted error string with 'Error:' prefix for display."""
+        if not self.error:
+            return ""
+        return f"Error: {self.error}"
+
 # Shared ANSI escape regex - matches all CSI sequences (color, cursor, clear, etc.).
 # Use strip_ansi() to remove them from text.
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")

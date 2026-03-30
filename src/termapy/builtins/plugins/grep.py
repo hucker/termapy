@@ -36,8 +36,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     grep_cmd = f"{prefix}grep"
     text = ctx.get_screen_text()
     if not text:
-        ctx.write("  grep: not available (no scrollback in CLI mode)", "yellow")
-        return CmdResult.ok()
+        return CmdResult.fail(msg="grep: not available (no scrollback in CLI mode)")
     lines = text.splitlines()
 
     def _is_grep_noise(line: str) -> bool:

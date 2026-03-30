@@ -301,13 +301,12 @@ class CLITerminal:
                 self.status(f"  {f.name}")
             return CmdResult.ok()
         script, verbose = _parse_run_flags(script)
-        path = self.repl.start_script(script)
+        path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
                 path, write=self.status, dispatch=self.ctx.dispatch, verbose=verbose,
             )
-            return CmdResult.ok()
-        return CmdResult.fail(msg=f"Script not found: {script}")
+        return result
 
     def _hook_run_profile(self, ctx, args: str):
         """Run a script with per-command timing."""
@@ -318,14 +317,13 @@ class CLITerminal:
             self.status("Usage: /run.profile <script>", "red")
             return CmdResult.fail(msg="Usage: /run.profile <script>")
         script, verbose = _parse_run_flags(script)
-        path = self.repl.start_script(script)
+        path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
                 path, write=self.status, dispatch=self.ctx.dispatch,
                 profile=True, verbose=verbose,
             )
-            return CmdResult.ok()
-        return CmdResult.fail(msg=f"Script not found: {script}")
+        return result
 
     def _hook_demo(self, ctx, args: str):
         """Set up and switch to demo device config."""
@@ -626,7 +624,7 @@ class CLITerminal:
             alt = scripts_dir / script_path.name
             if alt.exists():
                 script_path = alt
-        path = self.repl.start_script(str(script_path))
+        path, _ = self.repl.start_script(str(script_path))
         if path:
             try:
                 self.repl.run_script(

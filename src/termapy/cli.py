@@ -77,8 +77,9 @@ class CLITerminal:
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
 
-        from termapy.builtins.plugins.var import set_launch_var
+        from termapy.builtins.plugins.var import set_context_var, set_launch_var
         set_launch_var("FRONT_END", "cli")
+        set_context_var("CFG", lambda: Path(self.config_path).stem if self.config_path else "none")
         self._setup_context()
         self._register_hooks()
 
@@ -230,6 +231,18 @@ class CLITerminal:
             "help.open", "{topic}",
             "Open help in browser.",
             self._hook_help_open, source="app",
+        )
+        self.repl.register_hook(
+            "tui", "",
+            "Switch to TUI mode.",
+            lambda ctx, args: CmdResult.ok(),  # handled in _run_interactive
+            source="app",
+        )
+        self.repl.register_hook(
+            "cli", "",
+            "Already in CLI mode.",
+            lambda ctx, args: CmdResult.ok(),
+            source="app",
         )
 
     # -- Hook handlers --------------------------------------------------------
@@ -648,7 +661,9 @@ class CLITerminal:
         try:
             while True:
                 try:
-                    line = input(self.cfg.get("cli_prompt", "> "))
+                    from termapy.builtins.plugins.var import expand_vars
+                    prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
+                    line = input(prompt)
                 except EOFError:
                     break
 
@@ -659,6 +674,9 @@ class CLITerminal:
                     continue
 
                 if line.lower() in (self.prefix + "exit", self.prefix + "quit"):
+                    break
+                if line.lower() == self.prefix + "tui":
+                    self.switch_to = "tui"
                     break
 
                 self._dispatch(line)
@@ -677,8 +695,13 @@ class CLITerminal:
 
     # -- Entry point ----------------------------------------------------------
 
-    def run(self) -> None:
-        """Connect, start reader, and run in script or interactive mode."""
+    def run(self) -> str | None:
+        """Connect, start reader, and run in script or interactive mode.
+
+        Returns:
+            Mode to switch to ("tui") or None for normal exit.
+        """
+        self.switch_to: str | None = None
         if not self.engine.connect():
             print(
                 f"termapy: cannot connect to {self.cfg.get('port', '?')}",
@@ -696,10 +719,22 @@ class CLITerminal:
         self._setup_completion()
         self._start_reader()
 
+        # Run on_connect_cmd (same as TUI does after connecting)
+        auto_cmd = self.cfg.get("on_connect_cmd", "")
+        if auto_cmd and not self.run_script:
+            parts = auto_cmd.replace("\\n", "\n").split("\n")
+            for cmd in parts:
+                cmd = cmd.strip()
+                if cmd:
+                    self._dispatch(cmd)
+                    if self.engine.is_connected and self.engine.serial_port:
+                        self.engine.serial_port.wait_for_idle()
+
         if self.run_script:
             self._run_script_mode()
         else:
             self._run_interactive()
+        return self.switch_to
 
 
 def _parse_run_flags(args: str) -> tuple[str, bool]:

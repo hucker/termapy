@@ -304,6 +304,7 @@ class SerialTerminal(App):
         first_run: bool = False,
     ) -> None:
         super().__init__()
+        self.switch_to: str | None = None
         self.config_path = config_path
         self.open_editor_on_start = open_editor
         self.show_picker_on_start = show_picker
@@ -476,7 +477,7 @@ class SerialTerminal(App):
             yield proto_btn
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
-            center.tooltip = "Click to load a config."
+            center.tooltip = f"Config: {self.config_path or 'none'}\nClick to edit config"
             yield center
             yield Static("", id="title-spacer-r")
             left = Button(port_info, id="title-left")
@@ -575,8 +576,9 @@ class SerialTerminal(App):
         self.query_one("#output", RichLog).styles.border = ("solid", color)
 
     def on_mount(self) -> None:
-        from termapy.builtins.plugins.var import set_launch_var
+        from termapy.builtins.plugins.var import set_context_var, set_launch_var
         set_launch_var("FRONT_END", "textual")
+        set_context_var("CFG", lambda: Path(self.config_path).stem if self.config_path else "none")
         self._apply_border_color()
         # Build plugin context - the stable API for all plugins
         engine = EngineAPI(
@@ -743,6 +745,18 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "cli", "",
+            "Switch to CLI mode.",
+            lambda ctx, args: self._switch_to_cli(),
+            source="app",
+        )
+        self.repl.register_hook(
+            "tui", "",
+            "Already in TUI mode.",
+            lambda ctx, args: CmdResult.ok(),
+            source="app",
+        )
+        self.repl.register_hook(
             "line_no",
             "<on|off>",
             "Toggle line numbers on or off.",
@@ -900,6 +914,8 @@ class SerialTerminal(App):
             self._connect()
         else:
             self._status(f"{self._port_info_str()} - press Connect to start")
+        self._update_title()
+
     def on_unmount(self) -> None:
         self._save_history()
         self._disconnect()
@@ -1263,6 +1279,14 @@ class SerialTerminal(App):
         )
         self._rebuild_suggester_commands()
 
+    def _switch_to_cli(self) -> CmdResult:
+        """Switch to CLI mode — sets flag and exits TUI."""
+        self.switch_to = "cli"
+        # Stash current config path so the mode loop can pass it to CLI
+        self._switch_config_path = self.config_path
+        self.exit()
+        return CmdResult.ok()
+
     def _start_demo(self, args: str = "") -> CmdResult:
         """Set up and switch to the built-in demo device config.
 
@@ -1408,28 +1432,33 @@ class SerialTerminal(App):
         return f"\\[{connection_string(self.cfg, 'short')}]"
 
     def _update_title(self) -> None:
+        from termapy.config import connection_string
         title = self.cfg.get("title", "") or self.config_path
         center = self.query_one("#title-center", Button)
         center.label = Text(title)
         # Build informative tooltip
         tip_lines = []
         if self.config_path:
-            tip_lines.append(f"File: {self.config_path}")
-        tip_lines.append(
-            f"Port: {self.cfg.get('port', '?')} @ {self.cfg.get('baud_rate', '?')}"
-        )
-        fc = self.cfg.get("flow_control", "none")
-        if fc != "none":
-            tip_lines.append(f"Flow: {fc}")
-        enc = self.cfg.get("encoding", "utf-8")
-        if enc != "utf-8":
-            tip_lines.append(f"Encoding: {enc}")
+            tip_lines.append(f"Config: {self.config_path}")
+        tip_lines.append(connection_string(self.cfg, level="full"))
+        le = self.cfg.get("line_ending", "\r")
+        tip_lines.append(f"Line ending: {repr(le)}")
+        if self.cfg.get("on_connect_cmd"):
+            tip_lines.append(f"On connect: {self.cfg['on_connect_cmd']}")
+        features = []
         if self.cfg.get("auto_connect"):
-            tip_lines.append("Autoconnect: on")
+            features.append("autoconnect")
         if self.cfg.get("auto_reconnect"):
-            tip_lines.append("Auto_reconnect: on")
+            features.append("auto-reconnect")
+        if self.cfg.get("echo_input"):
+            features.append("echo")
+        if self.cfg.get("show_timestamps"):
+            features.append("timestamps")
         if self.cfg.get("os_cmd_enabled"):
-            tip_lines.append("OS commands: enabled")
+            features.append("os-commands")
+        if features:
+            tip_lines.append(f"Features: {', '.join(features)}")
+        tip_lines.append("")
         tip_lines.append("Click to edit config")
         center.tooltip = "\n".join(tip_lines)
         self.query_one("#title-left", Button).label = self._port_info_str()
@@ -2967,8 +2996,12 @@ def _infer_config_from_run_file(run_path: str) -> str | None:
     return None
 
 
-def _run_cli_mode(args) -> None:
-    """Run in CLI mode - plain text terminal, no TUI."""
+def _run_cli_mode(args) -> str | None:
+    """Run in CLI mode - plain text terminal, no TUI.
+
+    Returns:
+        Mode to switch to ("tui") or None for normal exit.
+    """
     from termapy.cli import CLITerminal
 
     run_script = getattr(args, "run", None)
@@ -3006,10 +3039,14 @@ def _run_cli_mode(args) -> None:
         print(f"termapy: failed to load config: {e}", file=sys.stderr)
         sys.exit(1)
 
-    CLITerminal(
+    cli = CLITerminal(
         cfg, config_path, no_color=args.no_color, run_script=run_script,
         term_width=getattr(args, "term_width", None),
-    ).run()
+    )
+    result = cli.run()
+    if result:
+        args.config = cli.config_path
+    return result
 
 
 def _run_proto_headless(args) -> None:
@@ -3178,10 +3215,47 @@ def main():
 
     if args.run:
         args.cli = True  # --run implies --cli
+    # -- Mode switching loop ---------------------------------------------------
+    # CLI flag from command line overrides config. Otherwise check default_ui.
     if args.cli:
-        _run_cli_mode(args)
-        return
+        mode = "cli"
+    else:
+        # Peek at config for default_ui (if we can resolve it)
+        _peek_cfg = None
+        try:
+            if args.demo:
+                pass  # demo defaults to tui
+            elif args.config:
+                _peek_path = _resolve_config(args.config)
+                if _peek_path:
+                    _peek_cfg = load_config(_peek_path)
+            else:
+                _peek_path, _ = _find_config()
+                if _peek_path:
+                    _peek_cfg = load_config(_peek_path)
+        except Exception:
+            pass
+        mode = (_peek_cfg or {}).get("default_ui", "tui")
+        if mode not in ("cli", "tui"):
+            mode = "tui"
+    while mode:
+        if mode == "cli":
+            result = _run_cli_mode(args)
+        elif mode == "tui":
+            result = _run_tui_mode(args)
+        else:
+            break
+        if result is None:
+            break
+        # Carry the current config into the next mode
+        mode = result
+        args.cli = (mode == "cli")
+        args.run = None  # don't re-run a script on switch
+        args.demo = False  # don't re-setup demo on switch
 
+
+def _run_tui_mode(args) -> str | None:
+    """Run in TUI mode. Returns mode to switch to, or None for exit."""
     if args.demo:
         from termapy.config import setup_demo_config
 
@@ -3194,7 +3268,9 @@ def main():
         app = SerialTerminal(cfg, config_path=str(config_path))
         app.run()
         _reset_terminal()
-        return
+        if app.switch_to:
+            args.config = app.config_path
+        return app.switch_to
 
     if args.config:
         config_path = _resolve_config(args.config)
@@ -3212,7 +3288,9 @@ def main():
         app = SerialTerminal(cfg, config_path=config_path)
         app.run()
         _reset_terminal()
-        return
+        if app.switch_to:
+            args.config = app.config_path
+        return app.switch_to
 
     config_path, show_picker = _find_config()
 
@@ -3227,14 +3305,18 @@ def main():
         app = SerialTerminal(cfg, config_path=config_path)
         app.run()
         _reset_terminal()
+        if app.switch_to:
+            args.config = app.config_path
+        return app.switch_to
     elif show_picker:
-        # Multiple json files - start with defaults, show picker on load
         cfg = dict(DEFAULT_CFG)
         app = SerialTerminal(cfg, config_path="", show_picker=True)
         app.run()
         _reset_terminal()
+        if app.switch_to:
+            args.config = app.config_path
+        return app.switch_to
     else:
-        # No configs found - install demo and auto-connect
         from termapy.config import setup_demo_config
 
         config_path = str(setup_demo_config(cfg_dir(), force=True))
@@ -3246,6 +3328,9 @@ def main():
         app = SerialTerminal(cfg, config_path=config_path, first_run=True)
         app.run()
         _reset_terminal()
+        if app.switch_to:
+            args.config = app.config_path
+        return app.switch_to
 
 
 if __name__ == "__main__":

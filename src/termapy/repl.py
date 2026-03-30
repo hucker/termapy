@@ -381,12 +381,19 @@ class ReplEngine:
             _status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
 
+        # Shared echo using echo_input_fmt for both REPL and serial
+        from termapy.builtins.plugins.var import expand_vars
+
+        def _echo_cmd(text: str) -> None:
+            fmt = expand_vars(self.cfg.get("echo_input_fmt", "> {cmd}"))
+            _echo(fmt.replace("{cmd}", text))
+
         # 3. REPL command (starts with prefix)
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
             if self._echo and not repl_cmd.startswith("echo.quiet"):
-                _echo(f"[cyan]> {prefix}{repl_cmd}[/]")
+                _echo_cmd(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
                     try:
@@ -405,12 +412,11 @@ class ReplEngine:
                 return CmdResult.fail(msg=str(e))
 
         if self.cfg.get("echo_input"):
-            fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
             echo_text = cmd
             if self.cfg.get("show_line_endings", False) and eol_label:
                 le = self.cfg.get("line_ending", "\r")
                 echo_text += eol_label(le)
-            _echo(fmt.replace("{cmd}", echo_text))
+            _echo_cmd(echo_text)
 
         if is_connected and not is_connected():
             _status("Not connected - command not sent", "red")

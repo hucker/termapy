@@ -25,7 +25,8 @@ from termapy.capture import CaptureEngine
 from termapy.config import load_config, open_serial, open_with_system
 from termapy.plugins import EngineAPI, PluginContext
 from termapy.repl import ReplEngine
-from termapy.scripting import CmdResult, strip_ansi
+from termapy.plugins import CmdResult
+from termapy.scripting import strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 
@@ -261,7 +262,7 @@ class CLITerminal:
         """Wait with progress bar (>=1s) or silently (<1s).
         Shows elapsed/total time and sub-character resolution bar.
         Ctrl+C cancels."""
-        from termapy.scripting import CmdResult, parse_duration
+        from termapy.scripting import parse_duration
 
         try:
             seconds = parse_duration(args)
@@ -280,7 +281,7 @@ class CLITerminal:
     def _hook_delay_quiet(self, ctx, args: str):
         """Wait silently - no progress bar, no output.
         For scripts where delay output would clutter results."""
-        from termapy.scripting import CmdResult, parse_duration
+        from termapy.scripting import parse_duration
         try:
             seconds = parse_duration(args)
         except ValueError as e:
@@ -293,7 +294,7 @@ class CLITerminal:
 
     def _hook_color(self, ctx, args: str):
         """Toggle color output on/off."""
-        from termapy.scripting import CmdResult
+
         val = args.strip().lower()
         if val in ("on", "1", "true"):
             self.console.no_color = False
@@ -308,7 +309,7 @@ class CLITerminal:
 
     def _hook_run(self, ctx, args: str):
         """Run a script file or list available scripts."""
-        from termapy.scripting import CmdResult
+
         script = args.strip()
         if not script:
             scripts_dir = Path(self.config_path).parent / "run"
@@ -333,7 +334,7 @@ class CLITerminal:
 
     def _hook_run_profile(self, ctx, args: str):
         """Run a script with per-command timing."""
-        from termapy.scripting import CmdResult
+
 
         script = args.strip()
         if not script:
@@ -351,7 +352,7 @@ class CLITerminal:
     def _hook_demo(self, ctx, args: str):
         """Set up and switch to demo device config."""
         from termapy.config import cfg_dir, load_config, setup_demo_config
-        from termapy.scripting import CmdResult
+
 
         force = "--force" in args.lower()
         try:
@@ -378,7 +379,7 @@ class CLITerminal:
 
     def _hook_raw(self, ctx, args: str):
         """Send raw text to serial without transforms or line ending."""
-        from termapy.scripting import CmdResult
+
         if not self.engine.is_connected:
             return CmdResult.fail(msg="Not connected.")
         if not args:
@@ -390,7 +391,6 @@ class CLITerminal:
     def _hook_log_clear(self, ctx, args: str):
         """Delete the session log file."""
         from termapy.config import cfg_log_path
-        from termapy.plugins import CmdResult
         log_path = cfg_log_path(self.config_path) if self.config_path else ""
         if not log_path or not Path(log_path).exists():
             self.status("No log file to delete.", "yellow")
@@ -406,7 +406,7 @@ class CLITerminal:
     def _hook_help_open(self, ctx, args: str):
         """Open help topic in system browser."""
         from importlib.resources import files as pkg_files
-        from termapy.scripting import CmdResult
+
         html_dir = pkg_files("termapy").joinpath("html")
         topic = args.strip()
         if not topic:

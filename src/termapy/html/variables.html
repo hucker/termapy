@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="toolbar.html">
+        <link rel="prev" href="commands.html">
       
       
-        <link rel="next" href="variables.html">
+        <link rel="next" href="scripting.html">
       
       
         
@@ -23,7 +23,7 @@
     
     
       
-        <title>REPL Commands - Termapy Help v0.37.0</title>
+        <title>Variables - Termapy Help v0.37.0</title>
       
     
     
@@ -72,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#repl-commands" class="md-skip">
+        <a href="#variables" class="md-skip">
           Skip to content
         </a>
       
@@ -108,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              REPL Commands
+              Variables
             
           </span>
         </div>
@@ -390,6 +390,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="commands.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -409,7 +436,7 @@
   <span class="md-ellipsis">
     
   
-    REPL Commands
+    Variables
   
 
     
@@ -420,14 +447,14 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <a href="commands.html" class="md-nav__link md-nav__link--active">
+      <a href="variables.html" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    REPL Commands
+    Variables
   
 
     
@@ -453,10 +480,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#script-profiling" class="md-nav__link">
+  <a href="#setting-variables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Script Profiling
+        Setting Variables
       
     </span>
   </a>
@@ -464,10 +491,76 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#config-file-management" class="md-nav__link">
+  <a href="#using-variables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Config File Management
+        Using Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#built-in-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sequence-counters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence Counters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#variable-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variable Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#escaping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Escaping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope
       
     </span>
   </a>
@@ -478,33 +571,6 @@
   
 </nav>
       
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="variables.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Variables
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -671,10 +737,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#script-profiling" class="md-nav__link">
+  <a href="#setting-variables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Script Profiling
+        Setting Variables
       
     </span>
   </a>
@@ -682,10 +748,76 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#config-file-management" class="md-nav__link">
+  <a href="#using-variables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Config File Management
+        Using Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#built-in-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sequence-counters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence Counters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#variable-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variable Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#escaping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Escaping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope
       
     </span>
   </a>
@@ -709,8 +841,103 @@
 
 
 
-<h1 id="repl-commands">REPL Commands</h1>
-<p>Commands prefixed with <code>/</code> (configurable via <code>cmd_prefix</code>) run locally instead of being sent to the serial device.</p>
+<h1 id="variables">Variables</h1>
+<p>Termapy has a variable system that lets you define, expand, and reuse
+values across commands, scripts, and config fields. Variables use
+<code>$(NAME)</code> syntax.</p>
+<h2 id="setting-variables">Setting Variables</h2>
+<p>Assign variables directly at the command line (no <code>/</code> prefix needed):</p>
+<pre><code class="language-text">$(ADDR) = 01
+$(PORT) = COM7
+$(LABEL) = sensor_a
+</code></pre>
+<p>Or use the REPL command:</p>
+<pre><code class="language-text">/var.set ADDR 01
+</code></pre>
+<h2 id="using-variables">Using Variables</h2>
+<p>Variables expand anywhere — serial commands, REPL commands, scripts:</p>
+<pre><code class="language-text">AT+ADDR=$(ADDR)
+/print Reading from $(ADDR)
+/cap.text $(LABEL)_log.txt timeout=5s
+</code></pre>
+<h2 id="built-in-variables">Built-in Variables</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$(DATE)</code></td>
+<td>Dynamic</td>
+<td>Current date (YYYY-MM-DD)</td>
+</tr>
+<tr>
+<td><code>$(TIME)</code></td>
+<td>Dynamic</td>
+<td>Current time (HH:MM:SS)</td>
+</tr>
+<tr>
+<td><code>$(DATETIME)</code></td>
+<td>Dynamic</td>
+<td>Current date and time</td>
+</tr>
+<tr>
+<td><code>$(CFG)</code></td>
+<td>Context</td>
+<td>Current config name</td>
+</tr>
+<tr>
+<td><code>$(LAUNCH_DATE)</code></td>
+<td>Launch</td>
+<td>App start date (frozen)</td>
+</tr>
+<tr>
+<td><code>$(LAUNCH_TIME)</code></td>
+<td>Launch</td>
+<td>App start time (frozen)</td>
+</tr>
+<tr>
+<td><code>$(LAUNCH_DATETIME)</code></td>
+<td>Launch</td>
+<td>App start date and time (frozen)</td>
+</tr>
+<tr>
+<td><code>$(SESSION_DATE)</code></td>
+<td>Session</td>
+<td>Script start date (frozen)</td>
+</tr>
+<tr>
+<td><code>$(SESSION_TIME)</code></td>
+<td>Session</td>
+<td>Script start time (frozen)</td>
+</tr>
+<tr>
+<td><code>$(SESSION_DATETIME)</code></td>
+<td>Session</td>
+<td>Script start date and time (frozen)</td>
+</tr>
+<tr>
+<td><code>$(FRONT_END)</code></td>
+<td>Launch</td>
+<td><code>textual</code> (TUI) or <code>cli</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Dynamic</strong> variables update each time they are expanded.
+<strong>Launch</strong> variables are frozen when the app starts.
+<strong>Session</strong> variables are set once when a script launches from the
+Scripts button or Run menu.</p>
+<h2 id="environment-variables">Environment Variables</h2>
+<p>Access OS environment variables with <code>$(env.NAME)</code> syntax. This is
+especially useful in config files for values that differ per machine:</p>
+<pre><code class="language-json">&quot;port&quot;: &quot;$(env.TERMAPY_PORT|COM4)&quot;
+</code></pre>
+<p>The <code>|</code> provides a fallback default. See <a href="using-git.html">Using with Git</a>
+for team workflow details.</p>
 <table>
 <thead>
 <tr>
@@ -720,358 +947,83 @@
 </thead>
 <tbody>
 <tr>
-<td><code>/help [cmd]</code></td>
-<td>List commands or show extended help for one</td>
+<td><code>/env.list {pattern}</code></td>
+<td>List environment variables</td>
 </tr>
 <tr>
-<td><code>/help.dev &lt;cmd&gt;</code></td>
-<td>Show a command handler's Python docstring</td>
+<td><code>/env.set &lt;n&gt; &lt;v&gt;</code></td>
+<td>Set a session-scoped environment variable</td>
 </tr>
 <tr>
-<td><code>/port [name]</code></td>
-<td>Open a port by name, or show subcommands</td>
+<td><code>/env.reload</code></td>
+<td>Re-snapshot variables from the OS</td>
 </tr>
+</tbody>
+</table>
+<h2 id="sequence-counters">Sequence Counters</h2>
+<p>Auto-incrementing counters for scripts (useful for numbered filenames):</p>
+<pre><code class="language-text">/ss.svg capture_{seq1+}    # capture_1.svg, capture_2.svg, ...
+AT+READ {seq2+}            # independent counter
+</code></pre>
+<p>Use <code>{seqN+}</code> to increment and substitute, <code>{seqN}</code> to substitute
+without incrementing. Counters 1--9 are available.</p>
+<table>
+<thead>
 <tr>
-<td><code>/port.list</code></td>
-<td>List available serial ports</td>
+<th>Command</th>
+<th>Description</th>
 </tr>
-<tr>
-<td><code>/port.open {name}</code></td>
-<td>Connect (optional port override)</td>
-</tr>
-<tr>
-<td><code>/port.close</code></td>
-<td>Disconnect from the serial port</td>
-</tr>
-<tr>
-<td><code>/port.info</code></td>
-<td>Show port status, serial parameters, and hardware lines</td>
-</tr>
-<tr>
-<td><code>/port.baud_rate {value}</code></td>
-<td>Show or set baud rate (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.byte_size {value}</code></td>
-<td>Show or set data bits (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.parity {value}</code></td>
-<td>Show or set parity (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.stop_bits {value}</code></td>
-<td>Show or set stop bits (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.flow_control {m}</code></td>
-<td>Show or set flow control: none, rtscts, xonxoff, manual</td>
-</tr>
-<tr>
-<td><code>/port.dtr {0\|1}</code></td>
-<td>Show or set DTR line</td>
-</tr>
-<tr>
-<td><code>/port.rts {0\|1}</code></td>
-<td>Show or set RTS line</td>
-</tr>
-<tr>
-<td><code>/port.cts</code></td>
-<td>Show CTS state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.dsr</code></td>
-<td>Show DSR state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.ri</code></td>
-<td>Show RI state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.cd</code></td>
-<td>Show CD state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.break {ms}</code></td>
-<td>Send break signal (default 250ms)</td>
-</tr>
-<tr>
-<td><code>/cfg [key [value]]</code></td>
-<td>View or change config values</td>
-</tr>
-<tr>
-<td><code>/cfg.auto &lt;key&gt; &lt;val&gt;</code></td>
-<td>Set a config key without confirmation</td>
-</tr>
-<tr>
-<td><code>/cfg.configs</code></td>
-<td>List all config files</td>
-</tr>
-<tr>
-<td><code>/cfg.load &lt;name&gt;</code></td>
-<td>Switch to a different config by name</td>
-</tr>
-<tr>
-<td><code>/ss.svg [name]</code></td>
-<td>Save an SVG screenshot</td>
-</tr>
-<tr>
-<td><code>/ss.txt [name]</code></td>
-<td>Save a text screenshot</td>
-</tr>
-<tr>
-<td><code>/ss.dir</code></td>
-<td>Show the screenshot folder</td>
-</tr>
-<tr>
-<td><code>/cls</code></td>
-<td>Clear the terminal</td>
-</tr>
-<tr>
-<td><code>/run &lt;file&gt; {-v}</code></td>
-<td>Run a script file (-v/--verbose for per-line timing)</td>
-</tr>
-<tr>
-<td><code>/run.list</code></td>
-<td>List .run files in the run/ directory</td>
-</tr>
-<tr>
-<td><code>/run.load &lt;file&gt;</code></td>
-<td>Run a script file (same as /run)</td>
-</tr>
-<tr>
-<td><code>/delay &lt;duration&gt;</code></td>
-<td>Pause for a duration (e.g. <code>500ms</code>, <code>1.5s</code>)</td>
-</tr>
-<tr>
-<td><code>/confirm {message}</code></td>
-<td>Show Yes/Cancel dialog; Cancel stops a running script</td>
-</tr>
-<tr>
-<td><code>/stop</code></td>
-<td>Abort a running script</td>
-</tr>
+</thead>
+<tbody>
 <tr>
 <td><code>/seq</code></td>
-<td>Show sequence counters</td>
+<td>Show all sequence counter values</td>
 </tr>
 <tr>
 <td><code>/seq.reset</code></td>
-<td>Reset all sequence counters to zero</td>
+<td>Reset all counters to zero</td>
+</tr>
+</tbody>
+</table>
+<h2 id="variable-commands">Variable Commands</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/var</code></td>
+<td>List all variables</td>
 </tr>
 <tr>
-<td><code>/print &lt;text&gt;</code></td>
-<td>Print a message to the terminal</td>
+<td><code>/var NAME</code></td>
+<td>Show one variable</td>
 </tr>
 <tr>
-<td><code>/print.r &lt;text&gt;</code></td>
-<td>Print Rich markup text (e.g. <code>[bold red]Warning![/]</code>)</td>
-</tr>
-<tr>
-<td><code>/show &lt;name&gt;</code></td>
-<td>Show a file</td>
-</tr>
-<tr>
-<td><code>/show.cfg</code></td>
-<td>Show the current config file</td>
-</tr>
-<tr>
-<td><code>/echo [on\|off]</code></td>
-<td>Toggle command echo</td>
-</tr>
-<tr>
-<td><code>/echo.quiet &lt;on\|off&gt;</code></td>
-<td>Set echo on/off silently (for scripts and on_connect_cmd)</td>
-</tr>
-<tr>
-<td><code>/os &lt;cmd&gt;</code></td>
-<td>Run a shell command (requires <code>os_cmd_enabled</code>)</td>
-</tr>
-<tr>
-<td><code>/grep &lt;pattern&gt;</code></td>
-<td>Search scrollback for regex matches (case-insensitive)</td>
-</tr>
-<tr>
-<td><code>/show_line_endings {on\|off}</code></td>
-<td>Toggle visible <code>\r</code> <code>\n</code> markers in serial output</td>
-</tr>
-<tr>
-<td><code>/edit &lt;file&gt;</code></td>
-<td>Edit a project file (<code>run/</code>/<code>proto/</code> path)</td>
-</tr>
-<tr>
-<td><code>/edit.cfg</code></td>
-<td>Edit the current config file</td>
-</tr>
-<tr>
-<td><code>/edit.log</code></td>
-<td>Open the session log in the system viewer</td>
-</tr>
-<tr>
-<td><code>/edit.info</code></td>
-<td>Open the info report in the system viewer</td>
-</tr>
-<tr>
-<td><code>/cfg.info {--display}</code></td>
-<td>Show project summary; <code>--display</code> opens full report</td>
-</tr>
-<tr>
-<td><code>/cfg.files</code></td>
-<td>Show project directory tree</td>
-</tr>
-<tr>
-<td><code>/proto.send &lt;hex&gt;</code></td>
-<td>Send raw hex bytes and display response</td>
-</tr>
-<tr>
-<td><code>/proto.run &lt;file&gt;</code></td>
-<td>Run a binary protocol test script (.pro)</td>
-</tr>
-<tr>
-<td><code>/proto.list</code></td>
-<td>List .pro files in the proto/ directory</td>
-</tr>
-<tr>
-<td><code>/proto.load &lt;file&gt;</code></td>
-<td>Run a protocol test script (same as /proto.run)</td>
-</tr>
-<tr>
-<td><code>/proto.debug &lt;file&gt;</code></td>
-<td>Open interactive protocol debug screen for a .pro script</td>
-</tr>
-<tr>
-<td><code>/proto.hex [on\|off]</code></td>
-<td>Toggle hex display mode for serial I/O</td>
-</tr>
-<tr>
-<td><code>/proto.crc.list {pat}</code></td>
-<td>List CRC algorithms (optional glob filter)</td>
-</tr>
-<tr>
-<td><code>/proto.crc.help &lt;name&gt;</code></td>
-<td>Show CRC algorithm parameters and description</td>
-</tr>
-<tr>
-<td><code>/proto.crc.calc &lt;n&gt; {d}</code></td>
-<td>Compute CRC over hex bytes, text, or file</td>
-</tr>
-<tr>
-<td><code>/proto.status</code></td>
-<td>Show current protocol mode state</td>
-</tr>
-<tr>
-<td><code>/var {name}</code></td>
-<td>List user variables, or show one by name</td>
-</tr>
-<tr>
-<td><code>/var.set &lt;NAME&gt; &lt;value&gt;</code></td>
-<td>Set a user variable</td>
+<td><code>/var.set &lt;NAME&gt; &lt;v&gt;</code></td>
+<td>Set a variable</td>
 </tr>
 <tr>
 <td><code>/var.clear</code></td>
 <td>Clear all user variables</td>
 </tr>
-<tr>
-<td><code>/env.list {pattern}</code></td>
-<td>List environment variables (all, by name, or glob)</td>
-</tr>
-<tr>
-<td><code>/env.set &lt;name&gt; &lt;value&gt;</code></td>
-<td>Set a session-scoped environment variable</td>
-</tr>
-<tr>
-<td><code>/env.reload</code></td>
-<td>Re-snapshot variables from the OS environment</td>
-</tr>
-<tr>
-<td><code>/cap.text &lt;f&gt; ...</code></td>
-<td>Capture serial text to file for a timed duration</td>
-</tr>
-<tr>
-<td><code>/cap.bin &lt;f&gt; ...</code></td>
-<td>Capture raw binary bytes to a file</td>
-</tr>
-<tr>
-<td><code>/cap.struct &lt;f&gt; ...</code></td>
-<td>Capture binary data, decode with format spec to CSV</td>
-</tr>
-<tr>
-<td><code>/cap.hex &lt;f&gt; ...</code></td>
-<td>Capture hex text lines, decode with format spec to CSV</td>
-</tr>
-<tr>
-<td><code>/cap.stop</code></td>
-<td>Stop an active capture</td>
-</tr>
-<tr>
-<td><code>/run.edit &lt;file&gt;</code></td>
-<td>Open a .run script in the system editor</td>
-</tr>
-<tr>
-<td><code>/color {on\|off}</code></td>
-<td>Show or toggle color output (CLI mode only)</td>
-</tr>
-<tr>
-<td><code>/raw &lt;text&gt;</code></td>
-<td>Send text to serial with no variable expansion or transforms</td>
-</tr>
-<tr>
-<td><code>/exit</code></td>
-<td>Exit termapy</td>
-</tr>
 </tbody>
 </table>
-<h2 id="script-profiling">Script Profiling</h2>
-<table>
-<thead>
-<tr>
-<th>Command</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>/run.profile &lt;script&gt;</code></td>
-<td>Run a script with per-line timing (saves CSV to <code>prof/</code>)</td>
-</tr>
-<tr>
-<td><code>/run.profile.cmd &lt;command&gt;</code></td>
-<td>Profile a single command</td>
-</tr>
-<tr>
-<td><code>/run.profile.show</code></td>
-<td>Open newest profile in system viewer</td>
-</tr>
-<tr>
-<td><code>/run.profile.dump</code></td>
-<td>Print newest profile to the terminal</td>
-</tr>
-<tr>
-<td><code>/run.profile.explore</code></td>
-<td>Open <code>prof/</code> folder in file explorer</td>
-</tr>
-<tr>
-<td><code>/run.profile.list</code></td>
-<td>List profile files</td>
-</tr>
-</tbody>
-</table>
-<h2 id="config-file-management">Config File Management</h2>
-<p>Each config subfolder has a consistent set of subcommands:</p>
-<p>| Subcommand        | Action                                     | Folders                                         |
-| <code>/cfg.&lt;folder&gt;</code>   | List files                                 | scripts, proto, plugins, ss, viz, cap, prof      |
-| <code>.explore</code>        | Open folder in file explorer               | all                                              |
-| <code>.show</code>           | Open newest file in system viewer          | all                                              |
-| <code>.dump {name}</code>    | Print newest (or named) file to terminal   | scripts, proto, plugins, viz, cap, prof           |
-| <code>.clear</code>          | Delete all files                           | ss, cap, prof (generated output only)             |</p>
-<p>Examples:</p>
-<ul>
-<li><code>/cfg.scripts</code> — list script files</li>
-<li><code>/cfg.scripts.dump</code> — print newest script to terminal</li>
-<li><code>/cfg.proto.show</code> — open newest .pro file in editor</li>
-<li><code>/cfg.cap.clear</code> — delete all capture files</li>
-<li><code>/cfg.prof.dump</code> — print newest profile CSV to terminal</li>
-</ul>
+<h2 id="escaping">Escaping</h2>
+<p>Use <code>\$</code> to prevent expansion:</p>
+<pre><code class="language-text">/print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
+</code></pre>
+<p>Use <code>/raw</code> to send a line with no expansion at all:</p>
+<pre><code class="language-text">/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0
+</code></pre>
+<h2 id="scope">Scope</h2>
+<p>User variables persist for the session. They are cleared automatically
+when a script launches from the Scripts button or Run menu, but NOT
+when <code>/run</code> is typed interactively. Use <code>/var.clear</code> to reset manually.</p>
+<hr />
 
 
 
@@ -1101,7 +1053,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="toolbar.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Toolbar &amp; Shortcuts">
+          <a href="commands.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: REPL Commands">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1111,20 +1063,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Toolbar & Shortcuts
+                REPL Commands
               </div>
             </div>
           </a>
         
         
           
-          <a href="variables.html" class="md-footer__link md-footer__link--next" aria-label="Next: Variables">
+          <a href="scripting.html" class="md-footer__link md-footer__link--next" aria-label="Next: Scripting">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Variables
+                Scripting
               </div>
             </div>
             <div class="md-footer__button md-icon">

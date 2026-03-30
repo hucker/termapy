@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.38.0 (2026-03-30)
+
+### New Features
+
+- **`/log.clear`** -- delete the session log file (TUI + CLI)
+- **Variables help page** -- new dedicated docs page for `$(NAME)` syntax, built-ins, env vars, sequences
+- **`/edit.run`, `/edit.proto`, `/edit.plugin` without args** -- lists available files instead of showing usage error
+
+### Improvements
+
+- **`CmdResult` moved to `plugins.py`** -- plugins import from a single module (`from termapy.plugins import CmdResult, Command`)
+- **`CmdResult.err_prefix`** -- `ClassVar` for global error prefix customization
+- **CLI context dirs fixed** -- `ctx.scripts_dir`, `ctx.proto_dir`, etc. were defaulting to cwd instead of config dir
+- **CLI hint ordering** -- "Type commands..." appears before `on_connect_cmd` output
+- **Docs coverage** -- custom button JSON example, UI modes, script profiling, `/demo` commands, missing config keys
+
 ## 0.37.0 (2026-03-29)
 
 ### New Features

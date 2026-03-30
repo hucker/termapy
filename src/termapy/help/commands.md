@@ -49,8 +49,12 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive)                      |
 | `/show_line_endings {on\|off}` | Toggle visible `\r` `\n` markers in serial output                      |
 | `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
+| `/edit.run {file}`        | Edit a .run script, or list available scripts if no name given              |
+| `/edit.proto {file}`      | Edit a .pro file, or list available files if no name given                  |
+| `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given                   |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.log`               | Open the session log in the system viewer                                   |
+| `/log.clear`              | Delete the session log file                                                 |
 | `/edit.info`              | Open the info report in the system viewer                                   |
 | `/cfg.info {--display}`   | Show project summary; `--display` opens full report                         |
 | `/cfg.files`              | Show project directory tree                                                 |

@@ -16,8 +16,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import cfg_log_path, open_with_system
 from termapy.folders import EXT_TO_FOLDER
-from termapy.plugins import Command
-from termapy.scripting import CmdResult
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -102,12 +101,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 # ── Folder subcommand factories ──────────────────────────────────────────────
 
 
-def _make_edit_handler(get_dir, ext):
-    """Create a handler that opens a file by name from a folder."""
+def _make_edit_handler(get_dir, ext, pattern):
+    """Create a handler that opens a file by name, or lists files if no name given."""
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         name = args.strip()
         if not name:
-            return CmdResult.fail(msg=f"Usage: /edit.<folder> <filename>")
+            return _make_list_handler(get_dir, pattern)(ctx, args)
         folder = get_dir(ctx)
         if not name.endswith(ext):
             name += ext
@@ -130,8 +129,9 @@ def _make_list_handler(get_dir, pattern):
         if not files:
             ctx.output(f"  (empty)")
             return CmdResult.ok()
+        ctx.output(f"  Available file(s):")
         for f in files:
-            ctx.write(f"  {f.name}")
+            ctx.write(f"    {f.name}")
         return CmdResult.ok()
     return handler
 
@@ -151,7 +151,7 @@ def _build_folder_sub(get_dir, ext, pattern):
     return Command(
         args="{filename}",
         help=f"Open a {ext} file in the system editor.",
-        handler=_make_edit_handler(get_dir, ext),
+        handler=_make_edit_handler(get_dir, ext, pattern),
         sub_commands={
             "list": Command(
                 help=f"List {ext} files.",

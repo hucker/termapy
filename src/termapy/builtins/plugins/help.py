@@ -6,8 +6,7 @@ import inspect
 import re
 from typing import TYPE_CHECKING
 
-from termapy.plugins import Command
-from termapy.scripting import CmdResult
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

@@ -7,8 +7,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
-from termapy.plugins import Command, Transform
-from termapy.scripting import CmdResult
+from termapy.plugins import CmdResult, Command, Transform
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

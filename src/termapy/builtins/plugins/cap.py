@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import Command
+from termapy.plugins import CmdResult, Command
 from termapy.protocol import parse_format_spec
-from termapy.scripting import CmdResult, parse_duration, resolve_seq_filename
+from termapy.scripting import parse_duration, resolve_seq_filename
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

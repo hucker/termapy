@@ -64,7 +64,8 @@ from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.repl import ReplEngine
-from termapy.scripting import CmdResult, parse_duration
+from termapy.plugins import CmdResult
+from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
 from textual.message import Message
 from textual.timer import Timer

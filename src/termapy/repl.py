@@ -26,7 +26,8 @@ from termapy.plugins import (
     load_plugins_from_dir,
 )
 from termapy.folders import CAP, PROF, PROTO, RUN, SS
-from termapy.scripting import CmdResult, expand_template, parse_duration, parse_keywords
+from termapy.plugins import CmdResult
+from termapy.scripting import expand_template, parse_duration, parse_keywords
 
 
 @dataclass

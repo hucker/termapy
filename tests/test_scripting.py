@@ -5,8 +5,8 @@ import re
 
 import pytest
 
+from termapy.plugins import CmdResult
 from termapy.scripting import (
-    CmdResult,
     expand_template,
     parse_duration,
     parse_keywords,

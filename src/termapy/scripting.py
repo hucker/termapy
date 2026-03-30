@@ -12,10 +12,6 @@ from datetime import datetime
 from pathlib import Path
 
 
-# CmdResult lives in plugins.py (the public plugin API surface).
-# Re-exported here for internal code that imports other scripting utilities.
-from termapy.plugins import CmdResult  # noqa: F401
-
 # Shared ANSI escape regex - matches all CSI sequences (color, cursor, clear, etc.).
 # Use strip_ansi() to remove them from text.
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")

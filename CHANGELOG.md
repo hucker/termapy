@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.38.1 (2026-03-30)
+
+### Bug Fixes
+
+- **Circular import on CI** -- CmdResult re-export from scripting.py caused import cycle on clean Python 3.11 installs
+- **Toolbar buttons table** -- missing separator row broke table rendering in help docs
+
 ## 0.38.0 (2026-03-30)
 
 ### New Features

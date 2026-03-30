@@ -7,8 +7,7 @@ Demonstrates using the serial port through the plugin context.
 """
 
 
-from termapy.plugins import Command
-from termapy.scripting import CmdResult
+from termapy.plugins import CmdResult, Command
 
 
 def _handler(ctx, args):

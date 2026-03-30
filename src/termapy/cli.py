@@ -136,6 +136,11 @@ class CLITerminal:
             cfg=self.cfg,
             config_path=self.config_path,
             engine=engine_api,
+            ss_dir=self.repl.ss_dir,
+            scripts_dir=self.repl.scripts_dir,
+            proto_dir=self.repl.proto_dir,
+            cap_dir=self.repl.cap_dir,
+            prof_dir=self.repl.prof_dir,
             port=lambda: (
                 self.engine.serial_port.port
                 if self.engine.is_connected and self.engine.serial_port
@@ -231,6 +236,11 @@ class CLITerminal:
             "help.open", "{topic}",
             "Open help in browser.",
             self._hook_help_open, source="app",
+        )
+        self.repl.register_hook(
+            "log.clear", "",
+            "Delete the session log file.",
+            self._hook_log_clear, source="app",
         )
         self.repl.register_hook(
             "tui", "",
@@ -376,6 +386,22 @@ class CLITerminal:
         if self.engine.serial_port:
             self.engine.serial_port.write(args.encode(self.cfg.get("encoding", "utf-8")))
         return CmdResult.ok()
+
+    def _hook_log_clear(self, ctx, args: str):
+        """Delete the session log file."""
+        from termapy.config import cfg_log_path
+        from termapy.plugins import CmdResult
+        log_path = cfg_log_path(self.config_path) if self.config_path else ""
+        if not log_path or not Path(log_path).exists():
+            self.status("No log file to delete.", "yellow")
+            return CmdResult.fail(msg="No log file.")
+        try:
+            Path(log_path).unlink()
+            self.status(f"Deleted {Path(log_path).name}", "green")
+            return CmdResult.ok()
+        except OSError as e:
+            self.status(f"Delete failed: {e}", "red")
+            return CmdResult.fail(msg=str(e))
 
     def _hook_help_open(self, ctx, args: str):
         """Open help topic in system browser."""
@@ -654,10 +680,6 @@ class CLITerminal:
         # Serial echo is off — we sync manually with wait_for_idle after dispatch.
         self.repl._echo = False
         self.cfg["echo_input"] = False
-        self.write(
-            f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
-            "dim",
-        )
         try:
             while True:
                 try:
@@ -718,6 +740,13 @@ class CLITerminal:
         self._load_history()
         self._setup_completion()
         self._start_reader()
+
+        # Show hint before on_connect_cmd so it appears first
+        if not self.run_script:
+            self.write(
+                f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
+                "dim",
+            )
 
         # Run on_connect_cmd (same as TUI does after connecting)
         auto_cmd = self.cfg.get("on_connect_cmd", "")

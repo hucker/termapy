@@ -788,6 +788,13 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
+            "log.clear",
+            "",
+            "Delete the session log file.",
+            lambda ctx, args: self._hook_log_clear(),
+            source="app",
+        )
+        self.repl.register_hook(
             "edit.info",
             "",
             "Open the info report in the system viewer.",
@@ -816,7 +823,7 @@ class SerialTerminal(App):
                 self.repl.register_hook(
                     f"edit.{folder}", "{{filename}}",
                     f"Open a {ext} file in the system editor.",
-                    _make_edit_handler(get_dir, ext),
+                    _make_edit_handler(get_dir, ext, pat),
                     source="app",
                 )
             self.repl.register_hook(
@@ -2519,6 +2526,23 @@ class SerialTerminal(App):
         open_with_system(self._log_path())
         return CmdResult.ok()
 
+    def _hook_log_clear(self) -> CmdResult:
+        """Delete the session log file."""
+        log_path = self._log_path()
+        if not log_path or not Path(log_path).exists():
+            self._status("No log file to delete.", "yellow")
+            return CmdResult.fail(msg="No log file.")
+        if self.log_fh:
+            self.log_fh.close()
+            self.log_fh = None
+        try:
+            Path(log_path).unlink()
+            self._status(f"Deleted {Path(log_path).name}", "green")
+            return CmdResult.ok()
+        except OSError as e:
+            self._status(f"Delete failed: {e}", "red")
+            return CmdResult.fail(msg=str(e))
+
     def _hook_edit_info(self) -> CmdResult:
         """Open the info report in the system viewer."""
         if not self.config_path:
@@ -2570,8 +2594,19 @@ class SerialTerminal(App):
         """Edit a file from a specific folder using Textual modal."""
         name = args.strip()
         if not name:
-            self.repl.write(f"Usage: /edit.{folder} <filename>", "red")
-            return CmdResult.fail(msg=f"Usage: /edit.{folder} <filename>")
+            dir_map = {"run": self.repl.scripts_dir, "proto": self.repl.proto_dir}
+            base = dir_map.get(folder)
+            if base and base.is_dir():
+                files = sorted(base.glob(f"*{ext}"))
+                if files:
+                    self.repl.write("  Available file(s):")
+                    for f in files:
+                        self.repl.write(f"    {f.name}")
+                else:
+                    self.repl.write("  (empty)")
+            else:
+                self.repl.write("  (no directory)")
+            return CmdResult.ok()
         if not name.endswith(ext):
             name += ext
         dir_map = {"run": self.repl.scripts_dir, "proto": self.repl.proto_dir}

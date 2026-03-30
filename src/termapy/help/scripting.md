@@ -34,6 +34,25 @@ and a name field. Scripts are saved with a `.run` extension in the per-config
 Keywords use `key=value` syntax (spaces around `=` are OK). `match=` must be
 last -- everything after it is the pattern.
 
+## Profiling
+
+Run a script with per-line timing to find slow spots:
+
+```text
+/run.profile smoke_test
+```
+
+This saves a CSV to the `prof/` folder with elapsed time for each line.
+
+| Command                      | Description                              |
+| ---------------------------- | ---------------------------------------- |
+| `/run.profile <script>`      | Run script with per-line timing          |
+| `/run.profile.cmd <command>` | Profile a single command                 |
+| `/run.profile.show`          | Open newest profile in system viewer     |
+| `/run.profile.dump`          | Print newest profile to the terminal     |
+| `/run.profile.explore`       | Open `prof/` folder in file explorer     |
+| `/run.profile.list`          | List profile files                       |
+
 ## Example Script
 
 ```text

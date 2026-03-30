@@ -6,8 +6,7 @@ import re
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
-from termapy.plugins import Command, Directive, DirectiveResult, Transform
-from termapy.scripting import CmdResult
+from termapy.plugins import CmdResult, Command, Directive, DirectiveResult, Transform
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

@@ -52,7 +52,41 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, Generator
+from typing import Callable, ClassVar, Generator
+
+
+@dataclass
+class CmdResult:
+    """Result returned by every plugin/hook handler and by dispatch().
+
+    Handlers return ``CmdResult.ok()`` on success or
+    ``CmdResult.fail(msg="...")`` on error.  ``dispatch()`` sets
+    ``elapsed_s`` automatically after the handler returns.
+    """
+
+    err_prefix: ClassVar[str] = "Error:"  # Set globally: CmdResult.err_prefix = "Fail:"
+
+    success: bool = True
+    error: str = ""
+    elapsed_s: float = 0.0
+    value: str = ""
+
+    @classmethod
+    def ok(cls, value: str = "") -> CmdResult:
+        """Return a successful result, optionally with a value."""
+        return cls(value=value)
+
+    @classmethod
+    def fail(cls, msg: str = "") -> CmdResult:
+        """Return a failure result with an error message."""
+        return cls(success=False, error=msg)
+
+    @property
+    def err_msg(self) -> str:
+        """Formatted error string with class-level prefix for display."""
+        if not self.error:
+            return ""
+        return f"{self.err_prefix} {self.error}"
 
 
 @dataclass

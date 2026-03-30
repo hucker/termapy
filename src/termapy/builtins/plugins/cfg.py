@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
 from termapy.folders import CLEARABLE, DUMPABLE, FOLDERS, SHOWABLE
-from termapy.plugins import Command
-from termapy.scripting import CmdResult
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

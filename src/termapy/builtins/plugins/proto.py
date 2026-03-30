@@ -24,8 +24,7 @@ from termapy.protocol import (
     strip_ansi,
 )
 
-from termapy.plugins import Command
-from termapy.scripting import CmdResult
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

@@ -23,6 +23,7 @@ nav:
   - Custom Buttons: custom-buttons.md
   - Toolbar & Shortcuts: toolbar.md
   - REPL Commands: commands.md
+  - Variables: variables.md
   - Scripting: scripting.md
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md

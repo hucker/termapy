@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from termapy.plugins import Command
-from termapy.scripting import CmdResult, parse_duration, parse_keywords
+from termapy.plugins import CmdResult, Command
+from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

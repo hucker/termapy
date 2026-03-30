@@ -11,9 +11,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-from termapy.plugins import Command
+from termapy.plugins import CmdResult, Command
 from termapy.protocol import get_crc_registry
-from termapy.scripting import CmdResult
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

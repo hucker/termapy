@@ -8,8 +8,8 @@ Demonstrates building a device-specific command using parse_keywords.
 
 import time
 
-from termapy.plugins import Command, PluginContext
-from termapy.scripting import CmdResult, parse_keywords
+from termapy.plugins import CmdResult, Command, PluginContext
+from termapy.scripting import parse_keywords
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

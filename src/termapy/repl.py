@@ -6,9 +6,9 @@ from folders by app.py. The engine owns state (seq counters, echo, etc.)
 and exposes it through PluginContext lambdas.
 """
 
-import json
 import time
 from datetime import datetime
+from io import TextIOWrapper
 from pathlib import Path
 from threading import Event
 from types import MappingProxyType
@@ -572,7 +572,7 @@ class ReplEngine:
         w = write or self.write
         prefix = self.prefix
         profile_times: list[tuple[str, float]] = []
-        prof_fh = None
+        prof_fh: TextIOWrapper | None = None
         try:
             all_lines = path.read_text(encoding="utf-8").splitlines()
             lines = [

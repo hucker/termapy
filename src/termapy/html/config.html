@@ -23,7 +23,7 @@
     
     
       
-        <title>Configuration - Termapy Help v0.37.0</title>
+        <title>Configuration - Termapy Help v0.38.0</title>
       
     
     
@@ -88,7 +88,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="index.html" title="Termapy Help v0.37.0" class="md-header__button md-logo" aria-label="Termapy Help v0.37.0" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.38.0" class="md-header__button md-logo" aria-label="Termapy Help v0.38.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.37.0
+            Termapy Help v0.38.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -186,13 +186,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="index.html" title="Termapy Help v0.37.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.37.0" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.38.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.38.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    Termapy Help v0.37.0
+    Termapy Help v0.38.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -739,6 +739,15 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 <p>Here is an example config for a device called <code>iot_device</code>:</p>
 <pre><code class="language-json">{
     &quot;config_version&quot;: 3,
+    &quot;title&quot;: &quot;IoT Device&quot;,
+    &quot;border_color&quot;: &quot;blue&quot;,
+    &quot;max_lines&quot;: 10000,
+    &quot;default_ui&quot;: &quot;tui&quot;,
+    &quot;cmd_prefix&quot;: &quot;/&quot;,
+    &quot;cli_prompt&quot;: &quot;$(CFG)&gt; &quot;,
+    &quot;cli_echo_input&quot;: false,
+    &quot;config_read_only&quot;: false,
+    &quot;os_cmd_enabled&quot;: false,
     &quot;port&quot;: &quot;COM4&quot;,
     &quot;baud_rate&quot;: 115200,
     &quot;byte_size&quot;: 8,
@@ -747,22 +756,19 @@ from within the app by clicking the center title bar button or using <code>/cfg<
     &quot;flow_control&quot;: &quot;none&quot;,
     &quot;encoding&quot;: &quot;utf-8&quot;,
     &quot;cmd_delay_ms&quot;: 0,
-    &quot;line_ending&quot;: &quot;\r&quot;,
-    &quot;send_bare_enter&quot;: false,
     &quot;auto_connect&quot;: true,
     &quot;auto_reconnect&quot;: true,
     &quot;on_connect_cmd&quot;: &quot;status\nhelp&quot;,
+    &quot;line_ending&quot;: &quot;\r&quot;,
+    &quot;send_bare_enter&quot;: false,
     &quot;echo_input&quot;: true,
-    &quot;echo_input_fmt&quot;: &quot;[purple]&gt; {cmd}[/]&quot;,
+    &quot;echo_input_fmt&quot;: &quot;[purple]$(CFG)&gt; {cmd}[/]&quot;,
     &quot;log_file&quot;: &quot;&quot;,
-    &quot;show_timestamps&quot;: false,
-    &quot;max_grep_lines&quot;: 100,
-    &quot;title&quot;: &quot;IoT Device&quot;,
-    &quot;border_color&quot;: &quot;blue&quot;,
-    &quot;max_lines&quot;: 10000,
-    &quot;cmd_prefix&quot;: &quot;/&quot;,
-    &quot;os_cmd_enabled&quot;: false,
     &quot;show_traceback&quot;: false,
+    &quot;proto_results_template&quot;: &quot;{name}_results.json&quot;,
+    &quot;show_timestamps&quot;: false,
+    &quot;show_line_endings&quot;: false,
+    &quot;max_grep_lines&quot;: 100,
     &quot;custom_buttons&quot;: [
         {&quot;enabled&quot;: true, &quot;name&quot;: &quot;Reset&quot;, &quot;command&quot;: &quot;ATZ&quot;, &quot;tooltip&quot;: &quot;Reset device&quot;},
         {&quot;enabled&quot;: true, &quot;name&quot;: &quot;Init&quot;, &quot;command&quot;: &quot;ATZ\\nAT+BAUD=115200&quot;, &quot;tooltip&quot;: &quot;Reset and set baud&quot;}

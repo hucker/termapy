@@ -17,14 +17,14 @@ A serial interface terminal like PuTTY or Tera Term — but it runs in your term
 Install with [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.39.1
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.39.2
 termapy --demo
 ```
 
 Or try it without installing:
 
 ```sh
-uvx --from git+https://github.com/hucker/termapy@v0.39.1 termapy --demo
+uvx --from git+https://github.com/hucker/termapy@v0.39.2 termapy --demo
 ```
 
 That starts a simulated device — no hardware needed. You're typing commands in seconds.

@@ -38,4 +38,4 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Run pip-audit
-        run: uv pip freeze > requirements.txt && uvx pip-audit --strict -r requirements.txt
+        run: uv pip freeze | grep -v '^termapy==' > requirements.txt && uvx pip-audit --strict -r requirements.txt

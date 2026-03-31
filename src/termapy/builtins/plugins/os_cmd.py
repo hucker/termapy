@@ -1,4 +1,7 @@
-"""Built-in plugin: run a shell command."""
+"""Built-in plugin: run a shell command.
+
+Named os_cmd.py because 'os.py' would shadow Python's os module.
+"""
 
 from __future__ import annotations
 

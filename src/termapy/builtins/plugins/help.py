@@ -260,7 +260,7 @@ def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
     """
     target_cmds = ctx.engine.target_commands
     if not target_cmds:
-        ctx.result("No target commands imported. Use /import first.")
+        ctx.result("No target commands included. Use /include first.")
         return CmdResult.ok()
 
     # Column widths from target commands only

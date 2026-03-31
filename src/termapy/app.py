@@ -970,7 +970,7 @@ class SerialTerminal(App):
         self._run_reader()
         connect_cmds: list[str] = []
         if self.cfg.get("device_json_cmd", ""):
-            connect_cmds.append(self.repl.cmd("import"))
+            connect_cmds.append(self.repl.cmd("include"))
         auto_cmd = self.cfg.get("on_connect_cmd", "")
         if auto_cmd:
             connect_cmds.extend(auto_cmd.replace("\\n", "\n").split("\n"))

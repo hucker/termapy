@@ -357,7 +357,7 @@ class ReplEngine:
     # -- Target commands -------------------------------------------------------
 
     def set_target_commands(self, commands: dict[str, TargetCommand]) -> None:
-        """Replace all target commands with a new set from /import."""
+        """Replace all target commands with a new set from /include."""
         self._target_commands.clear()
         self._target_commands.update(commands)
 

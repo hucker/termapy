@@ -110,7 +110,7 @@ You can enter demo mode at any time, even with a real device config loaded:
 
 1. Type `AT+INFO` — see the device respond
 2. Click **AT Demo** — runs the full AT command demo script
-3. Click **TempPlot** — watch a temperature sparkline build
+3. Click **TempPlot** — watch a temperature sparkline plot
 4. Type `/run.profile at_demo` — profile the demo script
 5. Click **Probe** — device survey with formatted output
 6. Type `/proto.send 01 03 00 00 00 01 84 0A` — binary Modbus query

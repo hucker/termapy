@@ -462,7 +462,7 @@ demo> /env.list TEST_VAR
 demo> /print === section: errors ===
   === section: errors ===
 demo> /nonexistent_command
-  Error: Unknown REPL command: nonexistent_command
+  Error: Unknown command: nonexistent_command
 demo> /cfg nonexistent_key
   Error: Unknown config key: nonexistent_key
 demo> /port.baud_rate not_a_number

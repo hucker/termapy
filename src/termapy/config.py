@@ -352,7 +352,12 @@ def load_config(path: str) -> dict:
         raise FileNotFoundError(f"Config file not found: {path}")
 
     with open(path) as f:
-        cfg = json.load(f)
+        try:
+            cfg = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}"
+            ) from e
 
     # Run migrations before applying defaults
     old_version = cfg.get("config_version", 0)

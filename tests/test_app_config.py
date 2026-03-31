@@ -611,9 +611,9 @@ class TestLoadConfigMalformed:
         cfg_file.parent.mkdir()
         cfg_file.write_text("{not valid json!!}")
 
-        # Act / Assert
-        with pytest.raises(json.JSONDecodeError):
-            load_config(str(cfg_file))  # surfaces parse error to caller
+        # Act / Assert -- ValueError with line/column detail
+        with pytest.raises(ValueError, match="Invalid JSON at line"):
+            load_config(str(cfg_file))
 
 
 # -- _run_check: CLI --check flag --------------------------------------------

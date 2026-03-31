@@ -135,6 +135,9 @@ class CLITerminal:
             script_stop=lambda: self.repl._script_stop.set(),
             start_capture=lambda **kw: self._start_capture(**kw),
             stop_capture=lambda: self._stop_capture(),
+            target_commands=self.repl._target_commands,
+            set_target_commands=self.repl.set_target_commands,
+            clear_target_commands=self.repl.clear_target_commands,
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
             connect=lambda port=None: self._connect(port),
@@ -627,6 +630,11 @@ class CLITerminal:
                         for name in repl._plugins
                         if f"{prefix}{name}".startswith(line)
                     )
+                elif repl._target_commands:
+                    _completer.matches = sorted(
+                        name for name in repl._target_commands
+                        if name.lower().startswith(line.lower())
+                    )
 
             if state < len(_completer.matches):
                 return _completer.matches[state]
@@ -754,6 +762,10 @@ class CLITerminal:
                 f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
                 "dim",
             )
+
+        # Auto-import target commands if configured
+        if self.cfg.get("device_json_cmd", "") and not self.run_script:
+            self._dispatch(self.repl.cmd("import"))
 
         # Run on_connect_cmd (same as TUI does after connecting)
         auto_cmd = self.cfg.get("on_connect_cmd", "")

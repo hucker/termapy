@@ -42,6 +42,7 @@ DEFAULT_CFG = {
     "cli_echo_input": False,
     "config_read_only": False,
     "os_cmd_enabled": False,
+    "device_json_cmd": "",
     # Serial
     "port": "",
     "baud_rate": 115200,
@@ -318,6 +319,10 @@ CFG_HELP: dict[str, tuple] = {
     "os_cmd_enabled": (
         "Allow /os to run shell commands.",
         "Valid: true, false. Security risk if enabled.",
+    ),
+    "device_json_cmd": (
+        "Command sent by /import to fetch device command help JSON.",
+        "Device command returning JSON. Empty = must specify cmd= arg.",
     ),
     # Custom buttons (nested keys)
     "enabled": ("Whether this button is visible in the toolbar.", "Valid: true, false"),

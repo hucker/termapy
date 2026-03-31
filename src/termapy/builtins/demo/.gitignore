@@ -2,6 +2,7 @@
 *.log
 .cmd_history.txt
 .cap_seq
+.target_menu.json
 _profile_tmp_*
 ss/
 cap/

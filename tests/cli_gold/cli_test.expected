@@ -17,29 +17,6 @@ demo> AT+NAME?
 +NAME:TestDevice
 demo> AT+BAUD?
 +BAUD:115200
-demo> help
-Available commands:
-  AT          - Connection test
-  AT+PROD-ID  - Product identifier
-  AT+INFO     - Device information
-  AT+TEMP     - Read temperature
-  AT+LED on|off - Control LED
-  AT+NAME?    - Query device name
-  AT+NAME=val - Set device name
-  AT+BAUD?    - Query baud rate
-  AT+BAUD=val - Set baud rate
-  AT+STATUS   - Device status
-  AT+RESET    - Reset device
-  $GPGGA      - NMEA position fix
-  $GPRMC      - NMEA nav data
-  $GPGSA      - NMEA DOP/active satellites
-  $GPGSV      - NMEA satellites in view
-  $PMTK...    - GPS config (simulated)
-  mem <addr> [len] - Memory dump
-  AT+TEXTDUMP <n> - Emit n text readings
-  AT+BINDUMP <n>        - Emit n mixed 21-byte records
-  AT+BINDUMP <type> <n> - Emit n typed binary values
-  help        - This help
 demo> mem 0x1000 32
   00001000: 00 B1 62 13 C4 75 26 D7 88 39 EA 9B 4C FD AE 5F  ..b..u&..9..L.._
   00001010: 10 C1 72 23 D4 85 36 E7 98 49 FA AB 5C 0D BE 6F  ..r#..6..I..\..o
@@ -129,6 +106,7 @@ demo> /cfg.dump
     "cli_echo_input": false,
     "config_read_only": false,
     "os_cmd_enabled": false,
+    "device_json_cmd": "AT+HELP.JSON",
     "port": "DEMO",
     "baud_rate": 115200,
     "byte_size": 8,
@@ -154,8 +132,8 @@ demo> /cfg.dump
         {
             "enabled": true,
             "name": "Demo Help",
-            "command": "/cls\\nHELP",
-            "tooltip": "Clear screen and show device commands"
+            "command": "/cls\\n/help",
+            "tooltip": "Show all commands (termapy + device)"
         },
         {
             "enabled": true,

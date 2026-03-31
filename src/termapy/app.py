@@ -445,6 +445,8 @@ class SerialTerminal(App):
                 commands.append(f"{prefix}{name} {plugin.args}")
         for f in self._project_files():
             commands.append(f"{prefix}edit {f}")
+        for name in self.repl._target_commands:
+            commands.append(name)
         self._cached_commands = commands
         self._suggester.update(commands, self.history, prefix)
 
@@ -604,6 +606,9 @@ class SerialTerminal(App):
             start_capture=self._cap_start,
             stop_capture=self._cap_stop,
             directives=self.repl._directives,
+            target_commands=self.repl._target_commands,
+            set_target_commands=self._set_target_commands,
+            clear_target_commands=self._clear_target_commands,
             connect=self._connect,
             disconnect=self._disconnect,
             update_port=self._update_port,
@@ -967,10 +972,14 @@ class SerialTerminal(App):
         inp.focus()
         self._sync_hw_buttons()
         self._run_reader()
+        connect_cmds: list[str] = []
+        if self.cfg.get("device_json_cmd", ""):
+            connect_cmds.append(self.repl.cmd("import"))
         auto_cmd = self.cfg.get("on_connect_cmd", "")
         if auto_cmd:
-            parts = auto_cmd.replace("\\n", "\n").split("\n")
-            self._run_lines(parts, delay=0.2)
+            connect_cmds.extend(auto_cmd.replace("\\n", "\n").split("\n"))
+        if connect_cmds:
+            self._run_lines(connect_cmds, delay=0.2)
         return True
 
     @work(thread=True)
@@ -1166,6 +1175,16 @@ class SerialTerminal(App):
         else:
             location = "unknown"
         self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
+
+    def _set_target_commands(self, commands: dict) -> None:
+        """Update target commands and rebuild suggestions."""
+        self.repl.set_target_commands(commands)
+        self._rebuild_suggester_commands()
+
+    def _clear_target_commands(self) -> None:
+        """Clear target commands and rebuild suggestions."""
+        self.repl.clear_target_commands()
+        self._rebuild_suggester_commands()
 
     def _disconnect(self) -> None:
         if self._capture.active:

@@ -43,7 +43,6 @@ The simulated device supports three protocols:
 | `AT+PROD-ID`               | Product ID (`BASSOMATIC-77`)            |
 | `AT+RESET`                 | Simulated reboot sequence               |
 | `mem <addr> [len]`         | Hex memory dump                         |
-| `help`                     | List all device commands                |
 
 ### GPS / NMEA
 

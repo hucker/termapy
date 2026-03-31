@@ -15,4 +15,5 @@ Select a topic:
 - [Protocol Testing](protocol-testing.md) — hex send/receive, .pro scripts, CRC, visualizers
 - [Data Capture](data-capture.md) — text and binary capture to files
 - [Writing Plugins](writing-plugins.md) — add custom commands with Python
+- [Device Help](device-help.md) — integrate your device's commands into termapy
 - [Using with Git](using-git.md) — version control, team workflow, env vars

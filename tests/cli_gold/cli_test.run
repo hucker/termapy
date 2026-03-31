@@ -15,7 +15,6 @@ AT+NAME?
 AT+NAME=TestDevice
 AT+NAME?
 AT+BAUD?
-help
 mem 0x1000 32
 mem 0x2000 16
 AT+TEXTDUMP 3

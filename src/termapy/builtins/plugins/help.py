@@ -125,6 +125,15 @@ def _show_command_help(ctx: PluginContext, name: str,
     prefix = ctx.engine.prefix
     plugin = ctx.engine.plugins.get(name)
     if not plugin:
+        # Check target commands (no prefix, help-only)
+        tc = ctx.engine.target_commands.get(name)
+        if tc:
+            arg_str = f" {_color_args(tc.args)}" if tc.args else ""
+            ctx.write_markup(
+                f"[{_CMD}]{tc.name}[/]{arg_str} - {tc.help}"
+            )
+            ctx.write_markup(f"  [{_SRC}](source: target device)[/]")
+            return CmdResult.ok()
         return CmdResult.fail(msg=f"Unknown command: {name}")
     arg_str = f" {_color_args(plugin.args)}" if plugin.args else ""
     ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} - {plugin.help}")
@@ -227,6 +236,49 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             for d in directives:
                 pattern = _color_args(d.pattern) if d.pattern else ""
                 ctx.write_markup(f"  [{_CMD}]{pattern}[/]  {d.help}")
+
+        # Target device commands section
+        target_cmds = ctx.engine.target_commands
+        if target_cmds:
+            ctx.write_markup(f"[{_SEP}]── Target Device ──[/]")
+            for cmd_name in sorted(target_cmds):
+                tc = target_cmds[cmd_name]
+                cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
+                arg_col = _pad(
+                    _color_args(tc.args), arg_w
+                ) if tc.args else _pad("", arg_w)
+                ctx.write_markup(f"{cmd_col} {arg_col}  {tc.help}")
+    return CmdResult.ok()
+
+
+def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
+    """Show only imported target device commands.
+
+    Args:
+        ctx: Plugin context for engine target command registry and output.
+        args: Unused.
+    """
+    target_cmds = ctx.engine.target_commands
+    if not target_cmds:
+        ctx.result("No target commands imported. Use /import first.")
+        return CmdResult.ok()
+
+    # Column widths from target commands only
+    cmd_w = max(len(tc.name) for tc in target_cmds.values()) + 4
+    arg_w = min(
+        max((len(tc.args) for tc in target_cmds.values() if tc.args), default=0) + 2,
+        _MAX_ARGS_LEN + 2,
+    )
+
+    ctx.write_markup(f"[{_SEP}]── Target Device ──[/]")
+    for cmd_name in sorted(target_cmds):
+        tc = target_cmds[cmd_name]
+        cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
+        arg_col = _pad(
+            _color_args(tc.args), arg_w
+        ) if tc.args else _pad("", arg_w)
+        ctx.write_markup(f"{cmd_col} {arg_col}  {tc.help}")
+    ctx.result(f"{len(target_cmds)} device commands.")
     return CmdResult.ok()
 
 
@@ -255,6 +307,10 @@ Three modes:
   /help proto.crc    - show help for a subcommand (dot notation)""",
     handler=_handler,
     sub_commands={
+        "target": Command(
+            help="Show only imported target device commands.",
+            handler=_handler_target,
+        ),
         "dev": Command(
             args="<cmd>",
             help="Show a command handler's Python docstring.",

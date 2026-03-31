@@ -46,6 +46,8 @@ Load order: built-ins -> global plugins -> per-config plugins.
 Later plugins can override earlier ones by using the same name.
 """
 
+from __future__ import annotations
+
 import importlib.util
 import sys
 from contextlib import contextmanager

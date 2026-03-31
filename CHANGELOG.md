@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.39.1 (2026-03-31)
+## 0.39.2 (2026-03-31)
+
+### Bug Fixes
+
+- **Circular import on Python 3.11-3.13** -- lazy import of `var` in `app.py`, add `from __future__ import annotations` to `plugins.py`
+- **CI audit job** -- remove `continue-on-error` so security vulnerabilities fail the build
 
 ### Security
 

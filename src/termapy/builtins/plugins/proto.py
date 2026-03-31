@@ -56,6 +56,7 @@ def _display_bytes(ctx: PluginContext, direction: str, data: bytes,
             ctx.write(f"    {line}")
 
 
+
 def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
     """Resolve a proto script filename to a full path.
 
@@ -362,7 +363,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
 
-    if algo is not None:
+    if algo is not None and ctx.verbose:
         endian_label = "BE" if big_endian else "LE"
         mode_label = "ascii" if ascii_crc else "bin"
         ctx.write(f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X}"
@@ -370,7 +371,8 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
-    _display_bytes(ctx, "TX", data, binary=True)
+    if ctx.verbose:
+        _display_bytes(ctx, "TX", data, binary=True)
     t0 = time.monotonic()
     ctx.serial_write(data)
     response = ctx.serial_read_raw(1000)
@@ -379,7 +381,8 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     if response:
         _display_bytes(ctx, "RX", response, binary=True)
-        ctx.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
+        if ctx.verbose:
+            ctx.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
         ctx.write("  RX: (no response)", "red")
     return CmdResult.ok()

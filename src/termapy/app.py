@@ -944,7 +944,12 @@ class SerialTerminal(App):
         """Attempt to open the serial port. Returns True on success."""
         if not self._engine.connect():
             self._engine.reader_stopped.set()
-            self._status(f"Serial error: cannot open {self.cfg.get('port')}", "red")
+            port = self.cfg.get('port', '?')
+            detail = self._engine.last_error
+            if detail:
+                self._status(f"Cannot open {port}: {detail}", "red")
+            else:
+                self._status(f"Cannot open {port}", "red")
             self._set_conn_status("Disconnected")
             if self.cfg.get("auto_reconnect"):
                 self._auto_reconnect()
@@ -1475,7 +1480,7 @@ class SerialTerminal(App):
         try:
             color = "green" if text == "Connected" else "red"
             widget = self.query_one("#title-right", Button)
-            widget.label = text
+            widget.label = f"{text:^12}"
             widget.styles.background = color
             self.query_one("#title-left", Button).styles.background = color
             self.query_one("#title-center", Button).styles.background = color
@@ -1610,7 +1615,9 @@ class SerialTerminal(App):
         cfg = dict(self.cfg)
         cfg["port"] = port
         self._switch_config(cfg, self.config_path)
-        self._status(f"Port changed to {port} (session)", "green")
+        if self.is_connected:
+            self._status(f"Port changed to {port} (session)", "green")
+        # Connection failure already reported by _try_open_port
 
     def _on_port_picked(self, port: str | None) -> None:
         if port is None:
@@ -1653,14 +1660,14 @@ class SerialTerminal(App):
             # Stash cfg/path for the port picker callback
             self._pending_cfg = cfg
             self._pending_config_path = config_path
-            self.push_screen(PortPicker(), callback=self._on_port_picked)
+            self.push_screen(PortPicker(), callback=self._on_new_config_port_picked)
         else:
             self.push_screen(
                 ConfigEditor(cfg, config_path, highlight_key="port"),
                 callback=self._on_config_result,
             )
 
-    def _on_port_picked(self, port: str | None) -> None:
+    def _on_new_config_port_picked(self, port: str | None) -> None:
         cfg = self._pending_cfg
         config_path = self._pending_config_path
         if port is not None:

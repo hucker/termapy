@@ -104,6 +104,17 @@ class CLITerminal:
         else:
             self.console.print(f"  {text}")
 
+    def _raw(self, text: str, end: str = "\n") -> None:
+        """Write raw text to stdout, bypassing Rich markup."""
+        f = self.console.file
+        f.write(text + end)
+        f.flush()
+
+    def _err(self, text: str) -> None:
+        """Write text to stderr."""
+        sys.stderr.write(text + "\n")
+        sys.stderr.flush()
+
     def _log(self, direction: str, text: str) -> None:
         """Log callback - CLI doesn't write a log file."""
         pass
@@ -176,7 +187,7 @@ class CLITerminal:
             dispatch=lambda cmd: self._dispatch(cmd),
             confirm=lambda msg: self._confirm(msg),
             notify=lambda text, **kw: self.write(f"[notice] {text}"),
-            clear_screen=lambda: print("\x1b[2J\x1b[H", end="", flush=True),
+            clear_screen=lambda: self._raw("\x1b[2J\x1b[H", end=""),
             open_file=lambda path: open_with_system(str(path)),
             exit_app=lambda: None,
             log=self._log,
@@ -275,7 +286,7 @@ class CLITerminal:
             else:
                 self._draw_progress_bar(seconds, args.strip())
         except KeyboardInterrupt:
-            print(f"\r  Delay cancelled.{' ' * 30}", flush=True)
+            self._raw(f"\r  Delay cancelled.{' ' * 30}")
         return CmdResult.ok()
 
     def _hook_delay_quiet(self, ctx, args: str):
@@ -446,15 +457,15 @@ class CLITerminal:
             bar = full_ch * full
             if full < width:
                 bar += _SUB[partial] + " " * (width - full - 1)
-            print(
+            self._raw(
                 f"\r  [{bar}] {int(elapsed)}s/{int(seconds)}s",
-                end="", flush=True,
+                end="",
             )
             time.sleep(0.25)
         bar = full_ch * width
-        print(f"\r  [{bar}] {int(seconds)}s/{int(seconds)}s", end="", flush=True)
+        self._raw(f"\r  [{bar}] {int(seconds)}s/{int(seconds)}s", end="")
         msg = f"Delay {label} done."
-        print(f"\r  {msg}{' ' * (width + 10 - len(msg))}", flush=True)
+        self._raw(f"\r  {msg}{' ' * (width + 10 - len(msg))}")
 
     # -- Serial helpers -------------------------------------------------------
 
@@ -634,20 +645,16 @@ class CLITerminal:
             for line in lines:
                 if self.no_color:
                     line = strip_ansi(line)
-                print(line, flush=True)
+                self._raw(line)
 
         reader_thread = threading.Thread(
             target=self.engine.read_loop,
             kwargs={
                 "on_lines": on_lines,
-                "on_clear": lambda: print("\x1b[2J\x1b[H", end="", flush=True),
+                "on_clear": lambda: self._raw("\x1b[2J\x1b[H", end=""),
                 "on_capture_done": lambda: self._stop_capture(),
-                "on_error": lambda detail: print(
-                    f"Serial error: {detail}", file=sys.stderr, flush=True
-                ),
-                "on_disconnect": lambda: print(
-                    "Serial disconnected", file=sys.stderr, flush=True
-                ),
+                "on_error": lambda detail: self._err(f"Serial error: {detail}"),
+                "on_disconnect": lambda: self._err("Serial disconnected"),
             },
             daemon=True,
         )
@@ -670,7 +677,7 @@ class CLITerminal:
                     path, write=self.status, dispatch=self.ctx.dispatch, verbose=True,
                 )
             except KeyboardInterrupt:
-                print("\nScript interrupted", flush=True)
+                self._raw("\nScript interrupted")
         self.engine.disconnect()
         self.write("Disconnected.", "red")
 
@@ -709,7 +716,7 @@ class CLITerminal:
                     self.engine.serial_port.wait_for_idle()
 
         except KeyboardInterrupt:
-            print("\nInterrupted", flush=True)
+            self._raw("\nInterrupted")
         finally:
             self._save_history()
             self.engine.disconnect()
@@ -725,10 +732,10 @@ class CLITerminal:
         """
         self.switch_to: str | None = None
         if not self.engine.connect():
-            print(
-                f"termapy: cannot connect to {self.cfg.get('port', '?')}",
-                file=sys.stderr,
-            )
+            port = self.cfg.get('port', '?')
+            detail = self.engine.last_error
+            msg = f"termapy: cannot open {port}: {detail}" if detail else f"termapy: cannot open {port}"
+            self._err(msg)
             sys.exit(1)
 
         from termapy.config import connection_string, hardware_signals

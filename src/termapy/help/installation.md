@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- Python 3.11 or later
-- [uv](https://docs.astral.sh/uv/)
+- Python 3.11 or later, prefer 3.14 for best performance and latest features.
+- Strongly perfer using [uv](https://docs.astral.sh/uv/) for managing Python versions and installing Termapy. It handles everything for you, including installing Python itself if needed, and keeps Termapy isolated from other Python projects on your system.
 
 If you don't have `uv`:
 

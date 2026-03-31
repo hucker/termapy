@@ -252,7 +252,19 @@ class ConfigEditor(ModalScreen[tuple | None]):
         raw_val = m.group(2)
         entry = CFG_HELP.get(key)
         if not entry:
-            help_widget.update(f'"{key}"')
+            from termapy.repl import _edit_distance
+            best, best_dist = None, 3
+            for k in CFG_HELP:
+                d = _edit_distance(key, k)
+                if d < best_dist:
+                    best, best_dist = k, d
+            if best:
+                help_widget.update(
+                    f'[red]Line {row + 1}: Unknown key "{key}"[/]\n'
+                    f'Did you mean [green]"{best}"[/]?'
+                )
+            else:
+                help_widget.update(f'[red]Line {row + 1}: Unknown key "{key}"[/]')
             return
 
         desc = entry[0]
@@ -264,8 +276,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
         status_line, error = self._validate_value(key, raw_val)
 
-        # Build help text: description, valid values, current value, error/preview
-        lines = [f"[dim]{desc}[/]"]
+        # Build help text: line number, description, valid values, current value, error/preview
+        lines = [f"[dim]Line {row + 1}: {desc}[/]"]
         if valid:
             lines.append(f"Valid: [dim italic]{valid}[/]")
         lines.append(f"Value: {status_line}")
@@ -278,7 +290,14 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     lines.append(preview)
             except Exception:
                 pass
-        help_widget.update("\n".join(lines))
+        try:
+            help_widget.update("\n".join(lines))
+        except Exception:
+            lines_safe = [f"[dim]Line {row + 1}: {desc}[/]"]
+            if valid:
+                lines_safe.append(f"Valid: [dim italic]{valid}[/]")
+            lines_safe.append("Value: [red]<invalid Rich formatting>[/]")
+            help_widget.update("\n".join(lines_safe))
 
     def on_text_area_selection_changed(self, event) -> None:
         """Update help when cursor moves."""
@@ -287,6 +306,34 @@ class ConfigEditor(ModalScreen[tuple | None]):
     def on_text_area_changed(self, event) -> None:
         """Update help when text changes (live validation)."""
         self._update_help()
+        self._check_json()
+
+    def _check_json(self) -> None:
+        """Live JSON syntax check — show/hide error as user types."""
+        from textual.widgets import Static
+        text = self.query_one("#config-editor", TextArea).text
+        err = self.query_one("#config-error", Static)
+        try:
+            json.loads(text)
+            err.remove_class("visible")
+        except json.JSONDecodeError as e:
+            msg = e.msg
+            if "Expecting ',' delimiter" in msg:
+                msg = "missing comma"
+            elif "Expecting ':' delimiter" in msg:
+                msg = "missing colon after key"
+            elif "Expecting value" in msg:
+                msg = "missing or invalid value"
+            elif "Expecting property name" in msg:
+                msg = "missing key (or trailing comma)"
+            elif "Unterminated string" in msg:
+                msg = "missing closing quote"
+            elif "Invalid control character" in msg:
+                msg = "invalid character (use \\n, \\t for special characters)"
+            elif "Extra data" in msg:
+                msg = "unexpected content after closing brace"
+            err.update(f"JSON error line {e.lineno}: {msg}")
+            err.add_class("visible")
 
     @on(Button.Pressed, "#cfg-save")
     def save_config(self) -> None:

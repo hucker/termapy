@@ -17,6 +17,27 @@ from termapy.capture import CaptureEngine
 from termapy.serial_port import SerialPort, SerialReader
 
 
+def _classify_serial_error(exc: Exception) -> str:
+    """Turn a serial open exception into a user-friendly message."""
+    msg = str(exc)
+    cause = exc.__cause__ or exc.__context__
+    if isinstance(cause, PermissionError):
+        return f"Permission denied -- port may be in use by another application"
+    if isinstance(cause, FileNotFoundError):
+        return f"Port not found -- check the port name with /port.list"
+    if isinstance(cause, OSError):
+        code = getattr(cause, "errno", None)
+        if code == 2:
+            return f"Port not found -- check the port name with /port.list"
+        if code == 13:
+            return f"Permission denied -- port may be in use by another application"
+        return f"{cause}"
+    # Fall back to the original message, stripped of Python class noise
+    if "could not open port" in msg.lower():
+        return msg.split(":", 1)[-1].strip() if ":" in msg else msg
+    return msg
+
+
 class SerialEngine:
     """Serial connection manager.
 
@@ -51,6 +72,7 @@ class SerialEngine:
         self._reader_stopped = Event()
         self._reader_stopped.set()
         self._proto_active: bool = False
+        self.last_error: str = ""
 
     @property
     def is_connected(self) -> bool:
@@ -107,7 +129,9 @@ class SerialEngine:
             return True
         try:
             self._port_obj = self._open_fn(self._cfg)
-        except Exception:
+            self.last_error = ""
+        except Exception as e:
+            self.last_error = _classify_serial_error(e)
             return False
 
         self._serial_port = SerialPort(

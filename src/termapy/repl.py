@@ -30,6 +30,41 @@ from termapy.plugins import CmdResult
 from termapy.scripting import expand_template, parse_duration, parse_keywords
 
 
+def _suggest_command(name: str, plugins: dict, prefix: str = "/") -> str | None:
+    """Find close command names using edit distance (max 2, top 3)."""
+    candidates = []
+    for cmd in plugins:
+        d = _edit_distance(name, cmd)
+        if d <= 2:
+            candidates.append((d, cmd))
+    if not candidates:
+        return None
+    candidates.sort()
+    top = [cmd for _, cmd in candidates[:3]]
+    return ", ".join(f"{prefix}{c}" for c in top)
+
+
+def _edit_distance(a: str, b: str) -> int:
+    """Damerau-Levenshtein distance (transpositions count as 1 edit)."""
+    la, lb = len(a), len(b)
+    d = [[0] * (lb + 1) for _ in range(la + 1)]
+    for i in range(la + 1):
+        d[i][0] = i
+    for j in range(lb + 1):
+        d[0][j] = j
+    for i in range(1, la + 1):
+        for j in range(1, lb + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            d[i][j] = min(
+                d[i - 1][j] + 1,
+                d[i][j - 1] + 1,
+                d[i - 1][j - 1] + cost,
+            )
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                d[i][j] = min(d[i][j], d[i - 2][j - 2] + 1)
+    return d[la][lb]
+
+
 @dataclass
 class ScriptCtx:
     """Shared state for script execution."""
@@ -470,7 +505,11 @@ class ReplEngine:
             except Exception as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
         else:
-            result = CmdResult.fail(msg=f"Unknown REPL command: {name}")
+            suggestion = _suggest_command(name, self._plugins, self.prefix)
+            if suggestion:
+                result = CmdResult.fail(msg=f"Unknown command: {name} -- did you mean {suggestion}?")
+            else:
+                result = CmdResult.fail(msg=f"Unknown command: {name}")
         if not result.success and result.error:
             self.write(result.err_msg, "red")
         return result

@@ -58,7 +58,7 @@ piping output, or when you prefer a minimal interface. Start with
 ### Switching modes
 
 Use the `/tui` and `/cli` REPL commands to switch modes during a session.
-The serial connection and config carry over — only the interface changes.
+The serial connection and config carry over — only the only the interface changes.
 
 You can also set the default mode in your config:
 

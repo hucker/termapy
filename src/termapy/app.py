@@ -39,10 +39,6 @@ from termapy.config import (
 from rich.text import Text
 from textual import on, work
 
-from termapy.builtins.plugins.var import (
-    clear_vars,
-    set_start_time_vars,
-)
 from termapy import port_control
 from termapy.defaults import DEFAULT_CFG
 from termapy.dialogs import (
@@ -2472,6 +2468,7 @@ class SerialTerminal(App):
             return
         action = result[0]
         if action == "run":
+            from termapy.builtins.plugins.var import clear_vars, set_start_time_vars
             clear_vars()
             set_start_time_vars()
             path, _ = self.repl.start_script(result[1])

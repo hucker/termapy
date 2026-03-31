@@ -321,7 +321,7 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: true, false. Security risk if enabled.",
     ),
     "device_json_cmd": (
-        "Command sent by /import to fetch device command help JSON.",
+        "Command sent by /include to fetch device command help JSON.",
         "Device command returning JSON. Empty = must specify cmd= arg.",
     ),
     # Custom buttons (nested keys)

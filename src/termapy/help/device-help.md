@@ -1,7 +1,7 @@
 # Device Help Integration
 
 If your target device can return a JSON description of its commands,
-termapy will import them and make them available in autocomplete
+termapy will include them and make them available in autocomplete
 and `/help` -- so the device feels integrated into the terminal.
 
 ## How It Works
@@ -11,7 +11,7 @@ and `/help` -- so the device feels integrated into the terminal.
 3. On connect, termapy sends the command, parses the JSON, and
    registers the device commands for suggestions and help
 
-The imported commands are not REPL commands -- you type them as
+The included commands are not REPL commands -- you type them as
 normal device commands. They just get autocomplete and show up in
 `/help` under the **Target Device** section.
 
@@ -48,20 +48,20 @@ Set `device_json_cmd` in your `.cfg` file:
 }
 ```
 
-When this is set, `/import` runs automatically on connect. The
+When this is set, `/include` runs automatically on connect. The
 result is cached to `.target_menu.json` in your config folder so
 subsequent connects load instantly without querying the device.
 
 ## Commands
 
-| Command            | Description                                      |
-| ------------------ | ------------------------------------------------ |
-| `/import`          | Import from cache or device (auto on connect)    |
-| `/import.reload`   | Force re-import from device, update cache        |
-| `/import.list`     | List imported commands                           |
-| `/import.dump`     | Pretty-print the imported JSON                   |
-| `/import.clear`    | Remove imported commands and delete cache        |
-| `/help.target`     | Show only the target device commands             |
+| Command             | Description                                     |
+| ------------------- | ----------------------------------------------- |
+| `/include`          | Include from cache or device (auto on connect)  |
+| `/include.reload`   | Force re-include from device, update cache      |
+| `/include.list`     | List included commands                          |
+| `/include.dump`     | Pretty-print the included JSON                  |
+| `/include.clear`    | Remove included commands and delete cache       |
+| `/help.target`      | Show only the target device commands            |
 
 ## Implementing on Your Device
 
@@ -87,7 +87,7 @@ existing implementations.
 ## Demo
 
 The demo device includes `AT+HELP.JSON`. Run the demo and type
-`/help.target` to see it in action, or `/import.dump` to see the
+`/help.target` to see it in action, or `/include.dump` to see the
 raw JSON.
 
 ---

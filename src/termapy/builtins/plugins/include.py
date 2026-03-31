@@ -1,4 +1,8 @@
-"""Built-in plugin: import device command help from JSON."""
+"""Built-in plugin: include device command help from JSON.
+
+Named 'include' (not 'import') because 'import' is a Python reserved keyword.
+C programmers will recognise the analogy to #include.
+"""
 
 from __future__ import annotations
 
@@ -101,8 +105,8 @@ def _read_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
     return None
 
 
-def _fetch_and_import(ctx: PluginContext, cmd: str,
-                      timeout_ms: int) -> CmdResult:
+def _fetch_and_include(ctx: PluginContext, cmd: str,
+                       timeout_ms: int) -> CmdResult:
     """Send command, read JSON, build TargetCommands, save cache."""
     if not ctx.is_connected():
         return CmdResult.fail(msg="Not connected.")
@@ -113,14 +117,14 @@ def _fetch_and_import(ctx: PluginContext, cmd: str,
         data = _read_json(ctx, timeout_ms)
 
     if data is None:
-        return CmdResult.fail(msg="Import: no valid JSON received (timeout).")
+        return CmdResult.fail(msg="Include: no valid JSON received (timeout).")
     if not isinstance(data, dict):
-        return CmdResult.fail(msg="Import: expected a JSON object (dict).")
+        return CmdResult.fail(msg="Include: expected a JSON object (dict).")
 
     # Accept {"commands": {...}} wrapper or flat dict
     cmd_dict = data.get("commands", data) if "commands" in data else data
     if not isinstance(cmd_dict, dict):
-        return CmdResult.fail(msg="Import: 'commands' must be a JSON object.")
+        return CmdResult.fail(msg="Include: 'commands' must be a JSON object.")
 
     commands = _build_commands(cmd_dict)
     skipped = len(cmd_dict) - len(commands)
@@ -128,35 +132,35 @@ def _fetch_and_import(ctx: PluginContext, cmd: str,
         ctx.status(f"  Skipped {skipped} entries missing 'help' field")
 
     if not commands:
-        return CmdResult.fail(msg="Import: JSON contained no valid commands.")
+        return CmdResult.fail(msg="Include: JSON contained no valid commands.")
 
     ctx.engine.set_target_commands(commands)
     _save_cache(ctx, commands)
-    ctx.result(f"Imported {len(commands)} device commands.")
+    ctx.result(f"Included {len(commands)} device commands.")
     return CmdResult.ok(value=str(len(commands)))
 
 
-def _parse_import_args(ctx: PluginContext, args: str):
-    """Parse /import args, returning (cmd, timeout_ms) or CmdResult on error."""
+def _parse_include_args(ctx: PluginContext, args: str):
+    """Parse /include args, returning (cmd, timeout_ms) or CmdResult on error."""
     kw = parse_keywords(args, {"timeout", "cmd"}, rest_keyword="cmd")
     cmd = kw.get("cmd", "") or ctx.cfg.get("device_json_cmd", "")
     if not cmd:
         return CmdResult.fail(
-            msg="Usage: /import {timeout=<dur>} cmd=<command>\n"
+            msg="Usage: /include {timeout=<dur>} cmd=<command>\n"
             "  Or set device_json_cmd in your config."
         )
     try:
         timeout_ms = int(parse_duration(kw.get("timeout", "1s")) * 1000)
     except ValueError as e:
-        return CmdResult.fail(msg=f"Import: {e}")
+        return CmdResult.fail(msg=f"Include: {e}")
     return cmd, timeout_ms
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Import device command help from JSON (cached).
+    """Include device command help from JSON (cached).
 
     Check order: memory cache -> disk cache -> serial command.
-    Use /import.reload to force a refresh from the device.
+    Use /include.reload to force a refresh from the device.
 
     Args:
         ctx: Plugin context for serial I/O and output.
@@ -172,31 +176,31 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     from_disk = _load_cache(ctx)
     if from_disk:
         ctx.engine.set_target_commands(from_disk)
-        ctx.result(f"Imported {len(from_disk)} device commands (from cache).")
+        ctx.result(f"Included {len(from_disk)} device commands (from cache).")
         return CmdResult.ok(value=str(len(from_disk)))
 
     # 3. Serial command
-    parsed = _parse_import_args(ctx, args)
+    parsed = _parse_include_args(ctx, args)
     if isinstance(parsed, CmdResult):
         return parsed
     cmd, timeout_ms = parsed
-    return _fetch_and_import(ctx, cmd, timeout_ms)
+    return _fetch_and_include(ctx, cmd, timeout_ms)
 
 
 def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
-    """Force re-import from device, ignoring all caches."""
-    parsed = _parse_import_args(ctx, args)
+    """Force re-include from device, ignoring all caches."""
+    parsed = _parse_include_args(ctx, args)
     if isinstance(parsed, CmdResult):
         return parsed
     cmd, timeout_ms = parsed
-    return _fetch_and_import(ctx, cmd, timeout_ms)
+    return _fetch_and_include(ctx, cmd, timeout_ms)
 
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """Pretty-print the imported target commands as JSON."""
+    """Pretty-print the included target commands as JSON."""
     target = ctx.engine.target_commands
     if not target:
-        ctx.result("No target commands imported.")
+        ctx.result("No target commands included.")
         return CmdResult.ok()
     for line in json.dumps(_to_json_dict(target), indent=2).splitlines():
         ctx.output(f"  {line}")
@@ -204,7 +208,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
-    """Remove all imported target commands and delete cache file."""
+    """Remove all included target commands and delete cache file."""
     ctx.engine.clear_target_commands()
     try:
         _cache_path(ctx).unlink(missing_ok=True)
@@ -215,10 +219,10 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List currently imported target commands."""
+    """List currently included target commands."""
     target = ctx.engine.target_commands
     if not target:
-        ctx.result("No target commands imported.")
+        ctx.result("No target commands included.")
         return CmdResult.ok()
     for name in sorted(target):
         tc = target[name]
@@ -230,40 +234,40 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
-    "Import device command help from JSON response.",
-    name="import",
+    "Include device command help from JSON response.",
+    name="include",
     args="{timeout=<dur>} {cmd=<command>}",
     handler=_handler,
     long_help="""\
-Sends a command to the device and parses the JSON response to import
-command help. Imported commands appear in suggestions and /help but
+Sends a command to the device and parses the JSON response to include
+command help. Included commands appear in suggestions and /help but
 are not REPL commands -- type them directly as device commands.
 
 Check order: memory -> .target_menu.json -> serial command.
-Use /import.reload to force a refresh from the device.
-Use /import.clear to remove commands and delete the cache.
+Use /include.reload to force a refresh from the device.
+Use /include.clear to remove commands and delete the cache.
 
-  /import cmd=AT+HELP.JSON
-  /import timeout=2s cmd=HELP_JSON
-  /import                       (uses device_json_cmd from config)
+  /include cmd=AT+HELP.JSON
+  /include timeout=2s cmd=HELP_JSON
+  /include                       (uses device_json_cmd from config)
 
 JSON format: {"commands": {"cmd": {"help": "...", "args": "..."}, ...}}""",
     sub_commands={
         "reload": Command(
-            "Re-import from device, ignoring all caches.",
+            "Re-include from device, ignoring all caches.",
             handler=_handler_reload,
             args="{timeout=<dur>} {cmd=<command>}",
         ),
         "dump": Command(
-            "Dump imported commands as JSON.",
+            "Dump included commands as JSON.",
             handler=_handler_dump,
         ),
         "clear": Command(
-            "Remove all imported target commands and cache.",
+            "Remove all included target commands and cache.",
             handler=_handler_clear,
         ),
         "list": Command(
-            "List currently imported target commands.",
+            "List currently included target commands.",
             handler=_handler_list,
         ),
     },

@@ -1,4 +1,4 @@
-"""Tests for /import command — target device command help from JSON."""
+"""Tests for /include command -- target device command help from JSON."""
 
 import json
 import time
@@ -201,11 +201,11 @@ class TestTargetCommandStorage:
         assert eng._target_commands == {}  # cleared
 
 
-# -- JSON parsing (import_cmd helpers) ----------------------------------------
+# -- JSON parsing (include helpers) -------------------------------------------
 
 
 class TestReadJsonParsing:
-    """Test the JSON parsing logic from import_cmd._read_json indirectly."""
+    """Test the JSON parsing logic from include._read_json indirectly."""
 
     def test_parse_demo_response(self, dev: FakeSerial) -> None:
         """Verify the demo JSON response can build TargetCommands."""
@@ -265,7 +265,7 @@ class TestHelpTarget:
     """Tests for the /help.target subcommand."""
 
     def test_no_target_commands(self, engine) -> None:
-        """Shows message when no commands imported."""
+        """Shows message when no commands included."""
         # Arrange
         eng, output = engine
         # Act
@@ -274,8 +274,8 @@ class TestHelpTarget:
         messages = [t for t, _ in output]
         assert any("No target" in m for m in messages)  # says no commands
 
-    def test_lists_imported_commands(self, engine) -> None:
-        """Lists target commands after import."""
+    def test_lists_included_commands(self, engine) -> None:
+        """Lists target commands after include."""
         # Arrange
         eng, output = engine
         eng.set_target_commands({
@@ -369,7 +369,7 @@ class TestCustomPrefix:
         config_path.write_text(json.dumps(cfg))
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: None)
         # Act / Assert
-        assert eng.cmd("import") == "/import"  # default prefix
+        assert eng.cmd("include") == "/include"  # default prefix
         assert eng.cmd("help") == "/help"  # default prefix
 
     def test_cmd_helper_uses_custom_prefix(self, tmp_path) -> None:
@@ -380,7 +380,7 @@ class TestCustomPrefix:
         config_path.write_text(json.dumps(cfg))
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: None, prefix="!")
         # Act / Assert
-        assert eng.cmd("import") == "!import"  # custom prefix
+        assert eng.cmd("include") == "!include"  # custom prefix
         assert eng.cmd("help") == "!help"  # custom prefix
 
     def test_dispatch_with_custom_prefix(self, tmp_path) -> None:

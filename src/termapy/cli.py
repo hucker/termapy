@@ -765,7 +765,7 @@ class CLITerminal:
 
         # Auto-import target commands if configured
         if self.cfg.get("device_json_cmd", "") and not self.run_script:
-            self._dispatch(self.repl.cmd("import"))
+            self._dispatch(self.repl.cmd("include"))
 
         # Run on_connect_cmd (same as TUI does after connecting)
         auto_cmd = self.cfg.get("on_connect_cmd", "")

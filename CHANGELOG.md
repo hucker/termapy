@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.39.0 (2026-03-31)
+
+### New Features
+
+- **`/import` command** -- fetch device command help from JSON over serial; auto-import on connect when `device_json_cmd` is configured
+- **`/help.target`** -- show only imported target device commands
+- **`/import.reload`** -- force re-import from device, ignoring cache
+- **`/import.dump`** -- pretty-print imported commands as JSON
+- **`/import.list`** -- list imported commands with args
+- **`/import.clear`** -- remove imported commands and delete cache
+- **Device help integration** -- new help page documenting how to add a JSON help command to your firmware
+- **Disk caching** -- imported commands saved to `.target_menu.json` for instant reload on restart
+
+### Improvements
+
+- **Rewrite using-git.md** -- simplified help page focused on env vars and .gitignore
+- **CLI: no bare print()** -- all output routed through `_raw()` / `_err()` methods for consistent handling
+- **`/proto.send` verbose control** -- CRC info, TX bytes, and timing are now verbose-only; quiet mode shows only RX
+- **Better error messages** -- friendly serial open errors, config editor live JSON validation, edit-distance command suggestions
+- **`repl.cmd()` helper** -- avoids hardcoded command prefix in code
+- **Demo device** -- `AT+HELP.JSON` replaces text `HELP` command; GPS commands included in JSON export
+
+### Config
+
+- **`device_json_cmd`** -- new config key for the serial command that returns device help JSON
+
 ## 0.38.1 (2026-03-30)
 
 ### Bug Fixes

@@ -264,6 +264,9 @@ class EngineAPI:
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
     directives: list = field(default_factory=list)
+    target_commands: dict = field(default_factory=dict)
+    set_target_commands: Callable = lambda cmds: None
+    clear_target_commands: Callable = lambda: None
     connect: Callable = lambda port=None: None
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None
@@ -445,6 +448,24 @@ class PluginInfo:
     source: str = "built-in"
     children: list[str] = field(default_factory=list)
     raw_args: bool = False
+
+
+@dataclass
+class TargetCommand:
+    """Help-only command imported from a connected device.
+
+    These are NOT REPL commands -- they have no handler and no prefix.
+    They appear in help output and suggestions only.
+
+    Attributes:
+        name: Command name as the device expects it (no / prefix).
+        help: One-line description.
+        args: Argument spec string (may be empty).
+    """
+
+    name: str
+    help: str
+    args: str = ""
 
 
 def builtins_dir() -> Path:

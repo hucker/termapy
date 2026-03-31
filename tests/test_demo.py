@@ -121,10 +121,15 @@ class TestAsciiCommands:
         actual = _send_cmd(dev, "mem")
         assert "00000000:" in actual  # defaults to address 0
 
-    def test_help_list(self, dev: FakeSerial) -> None:
-        actual = _send_cmd(dev, "help")
-        assert "AT" in actual  # lists AT command
-        assert "mem" in actual  # lists mem command
+    def test_help_json(self, dev: FakeSerial) -> None:
+        """AT+HELP.JSON returns valid JSON with device commands."""
+        import json as _json
+        actual = _send_cmd(dev, "AT+HELP.JSON")
+        data = _json.loads(actual)
+        assert "commands" in data  # has commands wrapper
+        cmds = data["commands"]
+        assert "AT" in cmds  # lists AT command
+        assert "mem" in cmds  # lists mem command
 
     def test_unknown_cmd(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "BOGUS")
@@ -204,10 +209,12 @@ class TestGpsNmea:
         assert "ERROR" in actual  # unknown NMEA query
         assert "GPXYZ" in actual  # includes the bad command
 
-    def test_help_lists_gps(self, dev: FakeSerial) -> None:
-        actual = _send_cmd(dev, "help")
-        assert "$GPGGA" in actual  # GPS commands in help
-        assert "$PMTK" in actual  # PMTK in help
+    def test_help_json_lists_gps(self, dev: FakeSerial) -> None:
+        """AT+HELP.JSON includes GPS commands."""
+        import json as _json
+        cmds = _json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
+        assert "$GPGGA" in cmds  # GPS position fix in JSON
+        assert "$GPRMC" in cmds  # GPS nav data in JSON
 
 
 # -- Binary Modbus --------------------------------------------------------

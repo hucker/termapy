@@ -361,31 +361,8 @@ class FakeSerial:
         if cmd.startswith("$PMTK"):
             return self._handle_pmtk(cmd)
 
-        if upper == "HELP":
-            return (
-                b"Available commands:\r\n"
-                b"  AT          - Connection test\r\n"
-                b"  AT+PROD-ID  - Product identifier\r\n"
-                b"  AT+INFO     - Device information\r\n"
-                b"  AT+TEMP     - Read temperature\r\n"
-                b"  AT+LED on|off - Control LED\r\n"
-                b"  AT+NAME?    - Query device name\r\n"
-                b"  AT+NAME=val - Set device name\r\n"
-                b"  AT+BAUD?    - Query baud rate\r\n"
-                b"  AT+BAUD=val - Set baud rate\r\n"
-                b"  AT+STATUS   - Device status\r\n"
-                b"  AT+RESET    - Reset device\r\n"
-                b"  $GPGGA      - NMEA position fix\r\n"
-                b"  $GPRMC      - NMEA nav data\r\n"
-                b"  $GPGSA      - NMEA DOP/active satellites\r\n"
-                b"  $GPGSV      - NMEA satellites in view\r\n"
-                b"  $PMTK...    - GPS config (simulated)\r\n"
-                b"  mem <addr> [len] - Memory dump\r\n"
-                b"  AT+TEXTDUMP <n> - Emit n text readings\r\n"
-                b"  AT+BINDUMP <n>        - Emit n mixed 21-byte records\r\n"
-                b"  AT+BINDUMP <type> <n> - Emit n typed binary values\r\n"
-                b"  help        - This help\r\n"
-            )
+        if upper == "AT+HELP.JSON":
+            return self._help_json()
 
         if upper.startswith("MEM"):
             return self._handle_mem(cmd)
@@ -397,6 +374,33 @@ class FakeSerial:
             return self._handle_bindump(cmd)
 
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
+
+    def _help_json(self) -> bytes:
+        """Return device descriptor as a JSON object."""
+        import json
+        descriptor = {
+            "commands": {
+                "AT": {"help": "Connection test", "args": ""},
+                "AT+PROD-ID": {"help": "Product identifier", "args": ""},
+                "AT+INFO": {"help": "Device information", "args": ""},
+                "AT+TEMP": {"help": "Read temperature", "args": ""},
+                "AT+LED": {"help": "Control LED", "args": "<on|off>"},
+                "AT+NAME?": {"help": "Query device name", "args": ""},
+                "AT+NAME=": {"help": "Set device name", "args": "<val>"},
+                "AT+BAUD?": {"help": "Query baud rate", "args": ""},
+                "AT+BAUD=": {"help": "Set baud rate", "args": "<val>"},
+                "AT+STATUS": {"help": "Device status", "args": ""},
+                "AT+RESET": {"help": "Reset device", "args": ""},
+                "AT+TEXTDUMP": {"help": "Emit text readings", "args": "<n>"},
+                "AT+BINDUMP": {"help": "Emit binary records", "args": "{type} <n>"},
+                "$GPGGA": {"help": "NMEA position fix", "args": ""},
+                "$GPRMC": {"help": "NMEA recommended nav data", "args": ""},
+                "$GPGSA": {"help": "NMEA DOP and active satellites", "args": ""},
+                "$GPGSV": {"help": "NMEA satellites in view", "args": ""},
+                "mem": {"help": "Memory dump", "args": "<addr> {len}"},
+            },
+        }
+        return (json.dumps(descriptor) + "\r\n").encode()
 
     def _handle_mem(self, cmd: str) -> bytes:
         """Generate a deterministic hex dump for ``mem <addr> [len]``.

@@ -21,6 +21,7 @@ from termapy.plugins import (
     DirectiveResult,
     PluginContext,
     PluginInfo,
+    TargetCommand,
     TransformInfo,
     builtins_dir,
     load_plugins_from_dir,
@@ -128,6 +129,7 @@ class ReplEngine:
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
         self.prefix = prefix
+        self.cmd = lambda name: f"{prefix}{name}"
         self._seq_counters: dict[int, int] = {}
         self._seq_start_time: str = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._script_depth: int = 0
@@ -165,6 +167,9 @@ class ReplEngine:
 
         # Directive chain - pre-dispatch line rewriters
         self._directives: list[DirectiveInfo] = []
+
+        # Target device commands - help-only, not dispatched
+        self._target_commands: dict[str, TargetCommand] = {}
 
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
@@ -348,6 +353,17 @@ class ReplEngine:
         name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
         plugin = self._plugins.get(name)
         return plugin.raw_args if plugin else False
+
+    # -- Target commands -------------------------------------------------------
+
+    def set_target_commands(self, commands: dict[str, TargetCommand]) -> None:
+        """Replace all target commands with a new set from /import."""
+        self._target_commands.clear()
+        self._target_commands.update(commands)
+
+    def clear_target_commands(self) -> None:
+        """Remove all imported target commands."""
+        self._target_commands.clear()
 
     # -- Full dispatch pipeline ------------------------------------------------
 

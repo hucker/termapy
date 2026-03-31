@@ -28,4 +28,5 @@ nav:
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md
   - Writing Plugins: writing-plugins.md
+  - Device Help: device-help.md
   - Using with Git: using-git.md

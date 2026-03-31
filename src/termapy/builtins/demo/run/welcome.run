@@ -12,10 +12,7 @@
 /print   AT+INFO         — device information
 /print   AT+TEMP         — read temperature
 /print   AT+STATUS       — device status
-/print   HELP            — full device command list
-/print
-/print   REPL commands (prefix /):
-/print   /help           — list all termapy commands
+/print   /help           — all commands (termapy + device)
 /print   /run at_demo    — run the AT command demo script
 /print   /temp_plot      — sample temperature sparkline
 /print   /port.info      — show connection details

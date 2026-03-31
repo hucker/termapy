@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.1 (2026-03-31)
+
+### Security
+
+- **Pygments >= 2.20.0** -- pin to fix ReDoS vulnerability (CVE in GUID lexer regex)
+
 ## 0.39.0 (2026-03-31)
 
 ### New Features

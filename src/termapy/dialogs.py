@@ -498,12 +498,13 @@ class QuickSetup(ModalScreen[tuple | None]):
     #qs-dialog {{
         width: 55; height: auto;
         border: solid $primary; background: $surface; padding: 1 2;
+        border-title-align: left;
     }}
-    #qs-title {{ height: 1; text-style: bold; }}
-    #qs-port-list {{ height: 8; border: thick $primary; }}
-    #qs-baud-list {{ height: 6; border: thick $primary; }}
+    #qs-port-list {{ height: 8; border: tall $primary; }}
+    #qs-baud-list {{ height: 6; border: tall $primary; }}
     #qs-buttons {{ height: 1; margin-top: 1; align: right middle; }}
-    .qs-label {{ height: 1; margin-top: 1; }}
+    .qs-label {{ height: 1; margin-top: 1; padding-left: 1; text-style: bold; }}
+    .qs-first {{ margin-top: 0; }}
     """
 
     _COMMON_BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
@@ -520,9 +521,10 @@ class QuickSetup(ModalScreen[tuple | None]):
         from textual.widgets import Static
 
         ports = sorted(comports(), key=lambda p: p.device)
-        with Vertical(id="qs-dialog"):
-            yield Static(self._title, id="qs-title")
-            yield Static("Config name:", classes="qs-label")
+        dialog = Vertical(id="qs-dialog")
+        dialog.border_title = self._title
+        with dialog:
+            yield Static("Config name:", classes="qs-label qs-first")
             yield Input(placeholder="e.g. my_device", id="qs-name")
             yield Static("Serial port:", classes="qs-label")
             port_list = OptionList(id="qs-port-list")
@@ -543,6 +545,9 @@ class QuickSetup(ModalScreen[tuple | None]):
             yield baud_list
             with Horizontal(id="qs-buttons"):
                 yield Button("Connect", id="qs-connect", variant="success")
+                adv = Button("Advanced", id="qs-advanced")
+                adv.styles.background = "darkorchid"
+                yield adv
                 yield Button("Cancel", id="qs-cancel", variant="error")
 
     def _submit(self) -> None:
@@ -565,7 +570,7 @@ class QuickSetup(ModalScreen[tuple | None]):
         else:
             baud = 115200
 
-        self.dismiss((name, port, baud))
+        self.dismiss(("connect", name, port, baud))
 
     @on(Button.Pressed, "#qs-connect")
     def connect(self) -> None:
@@ -574,6 +579,26 @@ class QuickSetup(ModalScreen[tuple | None]):
     @on(Input.Submitted, "#qs-name")
     def submit_name(self) -> None:
         self._submit()
+
+    @on(Button.Pressed, "#qs-advanced")
+    def advanced(self) -> None:
+        name = self.query_one("#qs-name", Input).value.strip()
+        if not name:
+            self.notify("Enter a config name", severity="warning", timeout=2)
+            return
+        name = Path(name).stem
+        port_ol = self.query_one("#qs-port-list", OptionList)
+        if port_ol.highlighted is not None:
+            opt = port_ol.get_option_at_index(port_ol.highlighted)
+            port = str(opt.id) if not opt.disabled else ""
+        else:
+            port = ""
+        baud_ol = self.query_one("#qs-baud-list", OptionList)
+        if baud_ol.highlighted is not None:
+            baud = int(str(baud_ol.get_option_at_index(baud_ol.highlighted).id))
+        else:
+            baud = 115200
+        self.dismiss(("advanced", name, port, baud))
 
     @on(Button.Pressed, "#qs-cancel")
     def cancel(self) -> None:

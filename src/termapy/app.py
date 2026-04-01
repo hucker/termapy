@@ -1802,13 +1802,21 @@ class SerialTerminal(App):
     def _on_quick_setup(self, result: tuple | None) -> None:
         if result is None:
             return
-        name, port, baud = result
+        action, name, port, baud = result
         config_path = str(cfg_path_for_name(name))
         cfg = dict(DEFAULT_CFG)
         cfg["title"] = name
         if port:
             cfg["port"] = port
         cfg["baud_rate"] = baud
+        if action == "advanced":
+            # Open the full config editor with pre-filled values
+            cfg_data_dir(config_path)
+            self.push_screen(
+                ConfigEditor(cfg, config_path),
+                callback=self._on_config_result,
+            )
+            return
         # Create config dir structure (.gitignore, subdirs) and write config
         cfg_data_dir(config_path)
         with open(config_path, "w") as f:

@@ -398,6 +398,7 @@ class FakeSerial:
                 "$GPGSA": {"help": "NMEA DOP and active satellites", "args": ""},
                 "$GPGSV": {"help": "NMEA satellites in view", "args": ""},
                 "mem": {"help": "Memory dump", "args": "<addr> {len}"},
+                "AT+HELP.JSON": {"help": "Device command help (JSON)", "args": ""},
             },
         }
         return (json.dumps(descriptor) + "\r\n").encode()

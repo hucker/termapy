@@ -1142,6 +1142,13 @@ class SerialTerminal(App):
         else:
             self._log_line(">", data.hex(" "))
 
+    def _serial_op(self, label: str, fn) -> None:
+        """Run a serial operation, catching OSError/SerialException."""
+        try:
+            fn()
+        except (OSError, serial.SerialException) as e:
+            self._status(f"{label} error: {e}", "red")
+
     def _serial_send(self, text: str) -> None:
         """Send text with configured line ending and encoding."""
         ending = self.cfg.get("line_ending", "\r")
@@ -1600,25 +1607,22 @@ class SerialTerminal(App):
                 )
         elif event.button.id == "btn-dtr":
             if self.is_connected and self.ser:
-                try:
+                def _toggle_dtr():
                     self.ser.dtr = not self.ser.dtr
                     event.button.label = f"DTR:{int(self.ser.dtr)}"
-                except (OSError, serial.SerialException) as e:
-                    self._status(f"DTR error: {e}", "red")
+                self._serial_op("DTR", _toggle_dtr)
         elif event.button.id == "btn-rts":
             if self.is_connected and self.ser:
-                try:
+                def _toggle_rts():
                     self.ser.rts = not self.ser.rts
                     event.button.label = f"RTS:{int(self.ser.rts)}"
-                except (OSError, serial.SerialException) as e:
-                    self._status(f"RTS error: {e}", "red")
+                self._serial_op("RTS", _toggle_rts)
         elif event.button.id == "btn-break":
             if self.is_connected and self.ser:
-                try:
+                def _send_break():
                     self.ser.send_break(duration=0.25)
                     self.notify("Break sent", timeout=1.5)
-                except (OSError, serial.SerialException) as e:
-                    self._status(f"Break error: {e}", "red")
+                self._serial_op("Break", _send_break)
         elif event.button.id == "btn-cmds":
             self._show_commands()
         elif event.button.id == "btn-help":
@@ -2172,12 +2176,9 @@ class SerialTerminal(App):
             self._status("Not connected.", "red")
             return
         line_ending = self.cfg.get("line_ending", "\r")
-        try:
-            self._serial_write(
-                (text + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-            )
-        except (OSError, serial.SerialException) as e:
-            self._status(f"Send error: {e}", "red")
+        self._serial_op("Send", lambda: self._serial_write(
+            (text + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+        ))
 
     def _hook_raw(self, text: str) -> CmdResult:
         """Hook wrapper for /raw — sends text with no transforms."""

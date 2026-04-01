@@ -1098,14 +1098,15 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test Coverage</strong> — 916 tests, 60% overall</summary>
+<summary><strong>Test Coverage</strong> — 990 tests, 66% overall</summary>
 
-916 tests across 20 test files. Run with `uv run pytest`.
+990 tests across 22 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 
 | Module             | Coverage | Test file                            |
 | ------------------ | -------- | ------------------------------------ |
+| `defaults.py`      | 97%      | `test_defaults.py`                   |
 | `scripting.py`     | 97%      | `test_scripting.py`                  |
 | `migration.py`     | 98%      | `test_migration.py`                  |
 | `plugins.py`       | 94%      | `test_plugins.py`                    |
@@ -1117,9 +1118,25 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 | `port_control.py`  | 80%      | `test_port_control.py`               |
 | `repl.py`          | 72%      | `test_engine.py`, `test_repl_cfg.py` |
 | `demo.py`          | 73%      | `test_demo.py`                       |
+| `cli.py`           | 53%      | `test_cli.py`                        |
 
 **Built-in plugins** — 15 of 18 plugins tested via mock `PluginContext` in `test_builtins.py`.
 
-**UI code** — `app.py` (~3000 lines), `proto_debug.py` (~1160 lines), `dialogs.py` (~1200 lines) are Textual UI and tested manually. The 65% overall figure reflects these large untested UI files. Core logic coverage is higher — the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code** — `app.py` (~3400 lines), `proto_debug.py` (~1160 lines), `dialogs.py` (~1200 lines) are Textual UI and tested manually. The 66% overall figure reflects these large untested UI files. Core logic coverage is higher — the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+
+</details>
+
+<details>
+<summary><strong>Continuous Integration</strong> — GitHub Actions</summary>
+
+All tests run automatically on push to `main` and on pull requests via GitHub Actions.
+
+| Job | What it does |
+| --- | --- |
+| **test** | Runs `pytest` across Python 3.11, 3.12, 3.13, and 3.14 |
+| **coverage** | Runs `pytest --cov` on Python 3.14 and uploads to [Codecov](https://codecov.io/gh/hucker/termapy) |
+| **audit** | Runs `pip-audit` to check for known vulnerabilities in dependencies |
+
+The CI badge at the top of this README reflects the current status of the test workflow. See [`.github/workflows/tests.yml`](.github/workflows/tests.yml) for the full configuration.
 
 </details>

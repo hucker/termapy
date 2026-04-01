@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.41.0 (2026-04-01)
+
+### New Features
+
+- **Quick setup dialog** -- new config creation uses a single dialog with port picker and baud rate selector instead of multi-step flow. Auto-connects after setup.
+- **CFG.\* path variables** -- 15 new context variables (`$(CFG.DIR)`, `$(CFG.FILE)`, `$(CFG.PORT)`, `$(CFG.BAUD)`, `$(CFG.PORT_FULL)`, etc.) for use in scripts and commands
+- **Config directory precedence** -- `--cfg-dir` flag > `TERMAPY_CFG_DIR` env var > `./termapy_cfg` (if present, never auto-created) > OS default (`%APPDATA%\termapy`, `~/.config/termapy`, `~/Library/Application Support/termapy`)
+- **Dot syntax in variables** -- `$(NAME.SUB)` supported (e.g. `$(CFG.PORT_FULL)`)
+
+### Improvements
+
+- **Resolved paths everywhere** -- all error messages and config info show fully resolved absolute paths
+- **Config info verbose-only** -- config dir/file/log paths shown only with `/verbose on`
+- **Clear screen on config switch** -- clean slate when loading a new config
+- **Focus command input on startup** -- input field gets focus automatically
+- **Dotfiles filtered from pickers** -- config/script/proto pickers hide files starting with `.`
+- **Clickable paths** -- documented in getting-started help
+
+### Bug Fixes
+
+- **Plugin module duplication** -- builtin plugins loaded via `importlib` now share module state with package imports, fixing `$(CFG)` not expanding and `FRONT_END` showing as `unknown`
+
 ## 0.40.0 (2026-03-31)
 
 ### New Features

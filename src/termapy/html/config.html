@@ -23,7 +23,7 @@
     
     
       
-        <title>Configuration - Termapy Help v0.40.0</title>
+        <title>Configuration - Termapy Help v0.41.0</title>
       
     
     
@@ -88,7 +88,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="index.html" title="Termapy Help v0.40.0" class="md-header__button md-logo" aria-label="Termapy Help v0.40.0" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.41.0" class="md-header__button md-logo" aria-label="Termapy Help v0.41.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.40.0
+            Termapy Help v0.41.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -186,13 +186,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="index.html" title="Termapy Help v0.40.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.40.0" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.41.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.41.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    Termapy Help v0.40.0
+    Termapy Help v0.41.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -370,6 +370,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#config-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Directory
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#json-config-file" class="md-nav__link">
@@ -720,6 +731,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#config-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Directory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#json-config-file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -781,8 +803,44 @@
 
 
 <h1 id="configuration">Configuration</h1>
+<h2 id="config-directory">Config Directory</h2>
+<p>Termapy looks for configs in the first directory that matches:</p>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Source</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>--cfg-dir &lt;path&gt;</code></td>
+<td>CLI flag -- must exist</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>TERMAPY_CFG_DIR</code> env var</td>
+<td>Must exist</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>./termapy_cfg</code> in current directory</td>
+<td>Used if present, never auto-created</td>
+</tr>
+<tr>
+<td>4</td>
+<td>OS default</td>
+<td>Auto-created on first run</td>
+</tr>
+</tbody>
+</table>
+<p>The OS default location is <code>%APPDATA%\termapy</code> on Windows,
+<code>~/Library/Application Support/termapy</code> on macOS, and
+<code>~/.config/termapy</code> on Linux (respects <code>XDG_CONFIG_HOME</code>).</p>
 <h2 id="json-config-file">JSON Config File</h2>
-<p>Each configuration is stored as a JSON file at <code>termapy_cfg/&lt;name&gt;/&lt;name&gt;.cfg</code>.
+<p>Each configuration is stored as a JSON file at <code>&lt;config_dir&gt;/&lt;name&gt;/&lt;name&gt;.cfg</code>.
 On first run, <code>termapy</code> creates a default config for you. You can edit it
 from within the app by clicking the center title bar button or using <code>/cfg</code>.</p>
 <p>Here is an example config for a device called <code>iot_device</code>:</p>

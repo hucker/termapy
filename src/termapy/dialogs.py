@@ -556,7 +556,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
 
         d = cfg_dir()
         migrate_json_to_cfg(d)
-        json_files = sorted(d.glob("*/*.cfg"))
+        json_files = sorted(f for f in d.glob("*/*.cfg") if not f.name.startswith("."))
         with Vertical(id="picker-dialog"):
             yield Static("Select Config", id="picker-title")
             ol = OptionList(id="picker-list")
@@ -667,7 +667,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
         from textual.widgets import Static
 
         scripts = sorted(self.scripts_dir.glob("*"))
-        scripts = [f for f in scripts if f.is_file()]
+        scripts = [f for f in scripts if f.is_file() and not f.name.startswith(".")]
         with Vertical(id="script-dialog"):
             yield Static("Select Script", id="script-title")
             ol = OptionList(id="script-list")
@@ -772,7 +772,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
 
-        protos = sorted(f for f in self.proto_dir.glob("*.pro") if f.is_file())
+        protos = sorted(f for f in self.proto_dir.glob("*.pro") if f.is_file() and not f.name.startswith("."))
         with Vertical(id="proto-dialog"):
             yield Static("Select Protocol Script", id="proto-title")
             ol = OptionList(id="proto-list")

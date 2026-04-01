@@ -19,7 +19,6 @@ from threading import Event
 
 import serial
 from termapy.config import (
-    CFG_DIR,
     CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
@@ -1415,7 +1414,7 @@ class SerialTerminal(App):
 
         if port and (port in available or port.upper() == "DEMO"):
             self._switch_config(cfg, path)
-            self._status(f"Loaded config: {path}", "green")
+            self._status(f"Loaded config: {Path(path).resolve()}", "green")
         elif available:
             self._pending_cfg = cfg
             self._pending_config_path = path
@@ -1424,7 +1423,7 @@ class SerialTerminal(App):
             self.push_screen(PortPicker(), callback=self._on_load_port_picked)
         else:
             self._switch_config(cfg, path)
-            self._status(f"Loaded config: {path} (no ports found)", "yellow")
+            self._status(f"Loaded config: {Path(path).resolve()} (no ports found)", "yellow")
 
     def _on_load_port_picked(self, port: str | None) -> None:
         cfg = self._pending_cfg
@@ -1432,7 +1431,7 @@ class SerialTerminal(App):
         if port is not None:
             cfg["port"] = port
         self._switch_config(cfg, path)
-        self._status(f"Loaded config: {path}", "green")
+        self._status(f"Loaded config: {Path(path).resolve()}", "green")
 
     def _on_config_picked(self, result: tuple | None) -> None:
         if result is None:
@@ -2893,7 +2892,7 @@ class SerialTerminal(App):
             self.repl.write(f"Failed to load config: {e}", "red")
             return CmdResult.fail(msg=f"Failed to load config: {e}")
         self._switch_config(cfg, str(path))
-        self._status(f"Loaded config: {path.stem}", "green")
+        self._status(f"Loaded config: {path.resolve()}", "green")
         return CmdResult.ok()
 
     def _hook_proto_load(self, ctx, args: str) -> CmdResult:
@@ -3116,9 +3115,12 @@ def _resolve_config(name: str) -> str | None:
             return str(candidate)
     # 3. cfg_dir/<name>/<name>.cfg (configured cfg dir)
     stem = p.stem
-    candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
-    if candidate.exists():
-        return str(candidate)
+    try:
+        candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
+        if candidate.exists():
+            return str(candidate)
+    except SystemExit:
+        pass  # cfg_dir doesn't exist yet — skip this rule
     # 4. ./termapy_cfg/<name>/<name>.cfg (cwd fallback)
     candidate = Path("termapy_cfg") / stem / f"{stem}.cfg"
     if candidate.exists():
@@ -3168,12 +3170,12 @@ def _run_cli_mode(args) -> str | None:
         # Infer config from the .run file's location
         config_path = _infer_config_from_run_file(run_script)
         if not config_path:
-            print(f"termapy: cannot infer config from {run_script}", file=sys.stderr)
+            print(f"termapy: cannot infer config from {Path(run_script).resolve()}", file=sys.stderr)
             sys.exit(1)
     elif args.config:
         config_path = _resolve_config(args.config)
         if config_path is None:
-            print(f"termapy: config not found: {args.config}", file=sys.stderr)
+            print(f"termapy: config not found: {Path(args.config).resolve()}", file=sys.stderr)
             print("  Use --demo to create a demo config, or specify a .cfg file.", file=sys.stderr)
             sys.exit(1)
     else:
@@ -3234,9 +3236,9 @@ def _run_proto_headless(args) -> None:
     if not pro_path.exists():
         pro_path = proto_dir / name
     if not pro_path.exists():
-        print(f"termapy: proto file not found: {name}", file=sys.stderr)
+        print(f"termapy: proto file not found: {Path(name).resolve()}", file=sys.stderr)
         if proto_dir.exists():
-            print(f"  (checked {proto_dir})", file=sys.stderr)
+            print(f"  (checked {proto_dir.resolve()})", file=sys.stderr)
         sys.exit(2)
 
     # Run tests
@@ -3284,7 +3286,7 @@ def main():
     parser.add_argument(
         "--cfg-dir",
         default=None,
-        help=f"Config directory (default: {CFG_DIR})",
+        help="Config directory (default: ./termapy_cfg if present, else OS config dir)",
     )
     parser.add_argument(
         "--demo",
@@ -3343,7 +3345,7 @@ def main():
                     args.config = inferred
                     args.run = None  # don't auto-run in TUI
                 else:
-                    print(f"termapy: cannot infer config from {args.run}", file=sys.stderr)
+                    print(f"termapy: cannot infer config from {Path(args.run).resolve()}", file=sys.stderr)
                     sys.exit(1)
         elif ext == ".pro" and not args.proto:
             # .pro file: infer config from location
@@ -3352,7 +3354,7 @@ def main():
                 args.proto = args.config
                 args.config = inferred
             else:
-                print(f"termapy: cannot infer config from {args.config}", file=sys.stderr)
+                print(f"termapy: cannot infer config from {Path(args.config).resolve()}", file=sys.stderr)
                 sys.exit(1)
 
     if args.check:
@@ -3425,7 +3427,7 @@ def _run_tui_mode(args) -> str | None:
     if args.config:
         config_path = _resolve_config(args.config)
         if config_path is None:
-            print(f"termapy: config not found: {args.config}", file=sys.stderr)
+            print(f"termapy: config not found: {Path(args.config).resolve()}", file=sys.stderr)
             print("  Use --demo to create a demo config, or specify a .cfg file.", file=sys.stderr)
             sys.exit(1)
         try:

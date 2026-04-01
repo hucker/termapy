@@ -1,8 +1,23 @@
 # Configuration
 
+## Config Directory
+
+Termapy looks for configs in the first directory that matches:
+
+| Priority | Source | Behavior |
+| --- | --- | --- |
+| 1 | `--cfg-dir <path>` | CLI flag -- must exist |
+| 2 | `TERMAPY_CFG_DIR` env var | Must exist |
+| 3 | `./termapy_cfg` in current directory | Used if present, never auto-created |
+| 4 | OS default | Auto-created on first run |
+
+The OS default location is `%APPDATA%\termapy` on Windows,
+`~/Library/Application Support/termapy` on macOS, and
+`~/.config/termapy` on Linux (respects `XDG_CONFIG_HOME`).
+
 ## JSON Config File
 
-Each configuration is stored as a JSON file at `termapy_cfg/<name>/<name>.cfg`.
+Each configuration is stored as a JSON file at `<config_dir>/<name>/<name>.cfg`.
 On first run, `termapy` creates a default config for you. You can edit it
 from within the app by clicking the center title bar button or using `/cfg`.
 

@@ -23,23 +23,70 @@ from termapy.defaults import (
 )
 from termapy.migration import CURRENT_CONFIG_VERSION, migrate_config
 
-CFG_DIR = "termapy_cfg"
+CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
+
+_LOCAL_DIR_NAME = "termapy_cfg"
+
+
+def _os_default_cfg_dir() -> Path:
+    """OS-standard config directory (auto-created if missing).
+
+    Windows: %APPDATA%/termapy
+    macOS:   ~/Library/Application Support/termapy
+    Linux:   ~/.config/termapy (XDG_CONFIG_HOME respected)
+    """
+    import platform
+    system = platform.system()
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif system == "Darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    d = base / "termapy"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def cfg_dir() -> Path:
-    """Return the config directory, creating it if needed.
+    """Resolve the config directory using precedence chain.
 
-    Raises:
-        ValueError: If the path has a file extension (likely a file, not a dir).
+    1. --cfg-dir flag (CFG_DIR set explicitly) -- must exist
+    2. TERMAPY_CFG_DIR env var -- must exist
+    3. ./termapy_cfg if it exists in cwd -- never auto-created
+    4. OS default (~/.config/termapy etc.) -- auto-created
     """
-    d = Path(CFG_DIR)
-    if d.suffix:
-        raise ValueError(
-            f"Config directory looks like a file: {CFG_DIR} "
-            f"(has extension '{d.suffix}'). Use --cfg-dir for directories."
-        )
-    d.mkdir(exist_ok=True)
-    return d
+    # 1. Explicit --cfg-dir
+    if CFG_DIR is not None:
+        d = Path(CFG_DIR)
+        if d.suffix:
+            raise SystemExit(
+                f"termapy: config directory looks like a file: {CFG_DIR} "
+                f"(has extension '{d.suffix}'). Use --cfg-dir for directories."
+            )
+        if not d.exists():
+            raise SystemExit(
+                f"termapy: config directory does not exist: {d.resolve()}"
+            )
+        return d
+
+    # 2. Environment variable
+    env = os.environ.get("TERMAPY_CFG_DIR")
+    if env:
+        d = Path(env)
+        if not d.exists():
+            raise SystemExit(
+                f"termapy: TERMAPY_CFG_DIR does not exist: {d.resolve()}"
+            )
+        return d
+
+    # 3. Local termapy_cfg/ in cwd (check, never create)
+    local = Path(_LOCAL_DIR_NAME)
+    if local.is_dir():
+        return local
+
+    # 4. OS default (auto-created)
+    return _os_default_cfg_dir()
 
 
 def migrate_json_to_cfg(directory: Path) -> None:

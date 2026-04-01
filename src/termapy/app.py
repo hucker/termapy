@@ -23,7 +23,6 @@ from termapy.config import (
     cfg_data_dir,
     cfg_dir,
     migrate_json_to_cfg,
-    cfg_history_path,
     cfg_log_path,
     cfg_path_for_name,
     cfg_plugins_dir,
@@ -56,7 +55,7 @@ from termapy.dialogs import (
 from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_from_dir
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol_viz import builtins_viz_dir, load_visualizers_from_dir
-from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
+from termapy.capture import CaptureEngine, CaptureResult
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.repl import ReplEngine
@@ -107,12 +106,14 @@ class SerialTerminal(App):
 
     class ScriptStarted(Message):
         """Posted when a script starts or nests deeper."""
+
         def __init__(self, stack: list[str]) -> None:
             super().__init__()
             self.stack = stack
 
     class ScriptProgress(Message):
         """Posted on each script line."""
+
         def __init__(self, stack: list[str], step: int, total: int) -> None:
             super().__init__()
             self.stack = stack
@@ -121,6 +122,7 @@ class SerialTerminal(App):
 
     class ScriptFinished(Message):
         """Posted when a script finishes or returns from a nested call."""
+
         def __init__(self, stack: list[str]) -> None:
             super().__init__()
             self.stack = stack
@@ -459,6 +461,7 @@ class SerialTerminal(App):
             from textual.widgets import Static
 
             from importlib.metadata import version as _get_version
+
             try:
                 ver = _get_version("termapy")
             except Exception:
@@ -477,7 +480,9 @@ class SerialTerminal(App):
             yield proto_btn
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
-            center.tooltip = f"Config: {self.config_path or 'none'}\nClick to edit config"
+            center.tooltip = (
+                f"Config: {self.config_path or 'none'}\nClick to edit config"
+            )
             yield center
             yield Static("", id="title-spacer-r")
             left = Button(port_info, id="title-left")
@@ -547,7 +552,9 @@ class SerialTerminal(App):
                 yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C).")
 
     def _show_config_info(self, path: str) -> None:
-        """Print config dir, file, and log file paths to the output."""
+        """Print config dir, file, and log file paths (verbose only)."""
+        if not getattr(self.repl, "ctx", None) or not self.repl.ctx.verbose:
+            return
         resolved = Path(path).resolve()
         self._status(f"Config dir:  {resolved.parent}", "green")
         self._status(f"Config file: {resolved}", "green")
@@ -577,6 +584,7 @@ class SerialTerminal(App):
     def _apply_border_color(self) -> None:
         """Apply border_color from config to title bar and output border."""
         from termapy.defaults import resolve_color
+
         color = resolve_color(self.cfg.get("border_color", "") or "blue")
         bar = self.query_one("#title-bar")
         bar.styles.background = color
@@ -592,9 +600,21 @@ class SerialTerminal(App):
 
     def _setup_vars(self) -> None:
         """Set launch/context variables for plugin use."""
-        from termapy.builtins.plugins.var import set_context_var, set_launch_var
+        from termapy.builtins.plugins.var import (
+            register_cfg_vars,
+            set_context_var,
+            set_launch_var,
+        )
+
         set_launch_var("FRONT_END", "textual")
-        set_context_var("CFG", lambda: Path(self.config_path).stem if self.config_path else "none")
+        set_context_var(
+            "CFG", lambda: Path(self.config_path).stem if self.config_path else "none"
+        )
+        register_cfg_vars(
+            get_config_path=lambda: self.config_path,
+            get_cfg=lambda: self.cfg,
+            get_log_path=lambda: self._log_path(),
+        )
 
     def _build_context(self) -> None:
         """Build PluginContext and EngineAPI, wire to REPL."""
@@ -613,7 +633,9 @@ class SerialTerminal(App):
             coerce_type=ReplEngine._coerce_type,
             get_hex_mode=lambda: self._proto_hex_mode,
             set_hex_mode=self._set_hex_mode,
-            set_proto_active=lambda active: setattr(self._engine, "proto_active", active),
+            set_proto_active=lambda active: setattr(
+                self._engine, "proto_active", active
+            ),
             open_proto_debug=lambda path, script: self.call_later(
                 self._open_proto_debug, path, script
             ),
@@ -640,7 +662,8 @@ class SerialTerminal(App):
             serial_send=self._serial_send,
             serial_wait_for_data=lambda timeout_ms=250: (
                 self._engine.serial_port.wait_for_data(timeout_ms)
-                if self._engine.serial_port else False
+                if self._engine.serial_port
+                else False
             ),
             serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
             serial_read_raw=self._serial_read_raw,
@@ -767,13 +790,15 @@ class SerialTerminal(App):
             source="app",
         )
         self.repl.register_hook(
-            "cli", "",
+            "cli",
+            "",
             "Switch to CLI mode.",
             lambda ctx, args: self._switch_to_cli(),
             source="app",
         )
         self.repl.register_hook(
-            "tui", "",
+            "tui",
+            "",
             "Already in TUI mode.",
             lambda ctx, args: CmdResult.ok(),
             source="app",
@@ -825,37 +850,53 @@ class SerialTerminal(App):
         )
         # Re-register folder subcommands (wiped by /edit override)
         from termapy.builtins.plugins.edit import (
-            _make_edit_handler, _make_list_handler, _make_explore_handler,
+            _make_edit_handler,
+            _make_list_handler,
+            _make_explore_handler,
         )
+
         for folder, get_dir, ext, pat in (
             ("run", lambda ctx: ctx.scripts_dir, ".run", "*.run"),
             ("proto", lambda ctx: ctx.proto_dir, ".pro", "*.pro"),
-            ("plugin", lambda ctx: Path(ctx.config_path).parent / "plugin"
-             if ctx.config_path else Path("."), ".py", "*.py"),
+            (
+                "plugin",
+                lambda ctx: Path(ctx.config_path).parent / "plugin"
+                if ctx.config_path
+                else Path("."),
+                ".py",
+                "*.py",
+            ),
         ):
             # TUI uses Textual modals for run and proto edit
             if folder in ("run", "proto"):
                 self.repl.register_hook(
-                    f"edit.{folder}", "{{filename}}",
+                    f"edit.{folder}",
+                    "{{filename}}",
                     f"Edit a {ext} file.",
-                    (lambda f=folder, e=ext: lambda ctx, args: self._hook_edit_folder(ctx, args, f, e))(),
+                    (
+                        lambda f=folder, e=ext: lambda ctx,
+                        args: self._hook_edit_folder(ctx, args, f, e)
+                    )(),
                     source="app",
                 )
             else:
                 self.repl.register_hook(
-                    f"edit.{folder}", "{{filename}}",
+                    f"edit.{folder}",
+                    "{{filename}}",
                     f"Open a {ext} file in the system editor.",
                     _make_edit_handler(get_dir, ext, pat),
                     source="app",
                 )
             self.repl.register_hook(
-                f"edit.{folder}.list", "",
+                f"edit.{folder}.list",
+                "",
                 f"List {ext} files.",
                 _make_list_handler(get_dir, pat),
                 source="app",
             )
             self.repl.register_hook(
-                f"edit.{folder}.explore", "",
+                f"edit.{folder}.explore",
+                "",
                 f"Open {folder}/ in file explorer.",
                 _make_explore_handler(get_dir),
                 source="app",
@@ -937,6 +978,7 @@ class SerialTerminal(App):
         else:
             self._status(f"{self._port_info_str()} - press Connect to start")
         self._update_title()
+        self.query_one("#cmd", Input).focus()
 
     def on_unmount(self) -> None:
         self._save_history()
@@ -958,7 +1000,7 @@ class SerialTerminal(App):
         """Attempt to open the serial port. Returns True on success."""
         if not self._engine.connect():
             self._engine.reader_stopped.set()
-            port = self.cfg.get('port', '?')
+            port = self.cfg.get("port", "?")
             detail = self._engine.last_error
             if detail:
                 self._status(f"Cannot open {port}: {detail}", "red")
@@ -970,6 +1012,7 @@ class SerialTerminal(App):
             return False
 
         from termapy.config import connection_string, hardware_signals
+
         conn = connection_string(self.cfg)
         hw = hardware_signals(self.ser)
         full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
@@ -1007,7 +1050,9 @@ class SerialTerminal(App):
                         return
                     ch = self._SPINNER[step % len(self._SPINNER)]
                     self.call_from_thread(
-                        self._set_conn_status, f"Connecting {ch}", "retry",
+                        self._set_conn_status,
+                        f"Connecting {ch}",
+                        "retry",
                     )
                     step += 1
                     time.sleep(0.25)
@@ -1245,6 +1290,7 @@ class SerialTerminal(App):
 
     def _switch_config(self, cfg: dict, path: str) -> None:
         """Apply a new config: disconnect, update state, refresh UI, reconnect."""
+        self._clear_output()
         self._save_history()
         migrated_from = cfg.pop("_migrated_from", None)
         was_connected = self.is_connected
@@ -1368,7 +1414,9 @@ class SerialTerminal(App):
             cfg = load_config(str(config_path))
 
             if self.repl.ctx.verbose:
-                self.call_from_thread(self._status, "Switching to demo device...", "dim")
+                self.call_from_thread(
+                    self._status, "Switching to demo device...", "dim"
+                )
             self.call_from_thread(self._switch_config, cfg, str(config_path))
 
             msg = "Switched to demo device"
@@ -1379,11 +1427,12 @@ class SerialTerminal(App):
             pass  # call_from_thread fails during app shutdown
         except Exception as e:
             self.call_from_thread(
-                self._status, f"Failed to load demo config: {e}", "red",
+                self._status,
+                f"Failed to load demo config: {e}",
+                "red",
             )
 
-    def _confirm_delete(self, path: str, label: str,
-                        on_deleted=None) -> None:
+    def _confirm_delete(self, path: str, label: str, on_deleted=None) -> None:
         """Show a confirmation dialog and delete a file if confirmed."""
         name = Path(path).name
 
@@ -1488,10 +1537,12 @@ class SerialTerminal(App):
     def _port_info_str(self) -> str:
         """Format port info like '[COM4 115200 8N1]' for title bar."""
         from termapy.config import connection_string
+
         return f"\\[{connection_string(self.cfg, 'short')}]"
 
     def _update_title(self) -> None:
         from termapy.config import connection_string
+
         title = self.cfg.get("title", "") or self.config_path
         center = self.query_one("#title-center", Button)
         center.label = Text(title)
@@ -1526,7 +1577,7 @@ class SerialTerminal(App):
     def _set_conn_status(self, text: str, style: str = "") -> None:
         try:
             colors = {
-                "":      ("green" if text == "Connected" else "red"),
+                "": ("green" if text == "Connected" else "red"),
                 "retry": "darkorange",
             }
             color = colors.get(style, colors[""])
@@ -1600,23 +1651,29 @@ class SerialTerminal(App):
 
     def _on_btn_dtr(self, event: Button.Pressed) -> None:
         if self.is_connected and self.ser:
+
             def _toggle():
                 self.ser.dtr = not self.ser.dtr
                 event.button.label = f"DTR:{int(self.ser.dtr)}"
+
             self._serial_op("DTR", _toggle)
 
     def _on_btn_rts(self, event: Button.Pressed) -> None:
         if self.is_connected and self.ser:
+
             def _toggle():
                 self.ser.rts = not self.ser.rts
                 event.button.label = f"RTS:{int(self.ser.rts)}"
+
             self._serial_op("RTS", _toggle)
 
     def _on_btn_break(self, event: Button.Pressed) -> None:
         if self.is_connected and self.ser:
+
             def _send():
                 self.ser.send_break(duration=0.25)
                 self.notify("Break sent", timeout=1.5)
+
             self._serial_op("Break", _send)
 
     def _btn_scripts(self, event: Button.Pressed) -> None:
@@ -1649,28 +1706,28 @@ class SerialTerminal(App):
 
     _BUTTON_DISPATCH: dict[str, str] = {
         # Title bar
-        "title-right":  "_btn_title_right",    # connect / disconnect / cancel reconnect
-        "title-left":   "_show_port_picker",   # port selection
-        "title-center": "_btn_title_center",   # edit config or pick config
+        "title-right": "_btn_title_right",  # connect / disconnect / cancel reconnect
+        "title-left": "_show_port_picker",  # port selection
+        "title-center": "_btn_title_center",  # edit config or pick config
         # Hardware control
-        "btn-dtr":      "_on_btn_dtr",         # toggle DTR pin
-        "btn-rts":      "_on_btn_rts",         # toggle RTS pin
-        "btn-break":    "_on_btn_break",       # send serial break
+        "btn-dtr": "_on_btn_dtr",  # toggle DTR pin
+        "btn-rts": "_on_btn_rts",  # toggle RTS pin
+        "btn-break": "_on_btn_break",  # send serial break
         # Toolbar
-        "btn-cmds":     "_show_commands",       # command palette
-        "btn-help":     "_btn_help",            # open help
-        "btn-log":      "_btn_log",             # open session log
-        "btn-ss-dir":   "action_open_screenshot",  # open screenshot folder
-        "btn-cap-dir":  "_open_captures_dir",   # open captures folder
+        "btn-cmds": "_show_commands",  # command palette
+        "btn-help": "_btn_help",  # open help
+        "btn-log": "_btn_log",  # open session log
+        "btn-ss-dir": "action_open_screenshot",  # open screenshot folder
+        "btn-cap-dir": "_open_captures_dir",  # open captures folder
         # Pickers
-        "btn-scripts":  "_btn_scripts",         # script picker
-        "btn-proto":    "_btn_proto",            # protocol test picker
-        "btn-cfg":      "_btn_cfg",              # config picker
+        "btn-scripts": "_btn_scripts",  # script picker
+        "btn-proto": "_btn_proto",  # protocol test picker
+        "btn-cfg": "_btn_cfg",  # config picker
         # Overlays
-        "cap-stop":     "_cap_stop",             # stop capture
-        "script-stop":  "_btn_script_stop",      # stop running script
+        "cap-stop": "_cap_stop",  # stop capture
+        "script-stop": "_btn_script_stop",  # stop running script
         # Exit
-        "btn-exit":     "_btn_exit",
+        "btn-exit": "_btn_exit",
     }
 
     def _btn_help(self, event: Button.Pressed) -> None:
@@ -1768,7 +1825,9 @@ class SerialTerminal(App):
 
     def _palette_load_config(self) -> None:
         self.push_screen(
-            ConfigPicker(self.config_path, read_only=self.cfg.get("config_read_only", False)),
+            ConfigPicker(
+                self.config_path, read_only=self.cfg.get("config_read_only", False)
+            ),
             callback=self._on_config_picked,
         )
 
@@ -1813,14 +1872,23 @@ class SerialTerminal(App):
         self.repl.dispatch("ss.txt")
 
     _HELP_TOPICS = [
-        "getting-started", "toolbar", "commands", "config",
-        "custom-buttons", "scripting", "protocol-testing",
-        "data-capture", "writing-plugins", "using-git", "demo",
+        "getting-started",
+        "toolbar",
+        "commands",
+        "config",
+        "custom-buttons",
+        "scripting",
+        "protocol-testing",
+        "data-capture",
+        "writing-plugins",
+        "using-git",
+        "demo",
     ]
 
     def _hook_help_open(self, ctx: "PluginContext | None", args: str) -> CmdResult:
         """Open a help topic in the system browser."""
         from importlib.resources import files as pkg_files
+
         html_dir = pkg_files("termapy").joinpath("html")
         topic = args.strip()
         if not topic:
@@ -1862,8 +1930,7 @@ class SerialTerminal(App):
         if not directory.exists():
             return None
         files = [
-            f for f in directory.iterdir()
-            if f.is_file() and not f.name.startswith(".")
+            f for f in directory.iterdir() if f.is_file() and not f.name.startswith(".")
         ]
         if not files:
             return None
@@ -1877,15 +1944,16 @@ class SerialTerminal(App):
     @work(thread=True)
     def _run_reader(self) -> None:
         """Background thread: delegates to SerialEngine.read_loop."""
+
         def on_error(detail: str) -> None:
-            self.call_from_thread(
-                self._status, f"Serial read error: {detail}", "red"
-            )
+            self.call_from_thread(self._status, f"Serial read error: {detail}", "red")
 
         def on_disconnect() -> None:
             self.call_from_thread(
-                self.notify, "Serial disconnected",
-                severity="warning", timeout=1.5,
+                self.notify,
+                "Serial disconnected",
+                severity="warning",
+                timeout=1.5,
             )
             self.call_from_thread(self._set_conn_status, "Disconnected")
             if self.cfg.get("auto_reconnect"):
@@ -1893,9 +1961,7 @@ class SerialTerminal(App):
 
         try:
             self._engine.read_loop(
-                on_lines=lambda lines: self.call_from_thread(
-                    self._write_batch, lines
-                ),
+                on_lines=lambda lines: self.call_from_thread(self._write_batch, lines),
                 on_clear=lambda: self.call_from_thread(self._clear_output),
                 on_capture_done=lambda: self.call_from_thread(self._cap_stop),
                 on_error=on_error,
@@ -1935,9 +2001,17 @@ class SerialTerminal(App):
             return False
 
         started = self._capture.start(
-            path=path, file_mode=file_mode, mode=mode, duration=duration,
-            target_bytes=target_bytes, columns=columns, record_size=record_size,
-            sep=sep, echo=echo, hex_mode=hex_mode, timeout=timeout,
+            path=path,
+            file_mode=file_mode,
+            mode=mode,
+            duration=duration,
+            target_bytes=target_bytes,
+            columns=columns,
+            record_size=record_size,
+            sep=sep,
+            echo=echo,
+            hex_mode=hex_mode,
+            timeout=timeout,
         )
         if not started:
             self._status(f"Cannot open capture file: {path}", "red")
@@ -1984,7 +2058,6 @@ class SerialTerminal(App):
     def _on_capture_complete(self, result: CaptureResult) -> None:
         """Called by CaptureEngine when capture finishes (unused for now)."""
         pass
-
 
     def _cap_show_progress(self) -> None:
         """Mount a progress overlay in the bottom bar."""
@@ -2069,8 +2142,7 @@ class SerialTerminal(App):
                 prefix += f"[{ts}] "
             if hex_mode:
                 hex_str = " ".join(
-                    f"{b:02X}"
-                    for b in text.encode(enc, errors="replace")
+                    f"{b:02X}" for b in text.encode(enc, errors="replace")
                 )
                 log.write(Text.from_ansi(f"{prefix}{hex_str}"))
             else:
@@ -2179,9 +2251,12 @@ class SerialTerminal(App):
             self._status("Not connected.", "red")
             return
         line_ending = self.cfg.get("line_ending", "\r")
-        self._serial_op("Send", lambda: self._serial_write(
-            (text + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-        ))
+        self._serial_op(
+            "Send",
+            lambda: self._serial_write(
+                (text + line_ending).encode(self.cfg.get("encoding", "utf-8"))
+            ),
+        )
 
     def _hook_raw(self, text: str) -> CmdResult:
         """Hook wrapper for /raw — sends text with no transforms."""
@@ -2335,7 +2410,9 @@ class SerialTerminal(App):
     def action_clear_log(self) -> None:
         self.query_one("#output", RichLog).clear()
 
-    def action_screenshot(self, filename: str | None = None, path: str | None = None) -> None:
+    def action_screenshot(
+        self, filename: str | None = None, path: str | None = None
+    ) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         svg_path = str((self.repl.ss_dir / f"screenshot_{ts}.svg").resolve())
         self.save_screenshot(svg_path)
@@ -2369,9 +2446,9 @@ class SerialTerminal(App):
         prefix = self.cfg.get("cmd_prefix", "/")
         try:
             self.query_one("#btn-cmds", Button).label = prefix
-            self.query_one("#cmd", Input).placeholder = (
-                f"{prefix} for REPL commands, Ctrl+P: palette"
-            )
+            self.query_one(
+                "#cmd", Input
+            ).placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
         except Exception:
             pass
         self.repl.ctx.engine.prefix = prefix
@@ -2406,19 +2483,29 @@ class SerialTerminal(App):
         """Update the Scripts button tooltip with file counts."""
         btn = self.query_one("#btn-scripts", Button)
         count = self._count_files(self.repl.scripts_dir, FOLDER_PATTERNS["run"])
-        btn.tooltip = f"Run a script ({count} available)." if count else "Run a script (empty)."
+        btn.tooltip = (
+            f"Run a script ({count} available)." if count else "Run a script (empty)."
+        )
 
     def _sync_proto_button(self) -> None:
         """Update the Proto button tooltip with file counts."""
         btn = self.query_one("#btn-proto", Button)
         count = self._count_files(self.repl.proto_dir, FOLDER_PATTERNS["proto"])
-        btn.tooltip = f"Protocol test scripts ({count} available)." if count else "Protocol test scripts (empty)."
+        btn.tooltip = (
+            f"Protocol test scripts ({count} available)."
+            if count
+            else "Protocol test scripts (empty)."
+        )
 
     def _sync_cap_button(self) -> None:
         """Update the Captures button tooltip with file counts."""
         btn = self.query_one("#btn-cap-dir", Button)
         count = self._count_files(self.repl.cap_dir, FOLDER_PATTERNS["cap"])
-        btn.tooltip = f"Open captures folder ({count} files)." if count else "Open captures folder (empty)."
+        btn.tooltip = (
+            f"Open captures folder ({count} files)."
+            if count
+            else "Open captures folder (empty)."
+        )
 
     async def _sync_custom_buttons(self) -> None:
         """Remove old custom buttons and create new ones from config."""
@@ -2537,6 +2624,7 @@ class SerialTerminal(App):
         action = result[0]
         if action == "run":
             from termapy.builtins.plugins.var import clear_vars, set_start_time_vars
+
             clear_vars()
             set_start_time_vars()
             path, _ = self.repl.start_script(result[1])
@@ -2554,7 +2642,8 @@ class SerialTerminal(App):
             )
         elif action == "delete":
             self._confirm_delete(
-                result[1], "script",
+                result[1],
+                "script",
                 on_deleted=self._sync_scripts_button,
             )
 
@@ -2591,7 +2680,8 @@ class SerialTerminal(App):
             )
         elif action == "delete":
             self._confirm_delete(
-                result[1], "proto script",
+                result[1],
+                "proto script",
                 on_deleted=self._sync_proto_button,
             )
 
@@ -2752,6 +2842,7 @@ class SerialTerminal(App):
     def _hook_run_profile_cmd(self, ctx, args: str) -> CmdResult:
         """Profile a single command by writing a temp script."""
         import time as _time
+
         line = args.strip()
         if not line:
             ctx.write("Usage: /run.profile.cmd <command>", "red")
@@ -2856,6 +2947,7 @@ class SerialTerminal(App):
         # Try as a bare name: termapy_cfg/<name>/<name>.cfg
         if not path.exists():
             from termapy.config import cfg_path_for_name
+
             path = cfg_path_for_name(name)
         # Try appending .cfg
         if not path.exists() and not path.suffix:
@@ -2865,6 +2957,7 @@ class SerialTerminal(App):
             return CmdResult.fail(msg=f"Config not found: {name}")
         try:
             from termapy.config import load_config
+
             cfg = load_config(str(path))
         except Exception as e:
             self.repl.write(f"Failed to load config: {e}", "red")
@@ -2961,7 +3054,10 @@ class SerialTerminal(App):
 
     @work(thread=True)
     def _run_script(
-        self, path: Path, profile: bool = False, verbose: bool = False,
+        self,
+        path: Path,
+        profile: bool = False,
+        verbose: bool = False,
     ) -> None:
         """Threaded wrapper for repl.run_script (needs @work decorator)."""
 
@@ -2974,8 +3070,11 @@ class SerialTerminal(App):
         self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
         try:
             self.repl.run_script(
-                path, write=thread_safe_write, dispatch=thread_safe_dispatch,
-                profile=profile, verbose=verbose,
+                path,
+                write=thread_safe_write,
+                dispatch=thread_safe_dispatch,
+                profile=profile,
+                verbose=verbose,
                 progress=lambda s, t: self.post_message(
                     self.ScriptProgress(self.repl._script_stack[:], s, t)
                 ),
@@ -3040,7 +3139,10 @@ def _run_check(args) -> None:
     else:
         found, _ = _find_config()
         if not found:
-            print("termapy: no config found. Use --cfg-dir or specify a config.", file=sys.stderr)
+            print(
+                "termapy: no config found. Use --cfg-dir or specify a config.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         config_path = found
 
@@ -3143,23 +3245,36 @@ def _run_cli_mode(args) -> str | None:
 
     if args.demo:
         from termapy.config import setup_demo_config
+
         config_path = str(setup_demo_config(cfg_dir(), force=True))
     elif run_script and not args.config:
         # Infer config from the .run file's location
         config_path = _infer_config_from_run_file(run_script)
         if not config_path:
-            print(f"termapy: cannot infer config from {Path(run_script).resolve()}", file=sys.stderr)
+            print(
+                f"termapy: cannot infer config from {Path(run_script).resolve()}",
+                file=sys.stderr,
+            )
             sys.exit(1)
     elif args.config:
         config_path = _resolve_config(args.config)
         if config_path is None:
-            print(f"termapy: config not found: {Path(args.config).resolve()}", file=sys.stderr)
-            print("  Use --demo to create a demo config, or specify a .cfg file.", file=sys.stderr)
+            print(
+                f"termapy: config not found: {Path(args.config).resolve()}",
+                file=sys.stderr,
+            )
+            print(
+                "  Use --demo to create a demo config, or specify a .cfg file.",
+                file=sys.stderr,
+            )
             sys.exit(1)
     else:
         path, _ = _find_config()
         if not path:
-            print("termapy: no config found. Use --demo or specify a config.", file=sys.stderr)
+            print(
+                "termapy: no config found. Use --demo or specify a config.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         config_path = path
 
@@ -3170,7 +3285,10 @@ def _run_cli_mode(args) -> str | None:
         sys.exit(1)
 
     cli = CLITerminal(
-        cfg, config_path, no_color=args.no_color, run_script=run_script,
+        cfg,
+        config_path,
+        no_color=args.no_color,
+        run_script=run_script,
         term_width=getattr(args, "term_width", None),
     )
     result = cli.run()
@@ -3186,6 +3304,7 @@ def _run_proto_headless(args) -> None:
     # Resolve config
     if args.demo:
         from termapy.config import setup_demo_config
+
         config_path = str(setup_demo_config(cfg_dir()))
     elif args.config:
         config_path = args.config
@@ -3235,7 +3354,9 @@ def _run_proto_headless(args) -> None:
     total, passed, failed = s["total"], s["passed"], s["failed"]
     elapsed = s["elapsed_ms"]
     status = "PASS" if failed == 0 else "FAIL"
-    print(f"{results['meta']['script_name']}: {passed}/{total} {status} ({elapsed:.0f}ms)")
+    print(
+        f"{results['meta']['script_name']}: {passed}/{total} {status} ({elapsed:.0f}ms)"
+    )
 
     sys.exit(0 if failed == 0 else 1)
 
@@ -3244,6 +3365,7 @@ def main():
     import termapy.config as _cfg_mod
 
     from importlib.metadata import version as _get_version
+
     try:
         _version = _get_version("termapy")
     except Exception:
@@ -3253,7 +3375,9 @@ def main():
         description="TUI serial terminal with ANSI color support"
     )
     parser.add_argument(
-        "--version", action="version", version=f"termapy {_version}",
+        "--version",
+        action="version",
+        version=f"termapy {_version}",
     )
     parser.add_argument(
         "config",
@@ -3323,7 +3447,10 @@ def main():
                     args.config = inferred
                     args.run = None  # don't auto-run in TUI
                 else:
-                    print(f"termapy: cannot infer config from {Path(args.run).resolve()}", file=sys.stderr)
+                    print(
+                        f"termapy: cannot infer config from {Path(args.run).resolve()}",
+                        file=sys.stderr,
+                    )
                     sys.exit(1)
         elif ext == ".pro" and not args.proto:
             # .pro file: infer config from location
@@ -3332,7 +3459,10 @@ def main():
                 args.proto = args.config
                 args.config = inferred
             else:
-                print(f"termapy: cannot infer config from {Path(args.config).resolve()}", file=sys.stderr)
+                print(
+                    f"termapy: cannot infer config from {Path(args.config).resolve()}",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
 
     if args.check:
@@ -3379,7 +3509,7 @@ def main():
             break
         # Carry the current config into the next mode
         mode = result
-        args.cli = (mode == "cli")
+        args.cli = mode == "cli"
         args.run = None  # don't re-run a script on switch
         args.demo = False  # don't re-setup demo on switch
 
@@ -3405,8 +3535,14 @@ def _run_tui_mode(args) -> str | None:
     if args.config:
         config_path = _resolve_config(args.config)
         if config_path is None:
-            print(f"termapy: config not found: {Path(args.config).resolve()}", file=sys.stderr)
-            print("  Use --demo to create a demo config, or specify a .cfg file.", file=sys.stderr)
+            print(
+                f"termapy: config not found: {Path(args.config).resolve()}",
+                file=sys.stderr,
+            )
+            print(
+                "  Use --demo to create a demo config, or specify a .cfg file.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         try:
             cfg = load_config(config_path)

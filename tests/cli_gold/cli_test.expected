@@ -404,6 +404,23 @@ demo> /help var
       $(SESSION_TIME)      - script start time
       $(SESSION_DATETIME)  - script start date and time
 
+    Config variables (resolved paths from current config):
+      $(CFG)               - config name (e.g. demo)
+      $(CFG.DIR)           - config directory (resolved)
+      $(CFG.FILE)          - config file path (resolved)
+      $(CFG.LOG_FILE)      - log file path (resolved)
+      $(CFG.RUN_DIR)       - scripts directory
+      $(CFG.PROTO_DIR)     - protocol test directory
+      $(CFG.PLUGIN_DIR)    - plugin directory
+      $(CFG.SS_DIR)        - screenshot directory
+      $(CFG.CAP_DIR)       - capture directory
+      $(CFG.PROF_DIR)      - profile directory
+      $(CFG.VIZ_DIR)       - visualizer directory
+      $(CFG.PORT)          - serial port name
+      $(CFG.BAUD)          - baud rate
+      $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
+      $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
+
     Escaping (when your data contains literal $):
       \$(PORT)           - literal $(PORT) (not expanded)
       /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)

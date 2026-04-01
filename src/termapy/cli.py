@@ -78,9 +78,15 @@ class CLITerminal:
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
 
-        from termapy.builtins.plugins.var import set_context_var, set_launch_var
+        from termapy.builtins.plugins.var import register_cfg_vars, set_context_var, set_launch_var
+        from termapy.config import cfg_log_path
         set_launch_var("FRONT_END", "cli")
         set_context_var("CFG", lambda: Path(self.config_path).stem if self.config_path else "none")
+        register_cfg_vars(
+            get_config_path=lambda: self.config_path,
+            get_cfg=lambda: self.cfg,
+            get_log_path=lambda: cfg_log_path(self.config_path) if self.config_path else "",
+        )
         self._setup_context()
         self._register_hooks()
 

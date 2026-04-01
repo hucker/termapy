@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 # Module-level variable storage - cleared on script start.
 _VARS: dict[str, str] = {}
 
-# Match $(NAME) - letters, digits, underscore; must start with letter or _
-_VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_]*)\)")
+# Match $(NAME) or $(NAME.SUB) - letters, digits, underscore, dots
+_VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)")
 
 # Match $(NAME) = value assignment (with or without spaces around =)
 _VAR_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*(.+)$")
@@ -96,6 +96,42 @@ _LAUNCH_VARS: dict[str, str] = {
 def set_launch_var(name: str, value: str) -> None:
     """Set a launch-time variable (called by app.py/cli.py at startup)."""
     _LAUNCH_VARS[name] = value
+
+
+def register_cfg_vars(
+    get_config_path: Callable[[], str],
+    get_cfg: Callable[[], dict],
+    get_log_path: Callable[[], str],
+) -> None:
+    """Register all CFG.* context variables.
+
+    Called by app.py and cli.py after config is loaded.
+
+    Args:
+        get_config_path: Returns the current config file path.
+        get_cfg: Returns the current config dict.
+        get_log_path: Returns the current log file path.
+    """
+    from pathlib import Path
+    from termapy.config import connection_string
+
+    def _resolve_cfg() -> Path:
+        return Path(get_config_path()).resolve() if get_config_path() else Path(".")
+
+    set_context_var("CFG.DIR", lambda: str(_resolve_cfg().parent))
+    set_context_var("CFG.FILE", lambda: str(_resolve_cfg()))
+    set_context_var("CFG.RUN_DIR", lambda: str(_resolve_cfg().parent / "run"))
+    set_context_var("CFG.PROTO_DIR", lambda: str(_resolve_cfg().parent / "proto"))
+    set_context_var("CFG.PLUGIN_DIR", lambda: str(_resolve_cfg().parent / "plugin"))
+    set_context_var("CFG.SS_DIR", lambda: str(_resolve_cfg().parent / "ss"))
+    set_context_var("CFG.CAP_DIR", lambda: str(_resolve_cfg().parent / "cap"))
+    set_context_var("CFG.PROF_DIR", lambda: str(_resolve_cfg().parent / "prof"))
+    set_context_var("CFG.VIZ_DIR", lambda: str(_resolve_cfg().parent / "viz"))
+    set_context_var("CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else "")
+    set_context_var("CFG.PORT", lambda: get_cfg().get("port", ""))
+    set_context_var("CFG.BAUD", lambda: str(get_cfg().get("baud_rate", "")))
+    set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
+    set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
 
 # Dynamic built-in variables - resolved at expansion time.
 _DYNAMIC_VARS: dict[str, str] = {
@@ -270,6 +306,23 @@ Session variables (set once per script launch, frozen):
   $(SESSION_DATE)      - script start date
   $(SESSION_TIME)      - script start time
   $(SESSION_DATETIME)  - script start date and time
+
+Config variables (resolved paths from current config):
+  $(CFG)               - config name (e.g. demo)
+  $(CFG.DIR)           - config directory (resolved)
+  $(CFG.FILE)          - config file path (resolved)
+  $(CFG.LOG_FILE)      - log file path (resolved)
+  $(CFG.RUN_DIR)       - scripts directory
+  $(CFG.PROTO_DIR)     - protocol test directory
+  $(CFG.PLUGIN_DIR)    - plugin directory
+  $(CFG.SS_DIR)        - screenshot directory
+  $(CFG.CAP_DIR)       - capture directory
+  $(CFG.PROF_DIR)      - profile directory
+  $(CFG.VIZ_DIR)       - visualizer directory
+  $(CFG.PORT)          - serial port name
+  $(CFG.BAUD)          - baud rate
+  $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
+  $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
 
 Escaping (when your data contains literal $):
   \\$(PORT)           - literal $(PORT) (not expanded)

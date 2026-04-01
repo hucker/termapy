@@ -257,7 +257,6 @@ class TestVarNameRegex:
     @pytest.mark.parametrize("text", [
         "$(123)",        # starts with digit
         "$PORT",         # bare $NAME (no parens)
-        "$(env.X)",      # env var syntax (contains dot)
     ])
     def test_invalid_var_names(self, text):
         # Act

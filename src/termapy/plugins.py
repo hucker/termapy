@@ -526,13 +526,32 @@ def _load_plugin_file(
     Returns:
         Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list).
     """
+    # Derive the package name if this is a builtin plugin, so the module
+    # is registered under both the dynamic name and the package path.
+    # This prevents duplicate module state when app.py/cli.py imports
+    # builtins via the package path (e.g. termapy.builtins.plugins.var).
     module_name = f"termapy_plugin_{path.stem}"
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        return [], [], []
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = mod
-    spec.loader.exec_module(mod)
+    pkg_name = None
+    try:
+        builtins_root = Path(__file__).parent / "builtins"
+        rel = path.resolve().relative_to(builtins_root.resolve())
+        parts = list(rel.parent.parts) + [rel.stem]
+        pkg_name = "termapy.builtins." + ".".join(parts)
+    except ValueError:
+        pass
+
+    # If already loaded via package import, reuse that module
+    if pkg_name and pkg_name in sys.modules:
+        mod = sys.modules[pkg_name]
+    else:
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        if spec is None or spec.loader is None:
+            return [], [], []
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = mod
+        if pkg_name:
+            sys.modules[pkg_name] = mod
+        spec.loader.exec_module(mod)
 
     # Commands
     plugins: list[PluginInfo] = []

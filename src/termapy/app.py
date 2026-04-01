@@ -576,11 +576,21 @@ class SerialTerminal(App):
         self.query_one("#output", RichLog).styles.border = ("solid", color)
 
     def on_mount(self) -> None:
+        self._setup_vars()
+        self._apply_border_color()
+        self._build_context()
+        self._register_tui_hooks()
+        self._load_plugins()
+        self._run_startup()
+
+    def _setup_vars(self) -> None:
+        """Set launch/context variables for plugin use."""
         from termapy.builtins.plugins.var import set_context_var, set_launch_var
         set_launch_var("FRONT_END", "textual")
         set_context_var("CFG", lambda: Path(self.config_path).stem if self.config_path else "none")
-        self._apply_border_color()
-        # Build plugin context - the stable API for all plugins
+
+    def _build_context(self) -> None:
+        """Build PluginContext and EngineAPI, wire to REPL."""
         engine = EngineAPI(
             prefix=self.cfg.get("cmd_prefix", "/"),
             plugins=self.repl._plugins,
@@ -648,7 +658,9 @@ class SerialTerminal(App):
         )
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg
-        # Register app-coupled commands as plugins
+
+    def _register_tui_hooks(self) -> None:
+        """Register TUI-specific commands as plugin hooks."""
         self.repl.register_hook(
             "ss.svg",
             "{name}",
@@ -876,7 +888,9 @@ class SerialTerminal(App):
             self._hook_help_open,
             source="app",
         )
-        # Load external plugins: global first, then per-config (can override)
+
+    def _load_plugins(self) -> None:
+        """Load global and per-config external plugins."""
         self._load_and_report(
             load_plugins_from_dir(global_plugins_dir(), "global"),
         )
@@ -888,8 +902,9 @@ class SerialTerminal(App):
                 ),
             )
         self._rebuild_suggester_commands()
-        # Clean up stale profile temp files
-        # Open log file (deferred if no config loaded yet)
+
+    def _run_startup(self) -> None:
+        """Open log, sync buttons, and show startup screen."""
         self._open_log()
         self._sync_ss_button()
         self._sync_scripts_button()

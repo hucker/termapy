@@ -109,7 +109,7 @@ def get_set_prop(ser: Any | None, cfg: dict, key: str, args: str) -> Result:
         except OSError as e:
             return _result([_msg(f"{desc} read error: {e}", "red")])
     if not connected:
-        return _result([_msg("Not connected", "yellow")])
+        return _result([_msg("Not connected.", "yellow")])
     try:
         if key == "parity":
             val = val.upper()
@@ -144,7 +144,7 @@ def get_set_flow(ser: Any | None, cfg: dict, args: str) -> Result:
         suffix = " (disconnected)" if not connected else ""
         return _result([_msg(f"{fc}{suffix}")])
     if not connected:
-        return _result([_msg("Not connected", "yellow")])
+        return _result([_msg("Not connected.", "yellow")])
     if val not in VALID_FLOW_CONTROLS:
         return _result([_msg(
             f"Invalid flow control: {val} (use none/rtscts/xonxoff/manual)", "red"
@@ -184,13 +184,13 @@ def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
     connected = ser is not None
     if not val:
         if not connected:
-            return _result([_msg("Not connected", "yellow")])
+            return _result([_msg("Not connected.", "yellow")])
         try:
             return _result([_msg(f"{int(getattr(ser, line))}")])
         except OSError as e:
             return _result([_msg(f"{label} read error: {e}", "red")])
     if not connected:
-        return _result([_msg("Not connected", "yellow")])
+        return _result([_msg("Not connected.", "yellow")])
     state = parse_bool_value(val)
     if state is None:
         return _result([_msg(f"Invalid {label} value: {val} (use 0/1/on/off)", "red")])
@@ -216,7 +216,7 @@ def read_signal(ser: Any | None, signal: str, args: str) -> Result:
     if args.strip():
         return _result([_msg(f"{label} is read-only", "yellow")])
     if ser is None:
-        return _result([_msg("Not connected", "yellow")])
+        return _result([_msg("Not connected.", "yellow")])
     try:
         return _result([_msg(f"{int(getattr(ser, signal))}")])
     except OSError as e:
@@ -231,7 +231,7 @@ def send_break(ser: Any | None, args: str) -> Result:
         args: Duration in milliseconds, or empty for default (250ms).
     """
     if ser is None:
-        return _result([_msg("Not connected", "yellow")])
+        return _result([_msg("Not connected.", "yellow")])
     val = args.strip()
     duration = 0.25
     if val:

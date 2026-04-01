@@ -471,8 +471,8 @@ class ReplEngine:
             _echo_cmd(echo_text)
 
         if is_connected and not is_connected():
-            _status("Not connected - command not sent", "red")
-            return CmdResult.fail(msg="Not connected - command not sent")
+            _status("Not connected.", "red")
+            return CmdResult.fail(msg="Not connected.")
 
         line_ending = self.cfg.get("line_ending", "\r")
         if serial_write:

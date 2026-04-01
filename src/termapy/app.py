@@ -41,6 +41,7 @@ from textual import on, work
 
 from termapy import port_control
 from termapy.defaults import DEFAULT_CFG
+from termapy.folders import FOLDER_PATTERNS
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -2356,13 +2357,20 @@ class SerialTerminal(App):
             pass
         self.repl.ctx.engine.prefix = prefix
 
+    @staticmethod
+    def _count_files(directory: Path, pattern: str) -> int:
+        """Count files matching a glob pattern in a directory."""
+        if not directory.exists():
+            return 0
+        return len(list(directory.glob(pattern)))
+
     def _sync_ss_button(self) -> None:
         """Update the SS button tooltip with file counts."""
         btn = self.query_one("#btn-ss-dir", Button)
         ss_dir = self.repl.ss_dir
-        if ss_dir.exists():
-            svgs = len(list(ss_dir.glob("*.svg")))
-            txts = len(list(ss_dir.glob("*.txt")))
+        svgs = self._count_files(ss_dir, "*.svg")
+        txts = self._count_files(ss_dir, "*.txt")
+        if svgs or txts:
             btn.tooltip = f"Open screenshot folder ({svgs} svg, {txts} txt)."
         else:
             btn.tooltip = "Open screenshot folder (empty)."
@@ -2370,32 +2378,20 @@ class SerialTerminal(App):
     def _sync_scripts_button(self) -> None:
         """Update the Scripts button tooltip with file counts."""
         btn = self.query_one("#btn-scripts", Button)
-        scripts_dir = self.repl.scripts_dir
-        if scripts_dir.exists():
-            count = len([f for f in scripts_dir.iterdir() if f.is_file()])
-            btn.tooltip = f"Run a script ({count} available)."
-        else:
-            btn.tooltip = "Run a script (empty)."
+        count = self._count_files(self.repl.scripts_dir, FOLDER_PATTERNS["run"])
+        btn.tooltip = f"Run a script ({count} available)." if count else "Run a script (empty)."
 
     def _sync_proto_button(self) -> None:
         """Update the Proto button tooltip with file counts."""
         btn = self.query_one("#btn-proto", Button)
-        proto_dir = self.repl.proto_dir
-        if proto_dir.exists():
-            count = len(list(proto_dir.glob("*.pro")))
-            btn.tooltip = f"Protocol test scripts ({count} available)."
-        else:
-            btn.tooltip = "Protocol test scripts (empty)."
+        count = self._count_files(self.repl.proto_dir, FOLDER_PATTERNS["proto"])
+        btn.tooltip = f"Protocol test scripts ({count} available)." if count else "Protocol test scripts (empty)."
 
     def _sync_cap_button(self) -> None:
         """Update the Captures button tooltip with file counts."""
         btn = self.query_one("#btn-cap-dir", Button)
-        cap_dir = self.repl.cap_dir
-        if cap_dir.exists():
-            count = len([f for f in cap_dir.iterdir() if f.is_file()])
-            btn.tooltip = f"Open captures folder ({count} files)."
-        else:
-            btn.tooltip = "Open captures folder (empty)."
+        count = self._count_files(self.repl.cap_dir, FOLDER_PATTERNS["cap"])
+        btn.tooltip = f"Open captures folder ({count} files)." if count else "Open captures folder (empty)."
 
     async def _sync_custom_buttons(self) -> None:
         """Remove old custom buttons and create new ones from config."""

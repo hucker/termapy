@@ -260,7 +260,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `line_ending`           | `\r`                 | String appended to each sent command: `\r` (CR), `\r\n` (CRLF), or `\n` (LF)                                    |
 | `send_bare_enter`       | `false`              | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)                |
 | `auto_connect`          | `false`              | Automatically connect to the port when the app starts                                                           |
-| `auto_reconnect`        | `false`              | Automatically retry the connection every second if the port drops                                               |
+| `auto_reconnect`        | `false`              | Retry connection every 2.5s if the port drops or fails to open (does not control startup)                       |
 | `on_connect_cmd`      | ` `                  | Commands to send after connecting, separated by `\n` (waits for idle between each)                              |
 | `echo_input`              | `false`              | Show sent commands in the terminal output                                                                       |
 | `echo_input_fmt`          | `[purple]> {cmd}[/]` | Rich markup format string for echoed commands (`{cmd}` is replaced with the command text)                       |

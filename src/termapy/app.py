@@ -339,6 +339,7 @@ class SerialTerminal(App):
         )
         self._cap_timer: "Timer | None" = None
         self._cap_progress_timer: "Timer | None" = None
+        self._reconnecting = False
 
     @property
     def cfg(self):
@@ -483,7 +484,6 @@ class SerialTerminal(App):
             left.tooltip = "Click to select serial port."
             yield left
             right = Button("Disconnected", id="title-right")
-            right.tooltip = "Click to connect/disconnect."
             yield right
         max_lines = self.cfg.get("max_lines", 10000)
         yield RichLog(
@@ -978,21 +978,35 @@ class SerialTerminal(App):
             self._run_lines(connect_cmds, delay=0.2)
         return True
 
+    _SPINNER = "|/-\\"
+
     @work(thread=True)
     def _auto_reconnect(self) -> None:
-        """Background thread: retry connecting every second until success or stop."""
+        """Background thread: retry connecting every 2.5s until success or stop."""
+        self._engine.stop_event.clear()
+        self._reconnecting = True
+        step = 0
         try:
             while not self._engine.stop_event.is_set():
-                time.sleep(1.0)
+                # Animate spinner in 0.25s steps across the 2.5s wait
+                for _ in range(10):
+                    if self._engine.stop_event.is_set():
+                        return
+                    ch = self._SPINNER[step % len(self._SPINNER)]
+                    self.call_from_thread(
+                        self._set_conn_status, f"Connecting {ch}", "retry",
+                    )
+                    step += 1
+                    time.sleep(0.25)
                 if self._engine.stop_event.is_set():
                     break
-                self.call_from_thread(self._set_conn_status, "Retrying...")
                 if self._engine.try_reconnect():
                     self.call_from_thread(self._try_open_port)
                     return
-                self.call_from_thread(self._set_conn_status, "Disconnected")
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
+        finally:
+            self._reconnecting = False
 
     def _set_hex_mode(self, enabled: bool) -> None:
         """Toggle hex display mode for serial I/O."""
@@ -1490,17 +1504,42 @@ class SerialTerminal(App):
         tip_lines.append("Click to edit config")
         center.tooltip = "\n".join(tip_lines)
         self.query_one("#title-left", Button).label = self._port_info_str()
+        self._update_conn_tooltip()
 
-    def _set_conn_status(self, text: str) -> None:
+    def _set_conn_status(self, text: str, style: str = "") -> None:
         try:
-            color = "green" if text == "Connected" else "red"
+            colors = {
+                "":      ("green" if text == "Connected" else "red"),
+                "retry": "darkorange",
+            }
+            color = colors.get(style, colors[""])
             widget = self.query_one("#title-right", Button)
             widget.label = f"{text:^12}"
             widget.styles.background = color
             self.query_one("#title-left", Button).styles.background = color
             self.query_one("#title-center", Button).styles.background = color
+            self._update_conn_tooltip(widget)
         except Exception:
             pass  # widgets gone during shutdown
+
+    def _update_conn_tooltip(self, widget: Button | None = None) -> None:
+        """Update the connection button tooltip with auto-connect config."""
+        try:
+            if widget is None:
+                widget = self.query_one("#title-right", Button)
+            tip = "Click to connect/disconnect."
+            ac = self.cfg.get("auto_connect")
+            ar = self.cfg.get("auto_reconnect")
+            if ac or ar:
+                flags = []
+                if ac:
+                    flags.append("auto-connect")
+                if ar:
+                    flags.append("auto-reconnect")
+                tip += f"\n{', '.join(flags)}: on"
+            widget.tooltip = tip
+        except Exception:
+            pass
 
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
@@ -1516,7 +1555,10 @@ class SerialTerminal(App):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "title-right":
-            if self.is_connected:
+            if self._reconnecting:
+                self._engine.stop_event.set()
+                self._set_conn_status("Disconnected")
+            elif self.is_connected:
                 self._disconnect()
             else:
                 self._connect()
@@ -1642,7 +1684,10 @@ class SerialTerminal(App):
     # -- Palette action wrappers --
 
     def _toggle_connection(self) -> None:
-        if self.is_connected:
+        if self._reconnecting:
+            self._engine.stop_event.set()
+            self._set_conn_status("Disconnected")
+        elif self.is_connected:
             self._disconnect()
         else:
             self._connect()

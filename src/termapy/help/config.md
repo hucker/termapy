@@ -65,7 +65,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `line_ending`            | `\r`                  | Appended to each sent command: `\r`, `\r\n`, or `\n`                                        |
 | `send_bare_enter`        | `false`               | Send line ending on empty Enter (for "press enter to continue" prompts)                     |
 | `auto_connect`           | `false`               | Connect automatically when the app starts                                                   |
-| `auto_reconnect`         | `false`               | Retry connection every second if the port drops                                             |
+| `auto_reconnect`         | `false`               | Retry connection every 2.5s if the port drops or fails to open                              |
 | `on_connect_cmd`         | ` `                   | Commands to send after connecting, separated by `\n`                                        |
 | `echo_input`             | `false`               | Show sent commands in the terminal output                                                   |
 | `echo_input_fmt`         | `[purple]> {cmd}[/]`  | Rich markup format for echoed commands                                                      |
@@ -86,6 +86,14 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `os_cmd_enabled`         | `false`               | Allow `/os` to run shell commands                                                           |
 | `show_traceback`         | `false`               | Show full stack trace on serial errors                                                      |
 | `custom_buttons`         | `[]`                  | Custom button objects (see [Custom Buttons](custom-buttons.md))                             |
+
+## Connection Behavior
+
+`auto_connect` and `auto_reconnect` are independent settings.
+`auto_connect` opens the port when a config loads (app startup or config
+switch). `auto_reconnect` retries the connection when the port drops or
+a manual connect attempt fails -- it does not control startup behavior.
+While reconnecting, the title bar turns amber and shows a spinner.
 
 ## Config Management
 

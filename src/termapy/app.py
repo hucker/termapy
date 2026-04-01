@@ -906,10 +906,7 @@ class SerialTerminal(App):
     def _run_startup(self) -> None:
         """Open log, sync buttons, and show startup screen."""
         self._open_log()
-        self._sync_ss_button()
-        self._sync_scripts_button()
-        self._sync_proto_button()
-        self._sync_cap_button()
+        self._sync_all_buttons()
         for w in self.repl._cfg_data.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
         if self.show_picker_on_start:
@@ -1274,11 +1271,7 @@ class SerialTerminal(App):
         self._apply_border_color()
         self._sync_hw_visibility()
         self._sync_cmd_prefix()
-        self._sync_ss_button()
-        self._sync_scripts_button()
-        self._sync_proto_button()
-        self._sync_cap_button()
-        self.run_worker(self._sync_custom_buttons())
+        self._sync_all_buttons()
         self._open_log()
         if was_connected or cfg.get("auto_connect"):
             self._connect()
@@ -2372,6 +2365,14 @@ class SerialTerminal(App):
         except Exception:
             pass
         self.repl.ctx.engine.prefix = prefix
+
+    def _sync_all_buttons(self) -> None:
+        """Refresh all file-count button tooltips and custom buttons."""
+        self._sync_ss_button()
+        self._sync_scripts_button()
+        self._sync_proto_button()
+        self._sync_cap_button()
+        self.run_worker(self._sync_custom_buttons())
 
     @staticmethod
     def _count_files(directory: Path, pattern: str) -> int:

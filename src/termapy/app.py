@@ -46,10 +46,10 @@ from termapy.dialogs import (
     ConfigEditor,
     ConfigPicker,
     ConfirmDialog,
-    NamePicker,
     PortPicker,
     ProtoEditor,
     ProtoPicker,
+    QuickSetup,
     ScriptEditor,
     ScriptPicker,
 )
@@ -546,6 +546,15 @@ class SerialTerminal(App):
                 yield _btn("Cap", "btn-cap-dir", "Open captures folder.")
                 yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C).")
 
+    def _show_config_info(self, path: str) -> None:
+        """Print config dir, file, and log file paths to the output."""
+        resolved = Path(path).resolve()
+        self._status(f"Config dir:  {resolved.parent}", "green")
+        self._status(f"Config file: {resolved}", "green")
+        log_path = self._log_path()
+        if log_path:
+            self._status(f"Log file:    {Path(log_path).resolve()}", "green")
+
     def _log_path(self) -> str:
         """Return log file path in the per-config data directory."""
         configured = self.cfg.get("log_file", "")
@@ -564,7 +573,6 @@ class SerialTerminal(App):
             return
         self.log_fh = open(log_path, "a", encoding="utf-8")
         self._log_line("#", f"{' Session Start ':-^60s}")
-        self._status(f"Logging to {log_path}")
 
     def _apply_border_color(self) -> None:
         """Apply border_color from config to title bar and output border."""
@@ -905,6 +913,8 @@ class SerialTerminal(App):
     def _run_startup(self) -> None:
         """Open log, sync buttons, and show startup screen."""
         self._open_log()
+        if self.config_path:
+            self._show_config_info(self.config_path)
         self._sync_all_buttons()
         for w in self.repl._cfg_data.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
@@ -918,18 +928,9 @@ class SerialTerminal(App):
         elif self.open_editor_on_start:
             self._new_config()
         elif self._first_run:
-            def _on_welcome_result(confirmed: bool) -> None:
-                if confirmed:
-                    self._connect()
-                else:
-                    self._new_config()
-
-            self.push_screen(  # type: ignore[call-overload]
-                ConfirmDialog(
-                    "Welcome to Termapy! A demo device has been installed.\n"
-                    "Connect to the demo device now?",
-                ),
-                callback=_on_welcome_result,
+            self.push_screen(
+                QuickSetup(title="Welcome to Termapy - Quick Setup"),
+                callback=self._on_quick_setup,
             )
         elif self.cfg.get("auto_connect"):
             self._connect()
@@ -1414,7 +1415,7 @@ class SerialTerminal(App):
 
         if port and (port in available or port.upper() == "DEMO"):
             self._switch_config(cfg, path)
-            self._status(f"Loaded config: {Path(path).resolve()}", "green")
+            self._show_config_info(path)
         elif available:
             self._pending_cfg = cfg
             self._pending_config_path = path
@@ -1423,7 +1424,8 @@ class SerialTerminal(App):
             self.push_screen(PortPicker(), callback=self._on_load_port_picked)
         else:
             self._switch_config(cfg, path)
-            self._status(f"Loaded config: {Path(path).resolve()} (no ports found)", "yellow")
+            self._show_config_info(path)
+            self._status("(no ports found)", "yellow")
 
     def _on_load_port_picked(self, port: str | None) -> None:
         cfg = self._pending_cfg
@@ -1431,7 +1433,7 @@ class SerialTerminal(App):
         if port is not None:
             cfg["port"] = port
         self._switch_config(cfg, path)
-        self._status(f"Loaded config: {Path(path).resolve()}", "green")
+        self._show_config_info(path)
 
     def _on_config_picked(self, result: tuple | None) -> None:
         if result is None:
@@ -1481,7 +1483,7 @@ class SerialTerminal(App):
         if config_warnings:
             detail = "\n".join(config_warnings)
             self.notify(detail, severity="warning", timeout=15)
-        self._status(f"Config saved: {new_path}", "green")
+        self._show_config_info(new_path)
 
     def _port_info_str(self) -> str:
         """Format port info like '[COM4 115200 8N1]' for title bar."""
@@ -1738,49 +1740,25 @@ class SerialTerminal(App):
             self._connect()
 
     def _new_config(self) -> None:
-        self.push_screen(NamePicker(), callback=self._on_name_picked)
+        self.push_screen(QuickSetup(), callback=self._on_quick_setup)
 
-    def _on_name_picked(self, name: str | None) -> None:
-        if name is None:
+    def _on_quick_setup(self, result: tuple | None) -> None:
+        if result is None:
             return
+        name, port, baud = result
         config_path = str(cfg_path_for_name(name))
         cfg = dict(DEFAULT_CFG)
         cfg["title"] = name
-
-        # Auto-detect serial port for new configs
-        try:
-            from serial.tools.list_ports import comports
-
-            ports = sorted(p.device for p in comports())
-        except Exception:
-            ports = []
-
-        if len(ports) == 1:
-            cfg["port"] = ports[0]
-            self.push_screen(
-                ConfigEditor(cfg, config_path),
-                callback=self._on_config_result,
-            )
-        elif len(ports) > 1:
-            # Stash cfg/path for the port picker callback
-            self._pending_cfg = cfg
-            self._pending_config_path = config_path
-            self.push_screen(PortPicker(), callback=self._on_new_config_port_picked)
-        else:
-            self.push_screen(
-                ConfigEditor(cfg, config_path, highlight_key="port"),
-                callback=self._on_config_result,
-            )
-
-    def _on_new_config_port_picked(self, port: str | None) -> None:
-        cfg = self._pending_cfg
-        config_path = self._pending_config_path
-        if port is not None:
+        if port:
             cfg["port"] = port
-        self.push_screen(
-            ConfigEditor(cfg, config_path),
-            callback=self._on_config_result,
-        )
+        cfg["baud_rate"] = baud
+        # Create config dir structure (.gitignore, subdirs) and write config
+        cfg_data_dir(config_path)
+        with open(config_path, "w") as f:
+            json.dump(cfg, f, indent=4)
+        self._on_config_result((cfg, config_path))
+        if port:
+            self._connect()
 
     def _palette_edit_config(self) -> None:
         self.push_screen(
@@ -2892,7 +2870,7 @@ class SerialTerminal(App):
             self.repl.write(f"Failed to load config: {e}", "red")
             return CmdResult.fail(msg=f"Failed to load config: {e}")
         self._switch_config(cfg, str(path))
-        self._status(f"Loaded config: {path.resolve()}", "green")
+        self._show_config_info(str(path))
         return CmdResult.ok()
 
     def _hook_proto_load(self, ctx, args: str) -> CmdResult:

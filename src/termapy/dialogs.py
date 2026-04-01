@@ -483,6 +483,103 @@ class MarkdownViewer(ModalScreen[None]):
         self.dismiss(None)
 
 
+class QuickSetup(ModalScreen[tuple | None]):
+    """Quick setup dialog — name, port, baud rate in one screen.
+
+    Returns (name, port, baud_rate) tuple or None on cancel.
+    Used for first-run and New Config flows.
+    """
+
+    BINDINGS = _CTRL_Q_BINDING
+
+    CSS = f"""
+    QuickSetup {{ align: center middle; }}
+    QuickSetup Button {{ {_MODAL_BTN_CSS} }}
+    #qs-dialog {{
+        width: 55; height: auto;
+        border: solid $primary; background: $surface; padding: 1 2;
+    }}
+    #qs-title {{ height: 1; text-style: bold; }}
+    #qs-port-list {{ height: 8; border: thick $primary; }}
+    #qs-baud-list {{ height: 6; border: thick $primary; }}
+    #qs-buttons {{ height: 1; margin-top: 1; align: right middle; }}
+    .qs-label {{ height: 1; margin-top: 1; }}
+    """
+
+    _COMMON_BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
+
+    def __init__(self, title: str = "New Config") -> None:
+        super().__init__()
+        self._title = title
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss(None)
+
+    def compose(self) -> ComposeResult:
+        from serial.tools.list_ports import comports
+        from textual.widgets import Static
+
+        ports = sorted(comports(), key=lambda p: p.device)
+        with Vertical(id="qs-dialog"):
+            yield Static(self._title, id="qs-title")
+            yield Static("Config name:", classes="qs-label")
+            yield Input(placeholder="e.g. my_device", id="qs-name")
+            yield Static("Serial port:", classes="qs-label")
+            port_list = OptionList(id="qs-port-list")
+            if ports:
+                for p in ports:
+                    desc = p.description or ""
+                    label = f"{p.device} - {desc}" if desc else p.device
+                    port_list.add_option(Option(label, id=p.device))
+            else:
+                port_list.add_option(Option("(no ports found)", disabled=True))
+            yield port_list
+            yield Static("Baud rate:", classes="qs-label")
+            baud_list = OptionList(id="qs-baud-list")
+            for baud in self._COMMON_BAUDS:
+                baud_list.add_option(Option(str(baud), id=str(baud)))
+            # Default to 115200
+            baud_list.highlighted = self._COMMON_BAUDS.index(115200)
+            yield baud_list
+            with Horizontal(id="qs-buttons"):
+                yield Button("Connect", id="qs-connect", variant="success")
+                yield Button("Cancel", id="qs-cancel", variant="error")
+
+    def _submit(self) -> None:
+        name = self.query_one("#qs-name", Input).value.strip()
+        if not name:
+            self.notify("Enter a config name", severity="warning", timeout=2)
+            return
+        name = Path(name).stem
+
+        port_ol = self.query_one("#qs-port-list", OptionList)
+        if port_ol.highlighted is not None:
+            opt = port_ol.get_option_at_index(port_ol.highlighted)
+            port = str(opt.id) if not opt.disabled else ""
+        else:
+            port = ""
+
+        baud_ol = self.query_one("#qs-baud-list", OptionList)
+        if baud_ol.highlighted is not None:
+            baud = int(str(baud_ol.get_option_at_index(baud_ol.highlighted).id))
+        else:
+            baud = 115200
+
+        self.dismiss((name, port, baud))
+
+    @on(Button.Pressed, "#qs-connect")
+    def connect(self) -> None:
+        self._submit()
+
+    @on(Input.Submitted, "#qs-name")
+    def submit_name(self) -> None:
+        self._submit()
+
+    @on(Button.Pressed, "#qs-cancel")
+    def cancel(self) -> None:
+        self.dismiss(None)
+
+
 class NamePicker(ModalScreen[str | None]):
     """Modal dialog to enter a name for a new config."""
 

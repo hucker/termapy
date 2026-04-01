@@ -23,7 +23,7 @@
     
     
       
-        <title>Configuration - Termapy Help v0.38.1</title>
+        <title>Configuration - Termapy Help v0.40.0</title>
       
     
     
@@ -88,7 +88,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="index.html" title="Termapy Help v0.38.1" class="md-header__button md-logo" aria-label="Termapy Help v0.38.1" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.40.0" class="md-header__button md-logo" aria-label="Termapy Help v0.40.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.38.1
+            Termapy Help v0.40.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -186,13 +186,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="index.html" title="Termapy Help v0.38.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.38.1" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.40.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.40.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    Termapy Help v0.38.1
+    Termapy Help v0.40.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -387,6 +387,17 @@
     <span class="md-ellipsis">
       
         Config Field Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connection-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Behavior
       
     </span>
   </a>
@@ -635,6 +646,33 @@
   
   
     <li class="md-nav__item">
+      <a href="device-help.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Device Help
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="using-git.html" class="md-nav__link">
         
   
@@ -697,6 +735,17 @@
     <span class="md-ellipsis">
       
         Config Field Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connection-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Behavior
       
     </span>
   </a>
@@ -844,7 +893,7 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 <tr>
 <td><code>auto_reconnect</code></td>
 <td><code>false</code></td>
-<td>Retry connection every second if the port drops</td>
+<td>Retry connection every 2.5s if the port drops or fails to open</td>
 </tr>
 <tr>
 <td><code>on_connect_cmd</code></td>
@@ -948,6 +997,12 @@ from within the app by clicking the center title bar button or using <code>/cfg<
 </tr>
 </tbody>
 </table>
+<h2 id="connection-behavior">Connection Behavior</h2>
+<p><code>auto_connect</code> and <code>auto_reconnect</code> are independent settings.
+<code>auto_connect</code> opens the port when a config loads (app startup or config
+switch). <code>auto_reconnect</code> retries the connection when the port drops or
+a manual connect attempt fails -- it does not control startup behavior.
+While reconnecting, the title bar turns amber and shows a spinner.</p>
 <h2 id="config-management">Config Management</h2>
 <p>Click the <strong>Cfg</strong> button in the title bar, click the config name, or use the
 command palette to open the config picker. The picker has four actions:</p>

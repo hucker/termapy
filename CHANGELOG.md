@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.40.0 (2026-03-31)
+
+### New Features
+
+- **Reconnect spinner** -- auto-reconnect now shows an animated spinner with amber title bar; click to cancel
+- **Connection tooltip** -- title bar shows auto-connect/auto-reconnect status on hover
+
+### Improvements
+
+- **CLI unit tests** -- 45 tests for CLITerminal (0% -> 53% coverage)
+- **defaults.py tests** -- 29 tests (26% -> 97% coverage)
+- **Standardized error messages** -- "Not connected." consistent across app, CLI, REPL, port control, and plugins
+- **Unified file counting** -- `_count_files()` helper with `FOLDER_PATTERNS` from `folders.py`
+- **`on_mount()` refactored** -- broken into `_setup_vars()`, `_build_context()`, `_register_tui_hooks()`, `_load_plugins()`, `_run_startup()`
+- **`on_button_pressed()` refactored** -- 89-line if-elif chain replaced with `_BUTTON_DISPATCH` dict routing to 17 named handlers
+- **`_serial_op()` helper** -- centralizes serial try/except pattern for DTR, RTS, Break, and send
+- **`_sync_all_buttons()`** -- single call replaces 5 scattered sync calls after config switch
+- **Protocol module split** -- CRC engine extracted to `protocol_crc.py` (292 lines), visualizer loader to `protocol_viz.py` (132 lines); `protocol.py` reduced from 1,770 to 1,370 lines
+- **CI documented** -- README now describes GitHub Actions pipeline (test matrix, coverage, audit)
+- **Rename `/import` to `/include`** -- avoids Python keyword collision
+
+### Bug Fixes
+
+- **`/include` (was `/import`)** -- renamed to avoid Python keyword collision causing import issues
+
 ## 0.39.3 (2026-03-31)
 
 ### Bug Fixes

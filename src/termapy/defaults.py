@@ -245,7 +245,7 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: true, false    ",
     ),
     "auto_reconnect": (
-        "Retry connection every second if the port drops.",
+        "Retry connection every 2.5s if the port drops or fails to open.",
         "Valid: true, false",
     ),
     "on_connect_cmd": (

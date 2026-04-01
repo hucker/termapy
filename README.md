@@ -490,7 +490,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `line_ending`        | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
 | `send_bare_enter`    | `false`                | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)         |
 | `auto_connect`       | `false`                | Connect to the port on startup                                                                           |
-| `auto_reconnect`     | `false`                | Retry every second if the port drops or fails to open                                                    |
+| `auto_reconnect`     | `false`                | Retry every 2.5s if the port drops or fails to open (does not control startup)                           |
 | `on_connect_cmd`     | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
 | `echo_input`         | `false`                | Echo sent commands locally                                                                               |
 | `echo_input_fmt`     | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
@@ -1087,7 +1087,7 @@ Textual runs on a single async event loop. Termapy uses `@work(thread=True)` for
 | Worker              | Lifetime    | Purpose                                                 |
 | ------------------- | ----------- | ------------------------------------------------------- |
 | `read_serial()`     | Long-lived  | Reads serial data in a loop, posts lines to the RichLog |
-| `_auto_reconnect()` | Short-lived | Retries serial connection every second until success    |
+| `_auto_reconnect()` | Short-lived | Retries serial connection every 2.5s until success      |
 | `_run_lines()`      | Short-lived | Sends multiple commands with inter-command delay        |
 | `_run_script()`     | Short-lived | Executes a `.run` script file line by line              |
 | `_send_test()`      | Short-lived | Runs a single protocol test case (send/receive/match)   |

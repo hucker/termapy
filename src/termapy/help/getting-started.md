@@ -107,6 +107,11 @@ The main area displays serial data with full ANSI color support. Incoming escape
 
 The scrollback buffer holds up to `max_lines` lines (default 10,000).
 
+**Clickable paths** — file paths shown in the output (config files, log files,
+screenshots, captures) are clickable in terminals that support hyperlinks
+(Windows Terminal, iTerm2, VS Code terminal, most modern terminals). Click a
+path to open it in your default application.
+
 ## Command Input
 
 The bottom bar contains a text input for sending commands to the serial device.

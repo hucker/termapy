@@ -9,13 +9,11 @@ from typing import TYPE_CHECKING
 import fnmatch
 
 from termapy.protocol import (
-    CRC_CATALOGUE,
     ProtoScript,
     format_hex,
     format_hex_dump,
     format_smart,
     format_spaced,
-    get_crc_registry,
     load_proto_script,
     match_response,
     parse_data,
@@ -23,6 +21,7 @@ from termapy.protocol import (
     parse_toml_script,
     strip_ansi,
 )
+from termapy.protocol_crc import CRC_CATALOGUE, get_crc_registry
 
 from termapy.plugins import CmdResult, Command
 

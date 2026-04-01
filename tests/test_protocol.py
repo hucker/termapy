@@ -5,27 +5,18 @@ import struct
 import pytest
 
 from termapy.protocol import (
-    CRC_CATALOGUE,
     ColumnSpec,
-    CrcAlgorithm,
     FrameCollector,
     Step,
-    VisualizerInfo,
-    _generic_crc,
     apply_format,
-    builtins_crc_dir,
-    builtins_viz_dir,
     diff_bytes,
     diff_columns,
     format_diff_markup,
     format_hex,
-    get_crc_registry,
-    load_crc_plugins,
+    format_hex_dump,
     load_proto_script,
-    load_visualizers_from_dir,
     match_response,
     overflow_count,
-    format_hex_dump,
     parse_data,
     extract_fmt_title,
     parse_format_spec,
@@ -33,7 +24,20 @@ from termapy.protocol import (
     parse_pattern,
     parse_proto_script,
     parse_toml_script,
+)
+from termapy.protocol_crc import (
+    CRC_CATALOGUE,
+    CrcAlgorithm,
+    _generic_crc,
+    builtins_crc_dir,
+    get_crc_registry,
+    load_crc_plugins,
     reset_crc_registry,
+)
+from termapy.protocol_viz import (
+    VisualizerInfo,
+    builtins_viz_dir,
+    load_visualizers_from_dir,
 )
 
 

@@ -28,7 +28,6 @@ from termapy.protocol import (
     DIFF_STYLES,
     ProtoScript,
     TestCase,
-    VisualizerInfo,
     apply_format,
     diff_columns as proto_diff_columns,
     extract_fmt_title,
@@ -37,6 +36,7 @@ from termapy.protocol import (
     parse_format_spec,
     strip_ansi,
 )
+from termapy.protocol_viz import VisualizerInfo
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

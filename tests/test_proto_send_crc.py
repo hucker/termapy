@@ -4,7 +4,7 @@ import pytest
 
 from termapy.plugins import EngineAPI, PluginContext
 from termapy.builtins.plugins.proto import _cmd_send, _parse_send_algo
-from termapy.protocol import get_crc_registry
+from termapy.protocol_crc import get_crc_registry
 
 
 @pytest.fixture

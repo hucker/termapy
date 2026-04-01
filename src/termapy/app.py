@@ -1569,93 +1569,119 @@ class SerialTerminal(App):
             except (OSError, serial.SerialException) as e:
                 self._report_exception(e)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "title-right":
-            if self._reconnecting:
-                self._engine.stop_event.set()
-                self._set_conn_status("Disconnected")
-            elif self.is_connected:
-                self._disconnect()
-            else:
-                self._connect()
-        elif event.button.id == "title-left":
-            self._show_port_picker()
-        elif event.button.id == "title-center":
-            if self.config_path:
-                try:
-                    cfg = load_config(self.config_path)
-                except Exception as e:
-                    self._status(f"Failed to load config: {e}", "red")
-                    return
-                self.push_screen(
-                    ConfigEditor(cfg, self.config_path),
-                    callback=self._on_config_result,
-                )
-            else:
-                self.push_screen(
-                    ConfigPicker(
-                        self.config_path, read_only=self.cfg.get("config_read_only", False)
-                    ),
-                    callback=self._on_config_picked,
-                )
-        elif event.button.id == "btn-dtr":
-            if self.is_connected and self.ser:
-                def _toggle_dtr():
-                    self.ser.dtr = not self.ser.dtr
-                    event.button.label = f"DTR:{int(self.ser.dtr)}"
-                self._serial_op("DTR", _toggle_dtr)
-        elif event.button.id == "btn-rts":
-            if self.is_connected and self.ser:
-                def _toggle_rts():
-                    self.ser.rts = not self.ser.rts
-                    event.button.label = f"RTS:{int(self.ser.rts)}"
-                self._serial_op("RTS", _toggle_rts)
-        elif event.button.id == "btn-break":
-            if self.is_connected and self.ser:
-                def _send_break():
-                    self.ser.send_break(duration=0.25)
-                    self.notify("Break sent", timeout=1.5)
-                self._serial_op("Break", _send_break)
-        elif event.button.id == "btn-cmds":
-            self._show_commands()
-        elif event.button.id == "btn-help":
-            self._hook_help_open(None, "")
-        elif event.button.id == "btn-log":
-            open_with_system(self._log_path())
-        elif event.button.id == "btn-ss-dir":
-            self.action_open_screenshot()
-        elif event.button.id == "btn-cap-dir":
-            self._open_captures_dir()
-        elif event.button.id == "btn-scripts":
+    def _btn_title_right(self, event: Button.Pressed) -> None:
+        if self._reconnecting:
+            self._engine.stop_event.set()
+            self._set_conn_status("Disconnected")
+        elif self.is_connected:
+            self._disconnect()
+        else:
+            self._connect()
+
+    def _btn_title_center(self, event: Button.Pressed) -> None:
+        if self.config_path:
+            try:
+                cfg = load_config(self.config_path)
+            except Exception as e:
+                self._status(f"Failed to load config: {e}", "red")
+                return
             self.push_screen(
-                ScriptPicker(
-                    self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)
-                ),
-                callback=self._on_script_picked,
+                ConfigEditor(cfg, self.config_path),
+                callback=self._on_config_result,
             )
-        elif event.button.id == "btn-proto":
-            self.push_screen(
-                ProtoPicker(
-                    self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)
-                ),
-                callback=self._on_proto_picked,
-            )
-        elif event.button.id == "btn-cfg":
+        else:
             self.push_screen(
                 ConfigPicker(
                     self.config_path, read_only=self.cfg.get("config_read_only", False)
                 ),
                 callback=self._on_config_picked,
             )
-        elif event.button.id == "cap-stop":
-            self._cap_stop()
-        elif event.button.id == "script-stop":
-            self.repl._script_stop.set()
-        elif event.button.id == "btn-exit":
-            self._disconnect()
-            self.exit()
-        elif event.button.id and event.button.id.startswith("btn-custom-"):
-            self._run_custom_button(event.button.id)
+
+    def _on_btn_dtr(self, event: Button.Pressed) -> None:
+        if self.is_connected and self.ser:
+            def _toggle():
+                self.ser.dtr = not self.ser.dtr
+                event.button.label = f"DTR:{int(self.ser.dtr)}"
+            self._serial_op("DTR", _toggle)
+
+    def _on_btn_rts(self, event: Button.Pressed) -> None:
+        if self.is_connected and self.ser:
+            def _toggle():
+                self.ser.rts = not self.ser.rts
+                event.button.label = f"RTS:{int(self.ser.rts)}"
+            self._serial_op("RTS", _toggle)
+
+    def _on_btn_break(self, event: Button.Pressed) -> None:
+        if self.is_connected and self.ser:
+            def _send():
+                self.ser.send_break(duration=0.25)
+                self.notify("Break sent", timeout=1.5)
+            self._serial_op("Break", _send)
+
+    def _btn_scripts(self, event: Button.Pressed) -> None:
+        self.push_screen(
+            ScriptPicker(
+                self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)
+            ),
+            callback=self._on_script_picked,
+        )
+
+    def _btn_proto(self, event: Button.Pressed) -> None:
+        self.push_screen(
+            ProtoPicker(
+                self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)
+            ),
+            callback=self._on_proto_picked,
+        )
+
+    def _btn_cfg(self, event: Button.Pressed) -> None:
+        self.push_screen(
+            ConfigPicker(
+                self.config_path, read_only=self.cfg.get("config_read_only", False)
+            ),
+            callback=self._on_config_picked,
+        )
+
+    def _btn_exit(self, event: Button.Pressed) -> None:
+        self._disconnect()
+        self.exit()
+
+    _BUTTON_DISPATCH: dict[str, str] = {
+        "title-right":  "_btn_title_right",
+        "title-left":   "_show_port_picker",
+        "title-center": "_btn_title_center",
+        "btn-dtr":      "_on_btn_dtr",
+        "btn-rts":      "_on_btn_rts",
+        "btn-break":    "_on_btn_break",
+        "btn-cmds":     "_show_commands",
+        "btn-help":     "_btn_help",
+        "btn-log":      "_btn_log",
+        "btn-ss-dir":   "action_open_screenshot",
+        "btn-cap-dir":  "_open_captures_dir",
+        "btn-scripts":  "_btn_scripts",
+        "btn-proto":    "_btn_proto",
+        "btn-cfg":      "_btn_cfg",
+        "cap-stop":     "_cap_stop",
+        "script-stop":  "_btn_script_stop",
+        "btn-exit":     "_btn_exit",
+    }
+
+    def _btn_help(self, event: Button.Pressed) -> None:
+        self._hook_help_open(None, "")
+
+    def _btn_log(self, event: Button.Pressed) -> None:
+        open_with_system(self._log_path())
+
+    def _btn_script_stop(self, event: Button.Pressed) -> None:
+        self.repl._script_stop.set()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        handler_name = self._BUTTON_DISPATCH.get(btn_id or "")
+        if handler_name:
+            getattr(self, handler_name)(event)
+        elif btn_id and btn_id.startswith("btn-custom-"):
+            self._run_custom_button(btn_id)
 
     def _run_custom_button(self, btn_id: str) -> None:
         """Execute the command associated with a custom button."""

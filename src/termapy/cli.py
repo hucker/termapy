@@ -491,7 +491,7 @@ class CLITerminal:
     def _serial_write_raw(self, text: str) -> None:
         """Send raw text to serial - mimics app.py's _send_serial_raw."""
         if not self.engine.is_connected:
-            self.status("Not connected - command not sent", "red")
+            self.status("Not connected.", "red")
             return
         line_ending = self.cfg.get("line_ending", "\r")
         encoding = self.cfg.get("encoding", "utf-8")
@@ -517,7 +517,7 @@ class CLITerminal:
     def _disconnect(self) -> None:
         """Disconnect from the serial port."""
         if not self.engine.is_connected:
-            self.write("Not connected", "yellow")
+            self.write("Not connected.", "yellow")
             return
         self.engine.disconnect()
         self.write("Disconnected.", "red")

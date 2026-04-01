@@ -2153,7 +2153,7 @@ class SerialTerminal(App):
                 echo_text += eol_label(le)
             self._write_output_markup(fmt.replace("{cmd}", echo_text))
         if not self.is_connected:
-            self._status("Not connected - command not sent", "red")
+            self._status("Not connected.", "red")
             return
         line_ending = self.cfg.get("line_ending", "\r")
         try:

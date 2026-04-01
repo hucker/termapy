@@ -112,7 +112,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Optional AT command to send. Empty = run full survey.
     """
     if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected - open the port first.")
+        return CmdResult.fail(msg="Not connected.")
 
     # serial_io() suppresses terminal display and guarantees cleanup,
     # even if an exception occurs inside the block.

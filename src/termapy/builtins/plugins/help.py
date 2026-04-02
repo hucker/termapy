@@ -199,25 +199,19 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                     (cmd_name, plugin)
                 )
 
-        # Measure column widths across ALL plugins (including children)
-        all_infos = list(all_plugins.values())
-        cmd_w = max(
-            (len(prefix) + len(p.name) + 2 * p.name.count(".")
-             for p in all_infos),
-            default=10,
-        ) + 2
-        arg_w = min(
-            max(
-                (len(p.args) for p in all_infos if p.args), default=0
-            ) + 2,
-            _MAX_ARGS_LEN + 2,
-        )
+        # Fixed column widths for consistent layout
+        cmd_w = 25
+        arg_w = 25
 
         sorted_sources = sorted(
             groups, key=lambda s: _SOURCE_ORDER.get(s, 3)
         )
+        first = True
         for source in sorted_sources:
             label = _SOURCE_LABELS.get(source, f"{source} Plugins")
+            if not first:
+                ctx.write_markup("")
+            first = False
             ctx.write_markup(f"[{_SEP}]── {label} ──[/]")
             for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
                 cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
@@ -232,22 +226,29 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Directives section
         directives = ctx.engine.directives
         if directives:
+            ctx.write_markup("")
             ctx.write_markup(f"[{_SEP}]── Directives ──[/]")
             for d in directives:
-                pattern = _color_args(d.pattern) if d.pattern else ""
-                ctx.write_markup(f"  [{_CMD}]{pattern}[/]  {d.help}")
+                cmd_col = _pad(f"  [{_CMD}]{d.name}[/]", cmd_w + 2)
+                arg_col = _pad(_color_args(d.pattern) if d.pattern else "", arg_w)
+                ctx.write_markup(f"{cmd_col} {arg_col}  {d.help}")
+
+        # Script-only blocking commands
+        ctx.write_markup("")
+        ctx.write_markup(f"[{_SEP}]── Script Commands (.run files only) ──[/]")
+        for name, args, desc in (
+            ("expect",       "match=<text> {timeout=<dur>}",  "Wait for text in serial output."),
+            ("expect.regex", "match=<pattern> {timeout=<dur>}", "Wait for regex match in serial output."),
+            ("confirm",      "{message}",                     "Show yes/no dialog, stop script on no."),
+        ):
+            cmd_col = _pad(f"  [{_CMD}]{prefix}{name}[/]", cmd_w + 2)
+            arg_col = _pad(_color_args(args), arg_w)
+            ctx.write_markup(f"{cmd_col} {arg_col}  {desc}")
 
         # Target device commands section
-        target_cmds = ctx.engine.target_commands
-        if target_cmds:
-            ctx.write_markup(f"[{_SEP}]── Target Device ──[/]")
-            for cmd_name in sorted(target_cmds):
-                tc = target_cmds[cmd_name]
-                cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
-                arg_col = _pad(
-                    _color_args(tc.args), arg_w
-                ) if tc.args else _pad("", arg_w)
-                ctx.write_markup(f"{cmd_col} {arg_col}  {tc.help}")
+        if ctx.engine.target_commands:
+            ctx.write_markup("")
+            _render_target(ctx)
     return CmdResult.ok()
 
 
@@ -262,24 +263,23 @@ def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
     if not target_cmds:
         ctx.result("No target commands included. Use /include first.")
         return CmdResult.ok()
+    _render_target(ctx)
+    ctx.result(f"{len(target_cmds)} device commands.")
+    return CmdResult.ok()
 
-    # Column widths from target commands only
-    cmd_w = max(len(tc.name) for tc in target_cmds.values()) + 4
-    arg_w = min(
-        max((len(tc.args) for tc in target_cmds.values() if tc.args), default=0) + 2,
-        _MAX_ARGS_LEN + 2,
-    )
 
+def _render_target(ctx: PluginContext) -> None:
+    """Render the target device command table."""
+    cmd_w = 25
+    arg_w = 25
     ctx.write_markup(f"[{_SEP}]── Target Device ──[/]")
-    for cmd_name in sorted(target_cmds):
-        tc = target_cmds[cmd_name]
+    for cmd_name in sorted(ctx.engine.target_commands):
+        tc = ctx.engine.target_commands[cmd_name]
         cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
         arg_col = _pad(
             _color_args(tc.args), arg_w
         ) if tc.args else _pad("", arg_w)
         ctx.write_markup(f"{cmd_col} {arg_col}  {tc.help}")
-    ctx.result(f"{len(target_cmds)} device commands.")
-    return CmdResult.ok()
 
 
 def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:

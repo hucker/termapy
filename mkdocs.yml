@@ -25,6 +25,7 @@ nav:
   - REPL Commands: commands.md
   - Variables: variables.md
   - Scripting: scripting.md
+  - Serial Tools: serial-tools.md
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md
   - Writing Plugins: writing-plugins.md

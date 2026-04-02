@@ -1745,14 +1745,22 @@ class SerialTerminal(App):
             self._run_custom_button(btn_id)
 
     def _run_custom_button(self, btn_id: str) -> None:
-        """Execute the command associated with a custom button."""
+        """Execute the command associated with a custom button.
+
+        Custom button commands support \\n as a multi-command separator.
+        """
         idx = int(btn_id.split("-")[-1])
         buttons = self.cfg.get("custom_buttons", [])
         if idx >= len(buttons):
             return
         raw = buttons[idx].get("command", "").strip()
-        if raw:
-            self._execute_command(raw)
+        if not raw:
+            return
+        parts = [c.strip() for c in raw.replace("\\n", "\n").split("\n") if c.strip()]
+        if len(parts) > 1:
+            self._execute_sequence(parts)
+        elif parts:
+            self._dispatch_single(parts[0])
 
     def _show_port_picker(self) -> None:
         from serial.tools.list_ports import comports
@@ -2194,29 +2202,23 @@ class SerialTerminal(App):
             self.history.pop(0)
         self._update_suggester()
 
-        self._execute_command(cmd)
-        self.query_one("#cmd", Input).value = ""
+        inp = self.query_one("#cmd", Input)
+        inp.value = ""
+        self._saved_placeholder = inp.placeholder
+        inp.placeholder = "running..."
+        self.call_after_refresh(self._execute_command, cmd)
 
     def _execute_command(self, cmd: str) -> None:
-        """Dispatch a command string, which may contain multiple commands.
-
-        Splits on literal ``\\n`` and real newlines. If multiple commands
-        are found, they are executed one per refresh cycle via
-        ``call_after_refresh`` so UI updates (like ``/cls``) complete
-        before the next command runs.
+        """Dispatch a single command string (REPL or serial).
 
         Args:
-            cmd: Command string (REPL or serial). May contain ``\\n``
-                 separators for multi-command sequences.
+            cmd: Command string. Passed through without splitting.
         """
-        # Normalize literal \n and real newlines, then split
-        parts = [c.strip() for c in cmd.replace("\\n", "\n").split("\n") if c.strip()]
-        if not parts:
-            return
-        if len(parts) > 1:
-            self._execute_sequence(parts)
-            return
-        self._dispatch_single(parts[0])
+        cmd = cmd.strip()
+        if cmd:
+            self._dispatch_single(cmd)
+        inp = self.query_one("#cmd", Input)
+        inp.placeholder = self._saved_placeholder
 
     def _execute_sequence(self, cmds: list[str], idx: int = 0) -> None:
         """Execute commands one per refresh cycle.

@@ -70,11 +70,13 @@ def parse_duration(text: str) -> float:
         ValueError: If the input doesn't match a valid duration format.
     """
     text = text.strip().lower()
-    m = re.match(r"^(\d+(?:\.\d+)?)\s*(ms|s)$", text)
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*(us|ms|s)$", text)
     if not m:
-        raise ValueError(f"Invalid duration: {text!r}. Use e.g. 500ms, 1.5s")
+        raise ValueError(f"Invalid duration: {text!r}. Use e.g. 500us, 25ms, 1.5s")
     value = float(m.group(1))
     unit = m.group(2)
+    if unit == "us":
+        return value / 1_000_000.0
     return value / 1000.0 if unit == "ms" else value
 
 

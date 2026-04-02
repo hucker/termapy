@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from termapy.scripting import parse_duration
+
 from termapy.protocol_crc import get_crc_registry
 
 # ---------------------------------------------------------------------------
@@ -126,6 +128,76 @@ def parse_data(text: str) -> bytes:
     if not result:
         raise ValueError(f"No valid data in: {text!r}")
     return bytes(result)
+
+
+_DELAY_TOKEN = re.compile(r"~(\S+)")
+
+
+def parse_data_segments(text: str) -> list[bytes | float]:
+    """Parse mixed hex, quoted text, and delay tokens into segments.
+
+    Delay tokens use ``~`` prefix: ``~25ms``, ``~1s``, ``~500us``.
+    Returns a list of ``bytes`` (data) and ``float`` (delay in seconds).
+
+    Example: ``'00 ~25ms "foo"'`` -> ``[b'\\x00', 0.025, b'foo']``.
+
+    Args:
+        text: Mixed hex/text/delay string.
+
+    Returns:
+        List of bytes and float segments.
+
+    Raises:
+        ValueError: If no valid tokens found or invalid delay format.
+    """
+    segments: list[bytes | float] = []
+    buf: list[str] = []  # accumulates data token substrings
+    remaining = text.strip()
+    pos = 0
+
+    def _flush_buf() -> None:
+        if buf:
+            data_str = " ".join(buf)
+            segments.append(parse_data(data_str))
+            buf.clear()
+
+    while pos < len(remaining):
+        # Skip whitespace and commas
+        if remaining[pos] in " ,\t":
+            pos += 1
+            continue
+
+        # Delay token
+        m = _DELAY_TOKEN.match(remaining, pos)
+        if m and remaining[pos] == "~":
+            _flush_buf()
+            segments.append(parse_duration(m.group(1)))
+            pos = m.end()
+            continue
+
+        # Quoted string — capture the whole token for the buffer
+        if remaining[pos] == '"':
+            m = _QUOTED_STR.match(remaining, pos)
+            if not m:
+                raise ValueError(f"Unterminated string at position {pos}")
+            buf.append(remaining[pos:m.end()])
+            pos = m.end()
+            continue
+
+        # Hex byte — capture the token for the buffer
+        m = _HEX_TOKEN.match(remaining, pos)
+        if m:
+            buf.append(remaining[pos:m.end()])
+            pos = m.end()
+            continue
+
+        raise ValueError(f"Unexpected character at position {pos}: {remaining[pos]!r}")
+
+    _flush_buf()
+
+    if not segments:
+        raise ValueError(f"No valid data in: {text!r}")
+    return segments
 
 
 def format_hex(data: bytes) -> str:

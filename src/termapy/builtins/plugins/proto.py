@@ -17,6 +17,7 @@ from termapy.protocol import (
     load_proto_script,
     match_response,
     parse_data,
+    parse_data_segments,
     parse_proto_script,
     parse_toml_script,
     strip_ansi,
@@ -33,22 +34,25 @@ if TYPE_CHECKING:
 
 def _display_bytes(ctx: PluginContext, direction: str, data: bytes,
                    binary: bool = False) -> None:
-    """Display TX or RX data, choosing format by packet size.
+    """Display TX or RX data as hex + smart text representation.
 
-    Short packets (<=16 bytes) are shown inline. Binary data is shown
-    as hex, text data uses smart format (mixed text/hex). Longer packets
-    get a multi-line hex dump with offset and ASCII sidebar.
+    Short packets (<=16 bytes) are shown on one line with hex and smart
+    format. Longer packets get a multi-line hex dump with ASCII sidebar.
 
     Args:
         ctx: Plugin context for output.
         direction: Label prefix - ``"TX"`` (cyan) or ``"RX"`` (yellow).
         data: Raw bytes to display.
-        binary: If True, display short packets as hex instead of smart format.
+        binary: Unused (kept for API compatibility).
     """
     color = "cyan" if direction == "TX" else "yellow"
     if len(data) <= 16:
-        fmt = format_hex(data) if binary else format_smart(data)
-        ctx.write(f"  {direction}: {fmt}", color)
+        hex_str = format_hex(data)
+        smart_str = format_smart(data)
+        if hex_str == smart_str:
+            ctx.write(f"  {direction}: {hex_str}", color)
+        else:
+            ctx.write(f"  {direction}: {hex_str}  {smart_str}", color)
     else:
         ctx.write(f"  {direction} {len(data)} bytes:", color)
         for line in format_hex_dump(data):
@@ -312,12 +316,22 @@ def _parse_send_algo(
     return None, False, False
 
 
+def _delay_at_least(seconds: float) -> None:
+    """Delay for at least *seconds*. Spin-waits under 1ms for precision."""
+    if seconds >= 0.001:
+        time.sleep(seconds)
+    else:
+        deadline = time.perf_counter() + seconds
+        while time.perf_counter() < deadline:
+            pass
+
+
 def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send raw bytes to the serial port and display the response.
 
-    Parses hex and/or quoted text into bytes, transmits them (no line
-    ending appended), then waits up to 1 second for a response frame.
-    Displays both TX and RX as hex with byte count and round-trip time.
+    Parses hex, quoted text, and inline delays (``~25ms``) into segments.
+    Transmits data segments with delays between them (no line ending
+    appended), then waits up to 1 second for a response frame.
 
     If the first word matches a known CRC algorithm (with optional
     ``_le``/``_be`` and ``_ascii`` suffixes), computes and appends the
@@ -325,11 +339,12 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context for serial I/O and output.
-        args: Hex bytes and/or quoted strings, e.g. ``'01 03 "OK\\r"'``.
+        args: Hex bytes, quoted strings, and/or delays,
+              e.g. ``'01 ~25ms 03 "OK\\r"'``.
     """
     if not args.strip():
         return CmdResult.fail(msg="Usage: /proto.send [algo[_le|_be][_ascii]] "
-                              "<hex bytes or \"text\">")
+                              "<hex/\"text\"/~delay ...>")
     if not ctx.is_connected():
         return CmdResult.fail(msg="Not connected.")
 
@@ -341,24 +356,34 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     try:
         if algo is None:
-            data = parse_data(args)
+            segments = parse_data_segments(args)
         else:
             if not rest.strip():
                 return CmdResult.fail(msg=f"No data after CRC algorithm '{first}'")
-            data = parse_data(rest.strip())
-            crc_value = algo.compute(data)
+            segments = parse_data_segments(rest.strip())
+
+            # CRC is computed on all data bytes concatenated (delays excluded)
+            all_data = b"".join(s for s in segments if isinstance(s, bytes))
+            crc_value = algo.compute(all_data)
             if ascii_crc:
                 hex_str = f"{crc_value:0{algo.width * 2}X}"
                 if not big_endian:
                     pairs = [hex_str[i:i+2]
                              for i in range(0, len(hex_str), 2)]
                     hex_str = "".join(reversed(pairs))
-                data += hex_str.encode()
+                crc_data = hex_str.encode()
             else:
                 crc_bytes = crc_value.to_bytes(algo.width, "big")
                 if not big_endian:
                     crc_bytes = crc_bytes[::-1]
-                data += crc_bytes
+                crc_data = crc_bytes
+            # Append CRC to the last data segment
+            for i in range(len(segments) - 1, -1, -1):
+                if isinstance(segments[i], bytes):
+                    segments[i] += crc_data
+                    break
+            else:
+                segments.append(crc_data)
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
 
@@ -368,12 +393,40 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
         ctx.write(f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X}"
                   f" ({endian_label}, {mode_label})")
 
+    # Build display string with delay markers
+    all_data = b"".join(s for s in segments if isinstance(s, bytes))
+    has_delays = any(isinstance(s, float) for s in segments)
+
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
     if ctx.verbose:
-        _display_bytes(ctx, "TX", data, binary=True)
+        if has_delays:
+            parts = []
+            for s in segments:
+                if isinstance(s, float):
+                    if s >= 1.0:
+                        parts.append(f"[dim][~{s:.1f}s][/]")
+                    elif s >= 0.001:
+                        parts.append(f"[dim][~{s * 1000:.0f}ms][/]")
+                    else:
+                        parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
+                else:
+                    hex_str = format_hex(s)
+                    smart_str = format_smart(s)
+                    if hex_str == smart_str:
+                        parts.append(f"[cyan]{hex_str}[/]")
+                    else:
+                        parts.append(f"[cyan]{hex_str}[/]  [dim]{smart_str}[/]")
+            ctx.write_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
+        else:
+            _display_bytes(ctx, "TX", all_data, binary=True)
+
     t0 = time.monotonic()
-    ctx.serial_write(data)
+    for segment in segments:
+        if isinstance(segment, float):
+            _delay_at_least(segment)
+        else:
+            ctx.serial_write(segment)
     response = ctx.serial_read_raw(1000)
     elapsed_ms = (time.monotonic() - t0) * 1000
     ctx.engine.set_proto_active(False)
@@ -731,6 +784,11 @@ Send examples:
   /proto.send 01 02 03         - send three hex bytes
   /proto.send "AT\\r"           - send text with carriage return
   /proto.send 0x01 "hello" 0D  - mix hex and text
+  /proto.send 00 ~25ms "AT\\r"  - wake byte, 25ms pause, then command
+  /proto.send ~500us 01 02     - 500us delay before data
+
+Inline delays use ~duration syntax (us, ms, s). Delays under
+1ms use spin-wait for precision. Delays >= 1ms use OS sleep.
 
 Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
   /proto.send crc16-modbus 01 03 00 00 00 0A            - append LE CRC (default)

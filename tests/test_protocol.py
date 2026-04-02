@@ -18,6 +18,7 @@ from termapy.protocol import (
     match_response,
     overflow_count,
     parse_data,
+    parse_data_segments,
     extract_fmt_title,
     parse_format_spec,
     parse_hex,
@@ -119,6 +120,71 @@ class TestParseData:
     def test_unexpected_char_raises(self):
         with pytest.raises(ValueError, match="Unexpected character"):
             parse_data("ZZ")
+
+
+# ── parse_data_segments ────────────────────────────────────────────────────
+
+
+class TestParseDataSegments:
+    def test_no_delays(self):
+        # Act
+        actual = parse_data_segments("01 02 03")
+
+        # Assert — single bytes segment, no delays
+        assert actual == [b"\x01\x02\x03"]
+
+    def test_delay_between_data(self):
+        # Act
+        actual = parse_data_segments('00 ~25ms "foo"')
+
+        # Assert — three segments: data, delay, data
+        assert len(actual) == 3
+        assert actual[0] == b"\x00"
+        assert actual[1] == pytest.approx(0.025)
+        assert actual[2] == b"foo"
+
+    def test_leading_delay(self):
+        # Act
+        actual = parse_data_segments("~100ms 01")
+
+        # Assert — delay first, then data
+        assert len(actual) == 2
+        assert actual[0] == pytest.approx(0.1)
+        assert actual[1] == b"\x01"
+
+    def test_trailing_delay(self):
+        # Act
+        actual = parse_data_segments("01 ~50ms")
+
+        # Assert — data then delay
+        assert len(actual) == 2
+        assert actual[0] == b"\x01"
+        assert actual[1] == pytest.approx(0.05)
+
+    def test_microsecond_delay(self):
+        # Act
+        actual = parse_data_segments("~1us 01")
+
+        # Assert — microsecond delay
+        assert len(actual) == 2
+        assert actual[0] == pytest.approx(0.000001)
+        assert actual[1] == b"\x01"
+
+    def test_multiple_delays(self):
+        # Act
+        actual = parse_data_segments("01 ~10ms 02 ~20ms 03")
+
+        # Assert — five segments alternating data and delays
+        assert len(actual) == 5
+        assert actual[0] == b"\x01"
+        assert actual[1] == pytest.approx(0.01)
+        assert actual[2] == b"\x02"
+        assert actual[3] == pytest.approx(0.02)
+        assert actual[4] == b"\x03"
+
+    def test_invalid_delay(self):
+        with pytest.raises(ValueError):  # bad duration format
+            parse_data_segments("01 ~xyz 02")
 
 
 # ── format_hex ─────────────────────────────────────────────────────────────

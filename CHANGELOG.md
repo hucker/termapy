@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.42.0 (2026-04-02)
+
+### New Features
+
+- **Inline delays in `/proto.send`** -- `~duration` syntax inserts timing gaps between data segments (e.g. `/proto.send 00 ~25ms "AT\r"`). Supports `us`, `ms`, `s` units. Delays under 1ms use spin-wait for precision.
+- **Microsecond durations** -- `parse_duration()` now supports `us` unit throughout the app.
+
+### Improvements
+
+- **TX/RX display** -- `/proto.send` now shows both hex and smart text for all packets. Inline delays shown as cyan hex + dim text markers.
+- **Help docs split** -- "Serial Tools" (interactive send, CRC, hex mode) and "Protocol Testing" (scripts, visualizers, format specs) are now separate help pages with cross-links.
+- **`\n` command separator fix** -- literal `\n` in user input no longer splits commands. Only custom button commands support `\n` as a separator. Fixes `/proto.send "text\n"` being split into two commands.
+- **Input clears before execution** -- command input box clears immediately and shows "running..." during long-running commands.
+- **Help formatting** -- fixed 25/25 column widths, script-only commands section, deduplicated target device rendering, button dispatch fix.
+- **AT+HELP.JSON** -- demo device now lists the help command in its own JSON descriptor.
+
 ## 0.41.0 (2026-04-01)
 
 ### New Features

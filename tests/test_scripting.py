@@ -154,9 +154,12 @@ class TestParseDuration:
         with pytest.raises(ValueError):  # unit required
             parse_duration("500")
 
+    def test_microseconds(self):
+        assert parse_duration("500us") == 0.0005  # 500us = 0.5ms
+
     def test_invalid_bad_unit(self):
-        with pytest.raises(ValueError):  # only ms and s supported
-            parse_duration("500us")
+        with pytest.raises(ValueError):  # unknown unit rejected
+            parse_duration("500ns")
 
     def test_invalid_text(self):
         with pytest.raises(ValueError):  # non-numeric rejected

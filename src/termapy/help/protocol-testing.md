@@ -1,16 +1,9 @@
 # Protocol Testing
 
-The `/proto` command provides binary protocol testing for request-response serial protocols.
+Automated send/expect test scripts for binary serial protocols.
+Each step sends data, waits for a response, and reports PASS/FAIL.
 
-## Interactive Send
-
-Send raw hex bytes and see the response:
-
-```text
-/proto.send 01 03 00 00 00 0A C5 CD
-/proto.send "HELLO\r"
-/proto.send 02 "DATA" 03
-```
+For interactive sending and CRC commands, see [Serial Tools](serial-tools.md).
 
 ## Protocol Test Scripts
 
@@ -50,10 +43,6 @@ Run with `/proto.run example.pro`. Each step reports PASS/FAIL.
 - `delay: <duration>` — fixed sleep
 - `flush: <duration>` — wait for serial silence, then discard received bytes
 - `cmd: <text>` — send a plain text command with config line ending
-
-## Hex Display Mode
-
-Toggle hex display for all serial I/O with `/proto.hex on` / `/proto.hex off`.
 
 ## Packet Visualizers
 
@@ -175,36 +164,4 @@ Reg0:200 Reg1:500 CRC:pass
 
 ```text
 "Serial:S1-8 _:_9-10 Temp:U11-12 Humid:U13-14 CRC:crc16x_be"
-```
-
-## CRC Algorithms
-
-62 named CRC algorithms are built in covering CRC-8, CRC-16, and CRC-32
-families (Modbus, XMODEM, CCITT, USB, and more).
-
-In format specs, CRC columns verify data integrity automatically:
-
-- `CRC:crc16-modbus_le` - little-endian Modbus CRC-16
-- `CRC:crc16-xmodem_be` - big-endian XMODEM CRC-16
-- `CRC:crc8-maxim` - 1-byte CRC (no endianness needed)
-
-REPL commands:
-
-- `/proto.crc.list` - show all 62 algorithms
-- `/proto.crc.list *modbus*` - filter by pattern
-- `/proto.crc.help crc16-modbus` - show algorithm parameters
-- `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
-
-Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.
-Endianness suffix: `_le` (little-endian) or `_be` (big-endian).
-
-**Custom CRC plugins** for non-standard checksums:
-
-```python
-# sum8.py - drop into builtins/crc/ or termapy_cfg/<name>/crc/
-NAME = "sum8"
-WIDTH = 1
-
-def compute(data: bytes) -> int:
-    return sum(data) & 0xFF
 ```

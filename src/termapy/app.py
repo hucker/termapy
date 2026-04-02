@@ -1621,7 +1621,7 @@ class SerialTerminal(App):
             except (OSError, serial.SerialException) as e:
                 self._report_exception(e)
 
-    def _btn_title_right(self, event: Button.Pressed) -> None:
+    def _btn_title_right(self) -> None:
         if self._reconnecting:
             self._engine.stop_event.set()
             self._set_conn_status("Disconnected")
@@ -1630,7 +1630,7 @@ class SerialTerminal(App):
         else:
             self._connect()
 
-    def _btn_title_center(self, event: Button.Pressed) -> None:
+    def _btn_title_center(self) -> None:
         if self.config_path:
             try:
                 cfg = load_config(self.config_path)
@@ -1649,25 +1649,21 @@ class SerialTerminal(App):
                 callback=self._on_config_picked,
             )
 
-    def _on_btn_dtr(self, event: Button.Pressed) -> None:
+    def _on_btn_dtr(self) -> None:
         if self.is_connected and self.ser:
-
             def _toggle():
                 self.ser.dtr = not self.ser.dtr
-                event.button.label = f"DTR:{int(self.ser.dtr)}"
-
+                self._btn_dtr.label = f"DTR:{int(self.ser.dtr)}"
             self._serial_op("DTR", _toggle)
 
-    def _on_btn_rts(self, event: Button.Pressed) -> None:
+    def _on_btn_rts(self) -> None:
         if self.is_connected and self.ser:
-
             def _toggle():
                 self.ser.rts = not self.ser.rts
-                event.button.label = f"RTS:{int(self.ser.rts)}"
-
+                self._btn_rts.label = f"RTS:{int(self.ser.rts)}"
             self._serial_op("RTS", _toggle)
 
-    def _on_btn_break(self, event: Button.Pressed) -> None:
+    def _on_btn_break(self) -> None:
         if self.is_connected and self.ser:
 
             def _send():
@@ -1676,7 +1672,7 @@ class SerialTerminal(App):
 
             self._serial_op("Break", _send)
 
-    def _btn_scripts(self, event: Button.Pressed) -> None:
+    def _btn_scripts(self) -> None:
         self.push_screen(
             ScriptPicker(
                 self.repl.scripts_dir, read_only=self.cfg.get("config_read_only", False)
@@ -1684,7 +1680,7 @@ class SerialTerminal(App):
             callback=self._on_script_picked,
         )
 
-    def _btn_proto(self, event: Button.Pressed) -> None:
+    def _btn_proto(self) -> None:
         self.push_screen(
             ProtoPicker(
                 self.repl.proto_dir, read_only=self.cfg.get("config_read_only", False)
@@ -1692,7 +1688,7 @@ class SerialTerminal(App):
             callback=self._on_proto_picked,
         )
 
-    def _btn_cfg(self, event: Button.Pressed) -> None:
+    def _btn_cfg(self) -> None:
         self.push_screen(
             ConfigPicker(
                 self.config_path, read_only=self.cfg.get("config_read_only", False)
@@ -1700,7 +1696,7 @@ class SerialTerminal(App):
             callback=self._on_config_picked,
         )
 
-    def _btn_exit(self, event: Button.Pressed) -> None:
+    def _btn_exit(self) -> None:
         self._disconnect()
         self.exit()
 
@@ -1730,13 +1726,13 @@ class SerialTerminal(App):
         "btn-exit": "_btn_exit",
     }
 
-    def _btn_help(self, event: Button.Pressed) -> None:
+    def _btn_help(self) -> None:
         self._hook_help_open(None, "")
 
-    def _btn_log(self, event: Button.Pressed) -> None:
+    def _btn_log(self) -> None:
         open_with_system(self._log_path())
 
-    def _btn_script_stop(self, event: Button.Pressed) -> None:
+    def _btn_script_stop(self) -> None:
         self.repl._script_stop.set()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -1744,7 +1740,7 @@ class SerialTerminal(App):
         btn_id = event.button.id
         handler_name = self._BUTTON_DISPATCH.get(btn_id or "")
         if handler_name:
-            getattr(self, handler_name)(event)
+            getattr(self, handler_name)()
         elif btn_id and btn_id.startswith("btn-custom-"):
             self._run_custom_button(btn_id)
 

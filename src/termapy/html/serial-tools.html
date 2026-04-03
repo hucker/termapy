@@ -23,7 +23,7 @@
     
     
       
-        <title>Serial Tools - Termapy Help v0.42.0</title>
+        <title>Serial Tools - Termapy Help v0.43.0</title>
       
     
     
@@ -88,7 +88,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="index.html" title="Termapy Help v0.42.0" class="md-header__button md-logo" aria-label="Termapy Help v0.42.0" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.43.0" class="md-header__button md-logo" aria-label="Termapy Help v0.43.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.42.0
+            Termapy Help v0.43.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -186,13 +186,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="index.html" title="Termapy Help v0.42.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.42.0" data-md-component="logo">
+    <a href="index.html" title="Termapy Help v0.43.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.43.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    Termapy Help v0.42.0
+    Termapy Help v0.43.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -616,6 +616,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#crc-code-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CRC Code Generation
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -868,6 +879,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#crc-code-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CRC Code Generation
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -944,6 +966,28 @@ families (Modbus, XMODEM, CCITT, USB, and more).</p>
 <p>Aliases: <code>crc16m</code> = <code>crc16-modbus</code>, <code>crc16x</code> = <code>crc16-xmodem</code>.</p>
 <p>In format specs and <code>/proto.send</code>, CRC algorithm names accept suffixes:
 <code>_le</code> (little-endian, default), <code>_be</code> (big-endian), <code>_ascii</code> (hex text).</p>
+<h2 id="crc-code-generation">CRC Code Generation</h2>
+<p>Generate a standalone CRC function in C, Python, or Rust for any
+algorithm in the catalogue. Two implementations available:</p>
+<pre><code class="language-text">/proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
+/proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
+/proto.crc.c crc16-xmodem               C bit-by-bit
+/proto.crc.c crc16-xmodem --table       C table-driven
+/proto.crc.rust crc32                    Rust bit-by-bit
+/proto.crc.rust crc32 --table           Rust table-driven
+</code></pre>
+<p><strong>Bit-by-bit</strong> -- compact code, zero RAM overhead. Best for
+microcontrollers with limited memory (PIC, ATtiny).</p>
+<p><strong>Table-driven</strong> (<code>--table</code>) -- 4-8x faster. Pre-computes a
+256-entry lookup table. Uses 256-1024 bytes of RAM depending
+on CRC width.</p>
+<p>All algorithm parameters (polynomial, init, reflect, xorout) are
+baked into the generated code. Copy-paste into your firmware or
+test script.</p>
+<p><strong>NOTE:</strong> Currently only the generated Python code is test-verified
+against all 62 catalogue check values (both bit-by-bit and
+table-driven). C and Rust output is structurally correct but not
+compiled/verified by the test suite.</p>
 <p><strong>Custom CRC plugins</strong> for non-standard checksums:</p>
 <pre><code class="language-python"># sum8.py - drop into builtins/crc/ or termapy_cfg/&lt;name&gt;/crc/
 NAME = &quot;sum8&quot;

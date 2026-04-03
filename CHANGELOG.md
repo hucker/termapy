@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.43.0 (2026-04-02)
+
+### New Features
+
+- **CRC code generation** -- `/proto.crc.c`, `/proto.crc.python`, `/proto.crc.rust` generate standalone CRC functions from any of the 62 catalogue algorithms. Use `--table` for table-driven implementation. Both bit-by-bit and table-driven Python output verified against all catalogue check values.
+
 ## 0.42.0 (2026-04-02)
 
 ### New Features

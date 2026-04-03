@@ -89,6 +89,36 @@ Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.
 In format specs and `/proto.send`, CRC algorithm names accept suffixes:
 `_le` (little-endian, default), `_be` (big-endian), `_ascii` (hex text).
 
+## CRC Code Generation
+
+Generate a standalone CRC function in C, Python, or Rust for any
+algorithm in the catalogue. Two implementations available:
+
+```text
+/proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
+/proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
+/proto.crc.c crc16-xmodem               C bit-by-bit
+/proto.crc.c crc16-xmodem --table       C table-driven
+/proto.crc.rust crc32                    Rust bit-by-bit
+/proto.crc.rust crc32 --table           Rust table-driven
+```
+
+**Bit-by-bit** -- compact code, zero RAM overhead. Best for
+microcontrollers with limited memory (PIC, ATtiny).
+
+**Table-driven** (`--table`) -- 4-8x faster. Pre-computes a
+256-entry lookup table. Uses 256-1024 bytes of RAM depending
+on CRC width.
+
+All algorithm parameters (polynomial, init, reflect, xorout) are
+baked into the generated code. Copy-paste into your firmware or
+test script.
+
+**NOTE:** Currently only the generated Python code is test-verified
+against all 62 catalogue check values (both bit-by-bit and
+table-driven). C and Rust output is structurally correct but not
+compiled/verified by the test suite.
+
 **Custom CRC plugins** for non-standard checksums:
 
 ```python

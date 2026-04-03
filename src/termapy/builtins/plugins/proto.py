@@ -775,6 +775,34 @@ def _cmd_list(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
+def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
+    """Generate CRC source code in the specified language.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Algorithm name.
+        lang: Target language (c, python, rust).
+    """
+    from termapy.crc_codegen import GENERATORS
+
+    name = args.strip().lower()
+    if not name:
+        return CmdResult.fail(msg=f"Usage: /proto.crc.{lang} <algorithm>")
+
+    gen = GENERATORS.get(lang)
+    if gen is None:
+        return CmdResult.fail(msg=f"Unknown language: {lang}")
+
+    code = gen(name)
+    if code is None:
+        ctx.write(f"Unknown algorithm: {name}. Use /proto.crc.list to see available.", "red")
+        return CmdResult.fail(msg=f"Unknown algorithm: {name}")
+
+    for line in code.split("\n"):
+        ctx.write_markup(f"  [green]{line}[/]")
+    return CmdResult.ok()
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="proto",
@@ -847,6 +875,21 @@ in the proto/ subfolder of your config directory.""",
                     args="<name> {data}",
                     help="Compute CRC over hex bytes, text, or file.",
                     handler=_crc_calc,
+                ),
+                "c": Command(
+                    args="<name>",
+                    help="Generate C source code for a CRC algorithm.",
+                    handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
+                ),
+                "python": Command(
+                    args="<name>",
+                    help="Generate Python source code for a CRC algorithm.",
+                    handler=lambda ctx, args: _crc_codegen(ctx, args, "python"),
+                ),
+                "rust": Command(
+                    args="<name>",
+                    help="Generate Rust source code for a CRC algorithm.",
+                    handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
                 ),
             },
         ),

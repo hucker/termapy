@@ -368,9 +368,12 @@ demo> /help cfg
 demo> /help proto.crc
 /proto.crc - Browse and compute CRC algorithms.
   Subcommands:
+    /proto.crc.c <name> - Generate C source code for a CRC algorithm.
     /proto.crc.calc <name> {data} - Compute CRC over hex bytes, text, or file.
     /proto.crc.help <name> - Show algorithm parameters and description.
     /proto.crc.list {pattern} - List algorithms (optional glob filter).
+    /proto.crc.python <name> - Generate Python source code for a CRC algorithm.
+    /proto.crc.rust <name> - Generate Rust source code for a CRC algorithm.
 demo> /help var
 /var {name} - List user variables, or show one by name.
     User-defined variables use $(NAME) syntax (case-sensitive).

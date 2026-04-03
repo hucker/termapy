@@ -14,7 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.config import cfg_log_path, open_with_system
+from termapy.config import cfg_log_path
 from termapy.folders import EXT_TO_FOLDER
 from termapy.plugins import CmdResult, Command
 
@@ -123,13 +123,13 @@ def _make_list_handler(get_dir, pattern):
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         if not folder.is_dir():
-            ctx.output(f"  (no directory)")
+            ctx.output("  (no directory)")
             return CmdResult.ok()
         files = sorted(folder.glob(pattern))
         if not files:
-            ctx.output(f"  (empty)")
+            ctx.output("  (empty)")
             return CmdResult.ok()
-        ctx.output(f"  Available file(s):")
+        ctx.output("  Available file(s):")
         for f in files:
             ctx.write(f"    {f.name}")
         return CmdResult.ok()
@@ -158,7 +158,7 @@ def _build_folder_sub(get_dir, ext, pattern):
                 handler=_make_list_handler(get_dir, pattern),
             ),
             "explore": Command(
-                help=f"Open folder in file explorer.",
+                help="Open folder in file explorer.",
                 handler=_make_explore_handler(get_dir),
             ),
         },

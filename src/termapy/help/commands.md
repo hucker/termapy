@@ -99,12 +99,13 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 
 Each config subfolder has a consistent set of subcommands:
 
-| Subcommand        | Action                                     | Folders                                         |
-| `/cfg.<folder>`   | List files                                 | scripts, proto, plugins, ss, viz, cap, prof      |
-| `.explore`        | Open folder in file explorer               | all                                              |
-| `.show`           | Open newest file in system viewer          | all                                              |
-| `.dump {name}`    | Print newest (or named) file to terminal   | scripts, proto, plugins, viz, cap, prof           |
-| `.clear`          | Delete all files                           | ss, cap, prof (generated output only)             |
+| Subcommand     | Action                                   | Folders                                     |
+| -------------- | ---------------------------------------- | ------------------------------------------- |
+| `cfg.<folder>` | List files                               | scripts, proto, plugins, ss, viz, cap, prof |
+| `.explore`     | Open folder in file explorer             | all                                         |
+| `.show`        | Open newest file in system viewer        | all                                         |
+| `.dump {name}` | Print newest (or named) file to terminal | scripts, proto, plugins, viz, cap, prof     |
+| `.clear`       | Delete all files                         | ss, cap, prof (generated output only)       |
 
 Examples:
 

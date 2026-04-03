@@ -86,6 +86,8 @@ existing implementations.
 
 ## Demo
 
+![Target device help](img/doc_09_target_help.svg)
+
 The demo device includes `AT+HELP.JSON`. Run the demo and type
 `/help.target` to see it in action, or `/include.dump` to see the
 raw JSON.

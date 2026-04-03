@@ -9,17 +9,17 @@
       
       
       
-        <link rel="prev" href="scripting.html">
+        <link rel="prev" href="./scripting.html">
       
       
-        <link rel="next" href="protocol-testing.html">
+        <link rel="next" href="./protocol-testing.html">
       
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <link rel="icon" href="./assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.31">
     
     
       
@@ -27,10 +27,15 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.53a7feaf.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.dfe2e883.min.css">
       
       
 
@@ -44,12 +49,12 @@
         
         
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
       
     
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -60,6 +65,8 @@
   
     
     
+      
+    
     
     
     
@@ -68,7 +75,7 @@
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
     <div data-md-component="skip">
       
         
@@ -88,15 +95,15 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="index.html" title="Termapy Help v0.43.0" class="md-header__button md-logo" aria-label="Termapy Help v0.43.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.43.0" class="md-header__button md-logo" aria-label="Termapy Help v0.43.0" data-md-component="logo">
       
   
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    <label class="md-header__button md-icon" for="__drawer">
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
       
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
     </label>
     <div class="md-header__title" data-md-component="header-title">
       <div class="md-header__ellipsis">
@@ -116,51 +123,38 @@
     </div>
     
       
+        <form class="md-header__option" data-md-component="palette">
+  
     
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
     
     
       
       
-        <label class="md-header__button md-icon" for="__search">
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
           
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
         </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Search">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Initializing search
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
 </div>
       
     
-    
+    <div class="md-header__source">
+      
+    </div>
   </nav>
   
 </header>
@@ -186,10 +180,10 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="index.html" title="Termapy Help v0.43.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.43.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.43.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.43.0" data-md-component="logo">
       
   
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
     Termapy Help v0.43.0
@@ -204,7 +198,7 @@
   
   
     <li class="md-nav__item">
-      <a href="index.html" class="md-nav__link">
+      <a href="./index.html" class="md-nav__link">
         
   
   
@@ -231,7 +225,7 @@
   
   
     <li class="md-nav__item">
-      <a href="installation.html" class="md-nav__link">
+      <a href="./installation.html" class="md-nav__link">
         
   
   
@@ -258,7 +252,7 @@
   
   
     <li class="md-nav__item">
-      <a href="demo.html" class="md-nav__link">
+      <a href="./demo.html" class="md-nav__link">
         
   
   
@@ -285,7 +279,7 @@
   
   
     <li class="md-nav__item">
-      <a href="getting-started.html" class="md-nav__link">
+      <a href="./getting-started.html" class="md-nav__link">
         
   
   
@@ -312,7 +306,7 @@
   
   
     <li class="md-nav__item">
-      <a href="config.html" class="md-nav__link">
+      <a href="./config.html" class="md-nav__link">
         
   
   
@@ -339,7 +333,7 @@
   
   
     <li class="md-nav__item">
-      <a href="custom-buttons.html" class="md-nav__link">
+      <a href="./custom-buttons.html" class="md-nav__link">
         
   
   
@@ -366,7 +360,7 @@
   
   
     <li class="md-nav__item">
-      <a href="toolbar.html" class="md-nav__link">
+      <a href="./toolbar.html" class="md-nav__link">
         
   
   
@@ -393,7 +387,7 @@
   
   
     <li class="md-nav__item">
-      <a href="commands.html" class="md-nav__link">
+      <a href="./commands.html" class="md-nav__link">
         
   
   
@@ -420,7 +414,7 @@
   
   
     <li class="md-nav__item">
-      <a href="variables.html" class="md-nav__link">
+      <a href="./variables.html" class="md-nav__link">
         
   
   
@@ -447,7 +441,7 @@
   
   
     <li class="md-nav__item">
-      <a href="scripting.html" class="md-nav__link">
+      <a href="./scripting.html" class="md-nav__link">
         
   
   
@@ -477,7 +471,7 @@
   
     <li class="md-nav__item md-nav__item--active">
       
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
       
       
         
@@ -520,7 +514,8 @@
       
         
 
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
   
   
   
@@ -529,7 +524,7 @@
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
-      Table of contents
+      On this page
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
@@ -642,7 +637,7 @@
   
   
     <li class="md-nav__item">
-      <a href="protocol-testing.html" class="md-nav__link">
+      <a href="./protocol-testing.html" class="md-nav__link">
         
   
   
@@ -669,7 +664,7 @@
   
   
     <li class="md-nav__item">
-      <a href="data-capture.html" class="md-nav__link">
+      <a href="./data-capture.html" class="md-nav__link">
         
   
   
@@ -696,7 +691,7 @@
   
   
     <li class="md-nav__item">
-      <a href="writing-plugins.html" class="md-nav__link">
+      <a href="./writing-plugins.html" class="md-nav__link">
         
   
   
@@ -723,7 +718,7 @@
   
   
     <li class="md-nav__item">
-      <a href="device-help.html" class="md-nav__link">
+      <a href="./device-help.html" class="md-nav__link">
         
   
   
@@ -750,7 +745,7 @@
   
   
     <li class="md-nav__item">
-      <a href="using-git.html" class="md-nav__link">
+      <a href="./using-git.html" class="md-nav__link">
         
   
   
@@ -780,10 +775,24 @@
               
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
                   <div class="md-sidebar__inner">
                     
 
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
   
   
   
@@ -792,7 +801,7 @@
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
-      Table of contents
+      On this page
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
@@ -905,55 +914,57 @@
                 
                   
 
-
-
-<h1 id="serial-tools">Serial Tools</h1>
+<h1 id="serial-tools">Serial Tools<a class="headerlink" href="#serial-tools" title="Permanent link">&para;</a></h1>
 <p>Interactive commands for sending raw bytes, computing CRCs, and
 inspecting serial data. These are REPL commands you type at the
 prompt -- no script files needed.</p>
 <p>For automated send/expect test scripts, see <a href="protocol-testing.html">Protocol Testing</a>.</p>
-<h2 id="send-bytes">Send Bytes</h2>
+<p><img alt="Proto subcommands" src="img/doc_03_help_proto.svg" /></p>
+<h2 id="send-bytes">Send Bytes<a class="headerlink" href="#send-bytes" title="Permanent link">&para;</a></h2>
 <p><code>/proto.send</code> transmits raw bytes and displays the response. No line ending
 is appended -- you control exactly what goes on the wire.</p>
-<h3 id="data-formats">Data formats</h3>
+<h3 id="data-formats">Data formats<a class="headerlink" href="#data-formats" title="Permanent link">&para;</a></h3>
 <p>Hex bytes and quoted strings can be mixed freely:</p>
-<pre><code class="language-text">/proto.send 01 03 00 00 00 0A           hex bytes
-/proto.send &quot;HELLO\r&quot;                    quoted text (supports \r \n \t \0 \\)
-/proto.send 02 &quot;DATA&quot; 03                mix hex and text
-/proto.send 0x01 &quot;hello&quot; 0D             0x prefix is optional
-</code></pre>
-<h3 id="inline-delays">Inline delays</h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/proto.send 01 03 00 00 00 0A           hex bytes
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>/proto.send &quot;HELLO\r&quot;                    quoted text (supports \r \n \t \0 \\)
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>/proto.send 02 &quot;DATA&quot; 03                mix hex and text
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>/proto.send 0x01 &quot;hello&quot; 0D             0x prefix is optional
+</span></code></pre></div>
+<h3 id="inline-delays">Inline delays<a class="headerlink" href="#inline-delays" title="Permanent link">&para;</a></h3>
+<p><img alt="Inline delay example" src="img/doc_06_proto_delay.svg" /></p>
 <p>Insert timing gaps with <code>~duration</code> between data segments:</p>
-<pre><code class="language-text">/proto.send 00 ~25ms &quot;AT\r&quot;             wake byte, 25ms pause, then command
-/proto.send &quot;\r&quot; ~5ms &quot;AT+INFO\r&quot;       CR to wake, 5ms settle, then query
-/proto.send ~500us 01 02 03             delay before first byte
-</code></pre>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/proto.send 00 ~25ms &quot;AT\r&quot;             wake byte, 25ms pause, then command
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/proto.send &quot;\r&quot; ~5ms &quot;AT+INFO\r&quot;       CR to wake, 5ms settle, then query
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>/proto.send ~500us 01 02 03             delay before first byte
+</span></code></pre></div>
 <p>Supported units: <code>us</code> (microseconds), <code>ms</code> (milliseconds), <code>s</code> (seconds).</p>
 <p>Timing precision: delays under 1ms use a spin-wait loop for accuracy.
 Delays &gt;= 1ms use OS sleep. Sub- 2 millisecond delays are best-effort due
 to USB frame timing (~1ms boundaries on Full Speed USB).</p>
-<h3 id="crc-append">CRC append</h3>
+<h3 id="crc-append">CRC append<a class="headerlink" href="#crc-append" title="Permanent link">&para;</a></h3>
+<p><img alt="CRC append example" src="img/doc_05_proto_crc.svg" /></p>
 <p>If the first word matches a CRC algorithm name, the CRC is computed over
 the data and appended automatically:</p>
-<pre><code class="language-text">/proto.send crc16-modbus 01 03 00 00 00 0A      append Modbus CRC (LE)
-/proto.send crc16-modbus_be 01 03 00 00 00 0A   big-endian CRC
-/proto.send crc16-modbus_ascii 01 03 00 00 00 0A CRC as hex text (e.g. &quot;C5CD&quot;)
-</code></pre>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/proto.send crc16-modbus 01 03 00 00 00 0A      append Modbus CRC (LE)
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>/proto.send crc16-modbus_be 01 03 00 00 00 0A   big-endian CRC
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>/proto.send crc16-modbus_ascii 01 03 00 00 00 0A CRC as hex text (e.g. &quot;C5CD&quot;)
+</span></code></pre></div>
 <p>Suffixes: <code>_le</code> (little-endian, default), <code>_be</code> (big-endian), <code>_ascii</code>
 (CRC appended as hex text instead of binary bytes).</p>
 <p>When combined with delays, CRC is computed on all data bytes concatenated
 (delays are excluded from the CRC calculation).</p>
-<h3 id="response-display">Response display</h3>
+<h3 id="response-display">Response display<a class="headerlink" href="#response-display" title="Permanent link">&para;</a></h3>
+<p><img alt="Proto send example" src="img/doc_04_proto_send.svg" /></p>
 <p>Both TX and RX show hex bytes and a smart text representation:</p>
-<pre><code class="language-text">  TX: 72 65 76 0D  &quot;rev\r&quot;
-  RX: 42 37 20 26 20 42 38 0D 0A  &quot;B7 &amp; B8\r\n&quot;
-  (9 bytes, 73ms)
-</code></pre>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>  TX: 72 65 76 0D  &quot;rev\r&quot;
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  RX: 42 37 20 26 20 42 38 0D 0A  &quot;B7 &amp; B8\r\n&quot;
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  (9 bytes, 73ms)
+</span></code></pre></div>
 <p>Packets longer than 16 bytes use a multi-line hex dump with ASCII sidebar.
 Round-trip timing includes all inline delays.</p>
-<h2 id="hex-display-mode">Hex Display Mode</h2>
+<h2 id="hex-display-mode">Hex Display Mode<a class="headerlink" href="#hex-display-mode" title="Permanent link">&para;</a></h2>
 <p>Toggle hex display for all serial I/O with <code>/proto.hex on</code> / <code>/proto.hex off</code>.</p>
-<h2 id="crc-algorithms">CRC Algorithms</h2>
+<h2 id="crc-algorithms">CRC Algorithms<a class="headerlink" href="#crc-algorithms" title="Permanent link">&para;</a></h2>
 <p>62 named CRC algorithms are built in covering CRC-8, CRC-16, and CRC-32
 families (Modbus, XMODEM, CCITT, USB, and more).</p>
 <p>REPL commands:</p>
@@ -966,16 +977,17 @@ families (Modbus, XMODEM, CCITT, USB, and more).</p>
 <p>Aliases: <code>crc16m</code> = <code>crc16-modbus</code>, <code>crc16x</code> = <code>crc16-xmodem</code>.</p>
 <p>In format specs and <code>/proto.send</code>, CRC algorithm names accept suffixes:
 <code>_le</code> (little-endian, default), <code>_be</code> (big-endian), <code>_ascii</code> (hex text).</p>
-<h2 id="crc-code-generation">CRC Code Generation</h2>
+<h2 id="crc-code-generation">CRC Code Generation<a class="headerlink" href="#crc-code-generation" title="Permanent link">&para;</a></h2>
+<p><img alt="CRC Python code generation" src="img/doc_07_crc_python.svg" /></p>
 <p>Generate a standalone CRC function in C, Python, or Rust for any
 algorithm in the catalogue. Two implementations available:</p>
-<pre><code class="language-text">/proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
-/proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
-/proto.crc.c crc16-xmodem               C bit-by-bit
-/proto.crc.c crc16-xmodem --table       C table-driven
-/proto.crc.rust crc32                    Rust bit-by-bit
-/proto.crc.rust crc32 --table           Rust table-driven
-</code></pre>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>/proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>/proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>/proto.crc.c crc16-xmodem               C bit-by-bit
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>/proto.crc.c crc16-xmodem --table       C table-driven
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>/proto.crc.rust crc32                    Rust bit-by-bit
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>/proto.crc.rust crc32 --table           Rust table-driven
+</span></code></pre></div>
 <p><strong>Bit-by-bit</strong> -- compact code, zero RAM overhead. Best for
 microcontrollers with limited memory (PIC, ATtiny).</p>
 <p><strong>Table-driven</strong> (<code>--table</code>) -- 4-8x faster. Pre-computes a
@@ -989,13 +1001,15 @@ against all 62 catalogue check values (both bit-by-bit and
 table-driven). C and Rust output is structurally correct but not
 compiled/verified by the test suite.</p>
 <p><strong>Custom CRC plugins</strong> for non-standard checksums:</p>
-<pre><code class="language-python"># sum8.py - drop into builtins/crc/ or termapy_cfg/&lt;name&gt;/crc/
-NAME = &quot;sum8&quot;
-WIDTH = 1
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># sum8.py - drop into builtins/crc/ or termapy_cfg/&lt;name&gt;/crc/</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">NAME</span> <span class="o">=</span> <span class="s2">&quot;sum8&quot;</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">WIDTH</span> <span class="o">=</span> <span class="mi">1</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xFF</span>
+</span></code></pre></div>
 
-def compute(data: bytes) -&gt; int:
-    return sum(data) &amp; 0xFF
-</code></pre>
+
 
 
 
@@ -1025,10 +1039,10 @@ def compute(data: bytes) -&gt; int:
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="scripting.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Scripting">
+          <a href="./scripting.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Scripting">
             <div class="md-footer__button md-icon">
               
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
             </div>
             <div class="md-footer__title">
               <span class="md-footer__direction">
@@ -1042,7 +1056,7 @@ def compute(data: bytes) -&gt; int:
         
         
           
-          <a href="protocol-testing.html" class="md-footer__link md-footer__link--next" aria-label="Next: Protocol Testing">
+          <a href="./protocol-testing.html" class="md-footer__link md-footer__link--next" aria-label="Next: Protocol Testing">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
@@ -1053,7 +1067,7 @@ def compute(data: bytes) -&gt; int:
             </div>
             <div class="md-footer__button md-icon">
               
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </div>
           </a>
         
@@ -1066,8 +1080,8 @@ def compute(data: bytes) -&gt; int:
   
   
     Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
     </a>
   
 </div>
@@ -1085,10 +1099,10 @@ def compute(data: bytes) -&gt; int:
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.instant", "navigation.footer"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.instant","navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="./assets/javascripts/bundle.91a19a9e.min.js"></script>
       
     
   </body>

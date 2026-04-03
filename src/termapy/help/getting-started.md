@@ -1,8 +1,18 @@
 # Getting Started
 
-## Launching `Termapy`
+This guide covers connecting to your own serial device. If you haven't
+tried the demo yet, start with [Installation](installation.md).
 
-Run `termapy` from the command line:
+## Quick Setup
+
+![New Config dialog](img/new_cfg.png)
+
+On first run or when clicking **New** in the config picker, the Quick Setup
+dialog lets you pick a port, baud rate, and config name in one step.
+Click **Connect** to start immediately, or **Advanced** to open the full
+JSON config editor with your choices pre-filled.
+
+## Launching with a config
 
 ```text
 termapy                          # auto-detect config
@@ -25,21 +35,19 @@ the file's location (walks up the directory tree to find a `.cfg` file).
 In CLI mode, `.run` files are executed automatically. In TUI mode, the
 config loads and you can run the script manually.
 
-**--cfg-dir** — override the config directory location. By default,
-termapy stores everything in a `termapy_cfg/` folder in the current
-working directory. Use this flag to point to a different location,
-for example a shared network folder or a project-specific directory.
+**--cfg-dir** — override the config directory location. See
+[Configuration](config.md) for the full config directory precedence chain.
 
 **--check** — validate a config file and print JSON results to stdout
 without launching the UI. Checks baud rate, parity, data bits, stop bits,
 flow control, encoding, and flags unknown keys. Read-only — never modifies
 the file.
 
-**No arguments** — `termapy` looks in `termapy_cfg/` for config files:
+**No arguments** — termapy looks for config files:
 
 - If one config exists, it loads automatically.
 - If multiple configs exist, a picker dialog appears.
-- If no configs exist, you are prompted to name a new one and an editor opens with defaults.
+- If no configs exist, the Quick Setup dialog appears.
 
 ## User Interface Modes
 
@@ -58,7 +66,7 @@ piping output, or when you prefer a minimal interface. Start with
 ### Switching modes
 
 Use the `/tui` and `/cli` REPL commands to switch modes during a session.
-The serial connection and config carry over — only the only the interface changes.
+The serial connection and config carry over — only the interface changes.
 
 You can also set the default mode in your config:
 
@@ -93,9 +101,10 @@ termapy_cfg/
 The title bar buttons (left to right):
 
 - **?** — opens this help guide.
-- **#** — toggle line numbers on new output lines (button turns green when active).
 - **Cfg** — opens the config picker (New / Edit / Load / Cancel).
-- **Title** — shows the config name (or custom title). Click to open the config picker.
+- **Run** — opens the script picker.
+- **Proto** — opens the protocol test picker.
+- **Title** — shows the config name (or custom title). Click to edit the config.
 - **Port** — shows the port name and baud rate. Click to pick a different serial port.
 - **Status** — shows connection status: green **Connected** or red **Disconnected**. Click to toggle the connection.
 
@@ -113,6 +122,8 @@ screenshots, captures) are clickable in terminals that support hyperlinks
 path to open it in your default application.
 
 ## Command Input
+
+![Help command output](img/doc_02_help.svg)
 
 The bottom bar contains a text input for sending commands to the serial device.
 

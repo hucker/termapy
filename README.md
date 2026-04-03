@@ -17,14 +17,14 @@ A serial interface terminal like PuTTY or Tera Term — but it runs in your term
 Install with [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.43.0
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.44.0
 termapy --demo
 ```
 
 Or try it without installing:
 
 ```sh
-uvx --from git+https://github.com/hucker/termapy@v0.43.0 termapy --demo
+uvx --from git+https://github.com/hucker/termapy@v0.44.0 termapy --demo
 ```
 
 That starts a simulated device — no hardware needed. You're typing commands in seconds.
@@ -497,6 +497,8 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `log_file`           | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
 | `show_timestamps`    | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
 | `show_line_endings`  | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
+| `show_line_numbers`  | `false`                | Show line numbers in serial output                                                                       |
+| `hex_mode`           | `false`                | Display serial I/O as hex bytes instead of text                                                          |
 | `max_grep_lines`     | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
 | `proto_frame_gap_ms` | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`              | `""`                   | Title bar center text. Defaults to the config filename                                                   |

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
-from termapy.folders import CLEARABLE, DUMPABLE, FOLDERS, SHOWABLE
+from termapy.folders import FOLDERS
 from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
@@ -124,7 +124,6 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
 # ── Tree-building helpers (shared by info and folder listings) ────────────────
 
 
-
 def _names(directory: Path, pattern: str) -> list[str]:
     """Return sorted filenames matching pattern in directory."""
     if pattern == "*":
@@ -132,8 +131,11 @@ def _names(directory: Path, pattern: str) -> list[str]:
     return sorted(f.name for f in directory.glob(pattern))
 
 
-def _build_tree(config_path: str, sections: list[tuple[str, list[str]]],
-                global_names: list[str] | None = None) -> tuple[str, str]:
+def _build_tree(
+    config_path: str,
+    sections: list[tuple[str, list[str]]],
+    global_names: list[str] | None = None,
+) -> tuple[str, str]:
     """Build plain and Rich-colored directory trees.
 
     Args:
@@ -144,7 +146,7 @@ def _build_tree(config_path: str, sections: list[tuple[str, list[str]]],
     Returns:
         Tuple of (colored tree for terminal, plain tree for markdown).
     """
-    config_name = Path(config_path).stem
+    Path(config_path).stem
     abs_root = Path(config_path).parent.resolve().as_posix() + "/"
 
     _DIR = "cyan"
@@ -230,9 +232,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     try:
         sections = _all_sections(ctx.config_path)
         global_names = _names(global_plugins_dir(), "*.py")
-        colored_tree, plain_tree = _build_tree(
-            ctx.config_path, sections, global_names
-        )
+        colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
 
         ctx.write_markup(colored_tree)
 
@@ -257,14 +257,16 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             "",
         ]
         if active:
-            md_lines.extend([
-                f"## Custom Buttons ({len(active)} active)",
-                "",
-                "```json",
-                json.dumps(active, indent=4),
-                "```",
-                "",
-            ])
+            md_lines.extend(
+                [
+                    f"## Custom Buttons ({len(active)} active)",
+                    "",
+                    "```json",
+                    json.dumps(active, indent=4),
+                    "```",
+                    "",
+                ]
+            )
 
         data_dir = cfg_data_dir(ctx.config_path)
         report_path = data_dir / f"{config_name}.md"
@@ -282,6 +284,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 def _make_folder_handler(folder: str, pattern: str):
     """Create a handler that lists files in a single folder."""
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
             return CmdResult.fail(msg="No config loaded.")
@@ -294,22 +297,26 @@ def _make_folder_handler(folder: str, pattern: str):
         for fname in files:
             ctx.write(f"    {fname}")
         return CmdResult.ok()
+
     return handler
 
 
 def _make_explore_handler(folder: str):
     """Create a handler that opens a folder in the system file explorer."""
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
             return CmdResult.fail(msg="No config loaded.")
         path = Path(ctx.config_path).parent / folder
         open_with_system(str(path))
         return CmdResult.ok()
+
     return handler
 
 
 def _make_clear_handler(folder: str, pattern: str):
     """Create a handler that deletes all files in a folder."""
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
             return CmdResult.fail(msg="No config loaded.")
@@ -325,11 +332,13 @@ def _make_clear_handler(folder: str, pattern: str):
             f.unlink()
         ctx.write(f"  Deleted {len(files)} file(s) from {folder}/.")
         return CmdResult.ok()
+
     return handler
 
 
 def _make_show_handler(folder: str, pattern: str):
     """Create a handler that opens the newest file in system viewer."""
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
             return CmdResult.fail(msg="No config loaded.")
@@ -348,11 +357,13 @@ def _make_show_handler(folder: str, pattern: str):
         ctx.write(f"Opening {newest.name}")
         open_with_system(str(newest))
         return CmdResult.ok()
+
     return handler
 
 
 def _make_dump_handler(folder: str, pattern: str):
     """Create a handler that prints the newest (or named) file to the terminal."""
+
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.config_path:
             return CmdResult.fail(msg="No config loaded.")
@@ -382,6 +393,7 @@ def _make_dump_handler(folder: str, pattern: str):
         except OSError as e:
             return CmdResult.fail(msg=f"Read error: {e}")
         return CmdResult.ok()
+
     return handler
 
 
@@ -460,7 +472,10 @@ Use /cfg.auto to set values without confirmation (for scripts).""",
         ),
         "dump": Command(
             help="Print current config as JSON to the terminal.",
-            handler=lambda ctx, args: (ctx.output(json.dumps(dict(ctx.cfg), indent=4)), CmdResult.ok())[-1],
+            handler=lambda ctx, args: (
+                ctx.output(json.dumps(dict(ctx.cfg), indent=4)),
+                CmdResult.ok(),
+            )[-1],
         ),
         **_build_folder_subs(),
     },

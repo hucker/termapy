@@ -6,6 +6,8 @@ prompt -- no script files needed.
 
 For automated send/expect test scripts, see [Protocol Testing](protocol-testing.md).
 
+![Proto subcommands](img/doc_03_help_proto.svg)
+
 ## Send Bytes
 
 `/proto.send` transmits raw bytes and displays the response. No line ending
@@ -24,6 +26,8 @@ Hex bytes and quoted strings can be mixed freely:
 
 ### Inline delays
 
+![Inline delay example](img/doc_06_proto_delay.svg)
+
 Insert timing gaps with `~duration` between data segments:
 
 ```text
@@ -39,6 +43,8 @@ Delays >= 1ms use OS sleep. Sub- 2 millisecond delays are best-effort due
 to USB frame timing (~1ms boundaries on Full Speed USB).
 
 ### CRC append
+
+![CRC append example](img/doc_05_proto_crc.svg)
 
 If the first word matches a CRC algorithm name, the CRC is computed over
 the data and appended automatically:
@@ -56,6 +62,8 @@ When combined with delays, CRC is computed on all data bytes concatenated
 (delays are excluded from the CRC calculation).
 
 ### Response display
+
+![Proto send example](img/doc_04_proto_send.svg)
 
 Both TX and RX show hex bytes and a smart text representation:
 
@@ -90,6 +98,8 @@ In format specs and `/proto.send`, CRC algorithm names accept suffixes:
 `_le` (little-endian, default), `_be` (big-endian), `_ascii` (hex text).
 
 ## CRC Code Generation
+
+![CRC Python code generation](img/doc_07_crc_python.svg)
 
 Generate a standalone CRC function in C, Python, or Rust for any
 algorithm in the catalogue. Two implementations available:

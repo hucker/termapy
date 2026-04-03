@@ -71,6 +71,8 @@ DEFAULT_CFG = {
     # Display
     "show_timestamps": False,
     "show_line_endings": False,
+    "show_line_numbers": False,
+    "hex_mode": False,
     "max_grep_lines": 100,
     # Custom buttons
     "custom_buttons": [
@@ -294,6 +296,14 @@ CFG_HELP: dict[str, tuple] = {
     "show_line_endings": (
         "Show dim \\r \\n markers in serial output.",
         "Valid: true, false. Debug mode for line-ending issues.",
+    ),
+    "show_line_numbers": (
+        "Show line numbers in serial output.",
+        "Valid: true, false",
+    ),
+    "hex_mode": (
+        "Display serial I/O as hex bytes instead of text.",
+        "Valid: true, false",
     ),
     "max_grep_lines": (
         "Maximum lines shown by /grep.",

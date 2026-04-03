@@ -107,7 +107,9 @@ class ScriptCtx:
             self.prof_fh.flush()
             for line in self.prof_path.read_text(encoding="utf-8").splitlines():
                 self.w(line)
-            self.w(f"── {fmt}s total ({len(self.profile_times)} commands) -> {self.prof_name} ──")
+            self.w(
+                f"── {fmt}s total ({len(self.profile_times)} commands) -> {self.prof_name} ──"
+            )
 
 
 class ReplEngine:
@@ -444,7 +446,7 @@ class ReplEngine:
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
-            if self._echo and not repl_cmd.startswith("echo.quiet"):
+            if self._echo and ".quiet" not in repl_cmd.split()[0]:
                 _echo_cmd(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
@@ -523,7 +525,9 @@ class ReplEngine:
         else:
             suggestion = _suggest_command(name, self._plugins, self.prefix)
             if suggestion:
-                result = CmdResult.fail(msg=f"Unknown command: {name} -- did you mean {suggestion}?")
+                result = CmdResult.fail(
+                    msg=f"Unknown command: {name} -- did you mean {suggestion}?"
+                )
             else:
                 result = CmdResult.fail(msg=f"Unknown command: {name}")
         if not result.success and result.error:
@@ -648,18 +652,19 @@ class ReplEngine:
     def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /delay in scripts — sleep on background thread."""
         expanded, self._seq_counters = expand_template(
-            args.strip(), self._seq_counters, self._seq_start_time,
+            args.strip(),
+            self._seq_counters,
+            self._seq_start_time,
         )
         try:
             seconds = parse_duration(expanded)
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
-        t0 = time.perf_counter()
+        time.perf_counter()
         self._script_stop.wait(timeout=seconds)
         if self._script_stop.is_set():
             return CmdResult.fail(msg="Script stopped.")
-        elapsed = time.perf_counter() - t0
-        if not sctx.profile:
+        if not sctx.profile and name == "delay":
             sctx.w(f"Delay {expanded} done.")
         return CmdResult.ok()
 
@@ -714,6 +719,7 @@ class ReplEngine:
 
             def predicate(line: str) -> bool:
                 return pattern in line
+
         match = self.wait_for_match(predicate, timeout=timeout_s)
         if self._script_stop.is_set():
             return CmdResult.fail(msg="Script stopped.")
@@ -740,7 +746,7 @@ class ReplEngine:
     def _run_line(self, stripped: str, sctx: ScriptCtx) -> CmdResult:
         """Execute one script line — blocking command or normal dispatch."""
         if stripped.startswith(sctx.prefix):
-            cmd = stripped[len(sctx.prefix):].strip()
+            cmd = stripped[len(sctx.prefix) :].strip()
             name, _, args = cmd.partition(" ")
             handler = self._BLOCKING_COMMANDS.get(name.lower())
             if handler:
@@ -758,7 +764,7 @@ class ReplEngine:
             cmd_result = sctx.dispatch_fn(stripped)
         else:
             if stripped.startswith(sctx.prefix):
-                cmd_result = self.dispatch(stripped[len(sctx.prefix):].strip())
+                cmd_result = self.dispatch(stripped[len(sctx.prefix) :].strip())
             elif self.ctx.is_connected():
                 self.ctx.serial_write(
                     (stripped + self.cfg.get("line_ending", "\r")).encode(
@@ -786,9 +792,13 @@ class ReplEngine:
     def _script_session(self, path, w, dispatch, profile, verbose, progress, on_nest):
         """Context manager for script lifecycle — setup, yield, teardown."""
         sctx = ScriptCtx(
-            w=w, dispatch_fn=dispatch, prefix=self.prefix,
-            profile=profile, verbose=verbose,
-            progress=progress, on_nest=on_nest,
+            w=w,
+            dispatch_fn=dispatch,
+            prefix=self.prefix,
+            profile=profile,
+            verbose=verbose,
+            progress=progress,
+            on_nest=on_nest,
         )
         try:
             all_lines = path.read_text(encoding="utf-8").splitlines()
@@ -848,7 +858,9 @@ class ReplEngine:
             verbose: Show per-command timing output.
         """
         w = write or self.write
-        with self._script_session(path, w, dispatch, profile, verbose, progress, on_nest) as sctx:
+        with self._script_session(
+            path, w, dispatch, profile, verbose, progress, on_nest
+        ) as sctx:
             for step, raw_line in enumerate(sctx.lines, 1):
                 if self._script_stop.is_set():
                     w("Script stopped.")

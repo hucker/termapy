@@ -16,9 +16,7 @@ from termapy.protocol import (
     format_spaced,
     load_proto_script,
     match_response,
-    parse_data,
     parse_data_segments,
-    parse_proto_script,
     parse_toml_script,
     strip_ansi,
 )
@@ -32,8 +30,10 @@ if TYPE_CHECKING:
 
 # ---- Shared helpers --------------------------------------------------------
 
-def _display_bytes(ctx: PluginContext, direction: str, data: bytes,
-                   binary: bool = False) -> None:
+
+def _display_bytes(
+    ctx: PluginContext, direction: str, data: bytes, binary: bool = False
+) -> None:
     """Display TX or RX data as hex + smart text representation.
 
     Short packets (<=16 bytes) are shown on one line with hex and smart
@@ -57,7 +57,6 @@ def _display_bytes(ctx: PluginContext, direction: str, data: bytes,
         ctx.write(f"  {direction} {len(data)} bytes:", color)
         for line in format_hex_dump(data):
             ctx.write(f"    {line}")
-
 
 
 def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
@@ -85,8 +84,7 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
     return path
 
 
-def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int,
-             quiet: bool) -> None:
+def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int, quiet: bool) -> None:
     """Send a setup/teardown command and drain the response.
 
     Args:
@@ -105,8 +103,7 @@ def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int,
         ctx.output(f"  CMD: flushed {len(response)} bytes")
 
 
-def _run_toml_script(ctx: PluginContext, path: Path,
-                     script: ProtoScript) -> None:
+def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> None:
     """Execute a TOML-format proto script.
 
     Args:
@@ -153,7 +150,10 @@ def _run_toml_script(ctx: PluginContext, path: Path,
         if response:
             ctx.write(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
             if match_response(tc.expect_data, response, tc.expect_mask):
-                ctx.write(f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)", "bright_green")
+                ctx.write(
+                    f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
+                    "bright_green",
+                )
                 pass_count += 1
             else:
                 ctx.write("  FAIL", "red")
@@ -178,8 +178,9 @@ def _run_toml_script(ctx: PluginContext, path: Path,
         ctx.write(f"{'─' * 40}")
 
 
-def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
-                     steps: list) -> None:
+def _run_flat_script(
+    ctx: PluginContext, path: Path, settings: dict, steps: list
+) -> None:
     """Execute a flat-format proto script.
 
     Args:
@@ -250,9 +251,14 @@ def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
 
             ctx.output(f"  Expected: {format_spaced(step.data, step.binary)}")
             if response:
-                ctx.write(f"  Actual:   {format_spaced(response, step.binary)}", "yellow")
+                ctx.write(
+                    f"  Actual:   {format_spaced(response, step.binary)}", "yellow"
+                )
                 if match_response(step.data, response, step.mask):
-                    ctx.write(f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)", "bright_green")
+                    ctx.write(
+                        f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
+                        "bright_green",
+                    )
                     pass_count += 1
                 else:
                     ctx.write("  FAIL", "red")
@@ -275,8 +281,10 @@ def _run_flat_script(ctx: PluginContext, path: Path, settings: dict,
 
 # ---- Leaf handlers ---------------------------------------------------------
 
+
 def _parse_send_algo(
-    name: str, registry: dict,
+    name: str,
+    registry: dict,
 ) -> tuple[str | None, bool, bool]:
     """Extract algorithm name and suffixes from a /proto.send first word.
 
@@ -343,8 +351,9 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
               e.g. ``'01 ~25ms 03 "OK\\r"'``.
     """
     if not args.strip():
-        return CmdResult.fail(msg="Usage: /proto.send [algo[_le|_be][_ascii]] "
-                              "<hex/\"text\"/~delay ...>")
+        return CmdResult.fail(
+            msg="Usage: /proto.send [algo[_le|_be][_ascii]] " '<hex/"text"/~delay ...>'
+        )
     if not ctx.is_connected():
         return CmdResult.fail(msg="Not connected.")
 
@@ -368,8 +377,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
             if ascii_crc:
                 hex_str = f"{crc_value:0{algo.width * 2}X}"
                 if not big_endian:
-                    pairs = [hex_str[i:i+2]
-                             for i in range(0, len(hex_str), 2)]
+                    pairs = [hex_str[i : i + 2] for i in range(0, len(hex_str), 2)]
                     hex_str = "".join(reversed(pairs))
                 crc_data = hex_str.encode()
             else:
@@ -390,8 +398,10 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     if algo is not None and ctx.verbose:
         endian_label = "BE" if big_endian else "LE"
         mode_label = "ascii" if ascii_crc else "bin"
-        ctx.write(f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X}"
-                  f" ({endian_label}, {mode_label})")
+        ctx.write(
+            f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X}"
+            f" ({endian_label}, {mode_label})"
+        )
 
     # Build display string with delay markers
     all_data = b"".join(s for s in segments if isinstance(s, bytes))
@@ -555,6 +565,7 @@ def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
 
 # ---- CRC subcommand handlers ----------------------------------------------
 
+
 def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
     """List available CRC algorithms, optionally filtered by glob pattern.
 
@@ -652,8 +663,7 @@ def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
     """
     tokens = data_str.split()
     is_hex = bool(tokens) and all(
-        len(t) == 2 and all(c in "0123456789abcdefABCDEF" for c in t)
-        for t in tokens
+        len(t) == 2 and all(c in "0123456789abcdefABCDEF" for c in t) for t in tokens
     )
     if is_hex:
         return bytes(int(t, 16) for t in tokens), True
@@ -725,8 +735,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
         ctx.write(f"  Data:      {data_hex}  ({len(data)} bytes)")
     else:
         ctx.write(
-            f"  Data:      {data_str!r}  ({len(data_str)} chars, "
-            f"{len(data)} bytes)"
+            f"  Data:      {data_str!r}  ({len(data_str)} chars, " f"{len(data)} bytes)"
         )
     ctx.write(f"  CRC:       {crc_hex}")
     if alg.width > 1:
@@ -742,14 +751,12 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
             expected = entry["check"]
             if crc_val == expected:
                 ctx.write(
-                    f"  Check:     PASS - matches expected "
-                    f"0x{expected:0{hex_w}X}",
+                    f"  Check:     PASS - matches expected " f"0x{expected:0{hex_w}X}",
                     "green",
                 )
             else:
                 ctx.write(
-                    f"  Check:     FAIL - expected "
-                    f"0x{expected:0{hex_w}X}",
+                    f"  Check:     FAIL - expected " f"0x{expected:0{hex_w}X}",
                     "red",
                 )
     return CmdResult.ok()
@@ -798,7 +805,9 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 
     code = gen(name, table=use_table)
     if code is None:
-        ctx.write(f"Unknown algorithm: {name}. Use /proto.crc.list to see available.", "red")
+        ctx.write(
+            f"Unknown algorithm: {name}. Use /proto.crc.list to see available.", "red"
+        )
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     for line in code.split("\n"):

@@ -1,39 +1,51 @@
 # Installation
 
-## Requirements
+## Install
 
-- Python 3.11 or later, prefer 3.14 for best performance and latest features.
-- Strongly perfer using [uv](https://docs.astral.sh/uv/) for managing Python versions and installing Termapy. It handles everything for you, including installing Python itself if needed, and keeps Termapy isolated from other Python projects on your system.
-
-If you don't have `uv`:
+First install [uv](https://docs.astral.sh/uv/) if you don't have it:
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh          # Mac/Linux
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 ```
 
-## Install
+Then install termapy:
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.43.0
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.44.0
 ```
 
-This puts `termapy` on your PATH as a standalone command. `uv` downloads Python 3.14 automatically if it's not already installed.
+## Run the demo
 
-## Try without installing
-
-```sh
-uvx --from git+https://github.com/hucker/termapy@v0.43.0 termapy --demo
-```
-
-This runs termapy in a temporary environment that is cleaned up automatically.
-
-## Verify
+No hardware needed:
 
 ```sh
-termapy --version
 termapy --demo
 ```
+
+![Termapy TUI](img/doc_01_main_tui.svg)
+
+Type commands. The device responds. That's it.
+
+Try `AT+INFO`, `AT+TEMP`, or `/help`. Hover over any button for a tooltip.
+Click **?** for the full help guide.
+
+## Connect your device
+
+Click **Cfg** in the toolbar, then **New**. Pick your port and baud rate.
+Click **Connect**.
+
+![New Config dialog](img/new_cfg.png)
+
+You're connected. Type commands and see responses.
+
+## When you need more
+
+- [Getting Started](getting-started.md) — config files, CLI mode, folder layout
+- [Demo Mode](demo.md) — all demo device commands
+- [Serial Tools](serial-tools.md) — hex send, CRC, protocol testing
+- [Scripting](scripting.md) — automate command sequences
+- [Writing Plugins](writing-plugins.md) — extend with Python
 
 ## Uninstall
 

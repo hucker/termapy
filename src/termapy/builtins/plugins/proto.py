@@ -785,15 +785,18 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """
     from termapy.crc_codegen import GENERATORS
 
-    name = args.strip().lower()
+    tokens = args.strip().lower().split()
+    use_table = "--table" in tokens
+    tokens = [t for t in tokens if t != "--table"]
+    name = tokens[0] if tokens else ""
     if not name:
-        return CmdResult.fail(msg=f"Usage: /proto.crc.{lang} <algorithm>")
+        return CmdResult.fail(msg=f"Usage: /proto.crc.{lang} <algorithm> {{--table}}")
 
     gen = GENERATORS.get(lang)
     if gen is None:
         return CmdResult.fail(msg=f"Unknown language: {lang}")
 
-    code = gen(name)
+    code = gen(name, table=use_table)
     if code is None:
         ctx.write(f"Unknown algorithm: {name}. Use /proto.crc.list to see available.", "red")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")

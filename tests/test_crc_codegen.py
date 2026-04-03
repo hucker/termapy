@@ -43,6 +43,22 @@ class TestGeneratePython:
         assert '"""' in code  # has docstring
         assert "crc16-modbus" in code  # names the algorithm
 
+    @pytest.mark.parametrize("name", sorted(CRC_CATALOGUE.keys()))
+    def test_table_driven_matches_check(self, name):
+        # Arrange
+        entry = CRC_CATALOGUE[name]
+        expected = entry["check"]
+        code = generate_python(name, table=True)
+
+        # Act — execute the generated table-driven function
+        ns = {}
+        exec(code, ns)
+        func_name = name.replace("-", "_").replace(".", "_")
+        actual = ns[func_name](CHECK_DATA)
+
+        # Assert
+        assert actual == expected, f"{name} table: {actual:#x} != {expected:#x}"
+
 
 class TestGenerateC:
     def test_generates_code(self):

@@ -256,7 +256,7 @@ class EngineAPI:
     reset_seq: Callable = lambda: None
     in_script: Callable = lambda: False
     script_stop: Callable = lambda: None
-    save_cfg: Callable = None       # (key, val) -> confirm dialog; None = no confirm
+    save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
     apply_cfg: Callable = lambda key, val: None
     coerce_type: Callable = lambda val, existing: val
     get_hex_mode: Callable = lambda: False
@@ -663,7 +663,6 @@ def _make_interior_handler(
         for child_name in children:
             child = plugins.get(child_name)
             if child:
-                short = child_name.rsplit(".", 1)[-1]
                 arg_str = f" {child.args}" if child.args else ""
                 ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
     return _handler

@@ -10,7 +10,6 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import sys
 import threading
 import time
@@ -22,7 +21,7 @@ except ImportError:
     readline = None  # Windows without pyreadline3
 
 from termapy.capture import CaptureEngine
-from termapy.config import load_config, open_serial, open_with_system
+from termapy.config import open_serial, open_with_system
 from termapy.plugins import EngineAPI, PluginContext
 from termapy.repl import ReplEngine
 from termapy.plugins import CmdResult
@@ -47,8 +46,11 @@ class CLITerminal:
     _HISTORY_LIMIT = 30
 
     def __init__(
-        self, cfg: dict, config_path: str,
-        no_color: bool = False, run_script: str | None = None,
+        self,
+        cfg: dict,
+        config_path: str,
+        no_color: bool = False,
+        run_script: str | None = None,
         term_width: int | None = None,
     ) -> None:
         self.cfg = cfg
@@ -64,6 +66,7 @@ class CLITerminal:
 
         # Rich console for colored output
         from rich.console import Console
+
         self.console = Console(no_color=no_color, highlight=False, width=term_width)
 
         # Engines
@@ -74,21 +77,34 @@ class CLITerminal:
             ),
         )
         self.engine = SerialEngine(
-            cfg=cfg, capture=self.capture, open_fn=open_serial, log=self._log,
+            cfg=cfg,
+            capture=self.capture,
+            open_fn=open_serial,
+            log=self._log,
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
 
-        from termapy.builtins.plugins.var import register_cfg_vars, set_context_var, set_launch_var
+        from termapy.builtins.plugins.var import (
+            register_cfg_vars,
+            set_context_var,
+            set_launch_var,
+        )
         from termapy.config import cfg_log_path
+
         set_launch_var("FRONT_END", "cli")
-        set_context_var("CFG", lambda: Path(self.config_path).stem if self.config_path else "none")
+        set_context_var(
+            "CFG", lambda: Path(self.config_path).stem if self.config_path else "none"
+        )
         register_cfg_vars(
             get_config_path=lambda: self.config_path,
             get_cfg=lambda: self.cfg,
-            get_log_path=lambda: cfg_log_path(self.config_path) if self.config_path else "",
+            get_log_path=lambda: cfg_log_path(self.config_path)
+            if self.config_path
+            else "",
         )
         self._setup_context()
         self._register_hooks()
+        self.repl._echo = False  # CLI never echoes — readline shows input
 
     # -- Output ---------------------------------------------------------------
 
@@ -132,8 +148,8 @@ class CLITerminal:
         engine_api = EngineAPI(
             prefix=self.prefix,
             plugins=self.repl._plugins,
-            get_echo=lambda: self.repl._echo,
-            set_echo=lambda val: setattr(self.repl, "_echo", val),
+            get_echo=lambda: False,
+            set_echo=lambda val: None,  # CLI never echoes
             get_seq_counters=lambda: self.repl._seq_counters,
             set_seq_counters=lambda val: setattr(self.repl, "_seq_counters", val),
             reset_seq=self.repl._reset_seq,
@@ -169,29 +185,31 @@ class CLITerminal:
             ),
             is_connected=lambda: self.engine.is_connected,
             serial_write=lambda data: (
-                self.engine.serial_port.write(data)
-                if self.engine.serial_port else None
+                self.engine.serial_port.write(data) if self.engine.serial_port else None
             ),
             serial_send=lambda text: (
                 self.engine.serial_port.write(
-                    (text + self.cfg.get("line_ending", "\r"))
-                    .encode(self.cfg.get("encoding", "utf-8"))
+                    (text + self.cfg.get("line_ending", "\r")).encode(
+                        self.cfg.get("encoding", "utf-8")
+                    )
                 )
-                if self.engine.serial_port else None
+                if self.engine.serial_port
+                else None
             ),
             serial_read_raw=lambda timeout_ms=1000, frame_gap_ms=50: (
                 self.engine.serial_port.read_raw(timeout_ms, frame_gap_ms)
-                if self.engine.serial_port else b""
+                if self.engine.serial_port
+                else b""
             ),
             serial_drain=lambda: (
-                self.engine.serial_port.drain()
-                if self.engine.serial_port else 0
+                self.engine.serial_port.drain() if self.engine.serial_port else 0
             ),
             serial_claim=lambda: setattr(self.engine, "proto_active", True),
             serial_release=lambda: setattr(self.engine, "proto_active", False),
             serial_wait_idle=lambda timeout_ms=20, max_wait_s=3.0: (
                 self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
-                if self.engine.serial_port else None
+                if self.engine.serial_port
+                else None
             ),
             dispatch=lambda cmd: self._dispatch(cmd),
             confirm=lambda msg: self._confirm(msg),
@@ -207,70 +225,92 @@ class CLITerminal:
     def _register_hooks(self) -> None:
         """Register CLI-specific hooks for /delay, /color, /run."""
         self.repl.register_hook(
-            "delay", "<duration>",
+            "delay",
+            "<duration>",
             "Wait for duration with progress bar (e.g. 500ms, 1.5s).",
-            self._hook_delay, source="app",
+            self._hook_delay,
+            source="app",
         )
         self.repl.register_hook(
-            "delay.quiet", "<duration>",
+            "delay.quiet",
+            "<duration>",
             "Wait silently (no progress bar or output).",
-            self._hook_delay_quiet, source="app",
+            self._hook_delay_quiet,
+            source="app",
         )
         self.repl.register_hook(
-            "color", "{on|off}",
+            "color",
+            "{on|off}",
             "Show or toggle color output.",
-            self._hook_color, source="app",
+            self._hook_color,
+            source="app",
         )
         self.repl.register_hook(
-            "run", "{filename}",
+            "run",
+            "{filename}",
             "Run a script file, or list available scripts.",
-            self._hook_run, source="app",
+            self._hook_run,
+            source="app",
         )
         self.repl.register_hook(
-            "run.profile", "{filename}",
+            "run.profile",
+            "{filename}",
             "Run a script with per-command timing.",
-            self._hook_run_profile, source="app",
+            self._hook_run_profile,
+            source="app",
         )
         self.repl.register_hook(
-            "demo", "",
+            "demo",
+            "",
             "Set up and switch to the demo device config.",
-            self._hook_demo, source="app",
+            self._hook_demo,
+            source="app",
         )
         self.repl.register_hook(
-            "demo.force", "",
+            "demo.force",
+            "",
             "Reset demo config to defaults.",
             lambda ctx, args: self._hook_demo(ctx, "--force"),
             source="app",
         )
         self.repl.register_hook(
-            "clr", "",
+            "clr",
+            "",
             "Clear the terminal screen (alias for /cls).",
             lambda ctx, args: (ctx.clear_screen(), CmdResult.ok())[-1],
             source="app",
         )
         self.repl.register_hook(
-            "raw", "<text>",
+            "raw",
+            "<text>",
             "Send raw text to serial (no transforms or line ending).",
-            self._hook_raw, source="app",
+            self._hook_raw,
+            source="app",
         )
         self.repl.register_hook(
-            "help.open", "{topic}",
+            "help.open",
+            "{topic}",
             "Open help in browser.",
-            self._hook_help_open, source="app",
+            self._hook_help_open,
+            source="app",
         )
         self.repl.register_hook(
-            "log.clear", "",
+            "log.clear",
+            "",
             "Delete the session log file.",
-            self._hook_log_clear, source="app",
+            self._hook_log_clear,
+            source="app",
         )
         self.repl.register_hook(
-            "tui", "",
+            "tui",
+            "",
             "Switch to TUI mode.",
             lambda ctx, args: CmdResult.ok(),  # handled in _run_interactive
             source="app",
         )
         self.repl.register_hook(
-            "cli", "",
+            "cli",
+            "",
             "Already in CLI mode.",
             lambda ctx, args: CmdResult.ok(),
             source="app",
@@ -302,6 +342,7 @@ class CLITerminal:
         """Wait silently - no progress bar, no output.
         For scripts where delay output would clutter results."""
         from termapy.scripting import parse_duration
+
         try:
             seconds = parse_duration(args)
         except ValueError as e:
@@ -348,13 +389,15 @@ class CLITerminal:
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
-                path, write=self.status, dispatch=self.ctx.dispatch, verbose=verbose,
+                path,
+                write=self.status,
+                dispatch=self.ctx.dispatch,
+                verbose=verbose,
             )
         return result
 
     def _hook_run_profile(self, ctx, args: str):
         """Run a script with per-command timing."""
-
 
         script = args.strip()
         if not script:
@@ -364,15 +407,17 @@ class CLITerminal:
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
-                path, write=self.status, dispatch=self.ctx.dispatch,
-                profile=True, verbose=verbose,
+                path,
+                write=self.status,
+                dispatch=self.ctx.dispatch,
+                profile=True,
+                verbose=verbose,
             )
         return result
 
     def _hook_demo(self, ctx, args: str):
         """Set up and switch to demo device config."""
         from termapy.config import cfg_dir, load_config, setup_demo_config
-
 
         force = "--force" in args.lower()
         try:
@@ -405,12 +450,15 @@ class CLITerminal:
         if not args:
             return CmdResult.fail(msg="Usage: /raw <text>")
         if self.engine.serial_port:
-            self.engine.serial_port.write(args.encode(self.cfg.get("encoding", "utf-8")))
+            self.engine.serial_port.write(
+                args.encode(self.cfg.get("encoding", "utf-8"))
+            )
         return CmdResult.ok()
 
     def _hook_log_clear(self, ctx, args: str):
         """Delete the session log file."""
         from termapy.config import cfg_log_path
+
         log_path = cfg_log_path(self.config_path) if self.config_path else ""
         if not log_path or not Path(log_path).exists():
             self.status("No log file to delete.", "yellow")
@@ -437,6 +485,7 @@ class CLITerminal:
         if not Path(str(path)).exists():
             return CmdResult.fail(msg=f"Unknown help topic: {topic}")
         from termapy.config import open_with_system
+
         open_with_system(str(path))
         return CmdResult.ok()
 
@@ -486,8 +535,7 @@ class CLITerminal:
             echo_markup=self.write_markup,
             status=self.status,
             serial_write=lambda data: (
-                self.engine.serial_port.write(data)
-                if self.engine.serial_port else None
+                self.engine.serial_port.write(data) if self.engine.serial_port else None
             ),
             serial_write_raw=lambda text: self._serial_write_raw(text),
             is_connected=lambda: self.engine.is_connected,
@@ -513,6 +561,7 @@ class CLITerminal:
             self.cfg["port"] = port
         if self.engine.connect():
             from termapy.config import connection_string, hardware_signals
+
             conn = connection_string(self.cfg)
             hw = hardware_signals(self.engine.port_obj)
             full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
@@ -576,7 +625,7 @@ class CLITerminal:
         history_path = Path(self.config_path).parent / ".cmd_history.txt"
         try:
             for line in history_path.read_text(encoding="utf-8").splitlines()[
-                -self._HISTORY_LIMIT:
+                -self._HISTORY_LIMIT :
             ]:
                 if line.strip():
                     readline.add_history(line)
@@ -592,7 +641,7 @@ class CLITerminal:
             readline.get_history_item(i + 1)
             for i in range(readline.get_current_history_length())
         ]
-        entries = [e for e in entries if e][-self._HISTORY_LIMIT:]
+        entries = [e for e in entries if e][-self._HISTORY_LIMIT :]
         try:
             history_path.write_text("\n".join(entries), encoding="utf-8")
         except OSError:
@@ -609,44 +658,46 @@ class CLITerminal:
         repl = self.repl
         prefix = self.prefix
 
+        matches: list[str] = []
+
         def _completer(text: str, state: int) -> str | None:
+            nonlocal matches
             if state == 0:
                 line = readline.get_line_buffer()
-                _completer.matches = []
+                matches = []
 
                 # File completion for /run and /run.edit args
                 for fc in file_cmds:
                     if line.startswith(fc):
-                        file_partial = line[len(fc):]
+                        file_partial = line[len(fc) :]
                         if scripts_dir.is_dir():
-                            _completer.matches = [
+                            matches = [
                                 fc + f.name
                                 for f in sorted(scripts_dir.glob("*.run"))
                                 if f.name.startswith(file_partial)
                             ]
                         # Only complete if exactly one match
-                        if len(_completer.matches) != 1:
-                            _completer.matches = []
-                        return _completer.matches[0] if _completer.matches else None
+                        if len(matches) != 1:
+                            matches = []
+                        return matches[0] if matches else None
 
                 # Command completion
                 if line.startswith(prefix):
-                    _completer.matches = sorted(
+                    matches = sorted(
                         f"{prefix}{name}"
                         for name in repl._plugins
                         if f"{prefix}{name}".startswith(line)
                     )
                 elif repl._target_commands:
-                    _completer.matches = sorted(
-                        name for name in repl._target_commands
+                    matches = sorted(
+                        name
+                        for name in repl._target_commands
                         if name.lower().startswith(line.lower())
                     )
 
-            if state < len(_completer.matches):
-                return _completer.matches[state]
+            if state < len(matches):
+                return matches[state]
             return None
-
-        _completer.matches = []
         readline.set_completer(_completer)
         readline.parse_and_bind("tab: complete")
         readline.set_completer_delims("")
@@ -655,6 +706,7 @@ class CLITerminal:
 
     def _start_reader(self) -> None:
         """Start the background serial reader thread."""
+
         def on_lines(lines: list[str]) -> None:
             for line in lines:
                 if self.no_color:
@@ -688,7 +740,10 @@ class CLITerminal:
         if path:
             try:
                 self.repl.run_script(
-                    path, write=self.status, dispatch=self.ctx.dispatch, verbose=True,
+                    path,
+                    write=self.status,
+                    dispatch=self.ctx.dispatch,
+                    verbose=True,
                 )
             except KeyboardInterrupt:
                 self._raw("\nScript interrupted")
@@ -705,6 +760,7 @@ class CLITerminal:
             while True:
                 try:
                     from termapy.builtins.plugins.var import expand_vars
+
                     prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
                     line = input(prompt)
                 except EOFError:
@@ -746,13 +802,18 @@ class CLITerminal:
         """
         self.switch_to: str | None = None
         if not self.engine.connect():
-            port = self.cfg.get('port', '?')
+            port = self.cfg.get("port", "?")
             detail = self.engine.last_error
-            msg = f"termapy: cannot open {port}: {detail}" if detail else f"termapy: cannot open {port}"
+            msg = (
+                f"termapy: cannot open {port}: {detail}"
+                if detail
+                else f"termapy: cannot open {port}"
+            )
             self._err(msg)
             sys.exit(1)
 
         from termapy.config import connection_string, hardware_signals
+
         conn = connection_string(self.cfg)
         hw = hardware_signals(self.engine.port_obj)
         full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"

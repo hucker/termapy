@@ -1,5 +1,7 @@
 # Variables
 
+![Variable listing](img/doc_08_variables.svg)
+
 Termapy has a variable system that lets you define, expand, and reuse
 values across commands, scripts, and config fields. Variables use
 `$(NAME)` syntax.

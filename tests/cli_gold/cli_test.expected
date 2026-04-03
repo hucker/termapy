@@ -1,5 +1,4 @@
 Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
-demo> /print === section: device commands ===
   === section: device commands ===
 demo> AT
 OK
@@ -32,69 +31,38 @@ demo> AT+LED on
 OK
 demo> AT+LED off
 OK
-demo> /print === section: print and echo ===
   === section: print and echo ===
-demo> /echo off
   off
   echo is off - this should appear
-  on
-demo> /print echo is on - this should appear with echo line
+  off
   echo is on - this should appear with echo line
-demo> /print === section: variables ===
   === section: variables ===
-> $(DEVICE) = BASSOMATIC
   $(DEVICE) = BASSOMATIC
-> $(PORT_NUM) = 42
   $(PORT_NUM) = 42
-demo> /print device=$(DEVICE) port=$(PORT_NUM)
   device=BASSOMATIC port=42
-demo> /var DEVICE
   $(DEVICE) = BASSOMATIC
-demo> /var PORT_NUM
   $(PORT_NUM) = 42
-demo> /var.set DEVICE updated_value
   $(DEVICE) = updated_value
-demo> /var DEVICE
   $(DEVICE) = updated_value
-demo> /var.clear
   Cleared 2 variable(s).
-demo> /var DEVICE
     $(DEVICE) - not defined
-demo> /print === section: config read ===
   === section: config read ===
-demo> /cfg baud_rate
   115200
-demo> /cfg encoding
   utf-8
-demo> /cfg line_ending
 
-demo> /cfg parity
   N
-demo> /cfg byte_size
   8
-demo> /cfg stop_bits
   1
-demo> /cfg flow_control
   none
-demo> /cfg echo_input
   True
-demo> /cfg send_bare_enter
   False
-demo> /cfg cmd_prefix
   /
-demo> /print === section: config auto-set ===
   === section: config auto-set ===
-demo> /cfg.auto echo_input true
   echo_input = True  (session)
-demo> /cfg echo_input
   True
-demo> /cfg.auto echo_input false
   echo_input = False  (session)
-demo> /cfg echo_input
   False
-demo> /print === section: config dump ===
   === section: config dump ===
-demo> /cfg.dump
   {
     "config_version": 10,
     "default_ui": "tui",
@@ -125,6 +93,8 @@ demo> /cfg.dump
     "log_file": "",
     "show_timestamps": false,
     "show_line_endings": false,
+    "show_line_numbers": false,
+    "hex_mode": false,
     "show_traceback": true,
     "proto_results_template": "{name}_results.json",
     "max_grep_lines": 100,
@@ -161,47 +131,32 @@ demo> /cfg.dump
         }
     ]
 }
-demo> /print === section: config folders ===
   === section: config folders ===
-demo> /cfg.run
     run/
       at_demo.run
+      doc_screenshots.run
       expect_test.run
       gps_demo.run
       smoke_test.run
       status_check.run
       var_demo.run
       welcome.run
-demo> /cfg.proto
     proto/
       at_test.pro
       bitfield_inline.pro
       modbus_inline.pro
-demo> /print === section: port read ===
   === section: port read ===
-demo> /port.baud_rate
   115200
-demo> /port.parity
   N
-demo> /port.byte_size
   8
-demo> /port.stop_bits
   1
-demo> /port.flow_control
   none
-demo> /port.dtr
   1
-demo> /port.rts
   1
-demo> /port.cts
   1
-demo> /port.dsr
   1
-demo> /port.ri
   0
-demo> /port.cd
   1
-demo> /port.info
     Port:         DEMO  (connected)
     Baud rate:    115200
     Frame:        8N1
@@ -213,39 +168,22 @@ demo> /port.info
     DSR:          1
     RI:           0
     CD:           1
-demo> /print === section: port modify ===
   === section: port modify ===
-demo> /port.dtr 0
   DTR -> 0
-demo> /port.dtr
   0
-demo> /port.dtr 1
   DTR -> 1
-demo> /port.dtr
   1
-demo> /port.rts 0
   RTS -> 0
-demo> /port.rts
   0
-demo> /print === section: port close/open ===
   === section: port close/open ===
-demo> /port.close
 Disconnected.
-demo> /port.baud_rate
   115200 (disconnected)
-demo> /port.open
 Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
-demo> /port.baud_rate
   115200
-demo> /print === section: port break ===
   === section: port break ===
-demo> /port.break
   Break sent (250ms)
-demo> /port.break 100
   Break sent (100ms)
-demo> /print === section: port subcommands ===
   === section: port subcommands ===
-demo> /port
   Subcommands of /port:
     /port.baud_rate {value} - Show or set baud rate.
     /port.break {duration_ms} - Send a break signal (default 250ms).
@@ -263,31 +201,19 @@ demo> /port
     /port.ri - Show Ring Indicator state (read-only).
     /port.rts {0|1} - Show or set RTS line (hardware only).
     /port.stop_bits {value} - Show or set stop bits.
-demo> /print === section: line endings ===
   === section: line endings ===
-demo> /show_line_endings on
   show_line_endings = True  (session)
   on
-demo> /show_line_endings off
   show_line_endings = False  (session)
   off
-demo> /print === section: seq ===
   === section: seq ===
-demo> /seq
   No counters set.
-demo> /print seq1={seq1+} seq2={seq2+}
   seq1=1 seq2=1
-demo> /print seq1={seq1+} seq2={seq2}
   seq1=1 seq2=1
-demo> /seq
   Counters: seq1=1, seq2=1
-demo> /seq.reset
   Sequence counters reset.
-demo> /seq
   No counters set.
-demo> /print === section: proto crc ===
   === section: proto crc ===
-demo> /proto.crc.help crc16-modbus
     crc16-modbus
     Modbus RTU serial protocol
     Width:   16 bits (2 bytes)
@@ -298,30 +224,24 @@ demo> /proto.crc.help crc16-modbus
     XorOut:  0x0000
     Check:   0x4B37  (CRC of '123456789')
     Spec:    CRC:crc16-modbus_le  or  CRC:crc16-modbus_be
-demo> /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
     Algorithm: crc16-modbus
     Data:      01 03 00 00 00 0A  (6 bytes)
     CRC:       0xCDC5
     Bytes LE:  C5 CD
     Bytes BE:  CD C5
-demo> /proto.crc.calc crc8-maxim 48 65 6C 6C 6F
     Algorithm: crc8-maxim
     Data:      48 65 6C 6C 6F  (5 bytes)
     CRC:       0xEB
     Byte:      EB
-demo> /proto.crc.calc crc32 01 02 03 04
     Algorithm: crc32
     Data:      01 02 03 04  (4 bytes)
     CRC:       0xB63CFBCD
     Bytes LE:  CD FB 3C B6
     Bytes BE:  B6 3C FB CD
-demo> /print === section: help ===
   === section: help ===
-demo> /help echo
 /echo {on | off} - Toggle REPL command echo, or set on/off. Output is not affected.
   Subcommands:
     /echo.quiet <on | off> - Set echo on/off silently (no output message).
-demo> /help port
 /port {name} - Serial port tools: open, close, list, configure.
   Subcommands:
     /port.baud_rate {value} - Show or set baud rate.
@@ -340,7 +260,6 @@ demo> /help port
     /port.ri - Show Ring Indicator state (read-only).
     /port.rts {0|1} - Show or set RTS line (hardware only).
     /port.stop_bits {value} - Show or set stop bits.
-demo> /help cfg
 /cfg {key {value}} - Show or change config values.
     Three modes:
       /cfg              - show all config key/value pairs
@@ -365,7 +284,6 @@ demo> /help cfg
     /cfg.run - List files in run/.  ...
     /cfg.ss - List files in ss/.  ...
     /cfg.viz - List files in viz/.  ...
-demo> /help proto.crc
 /proto.crc - Browse and compute CRC algorithms.
   Subcommands:
     /proto.crc.c <name> - Generate C source code for a CRC algorithm.
@@ -374,7 +292,6 @@ demo> /help proto.crc
     /proto.crc.list {pattern} - List algorithms (optional glob filter).
     /proto.crc.python <name> - Generate Python source code for a CRC algorithm.
     /proto.crc.rust <name> - Generate Rust source code for a CRC algorithm.
-demo> /help var
 /var {name} - List user variables, or show one by name.
     User-defined variables use $(NAME) syntax (case-sensitive).
 
@@ -435,7 +352,6 @@ demo> /help var
   Subcommands:
     /var.clear - Clear all user variables.
     /var.set <NAME> <value> - Set a user variable.
-demo> /help cap
 /cap - Data capture tools.
   Subcommands:
     /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)} - Capture raw binary bytes to a
@@ -447,29 +363,17 @@ last)} - Capture hex text lines, decode with format spec to CSV.
 be last)} - Capture raw bytes, decode with format spec to CSV.
     /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)} - Capture serial text to a
 file for a timed duration.
-demo> /print === section: env vars ===
   === section: env vars ===
-demo> /env.set TEST_VAR hello_world
     TEST_VAR=hello_world
-demo> /env.list TEST_VAR
     TEST_VAR=hello_world
-demo> /env.set TEST_VAR updated
     TEST_VAR=updated
-demo> /env.list TEST_VAR
     TEST_VAR=updated
-demo> /print === section: errors ===
   === section: errors ===
-demo> /nonexistent_command
   Error: Unknown command: nonexistent_command
-demo> /cfg nonexistent_key
   Error: Unknown config key: nonexistent_key
-demo> /port.baud_rate not_a_number
   Invalid baud rate: not_a_number
-demo> /port.parity X
   Invalid parity: X (use E, M, N, O, S)
-demo> /port.dtr maybe
   Invalid DTR value: maybe (use 0/1/on/off)
-demo> /port.break -5
   Invalid duration (use milliseconds, e.g. 250)
   Script finished.
 Disconnected.

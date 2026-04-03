@@ -461,7 +461,7 @@ Capture serial output to files without interrupting normal display or logging.
 
 ### Text Capture (timed)
 
-```
+``` text
 /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)}
 /cap.stop
 ```
@@ -507,7 +507,7 @@ Use `fmt=` with the protocol format spec language to define the record structure
 - `mode=new|append`: file mode (default new)
 - Header row written when columns have names (e.g. `Temp:U1-2`)
 
-```
+``` text
 /cap.struct data.csv fmt=Val:U1-2 records=50 cmd=AT+BINDUMP u16 50
 /cap.struct sensors.csv fmt=Temp:U1-2 Volts:F3-6 Status:H7 records=100 cmd=read
 /cap.struct log.tsv fmt=A:U1-2 B:U3-4 records=50 sep=tab echo=on
@@ -528,7 +528,7 @@ tracks the last-used number across sessions, with rollover.
 | `$(n00)`  | 00–99   |
 | `$(n000)` | 000–999 |
 
-```
+``` text
 /cap.text log_$(n000).txt timeout=3s cmd=AT+INFO
 # → log_000.txt, log_001.txt, log_002.txt, ...
 ```

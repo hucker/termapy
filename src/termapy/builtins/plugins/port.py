@@ -40,7 +40,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         for child_name in sorted(info.children):
             child = plugins.get(child_name)
             if child:
-                short = child_name.split(".")[-1]
+                child_name.split(".")[-1]
                 arg_str = f" {child.args}" if child.args else ""
                 ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
     return CmdResult.ok()
@@ -80,6 +80,7 @@ def _make_prop_handler(key: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         _apply(ctx, port_control.get_set_prop(ctx.port(), ctx.cfg, key, args))
         return CmdResult.ok()
+
     return _handler
 
 
@@ -87,6 +88,7 @@ def _make_hw_handler(line: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         _apply(ctx, port_control.get_set_hw_line(ctx.port(), line, args))
         return CmdResult.ok()
+
     return _handler
 
 
@@ -94,6 +96,7 @@ def _make_signal_handler(signal: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         _apply(ctx, port_control.read_signal(ctx.port(), signal, args))
         return CmdResult.ok()
+
     return _handler
 
 

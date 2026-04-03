@@ -1,0 +1,78 @@
+# doc_screenshots.run — Generate documentation images
+#
+# Run while connected to the demo device:
+#   /run doc_screenshots
+#
+# Images are saved to the ss/ folder as SVG files.
+# For manual modal screenshots (Quick Setup, Config Picker),
+# use Ctrl+S while the dialog is open.
+
+# -- 1. Hero image: show a realistic session with variety --
+/cls
+AT+INFO
+/delay.quiet 2s
+AT+TEMP
+/delay.quiet 2s
+/temp_plot 20
+/delay.quiet 2s
+AT+LED on
+/delay.quiet 2s
+AT+STATUS
+/delay.quiet 2s
+/ss.svg.quiet doc_01_main_tui
+
+# -- 2. Help overview: top-level commands --
+/cls
+/help
+/delay.quiet 2s
+/ss.svg.quiet doc_02_help
+
+# -- 3. Help detail: proto subcommands --
+/cls
+/help proto
+/delay.quiet 2s
+/ss.svg.quiet doc_03_help_proto
+
+# -- 4. Proto send: hex with response --
+/cls
+/proto.send "rev\r"
+/delay.quiet 2s
+/ss.svg.quiet doc_04_proto_send
+
+# -- 5. Proto send with CRC --
+/cls
+/proto.send crc16-modbus 01 03 00 00 00 0A
+/delay.quiet 2s
+/ss.svg.quiet doc_05_proto_crc
+
+# -- 6. Proto send with delay --
+/cls
+/proto.send 00 ~25ms "AT+INFO\r"
+/delay.quiet 2s
+/ss.svg.quiet doc_06_proto_delay
+
+# -- 7. CRC code generation --
+/cls
+/proto.crc.python crc16-modbus
+/delay.quiet 2s
+/ss.svg.quiet doc_07_crc_python
+
+# -- 8. Variable listing --
+/cls
+/var
+/delay.quiet 2s
+/ss.svg.quiet doc_08_variables
+
+# -- 9. Device target commands --
+/cls
+/help.target
+/delay.quiet 2s
+/ss.svg.quiet doc_09_target_help
+
+# -- 10. Config info (verbose) --
+/cls
+/verbose on
+/cfg.load demo
+/delay.quiet 2s
+/ss.svg.quiet doc_10_config_info
+/verbose off

@@ -1,5 +1,7 @@
 # Configuration
 
+![Config info display](img/doc_10_config_info.svg)
+
 ## Config Directory
 
 Termapy looks for configs in the first directory that matches:
@@ -87,6 +89,8 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `log_file`               | ` `                   | Session log path (defaults to `<name>.log` in config subfolder)                             |
 | `show_timestamps`        | `false`               | Prefix lines with `[HH:MM:SS.mmm]`                                                          |
 | `show_line_endings`      | `false`               | Show dim `\r` `\n` markers in serial output for debugging                                   |
+| `show_line_numbers`      | `false`               | Show line numbers in serial output                                                          |
+| `hex_mode`               | `false`               | Display serial I/O as hex bytes instead of text                                             |
 | `max_grep_lines`         | `100`                 | Maximum lines shown by `/grep`                                                              |
 | `proto_frame_gap_ms`     | `50`                  | Silence gap (ms) to detect end of a binary frame                                            |
 | `proto_results_template` | `{name}_results.json` | Filename template for protocol test JSON results                                            |

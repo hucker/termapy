@@ -2,6 +2,8 @@
 
 Welcome to `termapy` — a TUI serial terminal with scripting, protocol testing, and data capture.
 
+![Termapy TUI](img/doc_01_main_tui.svg)
+
 Select a topic:
 
 - [Installation](installation.md) — requirements, install with uv or pip

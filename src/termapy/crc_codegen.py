@@ -4,7 +4,13 @@ Generates standalone CRC functions from catalogue parameters.
 Pure functions, no dependencies beyond protocol_crc.
 """
 
+# Allowing this makes code lineup nicely
+# ruff: noqa: F541  — f-strings without placeholders used for code alignment
+
+
 from __future__ import annotations
+
+from typing import Callable
 
 from termapy.protocol_crc import CRC_CATALOGUE, _reflect
 
@@ -129,11 +135,11 @@ def generate_c(name: str, table: bool = False) -> str | None:
         if refin:
             ref_init = _reflect(init, w)
             lines.append(f"    {ctype} crc = {_hex(ref_init, w)};")
-            lines.append(f"    for (size_t i = 0; i < len; i++)")
-            lines.append(f"        crc = crc_table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);")
+            lines.append("    for (size_t i = 0; i < len; i++)")
+            lines.append("        crc = crc_table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);")
         else:
             lines.append(f"    {ctype} crc = {_hex(init, w)};")
-            lines.append(f"    for (size_t i = 0; i < len; i++)")
+            lines.append("    for (size_t i = 0; i < len; i++)")
             lines.append(f"        crc = crc_table[((crc >> {w - 8}) ^ data[i]) & 0xFF] ^ (crc << 8) & {mask};")
     elif refin:
         ref_poly = _reflect(poly, w)
@@ -357,7 +363,7 @@ def generate_rust(name: str, table: bool = False) -> str | None:
     return "\n".join(lines)
 
 
-GENERATORS: dict[str, callable] = {
+GENERATORS: dict[str, Callable] = {
     "c": generate_c,
     "python": generate_python,
     "rust": generate_rust,

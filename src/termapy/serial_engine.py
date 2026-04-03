@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import queue
 import time
-import traceback
 from threading import Event
-from typing import Callable
+from typing import Any, Callable
 
 from termapy.capture import CaptureEngine
 from termapy.serial_port import SerialPort, SerialReader
@@ -22,15 +21,15 @@ def _classify_serial_error(exc: Exception) -> str:
     msg = str(exc)
     cause = exc.__cause__ or exc.__context__
     if isinstance(cause, PermissionError):
-        return f"Permission denied -- port may be in use by another application"
+        return "Permission denied -- port may be in use by another application"
     if isinstance(cause, FileNotFoundError):
-        return f"Port not found -- check the port name with /port.list"
+        return "Port not found -- check the port name with /port.list"
     if isinstance(cause, OSError):
         code = getattr(cause, "errno", None)
         if code == 2:
-            return f"Port not found -- check the port name with /port.list"
+            return "Port not found -- check the port name with /port.list"
         if code == 13:
-            return f"Permission denied -- port may be in use by another application"
+            return "Permission denied -- port may be in use by another application"
         return f"{cause}"
     # Fall back to the original message, stripped of Python class noise
     if "could not open port" in msg.lower():
@@ -64,7 +63,7 @@ class SerialEngine:
         self._open_fn = open_fn
         self._log = log or (lambda _d, _t: None)
 
-        self._port_obj: object | None = None
+        self._port_obj: Any | None = None
         self._serial_port: SerialPort | None = None
         self._reader: SerialReader | None = None
         self._rx_queue: queue.Queue[bytes] = queue.Queue()
@@ -233,7 +232,7 @@ class SerialEngine:
         """Attempt a single reconnect. Returns True on success."""
         try:
             port = self._open_fn(self._cfg)
-            port.close()
+            port.close()  # ty:ignore[unresolved-attribute]
             return True
         except Exception:
             return False

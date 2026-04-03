@@ -9,7 +9,6 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 
 import argparse
 import json
-import queue
 import sys
 import time
 import traceback
@@ -322,9 +321,9 @@ class SerialTerminal(App):
         self._suggester = CommandSuggester()
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
-        self._show_line_numbers: bool = False
+        self._show_line_numbers: bool = cfg.get("show_line_numbers", False)
         self._line_counter: int = 0
-        self._proto_hex_mode: bool = False
+        self._proto_hex_mode: bool = cfg.get("hex_mode", False)
 
         # File capture engine
         self._capture = CaptureEngine(
@@ -696,6 +695,13 @@ class SerialTerminal(App):
             "{name}",
             "Save SVG screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_svg,
+            source="app",
+        )
+        self.repl.register_hook(
+            "ss.svg.quiet",
+            "{name}",
+            "Save SVG screenshot silently (no status message).",
+            self._hook_ss_svg_quiet,
             source="app",
         )
         self.repl.register_hook(
@@ -1303,6 +1309,10 @@ class SerialTerminal(App):
             )
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
+        if not cfg.get("device_json_cmd", ""):
+            self._clear_target_commands()
+        self._proto_hex_mode = cfg.get("hex_mode", False)
+        self._show_line_numbers = cfg.get("show_line_numbers", False)
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self.history = self._load_history()
@@ -1651,16 +1661,20 @@ class SerialTerminal(App):
 
     def _on_btn_dtr(self) -> None:
         if self.is_connected and self.ser:
+
             def _toggle():
                 self.ser.dtr = not self.ser.dtr
                 self._btn_dtr.label = f"DTR:{int(self.ser.dtr)}"
+
             self._serial_op("DTR", _toggle)
 
     def _on_btn_rts(self) -> None:
         if self.is_connected and self.ser:
+
             def _toggle():
                 self.ser.rts = not self.ser.rts
                 self._btn_rts.label = f"RTS:{int(self.ser.rts)}"
+
             self._serial_op("RTS", _toggle)
 
     def _on_btn_break(self) -> None:
@@ -2545,6 +2559,16 @@ class SerialTerminal(App):
         self._sync_ss_button()
         return CmdResult.ok()
 
+    def _hook_ss_svg_quiet(self, ctx, args: str) -> CmdResult:
+        name = args.strip() or "screenshot"
+        if not name.endswith(".svg"):
+            name += ".svg"
+        path = str((self.repl.ss_dir / name).resolve())
+        self.save_screenshot(path)
+        self.last_screenshot = path
+        self._sync_ss_button()
+        return CmdResult.ok()
+
     def _hook_ss_txt(self, ctx, args: str) -> CmdResult:
         base = args.strip() or "screenshot"
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -2868,7 +2892,6 @@ class SerialTerminal(App):
             self._run_script(path, profile=True)
         return result
 
-    @staticmethod
     def _prof_dir(self) -> Path | None:
         """Return the prof/ directory, or None if no config loaded."""
         if not self.config_path:

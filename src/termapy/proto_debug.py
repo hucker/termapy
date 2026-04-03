@@ -957,7 +957,7 @@ class ProtoDebugScreen(ModalScreen[None]):
     def _write_json_results(self, tests: list[TestCase],
                             pass_count: int, fail_count: int,
                             elapsed_ms: float,
-                            template: str) -> None:
+                            template: str) -> str | None:
         """Write JSON test results to the proto/test/ directory.
 
         Uses the same format as the headless proto_runner, reusing

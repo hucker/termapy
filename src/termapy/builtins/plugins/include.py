@@ -1,7 +1,7 @@
 """Built-in plugin: include device command help from JSON.
 
 Named 'include' (not 'import') because 'import' is a Python reserved keyword.
-C programmers will recognise the analogy to #include.
+C programmers will recognize the analogy to #include.
 """
 
 from __future__ import annotations
@@ -105,8 +105,7 @@ def _read_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
     return None
 
 
-def _fetch_and_include(ctx: PluginContext, cmd: str,
-                       timeout_ms: int) -> CmdResult:
+def _fetch_and_include(ctx: PluginContext, cmd: str, timeout_ms: int) -> CmdResult:
     """Send command, read JSON, build TargetCommands, save cache."""
     if not ctx.is_connected():
         return CmdResult.fail(msg="Not connected.")

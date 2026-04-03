@@ -14,7 +14,7 @@ import queue
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any, Callable
 
 
 class SerialPort:
@@ -33,7 +33,7 @@ class SerialPort:
 
     def __init__(
         self,
-        port: object,
+        port: Any,
         rx_queue: "queue.Queue[bytes]",
         log: Callable[[str, str], None] | None = None,
         encoding: str = "utf-8",
@@ -209,7 +209,7 @@ class SerialReader:
         self,
         encoding: str = "utf-8",
         show_line_endings: bool = False,
-        capture: object | None = None,
+        capture: Any | None = None,
         proto_active: Callable[[], bool] | None = None,
     ) -> None:
         self._encoding = encoding

@@ -8,7 +8,7 @@ or `feed_text()`, and the engine writes to the output file.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any, Callable
 
@@ -20,8 +20,8 @@ class CaptureProgress:
     """Snapshot of capture progress for UI display."""
 
     path_name: str
-    mode: str          # "text" or "bin"
-    pct: int           # 0-100
+    mode: str  # "text" or "bin"
+    pct: int  # 0-100
     bytes_captured: int
     target_bytes: int  # 0 for text mode
     remaining_s: float  # seconds remaining (text mode), 0 for bin
@@ -188,7 +188,7 @@ class CaptureEngine:
         if self._mode == "bin" and self._buf:
             self._flush_bin()
 
-        path = self._path
+        path = self._path or Path("unknown")
         byte_count = self._bytes
         raw = self._raw
 
@@ -259,7 +259,9 @@ class CaptureEngine:
             elapsed = self._total - remaining
             pct = min(100, int(elapsed / self._total * 100)) if self._total > 0 else 100
         else:
-            pct = min(100, int(self._bytes / self._total * 100)) if self._total > 0 else 0
+            pct = (
+                min(100, int(self._bytes / self._total * 100)) if self._total > 0 else 0
+            )
             remaining = 0.0
         return CaptureProgress(
             path_name=path_name,
@@ -288,9 +290,7 @@ class CaptureEngine:
                 lines: list[str] = []
                 sep = self._sep
                 if not self._header_written:
-                    headers, _ = apply_format(
-                        data[: self._record_size], self._columns
-                    )
+                    headers, _ = apply_format(data[: self._record_size], self._columns)
                     has_names = any(
                         h != col.type_code
                         for h, col in zip(headers, self._columns)

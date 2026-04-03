@@ -11,7 +11,6 @@ import struct
 import time
 import tomllib
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Callable
 
 from termapy.scripting import parse_duration
@@ -180,14 +179,14 @@ def parse_data_segments(text: str) -> list[bytes | float]:
             m = _QUOTED_STR.match(remaining, pos)
             if not m:
                 raise ValueError(f"Unterminated string at position {pos}")
-            buf.append(remaining[pos:m.end()])
+            buf.append(remaining[pos : m.end()])
             pos = m.end()
             continue
 
         # Hex byte — capture the token for the buffer
         m = _HEX_TOKEN.match(remaining, pos)
         if m:
-            buf.append(remaining[pos:m.end()])
+            buf.append(remaining[pos : m.end()])
             pos = m.end()
             continue
 
@@ -388,9 +387,7 @@ def match_response(expected: bytes, actual: bytes, mask: bytes) -> bool:
     """
     if len(actual) != len(expected):
         return False
-    return all(
-        (a & m) == (e & m) for a, e, m in zip(actual, expected, mask)
-    )
+    return all((a & m) == (e & m) for a, e, m in zip(actual, expected, mask))
 
 
 # ---------------------------------------------------------------------------
@@ -594,47 +591,61 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
         elif key == "send":
             data = parse_data(val)
             is_binary = not val.strip().startswith('"')
-            steps.append(Step(
-                action="send",
-                data=data,
-                label=current_label,
-                binary=is_binary,
-            ))
+            steps.append(
+                Step(
+                    action="send",
+                    data=data,
+                    label=current_label,
+                    binary=is_binary,
+                )
+            )
             current_label = ""
         elif key == "expect":
             exp_data, exp_mask = parse_pattern(val)
             is_binary = not val.strip().startswith('"')
-            timeout = current_timeout if current_timeout is not None else settings["timeout_ms"]
-            steps.append(Step(
-                action="expect",
-                data=exp_data,
-                mask=exp_mask,
-                timeout_ms=timeout,
-                label=current_label,
-                binary=is_binary,
-            ))
+            timeout = (
+                current_timeout
+                if current_timeout is not None
+                else settings["timeout_ms"]
+            )
+            steps.append(
+                Step(
+                    action="expect",
+                    data=exp_data,
+                    mask=exp_mask,
+                    timeout_ms=timeout,
+                    label=current_label,
+                    binary=is_binary,
+                )
+            )
             current_label = ""
             current_timeout = None
         elif key == "delay":
-            steps.append(Step(
-                action="delay",
-                timeout_ms=_parse_duration_ms(val),
-                label=current_label,
-            ))
+            steps.append(
+                Step(
+                    action="delay",
+                    timeout_ms=_parse_duration_ms(val),
+                    label=current_label,
+                )
+            )
             current_label = ""
         elif key == "cmd":
-            steps.append(Step(
-                action="cmd",
-                data=val.encode("utf-8"),
-                label=current_label,
-            ))
+            steps.append(
+                Step(
+                    action="cmd",
+                    data=val.encode("utf-8"),
+                    label=current_label,
+                )
+            )
             current_label = ""
         elif key == "flush":
-            steps.append(Step(
-                action="flush",
-                timeout_ms=_parse_duration_ms(val),
-                label=current_label,
-            ))
+            steps.append(
+                Step(
+                    action="flush",
+                    timeout_ms=_parse_duration_ms(val),
+                    label=current_label,
+                )
+            )
             current_label = ""
         else:
             raise ValueError(f"Line {lineno}: unknown key: {key}")
@@ -755,7 +766,9 @@ def parse_toml_script(text: str) -> ProtoScript:
         teardown=doc.get("teardown", []),
         viz=doc.get("viz", []),
         send_fmt=doc.get("send_fmt", ""),
-        expect_fmt=doc.get("expect_fmt", doc.get("recv_fmt", "")),  # recv_fmt compat - remove after v7
+        expect_fmt=doc.get(
+            "expect_fmt", doc.get("recv_fmt", "")
+        ),  # recv_fmt compat - remove after v7
         json_file=doc.get("json_file", ""),
     )
 
@@ -782,22 +795,26 @@ def parse_toml_script(text: str) -> ProtoScript:
             test_setup = [entry["cmd"]]
         test_teardown: list[str] = entry.get("teardown", [])
 
-        script.tests.append(TestCase(
-            index=i,
-            name=entry.get("name", f"Test {i}"),
-            setup=test_setup,
-            teardown=test_teardown,
-            send_data=send_data,
-            send_raw=send_raw,
-            expect_data=expect_data,
-            expect_mask=expect_mask,
-            expect_raw=expect_raw,
-            binary=is_binary,
-            timeout_ms=timeout,
-            viz=entry.get("viz", ""),
-            send_fmt=entry.get("send_fmt", script.send_fmt),
-            expect_fmt=entry.get("expect_fmt", entry.get("recv_fmt", script.expect_fmt)),  # recv_fmt compat - remove after v7
-        ))
+        script.tests.append(
+            TestCase(
+                index=i,
+                name=entry.get("name", f"Test {i}"),
+                setup=test_setup,
+                teardown=test_teardown,
+                send_data=send_data,
+                send_raw=send_raw,
+                expect_data=expect_data,
+                expect_mask=expect_mask,
+                expect_raw=expect_raw,
+                binary=is_binary,
+                timeout_ms=timeout,
+                viz=entry.get("viz", ""),
+                send_fmt=entry.get("send_fmt", script.send_fmt),
+                expect_fmt=entry.get(
+                    "expect_fmt", entry.get("recv_fmt", script.expect_fmt)
+                ),  # recv_fmt compat - remove after v7
+            )
+        )
 
     return script
 
@@ -958,9 +975,7 @@ _BYTE_NUM = re.compile(r"\d+")
 # Algo names may contain hyphens (e.g. "crc16-modbus", "crc16-ccitt-false").
 # The _le/_be suffix uses underscore, so hyphens are unambiguous.
 _CRC_SPEC = re.compile(
-    r"(?P<algo>[\w-]+?)(?:_(?P<endian>le|be))?"
-    r"(?:\((?P<range>\d+-\d+)\))?"
-    r"$"
+    r"(?P<algo>[\w-]+?)(?:_(?P<endian>le|be))?" r"(?:\((?P<range>\d+-\d+)\))?" r"$"
 )
 
 
@@ -980,8 +995,6 @@ def _parse_byte_refs(text: str) -> tuple[list[int], bool]:
     Returns:
         Tuple of (0-based byte indices, is_wildcard).
     """
-    wildcard = False
-
     # Wildcard: "7-*" or "1-*"
     if text.endswith("-*"):
         prefix = text[:-2]
@@ -1094,7 +1107,7 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
     for token in spec.split():
         colon = token.index(":")
         name = token[:colon]
-        type_body = token[colon + 1:]
+        type_body = token[colon + 1 :]
 
         # Bit field: B/b prefix with dot separator
         #   B1.3 - single bit, display as integer
@@ -1110,10 +1123,14 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
                 bit = (int(bit_parts[0]), int(bit_parts[1]))
             else:
                 bit = int(bit_part)
-            columns.append(ColumnSpec(
-                name=name, type_code=type_code,
-                byte_indices=byte_indices, bit=bit,
-            ))
+            columns.append(
+                ColumnSpec(
+                    name=name,
+                    type_code=type_code,
+                    byte_indices=byte_indices,
+                    bit=bit,
+                )
+            )
             continue
 
         # Standard types: H, h, U, I, S, F, _ (padding)
@@ -1121,15 +1138,21 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
             type_code = type_body[0]
             refs_str = type_body[1:]
             byte_indices, wildcard = _parse_byte_refs(refs_str)
-            columns.append(ColumnSpec(
-                name=name, type_code=type_code,
-                byte_indices=byte_indices, wildcard=wildcard,
-            ))
+            columns.append(
+                ColumnSpec(
+                    name=name,
+                    type_code=type_code,
+                    byte_indices=byte_indices,
+                    wildcard=wildcard,
+                )
+            )
             continue
 
         # CRC: starts with known CRC prefix or contains _le/_be
-        if "_le" in type_body or "_be" in type_body or (
-            not type_body[0].isupper() and type_body[0].isalpha()
+        if (
+            "_le" in type_body
+            or "_be" in type_body
+            or (not type_body[0].isupper() and type_body[0].isalpha())
         ):
             col = _parse_crc_spec(type_body)
             col.name = name
@@ -1138,16 +1161,21 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
 
         # Unknown - treat as hex
         byte_indices, wildcard = _parse_byte_refs(type_body)
-        columns.append(ColumnSpec(
-            name=name, type_code="H",
-            byte_indices=byte_indices, wildcard=wildcard,
-        ))
+        columns.append(
+            ColumnSpec(
+                name=name,
+                type_code="H",
+                byte_indices=byte_indices,
+                wildcard=wildcard,
+            )
+        )
 
     return columns
 
 
 def _resolve_wildcards(
-    columns: list[ColumnSpec], data_len: int,
+    columns: list[ColumnSpec],
+    data_len: int,
 ) -> list[ColumnSpec]:
     """Resolve wildcard columns and CRC byte positions for a given data length.
 
@@ -1177,7 +1205,8 @@ def _resolve_wildcards(
             start = col.byte_indices[0] if col.byte_indices else 0
             end = data_len - crc_width
             new_col = ColumnSpec(
-                name=col.name, type_code=col.type_code,
+                name=col.name,
+                type_code=col.type_code,
                 byte_indices=list(range(start, end)),
                 wildcard=False,
             )
@@ -1193,7 +1222,8 @@ def _resolve_wildcards(
                 if col.crc_little_endian:
                     indices = list(reversed(indices))
                 new_col = ColumnSpec(
-                    name=col.name, type_code="crc",
+                    name=col.name,
+                    type_code="crc",
                     byte_indices=indices,
                     crc_algo=col.crc_algo,
                     crc_little_endian=col.crc_little_endian,
@@ -1208,7 +1238,8 @@ def _resolve_wildcards(
 
 
 def _format_column_value(
-    data: bytes, col: ColumnSpec,
+    data: bytes,
+    col: ColumnSpec,
 ) -> str:
     """Format a single column's value from raw data bytes.
 
@@ -1276,8 +1307,11 @@ def _format_column_value(
 
     # Hex: H = combined (0A2B), h = spaced per-byte (0A 2B)
     if col.type_code == "H":
-        return "".join(f"{b:02X}" for b in raw) if len(raw) > 1 else (
-            f"{raw[0]:02X}" if raw else "")
+        return (
+            "".join(f"{b:02X}" for b in raw)
+            if len(raw) > 1
+            else (f"{raw[0]:02X}" if raw else "")
+        )
     if col.type_code == "h":
         return " ".join(f"{b:02X}" for b in raw)
 
@@ -1309,7 +1343,8 @@ def _format_column_value(
 
 
 def apply_format(
-    data: bytes, columns: list[ColumnSpec],
+    data: bytes,
+    columns: list[ColumnSpec],
 ) -> tuple[list[str], list[str]]:
     """Apply column specs to data bytes, returning headers and values.
 
@@ -1334,7 +1369,9 @@ def apply_format(
 
 
 def diff_columns(
-    actual: bytes, expected: bytes, mask: bytes,
+    actual: bytes,
+    expected: bytes,
+    mask: bytes,
     columns: list[ColumnSpec],
 ) -> tuple[list[str], list[str], list[str], list[str]]:
     """Compare actual vs expected using column specs.
@@ -1365,8 +1402,6 @@ def diff_columns(
     exp_values: list[str] = []
     act_values: list[str] = []
     statuses: list[str] = []
-
-    registry = get_crc_registry()
 
     for col in resolved:
         if col.type_code == "_":
@@ -1399,19 +1434,15 @@ def diff_columns(
                     parts.append(f"[{DIFF_STYLES['missing']}]--[/]")
                     has_mismatch = True
                 elif idx >= len(expected):
-                    parts.append(
-                        f"[{DIFF_STYLES['extra']}]{actual[idx]:02X}[/]")
+                    parts.append(f"[{DIFF_STYLES['extra']}]{actual[idx]:02X}[/]")
                     has_mismatch = True
                 elif idx < len(mask) and mask[idx] == 0x00:
-                    parts.append(
-                        f"[{DIFF_STYLES['wildcard']}]{actual[idx]:02X}[/]")
+                    parts.append(f"[{DIFF_STYLES['wildcard']}]{actual[idx]:02X}[/]")
                 elif actual[idx] != expected[idx]:
-                    parts.append(
-                        f"[{DIFF_STYLES['mismatch']}]{actual[idx]:02X}[/]")
+                    parts.append(f"[{DIFF_STYLES['mismatch']}]{actual[idx]:02X}[/]")
                     has_mismatch = True
                 else:
-                    parts.append(
-                        f"[{DIFF_STYLES['match']}]{actual[idx]:02X}[/]")
+                    parts.append(f"[{DIFF_STYLES['match']}]{actual[idx]:02X}[/]")
             if has_mismatch:
                 act_values[-1] = " ".join(parts)
                 statuses.append("mixed")
@@ -1426,10 +1457,7 @@ def diff_columns(
                 col_status = "missing"
             elif max_idx >= len(expected):
                 col_status = "extra"
-            elif all(
-                idx >= len(mask) or mask[idx] == 0x00
-                for idx in col.byte_indices
-            ):
+            elif all(idx >= len(mask) or mask[idx] == 0x00 for idx in col.byte_indices):
                 col_status = "wildcard"
             elif exp_values[-1] != act_values[-1]:
                 col_status = "mismatch"
@@ -1438,5 +1466,3 @@ def diff_columns(
             statuses.append(col_status)
 
     return headers, exp_values, act_values, statuses
-
-

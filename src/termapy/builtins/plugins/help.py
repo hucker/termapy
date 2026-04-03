@@ -76,8 +76,7 @@ def _write_docstring(ctx: PluginContext, docstring: str) -> None:
         text = line.rstrip()
         if i == 0 and has_summary:
             ctx.write_markup(_TITLE_FMT.format(text=text))
-        elif _LABEL_RE.match(text):
-            m = _LABEL_RE.match(text)
+        elif (m := _LABEL_RE.match(text)):
             ctx.write_markup(_LABEL_FMT.format(
                 indent=m.group(1),
                 label=m.group(2) + m.group(3),
@@ -217,11 +216,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                 cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
                 args_text = _truncate_args(plugin.args or "", prefix, cmd_name)
                 arg_col = _pad(_color_args(args_text), arg_w)
-                ctx.write_markup(f"{cmd_col} {arg_col}  {plugin.help}")
-                if plugin.children:
-                    _list_children(
-                        ctx, plugin, prefix, cmd_w, arg_w, depth=1
-                    )
+                sub_count = f"  [dim]({len(plugin.children)})[/]" if plugin.children else ""
+                ctx.write_markup(f"{cmd_col} {arg_col}  {plugin.help}{sub_count}")
 
         # Directives section
         directives = ctx.engine.directives
@@ -302,7 +298,7 @@ COMMAND = Command(
     help="List REPL commands, or show help for one command.",
     long_help="""\
 Three modes:
-  /help              - list all commands with subcommands
+  /help              - list top-level commands (subcommand count shown)
   /help <cmd>        - show usage, help text, and subcommands
   /help proto.crc    - show help for a subcommand (dot notation)""",
     handler=_handler,

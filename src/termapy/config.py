@@ -9,6 +9,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import serial
 
@@ -445,7 +446,7 @@ def open_with_system(path: str) -> None:
         subprocess.Popen(["xdg-open", path])
 
 
-def open_serial(cfg: dict) -> serial.Serial:
+def open_serial(cfg: dict) -> Any:
     """Open serial port from config dict.
 
     If port is ``"DEMO"``, returns a ``FakeSerial`` simulated device
@@ -507,7 +508,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     run_dir = demo_dir / "run"
     run_dir.mkdir(exist_ok=True)
     run_pkg = pkg / "run"
-    for name in ("welcome.run", "at_demo.run", "gps_demo.run", "smoke_test.run", "status_check.run", "var_demo.run", "expect_test.run"):
+    for name in ("welcome.run", "at_demo.run", "gps_demo.run", "smoke_test.run", "status_check.run", "var_demo.run", "expect_test.run", "doc_screenshots.run"):
         dest = run_dir / name
         if force or not dest.exists():
             src = run_pkg / name

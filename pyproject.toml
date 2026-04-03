@@ -44,5 +44,4 @@ show_missing = true
 [dependency-groups]
 dev = [
     "pytest-cov>=7.0.0",
-    "mkdocs-material>=9.0",
 ]

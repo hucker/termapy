@@ -4,6 +4,24 @@ version = "0.47.0"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 license = "MIT"
 requires-python = ">=3.11"
+readme = "README.md"
+authors = [{name = "Chuck Bass", email = "chuck@acrocad.net"}]
+keywords = ["serial", "terminal", "tui", "textual", "pyserial", "embedded", "xmodem", "ymodem"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications",
+    "Topic :: System :: Hardware",
+    "Topic :: Terminals :: Serial",
+]
 dependencies = [
     "textual[syntax]>=0.80",
     "pyserial>=3.5",
@@ -22,6 +40,13 @@ build-backend = "uv_build"
 
 [project.scripts]
 termapy = "termapy:run"
+
+[project.urls]
+Homepage = "https://github.com/hucker/termapy"
+Documentation = "https://hucker.github.io/termapy/"
+Repository = "https://github.com/hucker/termapy"
+Changelog = "https://github.com/hucker/termapy/blob/main/CHANGELOG.md"
+Issues = "https://github.com/hucker/termapy/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

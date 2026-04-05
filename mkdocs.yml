@@ -1,4 +1,4 @@
-site_name: Termapy Help v0.43.0
+site_name: Termapy Help v0.44.0
 docs_dir: src/termapy/help
 site_dir: src/termapy/html
 
@@ -28,6 +28,7 @@ nav:
   - Serial Tools: serial-tools.md
   - Protocol Testing: protocol-testing.md
   - Data Capture: data-capture.md
+  - File Transfer: file-transfer.md
   - Writing Plugins: writing-plugins.md
   - Device Help: device-help.md
   - Using with Git: using-git.md

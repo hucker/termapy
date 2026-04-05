@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.44.0 (2026-04-03)
+
+### New Features
+
+- **Silent screenshots** -- `/ss.svg.quiet` for doc automation; `.quiet` echo suppression works with any command
+- **Documentation screenshots** -- `doc_screenshots.run` script generates 10 documentation SVGs from demo mode
+
+### Improvements
+
+- **Help restructured** -- Installation=onboarding, Getting Started=real device, Demo Mode=reference. Quick Setup dialog documented with screenshot
+- **11 documentation images** added across 6 help pages
+- **Config keys** -- `hex_mode` and `show_line_numbers` are now config keys (reset on config switch)
+- **Target commands** cleared on config switch when no `device_json_cmd`
+- **`/help` shows top-level only** with subcommand count
+- **CLI echo permanently off** -- readline shows input, scripts can't override
+- **`delay.quiet`** suppresses output in scripts
+- **Lint fixes** -- walrus operator, unused vars, Any typing, return types, @staticmethod, unused imports
+- **Removed mkdocs-material** dev dependency (using `uvx zensical build`)
+
 ## 0.43.0 (2026-04-02)
 
 ### New Features

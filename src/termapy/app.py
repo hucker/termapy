@@ -648,6 +648,7 @@ class SerialTerminal(App):
             disconnect=self._disconnect,
             update_port=self._update_port,
             apply_port_effects=self._apply_port_effects,
+            rx_queue=self._engine.rx_queue,
         )
         ctx = PluginContext(
             write=self._status,

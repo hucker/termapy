@@ -54,7 +54,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, ClassVar, Generator
+from typing import Any, Callable, ClassVar, Generator
 
 
 @dataclass
@@ -273,6 +273,7 @@ class EngineAPI:
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None
     apply_port_effects: Callable = lambda effects: None
+    rx_queue: Any = None  # queue.Queue[bytes] — raw RX for protocol handlers
 
 
 @dataclass

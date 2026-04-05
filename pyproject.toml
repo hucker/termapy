@@ -1,6 +1,6 @@
 [project]
 name = "termapy"
-version = "0.43.0"
+version = "0.44.0"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 license = "MIT"
 requires-python = ">=3.11"
@@ -9,6 +9,7 @@ dependencies = [
     "pyserial>=3.5",
     "pyreadline3>=3.4; sys_platform == 'win32'",
     "pygments>=2.20.0",
+    "xmodem>=0.4.7",
 ]
 
 [tool.uv-build]

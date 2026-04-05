@@ -27,3 +27,4 @@ coverage.xml
 .secrets
 REVIEW.md
 notes/
+.pypirc

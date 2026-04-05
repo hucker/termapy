@@ -471,22 +471,47 @@ class CLITerminal:
             self.status(f"Delete failed: {e}", "red")
             return CmdResult.fail(msg=str(e))
 
+    _help_server_port: int = 0
+
+    def _ensure_help_server(self) -> int:
+        """Start a local HTTP server for help docs if not already running."""
+        if self._help_server_port:
+            return self._help_server_port
+        import threading
+        from http.server import HTTPServer, SimpleHTTPRequestHandler
+        from importlib.resources import files as pkg_files
+
+        html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
+
+        class QuietHandler(SimpleHTTPRequestHandler):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, directory=html_dir, **kwargs)
+
+            def log_message(self, format, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), QuietHandler)
+        self._help_server_port = server.server_address[1]
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        return self._help_server_port
+
     def _hook_help_open(self, ctx, args: str):
-        """Open help topic in system browser."""
+        """Open help topic in the local docs server."""
         from importlib.resources import files as pkg_files
 
         html_dir = pkg_files("termapy").joinpath("html")
         topic = args.strip()
         if not topic:
-            path = html_dir.joinpath("index.html")
+            page = "index.html"
         else:
             topic = topic.replace(".md", "").replace(".html", "")
-            path = html_dir.joinpath(f"{topic}.html")
-        if not Path(str(path)).exists():
+            page = f"{topic}.html"
+        if not Path(str(html_dir.joinpath(page))).exists():
             return CmdResult.fail(msg=f"Unknown help topic: {topic}")
-        from termapy.config import open_with_system
-
-        open_with_system(str(path))
+        port = self._ensure_help_server()
+        import webbrowser
+        webbrowser.open(f"http://127.0.0.1:{port}/{page}")
         return CmdResult.ok()
 
     # -- Progress bar ---------------------------------------------------------

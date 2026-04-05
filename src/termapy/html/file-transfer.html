@@ -1,0 +1,1514 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="./data-capture.html">
+      
+      
+        <link rel="next" href="./writing-plugins.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="./assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.31">
+    
+    
+      
+        <title>File Transfer - Termapy Help v0.46.0</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.53a7feaf.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#file-transfer" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./index.html" title="Termapy Help v0.46.0" class="md-header__button md-logo" aria-label="Termapy Help v0.46.0" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Termapy Help v0.46.0
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              File Transfer
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./index.html" title="Termapy Help v0.46.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.46.0" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    Termapy Help v0.46.0
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./demo.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./config.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./custom-buttons.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Buttons
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./toolbar.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Toolbar & Shortcuts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./commands.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./variables.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./scripting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./serial-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serial Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./protocol-testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./data-capture.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Capture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Transfer
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="file-transfer.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Transfer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#xmodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        XMODEM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="XMODEM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#send-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send a File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#receive-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receive a File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protocol-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protocol Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YMODEM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YMODEM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#send-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send File(s)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#receive-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receive File(s)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ymodem-protocol-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YMODEM Protocol Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Paths
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Paths">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#custom-transfer-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom transfer root
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Details
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xmodem-vs-ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        XMODEM vs YMODEM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#demo-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Demo Mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Demo Mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystem-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filesystem commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-transfer_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File transfer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-pull-a-file-via-xmodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: pull a file via XMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-push-a-file-back-via-xmodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: push a file back via XMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-pull-a-file-via-ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: pull a file via YMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-push-a-file-back-via-ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: push a file back via YMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-browse-transfer-and-clean-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: browse, transfer, and clean up
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./writing-plugins.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./device-help.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Device Help
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using with Git
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#xmodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        XMODEM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="XMODEM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#send-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send a File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#receive-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receive a File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protocol-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protocol Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YMODEM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YMODEM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#send-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send File(s)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#receive-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receive File(s)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ymodem-protocol-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YMODEM Protocol Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Paths
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Paths">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#custom-transfer-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom transfer root
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Details
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xmodem-vs-ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        XMODEM vs YMODEM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#demo-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Demo Mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Demo Mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystem-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filesystem commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-transfer_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File transfer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-pull-a-file-via-xmodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: pull a file via XMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-push-a-file-back-via-xmodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: push a file back via XMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-pull-a-file-via-ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: pull a file via YMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-push-a-file-back-via-ymodem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: push a file back via YMODEM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-browse-transfer-and-clean-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: browse, transfer, and clean up
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+<h1 id="file-transfer">File Transfer<a class="headerlink" href="#file-transfer" title="Permanent link">&para;</a></h1>
+<p>Transfer files to and from serial devices using XMODEM or YMODEM
+protocols. Both are widely supported by bootloaders, firmware updaters,
+and embedded systems.</p>
+<h2 id="xmodem">XMODEM<a class="headerlink" href="#xmodem" title="Permanent link">&para;</a></h2>
+<h3 id="send-a-file">Send a File<a class="headerlink" href="#send-a-file" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/xmodem.send &lt;file&gt;
+</span></code></pre></div>
+<p>Send a file from your PC to the device. The file path is resolved
+relative to the per-config <code>cap/</code> directory, or provide an absolute path.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/xmodem.send firmware.bin
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/xmodem.send C:\builds\release.hex
+</span></code></pre></div>
+<p>The device must be waiting to receive via XMODEM before you run this
+command (e.g. after entering a bootloader's receive mode).</p>
+<h3 id="receive-a-file">Receive a File<a class="headerlink" href="#receive-a-file" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/xmodem.recv &lt;file&gt;
+</span></code></pre></div>
+<p>Receive a file from the device and save it to the <code>cap/</code> directory.
+Supports auto-numbered filenames with <code>$(n000)</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>/xmodem.recv dump.bin
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>/xmodem.recv log_$(n000).bin
+</span></code></pre></div>
+<h3 id="protocol-details">Protocol Details<a class="headerlink" href="#protocol-details" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Automatic CRC/checksum negotiation</li>
+<li>128-byte blocks</li>
+<li>Progress reported during transfer</li>
+</ul>
+<h2 id="ymodem">YMODEM<a class="headerlink" href="#ymodem" title="Permanent link">&para;</a></h2>
+<p>YMODEM extends XMODEM with batch file transfer, 1024-byte blocks,
+and automatic filename/size metadata in the protocol header.</p>
+<h3 id="send-files">Send File(s)<a class="headerlink" href="#send-files" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>/ymodem.send &lt;file&gt; {file2} ...
+</span></code></pre></div>
+<p>Send one or more files. YMODEM includes the filename and size in the
+protocol, so the receiver knows what to expect.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>/ymodem.send firmware.bin
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>/ymodem.send config.json data.bin     batch send
+</span></code></pre></div>
+<h3 id="receive-files">Receive File(s)<a class="headerlink" href="#receive-files" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>/ymodem.recv {directory}
+</span></code></pre></div>
+<p>Receive files from the device. YMODEM provides the filename
+automatically. Files are saved to the specified directory, or <code>cap/</code>
+by default.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>/ymodem.recv                          save to cap/
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>/ymodem.recv C:\downloads             save to specific directory
+</span></code></pre></div>
+<h3 id="ymodem-protocol-details">YMODEM Protocol Details<a class="headerlink" href="#ymodem-protocol-details" title="Permanent link">&para;</a></h3>
+<ul>
+<li>1024-byte blocks (1K) with CRC-16</li>
+<li>Filename and filesize sent in protocol header</li>
+<li>Batch transfer: send/receive multiple files in one session</li>
+</ul>
+<h2 id="file-paths">File Paths<a class="headerlink" href="#file-paths" title="Permanent link">&para;</a></h2>
+<p>By default, file paths are resolved relative to the per-config <code>cap/</code>
+directory. Absolute paths are always accepted.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>/xmodem.send firmware.bin              cap/firmware.bin
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>/xmodem.send C:\builds\release.hex     absolute path
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>/xmodem.recv dump.bin                  saved to cap/dump.bin
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>/xmodem.recv log_$(n000).bin           auto-numbered in cap/
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>/ymodem.send config.json               cap/config.json
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>/ymodem.recv                           saved to cap/ (filename from protocol)
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>/ymodem.recv C:\downloads              saved to specified directory
+</span></code></pre></div>
+<h3 id="custom-transfer-root">Custom transfer root<a class="headerlink" href="#custom-transfer-root" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>/xfer.root                             show current root
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>/xfer.root C:\builds\firmware          set a custom root
+</span></code></pre></div>
+<p>When set, both send and receive resolve relative paths against this
+directory instead of <code>cap/</code>. The transfer root is shown as a clickable
+path when a config loads (with verbose on).</p>
+<p>This sets the <code>file_xfer_root</code> config key, which can also be edited
+directly in the JSON config file.</p>
+<p>The <code>cap/</code> directory lives inside the active config folder. For example,
+if your config is <code>termapy_cfg/mydevice/mydevice.cfg</code>, then <code>cap/</code> is
+<code>termapy_cfg/mydevice/cap/</code>. In demo mode, it's <code>termapy_cfg/demo/cap/</code>.</p>
+<p>Click the <strong>Cap</strong> button in the toolbar to open the <code>cap/</code> folder.</p>
+<h2 id="common-details">Common Details<a class="headerlink" href="#common-details" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Serial display is suppressed during transfer and resumes afterward</li>
+<li>Press <strong>Esc</strong> to cancel an active transfer</li>
+<li>Progress reported during transfer</li>
+</ul>
+<h2 id="xmodem-vs-ymodem">XMODEM vs YMODEM<a class="headerlink" href="#xmodem-vs-ymodem" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>XMODEM</th>
+<th>YMODEM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Block size</td>
+<td>128 bytes</td>
+<td>1024 bytes</td>
+</tr>
+<tr>
+<td>Error detection</td>
+<td>CRC-16 or checksum</td>
+<td>CRC-16 always</td>
+</tr>
+<tr>
+<td>Filename in protocol</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Batch transfer</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Use when</td>
+<td>Simple bootloaders</td>
+<td>Larger files, batch</td>
+</tr>
+</tbody>
+</table>
+<h2 id="demo-mode">Demo Mode<a class="headerlink" href="#demo-mode" title="Permanent link">&para;</a></h2>
+<p>The demo device has a virtual filesystem pre-loaded with sample files.
+All examples below work in demo mode (<code>termapy --demo</code>).</p>
+<h3 id="filesystem-commands">Filesystem commands<a class="headerlink" href="#filesystem-commands" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>AT+FS.LIST                  list files with sizes
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>AT+FS.INFO                  file count and total size
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>AT+FS.DELETE &lt;file&gt;         delete a file
+</span></code></pre></div>
+<h3 id="file-transfer_1">File transfer<a class="headerlink" href="#file-transfer_1" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>AT+XMODEM=SEND &lt;file&gt;      send a file from device via XMODEM
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>AT+XMODEM=RECV &lt;file&gt;      receive into device VFS via XMODEM
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>AT+YMODEM=SEND &lt;file&gt;      send a file from device via YMODEM
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>AT+YMODEM=RECV              receive into device VFS (name from protocol)
+</span></code></pre></div>
+<p>Pre-loaded files: <code>config.dat</code> (64 bytes), <code>device_log.txt</code> (147 bytes),
+<code>firmware_v1.bin</code> (2048 bytes).</p>
+<h3 id="example-pull-a-file-via-xmodem">Example: pull a file via XMODEM<a class="headerlink" href="#example-pull-a-file-via-xmodem" title="Permanent link">&para;</a></h3>
+<p>Tell the device to send first, then termapy receives.
+Both commands are needed -- one for each end of the transfer:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>AT+XMODEM=SEND device_log.txt      device enters XMODEM send mode
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>/xmodem.recv device_log.txt        termapy receives into cap/
+</span></code></pre></div>
+<h3 id="example-push-a-file-back-via-xmodem">Example: push a file back via XMODEM<a class="headerlink" href="#example-push-a-file-back-via-xmodem" title="Permanent link">&para;</a></h3>
+<p>After pulling a file (above), you can push it back under a new name.
+Again, tell the device first:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>AT+XMODEM=RECV log_backup.dat      device enters XMODEM receive mode
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>/xmodem.send device_log.txt        termapy sends from cap/
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>AT+FS.LIST                         verify it arrived on device
+</span></code></pre></div>
+<h3 id="example-pull-a-file-via-ymodem">Example: pull a file via YMODEM<a class="headerlink" href="#example-pull-a-file-via-ymodem" title="Permanent link">&para;</a></h3>
+<p>YMODEM includes the filename in the protocol, so the receiver
+gets the name automatically:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>AT+YMODEM=SEND firmware_v1.bin     device enters YMODEM send mode
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>/ymodem.recv                       termapy receives (name from protocol)
+</span></code></pre></div>
+<h3 id="example-push-a-file-back-via-ymodem">Example: push a file back via YMODEM<a class="headerlink" href="#example-push-a-file-back-via-ymodem" title="Permanent link">&para;</a></h3>
+<p>After pulling firmware (above), push it back:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>AT+YMODEM=RECV                     device enters YMODEM receive mode
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>/ymodem.send firmware_v1.bin       termapy sends from cap/
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>AT+FS.LIST                         verify it arrived on device
+</span></code></pre></div>
+<h3 id="example-browse-transfer-and-clean-up">Example: browse, transfer, and clean up<a class="headerlink" href="#example-browse-transfer-and-clean-up" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>AT+FS.LIST                         see what&#39;s on the device
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>AT+FS.INFO                         file count and total size
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>AT+XMODEM=SEND device_log.txt      pull the log
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>/xmodem.recv device_log.txt
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>AT+FS.DELETE device_log.txt         clean up on device
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>AT+FS.LIST                         confirm deletion
+</span></code></pre></div>
+<p>See <a href="data-capture.html">Data Capture</a> for passive serial capture to files.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="./data-capture.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Data Capture">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Data Capture
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="./writing-plugins.html" class="md-footer__link md-footer__link--next" aria-label="Next: Writing Plugins">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Writing Plugins
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.instant","navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="./assets/javascripts/bundle.91a19a9e.min.js"></script>
+      
+    
+  </body>
+</html>

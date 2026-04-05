@@ -10,6 +10,7 @@ dependencies = [
     "pyreadline3>=3.4; sys_platform == 'win32'",
     "pygments>=2.20.0",
     "xmodem>=0.4.7",
+    "ymodem>=1.5.3",
 ]
 
 [tool.uv-build]

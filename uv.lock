@@ -175,6 +175,15 @@ wheels = [
 ]
 
 [[package]]
+name = "ordered-set"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/ca/bfac8bc689799bcca4157e0e0ced07e70ce125193fc2e166d2e685b7e2fe/ordered-set-4.1.0.tar.gz", hash = "sha256:694a8e44c87657c59292ede72891eb91d34131f6531463aab3009191c77364a8", size = 12826, upload-time = "2022-01-26T14:38:56.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/55/af02708f230eb77084a299d7b08175cff006dea4f2721074b92cdb0296c0/ordered_set-4.1.0-py3-none-any.whl", hash = "sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562", size = 7634, upload-time = "2022-01-26T14:38:48.677Z" },
+]
+
+[[package]]
 name = "packaging"
 version = "26.0"
 source = { registry = "https://pypi.org/simple" }
@@ -281,6 +290,7 @@ dependencies = [
     { name = "pyserial" },
     { name = "textual", extra = ["syntax"] },
     { name = "xmodem" },
+    { name = "ymodem" },
 ]
 
 [package.dev-dependencies]
@@ -295,6 +305,7 @@ requires-dist = [
     { name = "pyserial", specifier = ">=3.5" },
     { name = "textual", extras = ["syntax"], specifier = ">=0.80" },
     { name = "xmodem", specifier = ">=0.4.7" },
+    { name = "ymodem", specifier = ">=1.5.3" },
 ]
 
 [package.metadata.requires-dev]
@@ -686,4 +697,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c7/03/a18c2b571266787aebb7cadc5d4c90af15ae7e949ae0ee99ed23b5ba4f3c/xmodem-0.5.0.tar.gz", hash = "sha256:a1a818f31c29412f1cab0cd69deccd7be77bc1feb516723af990d00161f6fb6a", size = 34608, upload-time = "2026-03-04T01:26:38.177Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bb/bb/bb68297054e019e8fb99edde47d25608130cc2c1b2902f503a7edfe6470f/xmodem-0.5.0-py3-none-any.whl", hash = "sha256:e0bb644adfc7652c15a6fa3c3a4b04693b100520e3083cb952206006e3754e89", size = 36145, upload-time = "2026-03-04T01:26:37.328Z" },
+]
+
+[[package]]
+name = "ymodem"
+version = "1.5.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ordered-set" },
+    { name = "pyserial" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/7c/44f340e03a738686262799aa6b69f0744a02fcb87f02c4b98bcc42060a12/ymodem-1.5.3.tar.gz", hash = "sha256:2e53628d9f538abcac93bc9ffb72919df7467b026646f755d8cf05c5d552289d", size = 1425370, upload-time = "2025-12-18T09:14:26.931Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/6b/66ffe5ce3359981e8517c4e26d59e80d29ccbd9766d2abdc1c6eb199775b/ymodem-1.5.3-py3-none-any.whl", hash = "sha256:79b4e88c70afc277369183c98d1443e57d545e5e3cecb6144aa07138a69aaf10", size = 22082, upload-time = "2025-12-18T09:14:25.69Z" },
 ]

@@ -121,7 +121,7 @@ Click the **Cap** button in the toolbar to open the `cap/` folder.
 ## Common Details
 
 - Serial display is suppressed during transfer and resumes afterward
-- Transfer can be interrupted by disconnecting
+- Press **Esc** to cancel an active transfer
 - Progress reported during transfer
 
 ## XMODEM vs YMODEM
@@ -137,6 +137,7 @@ Click the **Cap** button in the toolbar to open the `cap/` folder.
 ## Demo Mode
 
 The demo device has a virtual filesystem pre-loaded with sample files.
+All examples below work in demo mode (`termapy --demo`).
 
 ### Filesystem commands
 
@@ -155,36 +156,59 @@ AT+YMODEM=SEND <file>      send a file from device via YMODEM
 AT+YMODEM=RECV              receive into device VFS (name from protocol)
 ```
 
-Pre-loaded files: `config.dat` (64 bytes), `device_log.txt`,
+Pre-loaded files: `config.dat` (64 bytes), `device_log.txt` (147 bytes),
 `firmware_v1.bin` (2048 bytes).
 
-### Example session
+### Example: pull a file via XMODEM
+
+Tell the device to send first, then termapy receives.
+Both commands are needed -- one for each end of the transfer:
 
 ```text
-AT+FS.LIST                          see what's on the device
-/ymodem.recv                        pull firmware_v1.bin to your PC
-/ymodem.send new_firmware.bin       push a file to the device
-AT+FS.LIST                          see it arrived
+AT+XMODEM=SEND device_log.txt      device enters XMODEM send mode
+/xmodem.recv device_log.txt        termapy receives into cap/
 ```
 
-## Typical Workflows
+### Example: push a file back via XMODEM
 
-**Firmware update via bootloader:**
+After pulling a file (above), you can push it back under a new name.
+Again, tell the device first:
 
 ```text
-# 1. Enter bootloader mode (device-specific)
-AT+BOOTLOADER
-# 2. Send firmware
-/ymodem.send firmware.bin
+AT+XMODEM=RECV log_backup.dat      device enters XMODEM receive mode
+/xmodem.send device_log.txt        termapy sends from cap/
+AT+FS.LIST                         verify it arrived on device
 ```
 
-**Pull a log dump from a device:**
+### Example: pull a file via YMODEM
+
+YMODEM includes the filename in the protocol, so the receiver
+gets the name automatically:
 
 ```text
-# 1. Tell device to dump its log
-AT+LOGDUMP
-# 2. Receive it
-/xmodem.recv log_$(n000).bin
+AT+YMODEM=SEND firmware_v1.bin     device enters YMODEM send mode
+/ymodem.recv                       termapy receives (name from protocol)
+```
+
+### Example: push a file back via YMODEM
+
+After pulling firmware (above), push it back:
+
+```text
+AT+YMODEM=RECV                     device enters YMODEM receive mode
+/ymodem.send firmware_v1.bin       termapy sends from cap/
+AT+FS.LIST                         verify it arrived on device
+```
+
+### Example: browse, transfer, and clean up
+
+```text
+AT+FS.LIST                         see what's on the device
+AT+FS.INFO                         file count and total size
+AT+XMODEM=SEND device_log.txt      pull the log
+/xmodem.recv device_log.txt
+AT+FS.DELETE device_log.txt         clean up on device
+AT+FS.LIST                         confirm deletion
 ```
 
 See [Data Capture](data-capture.md) for passive serial capture to files.

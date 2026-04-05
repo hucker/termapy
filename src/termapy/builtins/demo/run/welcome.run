@@ -6,20 +6,13 @@
 /print ─────────────────────────────────────────────
 /print
 /print   You are connected to a simulated device.
-/print   Try these commands:
+/print   Type /help for all commands, or try:
 /print
-/print   AT              — connection test
-/print   AT+INFO         — device information
-/print   AT+TEMP         — read temperature
-/print   AT+STATUS       — device status
-/print   /help           — all commands (termapy + device)
 /print   /run at_demo    — run the AT command demo script
 /print   /temp_plot      — sample temperature sparkline
-/print   AT+FS.LIST      — list files on device
-/print   /ymodem.recv    — download a file from device
-/print   /ymodem.send    — upload a file to device
-/print   /port.info      — show connection details
-/print   /cfg.info       — show project file tree
+/print
+/print   Device commands:
+/help.target
 /print
 /print   Buttons in the toolbar run common actions.
 /print   Press Ctrl+P for the command palette.

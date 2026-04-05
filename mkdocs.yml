@@ -1,4 +1,4 @@
-site_name: Termapy Help v0.49.0
+site_name: Termapy Help v0.50.0
 docs_dir: src/termapy/help
 site_dir: src/termapy/html
 
@@ -12,7 +12,6 @@ theme:
     primary: blue
     accent: cyan
   features:
-    - navigation.instant
     - navigation.footer
 
 nav:

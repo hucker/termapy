@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.50.0 (2026-04-05)
+
+- **Fix help page loading** -- Removed `navigation.instant` feature that caused blank pages on localhost server.
+
 ## 0.49.0 (2026-04-05)
 
 - **Local help server** -- Help docs served via localhost HTTP server instead of file:// URLs. Zensical search and navigation work correctly.

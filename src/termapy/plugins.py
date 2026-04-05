@@ -274,6 +274,7 @@ class EngineAPI:
     update_port: Callable = lambda name: None
     apply_port_effects: Callable = lambda effects: None
     rx_queue: Any = None  # queue.Queue[bytes] — raw RX for protocol handlers
+    xfer_cancel: Any = None  # threading.Event — set by Escape to cancel transfers
 
 
 @dataclass

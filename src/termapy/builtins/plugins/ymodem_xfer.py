@@ -9,28 +9,15 @@ from ymodem.Socket import ModemSocket
 from ymodem.Protocol import ProtocolType
 
 from termapy.plugins import CmdResult, Command
-from termapy.scripting import resolve_seq_filename
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-from termapy.builtins.plugins.xmodem_xfer import QueueByteReader
-
-
-def _resolve_path(filename: str, cap_dir: Path) -> Path:
-    """Resolve a filename against the capture directory.
-
-    Args:
-        filename: Filename or absolute path.
-        cap_dir: Default directory for relative paths.
-
-    Returns:
-        Resolved absolute path.
-    """
-    path = Path(filename)
-    if not path.is_absolute():
-        path = cap_dir / filename
-    return path.resolve()
+from termapy.builtins.plugins.xmodem_xfer import (
+    QueueByteReader,
+    _get_xfer_root,
+    _resolve_path,
+)
 
 
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
@@ -49,18 +36,21 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
 
     paths: list[str] = []
     for filename in filenames:
-        path = _resolve_path(filename, ctx.cap_dir)
+        path = _resolve_path(filename, _get_xfer_root(ctx))
         if not path.is_file():
             return CmdResult.fail(msg=f"File not found: {path}")
         paths.append(str(path))
 
     total_size = sum(Path(p).stat().st_size for p in paths)
-    ctx.write(f"  YMODEM send: {len(paths)} file(s), {total_size} bytes")
+    ctx.write(f"  YMODEM send: {len(paths)} file(s), {total_size} bytes -- Esc to cancel")
 
+    cancel = ctx.engine.xfer_cancel
+    if cancel:
+        cancel.clear()
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
     try:
-        reader = QueueByteReader(ctx.engine.rx_queue)
+        reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
             result = reader.getc(size, timeout=timeout or 1)
@@ -77,6 +67,8 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         modem = ModemSocket(read, write, protocol_type=ProtocolType.YMODEM)
         ok = modem.send(paths, callback=progress)
 
+        if cancel and cancel.is_set():
+            return CmdResult.fail(msg="YMODEM send cancelled.")
         if ok:
             names = ", ".join(Path(p).name for p in paths)
             ctx.result(f"YMODEM send complete: {names} ({total_size} bytes)")
@@ -102,19 +94,22 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Not connected.")
 
     if target_dir:
-        out_dir = _resolve_path(target_dir, ctx.cap_dir)
+        out_dir = _resolve_path(target_dir, _get_xfer_root(ctx))
     else:
-        out_dir = ctx.cap_dir
+        out_dir = _get_xfer_root(ctx)
 
     if not out_dir.is_dir():
         return CmdResult.fail(msg=f"Directory not found: {out_dir}")
 
-    ctx.write(f"  YMODEM recv: waiting for data -> {out_dir}")
+    ctx.write(f"  YMODEM recv: waiting for data -> {out_dir} -- Esc to cancel")
 
+    cancel = ctx.engine.xfer_cancel
+    if cancel:
+        cancel.clear()
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
     try:
-        reader = QueueByteReader(ctx.engine.rx_queue)
+        reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
             result = reader.getc(size, timeout=timeout or 1)
@@ -131,6 +126,8 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         modem = ModemSocket(read, write, protocol_type=ProtocolType.YMODEM)
         ok = modem.recv(str(out_dir), callback=progress)
 
+        if cancel and cancel.is_set():
+            return CmdResult.fail(msg="YMODEM recv cancelled.")
         if ok:
             ctx.result(f"YMODEM recv complete -> {out_dir}")
             return CmdResult.ok(value=str(out_dir))

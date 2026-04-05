@@ -74,6 +74,8 @@ DEFAULT_CFG = {
     "show_line_numbers": False,
     "hex_mode": False,
     "max_grep_lines": 100,
+    # File transfer
+    "file_xfer_root": "",
     # Custom buttons
     "custom_buttons": [
         {

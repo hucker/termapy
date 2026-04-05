@@ -10,6 +10,7 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 import argparse
 import json
 import sys
+import threading
 import time
 import traceback
 from datetime import datetime
@@ -324,6 +325,7 @@ class SerialTerminal(App):
         self._show_line_numbers: bool = cfg.get("show_line_numbers", False)
         self._line_counter: int = 0
         self._proto_hex_mode: bool = cfg.get("hex_mode", False)
+        self._xfer_cancel = threading.Event()
 
         # File capture engine
         self._capture = CaptureEngine(
@@ -557,6 +559,11 @@ class SerialTerminal(App):
         resolved = Path(path).resolve()
         self._status(f"Config dir:  {resolved.parent}", "green")
         self._status(f"Config file: {resolved}", "green")
+        xfer_root = self.cfg.get("file_xfer_root", "")
+        if xfer_root:
+            self._status(f"Xfer root:   {Path(xfer_root).resolve()}", "green")
+        else:
+            self._status(f"Xfer root:   {resolved.parent / 'cap'}", "green")
         log_path = self._log_path()
         if log_path:
             self._status(f"Log file:    {Path(log_path).resolve()}", "green")
@@ -649,6 +656,7 @@ class SerialTerminal(App):
             update_port=self._update_port,
             apply_port_effects=self._apply_port_effects,
             rx_queue=self._engine.rx_queue,
+            xfer_cancel=self._xfer_cancel,
         )
         ctx = PluginContext(
             write=self._status,
@@ -678,12 +686,12 @@ class SerialTerminal(App):
             cap_dir=self.repl.cap_dir,
             prof_dir=self.repl.prof_dir,
             confirm=self._confirm,
-            notify=lambda text, **kw: self.notify(text, **kw),
-            clear_screen=self._clear_output,
-            save_screenshot=self.save_screenshot,
-            get_screen_text=self._get_screen_text,
+            notify=lambda text, **kw: self._on_main(self.notify, text, **kw),
+            clear_screen=lambda: self._on_main(self._clear_output),
+            save_screenshot=lambda *a, **kw: self._on_main(self.save_screenshot, *a, **kw),
+            get_screen_text=lambda: self._on_main(self._get_screen_text),
             open_file=lambda path: open_with_system(str(path)),
-            exit_app=self.exit,
+            exit_app=lambda: self._on_main(self.exit),
             engine=engine,
         )
         self.repl.set_context(ctx)
@@ -1141,26 +1149,42 @@ class SerialTerminal(App):
     def _send_lines(self, lines: list[str], echo_prefix: str = "") -> None:
         """Send multiple commands with cmd_delay_ms between each.
 
-        Routes each line through _dispatch_single, which handles REPL
-        prefix detection and serial sending.
+        Called from a background thread (@work). _status and
+        _dispatch_single are both thread-safe.
         """
         delay_s = self.cfg.get("cmd_delay_ms", 0) / 1000.0
+        for cmd in lines:
+            cmd = cmd.strip()
+            if not cmd:
+                continue
+            if echo_prefix:
+                self._status(f"{echo_prefix}{cmd}")
+            self._dispatch_single(cmd)
+            if delay_s > 0:
+                time.sleep(delay_s)
+            self._wait_for_idle(400)
+
+    def _on_main(self, fn, *args, **kwargs):
+        """Run *fn* on the main thread.  No-op if already there."""
+        if self._thread_id == threading.get_ident():
+            return fn(*args, **kwargs)
         try:
-            for cmd in lines:
-                cmd = cmd.strip()
-                if not cmd:
-                    continue
-                if echo_prefix:
-                    self.call_from_thread(self._status, f"{echo_prefix}{cmd}")
-                self.call_from_thread(self._dispatch_single, cmd)
-                if delay_s > 0:
-                    time.sleep(delay_s)
-                self._wait_for_idle(400)
+            return self.call_from_thread(fn, *args, **kwargs)
         except RuntimeError:
-            pass  # call_from_thread fails during app shutdown
+            return None  # app shutting down
 
     def _status(self, text: str, color: str = "dim") -> None:
-        """Write a termapy status message with consistent formatting."""
+        """Write a termapy status message with consistent formatting.
+
+        Thread-safe: if called from a background thread (e.g. interactive
+        command dispatch), posts the widget update to the main thread.
+        """
+        if self._thread_id != threading.get_ident():
+            try:
+                self.call_from_thread(self._status, text, color)
+            except RuntimeError:
+                pass
+            return
         try:
             self.query_one("#output", RichLog).write(
                 Text(text, style=f"bold italic {color}")
@@ -1239,6 +1263,12 @@ class SerialTerminal(App):
         return result[0]
 
     def _write_output_markup(self, text: str) -> None:
+        if self._thread_id != threading.get_ident():
+            try:
+                self.call_from_thread(self._write_output_markup, text)
+            except RuntimeError:
+                pass
+            return
         self.query_one("#output", RichLog).write(text)
 
     def _report_exception(self, e: Exception) -> None:
@@ -1773,9 +1803,9 @@ class SerialTerminal(App):
             return
         parts = [c.strip() for c in raw.replace("\\n", "\n").split("\n") if c.strip()]
         if len(parts) > 1:
-            self._execute_sequence(parts)
+            self._dispatch_sequence_on_thread(parts)
         elif parts:
-            self._dispatch_single(parts[0])
+            self._dispatch_on_thread(parts[0])
 
     def _show_port_picker(self) -> None:
         from serial.tools.list_ports import comports
@@ -2206,7 +2236,7 @@ class SerialTerminal(App):
         cmd = event.value.strip()
         if not cmd:
             if self.cfg.get("send_bare_enter", False):
-                self._dispatch_single("")
+                self._dispatch_on_thread("")
             return
 
         # Add to history (remove earlier duplicate, keep most recent)
@@ -2221,36 +2251,46 @@ class SerialTerminal(App):
         inp.value = ""
         self._saved_placeholder = inp.placeholder
         inp.placeholder = "running..."
-        self.call_after_refresh(self._execute_command, cmd)
+        self._dispatch_on_thread_interactive(cmd)
 
-    def _execute_command(self, cmd: str) -> None:
-        """Dispatch a single command string (REPL or serial).
-
-        Args:
-            cmd: Command string. Passed through without splitting.
-        """
-        cmd = cmd.strip()
-        if cmd:
-            self._dispatch_single(cmd)
+    def _restore_input_placeholder(self) -> None:
+        """Restore the command input placeholder after execution."""
         inp = self.query_one("#cmd", Input)
         inp.placeholder = self._saved_placeholder
 
-    def _execute_sequence(self, cmds: list[str], idx: int = 0) -> None:
-        """Execute commands one per refresh cycle.
+    # -- Background dispatch gateway --------------------------------------------
+    # One rule: every user command goes through a @work(thread=True) method
+    # so blocking handlers (xmodem, ymodem, etc.) never freeze the TUI.
 
-        Yields control between commands so UI updates are rendered
-        and the reader thread's ``call_from_thread`` callbacks can
-        be processed before the next command runs.
+    @work(thread=True)
+    def _dispatch_on_thread(self, cmd: str) -> None:
+        """Run a command on a background thread."""
+        try:
+            self._dispatch_single(cmd)
+        except RuntimeError:
+            pass
 
-        Args:
-            cmds: List of command strings to execute.
-            idx: Current index into the list.
-        """
-        if idx >= len(cmds):
-            return
-        self._dispatch_single(cmds[idx])
-        if idx + 1 < len(cmds):
-            self.call_after_refresh(self._execute_sequence, cmds, idx + 1)
+    @work(thread=True)
+    def _dispatch_on_thread_interactive(self, cmd: str) -> None:
+        """Background dispatch for interactive input (restores placeholder)."""
+        try:
+            self._dispatch_single(cmd)
+        except RuntimeError:
+            pass
+        try:
+            self.call_from_thread(self._restore_input_placeholder)
+        except RuntimeError:
+            pass
+
+    @work(thread=True)
+    def _dispatch_sequence_on_thread(self, cmds: list[str]) -> None:
+        """Run a sequence of commands on a background thread."""
+        for cmd in cmds:
+            try:
+                self._dispatch_single(cmd)
+            except RuntimeError:
+                break
+            time.sleep(0.05)
 
     def _send_serial_raw(self, text: str) -> None:
         """Send text to serial with no transforms or variable expansion.
@@ -2285,8 +2325,12 @@ class SerialTerminal(App):
         return CmdResult.ok()
 
     def _dispatch_single(self, cmd: str) -> CmdResult:
-        """Dispatch a single command (delegates to repl.dispatch_full)."""
-        result = self.repl.dispatch_full(
+        """Dispatch a single command (delegates to repl.dispatch_full).
+
+        Safe to call from any thread — output helpers (_status,
+        _write_output_markup) detect their thread internally.
+        """
+        return self.repl.dispatch_full(
             cmd,
             log=self._log_line,
             echo_markup=self._write_output_markup,
@@ -2296,11 +2340,6 @@ class SerialTerminal(App):
             is_connected=lambda: self.is_connected,
             eol_label=eol_label,
         )
-        # Clear input (only for interactive commands, not scripts)
-        if not self.repl.in_script:
-            inp = self.query_one("#cmd", Input)
-            inp.value = ""
-        return result
 
     def _show_commands(self) -> None:
         """Show the REPL command picker with smart arg handling."""
@@ -2360,7 +2399,8 @@ class SerialTerminal(App):
             self.set_timer(0.1, getattr(self, method_name))
         elif opt_id.startswith("run:"):
             name = opt_id.split(":")[1]
-            self.call_after_refresh(self.repl.dispatch, name)
+            prefix = self.cfg.get("cmd_prefix", "/")
+            self._dispatch_on_thread(f"{prefix}{name}")
         elif opt_id.startswith("repl:"):
             name = opt_id.split(":")[1]
             prefix = self.cfg.get("cmd_prefix", "/")
@@ -2381,7 +2421,10 @@ class SerialTerminal(App):
         popup_visible = popup.has_class("visible")
 
         if event.key == "escape":
-            if popup_visible:
+            if self._engine.proto_active:
+                self._xfer_cancel.set()
+                event.prevent_default()
+            elif popup_visible:
                 self._hide_history()
                 event.prevent_default()
             elif self._history_idx != -1:
@@ -2554,10 +2597,10 @@ class SerialTerminal(App):
         base = args.strip() or "screenshot"
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = str((self.repl.ss_dir / f"{base}_{ts}.svg").resolve())
-        self.save_screenshot(path)
+        self._on_main(self.save_screenshot, path)
         self.last_screenshot = path
         self._status(f"SVG screenshot saved: {path}", "green")
-        self._sync_ss_button()
+        self._on_main(self._sync_ss_button)
         return CmdResult.ok()
 
     def _hook_ss_svg_quiet(self, ctx, args: str) -> CmdResult:
@@ -2565,20 +2608,20 @@ class SerialTerminal(App):
         if not name.endswith(".svg"):
             name += ".svg"
         path = str((self.repl.ss_dir / name).resolve())
-        self.save_screenshot(path)
+        self._on_main(self.save_screenshot, path)
         self.last_screenshot = path
-        self._sync_ss_button()
+        self._on_main(self._sync_ss_button)
         return CmdResult.ok()
 
     def _hook_ss_txt(self, ctx, args: str) -> CmdResult:
         base = args.strip() or "screenshot"
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = str((self.repl.ss_dir / f"{base}_{ts}.txt").resolve())
-        text = self._get_screen_text()
-        Path(path).write_text(text, encoding="utf-8")
+        text = self._on_main(self._get_screen_text)
+        Path(path).write_text(text or "", encoding="utf-8")
         self.last_screenshot = path
         self._status(f"Text screenshot saved: {path}", "green")
-        self._sync_ss_button()
+        self._on_main(self._sync_ss_button)
         return CmdResult.ok()
 
     def _hook_delay(self, ctx, args: str) -> CmdResult:
@@ -2587,7 +2630,7 @@ class SerialTerminal(App):
         except ValueError as e:
             self._status(str(e), "red")
             return CmdResult.fail(msg=str(e))
-        self.set_timer(seconds, lambda: self._status(f"Delay {args} done."))
+        self._on_main(self.set_timer, seconds, lambda: self._status(f"Delay {args} done."))
         return CmdResult.ok()
 
     def _hook_delay_quiet(self, ctx, args: str) -> CmdResult:
@@ -2597,7 +2640,7 @@ class SerialTerminal(App):
         except ValueError as e:
             self._status(str(e), "red")
             return CmdResult.fail(msg=str(e))
-        self.set_timer(seconds, lambda: None)
+        self._on_main(self.set_timer, seconds, lambda: None)
         return CmdResult.ok()
 
     def _hook_line_no(self, ctx, args: str) -> CmdResult:
@@ -2647,7 +2690,7 @@ class SerialTerminal(App):
             if confirmed:
                 self.repl._apply_cfg(key, new_val)
 
-        self.push_screen(CfgConfirm(key, old_val, new_val), callback=on_result)  # type: ignore[call-overload]
+        self._on_main(self.push_screen, CfgConfirm(key, old_val, new_val), callback=on_result)
 
     def _on_script_picked(self, result: tuple | None) -> None:
         if result is None:
@@ -2695,10 +2738,12 @@ class SerialTerminal(App):
         action = result[0]
         if action == "run":
             filename = Path(result[1]).name
-            self.repl.dispatch(f"proto.run {filename}")
+            prefix = self.cfg.get("cmd_prefix", "/")
+            self._dispatch_on_thread(f"{prefix}proto.run {filename}")
         elif action == "debug":
             filename = Path(result[1]).name
-            self.repl.dispatch(f"proto.debug {filename}")
+            prefix = self.cfg.get("cmd_prefix", "/")
+            self._dispatch_on_thread(f"{prefix}proto.debug {filename}")
         elif action == "new":
             self.push_screen(
                 ProtoEditor(self.repl.proto_dir),
@@ -2728,7 +2773,8 @@ class SerialTerminal(App):
 
     def _hook_edit_cfg(self) -> CmdResult:
         """Open the config editor modal."""
-        self.push_screen(
+        self._on_main(
+            self.push_screen,
             ConfigEditor(dict(self.cfg), self.config_path),
             callback=self._on_config_result,
         )
@@ -2792,12 +2838,14 @@ class SerialTerminal(App):
 
         ext = path.suffix.lower()
         if ext == ".run":
-            self.push_screen(
+            self._on_main(
+                self.push_screen,
                 ScriptEditor(self.repl.scripts_dir, str(path)),
                 callback=self._on_script_saved,
             )
         elif ext == ".pro":
-            self.push_screen(
+            self._on_main(
+                self.push_screen,
                 ProtoEditor(self.repl.proto_dir, str(path)),
                 callback=self._on_proto_saved,
             )
@@ -2831,12 +2879,14 @@ class SerialTerminal(App):
             self.repl.write(f"File not found: {name}", "red")
             return CmdResult.fail(msg=f"File not found: {name}")
         if ext == ".run":
-            self.push_screen(
+            self._on_main(
+                self.push_screen,
                 ScriptEditor(base, str(path)),
                 callback=self._on_script_saved,
             )
         elif ext == ".pro":
-            self.push_screen(
+            self._on_main(
+                self.push_screen,
                 ProtoEditor(base, str(path)),
                 callback=self._on_proto_saved,
             )
@@ -2992,13 +3042,14 @@ class SerialTerminal(App):
         except Exception as e:
             self.repl.write(f"Failed to load config: {e}", "red")
             return CmdResult.fail(msg=f"Failed to load config: {e}")
-        self._switch_config(cfg, str(path))
-        self._show_config_info(str(path))
+        self._on_main(self._switch_config, cfg, str(path))
+        self._on_main(self._show_config_info, str(path))
         return CmdResult.ok()
 
     def _hook_proto_load(self, ctx, args: str) -> CmdResult:
         """Run a protocol test script (delegates to /proto.run)."""
-        self.repl.dispatch(f"proto.run {args}")
+        prefix = self.cfg.get("cmd_prefix", "/")
+        self._dispatch_single(f"{prefix}proto.run {args}")
         return CmdResult.ok()
 
     def _hook_run_list(self, ctx, args: str) -> CmdResult:
@@ -3089,20 +3140,17 @@ class SerialTerminal(App):
         profile: bool = False,
         verbose: bool = False,
     ) -> None:
-        """Threaded wrapper for repl.run_script (needs @work decorator)."""
+        """Threaded wrapper for repl.run_script (needs @work decorator).
 
-        def thread_safe_write(text: str, color: str = "dim") -> None:
-            self.call_from_thread(self._status, text, color)
-
-        def thread_safe_dispatch(cmd: str):
-            return self.call_from_thread(self._dispatch_single, cmd)
-
+        _status and _dispatch_single are thread-safe, so no
+        call_from_thread wrapper needed for write/dispatch.
+        """
         self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
         try:
             self.repl.run_script(
                 path,
-                write=thread_safe_write,
-                dispatch=thread_safe_dispatch,
+                write=self._status,
+                dispatch=self._dispatch_single,
                 profile=profile,
                 verbose=verbose,
                 progress=lambda s, t: self.post_message(
@@ -3113,7 +3161,7 @@ class SerialTerminal(App):
                 ),
             )
         except RuntimeError:
-            pass  # call_from_thread fails during app shutdown
+            pass
         finally:
             self.post_message(self.ScriptFinished(self.repl._script_stack[:]))
 

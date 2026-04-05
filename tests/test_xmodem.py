@@ -167,9 +167,9 @@ class TestFakeSerialXmodemRecv:
         assert response[-1] == 0x15  # ends with NAK
 
     def test_recv_single_block_checksum(self, dev: FakeSerial) -> None:
-        """Device ACKs a valid checksum-mode block and stores data."""
+        """Device ACKs a valid checksum-mode block and stores to VFS."""
         # Arrange
-        dev.write(b"AT+XMODEM=RECV\r")
+        dev.write(b"AT+XMODEM=RECV upload.bin\r")
         time.sleep(0.01)
         dev.read(4096)  # consume OK + NAK
 
@@ -192,6 +192,7 @@ class TestFakeSerialXmodemRecv:
         assert eot_response == bytes([0x06])  # ACK for EOT
 
         assert dev.xmodem_received_data == data  # data stored correctly
+        assert dev.vfs["upload.bin"] == data  # stored in VFS
 
     def test_recv_bad_checksum_naks(self, dev: FakeSerial) -> None:
         """Device NAKs a block with invalid checksum."""
@@ -244,7 +245,7 @@ class TestFakeSerialXmodemSend:
     def test_send_mode_waits_for_nak(self, dev: FakeSerial) -> None:
         """AT+XMODEM=SEND returns OK and waits for NAK before sending."""
         # Act
-        dev.write(b"AT+XMODEM=SEND\r")
+        dev.write(b"AT+XMODEM=SEND config.dat\r")
         time.sleep(0.01)
         response = dev.read(4096)
 
@@ -254,7 +255,7 @@ class TestFakeSerialXmodemSend:
     def test_send_nak_triggers_first_block(self, dev: FakeSerial) -> None:
         """Sending NAK starts transmission of first block."""
         # Arrange
-        dev.write(b"AT+XMODEM=SEND\r")
+        dev.write(b"AT+XMODEM=SEND config.dat\r")
         time.sleep(0.01)
         dev.read(4096)  # consume OK
 
@@ -272,7 +273,7 @@ class TestFakeSerialXmodemSend:
     def test_send_crc_mode_with_c(self, dev: FakeSerial) -> None:
         """Sending 'C' starts CRC mode transmission."""
         # Arrange
-        dev.write(b"AT+XMODEM=SEND\r")
+        dev.write(b"AT+XMODEM=SEND config.dat\r")
         time.sleep(0.01)
         dev.read(4096)
 
@@ -286,13 +287,11 @@ class TestFakeSerialXmodemSend:
         assert len(block) == 133  # SOH + blk + ~blk + 128 data + 2 CRC bytes
 
     def test_send_full_transfer_checksum(self, dev: FakeSerial) -> None:
-        """Complete checksum-mode transfer of 256-byte payload (2 blocks)."""
-        # Arrange
-        dev.write(b"AT+XMODEM=SEND\r")
+        """Complete checksum-mode transfer of config.dat (1 block, padded)."""
+        # Arrange — config.dat is 64 bytes = 1 block padded to 128
+        dev.write(b"AT+XMODEM=SEND config.dat\r")
         time.sleep(0.01)
         dev.read(4096)
-
-        received_data = bytearray()
 
         # Block 1
         dev.write(bytes([0x15]))  # NAK to start
@@ -302,36 +301,23 @@ class TestFakeSerialXmodemSend:
         data1 = block1[3:131]
         expected_cksum = sum(data1) & 0xFF
         assert block1[131] == expected_cksum  # checksum valid
-        received_data.extend(data1)
 
-        # ACK block 1, get block 2
-        dev.write(bytes([0x06]))
-        time.sleep(0.01)
-        block2 = dev.read(4096)
-        assert block2[0] == 0x01  # SOH
-        assert block2[1] == 0x02  # block number 2
-        data2 = block2[3:131]
-        expected_cksum = sum(data2) & 0xFF
-        assert block2[131] == expected_cksum  # checksum valid
-        received_data.extend(data2)
-
-        # ACK block 2, expect EOT
+        # ACK block 1, expect EOT
         dev.write(bytes([0x06]))
         time.sleep(0.01)
         eot = dev.read(4096)
         assert eot == bytes([0x04])  # EOT
 
-        # Assert — received data matches canned payload
-        assert bytes(received_data) == bytes(range(256))  # full payload
+        # Assert — first 64 bytes match config.dat, rest is 0x1A padding
+        assert data1[:64] == bytes(range(64))  # config.dat content
+        assert all(b == 0x1A for b in data1[64:])  # XMODEM padding
 
     def test_send_full_transfer_crc(self, dev: FakeSerial) -> None:
-        """Complete CRC-mode transfer of 256-byte payload (2 blocks)."""
+        """Complete CRC-mode transfer of config.dat (1 block, padded)."""
         # Arrange
-        dev.write(b"AT+XMODEM=SEND\r")
+        dev.write(b"AT+XMODEM=SEND config.dat\r")
         time.sleep(0.01)
         dev.read(4096)
-
-        received_data = bytearray()
 
         # Block 1 — CRC mode
         dev.write(b"C")
@@ -342,25 +328,15 @@ class TestFakeSerialXmodemSend:
         expected_crc = _xmodem_crc16(data1)
         actual_crc = (block1[131] << 8) | block1[132]
         assert actual_crc == expected_crc  # CRC valid
-        received_data.extend(data1)
 
-        # ACK block 1
-        dev.write(bytes([0x06]))
-        time.sleep(0.01)
-        block2 = dev.read(4096)
-        data2 = block2[3:131]
-        expected_crc = _xmodem_crc16(data2)
-        actual_crc = (block2[131] << 8) | block2[132]
-        assert actual_crc == expected_crc  # CRC valid
-        received_data.extend(data2)
-
-        # ACK block 2, expect EOT
+        # ACK block 1, expect EOT
         dev.write(bytes([0x06]))
         time.sleep(0.01)
         eot = dev.read(4096)
         assert eot == bytes([0x04])  # EOT
 
-        assert bytes(received_data) == bytes(range(256))  # full payload
+        # Assert — first 64 bytes match config.dat
+        assert data1[:64] == bytes(range(64))  # config.dat content
 
 
 # -- Integration: xmodem library + FakeSerial ------------------------------
@@ -401,13 +377,13 @@ class TestXmodemLibraryIntegration:
             dev._output_buf.extend(resp[len(ok_text):])
 
     def test_library_send_to_device(self, dev: FakeSerial, tmp_path) -> None:
-        """xmodem library sends a file to FakeSerial in recv mode."""
+        """xmodem library sends a file to FakeSerial VFS."""
         # Arrange
         test_data = b"Hello XMODEM! " * 20  # 280 bytes = 3 blocks
         src_file = tmp_path / "send_test.bin"
         src_file.write_bytes(test_data)
 
-        self._enter_xmodem_mode(dev, "RECV")
+        self._enter_xmodem_mode(dev, "RECV upload.bin")
 
         modem = self._make_modem(dev)
 
@@ -417,19 +393,18 @@ class TestXmodemLibraryIntegration:
 
         # Assert
         assert ok is True  # transfer succeeded
-        # XMODEM pads to 128-byte blocks, so received data is padded
-        received = dev.xmodem_received_data
+        received = dev.vfs["upload.bin"]
         assert received[:len(test_data)] == test_data  # data matches
-        # Padding is 0x1A (SUB)
+        # Padding is 0x1A (SUB) — XMODEM has no size metadata
         padding = received[len(test_data):]
         assert all(b == 0x1A for b in padding)  # correct padding
 
     def test_library_recv_from_device(self, dev: FakeSerial, tmp_path) -> None:
-        """xmodem library receives a file from FakeSerial in send mode."""
+        """xmodem library receives config.dat from FakeSerial VFS."""
         # Arrange
         dst_file = tmp_path / "recv_test.bin"
 
-        self._enter_xmodem_mode(dev, "SEND")
+        self._enter_xmodem_mode(dev, "SEND config.dat")
 
         modem = self._make_modem(dev)
 
@@ -438,19 +413,18 @@ class TestXmodemLibraryIntegration:
             ok = modem.recv(f)
 
         # Assert
-        assert ok is not None  # transfer succeeded (recv returns file size or stream)
+        assert ok is not None  # transfer succeeded
         received = dst_file.read_bytes()
-        # The canned payload is bytes(range(256)), but XMODEM pads to 128-byte blocks
-        assert received[:256] == bytes(range(256))  # payload matches
+        assert received[:64] == bytes(range(64))  # config.dat content
 
     def test_roundtrip(self, dev: FakeSerial, tmp_path) -> None:
-        """Send a file to device, then verify the device received it correctly."""
+        """Send a file to device VFS, then verify the VFS has it."""
         # Arrange
         test_data = bytes(range(200))
         src_file = tmp_path / "roundtrip.bin"
         src_file.write_bytes(test_data)
 
-        self._enter_xmodem_mode(dev, "RECV")
+        self._enter_xmodem_mode(dev, "RECV roundtrip.bin")
 
         modem = self._make_modem(dev)
 
@@ -460,5 +434,5 @@ class TestXmodemLibraryIntegration:
 
         # Assert
         assert ok is True  # transfer succeeded
-        received = dev.xmodem_received_data
+        received = dev.vfs["roundtrip.bin"]
         assert received[:len(test_data)] == test_data  # roundtrip data matches

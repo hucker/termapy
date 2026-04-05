@@ -62,9 +62,13 @@ class FakeSerial:
         self._gps_fix: bool = True
         self._gps_sats: int = 9
 
+        # Virtual filesystem (flat, in-memory)
+        self._vfs: dict[str, bytes] = dict(self._DEFAULT_VFS)
+
         # XMODEM state
         self._xmodem_state: str | None = None  # None, "recv", "send"
         self._xmodem_recv_buf: bytearray = bytearray()
+        self._xmodem_recv_filename: str = ""
         self._xmodem_send_data: bytes = b""
         self._xmodem_block_num: int = 0
         self._xmodem_crc_mode: bool = False
@@ -260,15 +264,15 @@ class FakeSerial:
     _NAK = 0x15
     _CRC_START = ord("C")  # CRC mode initiation
 
-    # Canned payload for AT+XMODEM=SEND (deterministic, 256 bytes = 2 blocks)
-    _XMODEM_SEND_PAYLOAD = bytes(range(256))
-
     _STX = 0x02  # Start of 1024-byte block (YMODEM)
     _CAN = 0x18  # Cancel
 
-    # Canned payload for AT+YMODEM=SEND (deterministic, 2048 bytes = 2 x 1K blocks)
-    _YMODEM_SEND_PAYLOAD = bytes(i & 0xFF for i in range(2048))
-    _YMODEM_SEND_FILENAME = "demo_data.bin"
+    # Default virtual filesystem — pre-loaded demo files
+    _DEFAULT_VFS: dict[str, bytes] = {
+        "device_log.txt": b"2025-01-15 08:00:01 INFO  Boot OK\r\n2025-01-15 08:00:02 INFO  Sensor init\r\n2025-01-15 08:00:03 WARN  Battery 3.1V\r\n2025-01-15 08:00:04 INFO  Ready\r\n",
+        "config.dat": bytes(range(64)),
+        "firmware_v1.bin": bytes(i & 0xFF for i in range(2048)),
+    }
 
     # -- Internal processing ------------------------------------------------
 
@@ -420,6 +424,9 @@ class FakeSerial:
         if upper.startswith("AT+BINDUMP"):
             return self._handle_bindump(cmd)
 
+        if upper.startswith("AT+FS"):
+            return self._handle_fs_cmd(cmd, upper)
+
         if upper.startswith("AT+XMODEM"):
             return self._handle_xmodem_cmd(cmd, upper)
 
@@ -451,10 +458,13 @@ class FakeSerial:
                 "$GPGSA": {"help": "NMEA DOP and active satellites", "args": ""},
                 "$GPGSV": {"help": "NMEA satellites in view", "args": ""},
                 "mem": {"help": "Memory dump", "args": "<addr> {len}"},
-                "AT+XMODEM=RECV": {"help": "Receive file via XMODEM", "args": ""},
-                "AT+XMODEM=SEND": {"help": "Send canned file via XMODEM", "args": ""},
+                "AT+FS.LIST": {"help": "List files on device", "args": ""},
+                "AT+FS.INFO": {"help": "Filesystem summary", "args": ""},
+                "AT+FS.DELETE": {"help": "Delete a file", "args": "<filename>"},
+                "AT+XMODEM=RECV": {"help": "Receive file via XMODEM", "args": "{filename}"},
+                "AT+XMODEM=SEND": {"help": "Send file via XMODEM", "args": "{filename}"},
                 "AT+YMODEM=RECV": {"help": "Receive file via YMODEM", "args": ""},
-                "AT+YMODEM=SEND": {"help": "Send canned file via YMODEM", "args": ""},
+                "AT+YMODEM=SEND": {"help": "Send file via YMODEM", "args": "{filename}"},
                 "AT+HELP.JSON": {"help": "Device command help (JSON)", "args": ""},
             },
         }
@@ -771,40 +781,91 @@ class FakeSerial:
         body = f"PMTK001,{cmd_id},3"
         return self._nmea_sentence(body)
 
+    # -- Virtual filesystem commands ----------------------------------------
+
+    def _handle_fs_cmd(self, cmd: str, upper: str) -> bytes:
+        """Handle AT+FS.LIST, AT+FS.INFO, and AT+FS.DELETE commands.
+
+        Args:
+            cmd: Original command string (preserves filename case).
+            upper: Uppercased command string.
+
+        Returns:
+            Response bytes.
+        """
+        if upper == "AT+FS.LIST":
+            if not self._vfs:
+                return b"(empty)\r\n"
+            lines: list[str] = []
+            for name in sorted(self._vfs):
+                lines.append(f"  {name:<24s} {len(self._vfs[name]):>8d} bytes")
+            return ("\r\n".join(lines) + "\r\n").encode()
+
+        if upper == "AT+FS.INFO":
+            count = len(self._vfs)
+            total = sum(len(v) for v in self._vfs.values())
+            return f"Files: {count}, Total: {total} bytes\r\n".encode()
+
+        if upper.startswith("AT+FS.DELETE"):
+            parts = cmd.split(None, 1)
+            if len(parts) < 2 or not parts[1].strip():
+                return b"ERROR: Usage: AT+FS.DELETE <filename>\r\n"
+            name = parts[1].strip()
+            if name not in self._vfs:
+                return f"ERROR: File not found: {name}\r\n".encode()
+            del self._vfs[name]
+            return b"OK\r\n"
+
+        return b"ERROR: Usage: AT+FS.LIST | AT+FS.DELETE <file> | AT+FS.INFO\r\n"
+
+    @property
+    def vfs(self) -> dict[str, bytes]:
+        """Virtual filesystem contents (for testing)."""
+        return dict(self._vfs)
+
     # -- XMODEM handlers ----------------------------------------------------
 
     def _handle_xmodem_cmd(self, cmd: str, upper: str) -> bytes:
-        """Handle AT+XMODEM=RECV and AT+XMODEM=SEND commands.
+        """Handle AT+XMODEM=RECV/SEND commands with optional filename.
 
         Args:
-            cmd: Original command string.
+            cmd: Original command string (preserves filename case).
             upper: Uppercased command string.
 
         Returns:
             Response bytes — OK + initial protocol byte, or error.
         """
         if "=" not in upper:
-            return b"ERROR: Usage: AT+XMODEM=RECV or AT+XMODEM=SEND\r\n"
+            return b"ERROR: Usage: AT+XMODEM=SEND {file} or AT+XMODEM=RECV {file}\r\n"
 
-        mode = upper.split("=", 1)[1].strip()
+        # Parse verb and optional filename from original-case command
+        after_eq = cmd.split("=", 1)[1].strip()
+        parts = after_eq.split(None, 1)
+        verb = parts[0].upper()
+        filename = parts[1] if len(parts) > 1 else ""
 
-        if mode == "RECV":
+        if verb == "RECV":
             self._xmodem_state = "recv"
             self._xmodem_recv_buf = bytearray()
+            self._xmodem_recv_filename = filename or "xmodem_recv.bin"
             self._xmodem_block_num = 0
             self._xmodem_crc_mode = False
-            # OK response, then NAK to initiate transfer (checksum mode)
             return b"OK\r\n" + bytes([self._NAK])
 
-        if mode == "SEND":
+        if verb == "SEND":
+            if not filename:
+                if not self._vfs:
+                    return b"ERROR: No files on device\r\n"
+                filename = sorted(self._vfs)[0]
+            if filename not in self._vfs:
+                return f"ERROR: File not found: {filename}\r\n".encode()
             self._xmodem_state = "send"
-            self._xmodem_send_data = self._XMODEM_SEND_PAYLOAD
+            self._xmodem_send_data = self._vfs[filename]
             self._xmodem_block_num = 1
             self._xmodem_crc_mode = False
-            # OK response — device waits for NAK or 'C' from host
             return b"OK\r\n"
 
-        return b"ERROR: Usage: AT+XMODEM=RECV or AT+XMODEM=SEND\r\n"
+        return b"ERROR: Usage: AT+XMODEM=SEND {file} or AT+XMODEM=RECV {file}\r\n"
 
     def _process_xmodem(self) -> None:
         """Handle XMODEM protocol bytes while in transfer mode.
@@ -829,10 +890,12 @@ class FakeSerial:
         if not buf:
             return
 
-        # EOT = end of transmission
+        # EOT = end of transmission — store received data in VFS
         if buf[0] == self._EOT:
             del buf[0]
             self._output_buf.extend(bytes([self._ACK]))
+            if self._xmodem_recv_filename and self._xmodem_recv_buf:
+                self._vfs[self._xmodem_recv_filename] = bytes(self._xmodem_recv_buf)
             self._xmodem_state = None
             return
 
@@ -951,21 +1014,24 @@ class FakeSerial:
     # -- YMODEM handlers ----------------------------------------------------
 
     def _handle_ymodem_cmd(self, cmd: str, upper: str) -> bytes:
-        """Handle AT+YMODEM=RECV and AT+YMODEM=SEND commands.
+        """Handle AT+YMODEM=RECV/SEND commands with optional filename.
 
         Args:
-            cmd: Original command string.
+            cmd: Original command string (preserves filename case).
             upper: Uppercased command string.
 
         Returns:
             Response bytes.
         """
         if "=" not in upper:
-            return b"ERROR: Usage: AT+YMODEM=RECV or AT+YMODEM=SEND\r\n"
+            return b"ERROR: Usage: AT+YMODEM=SEND {file} or AT+YMODEM=RECV\r\n"
 
-        mode = upper.split("=", 1)[1].strip()
+        after_eq = cmd.split("=", 1)[1].strip()
+        parts = after_eq.split(None, 1)
+        verb = parts[0].upper()
+        filename = parts[1] if len(parts) > 1 else ""
 
-        if mode == "RECV":
+        if verb == "RECV":
             self._ymodem_state = "recv"
             self._ymodem_phase = "header"
             self._ymodem_recv_buf = bytearray()
@@ -973,20 +1039,24 @@ class FakeSerial:
             self._ymodem_recv_size = 0
             self._ymodem_block_num = 0
             self._ymodem_eot_count = 0
-            # OK, then 'C' to request CRC mode header
             return b"OK\r\n" + bytes([self._CRC_START])
 
-        if mode == "SEND":
+        if verb == "SEND":
+            if not filename:
+                if not self._vfs:
+                    return b"ERROR: No files on device\r\n"
+                filename = sorted(self._vfs)[0]
+            if filename not in self._vfs:
+                return f"ERROR: File not found: {filename}\r\n".encode()
             self._ymodem_state = "send"
             self._ymodem_phase = "header"
-            self._ymodem_send_data = self._YMODEM_SEND_PAYLOAD
-            self._ymodem_send_name = self._YMODEM_SEND_FILENAME
+            self._ymodem_send_data = self._vfs[filename]
+            self._ymodem_send_name = filename
             self._ymodem_block_num = 0
             self._ymodem_eot_count = 0
-            # OK, wait for 'C' from host
             return b"OK\r\n"
 
-        return b"ERROR: Usage: AT+YMODEM=RECV or AT+YMODEM=SEND\r\n"
+        return b"ERROR: Usage: AT+YMODEM=SEND {file} or AT+YMODEM=RECV\r\n"
 
     def _process_ymodem(self) -> None:
         """Handle YMODEM protocol bytes while in transfer mode."""
@@ -1061,7 +1131,13 @@ class FakeSerial:
         if self._ymodem_phase == "header" or self._ymodem_phase == "batch_end":
             # Block 0: filename\0filesize\0 (or empty = batch end)
             if data[0] == 0x00:
-                # Empty filename = end of batch
+                # Empty filename = end of batch — store received file in VFS
+                if self._ymodem_recv_name and self._ymodem_recv_buf:
+                    if self._ymodem_recv_size > 0:
+                        actual = bytes(self._ymodem_recv_buf[:self._ymodem_recv_size])
+                    else:
+                        actual = bytes(self._ymodem_recv_buf)
+                    self._vfs[self._ymodem_recv_name] = actual
                 self._output_buf.extend(bytes([self._ACK]))
                 self._ymodem_state = None
                 return

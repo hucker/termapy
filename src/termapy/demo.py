@@ -69,6 +69,17 @@ class FakeSerial:
         self._xmodem_block_num: int = 0
         self._xmodem_crc_mode: bool = False
 
+        # YMODEM state
+        self._ymodem_state: str | None = None  # None, "recv", "send"
+        self._ymodem_phase: str = ""  # "header", "data", "eot", "batch_end"
+        self._ymodem_recv_buf: bytearray = bytearray()
+        self._ymodem_recv_name: str = ""
+        self._ymodem_recv_size: int = 0
+        self._ymodem_send_data: bytes = b""
+        self._ymodem_send_name: str = ""
+        self._ymodem_block_num: int = 0
+        self._ymodem_eot_count: int = 0
+
     # -- serial.Serial properties ------------------------------------------
 
     @property
@@ -252,6 +263,13 @@ class FakeSerial:
     # Canned payload for AT+XMODEM=SEND (deterministic, 256 bytes = 2 blocks)
     _XMODEM_SEND_PAYLOAD = bytes(range(256))
 
+    _STX = 0x02  # Start of 1024-byte block (YMODEM)
+    _CAN = 0x18  # Cancel
+
+    # Canned payload for AT+YMODEM=SEND (deterministic, 2048 bytes = 2 x 1K blocks)
+    _YMODEM_SEND_PAYLOAD = bytes(i & 0xFF for i in range(2048))
+    _YMODEM_SEND_FILENAME = "demo_data.bin"
+
     # -- Internal processing ------------------------------------------------
 
     def _process_input(self) -> None:
@@ -266,9 +284,12 @@ class FakeSerial:
         """
         buf = self._input_buf
 
-        # XMODEM mode: handle protocol bytes before normal dispatch
+        # XMODEM/YMODEM mode: handle protocol bytes before normal dispatch
         if self._xmodem_state is not None:
             self._process_xmodem()
+            return
+        if self._ymodem_state is not None:
+            self._process_ymodem()
             return
 
         # Binary Modbus: first byte outside printable ASCII range
@@ -402,6 +423,9 @@ class FakeSerial:
         if upper.startswith("AT+XMODEM"):
             return self._handle_xmodem_cmd(cmd, upper)
 
+        if upper.startswith("AT+YMODEM"):
+            return self._handle_ymodem_cmd(cmd, upper)
+
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
     def _help_json(self) -> bytes:
@@ -429,6 +453,8 @@ class FakeSerial:
                 "mem": {"help": "Memory dump", "args": "<addr> {len}"},
                 "AT+XMODEM=RECV": {"help": "Receive file via XMODEM", "args": ""},
                 "AT+XMODEM=SEND": {"help": "Send canned file via XMODEM", "args": ""},
+                "AT+YMODEM=RECV": {"help": "Receive file via YMODEM", "args": ""},
+                "AT+YMODEM=SEND": {"help": "Send canned file via YMODEM", "args": ""},
                 "AT+HELP.JSON": {"help": "Device command help (JSON)", "args": ""},
             },
         }
@@ -921,6 +947,290 @@ class FakeSerial:
     def xmodem_received_data(self) -> bytes:
         """Data received via XMODEM (for testing)."""
         return bytes(self._xmodem_recv_buf)
+
+    # -- YMODEM handlers ----------------------------------------------------
+
+    def _handle_ymodem_cmd(self, cmd: str, upper: str) -> bytes:
+        """Handle AT+YMODEM=RECV and AT+YMODEM=SEND commands.
+
+        Args:
+            cmd: Original command string.
+            upper: Uppercased command string.
+
+        Returns:
+            Response bytes.
+        """
+        if "=" not in upper:
+            return b"ERROR: Usage: AT+YMODEM=RECV or AT+YMODEM=SEND\r\n"
+
+        mode = upper.split("=", 1)[1].strip()
+
+        if mode == "RECV":
+            self._ymodem_state = "recv"
+            self._ymodem_phase = "header"
+            self._ymodem_recv_buf = bytearray()
+            self._ymodem_recv_name = ""
+            self._ymodem_recv_size = 0
+            self._ymodem_block_num = 0
+            self._ymodem_eot_count = 0
+            # OK, then 'C' to request CRC mode header
+            return b"OK\r\n" + bytes([self._CRC_START])
+
+        if mode == "SEND":
+            self._ymodem_state = "send"
+            self._ymodem_phase = "header"
+            self._ymodem_send_data = self._YMODEM_SEND_PAYLOAD
+            self._ymodem_send_name = self._YMODEM_SEND_FILENAME
+            self._ymodem_block_num = 0
+            self._ymodem_eot_count = 0
+            # OK, wait for 'C' from host
+            return b"OK\r\n"
+
+        return b"ERROR: Usage: AT+YMODEM=RECV or AT+YMODEM=SEND\r\n"
+
+    def _process_ymodem(self) -> None:
+        """Handle YMODEM protocol bytes while in transfer mode."""
+        if self._ymodem_state == "recv":
+            self._process_ymodem_recv()
+        elif self._ymodem_state == "send":
+            self._process_ymodem_send()
+
+    def _process_ymodem_recv(self) -> None:
+        """YMODEM receive state machine (device receives file from host).
+
+        Phases: header (block 0 with filename/size), data (file content),
+        eot (end of transmission), batch_end (empty block 0).
+        """
+        buf = self._input_buf
+
+        if not buf:
+            return
+
+        # EOT handling: first EOT gets NAK, second gets ACK then 'C' for next file
+        if buf[0] == self._EOT:
+            del buf[0]
+            self._ymodem_eot_count += 1
+            if self._ymodem_eot_count == 1:
+                self._output_buf.extend(bytes([self._NAK]))
+            else:
+                self._output_buf.extend(bytes([self._ACK]))
+                self._ymodem_phase = "batch_end"
+                self._ymodem_eot_count = 0
+                # Send 'C' to request next file header (or batch end)
+                self._output_buf.extend(bytes([self._CRC_START]))
+            return
+
+        # Determine block size from header byte
+        if buf[0] == self._SOH:
+            block_size = 128
+            frame_size = 133  # SOH + blk + ~blk + 128 + CRC(2)
+        elif buf[0] == self._STX:
+            block_size = 1024
+            frame_size = 1029  # STX + blk + ~blk + 1024 + CRC(2)
+        elif buf[0] == self._CAN:
+            del buf[0]
+            self._ymodem_state = None
+            return
+        else:
+            # Discard unexpected byte
+            del buf[0]
+            return
+
+        if len(buf) < frame_size:
+            return  # Wait for complete block
+
+        block = bytes(buf[:frame_size])
+        del buf[:frame_size]
+
+        blk_num = block[1]
+        blk_inv = block[2]
+        data = block[3:3 + block_size]
+
+        # Validate block number complement
+        if (blk_num + blk_inv) & 0xFF != 0xFF:
+            self._output_buf.extend(bytes([self._NAK]))
+            return
+
+        # Validate CRC-16
+        expected_crc = (block[3 + block_size] << 8) | block[4 + block_size]
+        actual_crc = _xmodem_crc16(data)
+        if actual_crc != expected_crc:
+            self._output_buf.extend(bytes([self._NAK]))
+            return
+
+        if self._ymodem_phase == "header" or self._ymodem_phase == "batch_end":
+            # Block 0: filename\0filesize\0 (or empty = batch end)
+            if data[0] == 0x00:
+                # Empty filename = end of batch
+                self._output_buf.extend(bytes([self._ACK]))
+                self._ymodem_state = None
+                return
+
+            # Parse filename and size (format: filename\0filesize[ mtime ...]\0)
+            null_idx = data.index(0x00)
+            self._ymodem_recv_name = data[:null_idx].decode("ascii", errors="replace")
+            rest = data[null_idx + 1:]
+            size_end = rest.index(0x00) if 0x00 in rest else len(rest)
+            fields_str = rest[:size_end].decode("ascii", errors="replace").strip()
+            # Filesize is the first space-separated field (decimal)
+            size_str = fields_str.split(" ")[0] if fields_str else ""
+            self._ymodem_recv_size = int(size_str) if size_str else 0
+            self._ymodem_recv_buf = bytearray()
+            self._ymodem_block_num = 1
+            self._ymodem_phase = "data"
+            self._ymodem_eot_count = 0
+            # ACK the header, then 'C' to start data
+            self._output_buf.extend(bytes([self._ACK, self._CRC_START]))
+            return
+
+        # Data block
+        self._ymodem_block_num += 1
+        self._ymodem_recv_buf.extend(data)
+        self._output_buf.extend(bytes([self._ACK]))
+
+    def _process_ymodem_send(self) -> None:
+        """YMODEM send state machine (device sends file to host).
+
+        Phases: header (send block 0), data (send file blocks),
+        eot (end of transmission), batch_end (send empty block 0).
+        """
+        buf = self._input_buf
+
+        if not buf:
+            return
+
+        byte = buf[0]
+        del buf[0]
+
+        if byte == self._CAN:
+            self._ymodem_state = None
+            return
+
+        if self._ymodem_phase == "header":
+            # Waiting for 'C' to send header block 0
+            if byte == self._CRC_START or byte == self._NAK:
+                self._enqueue_ymodem_header_block()
+                return
+
+        if self._ymodem_phase == "data_wait_c":
+            # After header ACK, wait for 'C' to start data
+            if byte == self._CRC_START:
+                self._ymodem_block_num = 0
+                self._enqueue_ymodem_data_block()
+                self._ymodem_phase = "data"
+                return
+
+        if self._ymodem_phase == "data":
+            if byte == self._ACK:
+                offset = self._ymodem_block_num * 1024
+                if offset >= len(self._ymodem_send_data):
+                    # All data sent, send EOT
+                    self._output_buf.extend(bytes([self._EOT]))
+                    self._ymodem_phase = "eot"
+                    self._ymodem_eot_count = 1
+                    return
+                self._enqueue_ymodem_data_block()
+                return
+            if byte == self._NAK:
+                # Retransmit current block
+                self._ymodem_block_num -= 1
+                self._enqueue_ymodem_data_block()
+                return
+
+        if self._ymodem_phase == "eot":
+            if byte == self._NAK:
+                # First NAK after EOT, send EOT again
+                self._output_buf.extend(bytes([self._EOT]))
+                self._ymodem_eot_count += 1
+                return
+            if byte == self._ACK:
+                # EOT acknowledged, wait for 'C' for batch end
+                self._ymodem_phase = "batch_end"
+                return
+            if byte == self._CRC_START:
+                # Some implementations send 'C' after ACK
+                self._ymodem_phase = "batch_end"
+                # Fall through to batch_end handling
+                self._enqueue_ymodem_empty_header()
+                return
+
+        if self._ymodem_phase == "batch_end":
+            if byte == self._CRC_START or byte == self._NAK:
+                self._enqueue_ymodem_empty_header()
+                return
+            if byte == self._ACK:
+                # Batch end acknowledged, done
+                self._ymodem_state = None
+                return
+
+        if self._ymodem_phase == "header":
+            if byte == self._ACK:
+                # Header ACKed, wait for 'C' to start data
+                self._ymodem_phase = "data_wait_c"
+                return
+
+    def _enqueue_ymodem_header_block(self) -> None:
+        """Build and enqueue YMODEM block 0 (filename + filesize + mtime)."""
+        name_bytes = self._ymodem_send_name.encode("ascii")
+        size_bytes = str(len(self._ymodem_send_data)).encode("ascii")
+        # filename\0filesize<space>mtime\0 padded to 128 bytes
+        # mtime is octal seconds since epoch; 0 = unknown
+        payload = name_bytes + b"\x00" + size_bytes + b" 0\x00"
+        payload = payload.ljust(128, b"\x00")
+
+        crc = _xmodem_crc16(payload)
+        header = bytes([self._SOH, 0x00, 0xFF])
+        trailer = bytes([crc >> 8, crc & 0xFF])
+        self._output_buf.extend(header + payload + trailer)
+
+    def _enqueue_ymodem_data_block(self) -> None:
+        """Build and enqueue the current YMODEM 1024-byte data block.
+
+        _ymodem_block_num is a 0-based data index. The actual YMODEM
+        sequence number is block_num + 1 (block 0 was the header).
+        """
+        offset = self._ymodem_block_num * 1024
+        chunk = self._ymodem_send_data[offset:offset + 1024]
+
+        if not chunk:
+            self._output_buf.extend(bytes([self._EOT]))
+            self._ymodem_phase = "eot"
+            self._ymodem_eot_count = 1
+            return
+
+        # Pad last block to 1024 bytes
+        if len(chunk) < 1024:
+            chunk = chunk + b"\x1a" * (1024 - len(chunk))
+
+        blk = (self._ymodem_block_num + 1) & 0xFF  # header was block 0
+        header = bytes([self._STX, blk, 0xFF - blk])
+        crc = _xmodem_crc16(chunk)
+        trailer = bytes([crc >> 8, crc & 0xFF])
+        self._output_buf.extend(header + chunk + trailer)
+        self._ymodem_block_num += 1
+
+    def _enqueue_ymodem_empty_header(self) -> None:
+        """Build and enqueue an empty YMODEM block 0 (batch end signal)."""
+        payload = b"\x00" * 128
+        crc = _xmodem_crc16(payload)
+        header = bytes([self._SOH, 0x00, 0xFF])
+        trailer = bytes([crc >> 8, crc & 0xFF])
+        self._output_buf.extend(header + payload + trailer)
+
+    @property
+    def ymodem_received_data(self) -> bytes:
+        """Data received via YMODEM (for testing)."""
+        return bytes(self._ymodem_recv_buf)
+
+    @property
+    def ymodem_received_name(self) -> str:
+        """Filename received via YMODEM block 0 (for testing)."""
+        return self._ymodem_recv_name
+
+    @property
+    def ymodem_received_size(self) -> int:
+        """File size from YMODEM block 0 (for testing)."""
+        return self._ymodem_recv_size
 
     # -- Set/query helpers --------------------------------------------------
 

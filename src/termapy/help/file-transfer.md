@@ -1,10 +1,12 @@
 # File Transfer
 
-Transfer files to and from serial devices using the XMODEM protocol.
-XMODEM is widely supported by bootloaders, firmware updaters, and
-embedded systems.
+Transfer files to and from serial devices using XMODEM or YMODEM
+protocols. Both are widely supported by bootloaders, firmware updaters,
+and embedded systems.
 
-## Send a File
+## XMODEM
+
+### Send a File
 
 ```text
 /xmodem.send <file>
@@ -21,7 +23,7 @@ relative to the per-config `cap/` directory, or provide an absolute path.
 The device must be waiting to receive via XMODEM before you run this
 command (e.g. after entering a bootloader's receive mode).
 
-## Receive a File
+### Receive a File
 
 ```text
 /xmodem.recv <file>
@@ -35,31 +37,77 @@ Supports auto-numbered filenames with `$(n000)`.
 /xmodem.recv log_$(n000).bin
 ```
 
-Trigger the device to start sending before or after running this
-command, depending on your device's XMODEM implementation.
+### Protocol Details
 
-## Protocol Details
-
-- XMODEM with automatic CRC/checksum negotiation
+- Automatic CRC/checksum negotiation
 - 128-byte blocks
 - Progress reported during transfer
+
+## YMODEM
+
+YMODEM extends XMODEM with batch file transfer, 1024-byte blocks,
+and automatic filename/size metadata in the protocol header.
+
+### Send File(s)
+
+```text
+/ymodem.send <file> {file2} ...
+```
+
+Send one or more files. YMODEM includes the filename and size in the
+protocol, so the receiver knows what to expect.
+
+```text
+/ymodem.send firmware.bin
+/ymodem.send config.json data.bin     batch send
+```
+
+### Receive File(s)
+
+```text
+/ymodem.recv {directory}
+```
+
+Receive files from the device. YMODEM provides the filename
+automatically. Files are saved to the specified directory, or `cap/`
+by default.
+
+```text
+/ymodem.recv                          save to cap/
+/ymodem.recv C:\downloads             save to specific directory
+```
+
+### YMODEM Protocol Details
+
+- 1024-byte blocks (1K) with CRC-16
+- Filename and filesize sent in protocol header
+- Batch transfer: send/receive multiple files in one session
+
+## Common Details
+
 - Serial display is suppressed during transfer and resumes afterward
 - Transfer can be interrupted by disconnecting
+- Progress reported during transfer
+
+## XMODEM vs YMODEM
+
+| Feature           | XMODEM              | YMODEM              |
+|-------------------|---------------------|---------------------|
+| Block size        | 128 bytes           | 1024 bytes          |
+| Error detection   | CRC-16 or checksum  | CRC-16 always       |
+| Filename in protocol | No               | Yes                 |
+| Batch transfer    | No                  | Yes                 |
+| Use when          | Simple bootloaders  | Larger files, batch |
 
 ## Demo Mode
 
-The demo device supports XMODEM for testing without hardware:
+The demo device supports both protocols for testing without hardware:
 
 ```text
-AT+XMODEM=RECV     device enters receive mode (accepts files)
-AT+XMODEM=SEND     device sends a canned 256-byte test payload
-```
-
-Example session:
-
-```text
-AT+XMODEM=SEND
-/xmodem.recv test.bin         receives 256 bytes to cap/test.bin
+AT+XMODEM=RECV     device enters XMODEM receive mode
+AT+XMODEM=SEND     device sends a canned 256-byte payload via XMODEM
+AT+YMODEM=RECV     device enters YMODEM receive mode
+AT+YMODEM=SEND     device sends a canned 2048-byte payload via YMODEM
 ```
 
 ## Typical Workflows
@@ -70,7 +118,7 @@ AT+XMODEM=SEND
 # 1. Enter bootloader mode (device-specific)
 AT+BOOTLOADER
 # 2. Send firmware
-/xmodem.send firmware.bin
+/ymodem.send firmware.bin
 ```
 
 **Pull a log dump from a device:**

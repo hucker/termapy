@@ -1,5 +1,5 @@
-# doc_screenshots.run — Generate documentation images
-#
+# Generate documentation images
+
 # Run while connected to the demo device:
 #   /run doc_screenshots
 #

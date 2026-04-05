@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 10
+CURRENT_CONFIG_VERSION = 11
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
@@ -125,6 +125,15 @@ def _migrate_v9_to_v10(cfg: dict) -> dict:
 
 
 MIGRATIONS[9] = _migrate_v9_to_v10
+
+
+def _migrate_v10_to_v11(cfg: dict) -> dict:
+    """Add file_xfer_root option (default empty string)."""
+    cfg.setdefault("file_xfer_root", "")
+    return cfg
+
+
+MIGRATIONS[10] = _migrate_v10_to_v11
 
 
 def migrate_config(cfg: dict) -> dict:

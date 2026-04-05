@@ -15,6 +15,9 @@
 /print   /help           — all commands (termapy + device)
 /print   /run at_demo    — run the AT command demo script
 /print   /temp_plot      — sample temperature sparkline
+/print   AT+FS.LIST      — list files on device
+/print   /ymodem.recv    — download a file from device
+/print   /ymodem.send    — upload a file to device
 /print   /port.info      — show connection details
 /print   /cfg.info       — show project file tree
 /print

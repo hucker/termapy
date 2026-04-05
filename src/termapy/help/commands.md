@@ -10,7 +10,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/port.list`              | List available serial ports                                                 |
 | `/port.open {name}`       | Connect (optional port override)                                            |
 | `/port.close`             | Disconnect from the serial port                                             |
-| `/port.info`              | Show port status, serial parameters, and hardware lines                     |
+| `/port.info`              | Show port status, serial parameters, hardware lines, and xfer root          |
 | `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |
 | `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
 | `/port.parity {value}`    | Show or set parity (hardware only)                                          |
@@ -79,6 +79,11 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
 | `/cap.stop`               | Stop an active capture                                                      |
+| `/xmodem.send <file>`     | Send a file to the device via XMODEM                                        |
+| `/xmodem.recv <file>`     | Receive a file from the device via XMODEM                                   |
+| `/ymodem.send <file> ...` | Send file(s) to the device via YMODEM (batch)                               |
+| `/ymodem.recv {dir}`      | Receive file(s) from the device via YMODEM                                  |
+| `/xfer.root {path}`       | Show or set the file transfer root directory                                |
 | `/run.edit <file>`        | Open a .run script in the system editor                                     |
 | `/color {on\|off}`        | Show or toggle color output (CLI mode only)                                 |
 | `/raw <text>`             | Send text to serial with no variable expansion or transforms                |

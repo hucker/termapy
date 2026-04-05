@@ -266,3 +266,29 @@ def test_v7_to_v8_handles_missing_cap_endian():
     # Assert
     assert "cap_endian" not in result  # assert no error
     assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v10_to_v11_adds_file_xfer_root():
+    """Migration v10→v11 adds file_xfer_root."""
+    # Arrange
+    cfg = {"config_version": 10, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["file_xfer_root"] == ""
+    assert result["config_version"] == CURRENT_CONFIG_VERSION
+
+
+def test_v10_to_v11_preserves_existing_file_xfer_root():
+    """Migration v10→v11 preserves existing file_xfer_root."""
+    # Arrange
+    cfg = {"config_version": 10, "port": "COM4", "file_xfer_root": "C:\\builds"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["file_xfer_root"] == "C:\\builds"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION

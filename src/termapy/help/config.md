@@ -92,6 +92,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `show_line_numbers`      | `false`               | Show line numbers in serial output                                                          |
 | `hex_mode`               | `false`               | Display serial I/O as hex bytes instead of text                                             |
 | `max_grep_lines`         | `100`                 | Maximum lines shown by `/grep`                                                              |
+| `file_xfer_root`         | ` `                   | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md).   |
 | `proto_frame_gap_ms`     | `50`                  | Silence gap (ms) to detect end of a binary frame                                            |
 | `proto_results_template` | `{name}_results.json` | Filename template for protocol test JSON results                                            |
 | `title`                  | ` `                   | Title bar text (defaults to config filename)                                                |

@@ -142,9 +142,9 @@ class TestFakeSerialYmodemRecv:
         resp = dev.read(4096)
         assert resp == bytes([ACK])  # batch end acknowledged
 
-        # Verify received data
-        received = dev.ymodem_received_data
-        assert received[:len(test_data)] == test_data  # data matches
+        # Verify received data in VFS
+        assert "test.bin" in dev.vfs  # file stored in VFS
+        assert dev.vfs["test.bin"] == test_data  # data matches (trimmed to size)
         assert dev.ymodem_received_name == "test.bin"  # filename parsed
         assert dev.ymodem_received_size == len(test_data)  # size parsed
 
@@ -181,7 +181,7 @@ class TestFakeSerialYmodemSend:
     def test_send_mode_waits_for_c(self, dev: FakeSerial) -> None:
         """AT+YMODEM=SEND returns OK and waits."""
         # Act
-        dev.write(b"AT+YMODEM=SEND\r")
+        dev.write(b"AT+YMODEM=SEND firmware_v1.bin\r")
         time.sleep(0.01)
         response = dev.read(4096)
 
@@ -191,7 +191,7 @@ class TestFakeSerialYmodemSend:
     def test_send_c_triggers_header(self, dev: FakeSerial) -> None:
         """Sending 'C' triggers header block 0 with filename and size."""
         # Arrange
-        _enter_ymodem_mode(dev, "SEND")
+        _enter_ymodem_mode(dev, "SEND firmware_v1.bin")
 
         # Act
         dev.write(b"C")
@@ -206,12 +206,12 @@ class TestFakeSerialYmodemSend:
         # Parse filename
         null_idx = data.index(0x00)
         filename = data[:null_idx].decode("ascii")
-        assert filename == "demo_data.bin"  # canned filename
+        assert filename == "firmware_v1.bin"  # canned filename
 
     def test_send_full_transfer(self, dev: FakeSerial) -> None:
         """Complete YMODEM transfer of canned 2048-byte payload."""
         # Arrange
-        _enter_ymodem_mode(dev, "SEND")
+        _enter_ymodem_mode(dev, "SEND firmware_v1.bin")
 
         # Send 'C' to get header block 0
         dev.write(b"C")
@@ -221,7 +221,7 @@ class TestFakeSerialYmodemSend:
         data = header_block[3:131]
         null_idx = data.index(0x00)
         filename = data[:null_idx].decode("ascii")
-        assert filename == "demo_data.bin"
+        assert filename == "firmware_v1.bin"
 
         # ACK header
         dev.write(bytes([ACK]))
@@ -326,8 +326,8 @@ class TestYmodemLibraryIntegration:
 
         # Assert
         assert ok is True  # transfer succeeded
-        received = dev.ymodem_received_data
-        assert received[:len(test_data)] == test_data  # data matches
+        assert "send_test.bin" in dev.vfs  # stored in VFS
+        assert dev.vfs["send_test.bin"] == test_data  # data matches (trimmed)
         assert dev.ymodem_received_name == "send_test.bin"  # filename sent
 
     def test_library_recv_from_device(self, dev: FakeSerial, tmp_path) -> None:
@@ -336,7 +336,7 @@ class TestYmodemLibraryIntegration:
         from ymodem.Protocol import ProtocolType
 
         # Arrange
-        _enter_ymodem_mode(dev, "SEND")
+        _enter_ymodem_mode(dev, "SEND firmware_v1.bin")
 
         read, write = self._make_read_write(dev)
         modem = ModemSocket(read, write, protocol_type=ProtocolType.YMODEM)
@@ -346,7 +346,7 @@ class TestYmodemLibraryIntegration:
 
         # Assert
         assert ok is True  # transfer succeeded
-        received_file = tmp_path / "demo_data.bin"
+        received_file = tmp_path / "firmware_v1.bin"
         assert received_file.exists()  # file created with correct name
         content = received_file.read_bytes()
         expected = bytes(i & 0xFF for i in range(2048))

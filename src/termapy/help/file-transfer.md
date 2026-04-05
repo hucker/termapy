@@ -83,6 +83,41 @@ by default.
 - Filename and filesize sent in protocol header
 - Batch transfer: send/receive multiple files in one session
 
+## File Paths
+
+By default, file paths are resolved relative to the per-config `cap/`
+directory. Absolute paths are always accepted.
+
+```text
+/xmodem.send firmware.bin              cap/firmware.bin
+/xmodem.send C:\builds\release.hex     absolute path
+/xmodem.recv dump.bin                  saved to cap/dump.bin
+/xmodem.recv log_$(n000).bin           auto-numbered in cap/
+/ymodem.send config.json               cap/config.json
+/ymodem.recv                           saved to cap/ (filename from protocol)
+/ymodem.recv C:\downloads              saved to specified directory
+```
+
+### Custom transfer root
+
+```text
+/xfer.root                             show current root
+/xfer.root C:\builds\firmware          set a custom root
+```
+
+When set, both send and receive resolve relative paths against this
+directory instead of `cap/`. The transfer root is shown as a clickable
+path when a config loads (with verbose on).
+
+This sets the `file_xfer_root` config key, which can also be edited
+directly in the JSON config file.
+
+The `cap/` directory lives inside the active config folder. For example,
+if your config is `termapy_cfg/mydevice/mydevice.cfg`, then `cap/` is
+`termapy_cfg/mydevice/cap/`. In demo mode, it's `termapy_cfg/demo/cap/`.
+
+Click the **Cap** button in the toolbar to open the `cap/` folder.
+
 ## Common Details
 
 - Serial display is suppressed during transfer and resumes afterward
@@ -101,13 +136,35 @@ by default.
 
 ## Demo Mode
 
-The demo device supports both protocols for testing without hardware:
+The demo device has a virtual filesystem pre-loaded with sample files.
+
+### Filesystem commands
 
 ```text
-AT+XMODEM=RECV     device enters XMODEM receive mode
-AT+XMODEM=SEND     device sends a canned 256-byte payload via XMODEM
-AT+YMODEM=RECV     device enters YMODEM receive mode
-AT+YMODEM=SEND     device sends a canned 2048-byte payload via YMODEM
+AT+FS.LIST                  list files with sizes
+AT+FS.INFO                  file count and total size
+AT+FS.DELETE <file>         delete a file
+```
+
+### File transfer
+
+```text
+AT+XMODEM=SEND <file>      send a file from device via XMODEM
+AT+XMODEM=RECV <file>      receive into device VFS via XMODEM
+AT+YMODEM=SEND <file>      send a file from device via YMODEM
+AT+YMODEM=RECV              receive into device VFS (name from protocol)
+```
+
+Pre-loaded files: `config.dat` (64 bytes), `device_log.txt`,
+`firmware_v1.bin` (2048 bytes).
+
+### Example session
+
+```text
+AT+FS.LIST                          see what's on the device
+/ymodem.recv                        pull firmware_v1.bin to your PC
+/ymodem.send new_firmware.bin       push a file to the device
+AT+FS.LIST                          see it arrived
 ```
 
 ## Typical Workflows

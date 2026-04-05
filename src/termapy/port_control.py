@@ -79,6 +79,9 @@ def port_info(cfg: dict, ser: Any | None) -> Result:
         _msg(f"  Flow control: {cfg.get('flow_control', 'none')}"),
         _msg(f"  Encoding:     {cfg.get('encoding', 'utf-8')}"),
     ]
+    xfer_root = cfg.get("file_xfer_root", "")
+    if xfer_root:
+        msgs.append(_msg(f"  Xfer root:    {xfer_root}"))
     if connected:
         try:
             for name in ("dtr", "rts", "cts", "dsr", "ri", "cd"):

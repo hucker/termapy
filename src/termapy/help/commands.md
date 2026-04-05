@@ -5,6 +5,9 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/help [cmd]`             | List commands or show extended help for one                                 |
+| `/help.target`            | Show only imported target device commands                                   |
+| `/help.run`               | List available .run scripts with descriptions                               |
+| `/help.plugin`            | List loaded plugins grouped by source                                       |
 | `/help.dev <cmd>`         | Show a command handler's Python docstring                                   |
 | `/port [name]`            | Open a port by name, or show subcommands                                    |
 | `/port.list`              | List available serial ports                                                 |

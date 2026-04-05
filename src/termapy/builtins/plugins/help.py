@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command
@@ -241,6 +242,14 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             arg_col = _pad(_color_args(args), arg_w)
             ctx.write_markup(f"{cmd_col} {arg_col}  {desc}")
 
+        # Scripts section
+        scripts_dir = ctx.scripts_dir
+        if scripts_dir.is_dir():
+            scripts = sorted(scripts_dir.glob("*.run"))
+            if scripts:
+                ctx.write_markup("")
+                _render_scripts(ctx, scripts, prefix, cmd_w)
+
         # Target device commands section
         if ctx.engine.target_commands:
             ctx.write_markup("")
@@ -278,6 +287,103 @@ def _render_target(ctx: PluginContext) -> None:
         ctx.write_markup(f"{cmd_col} {arg_col}  {tc.help}")
 
 
+def _script_description(path: Path) -> str:
+    """Extract description from a script's header comment.
+
+    Valid format: first line is ``# text``, second line is blank.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            first = f.readline()
+            second = f.readline()
+        if not first.strip().startswith("#"):
+            return ""
+        if second.strip():
+            return ""
+        text = first.strip().lstrip("#").strip()
+        if " -- " in text:
+            text = text.split(" -- ", 1)[1]
+        return text
+    except OSError:
+        return ""
+
+
+def _render_scripts(ctx: PluginContext, scripts: list, prefix: str, cmd_w: int = 25, arg_w: int = 25) -> None:
+    """Render the scripts table."""
+    ctx.write_markup(f"[{_SEP}]── Scripts ──[/]")
+    for path in scripts:
+        name = path.stem
+        desc = _script_description(path)
+        cmd_col = _pad(f"  [{_CMD}]{prefix}run {name}[/]", cmd_w + 2)
+        arg_col = _pad("", arg_w)
+        ctx.write_markup(f"{cmd_col} {arg_col}  {desc}")
+
+
+def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
+    """List available .run scripts with descriptions.
+
+    Args:
+        ctx: Plugin context.
+        args: Unused.
+    """
+    scripts_dir = ctx.scripts_dir
+    if not scripts_dir.is_dir():
+        ctx.result("No scripts directory.")
+        return CmdResult.ok()
+    scripts = sorted(scripts_dir.glob("*.run"))
+    if not scripts:
+        ctx.result("No .run scripts found.")
+        return CmdResult.ok()
+    prefix = ctx.engine.prefix
+    _render_scripts(ctx, scripts, prefix)
+    ctx.result(f"{len(scripts)} scripts.")
+    return CmdResult.ok()
+
+
+def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
+    """List loaded plugins grouped by source.
+
+    Args:
+        ctx: Plugin context.
+        args: Unused.
+    """
+    all_plugins = ctx.engine.plugins
+    if not all_plugins:
+        ctx.result("No plugins loaded.")
+        return CmdResult.ok()
+    _SOURCE_ORDER = {"app": 0, "built-in": 1, "global": 2}
+    _SOURCE_LABELS = {
+        "app": "Application",
+        "built-in": "Application Plugins",
+        "global": "User Plugins",
+    }
+    groups: dict[str, list] = {}
+    for cmd_name, plugin in all_plugins.items():
+        if "." not in cmd_name:
+            groups.setdefault(plugin.source, []).append((cmd_name, plugin))
+    cmd_w = 25
+    arg_w = 25
+    prefix = ctx.engine.prefix
+    sorted_sources = sorted(groups, key=lambda s: _SOURCE_ORDER.get(s, 3))
+    first = True
+    total = 0
+    for source in sorted_sources:
+        label = _SOURCE_LABELS.get(source, f"{source} Plugins")
+        if not first:
+            ctx.write_markup("")
+        first = False
+        ctx.write_markup(f"[{_SEP}]── {label} ──[/]")
+        for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
+            cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
+            args_text = _truncate_args(plugin.args or "", prefix, cmd_name)
+            arg_col = _pad(_color_args(args_text), arg_w)
+            sub_count = f"  [dim]({len(plugin.children)})[/]" if plugin.children else ""
+            ctx.write_markup(f"{cmd_col} {arg_col}  {plugin.help}{sub_count}")
+            total += 1
+    ctx.result(f"{total} commands.")
+    return CmdResult.ok()
+
+
 def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
     """Show a command handler's Python docstring (developer info).
 
@@ -306,6 +412,14 @@ Three modes:
         "target": Command(
             help="Show only imported target device commands.",
             handler=_handler_target,
+        ),
+        "run": Command(
+            help="List available .run scripts with descriptions.",
+            handler=_handler_run,
+        ),
+        "plugin": Command(
+            help="List loaded plugins grouped by source.",
+            handler=_handler_plugin,
         ),
         "dev": Command(
             args="<cmd>",

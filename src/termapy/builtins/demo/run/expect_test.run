@@ -1,4 +1,5 @@
 # Expect command test
+
 # Test 1: AT returns OK -- should match
 AT
 /expect match=OK

@@ -1,4 +1,5 @@
 # Smoke test for demo device
+
 # Exercises all ASCII commands with screenshots
 /ss.dir demo_smoke_{starttime}
 /print === Demo smoke test started {starttime} ===

@@ -139,6 +139,10 @@ $(PORT_NUM) = 42
 /help proto.crc
 /help var
 /help cap
+/print === section: help.run ===
+/help.run
+/print === section: help.plugin ===
+/help.plugin
 
 # ── REPL: environment variables ─────────────────────────────────────────────
 /print === section: env vars ===

@@ -364,6 +364,60 @@ last)} - Capture hex text lines, decode with format spec to CSV.
 be last)} - Capture raw bytes, decode with format spec to CSV.
     /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)} - Capture serial text to a
 file for a timed duration.
+  === section: help.run ===
+â”€â”€ Scripts â”€â”€
+  /run at_demo                                         Walks through all demo device commands
+  /run doc_screenshots                                 Generate documentation images
+  /run expect_test                                     Expect command test
+  /run gps_demo                                        Query simulated GPS receiver
+  /run smoke_test                                      Smoke test for demo device
+  /run status_check                                    Quick status check
+  /run var_demo                                        Set variables and use them in commands
+  /run welcome                                         Runs on connect via on_connect_cmd config
+  8 scripts.
+  === section: help.plugin ===
+â”€â”€ Application â”€â”€
+  /cli                                                 Already in CLI mode.
+  /clr                                                 Clear the terminal screen (alias for /cls).
+  /color                    {on|off}                   Show or toggle color output.
+  /delay                    <duration>                 Wait for duration with progress bar (e.g. 500ms, 1.5s).  (1)
+  /demo                                                Set up and switch to the demo device config.  (1)
+  /raw                      <text>                     Send raw text to serial (no transforms or line ending).
+  /run                      {filename}                 Run a script file, or list available scripts.  (1)
+  /tui                                                 Switch to TUI mode.
+
+â”€â”€ Application Plugins â”€â”€
+  /cap                                                 Data capture tools.  (5)
+  /cfg                      {key {value}}              Show or change config values.  (12)
+  /cls                                                 Clear the terminal screen.
+  /confirm                  {message}                  Show Yes/Cancel dialog; Cancel stops a running script.
+  /echo                     {on | off}                 Toggle REPL command echo, or set on/off. Output is not affected.
+(1)
+  /edit                     <filename>                 Open a project file in the system editor.  (6)
+  /env                      {pattern}                  Manage $(env.NAME) expansion for CLI commands.  (3)
+  /exit                                                Exit termapy.
+  /grep                     <pattern>                  Search the scrollback for lines matching a pattern
+(case-insensitive regex).
+  /help                     {cmd}                      List REPL commands, or show help for one command.  (5)
+  /include                  ... /help include          Include device command help from JSON response.  (4)
+  /os                       <cmd>                      Run a shell command and show output (10s timeout). e.g. /os dir
+  /ping                     ... /help ping             Send a command and measure response time.  (1)
+  /port                     {name}                     Serial port tools: open, close, list, configure.  (16)
+  /print                    <text>                     Print a message to the terminal.  (1)
+  /proto                                               Binary protocol tools: send, run, debug, hex, crc, status.  (7)
+  /seq                                                 Show sequence counters.  (1)
+  /show                     <name>                     Show a file.  (1)
+  /show_line_endings        {on | off}                 Toggle visible \r \n markers in serial output for line-ending
+troubleshooting.
+  /ss                                                  Screenshot tools: save SVG/text, show folder.  (3)
+  /stop                                                Abort a running script.
+  /var                      {name}                     List user variables, or show one by name.  (2)
+  /ver                                                 Show termapy version.
+  /verbose                  {on|off}                   Show or toggle verbose status output.
+  /xfer                                                File transfer settings.  (1)
+  /xmodem                                              XMODEM file transfer.  (2)
+  /ymodem                                              YMODEM file transfer (batch, 1K blocks).  (2)
+  35 commands.
   === section: env vars ===
     TEST_VAR=hello_world
     TEST_VAR=hello_world

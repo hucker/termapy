@@ -1,4 +1,5 @@
-# Welcome script — runs automatically on connect
+# Welcome script -- Runs on connect via on_connect_cmd config
+
 /echo.quiet off
 /print
 /print ─────────────────────────────────────────────

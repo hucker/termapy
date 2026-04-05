@@ -2,17 +2,14 @@
 
 ## Install
 
-First install [uv](https://docs.astral.sh/uv/) if you don't have it:
-
 ```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh          # Mac/Linux
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
+pip install termapy
 ```
 
-Then install termapy:
+Or with [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.47.0
+uv tool install termapy
 ```
 
 ## Run the demo

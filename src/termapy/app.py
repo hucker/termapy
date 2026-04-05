@@ -1942,26 +1942,55 @@ class SerialTerminal(App):
         "demo",
     ]
 
+    _help_server_port: int = 0
+
+    def _ensure_help_server(self) -> int:
+        """Start a local HTTP server for help docs if not already running.
+
+        Returns the port number. The server runs as a daemon thread and
+        stops automatically when the app exits.
+        """
+        if self._help_server_port:
+            return self._help_server_port
+        from http.server import HTTPServer, SimpleHTTPRequestHandler
+        from importlib.resources import files as pkg_files
+
+        html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
+
+        class QuietHandler(SimpleHTTPRequestHandler):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, directory=html_dir, **kwargs)
+
+            def log_message(self, format, *args):
+                pass  # suppress request logging
+
+        server = HTTPServer(("127.0.0.1", 0), QuietHandler)
+        self._help_server_port = server.server_address[1]
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        return self._help_server_port
+
     def _hook_help_open(self, ctx: "PluginContext | None", args: str) -> CmdResult:
-        """Open a help topic in the system browser."""
+        """Open a help topic in the local docs server."""
         from importlib.resources import files as pkg_files
 
         html_dir = pkg_files("termapy").joinpath("html")
         topic = args.strip()
         if not topic:
-            path = html_dir.joinpath("index.html")
+            page = "index.html"
         else:
-            # Topic can be "commands", "commands.md", or "commands.html"
             topic = topic.replace(".md", "").replace(".html", "")
-            path = html_dir.joinpath(f"{topic}.html")
-        if not Path(str(path)).exists():
+            page = f"{topic}.html"
+        if not Path(str(html_dir.joinpath(page))).exists():
             msg = (
                 f"Unknown topic: {topic!r}. "
                 f"Available: {', '.join(self._HELP_TOPICS)}"
             )
             self._status(msg, "red")
             return CmdResult.fail(msg=msg)
-        open_with_system(str(path))
+        port = self._ensure_help_server()
+        import webbrowser
+        webbrowser.open(f"http://127.0.0.1:{port}/{page}")
         return CmdResult.ok()
 
     def _palette_help(self) -> None:

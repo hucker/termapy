@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.45.0 (2026-04-04)
+
+### New Features
+
+- **XMODEM file transfer** -- `/xmodem.send` and `/xmodem.recv` for sending and receiving files over serial using the XMODEM protocol. Automatic CRC/checksum negotiation, 128-byte blocks, progress reporting.
+- **YMODEM file transfer** -- `/ymodem.send` and `/ymodem.recv` with batch transfer, 1024-byte blocks, and automatic filename/size metadata. Send multiple files in one session.
+- **Demo device XMODEM/YMODEM** -- `AT+XMODEM=SEND/RECV` and `AT+YMODEM=SEND/RECV` in demo mode for testing file transfer without hardware.
+
+### Improvements
+
+- **File transfer help page** -- new documentation page covering both protocols with comparison table and workflow examples.
+- **32 new tests** -- 23 XMODEM tests (QueueByteReader, protocol, library integration) and 9 YMODEM tests.
+
 ## 0.44.0 (2026-04-03)
 
 ### New Features

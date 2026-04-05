@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.48.0 (2026-04-05)
+
+- **Published to PyPI** -- `pip install termapy` or `uv tool install termapy`.
+- PyPI metadata: authors, classifiers, keywords, project URLs.
+- GitHub Actions workflow for automated publishing on release.
+
 ## 0.47.0 (2026-04-05)
 
 ### New Features

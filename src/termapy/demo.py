@@ -62,6 +62,13 @@ class FakeSerial:
         self._gps_fix: bool = True
         self._gps_sats: int = 9
 
+        # XMODEM state
+        self._xmodem_state: str | None = None  # None, "recv", "send"
+        self._xmodem_recv_buf: bytearray = bytearray()
+        self._xmodem_send_data: bytes = b""
+        self._xmodem_block_num: int = 0
+        self._xmodem_crc_mode: bool = False
+
     # -- serial.Serial properties ------------------------------------------
 
     @property
@@ -234,16 +241,35 @@ class FakeSerial:
     def send_break(self, duration: float = 0.25) -> None:
         """Send break - no-op for simulated device."""
 
+    # -- XMODEM protocol constants --------------------------------------------
+
+    _SOH = 0x01  # Start of 128-byte block
+    _EOT = 0x04  # End of transmission
+    _ACK = 0x06
+    _NAK = 0x15
+    _CRC_START = ord("C")  # CRC mode initiation
+
+    # Canned payload for AT+XMODEM=SEND (deterministic, 256 bytes = 2 blocks)
+    _XMODEM_SEND_PAYLOAD = bytes(range(256))
+
     # -- Internal processing ------------------------------------------------
 
     def _process_input(self) -> None:
         """Dispatch accumulated input as ASCII or Modbus.
+
+        When in XMODEM mode, handle protocol bytes directly before
+        falling through to normal ASCII/Modbus dispatch.
 
         Binary detection first: if the first byte is non-printable and we
         have a complete frame (4+ bytes), treat as Modbus RTU. Otherwise
         look for a line ending to dispatch as ASCII text.
         """
         buf = self._input_buf
+
+        # XMODEM mode: handle protocol bytes before normal dispatch
+        if self._xmodem_state is not None:
+            self._process_xmodem()
+            return
 
         # Binary Modbus: first byte outside printable ASCII range
         if len(buf) >= 4 and not (0x20 <= buf[0] < 0x7F):
@@ -373,6 +399,9 @@ class FakeSerial:
         if upper.startswith("AT+BINDUMP"):
             return self._handle_bindump(cmd)
 
+        if upper.startswith("AT+XMODEM"):
+            return self._handle_xmodem_cmd(cmd, upper)
+
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
     def _help_json(self) -> bytes:
@@ -398,6 +427,8 @@ class FakeSerial:
                 "$GPGSA": {"help": "NMEA DOP and active satellites", "args": ""},
                 "$GPGSV": {"help": "NMEA satellites in view", "args": ""},
                 "mem": {"help": "Memory dump", "args": "<addr> {len}"},
+                "AT+XMODEM=RECV": {"help": "Receive file via XMODEM", "args": ""},
+                "AT+XMODEM=SEND": {"help": "Send canned file via XMODEM", "args": ""},
                 "AT+HELP.JSON": {"help": "Device command help (JSON)", "args": ""},
             },
         }
@@ -714,6 +745,183 @@ class FakeSerial:
         body = f"PMTK001,{cmd_id},3"
         return self._nmea_sentence(body)
 
+    # -- XMODEM handlers ----------------------------------------------------
+
+    def _handle_xmodem_cmd(self, cmd: str, upper: str) -> bytes:
+        """Handle AT+XMODEM=RECV and AT+XMODEM=SEND commands.
+
+        Args:
+            cmd: Original command string.
+            upper: Uppercased command string.
+
+        Returns:
+            Response bytes — OK + initial protocol byte, or error.
+        """
+        if "=" not in upper:
+            return b"ERROR: Usage: AT+XMODEM=RECV or AT+XMODEM=SEND\r\n"
+
+        mode = upper.split("=", 1)[1].strip()
+
+        if mode == "RECV":
+            self._xmodem_state = "recv"
+            self._xmodem_recv_buf = bytearray()
+            self._xmodem_block_num = 0
+            self._xmodem_crc_mode = False
+            # OK response, then NAK to initiate transfer (checksum mode)
+            return b"OK\r\n" + bytes([self._NAK])
+
+        if mode == "SEND":
+            self._xmodem_state = "send"
+            self._xmodem_send_data = self._XMODEM_SEND_PAYLOAD
+            self._xmodem_block_num = 1
+            self._xmodem_crc_mode = False
+            # OK response — device waits for NAK or 'C' from host
+            return b"OK\r\n"
+
+        return b"ERROR: Usage: AT+XMODEM=RECV or AT+XMODEM=SEND\r\n"
+
+    def _process_xmodem(self) -> None:
+        """Handle XMODEM protocol bytes while in transfer mode.
+
+        Called from _process_input when _xmodem_state is set.
+        Routes to recv or send state machine based on current mode.
+        """
+        if self._xmodem_state == "recv":
+            self._process_xmodem_recv()
+        elif self._xmodem_state == "send":
+            self._process_xmodem_send()
+
+    def _process_xmodem_recv(self) -> None:
+        """XMODEM receive state machine (device receives file from host).
+
+        Expects SOH blocks (133 bytes: SOH + blk + ~blk + 128 data + cksum)
+        or CRC blocks (134 bytes: SOH + blk + ~blk + 128 data + crc_hi + crc_lo).
+        ACKs valid blocks, NAKs invalid ones. EOT ends the transfer.
+        """
+        buf = self._input_buf
+
+        if not buf:
+            return
+
+        # EOT = end of transmission
+        if buf[0] == self._EOT:
+            del buf[0]
+            self._output_buf.extend(bytes([self._ACK]))
+            self._xmodem_state = None
+            return
+
+        # Wait for a complete block: SOH + blk + ~blk + 128 data + check
+        # Checksum mode: 1 byte check (132 total), CRC mode: 2 byte check (133 total)
+        block_size = 133 if self._xmodem_crc_mode else 132
+        if buf[0] == self._SOH and len(buf) >= block_size:
+            block = bytes(buf[:block_size])
+            del buf[:block_size]
+
+            blk_num = block[1]
+            blk_inv = block[2]
+            data = block[3:131]
+
+            # Validate block number complement
+            if (blk_num + blk_inv) & 0xFF != 0xFF:
+                self._output_buf.extend(bytes([self._NAK]))
+                return
+
+            # Validate checksum or CRC
+            if self._xmodem_crc_mode:
+                expected_crc = (block[131] << 8) | block[132]
+                actual_crc = _xmodem_crc16(data)
+                if actual_crc != expected_crc:
+                    self._output_buf.extend(bytes([self._NAK]))
+                    return
+            else:
+                expected_cksum = block[131]
+                actual_cksum = sum(data) & 0xFF
+                if actual_cksum != expected_cksum:
+                    self._output_buf.extend(bytes([self._NAK]))
+                    return
+
+            self._xmodem_block_num += 1
+            self._xmodem_recv_buf.extend(data)
+            self._output_buf.extend(bytes([self._ACK]))
+            return
+
+        # Discard unexpected bytes if not SOH or EOT
+        if buf[0] not in (self._SOH, self._EOT):
+            del buf[0]
+
+    def _process_xmodem_send(self) -> None:
+        """XMODEM send state machine (device sends file to host).
+
+        Waits for NAK (checksum mode) or 'C' (CRC mode) to start.
+        Sends 128-byte blocks, waits for ACK after each.
+        Sends EOT after all data is sent.
+        """
+        buf = self._input_buf
+
+        if not buf:
+            return
+
+        byte = buf[0]
+        del buf[0]
+
+        # Initial handshake: NAK = checksum mode, 'C' = CRC mode
+        if self._xmodem_block_num == 1 and not self._xmodem_crc_mode and byte in (self._NAK, self._CRC_START):
+            self._xmodem_crc_mode = byte == self._CRC_START
+            self._enqueue_xmodem_block()
+            return
+
+        if byte == self._ACK:
+            # Advance to next block
+            offset = (self._xmodem_block_num - 1) * 128
+            if offset >= len(self._xmodem_send_data):
+                # All data sent, send EOT
+                self._output_buf.extend(bytes([self._EOT]))
+                self._xmodem_state = None
+                return
+            self._enqueue_xmodem_block()
+            return
+
+        if byte == self._NAK:
+            # Retransmit current block
+            self._enqueue_xmodem_block()
+            return
+
+    def _enqueue_xmodem_block(self) -> None:
+        """Build and enqueue the current XMODEM data block.
+
+        Pads the last block to 128 bytes with 0x1A (SUB/CPMEOF).
+        Uses checksum or CRC depending on negotiated mode.
+        """
+        offset = (self._xmodem_block_num - 1) * 128
+        chunk = self._xmodem_send_data[offset:offset + 128]
+
+        if not chunk:
+            # No more data — send EOT
+            self._output_buf.extend(bytes([self._EOT]))
+            self._xmodem_state = None
+            return
+
+        # Pad last block to 128 bytes
+        if len(chunk) < 128:
+            chunk = chunk + b"\x1a" * (128 - len(chunk))
+
+        blk = self._xmodem_block_num & 0xFF
+        header = bytes([self._SOH, blk, 0xFF - blk])
+
+        if self._xmodem_crc_mode:
+            crc = _xmodem_crc16(chunk)
+            trailer = bytes([crc >> 8, crc & 0xFF])
+        else:
+            trailer = bytes([sum(chunk) & 0xFF])
+
+        self._output_buf.extend(header + chunk + trailer)
+        self._xmodem_block_num += 1
+
+    @property
+    def xmodem_received_data(self) -> bytes:
+        """Data received via XMODEM (for testing)."""
+        return bytes(self._xmodem_recv_buf)
+
     # -- Set/query helpers --------------------------------------------------
 
     def _handle_set_query(
@@ -884,6 +1092,27 @@ def _modbus_add_crc(data: bytes) -> bytes:
     """
     crc = _modbus_crc(data)
     return data + struct.pack("<H", crc)
+
+
+def _xmodem_crc16(data: bytes) -> int:
+    """Compute XMODEM CRC-16 (polynomial 0x1021, init 0x0000).
+
+    Args:
+        data: Payload bytes.
+
+    Returns:
+        16-bit CRC value.
+    """
+    crc = 0x0000
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = (crc << 1) ^ 0x1021
+            else:
+                crc <<= 1
+            crc &= 0xFFFF
+    return crc
 
 
 def _modbus_exception(slave_id: int, func_code: int, exception_code: int) -> bytes:

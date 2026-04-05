@@ -280,6 +280,7 @@ dependencies = [
     { name = "pyreadline3", marker = "sys_platform == 'win32'" },
     { name = "pyserial" },
     { name = "textual", extra = ["syntax"] },
+    { name = "xmodem" },
 ]
 
 [package.dev-dependencies]
@@ -293,6 +294,7 @@ requires-dist = [
     { name = "pyreadline3", marker = "sys_platform == 'win32'", specifier = ">=3.4" },
     { name = "pyserial", specifier = ">=3.5" },
     { name = "textual", extras = ["syntax"], specifier = ">=0.80" },
+    { name = "xmodem", specifier = ">=0.4.7" },
 ]
 
 [package.metadata.requires-dev]
@@ -675,4 +677,13 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/78/67/9a363818028526e2d4579334460df777115bdec1bb77c08f9db88f6389f2/uc_micro_py-2.0.0.tar.gz", hash = "sha256:c53691e495c8db60e16ffc4861a35469b0ba0821fe409a8a7a0a71864d33a811", size = 6611, upload-time = "2026-03-01T06:31:27.526Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/61/73/d21edf5b204d1467e06500080a50f79d49ef2b997c79123a536d4a17d97c/uc_micro_py-2.0.0-py3-none-any.whl", hash = "sha256:3603a3859af53e5a39bc7677713c78ea6589ff188d70f4fee165db88e22b242c", size = 6383, upload-time = "2026-03-01T06:31:26.257Z" },
+]
+
+[[package]]
+name = "xmodem"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/03/a18c2b571266787aebb7cadc5d4c90af15ae7e949ae0ee99ed23b5ba4f3c/xmodem-0.5.0.tar.gz", hash = "sha256:a1a818f31c29412f1cab0cd69deccd7be77bc1feb516723af990d00161f6fb6a", size = 34608, upload-time = "2026-03-04T01:26:38.177Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bb/bb/bb68297054e019e8fb99edde47d25608130cc2c1b2902f503a7edfe6470f/xmodem-0.5.0-py3-none-any.whl", hash = "sha256:e0bb644adfc7652c15a6fa3c3a4b04693b100520e3083cb952206006e3754e89", size = 36145, upload-time = "2026-03-04T01:26:37.328Z" },
 ]

@@ -349,7 +349,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test Coverage
 
-26 test files, 1174 tests, 68% overall coverage:
+27 test files, 1191 tests, 68% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |
@@ -372,6 +372,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | test_proto_send_crc.py | CRC in proto.send                              |
 | test_resolve_config.py | Config resolution chain (16 tests)             |
 | test_cli_gold.py       | CLI gold-standard integration test             |
+| test_vfs.py            | Demo VFS: file list, info, delete, isolation   |
 | test_xmodem.py         | XMODEM transfer, QueueByteReader, FakeSerial   |
 | test_ymodem.py         | YMODEM transfer, batch send, FakeSerial        |
 

@@ -16,9 +16,9 @@ src/termapy/
 ├── dialogs.py           # (1227 lines) Modal screens — config editor, pickers, confirm
 ├── proto_debug.py       # (1161 lines) Interactive protocol debug screen
 ├── protocol.py          # (1770 lines) Protocol parsing, format specs, CRC, visualizers
-├── demo.py              # (896 lines)  Simulated device for --demo mode (FakeSerial)
+├── demo.py              # (1440 lines) Simulated device for --demo mode (FakeSerial)
 ├── repl.py              # (661 lines)  REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (572 lines)  Plugin system — Command, PluginContext, loading
+├── plugins.py           # (669 lines)  Plugin system — Command, PluginContext, loading
 ├── config.py            # (440 lines)  Config dirs, loading, validation, migration trigger
 ├── port_control.py      # (247 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (284 lines)  Protocol test script runner
@@ -28,7 +28,7 @@ src/termapy/
 ├── help/                #              Markdown help pages (source for MkDocs)
 ├── html/                #              Generated HTML help (MkDocs Material output)
 ├── builtins/
-│   ├── plugins/         #              22 built-in REPL command plugins
+│   ├── plugins/         #              24 built-in REPL command plugins
 │   ├── viz/             #              Built-in packet visualizers (hex, text)
 │   ├── crc/             #              Built-in CRC plugins (sum8, sum16)
 │   └── demo/            #              Demo config, scripts, proto files, plugins
@@ -349,7 +349,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test Coverage
 
-19 test files, 888 tests, 60% overall coverage:
+26 test files, 1174 tests, 68% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |
@@ -372,5 +372,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | test_proto_send_crc.py | CRC in proto.send                              |
 | test_resolve_config.py | Config resolution chain (16 tests)             |
 | test_cli_gold.py       | CLI gold-standard integration test             |
+| test_xmodem.py         | XMODEM transfer, QueueByteReader, FakeSerial   |
+| test_ymodem.py         | YMODEM transfer, batch send, FakeSerial        |
 
 `app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested — UI is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.

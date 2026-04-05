@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.49.0 (2026-04-05)
+
+- **Local help server** -- Help docs served via localhost HTTP server instead of file:// URLs. Zensical search and navigation work correctly.
+- **Fully offline help** -- Disabled Google Fonts; all HTML/CSS/JS is bundled with no network requests.
+
 ## 0.48.0 (2026-04-05)
 
 - **Published to PyPI** -- `pip install termapy` or `uv tool install termapy`.

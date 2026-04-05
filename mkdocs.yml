@@ -1,4 +1,4 @@
-site_name: Termapy Help v0.48.0
+site_name: Termapy Help v0.49.0
 docs_dir: src/termapy/help
 site_dir: src/termapy/html
 
@@ -6,6 +6,7 @@ use_directory_urls: false
 
 theme:
   name: material
+  font: false
   palette:
     scheme: slate
     primary: blue

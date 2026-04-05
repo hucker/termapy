@@ -140,7 +140,7 @@ def _show_command_help(ctx: PluginContext, name: str,
     if dev_mode:
         docstring = getattr(plugin.handler, "__doc__", None)
         if docstring:
-            ctx.output("  ── developer docstring ──")
+            ctx.output("  -- developer docstring --")
             _write_docstring(ctx, docstring)
         else:
             ctx.output("  (no docstring)")
@@ -212,7 +212,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             if not first:
                 ctx.write_markup("")
             first = False
-            ctx.write_markup(f"[{_SEP}]── {label} ──[/]")
+            ctx.write_markup(f"[{_SEP}]-- {label} --[/]")
             for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
                 cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
                 args_text = _truncate_args(plugin.args or "", prefix, cmd_name)
@@ -224,7 +224,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         directives = ctx.engine.directives
         if directives:
             ctx.write_markup("")
-            ctx.write_markup(f"[{_SEP}]── Directives ──[/]")
+            ctx.write_markup(f"[{_SEP}]-- Directives --[/]")
             for d in directives:
                 cmd_col = _pad(f"  [{_CMD}]{d.name}[/]", cmd_w + 2)
                 arg_col = _pad(_color_args(d.pattern) if d.pattern else "", arg_w)
@@ -232,7 +232,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
         # Script-only blocking commands
         ctx.write_markup("")
-        ctx.write_markup(f"[{_SEP}]── Script Commands (.run files only) ──[/]")
+        ctx.write_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
         for name, args, desc in (
             ("expect",       "match=<text> {timeout=<dur>}",  "Wait for text in serial output."),
             ("expect.regex", "match=<pattern> {timeout=<dur>}", "Wait for regex match in serial output."),
@@ -277,7 +277,7 @@ def _render_target(ctx: PluginContext) -> None:
     """Render the target device command table."""
     cmd_w = 25
     arg_w = 25
-    ctx.write_markup(f"[{_SEP}]── Target Device ──[/]")
+    ctx.write_markup(f"[{_SEP}]-- Target Device --[/]")
     for cmd_name in sorted(ctx.engine.target_commands):
         tc = ctx.engine.target_commands[cmd_name]
         cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
@@ -310,7 +310,7 @@ def _script_description(path: Path) -> str:
 
 def _render_scripts(ctx: PluginContext, scripts: list, prefix: str, cmd_w: int = 25, arg_w: int = 25) -> None:
     """Render the scripts table."""
-    ctx.write_markup(f"[{_SEP}]── Scripts ──[/]")
+    ctx.write_markup(f"[{_SEP}]-- Scripts --[/]")
     for path in scripts:
         name = path.stem
         desc = _script_description(path)
@@ -372,7 +372,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
         if not first:
             ctx.write_markup("")
         first = False
-        ctx.write_markup(f"[{_SEP}]── {label} ──[/]")
+        ctx.write_markup(f"[{_SEP}]-- {label} --[/]")
         for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
             cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
             args_text = _truncate_args(plugin.args or "", prefix, cmd_name)

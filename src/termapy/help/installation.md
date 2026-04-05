@@ -12,7 +12,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 Then install termapy:
 
 ```sh
-uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.46.0
+uv tool install --python 3.14 git+https://github.com/hucker/termapy@v0.47.0
 ```
 
 ## Run the demo

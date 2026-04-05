@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.47.0 (2026-04-05)
+
+### New Features
+
+- **`/help.run`** -- List available .run scripts with descriptions extracted from header comments.
+- **`/help.plugin`** -- List loaded plugins grouped by source (application, built-in, user).
+- **Scripts section in `/help`** -- Bare `/help` now shows available scripts alongside commands and target device help.
+- **Script description convention** -- First line `# comment` followed by blank line is extracted as help text.
+
 ## 0.46.0 (2026-04-05)
 
 ### New Features

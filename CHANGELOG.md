@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.46.0 (2026-04-05)
+
+### New Features
+
+- **Demo virtual filesystem** -- `AT+FS.LIST`, `AT+FS.INFO`, `AT+FS.DELETE` commands with 3 pre-loaded files for testing file transfers without hardware.
+- **Transfer root directory** -- `/xfer.root {path}` command to show or set `file_xfer_root` config key. Both XMODEM and YMODEM resolve relative paths against this directory.
+- **Escape cancels transfers** -- press Esc during XMODEM or YMODEM transfer to abort immediately.
+
+### Improvements
+
+- **Unified dispatch threading** -- all user commands (interactive, buttons, sequences, pickers) now run on background threads, preventing UI freezes from blocking handlers.
+- **XMODEM progress** -- shows packet count and byte count, deduplicates repeated lines.
+- **XMODEM recv padding** -- strips trailing 0x1A padding bytes so text files open cleanly.
+- **Full paths in transfer output** -- completion messages show the full resolved file path.
+- **Config migration v10->v11** -- adds `file_xfer_root` key automatically.
+- **Transfer root in /port.info** -- shows the configured transfer directory.
+- **17 new tests** -- VFS (15) and migration (2), total 1191 tests.
+
 ## 0.45.0 (2026-04-04)
 
 ### New Features

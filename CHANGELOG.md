@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.52.0 (2026-04-06)
+
+### 0.52.0 New Features
+
+- **`/repeat` command** -- `/repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>` repeats a command N times with optional delay. Sets iteration variable (default `REPEAT_N`). Stoppable via Escape key or `/stop`.
+- **sum8/sum16 CRC tests** -- 18 tests for built-in checksum modules.
+
+### 0.52.0 Improvements
+
+- **Vendored dependencies** -- pyserial (3.5), xmodem (0.4.7), and ymodem (1.5.3) are now bundled. Eliminates 4 install-time packages (pyserial, xmodem, ymodem, ordered-set).
+- **Trimmed tree-sitter** -- only json, toml, and bash grammars installed (was 16). Drops 13 unused grammar packages.
+- **textual-serve optional** -- `--web` mode requires `pip install termapy[web]`. Clear error message if missing.
+- **Runtime dependencies reduced** -- ~46 packages down to ~16.
+- **Assert messages** -- ~1200 test asserts now include descriptive failure messages.
+- **"Who This Is Not For"** -- README section for honest expectation-setting.
+- **CHANGELOG headings** -- version-prefixed sub-headings fix MD024 duplicate warnings.
+
 ## 0.51.0 (2026-04-05)
 
 - **Web mode (experimental)** -- `termapy --web` serves the TUI in a browser via textual-serve. Use `--web-port` to customize the port.

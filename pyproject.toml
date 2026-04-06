@@ -23,14 +23,21 @@ classifiers = [
     "Topic :: Terminals :: Serial",
 ]
 dependencies = [
-    "textual[syntax]>=0.80",
-    "pyserial>=3.5",
+    # Core TUI framework (without [syntax] extra to avoid installing 16 tree-sitter
+    # grammars — we only need json, toml, bash for our editors, listed below)
+    "textual>=0.80",
+    # pyserial is vendored in src/termapy/vendor/serial/ (see vendor/LICENSES.md)
     "pyreadline3>=3.4; sys_platform == 'win32'",
     "pygments>=2.20.0",
-    "xmodem>=0.4.7",
-    "ymodem>=1.5.3",
-    "textual-serve>=1.1",
+    # Syntax highlighting for TextArea editors (config=json, proto=toml, scripts=bash)
+    "tree-sitter>=0.25.0; python_version >= '3.10'",
+    "tree-sitter-json>=0.24.0; python_version >= '3.10'",
+    "tree-sitter-toml>=0.6.0; python_version >= '3.10'",
+    "tree-sitter-bash>=0.23.0; python_version >= '3.10'",
 ]
+
+[project.optional-dependencies]
+web = ["textual-serve>=1.1"]
 
 [tool.uv-build]
 include = ["src/termapy/*.md", "src/termapy/help/*.md", "src/termapy/html/**", "src/termapy/builtins/demo/**"]

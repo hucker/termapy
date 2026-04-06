@@ -1,1 +1,3 @@
-# Empty conftest to establish test root and prevent parent conftest from loading.
+# Register vendored pyserial before any test imports serial.
+# This mirrors what termapy/__init__.py does at app startup.
+import termapy.vendor  # noqa: F401

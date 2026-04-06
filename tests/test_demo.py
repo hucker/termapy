@@ -27,33 +27,33 @@ def _send_cmd(dev: FakeSerial, cmd: str) -> str:
 
 class TestFakeSerialBasics:
     def test_initial_state(self, dev: FakeSerial) -> None:
-        assert dev.is_open is True  # starts open
-        assert dev.port == "DEMO"  # default port name
-        assert dev.baudrate == 9600  # matches constructor arg
-        assert dev.in_waiting == 0  # no data yet
+        assert dev.is_open is True, "starts open"
+        assert dev.port == "DEMO", "default port name"
+        assert dev.baudrate == 9600, "matches constructor arg"
+        assert dev.in_waiting == 0, "no data yet"
 
     def test_close(self, dev: FakeSerial) -> None:
         dev.close()
-        assert dev.is_open is False  # closed after close()
+        assert dev.is_open is False, "closed after close()"
 
     def test_dtr_rts(self, dev: FakeSerial) -> None:
-        assert dev.dtr is True  # default DTR
-        assert dev.rts is True  # default RTS
+        assert dev.dtr is True, "default DTR"
+        assert dev.rts is True, "default RTS"
         dev.dtr = False
         dev.rts = False
-        assert dev.dtr is False  # DTR toggled off
-        assert dev.rts is False  # RTS toggled off
+        assert dev.dtr is False, "DTR toggled off"
+        assert dev.rts is False, "RTS toggled off"
 
     def test_send_break(self, dev: FakeSerial) -> None:
         dev.send_break()  # no-op, should not raise
 
     def test_port_setter(self, dev: FakeSerial) -> None:
         dev.port = "COM99"
-        assert dev.port == "COM99"  # port name updated
+        assert dev.port == "COM99", "port name updated"
 
     def test_baudrate_setter(self, dev: FakeSerial) -> None:
         dev.baudrate = 115200
-        assert dev.baudrate == 115200  # baudrate updated
+        assert dev.baudrate == 115200, "baudrate updated"
 
 
 # -- ASCII commands --------------------------------------------------------
@@ -62,26 +62,26 @@ class TestFakeSerialBasics:
 class TestAsciiCommands:
     def test_at_ok(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "AT")
-        assert "OK" in actual  # AT returns OK
+        assert "OK" in actual, "AT returns OK"
 
     def test_at_info(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "AT+INFO")
-        assert "Bassomatic v77" in actual  # contains device name
-        assert "Uptime" in actual  # contains uptime
+        assert "Bassomatic v77" in actual, "contains device name"
+        assert "Uptime" in actual, "contains uptime"
 
     def test_at_temp(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "AT+TEMP")
-        assert "+TEMP:" in actual  # contains temp marker
-        assert "C" in actual  # contains unit
+        assert "+TEMP:" in actual, "contains temp marker"
+        assert "C" in actual, "contains unit"
 
     def test_at_led_on(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "AT+LED on")
-        assert "OK" in actual  # LED on accepted
+        assert "OK" in actual, "LED on accepted"
 
     def test_at_led_off(self, dev: FakeSerial) -> None:
         _send_cmd(dev, "AT+LED on")
         actual = _send_cmd(dev, "AT+LED off")
-        assert "OK" in actual  # LED off accepted
+        assert "OK" in actual, "LED off accepted"
 
     def test_at_led_toggle_affects_status(self, dev: FakeSerial) -> None:
         # Assign
@@ -89,25 +89,25 @@ class TestAsciiCommands:
         # Act
         actual = _send_cmd(dev, "AT+STATUS")
         # Assert
-        assert "LED: ON" in actual  # status shows LED on
+        assert "LED: ON" in actual, "status shows LED on"
 
     def test_at_led_no_arg(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "AT+LED")
-        assert "ERROR" in actual  # missing arg is an error
+        assert "ERROR" in actual, "missing arg is an error"
 
     def test_at_status(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "AT+STATUS")
-        assert "LED:" in actual  # contains LED state
-        assert "Uptime:" in actual  # contains uptime
+        assert "LED:" in actual, "contains LED state"
+        assert "Uptime:" in actual, "contains uptime"
 
     def test_at_reset(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "AT+RESET")
-        assert "Boot" in actual  # contains boot marker
-        assert "Ready" in actual  # contains ready marker
+        assert "Boot" in actual, "contains boot marker"
+        assert "Ready" in actual, "contains ready marker"
 
     def test_mem_dump(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "mem 0x1000 32")
-        assert "00001000:" in actual  # contains address
+        assert "00001000:" in actual, "contains address"
 
     def test_mem_deterministic(self, dev: FakeSerial) -> None:
         # Assign
@@ -115,42 +115,42 @@ class TestAsciiCommands:
         # Act
         actual_second = _send_cmd(dev, "mem 0x100 16")
         # Assert
-        assert actual_first == actual_second  # same addr produces same output
+        assert actual_first == actual_second, "same addr produces same output"
 
     def test_mem_no_addr(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "mem")
-        assert "00000000:" in actual  # defaults to address 0
+        assert "00000000:" in actual, "defaults to address 0"
 
     def test_help_json(self, dev: FakeSerial) -> None:
         """AT+HELP.JSON returns valid JSON with device commands."""
         import json as _json
         actual = _send_cmd(dev, "AT+HELP.JSON")
         data = _json.loads(actual)
-        assert "commands" in data  # has commands wrapper
+        assert "commands" in data, "has commands wrapper"
         cmds = data["commands"]
-        assert "AT" in cmds  # lists AT command
-        assert "mem" in cmds  # lists mem command
+        assert "AT" in cmds, "lists AT command"
+        assert "mem" in cmds, "lists mem command"
 
     def test_unknown_cmd(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "BOGUS")
-        assert "ERROR" in actual  # unknown command is an error
-        assert "BOGUS" in actual  # includes the bad command
+        assert "ERROR" in actual, "unknown command is an error"
+        assert "BOGUS" in actual, "includes the bad command"
 
     def test_partial_write(self, dev: FakeSerial) -> None:
         """Writing bytes in chunks still produces a response."""
         dev.write(b"AT")
         time.sleep(0.005)
-        assert dev.in_waiting == 0  # no response yet (incomplete)
+        assert dev.in_waiting == 0, "no response yet (incomplete)"
         dev.write(b"\r")
         time.sleep(0.01)
         actual = dev.read(4096).decode()
-        assert "OK" in actual  # got response after line ending
+        assert "OK" in actual, "got response after line ending"
 
     def test_empty_line(self, dev: FakeSerial) -> None:
         dev.write(b"\r")
         time.sleep(0.01)
         actual = dev.read(4096).decode()
-        assert actual == "\r\n"  # empty line returns just CRLF
+        assert actual == "\r\n", "empty line returns just CRLF"
 
 
 # -- GPS / NMEA commands ---------------------------------------------------
@@ -159,28 +159,28 @@ class TestAsciiCommands:
 class TestGpsNmea:
     def test_gpgga_sentence(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$GPGGA")
-        assert actual.startswith("$GPGGA,")  # GGA sentence
-        assert ",4735.7120,N," in actual  # Lumen Field latitude
-        assert ",12219.8960,W," in actual  # Lumen Field longitude
-        assert actual.strip().endswith("*" + actual.strip()[-2:])  # has checksum
+        assert actual.startswith("$GPGGA,"), "GGA sentence"
+        assert ",4735.7120,N," in actual, "Lumen Field latitude"
+        assert ",12219.8960,W," in actual, "Lumen Field longitude"
+        assert actual.strip().endswith("*" + actual.strip()[-2:]), "has checksum"
 
     def test_gprmc_sentence(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$GPRMC")
-        assert actual.startswith("$GPRMC,")  # RMC sentence
-        assert ",4735.7120,N," in actual  # latitude
-        assert ",12219.8960,W," in actual  # longitude
-        assert ",A," in actual  # fix valid
+        assert actual.startswith("$GPRMC,"), "RMC sentence"
+        assert ",4735.7120,N," in actual, "latitude"
+        assert ",12219.8960,W," in actual, "longitude"
+        assert ",A," in actual, "fix valid"
 
     def test_gpgsa_sentence(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$GPGSA")
-        assert actual.startswith("$GPGSA,")  # GSA sentence
-        assert ",A,3," in actual  # auto mode, 3D fix
+        assert actual.startswith("$GPGSA,"), "GSA sentence"
+        assert ",A,3," in actual, "auto mode, 3D fix"
 
     def test_gpgsv_multiple_messages(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$GPGSV")
         lines = [l for l in actual.strip().split("\r\n") if l.startswith("$GPGSV")]
-        assert len(lines) >= 2  # 9 sats = at least 2 messages (4 per msg)
-        assert lines[0].startswith("$GPGSV,")  # valid GSV sentence
+        assert len(lines) >= 2, "9 sats = at least 2 messages (4 per msg)"
+        assert lines[0].startswith("$GPGSV,"), "valid GSV sentence"
 
     def test_gpgga_checksum_valid(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$GPGGA").strip()
@@ -190,31 +190,31 @@ class TestGpsNmea:
         for ch in body:
             expected_cs ^= ord(ch)
         actual_cs = actual[actual.rfind("*") + 1:]
-        assert actual_cs == f"{expected_cs:02X}"  # checksum matches
+        assert actual_cs == f"{expected_cs:02X}", "checksum matches"
 
     def test_pmtk_acknowledged(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$PMTK220,1000")
-        assert "$PMTK001,220,3*" in actual  # acknowledged with success
+        assert "$PMTK001,220,3*" in actual, "acknowledged with success"
 
     def test_pmtk_config_sentence(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0")
-        assert "$PMTK001,314,3*" in actual  # acknowledged
+        assert "$PMTK001,314,3*" in actual, "acknowledged"
 
     def test_pmtk_invalid(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$PMTK")
-        assert "ERROR" in actual  # too short
+        assert "ERROR" in actual, "too short"
 
     def test_unknown_gp_command(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$GPXYZ")
-        assert "ERROR" in actual  # unknown NMEA query
-        assert "GPXYZ" in actual  # includes the bad command
+        assert "ERROR" in actual, "unknown NMEA query"
+        assert "GPXYZ" in actual, "includes the bad command"
 
     def test_help_json_lists_gps(self, dev: FakeSerial) -> None:
         """AT+HELP.JSON includes GPS commands."""
         import json as _json
         cmds = _json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
-        assert "$GPGGA" in cmds  # GPS position fix in JSON
-        assert "$GPRMC" in cmds  # GPS nav data in JSON
+        assert "$GPGGA" in cmds, "GPS position fix in JSON"
+        assert "$GPRMC" in cmds, "GPS nav data in JSON"
 
 
 # -- Binary Modbus --------------------------------------------------------
@@ -243,15 +243,15 @@ class TestModbus:
         time.sleep(0.01)
         response = dev.read(4096)
         # Assert
-        assert len(response) >= 9  # header(3) + data(4) + crc(2)
-        assert response[0] == 1  # slave id echoed
-        assert response[1] == 0x03  # function code
-        assert response[2] == 4  # byte count (2 regs * 2 bytes)
+        assert len(response) >= 9, "header(3) + data(4) + crc(2)"
+        assert response[0] == 1, "slave id echoed"
+        assert response[1] == 0x03, "function code"
+        assert response[2] == 4, "byte count (2 regs * 2 bytes)"
         # Verify CRC
         payload = response[:-2]
         expected_crc = _modbus_crc(payload)
         actual_crc = struct.unpack("<H", response[-2:])[0]
-        assert actual_crc == expected_crc  # valid CRC
+        assert actual_crc == expected_crc, "valid CRC"
 
     def test_modbus_write_register(self, dev: FakeSerial) -> None:
         # Assign
@@ -261,14 +261,14 @@ class TestModbus:
         time.sleep(0.01)
         response = dev.read(4096)
         # Assert — write single register echoes the request
-        assert len(response) == len(request)  # same length as request
+        assert len(response) == len(request), "same length as request"
         # Verify the payload matches (excluding CRC)
-        assert response[0] == 1  # slave id
-        assert response[1] == 0x06  # function code
+        assert response[0] == 1, "slave id"
+        assert response[1] == 0x06, "function code"
         reg = struct.unpack(">H", response[2:4])[0]
         val = struct.unpack(">H", response[4:6])[0]
-        assert reg == 10  # register address echoed
-        assert val == 0x1234  # value echoed
+        assert reg == 10, "register address echoed"
+        assert val == 0x1234, "value echoed"
 
     def test_modbus_bad_crc(self, dev: FakeSerial) -> None:
         # Assign — valid frame but corrupt the CRC
@@ -279,8 +279,8 @@ class TestModbus:
         time.sleep(0.01)
         response = dev.read(4096)
         # Assert — exception response
-        assert len(response) == 5  # slave + func|0x80 + exception + crc(2)
-        assert response[1] == (0x03 | 0x80)  # error flag set on func code
+        assert len(response) == 5, "slave + func|0x80 + exception + crc(2)"
+        assert response[1] == (0x03 | 0x80), "error flag set on func code"
 
     def test_modbus_unknown_function(self, dev: FakeSerial) -> None:
         # Assign — function code 0x10 not supported
@@ -291,8 +291,8 @@ class TestModbus:
         time.sleep(0.01)
         response = dev.read(4096)
         # Assert — exception response with illegal function code
-        assert response[1] == (0x10 | 0x80)  # error flag on original func
-        assert response[2] == 0x01  # illegal function exception
+        assert response[1] == (0x10 | 0x80), "error flag on original func"
+        assert response[2] == 0x01, "illegal function exception"
 
 
 # -- Modbus CRC helper -----------------------------------------------------
@@ -304,7 +304,7 @@ class TestModbusCrc:
         # Standard example: slave=1, func=3, start=0, count=1
         data = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x01])
         actual = _modbus_crc(data)
-        assert actual == 0x0A84  # known CRC for this payload
+        assert actual == 0x0A84, "known CRC for this payload"
 
     def test_add_crc_roundtrip(self) -> None:
         data = b"\x01\x03\x00\x00\x00\x01"
@@ -312,7 +312,7 @@ class TestModbusCrc:
         # Verify the CRC of the full frame (excluding last 2 bytes) matches
         actual = _modbus_crc(framed[:-2])
         expected = struct.unpack("<H", framed[-2:])[0]
-        assert actual == expected  # roundtrip CRC matches
+        assert actual == expected, "roundtrip CRC matches"
 
 
 # -- Demo config setup -----------------------------------------------------
@@ -325,10 +325,10 @@ class TestDemoConfigSetup:
         # Act
         config_path = setup_demo_config(tmp_path)
         # Assert
-        assert config_path.exists()  # config file created
-        assert (tmp_path / "demo" / "run").is_dir()  # run dir created
-        assert (tmp_path / "demo" / "proto").is_dir()  # proto dir created
-        assert (tmp_path / "demo" / "plugin" / "probe.py").exists()  # demo plugin copied
+        assert config_path.exists(), "config file created"
+        assert (tmp_path / "demo" / "run").is_dir(), "run dir created"
+        assert (tmp_path / "demo" / "proto").is_dir(), "proto dir created"
+        assert (tmp_path / "demo" / "plugin" / "probe.py").exists(), "demo plugin copied"
 
     def test_setup_idempotent(self, tmp_path) -> None:
         from termapy.config import setup_demo_config
@@ -341,4 +341,4 @@ class TestDemoConfigSetup:
         setup_demo_config(tmp_path)
         # Assert
         second_mtime = config_path.stat().st_mtime
-        assert second_mtime == first_mtime  # file not overwritten
+        assert second_mtime == first_mtime, "file not overwritten"

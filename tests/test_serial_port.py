@@ -31,7 +31,7 @@ class TestProperties:
         sp, fake, _, _ = port_env
 
         # Assert
-        assert sp.is_open is True  # FakeSerial starts open
+        assert sp.is_open is True, "FakeSerial starts open"
 
     def test_is_open_after_close(self, port_env):
         sp, fake, _, _ = port_env
@@ -40,13 +40,13 @@ class TestProperties:
         fake.close()
 
         # Assert
-        assert sp.is_open is False  # reflects closed state
+        assert sp.is_open is False, "reflects closed state"
 
     def test_port_property(self, port_env):
         sp, fake, _, _ = port_env
 
         # Assert
-        assert sp.port is fake  # returns the underlying port
+        assert sp.port is fake, "returns the underlying port"
 
 
 # -- Write ---------------------------------------------------------------------
@@ -63,7 +63,7 @@ class TestWrite:
         # Assert — read back from FakeSerial's response
         time.sleep(0.05)
         data = fake.read(1024)
-        assert b"OK" in data  # FakeSerial responded to AT command
+        assert b"OK" in data, "FakeSerial responded to AT command"
 
     def test_write_logs_tx(self, port_env):
         # Arrange
@@ -73,9 +73,9 @@ class TestWrite:
         sp.write(b"ATZ\r")
 
         # Assert
-        assert len(logged) >= 1  # at least one log entry
-        assert logged[0][0] == ">"  # TX direction
-        assert "ATZ" in logged[0][1]  # command logged
+        assert len(logged) >= 1, "at least one log entry"
+        assert logged[0][0] == ">", "TX direction"
+        assert "ATZ" in logged[0][1], "command logged"
 
     def test_write_logs_hex_for_binary(self, port_env):
         # Arrange
@@ -85,8 +85,8 @@ class TestWrite:
         sp.write(b"\x01\x02\xff")
 
         # Assert
-        assert logged[0][0] == ">"  # TX direction
-        assert "01 02 ff" in logged[0][1]  # hex representation
+        assert logged[0][0] == ">", "TX direction"
+        assert "01 02 ff" in logged[0][1], "hex representation"
 
 
 # -- Drain ---------------------------------------------------------------------
@@ -101,7 +101,7 @@ class TestDrain:
         actual = sp.drain()
 
         # Assert
-        assert actual == 0  # nothing to drain
+        assert actual == 0, "nothing to drain"
 
     def test_drain_returns_byte_count(self, port_env):
         # Arrange
@@ -113,8 +113,8 @@ class TestDrain:
         actual = sp.drain()
 
         # Assert
-        assert actual == 5  # 3 + 2 bytes drained
-        assert rx_queue.empty()  # queue is empty
+        assert actual == 5, "3 + 2 bytes drained"
+        assert rx_queue.empty(), "queue is empty"
 
 
 # -- Read Raw ------------------------------------------------------------------
@@ -130,7 +130,7 @@ class TestReadRaw:
         actual = sp.read_raw(timeout_ms=500, frame_gap_ms=50)
 
         # Assert
-        assert actual == b"\x01\x02\x03"  # data returned
+        assert actual == b"\x01\x02\x03", "data returned"
 
     def test_read_raw_timeout_returns_empty(self, port_env):
         # Arrange
@@ -140,7 +140,7 @@ class TestReadRaw:
         actual = sp.read_raw(timeout_ms=100, frame_gap_ms=50)
 
         # Assert
-        assert actual == b""  # timed out, no data
+        assert actual == b"", "timed out, no data"
 
     def test_read_raw_assembles_chunks(self, port_env):
         # Arrange
@@ -153,8 +153,8 @@ class TestReadRaw:
         actual = sp.read_raw(timeout_ms=500, frame_gap_ms=200)
 
         # Assert
-        assert b"\x01\x02" in actual  # contains first chunk
-        assert len(actual) >= 4  # both chunks assembled
+        assert b"\x01\x02" in actual, "contains first chunk"
+        assert len(actual) >= 4, "both chunks assembled"
 
 
 # -- Wait for Idle -------------------------------------------------------------
@@ -171,7 +171,7 @@ class TestWaitForIdle:
         elapsed = time.monotonic() - t0
 
         # Assert
-        assert elapsed < 0.5  # returned well before max_wait
+        assert elapsed < 0.5, "returned well before max_wait"
 
     def test_wait_for_idle_respects_max_wait(self, port_env):
         # Arrange
@@ -185,7 +185,7 @@ class TestWaitForIdle:
         elapsed = time.monotonic() - t0
 
         # Assert
-        assert elapsed < 1.0  # bounded by max_wait
+        assert elapsed < 1.0, "bounded by max_wait"
 
     def test_wait_for_idle_closed_port(self, port_env):
         # Arrange
@@ -198,7 +198,7 @@ class TestWaitForIdle:
         elapsed = time.monotonic() - t0
 
         # Assert
-        assert elapsed < 0.1  # returned immediately
+        assert elapsed < 0.1, "returned immediately"
 
 
 # -- SerialReader --------------------------------------------------------------
@@ -213,7 +213,7 @@ class TestSerialReaderLines:
         result = reader.process(b"hello world\r\n")
 
         # Assert
-        assert result.lines == ["hello world"]  # complete line extracted
+        assert result.lines == ["hello world"], "complete line extracted"
 
     def test_multiple_lines(self):
         # Arrange
@@ -223,7 +223,7 @@ class TestSerialReaderLines:
         result = reader.process(b"line1\r\nline2\r\nline3\r\n")
 
         # Assert
-        assert result.lines == ["line1", "line2", "line3"]  # all lines
+        assert result.lines == ["line1", "line2", "line3"], "all lines"
 
     def test_partial_line_buffered(self):
         # Arrange
@@ -234,8 +234,8 @@ class TestSerialReaderLines:
         result2 = reader.process(b"world\r\n")
 
         # Assert
-        assert result1.lines == []  # no newline yet
-        assert result2.lines == ["hello world"]  # assembled
+        assert result1.lines == [], "no newline yet"
+        assert result2.lines == ["hello world"], "assembled"
 
     def test_empty_lines_skipped(self):
         # Arrange
@@ -245,7 +245,7 @@ class TestSerialReaderLines:
         result = reader.process(b"\r\n\r\nhello\r\n\r\n")
 
         # Assert
-        assert result.lines == ["hello"]  # blanks skipped
+        assert result.lines == ["hello"], "blanks skipped"
 
     def test_cr_stripped(self):
         # Arrange
@@ -255,7 +255,7 @@ class TestSerialReaderLines:
         result = reader.process(b"hello\r\n")
 
         # Assert
-        assert result.lines == ["hello"]  # \r stripped
+        assert result.lines == ["hello"], "\\r stripped"
 
 
 class TestSerialReaderIdleFlush:
@@ -271,7 +271,7 @@ class TestSerialReaderIdleFlush:
         result = reader.process(b"")
 
         # Assert
-        assert result.lines == ["partial"]  # flushed
+        assert result.lines == ["partial"], "flushed"
 
     def test_no_flush_during_ansi_escape(self):
         # Arrange
@@ -285,7 +285,7 @@ class TestSerialReaderIdleFlush:
         result = reader.process(b"")
 
         # Assert
-        assert result.lines == []  # not flushed — waiting for escape to complete
+        assert result.lines == [], "not flushed - waiting for escape to complete"
 
 
 class TestSerialReaderClearScreen:
@@ -297,8 +297,8 @@ class TestSerialReaderClearScreen:
         result = reader.process(b"\x1b[2Jhello\r\n")
 
         # Assert
-        assert result.clear_screen is True  # detected
-        assert result.lines == ["hello"]  # text after clear
+        assert result.clear_screen is True, "detected"
+        assert result.lines == ["hello"], "text after clear"
 
     def test_clear_screen_with_cursor_home(self):
         # Arrange
@@ -308,7 +308,7 @@ class TestSerialReaderClearScreen:
         result = reader.process(b"\x1b[H\x1b[2Jhello\r\n")
 
         # Assert
-        assert result.clear_screen is True  # detected with home prefix
+        assert result.clear_screen is True, "detected with home prefix"
 
 
 class TestSerialReaderEOLMarkers:
@@ -320,8 +320,8 @@ class TestSerialReaderEOLMarkers:
         result = reader.process(b"hello\r\n")
 
         # Assert
-        assert len(result.lines) == 1
-        assert "\\r" in result.lines[0]  # visible CR marker present
+        assert len(result.lines) == 1, "single line returned"
+        assert "\\r" in result.lines[0], "visible CR marker present"
 
     def test_no_markers_by_default(self):
         # Arrange
@@ -331,7 +331,7 @@ class TestSerialReaderEOLMarkers:
         result = reader.process(b"hello\r\n")
 
         # Assert
-        assert "\\r" not in result.lines[0]  # no markers
+        assert "\\r" not in result.lines[0], "no markers"
 
 
 class TestSerialReaderCapture:
@@ -352,8 +352,8 @@ class TestSerialReaderCapture:
         result = reader.process(b"\x01\x02\x03")
 
         # Assert
-        assert result.lines == []  # no display output
-        assert cap.fed == [b"\x01\x02\x03"]  # data went to capture
+        assert result.lines == [], "no display output"
+        assert cap.fed == [b"\x01\x02\x03"], "data went to capture"
 
     def test_capture_target_reached(self):
         # Arrange
@@ -369,7 +369,7 @@ class TestSerialReaderCapture:
         result = reader.process(b"\x01\x02")
 
         # Assert
-        assert result.capture_target_reached is True
+        assert result.capture_target_reached is True, "capture target reached"
 
     def test_text_capture_not_consumed(self):
         # Arrange — text mode capture doesn't intercept in reader
@@ -383,7 +383,7 @@ class TestSerialReaderCapture:
         result = reader.process(b"hello\r\n")
 
         # Assert
-        assert result.lines == ["hello"]  # passed through to display
+        assert result.lines == ["hello"], "passed through to display"
 
 
 class TestSerialReaderProtoActive:
@@ -395,7 +395,7 @@ class TestSerialReaderProtoActive:
         result = reader.process(b"hello\r\n")
 
         # Assert
-        assert result.lines == []  # suppressed
+        assert result.lines == [], "suppressed"
 
     def test_display_not_suppressed(self):
         # Arrange

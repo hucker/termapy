@@ -6,7 +6,7 @@ import queue
 import time
 
 import pytest
-from xmodem import XMODEM
+from termapy.vendor.xmodem import XMODEM
 
 from termapy.builtins.plugins.xmodem_xfer import QueueByteReader
 from termapy.demo import FakeSerial, _xmodem_crc16
@@ -27,7 +27,7 @@ class TestQueueByteReader:
         actual = reader.getc(1, timeout=1)
 
         # Assert
-        assert actual == b"\x41"  # first byte of chunk
+        assert actual == b"\x41", "first byte of chunk"
 
     def test_getc_exact_chunk(self) -> None:
         """getc(N) returns exactly N bytes when chunk matches."""
@@ -40,7 +40,7 @@ class TestQueueByteReader:
         actual = reader.getc(4, timeout=1)
 
         # Assert
-        assert actual == b"\x01\x02\x03\x04"  # full chunk
+        assert actual == b"\x01\x02\x03\x04", "full chunk"
 
     def test_getc_across_chunks(self) -> None:
         """getc assembles bytes from multiple queued chunks."""
@@ -54,7 +54,7 @@ class TestQueueByteReader:
         actual = reader.getc(4, timeout=1)
 
         # Assert
-        assert actual == b"\x01\x02\x03\x04"  # assembled from 2 chunks
+        assert actual == b"\x01\x02\x03\x04", "assembled from 2 chunks"
 
     def test_getc_preserves_remainder(self) -> None:
         """Leftover bytes from one getc are available to the next."""
@@ -68,8 +68,8 @@ class TestQueueByteReader:
         second = reader.getc(3, timeout=1)
 
         # Assert
-        assert first == b"\x01\x02"  # first 2 bytes
-        assert second == b"\x03\x04\x05"  # remaining 3 bytes
+        assert first == b"\x01\x02", "first 2 bytes"
+        assert second == b"\x03\x04\x05", "remaining 3 bytes"
 
     def test_getc_128_bytes(self) -> None:
         """getc(128) returns a full XMODEM data block."""
@@ -83,7 +83,7 @@ class TestQueueByteReader:
         actual = reader.getc(128, timeout=1)
 
         # Assert
-        assert actual == expected  # full 128-byte block
+        assert actual == expected, "full 128-byte block"
 
     def test_getc_timeout_returns_none(self) -> None:
         """getc returns None when queue is empty and timeout expires."""
@@ -97,8 +97,8 @@ class TestQueueByteReader:
         elapsed = time.monotonic() - t0
 
         # Assert
-        assert actual is None  # timed out
-        assert elapsed < 0.5  # didn't hang
+        assert actual is None, "timed out"
+        assert elapsed < 0.5, "didn't hang"
 
     def test_getc_partial_then_timeout(self) -> None:
         """getc returns None if not enough bytes arrive before timeout."""
@@ -111,7 +111,7 @@ class TestQueueByteReader:
         actual = reader.getc(4, timeout=0.1)
 
         # Assert
-        assert actual is None  # not enough bytes
+        assert actual is None, "not enough bytes"
 
 
 # -- XMODEM CRC-16 tests --------------------------------------------------
@@ -120,18 +120,18 @@ class TestQueueByteReader:
 class TestXmodemCrc16:
     def test_empty_data(self) -> None:
         actual = _xmodem_crc16(b"")
-        assert actual == 0x0000  # CRC of empty data
+        assert actual == 0x0000, "CRC of empty data"
 
     def test_known_value(self) -> None:
         """Verify against known XMODEM CRC-16 test vector."""
         # "123456789" has XMODEM CRC-16 = 0x31C3
         actual = _xmodem_crc16(b"123456789")
-        assert actual == 0x31C3  # standard test vector
+        assert actual == 0x31C3, "standard test vector"
 
     def test_single_byte(self) -> None:
         actual = _xmodem_crc16(b"\x00")
-        assert isinstance(actual, int)  # returns int
-        assert 0 <= actual <= 0xFFFF  # 16-bit range
+        assert isinstance(actual, int), "returns int"
+        assert 0 <= actual <= 0xFFFF, "16-bit range"
 
 
 # -- FakeSerial XMODEM responder tests -------------------------------------
@@ -163,8 +163,8 @@ class TestFakeSerialXmodemRecv:
         response = dev.read(4096)
 
         # Assert
-        assert b"OK\r\n" in response  # command accepted
-        assert response[-1] == 0x15  # ends with NAK
+        assert b"OK\r\n" in response, "command accepted"
+        assert response[-1] == 0x15, "ends with NAK"
 
     def test_recv_single_block_checksum(self, dev: FakeSerial) -> None:
         """Device ACKs a valid checksum-mode block and stores to VFS."""
@@ -183,16 +183,16 @@ class TestFakeSerialXmodemRecv:
         response = dev.read(4096)
 
         # Assert
-        assert response == bytes([0x06])  # ACK
+        assert response == bytes([0x06]), "ACK"
 
         # Send EOT
         dev.write(bytes([0x04]))
         time.sleep(0.01)
         eot_response = dev.read(4096)
-        assert eot_response == bytes([0x06])  # ACK for EOT
+        assert eot_response == bytes([0x06]), "ACK for EOT"
 
-        assert dev.xmodem_received_data == data  # data stored correctly
-        assert dev.vfs["upload.bin"] == data  # stored in VFS
+        assert dev.xmodem_received_data == data, "data stored correctly"
+        assert dev.vfs["upload.bin"] == data, "stored in VFS"
 
     def test_recv_bad_checksum_naks(self, dev: FakeSerial) -> None:
         """Device NAKs a block with invalid checksum."""
@@ -211,7 +211,7 @@ class TestFakeSerialXmodemRecv:
         response = dev.read(4096)
 
         # Assert
-        assert response == bytes([0x15])  # NAK
+        assert response == bytes([0x15]), "NAK"
 
     def test_recv_bad_block_complement_naks(self, dev: FakeSerial) -> None:
         """Device NAKs a block where blk + ~blk != 0xFF."""
@@ -231,12 +231,12 @@ class TestFakeSerialXmodemRecv:
         response = dev.read(4096)
 
         # Assert
-        assert response == bytes([0x15])  # NAK
+        assert response == bytes([0x15]), "NAK"
 
     def test_recv_invalid_command(self, dev: FakeSerial) -> None:
         """AT+XMODEM without = returns error."""
         actual = _send_cmd(dev, "AT+XMODEM")
-        assert "ERROR" in actual  # bad usage
+        assert "ERROR" in actual, "bad usage"
 
 
 class TestFakeSerialXmodemSend:
@@ -250,7 +250,7 @@ class TestFakeSerialXmodemSend:
         response = dev.read(4096)
 
         # Assert
-        assert response == b"OK\r\n"  # no data block yet
+        assert response == b"OK\r\n", "no data block yet"
 
     def test_send_nak_triggers_first_block(self, dev: FakeSerial) -> None:
         """Sending NAK starts transmission of first block."""
@@ -265,10 +265,10 @@ class TestFakeSerialXmodemSend:
         block = dev.read(4096)
 
         # Assert
-        assert block[0] == 0x01  # SOH
-        assert block[1] == 0x01  # block number 1
-        assert block[2] == 0xFE  # complement
-        assert len(block) == 132  # SOH + blk + ~blk + 128 data + checksum
+        assert block[0] == 0x01, "SOH"
+        assert block[1] == 0x01, "block number 1"
+        assert block[2] == 0xFE, "complement"
+        assert len(block) == 132, "SOH + blk + ~blk + 128 data + checksum"
 
     def test_send_crc_mode_with_c(self, dev: FakeSerial) -> None:
         """Sending 'C' starts CRC mode transmission."""
@@ -283,8 +283,8 @@ class TestFakeSerialXmodemSend:
         block = dev.read(4096)
 
         # Assert
-        assert block[0] == 0x01  # SOH
-        assert len(block) == 133  # SOH + blk + ~blk + 128 data + 2 CRC bytes
+        assert block[0] == 0x01, "SOH"
+        assert len(block) == 133, "SOH + blk + ~blk + 128 data + 2 CRC bytes"
 
     def test_send_full_transfer_checksum(self, dev: FakeSerial) -> None:
         """Complete checksum-mode transfer of config.dat (1 block, padded)."""
@@ -297,20 +297,20 @@ class TestFakeSerialXmodemSend:
         dev.write(bytes([0x15]))  # NAK to start
         time.sleep(0.01)
         block1 = dev.read(4096)
-        assert block1[0] == 0x01  # SOH
+        assert block1[0] == 0x01, "SOH"
         data1 = block1[3:131]
         expected_cksum = sum(data1) & 0xFF
-        assert block1[131] == expected_cksum  # checksum valid
+        assert block1[131] == expected_cksum, "checksum valid"
 
         # ACK block 1, expect EOT
         dev.write(bytes([0x06]))
         time.sleep(0.01)
         eot = dev.read(4096)
-        assert eot == bytes([0x04])  # EOT
+        assert eot == bytes([0x04]), "EOT"
 
         # Assert — first 64 bytes match config.dat, rest is 0x1A padding
-        assert data1[:64] == bytes(range(64))  # config.dat content
-        assert all(b == 0x1A for b in data1[64:])  # XMODEM padding
+        assert data1[:64] == bytes(range(64)), "config.dat content"
+        assert all(b == 0x1A for b in data1[64:]), "XMODEM padding"
 
     def test_send_full_transfer_crc(self, dev: FakeSerial) -> None:
         """Complete CRC-mode transfer of config.dat (1 block, padded)."""
@@ -323,20 +323,20 @@ class TestFakeSerialXmodemSend:
         dev.write(b"C")
         time.sleep(0.01)
         block1 = dev.read(4096)
-        assert block1[0] == 0x01  # SOH
+        assert block1[0] == 0x01, "SOH"
         data1 = block1[3:131]
         expected_crc = _xmodem_crc16(data1)
         actual_crc = (block1[131] << 8) | block1[132]
-        assert actual_crc == expected_crc  # CRC valid
+        assert actual_crc == expected_crc, "CRC valid"
 
         # ACK block 1, expect EOT
         dev.write(bytes([0x06]))
         time.sleep(0.01)
         eot = dev.read(4096)
-        assert eot == bytes([0x04])  # EOT
+        assert eot == bytes([0x04]), "EOT"
 
         # Assert — first 64 bytes match config.dat
-        assert data1[:64] == bytes(range(64))  # config.dat content
+        assert data1[:64] == bytes(range(64)), "config.dat content"
 
 
 # -- Integration: xmodem library + FakeSerial ------------------------------
@@ -392,12 +392,12 @@ class TestXmodemLibraryIntegration:
             ok = modem.send(f)
 
         # Assert
-        assert ok is True  # transfer succeeded
+        assert ok is True, "transfer succeeded"
         received = dev.vfs["upload.bin"]
-        assert received[:len(test_data)] == test_data  # data matches
+        assert received[:len(test_data)] == test_data, "data matches"
         # Padding is 0x1A (SUB) — XMODEM has no size metadata
         padding = received[len(test_data):]
-        assert all(b == 0x1A for b in padding)  # correct padding
+        assert all(b == 0x1A for b in padding), "correct padding"
 
     def test_library_recv_from_device(self, dev: FakeSerial, tmp_path) -> None:
         """xmodem library receives config.dat from FakeSerial VFS."""
@@ -413,9 +413,9 @@ class TestXmodemLibraryIntegration:
             ok = modem.recv(f)
 
         # Assert
-        assert ok is not None  # transfer succeeded
+        assert ok is not None, "transfer succeeded"
         received = dst_file.read_bytes()
-        assert received[:64] == bytes(range(64))  # config.dat content
+        assert received[:64] == bytes(range(64)), "config.dat content"
 
     def test_roundtrip(self, dev: FakeSerial, tmp_path) -> None:
         """Send a file to device VFS, then verify the VFS has it."""
@@ -433,6 +433,6 @@ class TestXmodemLibraryIntegration:
             ok = modem.send(f)
 
         # Assert
-        assert ok is True  # transfer succeeded
+        assert ok is True, "transfer succeeded"
         received = dev.vfs["roundtrip.bin"]
-        assert received[:len(test_data)] == test_data  # roundtrip data matches
+        assert received[:len(test_data)] == test_data, "roundtrip data matches"

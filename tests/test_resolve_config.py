@@ -26,8 +26,8 @@ class TestResolveConfigExactFile:
         # Act
         actual = _resolve_config(str(cfg))
 
-        # Assert - returns the exact path
-        assert actual == str(cfg)
+        # Assert
+        assert actual == str(cfg), "returns the exact path"
 
     def test_relative_cfg_path(self, tmp_path, monkeypatch):
         # Arrange
@@ -38,7 +38,7 @@ class TestResolveConfigExactFile:
         actual = _resolve_config(str(cfg.relative_to(tmp_path)))
 
         # Assert
-        assert Path(actual).resolve() == cfg.resolve()
+        assert Path(actual).resolve() == cfg.resolve(), "relative path resolves to same file"
 
     def test_cfg_extension_explicit(self, tmp_path, monkeypatch):
         # Arrange
@@ -50,7 +50,7 @@ class TestResolveConfigExactFile:
         actual = _resolve_config("my_device.cfg")
 
         # Assert
-        assert actual == "my_device.cfg"
+        assert actual == "my_device.cfg", "explicit .cfg file returns as-is"
 
 
 class TestResolveConfigDirectory:
@@ -64,7 +64,7 @@ class TestResolveConfigDirectory:
         actual = _resolve_config(str(tmp_path / "demo"))
 
         # Assert
-        assert actual == str(cfg)
+        assert actual == str(cfg), "directory resolves to <dirname>.cfg inside it"
 
     def test_directory_without_matching_cfg(self, tmp_path):
         # Arrange
@@ -74,8 +74,8 @@ class TestResolveConfigDirectory:
         # Act
         actual = _resolve_config(str(folder))
 
-        # Assert - falls through, directory exists but no matching .cfg
-        assert actual is None
+        # Assert
+        assert actual is None, "directory without matching .cfg returns None"
 
     def test_nested_relative_directory(self, tmp_path, monkeypatch):
         # Arrange
@@ -87,7 +87,7 @@ class TestResolveConfigDirectory:
         actual = _resolve_config("termapy_cfg/demo")
 
         # Assert
-        assert Path(actual).resolve() == cfg.resolve()
+        assert Path(actual).resolve() == cfg.resolve(), "nested relative directory resolves to cfg"
 
 
 class TestResolveConfigCfgDir:
@@ -104,7 +104,7 @@ class TestResolveConfigCfgDir:
         actual = _resolve_config("demo")
 
         # Assert
-        assert Path(actual).resolve() == cfg.resolve()
+        assert Path(actual).resolve() == cfg.resolve(), "bare name found in cfg_dir"
 
     def test_bare_name_with_cfg_extension(self, tmp_path, monkeypatch):
         # Arrange
@@ -117,7 +117,7 @@ class TestResolveConfigCfgDir:
         actual = _resolve_config("demo.cfg")
 
         # Assert
-        assert Path(actual).resolve() == cfg.resolve()
+        assert Path(actual).resolve() == cfg.resolve(), "name.cfg stem found in cfg_dir"
 
 
 class TestResolveConfigCwdFallback:
@@ -135,7 +135,7 @@ class TestResolveConfigCwdFallback:
         actual = _resolve_config("demo")
 
         # Assert
-        assert Path(actual).resolve() == cfg.resolve()
+        assert Path(actual).resolve() == cfg.resolve(), "falls back to cwd/termapy_cfg"
 
 
 class TestResolveConfigAppendCfg:
@@ -153,7 +153,7 @@ class TestResolveConfigAppendCfg:
         actual = _resolve_config("my_device")
 
         # Assert
-        assert Path(actual).resolve() == cfg.resolve()
+        assert Path(actual).resolve() == cfg.resolve(), "appends .cfg to bare name"
 
     def test_no_double_cfg_extension(self, tmp_path, monkeypatch):
         # Arrange - name already ends in .cfg, rule 5 should not add another
@@ -165,7 +165,7 @@ class TestResolveConfigAppendCfg:
         actual = _resolve_config("nonexistent.cfg")
 
         # Assert
-        assert actual is None
+        assert actual is None, "no double .cfg extension appended"
 
 
 class TestResolveConfigNotFound:
@@ -181,7 +181,7 @@ class TestResolveConfigNotFound:
         actual = _resolve_config("typo_name")
 
         # Assert
-        assert actual is None
+        assert actual is None, "nonexistent name returns None"
 
     def test_nonexistent_path(self, tmp_path, monkeypatch):
         # Arrange
@@ -193,7 +193,7 @@ class TestResolveConfigNotFound:
         actual = _resolve_config("/no/such/path/device.cfg")
 
         # Assert
-        assert actual is None
+        assert actual is None, "nonexistent path returns None"
 
     def test_directory_wrong_cfg_name(self, tmp_path, monkeypatch):
         # Arrange - directory "demo" exists but contains "other.cfg" not "demo.cfg"
@@ -207,8 +207,8 @@ class TestResolveConfigNotFound:
         # Act
         actual = _resolve_config(str(folder))
 
-        # Assert - rule 2 looks for demo.cfg, not other.cfg
-        assert actual is None
+        # Assert
+        assert actual is None, "rule 2 looks for demo.cfg, not other.cfg"
 
 
 class TestResolveConfigPriority:
@@ -226,8 +226,8 @@ class TestResolveConfigPriority:
         # Act
         actual = _resolve_config("demo")
 
-        # Assert - rule 1 (exact file) wins over rule 3 (cfg_dir)
-        assert Path(actual).resolve() == exact.resolve()
+        # Assert
+        assert Path(actual).resolve() == exact.resolve(), "rule 1 (exact file) wins over rule 3 (cfg_dir)"
 
     def test_cfg_dir_beats_cwd_fallback(self, tmp_path, monkeypatch):
         # Arrange - same name exists in both cfg_dir and cwd/termapy_cfg
@@ -241,5 +241,5 @@ class TestResolveConfigPriority:
         # Act
         actual = _resolve_config("demo")
 
-        # Assert - rule 3 (cfg_dir) wins over rule 4 (cwd/termapy_cfg)
-        assert Path(actual).resolve() == cfg_a.resolve()
+        # Assert
+        assert Path(actual).resolve() == cfg_a.resolve(), "rule 3 (cfg_dir) wins over rule 4 (cwd/termapy_cfg)"

@@ -3645,7 +3645,13 @@ def main():
 
 def _run_web_mode(args) -> None:
     """Serve the TUI in a web browser via textual-serve."""
-    from textual_serve.server import Server
+    try:
+        from textual_serve.server import Server
+    except ImportError:
+        print("Error: --web requires textual-serve.")
+        print("  pip install termapy[web]")
+        print("  uv tool install termapy[web]")
+        sys.exit(1)
 
     print("=" * 60)
     print("  EXPERIMENTAL: Web mode via textual-serve")

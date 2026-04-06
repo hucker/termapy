@@ -33,9 +33,9 @@ class TestCfgDataDir:
         actual = cfg_data_dir(str(config_path))
 
         # Assert
-        assert actual == config_path.parent  # returns parent directory
+        assert actual == config_path.parent, "returns parent directory"
         for sub in ("plugin", "ss", "run"):
-            assert (actual / sub).is_dir()  # all subdirs created
+            assert (actual / sub).is_dir(), f"all subdirs created: {sub}"
 
     def test_idempotent(self, tmp_path):
         # Arrange
@@ -47,7 +47,7 @@ class TestCfgDataDir:
         cfg_data_dir(str(config_path))  # second call should not error
 
         # Assert
-        assert (config_path.parent / "ss").is_dir()  # subdirs still exist
+        assert (config_path.parent / "ss").is_dir(), "subdirs still exist"
 
     def test_creates_parent_if_needed(self, tmp_path):
         # Arrange
@@ -57,8 +57,8 @@ class TestCfgDataDir:
         actual = cfg_data_dir(str(config_path))
 
         # Assert
-        assert actual.exists()  # parent dir created
-        assert (actual / "plugin").is_dir()  # subdirs created
+        assert actual.exists(), "parent dir created"
+        assert (actual / "plugin").is_dir(), "subdirs created"
 
 
 # -- cfg helper functions ---------------------------------------------------
@@ -67,27 +67,27 @@ class TestCfgDataDir:
 class TestCfgHelpers:
     def test_cfg_path_for_name(self):
         actual = cfg_path_for_name("mydev")
-        assert actual.name == "mydev.cfg"  # filename matches
-        assert actual.parent.name == "mydev"  # parent dir matches
+        assert actual.name == "mydev.cfg", "filename matches"
+        assert actual.parent.name == "mydev", "parent dir matches"
 
     def test_cfg_log_path(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_log_path(str(config_path))
-        assert actual.endswith("dev.log")  # log named after config
+        assert actual.endswith("dev.log"), "log named after config"
 
     def test_cfg_history_path(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_history_path(str(config_path))
-        assert actual.endswith(".cmd_history.txt")  # history file pattern
+        assert actual.endswith(".cmd_history.txt"), "history file pattern"
 
     def test_cfg_plugins_dir(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         actual = cfg_plugins_dir(str(config_path))
-        assert actual.name == "plugin"  # correct subdir name
-        assert actual.is_dir()  # directory created
+        assert actual.name == "plugin", "correct subdir name"
+        assert actual.is_dir(), "directory created"
 
 
 # -- DEFAULT_CFG structure --------------------------------------------------
@@ -95,32 +95,32 @@ class TestCfgHelpers:
 
 class TestDefaultCfg:
     def test_has_custom_buttons(self):
-        assert "custom_buttons" in DEFAULT_CFG  # key exists
-        assert isinstance(DEFAULT_CFG["custom_buttons"], list)  # is a list
-        assert len(DEFAULT_CFG["custom_buttons"]) >= 4  # at least 4 button placeholders
+        assert "custom_buttons" in DEFAULT_CFG, "key exists"
+        assert isinstance(DEFAULT_CFG["custom_buttons"], list), "is a list"
+        assert len(DEFAULT_CFG["custom_buttons"]) >= 4, "at least 4 button placeholders"
 
     def test_custom_buttons_info_enabled(self):
         """First default button is the Info button (enabled)."""
         info_btn = DEFAULT_CFG["custom_buttons"][0]
-        assert info_btn["enabled"] is True  # Info button enabled
-        assert info_btn["name"] == "Info"  # named Info
-        assert info_btn["command"] == "/cfg.info"  # runs /cfg.info
+        assert info_btn["enabled"] is True, "Info button enabled"
+        assert info_btn["name"] == "Info", "named Info"
+        assert info_btn["command"] == "/cfg.info", "runs /cfg.info"
 
     def test_custom_buttons_placeholders_disabled(self):
         """Remaining default buttons are disabled placeholders."""
         for btn in DEFAULT_CFG["custom_buttons"][1:]:
-            assert btn["enabled"] is False  # placeholder disabled
+            assert btn["enabled"] is False, "placeholder disabled"
 
     def test_custom_buttons_have_required_fields(self):
         for btn in DEFAULT_CFG["custom_buttons"]:
-            assert "enabled" in btn  # enabled field present
-            assert "name" in btn  # name field present
-            assert "command" in btn  # command field present
-            assert "tooltip" in btn  # tooltip field present
+            assert "enabled" in btn, "enabled field present"
+            assert "name" in btn, "name field present"
+            assert "command" in btn, "command field present"
+            assert "tooltip" in btn, "tooltip field present"
 
     def test_has_essential_keys(self):
         for key in ("port", "baud_rate", "line_ending", "cmd_prefix"):
-            assert key in DEFAULT_CFG  # essential config key present
+            assert key in DEFAULT_CFG, f"essential config key present: {key}"
 
 
 # -- load_config ------------------------------------------------------------
@@ -147,10 +147,10 @@ class TestLoadConfig:
         actual = load_config(str(config_path))
 
         # Assert
-        assert actual["port"] == "COM3"  # original value preserved
-        assert "custom_buttons" in actual  # missing default added
+        assert actual["port"] == "COM3", "original value preserved"
+        assert "custom_buttons" in actual, "missing default added"
         actual_saved = json.loads(config_path.read_text())
-        assert "custom_buttons" in actual_saved  # persisted to disk
+        assert "custom_buttons" in actual_saved, "persisted to disk"
 
     def test_does_not_overwrite_existing_keys(self, tmp_path):
         # Arrange
@@ -169,9 +169,9 @@ class TestLoadConfig:
         actual = load_config(str(config_path))
 
         # Assert
-        assert actual["port"] == "COM7"  # custom port preserved
-        assert len(actual["custom_buttons"]) == 1  # custom buttons not replaced
-        assert actual["custom_buttons"][0]["enabled"] is True  # custom value kept
+        assert actual["port"] == "COM7", "custom port preserved"
+        assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
+        assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
 
 # -- SCRIPT_TEMPLATE -------------------------------------------------------
@@ -180,18 +180,18 @@ class TestLoadConfig:
 class TestScriptTemplate:
     def test_has_placeholder(self):
         actual = SCRIPT_TEMPLATE.format(name="test_script")
-        assert "test_script" in actual  # name placeholder expanded
+        assert "test_script" in actual, "name placeholder expanded"
 
     def test_has_comments(self):
         actual = SCRIPT_TEMPLATE.format(name="x")
         lines = actual.strip().splitlines()
         assert all(
             line.startswith("#") for line in lines if line.strip()
-        )  # all lines are comments
+        ), "all lines are comments"
 
     def test_has_example_commands(self):
         actual = SCRIPT_TEMPLATE.format(name="x")
-        assert "/sleep" in actual  # contains REPL example
+        assert "/sleep" in actual, "contains REPL example"
 
 
 # -- Custom button config validation ----------------------------------------
@@ -211,9 +211,9 @@ class TestCustomButtonConfig:
         actual = [b for b in buttons if b.get("enabled", False)]
 
         # Assert
-        assert len(actual) == 2  # only enabled buttons returned
-        assert actual[0]["name"] == "A"  # first enabled button
-        assert actual[1]["name"] == "C"  # second enabled button
+        assert len(actual) == 2, "only enabled buttons returned"
+        assert actual[0]["name"] == "A", "first enabled button"
+        assert actual[1]["name"] == "C", "second enabled button"
 
     def test_missing_enabled_defaults_false(self):
         # Arrange
@@ -223,7 +223,7 @@ class TestCustomButtonConfig:
         actual = [b for b in buttons if b.get("enabled", False)]
 
         # Assert
-        assert len(actual) == 0  # missing enabled treated as False
+        assert len(actual) == 0, "missing enabled treated as False"
 
     def test_command_split(self):
         """Simulate the \\n split used in _run_custom_button."""
@@ -235,20 +235,20 @@ class TestCustomButtonConfig:
         actual = [c.strip() for c in raw.split("\\n") if c.strip()]
 
         # Assert
-        assert actual == expected  # multi-command split correctly
+        assert actual == expected, "multi-command split correctly"
 
     def test_command_split_single(self):
         actual = [c.strip() for c in "ATZ".split("\\n") if c.strip()]
-        assert actual == ["ATZ"]  # single command unchanged
+        assert actual == ["ATZ"], "single command unchanged"
 
     def test_command_split_empty(self):
         actual = [c.strip() for c in "".split("\\n") if c.strip()]
-        assert actual == []  # empty string yields empty list
+        assert actual == [], "empty string yields empty list"
 
     def test_repl_prefix_detection(self):
         prefix = "/"
-        assert "/run test.run".startswith(prefix)  # REPL command detected
-        assert not "ATZ".startswith(prefix)  # serial command not matched
+        assert "/run test.run".startswith(prefix), "REPL command detected"
+        assert not "ATZ".startswith(prefix), "serial command not matched"
 
 
 # -- expand_env_str / expand_env_cfg ----------------------------------------
@@ -264,7 +264,7 @@ class TestExpandEnvStr:
 
         # Assert
         expected = "COM7"
-        assert actual == expected  # known var expanded
+        assert actual == expected, "known var expanded"
 
     def test_fallback_when_missing(self, monkeypatch):
         # Arrange
@@ -275,7 +275,7 @@ class TestExpandEnvStr:
 
         # Assert
         expected = "COM4"
-        assert actual == expected  # fallback used
+        assert actual == expected, "fallback used"
 
     def test_unknown_without_fallback_unchanged(self, monkeypatch):
         # Arrange
@@ -286,7 +286,7 @@ class TestExpandEnvStr:
 
         # Assert
         expected = "$(env.NOPE_CFG_VAR)"
-        assert actual == expected  # left unchanged (no crash)
+        assert actual == expected, "left unchanged (no crash)"
 
     def test_plain_string_unchanged(self):
         # Act
@@ -294,7 +294,7 @@ class TestExpandEnvStr:
 
         # Assert
         expected = "COM4"
-        assert actual == expected  # no placeholder, unchanged
+        assert actual == expected, "no placeholder, unchanged"
 
 
 class TestExpandEnvCfg:
@@ -307,8 +307,8 @@ class TestExpandEnvCfg:
         actual = expand_env_cfg(cfg)
 
         # Assert
-        assert actual["port"] == "COM9"  # string value expanded
-        assert actual["baud_rate"] == 115200  # non-string untouched
+        assert actual["port"] == "COM9", "string value expanded"
+        assert actual["baud_rate"] == 115200, "non-string untouched"
 
     def test_skips_non_strings(self):
         # Arrange
@@ -318,8 +318,8 @@ class TestExpandEnvCfg:
         actual = expand_env_cfg(cfg)
 
         # Assert
-        assert actual["baud_rate"] == 9600  # int unchanged
-        assert actual["auto_connect"] is True  # bool unchanged
+        assert actual["baud_rate"] == 9600, "int unchanged"
+        assert actual["auto_connect"] is True, "bool unchanged"
 
 
 class TestLoadConfigEnvExpansion:
@@ -335,7 +335,7 @@ class TestLoadConfigEnvExpansion:
         actual = load_config(str(config_path))
 
         # Assert
-        assert actual["port"] == "COM8"  # env var expanded in memory
+        assert actual["port"] == "COM8", "env var expanded in memory"
 
     def test_disk_keeps_template(self, tmp_path, monkeypatch):
         # Arrange
@@ -351,7 +351,7 @@ class TestLoadConfigEnvExpansion:
 
         # Assert
         actual_disk = json.loads(config_path.read_text())
-        assert actual_disk["port"] == template  # disk keeps raw template
+        assert actual_disk["port"] == template, "disk keeps raw template"
 
 
 # -- migrate_json_to_cfg -----------------------------------------------------
@@ -369,8 +369,8 @@ class TestMigrateJsonToCfg:
         migrate_json_to_cfg(tmp_path)
 
         # Assert
-        assert (sub / "foo.cfg").exists()  # .cfg file created
-        assert not json_file.exists()  # .json file removed
+        assert (sub / "foo.cfg").exists(), ".cfg file created"
+        assert not json_file.exists(), ".json file removed"
 
     def test_skips_when_cfg_exists(self, tmp_path):
         # Arrange
@@ -385,9 +385,9 @@ class TestMigrateJsonToCfg:
         migrate_json_to_cfg(tmp_path)
 
         # Assert
-        assert json_file.exists()  # .json not removed (conflict)
+        assert json_file.exists(), ".json not removed (conflict)"
         actual = json.loads(cfg_file.read_text())
-        assert actual["port"] == "COM2"  # .cfg not overwritten
+        assert actual["port"] == "COM2", ".cfg not overwritten"
 
     def test_idempotent(self, tmp_path):
         # Arrange
@@ -401,7 +401,7 @@ class TestMigrateJsonToCfg:
         migrate_json_to_cfg(tmp_path)  # second call is no-op
 
         # Assert
-        assert (sub / "baz.cfg").exists()  # .cfg still exists
+        assert (sub / "baz.cfg").exists(), ".cfg still exists"
 
 
 # -- validate_config: serial port setting validation --------------------------
@@ -413,7 +413,7 @@ class TestValidateConfig:
         actual = validate_config(dict(DEFAULT_CFG))
 
         # Assert
-        assert actual == []  # no warnings for defaults
+        assert actual == [], "no warnings for defaults"
 
     def test_invalid_byte_size(self):
         # Arrange
@@ -423,9 +423,9 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "byte_size" in actual[0]  # identifies the field
-        assert "9" in actual[0]  # shows the bad value
+        assert len(actual) == 1, "exactly one warning"
+        assert "byte_size" in actual[0], "identifies the field"
+        assert "9" in actual[0], "shows the bad value"
 
     def test_invalid_parity(self):
         # Arrange
@@ -435,8 +435,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "parity" in actual[0]  # identifies the field
+        assert len(actual) == 1, "exactly one warning"
+        assert "parity" in actual[0], "identifies the field"
 
     def test_invalid_stop_bits(self):
         # Arrange
@@ -446,8 +446,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "stop_bits" in actual[0]  # identifies the field
+        assert len(actual) == 1, "exactly one warning"
+        assert "stop_bits" in actual[0], "identifies the field"
 
     def test_invalid_flow_control(self):
         # Arrange
@@ -457,8 +457,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "flow_control" in actual[0]  # identifies the field
+        assert len(actual) == 1, "exactly one warning"
+        assert "flow_control" in actual[0], "identifies the field"
 
     def test_nonstandard_baud_rate_warns(self):
         # Arrange
@@ -468,8 +468,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # warns but doesn't reject
-        assert "not a standard rate" in actual[0]  # clear message
+        assert len(actual) == 1, "warns but doesn't reject"
+        assert "not a standard rate" in actual[0], "clear message"
 
     def test_standard_baud_rate_ok(self):
         # Arrange
@@ -479,7 +479,7 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert actual == []  # no warnings
+        assert actual == [], "no warnings"
 
     def test_negative_baud_rate(self):
         # Arrange
@@ -489,8 +489,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "positive" in actual[0]  # clear message
+        assert len(actual) == 1, "exactly one warning"
+        assert "positive" in actual[0], "clear message"
 
     def test_baud_rate_wrong_type(self):
         # Arrange
@@ -500,8 +500,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "expected int" in actual[0]  # type error message
+        assert len(actual) == 1, "exactly one warning"
+        assert "expected int" in actual[0], "type error message"
 
     def test_invalid_encoding(self):
         # Arrange
@@ -511,8 +511,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "encoding" in actual[0]  # identifies the field
+        assert len(actual) == 1, "exactly one warning"
+        assert "encoding" in actual[0], "identifies the field"
 
     def test_valid_encoding(self):
         # Arrange
@@ -522,7 +522,7 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert actual == []  # no warnings
+        assert actual == [], "no warnings"
 
     def test_negative_cmd_delay_ms(self):
         # Arrange
@@ -532,8 +532,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "cmd_delay_ms" in actual[0]  # identifies the field
+        assert len(actual) == 1, "exactly one warning"
+        assert "cmd_delay_ms" in actual[0], "identifies the field"
 
     def test_zero_max_lines(self):
         # Arrange
@@ -543,8 +543,8 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "max_lines" in actual[0]  # identifies the field
+        assert len(actual) == 1, "exactly one warning"
+        assert "max_lines" in actual[0], "identifies the field"
 
     def test_unknown_key_flagged(self):
         # Arrange
@@ -554,9 +554,9 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "unknown key" in actual[0]  # clear message
-        assert "baudrate" in actual[0]  # shows the bad key
+        assert len(actual) == 1, "exactly one warning"
+        assert "unknown key" in actual[0], "clear message"
+        assert "baudrate" in actual[0], "shows the bad key"
 
     def test_internal_keys_ignored(self):
         # Arrange
@@ -566,7 +566,7 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert actual == []  # internal keys not flagged
+        assert actual == [], "internal keys not flagged"
 
     def test_multiple_errors(self):
         # Arrange
@@ -576,7 +576,7 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 3  # one warning per bad field
+        assert len(actual) == 3, "one warning per bad field"
 
     def test_old_config_version_warns(self):
         # Arrange
@@ -586,9 +586,9 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert len(actual) == 1  # exactly one warning
-        assert "config_version" in actual[0]  # identifies the field
-        assert "3" in actual[0]  # shows the old version
+        assert len(actual) == 1, "exactly one warning"
+        assert "config_version" in actual[0], "identifies the field"
+        assert "3" in actual[0], "shows the old version"
 
     def test_current_config_version_ok(self):
         # Arrange
@@ -598,7 +598,7 @@ class TestValidateConfig:
         actual = validate_config(cfg)
 
         # Assert
-        assert actual == []  # no warnings
+        assert actual == [], "no warnings"
 
 
 # -- load_config: malformed JSON handling -------------------------------------
@@ -643,8 +643,8 @@ class TestRunCheck:
 
         # Assert
         actual = json.loads(stdout)
-        assert code == 0  # success exit code
-        assert actual["status"] == "ok"  # no warnings
+        assert code == 0, "success exit code"
+        assert actual["status"] == "ok", "no warnings"
 
     def test_invalid_baud_warns(self, tmp_path):
         # Arrange
@@ -658,9 +658,9 @@ class TestRunCheck:
 
         # Assert
         actual = json.loads(stdout)
-        assert code == 0  # still exits 0 (warnings, not errors)
-        assert actual["status"] == "warn"  # flagged as warn
-        assert any("baud_rate" in w for w in actual["warnings"])  # identifies field
+        assert code == 0, "still exits 0 (warnings, not errors)"
+        assert actual["status"] == "warn", "flagged as warn"
+        assert any("baud_rate" in w for w in actual["warnings"]), "identifies field"
 
     def test_malformed_json_errors(self, tmp_path):
         # Arrange
@@ -673,8 +673,8 @@ class TestRunCheck:
 
         # Assert
         actual = json.loads(stdout)
-        assert code == 1  # error exit code
-        assert actual["status"] == "error"  # parse failure
+        assert code == 1, "error exit code"
+        assert actual["status"] == "error", "parse failure"
 
     def test_does_not_modify_file(self, tmp_path):
         # Arrange — config with old version, check should NOT migrate it
@@ -689,4 +689,4 @@ class TestRunCheck:
 
         # Assert
         actual = cfg_file.read_text()
-        assert actual == original  # file unchanged (read-only check)
+        assert actual == original, "file unchanged (read-only check)"

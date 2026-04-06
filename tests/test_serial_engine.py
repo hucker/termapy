@@ -37,10 +37,10 @@ class TestConnect:
         result = engine.connect()
 
         # Assert
-        assert result is True  # connected
-        assert engine.is_connected is True
-        assert engine.serial_port is not None
-        assert engine.reader is not None
+        assert result is True, "connected"
+        assert engine.is_connected is True, "engine should be connected"
+        assert engine.serial_port is not None, "serial_port should be set"
+        assert engine.reader is not None, "reader should be set"
         engine.disconnect()
 
     def test_connect_when_already_connected(self):
@@ -52,7 +52,7 @@ class TestConnect:
         result = engine.connect()
 
         # Assert
-        assert result is True  # idempotent
+        assert result is True, "idempotent"
         engine.disconnect()
 
     def test_connect_failure(self):
@@ -68,8 +68,8 @@ class TestConnect:
         result = engine.connect()
 
         # Assert
-        assert result is False  # failed
-        assert engine.is_connected is False
+        assert result is False, "failed"
+        assert engine.is_connected is False, "engine should not be connected"
 
     def test_disconnect(self):
         # Arrange
@@ -80,8 +80,8 @@ class TestConnect:
         engine.disconnect()
 
         # Assert
-        assert engine.is_connected is False
-        assert engine.serial_port is None
+        assert engine.is_connected is False, "engine should be disconnected"
+        assert engine.serial_port is None, "serial_port should be cleared"
 
     def test_disconnect_when_not_connected(self):
         # Arrange
@@ -91,7 +91,7 @@ class TestConnect:
         engine.disconnect()
 
         # Assert
-        assert engine.is_connected is False
+        assert engine.is_connected is False, "engine should remain disconnected"
 
 
 # -- Properties ----------------------------------------------------------------
@@ -104,7 +104,7 @@ class TestProperties:
         engine.connect()
 
         # Assert
-        assert isinstance(engine.port_obj, FakeSerial)
+        assert isinstance(engine.port_obj, FakeSerial), "port_obj should be FakeSerial"
         engine.disconnect()
 
     def test_rx_queue_exists(self):
@@ -112,14 +112,14 @@ class TestProperties:
         engine, _, _ = _make_engine()
 
         # Assert
-        assert engine.rx_queue is not None
+        assert engine.rx_queue is not None, "rx_queue should exist"
 
     def test_proto_active_default(self):
         # Arrange
         engine, _, _ = _make_engine()
 
         # Assert
-        assert engine.proto_active is False
+        assert engine.proto_active is False, "proto_active should default to False"
 
     def test_proto_active_setter(self):
         # Arrange
@@ -130,7 +130,7 @@ class TestProperties:
         engine.proto_active = True
 
         # Assert
-        assert engine.proto_active is True
+        assert engine.proto_active is True, "proto_active should be True after set"
         engine.disconnect()
 
 
@@ -160,8 +160,8 @@ class TestReadLoop:
         t.join(timeout=1.0)
 
         # Assert
-        assert len(lines_received) > 0  # got some output
-        assert any("OK" in line for line in lines_received)  # AT → OK
+        assert len(lines_received) > 0, "got some output"
+        assert any("OK" in line for line in lines_received), "AT should produce OK"
 
     def test_read_loop_stops_on_event(self):
         # Arrange
@@ -179,8 +179,8 @@ class TestReadLoop:
         t.join(timeout=1.0)
 
         # Assert
-        assert not t.is_alive()  # thread exited
-        assert engine.reader_stopped.is_set()  # flag set
+        assert not t.is_alive(), "thread exited"
+        assert engine.reader_stopped.is_set(), "flag set"
 
     def test_read_loop_calls_on_error(self):
         # Arrange — port that raises on read
@@ -211,8 +211,8 @@ class TestReadLoop:
         t.join(timeout=1.0)
 
         # Assert
-        assert len(errors) >= 1  # error callback fired
-        assert "read failed" in errors[0]
+        assert len(errors) >= 1, "error callback fired"
+        assert "read failed" in errors[0], "error message should contain 'read failed'"
 
     def test_read_loop_without_connect(self):
         # Arrange
@@ -222,7 +222,7 @@ class TestReadLoop:
         engine.read_loop()
 
         # Assert
-        assert engine.reader_stopped.is_set()
+        assert engine.reader_stopped.is_set(), "reader_stopped should be set without connect"
 
 
 # -- Reconnect ----------------------------------------------------------------
@@ -237,7 +237,7 @@ class TestReconnect:
         result = engine.try_reconnect()
 
         # Assert
-        assert result is True  # FakeSerial always opens
+        assert result is True, "FakeSerial always opens"
 
     def test_try_reconnect_failure(self):
         # Arrange
@@ -252,4 +252,4 @@ class TestReconnect:
         result = engine.try_reconnect()
 
         # Assert
-        assert result is False
+        assert result is False, "reconnect should fail with bad port"

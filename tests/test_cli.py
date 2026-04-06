@@ -47,32 +47,32 @@ class TestParseRunFlags:
         script, verbose = _parse_run_flags("myscript.run")
 
         # Assert
-        assert script == "myscript.run"  # script name preserved
-        assert verbose is False  # no verbose flag
+        assert script == "myscript.run", "script name preserved"
+        assert verbose is False, "no verbose flag"
 
     def test_verbose_short(self):
         # Act
         script, verbose = _parse_run_flags("-v myscript.run")
 
         # Assert
-        assert script == "myscript.run"  # flag stripped from script name
-        assert verbose is True  # verbose enabled
+        assert script == "myscript.run", "flag stripped from script name"
+        assert verbose is True, "verbose enabled"
 
     def test_verbose_long(self):
         # Act
         script, verbose = _parse_run_flags("myscript.run --verbose")
 
         # Assert
-        assert script == "myscript.run"  # flag stripped
-        assert verbose is True  # verbose enabled
+        assert script == "myscript.run", "flag stripped"
+        assert verbose is True, "verbose enabled"
 
     def test_empty(self):
         # Act
         script, verbose = _parse_run_flags("")
 
         # Assert
-        assert script == ""  # empty input returns empty
-        assert verbose is False
+        assert script == "", "empty input returns empty"
+        assert verbose is False, "no verbose flag on empty input"
 
 
 # -- Output methods ----------------------------------------------------------
@@ -85,7 +85,7 @@ class TestOutput:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "hello world" in actual  # text appears in stdout
+        assert "hello world" in actual, "text appears in stdout"
 
     def test_write_with_color(self, cli, capsys):
         # Act
@@ -93,7 +93,7 @@ class TestOutput:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "error msg" in actual  # text appears even with color arg
+        assert "error msg" in actual, "text appears even with color arg"
 
     def test_status_indented(self, cli, capsys):
         # Act
@@ -101,7 +101,7 @@ class TestOutput:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "info line" in actual  # status text appears
+        assert "info line" in actual, "status text appears"
 
     def test_status_with_color(self, cli, capsys):
         # Act
@@ -109,7 +109,7 @@ class TestOutput:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "warning" in actual  # colored status appears
+        assert "warning" in actual, "colored status appears"
 
     def test_raw_output(self, cli, capsys):
         # Act
@@ -117,7 +117,7 @@ class TestOutput:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "raw text" in actual  # raw text bypasses Rich
+        assert "raw text" in actual, "raw text bypasses Rich"
 
     def test_err_output(self, cli, capsys):
         # Act
@@ -125,7 +125,7 @@ class TestOutput:
 
         # Assert
         actual = capsys.readouterr().err
-        assert "error text" in actual  # error goes to stderr
+        assert "error text" in actual, "error goes to stderr"
 
 
 # -- Hook: delay -------------------------------------------------------------
@@ -137,28 +137,28 @@ class TestHookDelay:
         result = cli._hook_delay(cli.ctx, "10ms")
 
         # Assert
-        assert result.success  # short delay completes ok
+        assert result.success, "short delay completes ok"
 
     def test_invalid_duration(self, cli):
         # Act
         result = cli._hook_delay(cli.ctx, "xyz")
 
         # Assert
-        assert not result.success  # invalid duration fails
+        assert not result.success, "invalid duration fails"
 
     def test_delay_quiet(self, cli):
         # Act
         result = cli._hook_delay_quiet(cli.ctx, "10ms")
 
         # Assert
-        assert result.success  # quiet delay completes ok
+        assert result.success, "quiet delay completes ok"
 
     def test_delay_quiet_invalid(self, cli):
         # Act
         result = cli._hook_delay_quiet(cli.ctx, "bad")
 
         # Assert
-        assert not result.success  # invalid duration fails
+        assert not result.success, "invalid duration fails"
 
 
 # -- Hook: color -------------------------------------------------------------
@@ -173,8 +173,8 @@ class TestHookColor:
         result = cli._hook_color(cli.ctx, "on")
 
         # Assert
-        assert result.success  # command succeeds
-        assert cli.console.no_color is False  # color enabled
+        assert result.success, "command succeeds"
+        assert cli.console.no_color is False, "color enabled"
 
     def test_color_off(self, cli):
         # Arrange
@@ -184,8 +184,8 @@ class TestHookColor:
         result = cli._hook_color(cli.ctx, "off")
 
         # Assert
-        assert result.success  # command succeeds
-        assert cli.console.no_color is True  # color disabled
+        assert result.success, "command succeeds"
+        assert cli.console.no_color is True, "color disabled"
 
     def test_color_toggle_show(self, cli, capsys):
         # Arrange
@@ -195,9 +195,9 @@ class TestHookColor:
         result = cli._hook_color(cli.ctx, "")
 
         # Assert
-        assert result.success  # status query succeeds
+        assert result.success, "status query succeeds"
         actual = capsys.readouterr().out
-        assert "off" in actual  # reports current state
+        assert "off" in actual, "reports current state"
 
 
 # -- Hook: raw ---------------------------------------------------------------
@@ -212,7 +212,7 @@ class TestHookRaw:
         result = cli._hook_raw(cli.ctx, "hello")
 
         # Assert
-        assert not result.success  # fails when disconnected
+        assert not result.success, "fails when disconnected"
 
     def test_raw_no_args(self, cli):
         # Arrange
@@ -222,7 +222,7 @@ class TestHookRaw:
         result = cli._hook_raw(cli.ctx, "")
 
         # Assert
-        assert not result.success  # fails with no text
+        assert not result.success, "fails with no text"
 
     def test_raw_sends_data(self, cli):
         # Arrange
@@ -233,7 +233,7 @@ class TestHookRaw:
         result = cli._hook_raw(cli.ctx, "AT")
 
         # Assert
-        assert result.success  # command succeeds
+        assert result.success, "command succeeds"
         cli.engine.serial_port.write.assert_called_once_with(b"AT")  # bytes sent
 
 
@@ -247,7 +247,7 @@ class TestHookRun:
         result = cli._hook_run(cli.ctx, "")
 
         # Assert
-        assert result.success  # listing with no files is ok
+        assert result.success, "listing with no files is ok"
 
     def test_run_lists_scripts(self, cli, capsys):
         # Arrange
@@ -259,17 +259,17 @@ class TestHookRun:
         result = cli._hook_run(cli.ctx, "")
 
         # Assert
-        assert result.success  # listing succeeds
+        assert result.success, "listing succeeds"
         actual = capsys.readouterr().out
-        assert "test1.run" in actual  # first script listed
-        assert "test2.run" in actual  # second script listed
+        assert "test1.run" in actual, "first script listed"
+        assert "test2.run" in actual, "second script listed"
 
     def test_run_file_not_found(self, cli):
         # Act
         result = cli._hook_run(cli.ctx, "nonexistent.run")
 
         # Assert
-        assert not result.success  # missing script fails
+        assert not result.success, "missing script fails"
 
 
 # -- Hook: log.clear ---------------------------------------------------------
@@ -281,7 +281,7 @@ class TestHookLogClear:
         result = cli._hook_log_clear(cli.ctx, "")
 
         # Assert
-        assert not result.success  # no log file to delete
+        assert not result.success, "no log file to delete"
 
     def test_delete_log(self, cli, tmp_path):
         # Arrange
@@ -293,8 +293,8 @@ class TestHookLogClear:
             result = cli._hook_log_clear(cli.ctx, "")
 
         # Assert
-        assert result.success  # deletion succeeds
-        assert not Path(log_path_str).exists()  # file removed
+        assert result.success, "deletion succeeds"
+        assert not Path(log_path_str).exists(), "file removed"
 
 
 # -- Connect / Disconnect ---------------------------------------------------
@@ -310,7 +310,7 @@ class TestConnect:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Already connected" in actual  # warns already connected
+        assert "Already connected" in actual, "warns already connected"
 
     def test_connect_success(self, cli, capsys):
         # Arrange
@@ -325,7 +325,7 @@ class TestConnect:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Connected" in actual  # reports connection
+        assert "Connected" in actual, "reports connection"
 
     def test_connect_failure(self, cli, capsys):
         # Arrange
@@ -337,7 +337,7 @@ class TestConnect:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Cannot connect" in actual  # reports failure
+        assert "Cannot connect" in actual, "reports failure"
 
     def test_connect_with_port(self, cli):
         # Arrange
@@ -351,7 +351,7 @@ class TestConnect:
                 cli._connect(port="COM5")
 
         # Assert
-        assert cli.cfg["port"] == "COM5"  # port updated in config
+        assert cli.cfg["port"] == "COM5", "port updated in config"
 
     def test_disconnect_not_connected(self, cli, capsys):
         # Arrange
@@ -362,7 +362,7 @@ class TestConnect:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Not connected" in actual  # warns not connected
+        assert "Not connected" in actual, "warns not connected"
 
     def test_disconnect_success(self, cli, capsys):
         # Arrange
@@ -374,7 +374,7 @@ class TestConnect:
         # Assert
         cli.engine.disconnect.assert_called_once()  # engine disconnect called
         actual = capsys.readouterr().out
-        assert "Disconnected" in actual  # reports disconnection
+        assert "Disconnected" in actual, "reports disconnection"
 
 
 # -- serial_write_raw --------------------------------------------------------
@@ -390,7 +390,7 @@ class TestSerialWriteRaw:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Not connected" in actual  # warns not connected
+        assert "Not connected" in actual, "warns not connected"
 
     def test_sends_with_line_ending(self, cli):
         # Arrange
@@ -418,7 +418,7 @@ class TestCapture:
         actual = cli._start_capture(mode="text", path="/tmp/cap.txt")
 
         # Assert
-        assert actual is False  # returns False when already active
+        assert actual is False, "returns False when already active"
 
     def test_start_capture_success(self, cli, capsys):
         # Arrange
@@ -430,7 +430,7 @@ class TestCapture:
         actual = cli._start_capture(mode="text", path="/tmp/cap.txt")
 
         # Assert
-        assert actual is True  # returns True on success
+        assert actual is True, "returns True on success"
 
     def test_stop_capture(self, cli, capsys):
         # Arrange
@@ -445,7 +445,7 @@ class TestCapture:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Capture complete" in actual  # reports completion
+        assert "Capture complete" in actual, "reports completion"
 
 
 # -- apply_port_effects ------------------------------------------------------
@@ -460,7 +460,7 @@ class TestApplyPortEffects:
         cli._apply_port_effects(effects)
 
         # Assert
-        assert cli.repl._cfg_data["baud_rate"] == 9600  # config updated
+        assert cli.repl._cfg_data["baud_rate"] == 9600, "config updated"
 
     def test_empty_effects(self, cli):
         # Act / Assert — no exception on empty effects
@@ -477,7 +477,7 @@ class TestConfirm:
             actual = CLITerminal._confirm("Continue?")
 
         # Assert
-        assert actual is True  # y means yes
+        assert actual is True, "y means yes"
 
     def test_confirm_no(self):
         # Act
@@ -485,7 +485,7 @@ class TestConfirm:
             actual = CLITerminal._confirm("Continue?")
 
         # Assert
-        assert actual is False  # n means no
+        assert actual is False, "n means no"
 
     def test_confirm_empty(self):
         # Act
@@ -493,7 +493,7 @@ class TestConfirm:
             actual = CLITerminal._confirm("Continue?")
 
         # Assert
-        assert actual is False  # empty defaults to no
+        assert actual is False, "empty defaults to no"
 
     def test_confirm_eof(self):
         # Act
@@ -501,7 +501,7 @@ class TestConfirm:
             actual = CLITerminal._confirm("Continue?")
 
         # Assert
-        assert actual is False  # EOF returns False
+        assert actual is False, "EOF returns False"
 
 
 # -- History -----------------------------------------------------------------
@@ -528,7 +528,7 @@ class TestHistory:
 
         # Assert
         actual = readline.get_current_history_length()
-        assert actual == 2  # both entries restored
+        assert actual == 2, "both entries restored"
 
     def test_load_missing_history(self, cli):
         """Loading from nonexistent file doesn't raise."""

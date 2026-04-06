@@ -17,8 +17,8 @@ class TestLifecycle:
         engine = CaptureEngine()
 
         # Assert
-        assert engine.active is False  # no capture running
-        assert engine.mode == ""  # no mode
+        assert engine.active is False, "no capture running"
+        assert engine.mode == "", "no mode"
 
     def test_start_text_capture(self, tmp_path):
         # Arrange
@@ -29,9 +29,9 @@ class TestLifecycle:
         result = engine.start(path=path, file_mode="w", mode="text", duration=5.0)
 
         # Assert
-        assert result is True  # started successfully
-        assert engine.active is True  # capture running
-        assert engine.mode == "text"  # text mode
+        assert result is True, "started successfully"
+        assert engine.active is True, "capture running"
+        assert engine.mode == "text", "text mode"
 
     def test_start_bin_capture(self, tmp_path):
         # Arrange
@@ -44,8 +44,8 @@ class TestLifecycle:
         )
 
         # Assert
-        assert result is True  # started successfully
-        assert engine.mode == "bin"  # binary mode
+        assert result is True, "started successfully"
+        assert engine.mode == "bin", "binary mode"
 
     def test_start_fails_when_active(self, tmp_path):
         # Arrange
@@ -57,7 +57,7 @@ class TestLifecycle:
         result = engine.start(path=path, file_mode="w", mode="text", duration=5.0)
 
         # Assert
-        assert result is False  # cannot start while active
+        assert result is False, "cannot start while active"
 
     def test_start_fails_bad_path(self, tmp_path):
         # Arrange
@@ -68,7 +68,7 @@ class TestLifecycle:
         result = engine.start(path=bad_path, file_mode="w", mode="text", duration=5.0)
 
         # Assert
-        assert result is False  # cannot open file
+        assert result is False, "cannot open file"
 
     def test_stop_returns_none_when_inactive(self):
         # Arrange
@@ -78,7 +78,7 @@ class TestLifecycle:
         result = engine.stop()
 
         # Assert
-        assert result is None  # nothing to stop
+        assert result is None, "nothing to stop"
 
     def test_stop_returns_result(self, tmp_path):
         # Arrange
@@ -90,10 +90,10 @@ class TestLifecycle:
         result = engine.stop()
 
         # Assert
-        assert isinstance(result, CaptureResult)  # returns result
-        assert result.path == path  # correct path
-        assert result.byte_count == 0  # no data fed
-        assert engine.active is False  # now inactive
+        assert isinstance(result, CaptureResult), "returns result"
+        assert result.path == path, "correct path"
+        assert result.byte_count == 0, "no data fed"
+        assert engine.active is False, "now inactive"
 
     def test_stop_calls_on_complete(self, tmp_path):
         # Arrange
@@ -106,8 +106,8 @@ class TestLifecycle:
         engine.stop()
 
         # Assert
-        assert len(results) == 1  # callback fired
-        assert results[0].path == path  # correct result
+        assert len(results) == 1, "callback fired"
+        assert results[0].path == path, "correct result"
 
 
 # -- Text capture --------------------------------------------------------------
@@ -126,8 +126,8 @@ class TestTextCapture:
 
         # Assert
         actual = path.read_text()
-        assert actual == "hello\nworld\n"  # lines written with newlines
-        assert result.byte_count == 12  # 5+1+5+1 = 12
+        assert actual == "hello\nworld\n", "lines written with newlines"
+        assert result.byte_count == 12, "5+1+5+1 = 12"
 
     def test_feed_text_ignored_when_inactive(self, tmp_path):
         # Arrange
@@ -147,7 +147,7 @@ class TestTextCapture:
         result = engine.stop()
 
         # Assert
-        assert result.byte_count == 0  # text not fed to bin capture
+        assert result.byte_count == 0, "text not fed to bin capture"
 
     def test_append_mode(self, tmp_path):
         # Arrange
@@ -162,7 +162,7 @@ class TestTextCapture:
 
         # Assert
         actual = path.read_text()
-        assert actual == "existing\nnew line\n"  # appended
+        assert actual == "existing\nnew line\n", "appended"
 
 
 # -- Binary capture (raw) -----------------------------------------------------
@@ -182,8 +182,8 @@ class TestBinaryRawCapture:
         # Assert — target reached, but caller must call stop
         result = engine.stop()
         actual = path.read_bytes()
-        assert actual == b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"
-        assert result.byte_count == 10
+        assert actual == b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a", "all bytes written"
+        assert result.byte_count == 10, "byte count matches"
 
     def test_feed_bytes_returns_true_at_target(self, tmp_path):
         # Arrange
@@ -196,8 +196,8 @@ class TestBinaryRawCapture:
         result2 = engine.feed_bytes(b"\x04\x05\x06\x07")
 
         # Assert
-        assert result1 is False  # not yet at target
-        assert result2 is True  # target reached
+        assert result1 is False, "not yet at target"
+        assert result2 is True, "target reached"
 
     def test_feed_bytes_trims_to_target(self, tmp_path):
         # Arrange
@@ -211,7 +211,7 @@ class TestBinaryRawCapture:
 
         # Assert
         actual = path.read_bytes()
-        assert actual == b"\x01\x02\x03"  # trimmed to target
+        assert actual == b"\x01\x02\x03", "trimmed to target"
 
     def test_feed_bytes_ignored_when_inactive(self):
         # Arrange
@@ -221,7 +221,7 @@ class TestBinaryRawCapture:
         result = engine.feed_bytes(b"\x01\x02")
 
         # Assert
-        assert result is False
+        assert result is False, "feed_bytes returns False when inactive"
 
 
 # -- Binary capture (format spec) ---------------------------------------------
@@ -251,9 +251,9 @@ class TestBinaryFormatCapture:
 
         # Assert
         actual_lines = path.read_text().strip().split("\n")
-        assert actual_lines[0] == "A,B"  # header row
-        assert actual_lines[1] == "100,200"  # first record
-        assert actual_lines[2] == "300,400"  # second record
+        assert actual_lines[0] == "A,B", "header row"
+        assert actual_lines[1] == "100,200", "first record"
+        assert actual_lines[2] == "300,400", "second record"
 
     def test_format_spec_tab_separated(self, tmp_path):
         # Arrange
@@ -272,8 +272,8 @@ class TestBinaryFormatCapture:
 
         # Assert
         actual_lines = path.read_text().strip().split("\n")
-        assert actual_lines[0] == "A\tB"  # tab-separated header
-        assert actual_lines[1] == "42\t99"  # tab-separated values
+        assert actual_lines[0] == "A\tB", "tab-separated header"
+        assert actual_lines[1] == "42\t99", "tab-separated values"
 
     def test_echo_callback(self, tmp_path):
         # Arrange
@@ -292,8 +292,8 @@ class TestBinaryFormatCapture:
         engine.stop()
 
         # Assert
-        assert len(echoed) >= 1  # echo callback fired
-        assert "1" in echoed[-1]  # contains value
+        assert len(echoed) >= 1, "echo callback fired"
+        assert "1" in echoed[-1], "contains value"
 
 
 # -- Hex mode ------------------------------------------------------------------
@@ -314,7 +314,7 @@ class TestHexCapture:
 
         # Assert
         actual = path.read_bytes()
-        assert actual == b"\x01\x02\x03"  # hex decoded
+        assert actual == b"\x01\x02\x03", "hex decoded"
 
     def test_hex_partial_lines(self, tmp_path):
         # Arrange
@@ -331,7 +331,7 @@ class TestHexCapture:
 
         # Assert
         actual = path.read_bytes()
-        assert actual == b"\x01\x02\x03"  # reassembled from partial lines
+        assert actual == b"\x01\x02\x03", "reassembled from partial lines"
 
 
 # -- Progress ------------------------------------------------------------------
@@ -346,7 +346,7 @@ class TestProgress:
         prog = engine.get_progress()
 
         # Assert
-        assert prog is None  # no progress when inactive
+        assert prog is None, "no progress when inactive"
 
     def test_progress_bin_mode(self, tmp_path):
         # Arrange
@@ -359,10 +359,10 @@ class TestProgress:
         prog = engine.get_progress()
 
         # Assert
-        assert isinstance(prog, CaptureProgress)
-        assert prog.mode == "bin"
-        assert prog.target_bytes == 100
-        assert prog.path_name == "out.bin"
+        assert isinstance(prog, CaptureProgress), "returns CaptureProgress"
+        assert prog.mode == "bin", "mode is bin"
+        assert prog.target_bytes == 100, "target_bytes matches"
+        assert prog.path_name == "out.bin", "path_name matches"
 
     def test_progress_text_mode(self, tmp_path):
         # Arrange
@@ -374,9 +374,9 @@ class TestProgress:
         prog = engine.get_progress()
 
         # Assert
-        assert isinstance(prog, CaptureProgress)
-        assert prog.mode == "text"
-        assert prog.remaining_s > 0  # still counting down
+        assert isinstance(prog, CaptureProgress), "returns CaptureProgress"
+        assert prog.mode == "text", "mode is text"
+        assert prog.remaining_s > 0, "still counting down"
 
 
 # -- CaptureResult ------------------------------------------------------------
@@ -388,11 +388,11 @@ class TestCaptureResult:
         result = CaptureResult(path=Path("test.bin"), byte_count=500, raw=True)
 
         # Assert
-        assert result.size_label == "500 bytes"
+        assert result.size_label == "500 bytes", "size_label shows bytes"
 
     def test_size_label_kb(self):
         # Arrange
         result = CaptureResult(path=Path("test.bin"), byte_count=2048, raw=True)
 
         # Assert
-        assert result.size_label == "2.0 KB"
+        assert result.size_label == "2.0 KB", "size_label shows KB"

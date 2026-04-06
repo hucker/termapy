@@ -36,10 +36,10 @@ class TestParseSendAlgo:
             "crc16-modbus", registry,
         )
 
-        # Assert — exact match, default LE, no ascii
-        assert actual_name == "crc16-modbus"
-        assert actual_be is False
-        assert actual_ascii is False
+        # Assert
+        assert actual_name == "crc16-modbus", "exact match, default LE, no ascii"
+        assert actual_be is False, "bare algo defaults to LE"
+        assert actual_ascii is False, "bare algo defaults to binary"
 
     def test_algo_be(self):
         # Act
@@ -48,10 +48,10 @@ class TestParseSendAlgo:
             "crc16-modbus_be", registry,
         )
 
-        # Assert — BE suffix stripped
-        assert actual_name == "crc16-modbus"
-        assert actual_be is True
-        assert actual_ascii is False
+        # Assert
+        assert actual_name == "crc16-modbus", "BE suffix stripped from name"
+        assert actual_be is True, "_be suffix sets big-endian"
+        assert actual_ascii is False, "_be does not set ascii mode"
 
     def test_algo_le(self):
         # Act
@@ -60,10 +60,10 @@ class TestParseSendAlgo:
             "crc16-modbus_le", registry,
         )
 
-        # Assert — explicit LE, same as default
-        assert actual_name == "crc16-modbus"
-        assert actual_be is False
-        assert actual_ascii is False
+        # Assert
+        assert actual_name == "crc16-modbus", "LE suffix stripped from name"
+        assert actual_be is False, "explicit _le keeps little-endian"
+        assert actual_ascii is False, "_le does not set ascii mode"
 
     def test_algo_ascii(self):
         # Act
@@ -72,10 +72,10 @@ class TestParseSendAlgo:
             "crc16-modbus_ascii", registry,
         )
 
-        # Assert — ascii suffix stripped
-        assert actual_name == "crc16-modbus"
-        assert actual_be is False
-        assert actual_ascii is True
+        # Assert
+        assert actual_name == "crc16-modbus", "ascii suffix stripped from name"
+        assert actual_be is False, "_ascii defaults to LE"
+        assert actual_ascii is True, "_ascii sets ascii mode"
 
     def test_algo_be_ascii(self):
         # Act
@@ -84,10 +84,10 @@ class TestParseSendAlgo:
             "crc16-modbus_be_ascii", registry,
         )
 
-        # Assert — both suffixes stripped
-        assert actual_name == "crc16-modbus"
-        assert actual_be is True
-        assert actual_ascii is True
+        # Assert
+        assert actual_name == "crc16-modbus", "both suffixes stripped from name"
+        assert actual_be is True, "_be_ascii sets big-endian"
+        assert actual_ascii is True, "_be_ascii sets ascii mode"
 
     def test_algo_le_ascii(self):
         # Act
@@ -96,18 +96,18 @@ class TestParseSendAlgo:
             "crc16-modbus_le_ascii", registry,
         )
 
-        # Assert — LE + ascii
-        assert actual_name == "crc16-modbus"
-        assert actual_be is False
-        assert actual_ascii is True
+        # Assert
+        assert actual_name == "crc16-modbus", "le_ascii suffixes stripped from name"
+        assert actual_be is False, "_le_ascii keeps little-endian"
+        assert actual_ascii is True, "_le_ascii sets ascii mode"
 
     def test_unknown_returns_none(self):
         # Act
         registry = get_crc_registry()
         actual_name, _, _ = _parse_send_algo("not-an-algo", registry)
 
-        # Assert — no match
-        assert actual_name is None
+        # Assert
+        assert actual_name is None, "unknown algo returns None"
 
     def test_case_insensitive(self):
         # Act
@@ -116,9 +116,9 @@ class TestParseSendAlgo:
             "CRC16-MODBUS_BE", registry,
         )
 
-        # Assert — case folded
-        assert actual_name == "crc16-modbus"
-        assert actual_be is True
+        # Assert
+        assert actual_name == "crc16-modbus", "case folded to lowercase"
+        assert actual_be is True, "BE suffix recognized case-insensitively"
 
 
 # ── Send with CRC ──────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ class TestSendCrcAppend:
         # Assert
         actual = tx_bytes[0]
         expected = b"\x01\x03\x00\x00\x00\x01\x84\x0A"
-        assert actual == expected  # data with LE CRC appended
+        assert actual == expected, "data with LE CRC appended"
 
     def test_crc16_modbus_be(self, send_env):
         # Arrange
@@ -152,7 +152,7 @@ class TestSendCrcAppend:
         # Assert
         actual = tx_bytes[0]
         expected = b"\x01\x03\x00\x00\x00\x01\x0A\x84"
-        assert actual == expected  # data with BE CRC appended
+        assert actual == expected, "data with BE CRC appended"
 
     def test_crc16_modbus_ascii_le(self, send_env):
         # Arrange
@@ -167,7 +167,7 @@ class TestSendCrcAppend:
         expected_data = b"\x01\x03\x00\x00\x00\x01"
         expected_crc_text = b"840A"  # LE ascii: bytes reversed
         expected = expected_data + expected_crc_text
-        assert actual == expected  # data with LE ASCII CRC appended
+        assert actual == expected, "data with LE ASCII CRC appended"
 
     def test_crc16_modbus_ascii_be(self, send_env):
         # Arrange
@@ -182,7 +182,7 @@ class TestSendCrcAppend:
         expected_data = b"\x01\x03\x00\x00\x00\x01"
         expected_crc_text = b"0A84"  # BE ascii: natural order
         expected = expected_data + expected_crc_text
-        assert actual == expected  # data with BE ASCII CRC appended
+        assert actual == expected, "data with BE ASCII CRC appended"
 
     def test_crc_info_displayed(self, send_env):
         # Arrange
@@ -194,10 +194,10 @@ class TestSendCrcAppend:
 
         # Assert
         actual = [t for t, _ in output if "CRC:" in t]
-        assert len(actual) == 1  # CRC info line shown
-        assert "0x0A84" in actual[0]  # CRC value displayed
-        assert "LE" in actual[0]  # endian label shown
-        assert "bin" in actual[0]  # mode label shown
+        assert len(actual) == 1, "CRC info line shown"
+        assert "0x0A84" in actual[0], "CRC value displayed"
+        assert "LE" in actual[0], "endian label shown"
+        assert "bin" in actual[0], "mode label shown"
 
     def test_crc_info_be_ascii(self, send_env):
         # Arrange
@@ -209,8 +209,8 @@ class TestSendCrcAppend:
 
         # Assert
         actual = [t for t, _ in output if "CRC:" in t]
-        assert "BE" in actual[0]  # BE label
-        assert "ascii" in actual[0]  # ascii mode label
+        assert "BE" in actual[0], "BE label"
+        assert "ascii" in actual[0], "ascii mode label"
 
 
 class TestSendCrcEdgeCases:
@@ -225,9 +225,9 @@ class TestSendCrcEdgeCases:
         result = _cmd_send(ctx, args)
 
         # Assert
-        assert len(tx_bytes) == 0  # nothing sent
-        assert not result.success  # handler reports failure
-        assert "No data" in result.error  # error returned
+        assert len(tx_bytes) == 0, "nothing sent"
+        assert not result.success, "handler reports failure"
+        assert "No data" in result.error, "error mentions no data"
 
     def test_no_data_after_algo_with_suffix(self, send_env):
         # Arrange
@@ -238,9 +238,9 @@ class TestSendCrcEdgeCases:
         result = _cmd_send(ctx, args)
 
         # Assert
-        assert len(tx_bytes) == 0  # nothing sent
-        assert not result.success  # handler reports failure
-        assert "No data" in result.error  # error returned
+        assert len(tx_bytes) == 0, "nothing sent"
+        assert not result.success, "handler reports failure"
+        assert "No data" in result.error, "error mentions no data"
 
     def test_no_algo_sends_raw(self, send_env):
         # Arrange — first word is NOT a CRC algo, so plain send
@@ -253,7 +253,7 @@ class TestSendCrcEdgeCases:
         # Assert
         actual = tx_bytes[0]
         expected = b"\x01\x03\x00\x00\x00\x01"
-        assert actual == expected  # raw bytes, no CRC appended
+        assert actual == expected, "raw bytes, no CRC appended"
 
     def test_no_crc_info_without_algo(self, send_env):
         # Arrange
@@ -265,7 +265,7 @@ class TestSendCrcEdgeCases:
 
         # Assert
         actual = [t for t, _ in output if "CRC:" in t]
-        assert len(actual) == 0  # no CRC info line
+        assert len(actual) == 0, "no CRC info line"
 
     def test_not_connected(self):
         # Arrange
@@ -279,8 +279,8 @@ class TestSendCrcEdgeCases:
         result = _cmd_send(ctx, "crc16-modbus 01 03")
 
         # Assert
-        assert not result.success  # handler reports failure
-        assert "Not connected" in result.error  # error returned
+        assert not result.success, "handler reports failure"
+        assert "Not connected" in result.error, "error mentions not connected"
 
     def test_empty_args(self, send_env):
         # Arrange
@@ -290,9 +290,9 @@ class TestSendCrcEdgeCases:
         result = _cmd_send(ctx, "")
 
         # Assert
-        assert len(tx_bytes) == 0  # nothing sent
-        assert not result.success  # handler reports failure
-        assert "Usage" in result.error  # usage returned
+        assert len(tx_bytes) == 0, "nothing sent"
+        assert not result.success, "handler reports failure"
+        assert "Usage" in result.error, "error shows usage"
 
 
 class TestSendCrcAlgorithms:
@@ -317,7 +317,7 @@ class TestSendCrcAlgorithms:
 
         # Assert
         actual = tx_bytes[0]
-        assert actual == data + bytes([expected_crc])  # 1-byte CRC appended
+        assert actual == data + bytes([expected_crc]), "1-byte CRC appended"
 
     def test_crc32(self, send_env):
         # Arrange — use a CRC-32 algorithm
@@ -338,4 +338,4 @@ class TestSendCrcAlgorithms:
 
         # Assert
         actual = tx_bytes[0]
-        assert actual == data + expected_bytes  # 4-byte LE CRC appended
+        assert actual == data + expected_bytes, "4-byte LE CRC appended"

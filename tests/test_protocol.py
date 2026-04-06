@@ -49,22 +49,22 @@ class TestParseHex:
     def test_simple_hex(self):
         actual = parse_hex("01 03 00 0A")
         expected = b"\x01\x03\x00\x0a"
-        assert actual == expected
+        assert actual == expected, "space-separated hex should parse correctly"
 
     def test_0x_prefix(self):
         actual = parse_hex("0x01 0x03 0xFF")
         expected = b"\x01\x03\xff"
-        assert actual == expected
+        assert actual == expected, "0x-prefixed hex should parse correctly"
 
     def test_comma_separated(self):
         actual = parse_hex("0x01, 0x03, 0x0A")
         expected = b"\x01\x03\x0a"
-        assert actual == expected
+        assert actual == expected, "comma-separated hex should parse correctly"
 
     def test_no_spaces(self):
         actual = parse_hex("0103000A")
         expected = b"\x01\x03\x00\x0a"
-        assert actual == expected
+        assert actual == expected, "contiguous hex string should parse correctly"
 
     def test_empty_raises(self):
         with pytest.raises(ValueError, match="No valid hex"):
@@ -82,32 +82,32 @@ class TestParseData:
     def test_hex_only(self):
         actual = parse_data("01 02 03")
         expected = b"\x01\x02\x03"
-        assert actual == expected
+        assert actual == expected, "hex-only input should parse to bytes"
 
     def test_quoted_string(self):
         actual = parse_data('"HELLO"')
         expected = b"HELLO"
-        assert actual == expected
+        assert actual == expected, "quoted string should parse to ASCII bytes"
 
     def test_mixed_hex_and_text(self):
         actual = parse_data('02 "HELLO" 03')
         expected = b"\x02HELLO\x03"
-        assert actual == expected
+        assert actual == expected, "mixed hex and text should concatenate"
 
     def test_escape_sequences(self):
         actual = parse_data('"OK\\r\\n"')
         expected = b"OK\r\n"
-        assert actual == expected
+        assert actual == expected, "escape sequences should expand"
 
     def test_backslash_escape(self):
         actual = parse_data('"a\\\\b"')
         expected = b"a\\b"
-        assert actual == expected
+        assert actual == expected, "double backslash should produce literal backslash"
 
     def test_null_escape(self):
         actual = parse_data('"\\0"')
         expected = b"\x00"
-        assert actual == expected
+        assert actual == expected, "null escape should produce zero byte"
 
     def test_unterminated_string_raises(self):
         with pytest.raises(ValueError, match="Unterminated"):
@@ -131,56 +131,56 @@ class TestParseDataSegments:
         actual = parse_data_segments("01 02 03")
 
         # Assert — single bytes segment, no delays
-        assert actual == [b"\x01\x02\x03"]
+        assert actual == [b"\x01\x02\x03"], "no-delay input should be single segment"
 
     def test_delay_between_data(self):
         # Act
         actual = parse_data_segments('00 ~25ms "foo"')
 
         # Assert — three segments: data, delay, data
-        assert len(actual) == 3
-        assert actual[0] == b"\x00"
-        assert actual[1] == pytest.approx(0.025)
-        assert actual[2] == b"foo"
+        assert len(actual) == 3, "should produce 3 segments"
+        assert actual[0] == b"\x00", "first segment should be data"
+        assert actual[1] == pytest.approx(0.025), "delay should be 25ms"
+        assert actual[2] == b"foo", "third segment should be text data"
 
     def test_leading_delay(self):
         # Act
         actual = parse_data_segments("~100ms 01")
 
         # Assert — delay first, then data
-        assert len(actual) == 2
-        assert actual[0] == pytest.approx(0.1)
-        assert actual[1] == b"\x01"
+        assert len(actual) == 2, "should produce 2 segments"
+        assert actual[0] == pytest.approx(0.1), "leading delay should be 100ms"
+        assert actual[1] == b"\x01", "second segment should be data"
 
     def test_trailing_delay(self):
         # Act
         actual = parse_data_segments("01 ~50ms")
 
         # Assert — data then delay
-        assert len(actual) == 2
-        assert actual[0] == b"\x01"
-        assert actual[1] == pytest.approx(0.05)
+        assert len(actual) == 2, "should produce 2 segments"
+        assert actual[0] == b"\x01", "first segment should be data"
+        assert actual[1] == pytest.approx(0.05), "trailing delay should be 50ms"
 
     def test_microsecond_delay(self):
         # Act
         actual = parse_data_segments("~1us 01")
 
         # Assert — microsecond delay
-        assert len(actual) == 2
-        assert actual[0] == pytest.approx(0.000001)
-        assert actual[1] == b"\x01"
+        assert len(actual) == 2, "should produce 2 segments"
+        assert actual[0] == pytest.approx(0.000001), "microsecond delay value"
+        assert actual[1] == b"\x01", "second segment should be data"
 
     def test_multiple_delays(self):
         # Act
         actual = parse_data_segments("01 ~10ms 02 ~20ms 03")
 
         # Assert — five segments alternating data and delays
-        assert len(actual) == 5
-        assert actual[0] == b"\x01"
-        assert actual[1] == pytest.approx(0.01)
-        assert actual[2] == b"\x02"
-        assert actual[3] == pytest.approx(0.02)
-        assert actual[4] == b"\x03"
+        assert len(actual) == 5, "should produce 5 segments"
+        assert actual[0] == b"\x01", "segment 0 should be data"
+        assert actual[1] == pytest.approx(0.01), "first delay should be 10ms"
+        assert actual[2] == b"\x02", "segment 2 should be data"
+        assert actual[3] == pytest.approx(0.02), "second delay should be 20ms"
+        assert actual[4] == b"\x03", "segment 4 should be data"
 
     def test_invalid_delay(self):
         with pytest.raises(ValueError):  # bad duration format
@@ -194,18 +194,18 @@ class TestFormatHex:
     def test_basic(self):
         actual = format_hex(b"\x01\x03\x00\x0a")
         expected = "01 03 00 0A"
-        assert actual == expected
+        assert actual == expected, "basic hex formatting"
 
     def test_empty(self):
-        assert format_hex(b"") == ""
+        assert format_hex(b"") == "", "empty input should produce empty string"
 
     def test_single_byte(self):
-        assert format_hex(b"\xff") == "FF"
+        assert format_hex(b"\xff") == "FF", "single byte should format as uppercase hex"
 
     def test_roundtrip(self):
         """parse_hex(format_hex(data)) should return the original data."""
         original = b"\x01\x02\x03\xff\x00"
-        assert parse_hex(format_hex(original)) == original
+        assert parse_hex(format_hex(original)) == original, "roundtrip should preserve data"
 
 
 # ── format_hex_dump ────────────────────────────────────────────────────────
@@ -214,23 +214,23 @@ class TestFormatHex:
 class TestFormatHexDump:
     def test_short_data(self):
         lines = format_hex_dump(b"\x01\x02\x03")
-        assert len(lines) == 1
-        assert lines[0].startswith("0000 |")
-        assert "01 02 03" in lines[0]
+        assert len(lines) == 1, "short data should produce one line"
+        assert lines[0].startswith("0000 |"), "first line should start with offset 0000"
+        assert "01 02 03" in lines[0], "hex bytes should appear in output"
 
     def test_includes_ascii(self):
         lines = format_hex_dump(b"Hello\x00")
-        assert "Hello." in lines[0]  # \x00 shown as '.'
+        assert "Hello." in lines[0], "\\x00 shown as '.'"
 
     def test_multiple_lines(self):
         data = bytes(range(32))
         lines = format_hex_dump(data, width=16)
-        assert len(lines) == 2
-        assert lines[0].startswith("0000")
-        assert lines[1].startswith("0010")
+        assert len(lines) == 2, "32 bytes at width 16 should produce 2 lines"
+        assert lines[0].startswith("0000"), "first line offset should be 0000"
+        assert lines[1].startswith("0010"), "second line offset should be 0010"
 
     def test_empty(self):
-        assert format_hex_dump(b"") == []
+        assert format_hex_dump(b"") == [], "empty input should produce empty list"
 
 
 # ── parse_pattern + match_response ─────────────────────────────────────────
@@ -240,17 +240,17 @@ class TestPatternMatching:
     def test_exact_match(self):
         data, mask = parse_pattern("01 03 05")
         actual = b"\x01\x03\x05"
-        assert match_response(data, actual, mask) is True
+        assert match_response(data, actual, mask) is True, "exact bytes should match"
 
     def test_exact_mismatch(self):
         data, mask = parse_pattern("01 03 05")
         actual = b"\x01\x03\x06"
-        assert match_response(data, actual, mask) is False
+        assert match_response(data, actual, mask) is False, "different byte should not match"
 
     def test_wildcard_match(self):
         data, mask = parse_pattern("01 03 ** **")
         actual = b"\x01\x03\xff\x00"
-        assert match_response(data, actual, mask) is True
+        assert match_response(data, actual, mask) is True, "wildcard should match any byte"
 
     def test_wildcard_any_value(self):
         """Wildcard bytes should accept any value."""
@@ -260,24 +260,24 @@ class TestPatternMatching:
         actual_ff = b"\x01\xff"
         actual_mid = b"\x01\x7f"
         # Assert
-        assert match_response(data, actual_zero, mask) is True
-        assert match_response(data, actual_ff, mask) is True
-        assert match_response(data, actual_mid, mask) is True
+        assert match_response(data, actual_zero, mask) is True, "wildcard should match 0x00"
+        assert match_response(data, actual_ff, mask) is True, "wildcard should match 0xFF"
+        assert match_response(data, actual_mid, mask) is True, "wildcard should match 0x7F"
 
     def test_length_mismatch_too_short(self):
         data, mask = parse_pattern("01 03 05")
         actual = b"\x01\x03"
-        assert match_response(data, actual, mask) is False
+        assert match_response(data, actual, mask) is False, "shorter response should not match"
 
     def test_overflow_is_fail(self):
         data, mask = parse_pattern("01 03")
         actual = b"\x01\x03\x05"
-        assert match_response(data, actual, mask) is False  # extra bytes = fail
+        assert match_response(data, actual, mask) is False, "extra bytes should fail"
 
     def test_quoted_text_pattern(self):
         data, mask = parse_pattern('"OK\\r"')
         actual = b"OK\r"
-        assert match_response(data, actual, mask) is True
+        assert match_response(data, actual, mask) is True, "quoted text pattern should match"
 
     def test_mixed_hex_text_wildcard(self):
         """Pattern with hex, text, and wildcards."""
@@ -286,19 +286,19 @@ class TestPatternMatching:
         actual_match = b"\x02OK\x99\x03"
         actual_fail = b"\x02NO\x99\x03"
         # Assert
-        assert match_response(data, actual_match, mask) is True
-        assert match_response(data, actual_fail, mask) is False
+        assert match_response(data, actual_match, mask) is True, "mixed pattern should match"
+        assert match_response(data, actual_fail, mask) is False, "wrong text should not match"
 
     def test_all_wildcards(self):
         data, mask = parse_pattern("** ** **")
         actual = b"\xAA\xBB\xCC"
-        assert match_response(data, actual, mask) is True
+        assert match_response(data, actual, mask) is True, "all-wildcard should match any bytes"
 
     def test_mask_values(self):
         """Verify wildcard produces 0x00 mask, concrete produces 0xFF."""
         data, mask = parse_pattern("01 ** 03")
-        assert mask == b"\xff\x00\xff"
-        assert data == b"\x01\x00\x03"
+        assert mask == b"\xff\x00\xff", "wildcard byte should have 0x00 mask"
+        assert data == b"\x01\x00\x03", "wildcard byte should have 0x00 data"
 
 
 # ── FrameCollector ─────────────────────────────────────────────────────────
@@ -313,9 +313,9 @@ class TestFrameCollector:
         result_flush_early = fc.flush(now=0.030)
         result_flush_after = fc.flush(now=0.060)
         # Assert
-        assert result_feed is None  # no frame yet on first feed
-        assert result_flush_early is None  # not enough silence
-        assert result_flush_after == b"\x01\x02\x03"  # frame complete
+        assert result_feed is None, "no frame yet on first feed"
+        assert result_flush_early is None, "not enough silence"
+        assert result_flush_after == b"\x01\x02\x03", "frame complete"
 
     def test_accumulated_frame(self):
         """Multiple feeds within timeout combine into one frame."""
@@ -323,7 +323,7 @@ class TestFrameCollector:
         fc.feed(b"\x01\x02", now=0.0)
         fc.feed(b"\x03\x04", now=0.020)  # within timeout
         result = fc.flush(now=0.080)
-        assert result == b"\x01\x02\x03\x04"
+        assert result == b"\x01\x02\x03\x04", "feeds within timeout should combine"
 
     def test_two_frames(self):
         """Gap between feeds produces two separate frames."""
@@ -334,26 +334,26 @@ class TestFrameCollector:
         frame1 = fc.feed(b"\x03\x04", now=0.100)
         frame2 = fc.flush(now=0.200)
         # Assert
-        assert frame1 == b"\x01\x02"  # first frame emitted on gap detection
-        assert frame2 == b"\x03\x04"  # second frame emitted on flush
+        assert frame1 == b"\x01\x02", "first frame emitted on gap detection"
+        assert frame2 == b"\x03\x04", "second frame emitted on flush"
 
     def test_reset_clears_buffer(self):
         fc = FrameCollector(timeout_ms=50)
         fc.feed(b"\x01\x02", now=0.0)
-        assert fc.pending == 2
+        assert fc.pending == 2, "pending should reflect buffered bytes"
         fc.reset()
-        assert fc.pending == 0
-        assert fc.flush(now=1.0) is None
+        assert fc.pending == 0, "reset should clear pending count"
+        assert fc.flush(now=1.0) is None, "flush after reset should return None"
 
     def test_flush_no_data(self):
         fc = FrameCollector(timeout_ms=50)
-        assert fc.flush(now=1.0) is None
+        assert fc.flush(now=1.0) is None, "flush with no data should return None"
 
     def test_pending_property(self):
         fc = FrameCollector(timeout_ms=50)
-        assert fc.pending == 0
+        assert fc.pending == 0, "initial pending should be 0"
         fc.feed(b"\x01\x02\x03", now=0.0)
-        assert fc.pending == 3
+        assert fc.pending == 3, "pending should be 3 after feeding 3 bytes"
 
 
 # ── parse_proto_script ─────────────────────────────────────────────────────
@@ -366,13 +366,13 @@ send: 01 03 00 00 00 0A
 expect: 01 03 ** **
 """
         settings, steps = parse_proto_script(script)
-        assert len(steps) == 2
+        assert len(steps) == 2, "should have send and expect steps"
         # Assert send step
-        assert steps[0].action == "send"
-        assert steps[0].data == b"\x01\x03\x00\x00\x00\x0a"
+        assert steps[0].action == "send", "first step should be send"
+        assert steps[0].data == b"\x01\x03\x00\x00\x00\x0a", "send data should match"
         # Assert expect step
-        assert steps[1].action == "expect"
-        assert steps[1].mask[2:] == b"\x00\x00"  # wildcards
+        assert steps[1].action == "expect", "second step should be expect"
+        assert steps[1].mask[2:] == b"\x00\x00", "wildcards should produce zero mask"
 
     def test_labels(self):
         script = """
@@ -380,7 +380,7 @@ label: My test step
 send: AA BB
 """
         _, steps = parse_proto_script(script)
-        assert steps[0].label == "My test step"
+        assert steps[0].label == "My test step", "label should be set on step"
 
     def test_label_resets_after_use(self):
         script = """
@@ -389,8 +389,8 @@ send: 01 02
 send: 03 04
 """
         _, steps = parse_proto_script(script)
-        assert steps[0].label == "Step 1"
-        assert steps[1].label == ""  # label consumed by first send
+        assert steps[0].label == "Step 1", "first send should get the label"
+        assert steps[1].label == "", "label consumed by first send"
 
     def test_delay(self):
         script = "delay: 500ms"

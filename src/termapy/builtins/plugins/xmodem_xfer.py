@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from xmodem import XMODEM
+from termapy.vendor.xmodem import XMODEM
 
 from termapy.plugins import CmdResult, Command
 from termapy.scripting import resolve_seq_filename

@@ -44,6 +44,19 @@ You're connected. Type commands and see responses.
 - [Scripting](scripting.md) — automate command sequences
 - [Writing Plugins](writing-plugins.md) — extend with Python
 
+## Web mode (experimental)
+
+Serve the TUI in a web browser using textual-serve:
+
+```sh
+termapy --web --demo
+```
+
+Opens on `http://localhost:8000`. Use `--web-port` to change the port.
+
+Limitations: `/tui` and `/cli` mode switching are not available.
+`/help.open` may not work in the browser.
+
 ## Uninstall
 
 ```sh

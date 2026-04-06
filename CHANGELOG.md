@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.51.0 (2026-04-05)
+
+- **Web mode (experimental)** -- `termapy --web` serves the TUI in a browser via textual-serve. Use `--web-port` to customize the port.
+
 ## 0.50.0 (2026-04-05)
 
 - **Fix help page loading** -- Removed `navigation.instant` feature that caused blank pages on localhost server.

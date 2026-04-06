@@ -29,6 +29,7 @@ dependencies = [
     "pygments>=2.20.0",
     "xmodem>=0.4.7",
     "ymodem>=1.5.3",
+    "textual-serve>=1.1",
 ]
 
 [tool.uv-build]

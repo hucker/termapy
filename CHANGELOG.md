@@ -21,7 +21,7 @@
 
 ## 0.47.0 (2026-04-05)
 
-### New Features
+### 0.47.0 New Features
 
 - **`/help.run`** -- List available .run scripts with descriptions extracted from header comments.
 - **`/help.plugin`** -- List loaded plugins grouped by source (application, built-in, user).
@@ -30,13 +30,13 @@
 
 ## 0.46.0 (2026-04-05)
 
-### New Features
+### 0.46.0 New Features
 
 - **Demo virtual filesystem** -- `AT+FS.LIST`, `AT+FS.INFO`, `AT+FS.DELETE` commands with 3 pre-loaded files for testing file transfers without hardware.
 - **Transfer root directory** -- `/xfer.root {path}` command to show or set `file_xfer_root` config key. Both XMODEM and YMODEM resolve relative paths against this directory.
 - **Escape cancels transfers** -- press Esc during XMODEM or YMODEM transfer to abort immediately.
 
-### Improvements
+### 0.46.0 Improvements
 
 - **Unified dispatch threading** -- all user commands (interactive, buttons, sequences, pickers) now run on background threads, preventing UI freezes from blocking handlers.
 - **XMODEM progress** -- shows packet count and byte count, deduplicates repeated lines.
@@ -48,25 +48,25 @@
 
 ## 0.45.0 (2026-04-04)
 
-### New Features
+### 0.45.0 New Features
 
 - **XMODEM file transfer** -- `/xmodem.send` and `/xmodem.recv` for sending and receiving files over serial using the XMODEM protocol. Automatic CRC/checksum negotiation, 128-byte blocks, progress reporting.
 - **YMODEM file transfer** -- `/ymodem.send` and `/ymodem.recv` with batch transfer, 1024-byte blocks, and automatic filename/size metadata. Send multiple files in one session.
 - **Demo device XMODEM/YMODEM** -- `AT+XMODEM=SEND/RECV` and `AT+YMODEM=SEND/RECV` in demo mode for testing file transfer without hardware.
 
-### Improvements
+### 0.45.0 Improvements
 
 - **File transfer help page** -- new documentation page covering both protocols with comparison table and workflow examples.
 - **32 new tests** -- 23 XMODEM tests (QueueByteReader, protocol, library integration) and 9 YMODEM tests.
 
 ## 0.44.0 (2026-04-03)
 
-### New Features
+### 0.44.0 New Features
 
 - **Silent screenshots** -- `/ss.svg.quiet` for doc automation; `.quiet` echo suppression works with any command
 - **Documentation screenshots** -- `doc_screenshots.run` script generates 10 documentation SVGs from demo mode
 
-### Improvements
+### 0.44.0 Improvements
 
 - **Help restructured** -- Installation=onboarding, Getting Started=real device, Demo Mode=reference. Quick Setup dialog documented with screenshot
 - **11 documentation images** added across 6 help pages
@@ -80,18 +80,18 @@
 
 ## 0.43.0 (2026-04-02)
 
-### New Features
+### 0.43.0 New Features
 
 - **CRC code generation** -- `/proto.crc.c`, `/proto.crc.python`, `/proto.crc.rust` generate standalone CRC functions from any of the 62 catalogue algorithms. Use `--table` for table-driven implementation. Both bit-by-bit and table-driven Python output verified against all catalogue check values.
 
 ## 0.42.0 (2026-04-02)
 
-### New Features
+### 0.42.0 New Features
 
 - **Inline delays in `/proto.send`** -- `~duration` syntax inserts timing gaps between data segments (e.g. `/proto.send 00 ~25ms "AT\r"`). Supports `us`, `ms`, `s` units. Delays under 1ms use spin-wait for precision.
 - **Microsecond durations** -- `parse_duration()` now supports `us` unit throughout the app.
 
-### Improvements
+### 0.42.0 Improvements
 
 - **TX/RX display** -- `/proto.send` now shows both hex and smart text for all packets. Inline delays shown as cyan hex + dim text markers.
 - **Help docs split** -- "Serial Tools" (interactive send, CRC, hex mode) and "Protocol Testing" (scripts, visualizers, format specs) are now separate help pages with cross-links.
@@ -102,14 +102,14 @@
 
 ## 0.41.0 (2026-04-01)
 
-### New Features
+### 0.41.0 New Features
 
 - **Quick setup dialog** -- new config creation uses a single dialog with port picker and baud rate selector instead of multi-step flow. Auto-connects after setup.
 - **CFG.\* path variables** -- 15 new context variables (`$(CFG.DIR)`, `$(CFG.FILE)`, `$(CFG.PORT)`, `$(CFG.BAUD)`, `$(CFG.PORT_FULL)`, etc.) for use in scripts and commands
 - **Config directory precedence** -- `--cfg-dir` flag > `TERMAPY_CFG_DIR` env var > `./termapy_cfg` (if present, never auto-created) > OS default (`%APPDATA%\termapy`, `~/.config/termapy`, `~/Library/Application Support/termapy`)
 - **Dot syntax in variables** -- `$(NAME.SUB)` supported (e.g. `$(CFG.PORT_FULL)`)
 
-### Improvements
+### 0.41.0 Improvements
 
 - **Resolved paths everywhere** -- all error messages and config info show fully resolved absolute paths
 - **Config info verbose-only** -- config dir/file/log paths shown only with `/verbose on`
@@ -118,18 +118,18 @@
 - **Dotfiles filtered from pickers** -- config/script/proto pickers hide files starting with `.`
 - **Clickable paths** -- documented in getting-started help
 
-### Bug Fixes
+### 0.41.0 Bug Fixes
 
 - **Plugin module duplication** -- builtin plugins loaded via `importlib` now share module state with package imports, fixing `$(CFG)` not expanding and `FRONT_END` showing as `unknown`
 
 ## 0.40.0 (2026-03-31)
 
-### New Features
+### 0.40.0 New Features
 
 - **Reconnect spinner** -- auto-reconnect now shows an animated spinner with amber title bar; click to cancel
 - **Connection tooltip** -- title bar shows auto-connect/auto-reconnect status on hover
 
-### Improvements
+### 0.40.0 Improvements
 
 - **CLI unit tests** -- 45 tests for CLITerminal (0% -> 53% coverage)
 - **defaults.py tests** -- 29 tests (26% -> 97% coverage)
@@ -143,24 +143,24 @@
 - **CI documented** -- README now describes GitHub Actions pipeline (test matrix, coverage, audit)
 - **Rename `/import` to `/include`** -- avoids Python keyword collision
 
-### Bug Fixes
+### 0.40.0 Bug Fixes
 
 - **`/include` (was `/import`)** -- renamed to avoid Python keyword collision causing import issues
 
 ## 0.39.3 (2026-03-31)
 
-### Bug Fixes
+### 0.39.3 Bug Fixes
 
 - **Circular import on Python 3.11-3.13** -- lazy import of `var` in `app.py`, add `from __future__ import annotations` to `plugins.py`
 - **CI audit job** -- fix `pip-audit` flag syntax, remove `continue-on-error` so security vulnerabilities fail the build
 
-### Security
+### 0.39.3 Security
 
 - **Pygments >= 2.20.0** -- pin to fix ReDoS vulnerability (CVE in GUID lexer regex)
 
 ## 0.39.0 (2026-03-31)
 
-### New Features
+### 0.39.0 New Features
 
 - **`/import` command** -- fetch device command help from JSON over serial; auto-import on connect when `device_json_cmd` is configured
 - **`/help.target`** -- show only imported target device commands
@@ -171,7 +171,7 @@
 - **Device help integration** -- new help page documenting how to add a JSON help command to your firmware
 - **Disk caching** -- imported commands saved to `.target_menu.json` for instant reload on restart
 
-### Improvements
+### 0.39.0 Improvements
 
 - **Rewrite using-git.md** -- simplified help page focused on env vars and .gitignore
 - **CLI: no bare print()** -- all output routed through `_raw()` / `_err()` methods for consistent handling
@@ -180,26 +180,26 @@
 - **`repl.cmd()` helper** -- avoids hardcoded command prefix in code
 - **Demo device** -- `AT+HELP.JSON` replaces text `HELP` command; GPS commands included in JSON export
 
-### Config
+### 0.39.0 Config
 
 - **`device_json_cmd`** -- new config key for the serial command that returns device help JSON
 
 ## 0.38.1 (2026-03-30)
 
-### Bug Fixes
+### 0.38.1 Bug Fixes
 
 - **Circular import on CI** -- CmdResult re-export from scripting.py caused import cycle on clean Python 3.11 installs
 - **Toolbar buttons table** -- missing separator row broke table rendering in help docs
 
 ## 0.38.0 (2026-03-30)
 
-### New Features
+### 0.38.0 New Features
 
 - **`/log.clear`** -- delete the session log file (TUI + CLI)
 - **Variables help page** -- new dedicated docs page for `$(NAME)` syntax, built-ins, env vars, sequences
 - **`/edit.run`, `/edit.proto`, `/edit.plugin` without args** -- lists available files instead of showing usage error
 
-### Improvements
+### 0.38.0 Improvements
 
 - **`CmdResult` moved to `plugins.py`** -- plugins import from a single module (`from termapy.plugins import CmdResult, Command`)
 - **`CmdResult.err_prefix`** -- `ClassVar` for global error prefix customization
@@ -209,7 +209,7 @@
 
 ## 0.37.0 (2026-03-29)
 
-### New Features
+### 0.37.0 New Features
 
 - **Mode switching** -- `/tui` and `/cli` commands switch between TUI and CLI modes
 - **`$(CFG)` variable** -- context variable resolves to current config name, usable in prompts
@@ -217,7 +217,7 @@
 - **Unified echo** -- single `_echo_cmd` function for both REPL and serial command echo
 - **CLI `on_connect_cmd`** -- CLI now runs startup commands after connecting (was TUI-only)
 
-### Improvements
+### 0.37.0 Improvements
 
 - **`CmdResult.err_msg`** -- consistent "Error: " prefix on all error messages
 - **run_script refactored** -- `ScriptCtx`, `BLOCKING_COMMANDS` dispatch table, context manager
@@ -228,7 +228,7 @@
 - **`/ss` and `/grep` CLI errors** -- proper `CmdResult.fail()` instead of yellow warnings
 - **Sub-millisecond timing** -- 6-digit precision when `< 0.001s`
 
-### Bug Fixes
+### 0.37.0 Bug Fixes
 
 - **No more double error on missing script** -- `start_script` owns error display
 - **`/tui` in TUI and `/cli` in CLI** -- no-op instead of unknown command error
@@ -237,7 +237,7 @@
 
 ## 0.36.0 (2026-03-29)
 
-### New Features
+### 0.36.0 New Features
 
 - **Output channels** -- `ctx.result()`, `ctx.output()`, `ctx.status()` for structured output
 - **`/verbose` toggle** -- suppress status messages with `/verbose off`
@@ -252,7 +252,7 @@
 - **`cli_prompt`** -- configurable CLI prompt (default `"> "`)
 - **`cli_echo_input`** -- control serial echo in CLI (default off)
 
-### Improvements
+### 0.36.0 Improvements
 
 - **Folder renames** -- `scripts/` -> `run/`, `plugins/` -> `plugin/` with auto-migration
 - **All handlers return `CmdResult`** -- structured success/failure with timing
@@ -266,7 +266,7 @@
 - **CLI `wait_for_idle` 20ms** -- test suite 43s -> 21s
 - **`--no-ff` merges** -- preserve branch history in git graph
 
-### Bug Fixes
+### 0.36.0 Bug Fixes
 
 - **CLI `serial_send`/`serial_claim` not wired** -- now available
 - **CLI `/cls` was no-op** -- now clears terminal
@@ -275,7 +275,7 @@
 
 ## 0.35.0 (2026-03-29)
 
-### New Features
+### 0.35.0 New Features
 
 - **`CmdResult` dataclass** -- all plugin/hook handlers return structured success/failure with error messages and elapsed time
 - **`/ping` built-in command** -- measure serial response time with `serial_io` for accurate first-byte timing
@@ -287,7 +287,7 @@
 - **`ctx.serial_wait_for_data()`** -- wait for first byte from device
 - **`parse_keywords()`** -- shared keyword argument parser in `scripting.py` with space normalization
 
-### Improvements
+### 0.35.0 Improvements
 
 - **Centralized error display** -- `dispatch()` handles all error messages in red; handlers just return `CmdResult.fail()`
 - **`dispatch()` returns `CmdResult`** -- callers can detect command success/failure and read elapsed time
@@ -298,39 +298,39 @@
 - **Script `wait_for_idle`** -- replaces fixed 100ms sleep between commands, adapts to device response time
 - **CLI lambda param names** -- consistent with `PluginContext` signatures
 
-### Bug Fixes
+### 0.35.0 Bug Fixes
 
 - **CLI gold test flaky TEXTDUMP** -- `wait_for_idle` fixes race condition with multi-line responses
 
 ## 0.34.0 (2026-03-28)
 
-### New Features
+### 0.34.0 New Features
 
 - **`/expect` command** -- wait for serial output containing a pattern in scripts. `/expect {timeout} <pattern>` blocks until matched or aborts on timeout.
 - **`/expect.quiet`** -- silent on success, red on timeout
 - **`ctx.wait_for_match(predicate, timeout)`** -- engine primitive for plugins to build custom matching (regex, exact, numeric, etc.)
 - **`ctx.serial_send(text)`** -- send text with configured line ending and encoding. Plugins no longer need to manually assemble line endings.
 
-### Improvements
+### 0.34.0 Improvements
 
 - **DEMO port recognized** -- config editor shows green with "(simulated port)" hint, port picker skipped on load
 - **Script abort message** -- scripts that fail on expect timeout show "Script aborted" instead of "Script finished"
 - **Demo expect_test.run** -- test script exercising expect match and timeout
 
-### Bug Fixes
+### 0.34.0 Bug Fixes
 
 - **cmd.py hardcoded line ending** -- crcsend plugin now uses `ctx.serial_send()` instead of hardcoded `\n`
 
 ## 0.33.0 (2026-03-27)
 
-### Improvements
+### 0.33.0 Improvements
 
 - **Port auto-detection** -- new configs auto-select the port when only one is available; prompts with a port picker when multiple ports exist
 - **Port validation on load** -- loading a config whose port is missing prompts the port picker instead of silently failing
 - **Default port changed** -- default port is now empty (`""`) instead of `COM4`, making configs portable across platforms
 - **Modal key handling** -- up/down/escape keys no longer leak through to the REPL when a modal dialog is open
 
-### Documentation
+### 0.33.0 Documentation
 
 - **README badge rows** -- Project Status, Powered by, and Built with badge sections
 - **Docs badge** -- links to GitHub Pages site
@@ -339,7 +339,7 @@
 
 ## 0.32.0 (2026-03-26)
 
-### Improvements
+### 0.32.0 Improvements
 
 - **CLI refactored to class** - `CLITerminal` replaces closure-based `run_cli()`
 - **Progress bar** - real elapsed time, sub-character resolution (ASCII/Unicode), never shows 100% early
@@ -357,7 +357,7 @@
 - **`cfg_dir()` safety** - rejects paths with file extensions
 - **`load_config()` safety** - raises `FileNotFoundError` instead of auto-creating configs
 
-### Documentation
+### 0.32.0 Documentation
 
 - Installation page (uv-only, no pip)
 - CLI Mode section in README
@@ -366,7 +366,7 @@
 - CRC catalog note (62 algorithms)
 - CONTRIBUTING.md, CHANGELOG.md, LICENSE (MIT)
 
-### Testing
+### 0.32.0 Testing
 
 - 854 tests across 19 test files
 - CLI gold-standard integration test (476 lines)
@@ -376,7 +376,7 @@
 
 Initial public release.
 
-### Features
+### 0.31.0 Features
 
 - **TUI terminal** - full-featured Textual UI with serial I/O, modals, config editor, custom buttons
 - **CLI mode** (`--cli`) - plain-text terminal for automation, scripting, SSH, and CI/CD
@@ -393,7 +393,7 @@ Initial public release.
 - **Cross-platform** - Windows, macOS, Linux. Python 3.11-3.14.
 - **MIT licensed**
 
-### Architecture
+### 0.31.0 Architecture
 
 - `app.py` - Textual TUI frontend
 - `cli.py` - plain-text CLI frontend
@@ -404,7 +404,7 @@ Initial public release.
 - `protocol.py` - binary protocol engine, CRC, format specs, visualizers
 - `port_control.py` - pure functions for serial port control
 
-### Testing
+### 0.31.0 Testing
 
 - 861 tests across 18 test files
 - CLI gold-standard integration test (476 lines of expected output)

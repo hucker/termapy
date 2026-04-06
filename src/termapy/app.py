@@ -657,6 +657,7 @@ class SerialTerminal(App):
             apply_port_effects=self._apply_port_effects,
             rx_queue=self._engine.rx_queue,
             xfer_cancel=self._xfer_cancel,
+            script_stop_event=self.repl._script_stop,
         )
         ctx = PluginContext(
             write=self._status,
@@ -688,7 +689,9 @@ class SerialTerminal(App):
             confirm=self._confirm,
             notify=lambda text, **kw: self._on_main(self.notify, text, **kw),
             clear_screen=lambda: self._on_main(self._clear_output),
-            save_screenshot=lambda *a, **kw: self._on_main(self.save_screenshot, *a, **kw),
+            save_screenshot=lambda *a, **kw: self._on_main(
+                self.save_screenshot, *a, **kw
+            ),
             get_screen_text=lambda: self._on_main(self._get_screen_text),
             open_file=lambda path: open_with_system(str(path)),
             exit_app=lambda: self._on_main(self.exit),
@@ -1990,6 +1993,7 @@ class SerialTerminal(App):
             return CmdResult.fail(msg=msg)
         port = self._ensure_help_server()
         import webbrowser
+
         webbrowser.open(f"http://127.0.0.1:{port}/{page}")
         return CmdResult.ok()
 
@@ -2279,7 +2283,7 @@ class SerialTerminal(App):
         inp = self.query_one("#cmd", Input)
         inp.value = ""
         self._saved_placeholder = inp.placeholder
-        inp.placeholder = "running..."
+        inp.placeholder = "Running... escape to cancel"
         self._dispatch_on_thread_interactive(cmd)
 
     def _restore_input_placeholder(self) -> None:
@@ -2496,9 +2500,8 @@ class SerialTerminal(App):
             event.prevent_default()
 
     def action_stop_script(self) -> None:
-        """Stop a running script (Escape key)."""
-        if self.repl.in_script:
-            self.repl._script_stop.set()
+        """Stop a running script or repeat (Escape key)."""
+        self.repl._script_stop.set()
 
     def action_clear_log(self) -> None:
         self.query_one("#output", RichLog).clear()
@@ -2659,7 +2662,9 @@ class SerialTerminal(App):
         except ValueError as e:
             self._status(str(e), "red")
             return CmdResult.fail(msg=str(e))
-        self._on_main(self.set_timer, seconds, lambda: self._status(f"Delay {args} done."))
+        self._on_main(
+            self.set_timer, seconds, lambda: self._status(f"Delay {args} done.")
+        )
         return CmdResult.ok()
 
     def _hook_delay_quiet(self, ctx, args: str) -> CmdResult:
@@ -2719,7 +2724,9 @@ class SerialTerminal(App):
             if confirmed:
                 self.repl._apply_cfg(key, new_val)
 
-        self._on_main(self.push_screen, CfgConfirm(key, old_val, new_val), callback=on_result)
+        self._on_main(
+            self.push_screen, CfgConfirm(key, old_val, new_val), callback=on_result
+        )
 
     def _on_script_picked(self, result: tuple | None) -> None:
         if result is None:

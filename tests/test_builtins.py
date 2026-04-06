@@ -1008,3 +1008,203 @@ class TestCfgRead:
         # Assert — should dump JSON
         texts = [t for t, _ in output]
         assert any("port" in t for t in texts)  # JSON includes port
+
+
+# -- /repeat ----------------------------------------------------------------
+
+
+class TestRepeat:
+    def test_missing_count(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("repeat cmd=AT")
+
+        # Assert — error about missing count
+        actual = [t for t, _ in output]
+        assert any("count is required" in t for t in actual), f"expected 'count is required' error, got: {actual}"
+
+    def test_missing_cmd(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("repeat count=3")
+
+        # Assert — error about missing cmd
+        actual = [t for t, _ in output]
+        assert any("Usage:" in t for t in actual), f"expected 'Usage:' error, got: {actual}"
+
+    def test_count_not_integer(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("repeat count=abc cmd=AT")
+
+        # Assert — error about non-integer count
+        actual = [t for t, _ in output]
+        assert any("integer" in t for t in actual), f"expected 'integer' error, got: {actual}"
+
+    def test_count_zero(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("repeat count=0 cmd=AT")
+
+        # Assert — error about count > 0
+        actual = [t for t, _ in output]
+        assert any("> 0" in t for t in actual), f"expected '> 0' error, got: {actual}"
+
+    def test_count_negative(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("repeat count=-1 cmd=AT")
+
+        # Assert — error about count > 0
+        actual = [t for t, _ in output]
+        assert any("> 0" in t for t in actual), f"expected '> 0' error, got: {actual}"
+
+    def test_invalid_delay(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("repeat count=1 delay=bogus cmd=AT")
+
+        # Assert — error about invalid delay
+        actual = [t for t, _ in output]
+        assert any("duration" in t.lower() or "invalid" in t.lower() for t in actual), f"expected duration/invalid error, got: {actual}"
+
+    def test_dispatches_n_times(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        dispatched = []
+        engine.ctx.dispatch = lambda cmd: dispatched.append(cmd)
+
+        # Act
+        engine.dispatch("repeat count=3 cmd=AT+TEMP")
+
+        # Assert — command dispatched 3 times
+        assert dispatched == ["AT+TEMP", "AT+TEMP", "AT+TEMP"], f"expected 3 dispatches, got: {dispatched}"
+
+    def test_sets_iteration_variable(self, repl_env):
+        # Arrange
+        from termapy.builtins.plugins.var import _VARS
+
+        engine, _, _, output = repl_env
+        seen_values = []
+        engine.ctx.dispatch = lambda cmd: seen_values.append(_VARS.get("REPEAT_N"))
+
+        # Act
+        engine.dispatch("repeat count=3 cmd=AT")
+
+        # Assert — variable was 1, 2, 3 during iterations
+        assert seen_values == ["1", "2", "3"], f"expected iteration values ['1','2','3'], got: {seen_values}"
+
+    def test_custom_variable_name(self, repl_env):
+        # Arrange
+        from termapy.builtins.plugins.var import _VARS
+
+        engine, _, _, output = repl_env
+        seen_values = []
+        engine.ctx.dispatch = lambda cmd: seen_values.append(_VARS.get("I"))
+
+        # Act
+        engine.dispatch("repeat count=2 var=I cmd=AT")
+
+        # Assert — custom variable name used
+        assert seen_values == ["1", "2"], f"expected var=I values ['1','2'], got: {seen_values}"
+
+    def test_variable_cleaned_up(self, repl_env):
+        # Arrange
+        from termapy.builtins.plugins.var import _VARS
+
+        engine, _, _, output = repl_env
+        engine.ctx.dispatch = lambda cmd: None
+
+        # Act
+        engine.dispatch("repeat count=2 cmd=AT")
+
+        # Assert — variable removed after repeat
+        assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up, but _VARS contains: {_VARS}"
+
+    def test_variable_cleaned_up_on_error(self, repl_env):
+        # Arrange
+        from termapy.builtins.plugins.var import _VARS
+
+        engine, _, _, output = repl_env
+
+        def boom(cmd):
+            raise RuntimeError("dispatch error")
+
+        engine.ctx.dispatch = boom
+
+        # Act — handler should not crash the engine
+        engine.dispatch("repeat count=2 cmd=AT")
+
+        # Assert — variable cleaned up even on error
+        assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
+
+    def test_success_message(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        engine.ctx.dispatch = lambda cmd: None
+
+        # Act
+        engine.dispatch("repeat count=5 cmd=AT")
+
+        # Assert — success message mentions count
+        actual = [t for t, _ in output]
+        assert any("5" in t and "Repeated" in t for t in actual), f"expected 'Repeated 5 times' message, got: {actual}"
+
+    def test_stoppable_via_event(self, repl_env):
+        # Arrange
+        from threading import Event
+
+        engine, _, _, output = repl_env
+        stop_event = Event()
+        engine.ctx.engine.script_stop_event = stop_event
+        dispatched = []
+
+        def dispatch_and_stop(cmd):
+            dispatched.append(cmd)
+            if len(dispatched) == 2:
+                stop_event.set()  # stop after 2nd iteration
+
+        engine.ctx.dispatch = dispatch_and_stop
+
+        # Act
+        engine.dispatch("repeat count=10 cmd=AT")
+
+        # Assert — stopped after 2 iterations, not all 10
+        assert len(dispatched) == 2, f"expected 2 dispatches before stop, got: {len(dispatched)}"
+        actual = [t for t, _ in output]
+        assert any("2/10" in t for t in actual), f"expected '2/10' in stop message, got: {actual}"
+
+    def test_stoppable_during_delay(self, repl_env):
+        # Arrange
+        from threading import Event
+
+        engine, _, _, output = repl_env
+        stop_event = Event()
+        engine.ctx.engine.script_stop_event = stop_event
+        dispatched = []
+
+        def dispatch_and_stop(cmd):
+            dispatched.append(cmd)
+            stop_event.set()  # stop after 1st iteration, during delay
+
+        engine.ctx.dispatch = dispatch_and_stop
+
+        # Act
+        engine.dispatch("repeat count=100 delay=10s cmd=AT")
+
+        # Assert — stopped during delay, not blocked for 10s * 99
+        assert len(dispatched) == 1, f"expected 1 dispatch before stop, got: {len(dispatched)}"
+        actual = [t for t, _ in output]
+        assert any("1/100" in t for t in actual), f"expected '1/100' in stop message, got: {actual}"

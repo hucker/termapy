@@ -39,6 +39,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/run.load <file>`        | Run a script file (same as /run)                                            |
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
 | `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                       |
+| `/repeat ...`             | Repeat a command N times: `count=<N> {delay=<dur>} {var=<name>} cmd=<cmd>`  |
 | `/stop`                   | Abort a running script                                                      |
 | `/seq`                    | Show sequence counters                                                      |
 | `/seq.reset`              | Reset all sequence counters to zero                                         |

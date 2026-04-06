@@ -144,6 +144,14 @@ $(PORT_NUM) = 42
 /print === section: help.plugin ===
 /help.plugin
 
+# ── REPL: repeat ────────────────────────────────────────────────────────────
+/print === section: repeat ===
+/repeat count=3 cmd=/print hello
+/repeat count=3 var=I cmd=/print iteration $(I)
+/repeat cmd=AT
+/repeat count=0 cmd=AT
+/repeat count=abc cmd=AT
+
 # ── REPL: environment variables ─────────────────────────────────────────────
 /print === section: env vars ===
 /env.set TEST_VAR hello_world

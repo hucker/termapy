@@ -160,6 +160,7 @@ class CLITerminal:
             target_commands=self.repl._target_commands,
             set_target_commands=self.repl.set_target_commands,
             clear_target_commands=self.repl.clear_target_commands,
+            script_stop_event=self.repl._script_stop,
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
             connect=lambda port=None: self._connect(port),

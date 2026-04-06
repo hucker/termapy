@@ -405,6 +405,7 @@ file for a timed duration.
   /port                     {name}                     Serial port tools: open, close, list, configure.  (16)
   /print                    <text>                     Print a message to the terminal.  (1)
   /proto                                               Binary protocol tools: send, run, debug, hex, crc, status.  (7)
+  /repeat                   ... /help repeat           Repeat a command N times with optional delay.
   /seq                                                 Show sequence counters.  (1)
   /show                     <name>                     Show a file.  (1)
   /show_line_endings        {on | off}                 Toggle visible \r \n markers in serial output for line-ending
@@ -417,7 +418,19 @@ troubleshooting.
   /xfer                                                File transfer settings.  (1)
   /xmodem                                              XMODEM file transfer.  (2)
   /ymodem                                              YMODEM file transfer (batch, 1K blocks).  (2)
-  35 commands.
+  36 commands.
+  === section: repeat ===
+  hello
+  hello
+  hello
+  Repeated 3 times.
+  iteration 1
+  iteration 2
+  iteration 3
+  Repeated 3 times.
+  Error: count is required
+  Error: count must be > 0: 0
+  Error: count must be an integer: abc
   === section: env vars ===
     TEST_VAR=hello_world
     TEST_VAR=hello_world

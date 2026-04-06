@@ -38,19 +38,19 @@ COMMAND = Command(
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(result.plugins) == 1  # one plugin loaded
-        assert result.plugins[0].name == "hello"  # correct name
-        assert result.plugins[0].args == "{name}"  # correct args
-        assert result.plugins[0].help == "Say hello."  # correct help text
-        assert result.plugins[0].source == "test"  # source tag preserved
+        assert len(result.plugins) == 1, "one plugin loaded"
+        assert result.plugins[0].name == "hello", "correct name"
+        assert result.plugins[0].args == "{name}", "correct args"
+        assert result.plugins[0].help == "Say hello.", "correct help text"
+        assert result.plugins[0].source == "test", "source tag preserved"
 
     def test_skips_files_without_command(self, plugin_dir):
         _write_plugin(plugin_dir, "bad.py", '''
 def handler(ctx, args): pass
 ''')
         result = load_plugins_from_dir(plugin_dir, "test")
-        assert len(result.plugins) == 0  # skipped — no COMMAND
-        assert result.skipped == ["bad.py"]  # file name reported
+        assert len(result.plugins) == 0, "skipped - no COMMAND"
+        assert result.skipped == ["bad.py"], "file name reported"
 
     def test_skips_files_without_name(self, plugin_dir):
         _write_plugin(plugin_dir, "bad.py", '''
@@ -58,8 +58,8 @@ from termapy.plugins import Command
 COMMAND = Command(help="Missing name.")
 ''')
         result = load_plugins_from_dir(plugin_dir, "test")
-        assert len(result.plugins) == 0  # skipped — no name in COMMAND
-        assert result.skipped == ["bad.py"]  # file name reported
+        assert len(result.plugins) == 0, "skipped - no name in COMMAND"
+        assert result.skipped == ["bad.py"], "file name reported"
 
     def test_skips_underscore_files(self, plugin_dir):
         _write_plugin(plugin_dir, "_private.py", '''
@@ -69,11 +69,11 @@ COMMAND = Command(name="private", help="Should be skipped.", handler=_handler)
 ''')
         _write_plugin(plugin_dir, "__init__.py", "")
         result = load_plugins_from_dir(plugin_dir, "test")
-        assert len(result.plugins) == 0  # underscore-prefixed files skipped
+        assert len(result.plugins) == 0, "underscore-prefixed files skipped"
 
     def test_nonexistent_dir_returns_empty(self, tmp_path):
         result = load_plugins_from_dir(tmp_path / "nope", "test")
-        assert result.plugins == []  # no directory = empty list
+        assert result.plugins == [], "no directory = empty list"
 
     def test_multiple_plugins_sorted(self, plugin_dir):
         # Arrange
@@ -94,7 +94,7 @@ COMMAND = Command(name="alpha", help="A", handler=_handler)
         # Assert
         actual_names = [p.name for p in result.plugins]
         expected_names = ["alpha", "beta"]
-        assert actual_names == expected_names  # loaded in alphabetical order
+        assert actual_names == expected_names, "loaded in alphabetical order"
 
     def test_broken_plugin_reports_error(self, plugin_dir):
         # Arrange
@@ -109,10 +109,10 @@ COMMAND = Command(name="good", help="Works.", handler=_handler)
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(result.plugins) == 1  # broken plugin skipped
-        assert result.plugins[0].name == "good"  # good plugin still loaded
-        assert len(result.errors) == 1  # error reported
-        assert "broken.py" in result.errors[0]  # error mentions file
+        assert len(result.plugins) == 1, "broken plugin skipped"
+        assert result.plugins[0].name == "good", "good plugin still loaded"
+        assert len(result.errors) == 1, "error reported"
+        assert "broken.py" in result.errors[0], "error mentions file"
 
 
 class TestSubCommands:
@@ -139,10 +139,10 @@ COMMAND = Command(
 
         # Assert
         names = [p.name for p in result.plugins]
-        assert "tool" in names  # root node registered
-        assert "tool.run" in names  # sub_command registered with dot
-        assert "tool.status" in names  # sub_command registered with dot
-        assert len(result.plugins) == 3  # root + 2 subcommands
+        assert "tool" in names, "root node registered"
+        assert "tool.run" in names, "sub_command registered with dot"
+        assert "tool.status" in names, "sub_command registered with dot"
+        assert len(result.plugins) == 3, "root + 2 subcommands"
 
     def test_root_has_children(self, plugin_dir):
         # Arrange
@@ -167,7 +167,7 @@ COMMAND = Command(
         root = [p for p in result.plugins if p.name == "tool"][0]
 
         # Assert
-        assert root.children == ["tool.alpha", "tool.beta"]  # children tracked
+        assert root.children == ["tool.alpha", "tool.beta"], "children tracked"
 
     def test_nested_sub_commands(self, plugin_dir):
         # Arrange
@@ -195,10 +195,10 @@ COMMAND = Command(
         names = [p.name for p in result.plugins]
 
         # Assert
-        assert "tool" in names  # root
-        assert "tool.sub" in names  # interior
-        assert "tool.sub.leaf" in names  # leaf
-        assert len(result.plugins) == 3  # root + interior + leaf
+        assert "tool" in names, "root"
+        assert "tool.sub" in names, "interior"
+        assert "tool.sub.leaf" in names, "leaf"
+        assert len(result.plugins) == 3, "root + interior + leaf"
 
     def test_interior_gets_synthetic_handler(self, plugin_dir):
         # Arrange
@@ -221,8 +221,8 @@ COMMAND = Command(
         root = [p for p in result.plugins if p.name == "tool"][0]
 
         # Assert
-        assert root.handler is not None  # synthetic handler created
-        assert callable(root.handler)  # handler is callable
+        assert root.handler is not None, "synthetic handler created"
+        assert callable(root.handler), "handler is callable"
 
     def test_defaults_for_missing_fields(self, plugin_dir):
         _write_plugin(plugin_dir, "bare.py", '''
@@ -231,9 +231,9 @@ def _handler(ctx, args): pass
 COMMAND = Command(name="bare", help="Bare.", handler=_handler)
 ''')
         result = load_plugins_from_dir(plugin_dir, "test")
-        assert result.plugins[0].args == ""  # missing args defaults to ""
-        assert result.plugins[0].long_help == ""  # missing long_help defaults to ""
-        assert result.plugins[0].children == []  # no children for leaf
+        assert result.plugins[0].args == "", "missing args defaults to empty"
+        assert result.plugins[0].long_help == "", "missing long_help defaults to empty"
+        assert result.plugins[0].children == [], "no children for leaf"
 
 
 class TestTransformLoading:
@@ -253,11 +253,11 @@ TRANSFORM = Transform(
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(result.transforms) == 1  # one transform loaded
-        assert result.transforms[0].name == "vars"  # correct name
-        assert result.transforms[0].repl("hello") == "HELLO"  # repl works
-        assert result.transforms[0].serial("HELLO") == "hello"  # serial works
-        assert result.transforms[0].source == "test"  # source propagated
+        assert len(result.transforms) == 1, "one transform loaded"
+        assert result.transforms[0].name == "vars", "correct name"
+        assert result.transforms[0].repl("hello") == "HELLO", "repl works"
+        assert result.transforms[0].serial("HELLO") == "hello", "serial works"
+        assert result.transforms[0].source == "test", "source propagated"
 
     def test_transform_only_file_not_skipped(self, plugin_dir):
         # Arrange
@@ -270,9 +270,9 @@ TRANSFORM = Transform(name="xonly", help="Transform only.", repl=lambda s: s)
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(result.transforms) == 1  # transform loaded
-        assert len(result.plugins) == 0  # no commands
-        assert len(result.skipped) == 0  # not counted as skipped
+        assert len(result.transforms) == 1, "transform loaded"
+        assert len(result.plugins) == 0, "no commands"
+        assert len(result.skipped) == 0, "not counted as skipped"
 
     def test_file_with_both_command_and_transform(self, plugin_dir):
         # Arrange
@@ -287,8 +287,8 @@ TRANSFORM = Transform(name="both_xf", help="A transform.", serial=lambda s: s)
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(result.plugins) == 1  # command loaded
-        assert len(result.transforms) == 1  # transform loaded
+        assert len(result.plugins) == 1, "command loaded"
+        assert len(result.transforms) == 1, "transform loaded"
 
     def test_no_transforms_by_default(self, plugin_dir):
         # Arrange
@@ -302,7 +302,7 @@ COMMAND = Command(name="plain", help="No transforms.", handler=_handler)
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        assert len(result.transforms) == 0  # no transforms loaded
+        assert len(result.transforms) == 0, "no transforms loaded"
 
 
 # -- serial_io context manager ------------------------------------------------
@@ -323,7 +323,7 @@ class TestSerialIo:
             calls.append("body")
 
         # Assert
-        assert calls == ["claim", "body", "release"]  # claim before, release after
+        assert calls == ["claim", "body", "release"], "claim before, release after"
 
     def test_releases_on_exception(self):
         # Arrange
@@ -340,4 +340,4 @@ class TestSerialIo:
                 raise ValueError("boom")
 
         # Assert
-        assert "release" in calls  # release called despite exception
+        assert "release" in calls, "release called despite exception"

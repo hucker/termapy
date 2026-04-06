@@ -67,8 +67,8 @@ class TestEcho:
         engine.dispatch("echo on")
 
         # Assert
-        assert engine._echo is True  # echo enabled
-        assert any("on" in t for t, _ in output)  # confirmation shown
+        assert engine._echo is True, "echo enabled"
+        assert any("on" in t for t, _ in output), "confirmation shown"
 
     def test_echo_off(self, repl_env):
         # Arrange
@@ -78,21 +78,21 @@ class TestEcho:
         engine.dispatch("echo off")
 
         # Assert
-        assert engine._echo is False  # echo disabled
-        assert any("off" in t for t, _ in output)  # confirmation shown
+        assert engine._echo is False, "echo disabled"
+        assert any("off" in t for t, _ in output), "confirmation shown"
 
     def test_echo_toggle(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        assert engine._echo is True  # starts enabled
+        assert engine._echo is True, "starts enabled"
 
         # Act / Assert — toggle off
         engine.dispatch("echo")
-        assert engine._echo is False  # toggled off
+        assert engine._echo is False, "toggled off"
 
         # Act / Assert — toggle on
         engine.dispatch("echo")
-        assert engine._echo is True  # toggled back on
+        assert engine._echo is True, "toggled back on"
 
 
 # -- /print ---------------------------------------------------------------
@@ -102,12 +102,12 @@ class TestPrint:
     def test_print_text(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("print Hello, world!")
-        assert ("Hello, world!", None) in output  # text printed verbatim
+        assert ("Hello, world!", None) in output, "text printed verbatim"
 
     def test_print_empty(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("print")
-        assert ("", None) in output  # empty string printed
+        assert ("", None) in output, "empty string printed"
 
 
 # -- /seq -----------------------------------------------------------------
@@ -117,7 +117,7 @@ class TestSeq:
     def test_seq_show_empty(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("seq")
-        assert any("No counters" in t for t, _ in output)  # empty state message
+        assert any("No counters" in t for t, _ in output), "empty state message"
 
     def test_seq_show_with_counters(self, repl_env):
         # Arrange
@@ -128,8 +128,8 @@ class TestSeq:
         engine.dispatch("seq")
 
         # Assert
-        assert any("seq1=3" in t for t, _ in output)  # counter 1 shown
-        assert any("seq2=7" in t for t, _ in output)  # counter 2 shown
+        assert any("seq1=3" in t for t, _ in output), "counter 1 shown"
+        assert any("seq2=7" in t for t, _ in output), "counter 2 shown"
 
     def test_seq_reset(self, repl_env):
         # Arrange
@@ -140,8 +140,8 @@ class TestSeq:
         engine.dispatch("seq.reset")
 
         # Assert
-        assert engine._seq_counters == {}  # counters cleared
-        assert any("reset" in t.lower() for t, _ in output)  # confirmation shown
+        assert engine._seq_counters == {}, "counters cleared"
+        assert any("reset" in t.lower() for t, _ in output), "confirmation shown"
 
 
 # -- /stop ----------------------------------------------------------------
@@ -151,7 +151,7 @@ class TestStop:
     def test_stop_no_script(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("stop")
-        assert any("No script" in t for t, _ in output)  # no-op message
+        assert any("No script" in t for t, _ in output), "no-op message"
 
     def test_stop_with_script(self, repl_env):
         # Arrange
@@ -162,8 +162,8 @@ class TestStop:
         engine.dispatch("stop")
 
         # Assert
-        assert engine._script_stop.is_set()  # stop event set
-        assert any("Stopping" in t for t, _ in output)  # confirmation shown
+        assert engine._script_stop.is_set(), "stop event set"
+        assert any("Stopping" in t for t, _ in output), "confirmation shown"
 
 
 # -- /help ----------------------------------------------------------------
@@ -179,8 +179,8 @@ class TestHelp:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("help" in t for t in texts)  # help command listed
-        assert any("cfg" in t for t in texts)  # cfg command listed
+        assert any("help" in t for t in texts), "help command listed"
+        assert any("cfg" in t for t in texts), "cfg command listed"
 
     def test_help_specific_command(self, repl_env):
         # Arrange
@@ -191,7 +191,7 @@ class TestHelp:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("echo" in t.lower() for t in texts)  # echo help shown
+        assert any("echo" in t.lower() for t in texts), "echo help shown"
 
     def test_help_unknown_command(self, repl_env):
         # Arrange
@@ -201,8 +201,8 @@ class TestHelp:
         engine.dispatch("help nonexistent")
 
         # Assert
-        assert any("Unknown" in t for t, _ in output)  # error message
-        assert output[-1][1] == "red"  # shown in red
+        assert any("Unknown" in t for t, _ in output), "error message"
+        assert output[-1][1] == "red", "shown in red"
 
     def test_help_shows_long_help(self, repl_env):
         """/help <cmd> shows LONG_HELP lines when present."""
@@ -220,8 +220,8 @@ class TestHelp:
 
         # Assert — long help lines appear indented
         texts = [t for t, _ in output]
-        assert any("Line one." in t for t in texts)  # first long_help line
-        assert any("Line two." in t for t in texts)  # second long_help line
+        assert any("Line one." in t for t in texts), "first long_help line"
+        assert any("Line two." in t for t in texts), "second long_help line"
 
     def test_help_dev_shows_docstring(self, repl_env):
         """/help.dev <cmd> shows the handler's Python docstring."""
@@ -247,8 +247,8 @@ class TestHelp:
 
         # Assert — docstring lines appear
         texts = [t for t, _ in output]
-        assert any("dev docstring" in t for t in texts)  # docstring content shown
-        assert any("developer docstring" in t for t in texts)  # header shown
+        assert any("dev docstring" in t for t in texts), "docstring content shown"
+        assert any("developer docstring" in t for t in texts), "header shown"
 
     def test_help_dev_summary_bold(self, repl_env):
         """/help.dev renders summary line bold when followed by blank line."""
@@ -272,7 +272,7 @@ class TestHelp:
 
         # Assert — summary rendered via write_markup with bold tags
         markup_lines = [t for t, c in output if c == "markup"]
-        assert any("[bold]Summary line here.[/]" in t for t in markup_lines)  # bold summary
+        assert any("[bold]Summary line here.[/]" in t for t in markup_lines), "bold summary"
 
     def test_help_dev_section_headers_bold(self, repl_env):
         """/help.dev renders Google-style section headers (Args:, Returns:) bold."""
@@ -300,8 +300,8 @@ class TestHelp:
 
         # Assert — Args: and Returns: rendered bold via write_markup
         markup_lines = [t for t, c in output if c == "markup"]
-        assert any("[bold]Args:[/]" in t for t in markup_lines)  # Args header bold
-        assert any("[bold]Returns:[/]" in t for t in markup_lines)  # Returns header bold
+        assert any("[bold]Args:[/]" in t for t in markup_lines), "Args header bold"
+        assert any("[bold]Returns:[/]" in t for t in markup_lines), "Returns header bold"
 
     def test_help_dev_param_labels_bold(self, repl_env):
         """/help.dev renders 'param: description' with param: bold."""
@@ -327,8 +327,8 @@ class TestHelp:
 
         # Assert — param names bold, descriptions not in bold tags
         markup_lines = [t for t, c in output if c == "markup"]
-        assert any("[bold]ctx:[/] Plugin context" in t for t in markup_lines)  # ctx: bold
-        assert any("[bold]args:[/] Command arguments" in t for t in markup_lines)  # args: bold
+        assert any("[bold]ctx:[/] Plugin context" in t for t in markup_lines), "ctx: bold"
+        assert any("[bold]args:[/] Command arguments" in t for t in markup_lines), "args: bold"
 
     def test_help_dev_no_docstring(self, repl_env):
         """/help.dev <cmd> with no docstring shows a message."""
@@ -345,7 +345,7 @@ class TestHelp:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("no docstring" in t for t in texts)  # no-doc message shown
+        assert any("no docstring" in t for t in texts), "no-doc message shown"
 
     def test_help_dev_skips_long_help(self, repl_env):
         """/help.dev shows docstring instead of LONG_HELP."""
@@ -367,8 +367,8 @@ class TestHelp:
 
         # Assert — docstring shown, LONG_HELP not shown
         texts = [t for t, _ in output]
-        assert any("Handler docstring" in t for t in texts)  # docstring shown
-        assert not any("long help" in t.lower() for t in texts)  # LONG_HELP not shown
+        assert any("Handler docstring" in t for t in texts), "docstring shown"
+        assert not any("long help" in t.lower() for t in texts), "LONG_HELP not shown"
 
     def test_help_no_long_help_omits_extra(self, repl_env):
         """/help <cmd> with empty LONG_HELP shows only the one-liner."""
@@ -387,7 +387,7 @@ class TestHelp:
         texts = [t for t, _ in output]
         actual = len(texts)
         expected = 1  # just the "/briefcmd — Just brief." line
-        assert actual == expected
+        assert actual == expected, f"expected {actual} == {expected}"
 
 
 # -- /show ----------------------------------------------------------------
@@ -403,8 +403,8 @@ class TestShow:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("COM4" in t for t in texts)  # config value shown
-        assert any("end" in t for t in texts)  # end marker shown
+        assert any("COM4" in t for t in texts), "config value shown"
+        assert any("end" in t for t in texts), "end marker shown"
 
     def test_show_file(self, repl_env, tmp_path):
         # Arrange
@@ -417,8 +417,8 @@ class TestShow:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("line one" in t for t in texts)  # first line shown
-        assert any("line two" in t for t in texts)  # second line shown
+        assert any("line one" in t for t in texts), "first line shown"
+        assert any("line two" in t for t in texts), "second line shown"
 
     def test_show_missing_file(self, repl_env):
         # Arrange
@@ -428,18 +428,18 @@ class TestShow:
         engine.dispatch("show /nonexistent/file.txt")
 
         # Assert
-        assert any("not found" in t.lower() for t, _ in output)  # error message
-        assert output[-1][1] == "red"  # shown in red
+        assert any("not found" in t.lower() for t, _ in output), "error message"
+        assert output[-1][1] == "red", "shown in red"
 
     def test_show_no_args(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("show")
-        assert any("Usage" in t for t, _ in output)  # usage message
+        assert any("Usage" in t for t, _ in output), "usage message"
 
     def test_show_nonexistent_name(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("show $bogus")
-        assert any("not found" in t.lower() for t, _ in output)  # treated as filename
+        assert any("not found" in t.lower() for t, _ in output), "treated as filename"
 
 
 # -- /os ------------------------------------------------------------------
@@ -449,7 +449,7 @@ class TestOs:
     def test_os_disabled(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("os echo hi")
-        assert any("disabled" in t for t, _ in output)  # blocked by default
+        assert any("disabled" in t for t, _ in output), "blocked by default"
 
     def test_os_enabled(self, repl_env):
         # Arrange
@@ -461,7 +461,7 @@ class TestOs:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("hello_from_os" in t for t in texts)  # shell output captured
+        assert any("hello_from_os" in t for t in texts), "shell output captured"
 
     def test_os_no_args(self, repl_env):
         # Arrange
@@ -472,7 +472,7 @@ class TestOs:
         engine.dispatch("os")
 
         # Assert
-        assert any("Usage" in t for t, _ in output)  # usage message
+        assert any("Usage" in t for t, _ in output), "usage message"
 
 
 # -- dispatch edge cases ---------------------------------------------------
@@ -482,19 +482,19 @@ class TestDispatch:
     def test_unknown_command(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("totally_unknown_cmd")
-        assert any("Unknown" in t for t, _ in output)  # error message
-        assert output[-1][1] == "red"  # shown in red
+        assert any("Unknown" in t for t, _ in output), "error message"
+        assert output[-1][1] == "red", "shown in red"
 
     def test_empty_dispatch_shows_help(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("")
         texts = [t for t, _ in output]
-        assert any("help" in t.lower() for t in texts)  # empty triggers help
+        assert any("help" in t.lower() for t in texts), "empty triggers help"
 
     def test_command_case_insensitive(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("ECHO off")
-        assert engine._echo is False  # uppercase command works
+        assert engine._echo is False, "uppercase command works"
 
 
 # -- /grep ----------------------------------------------------------------
@@ -518,8 +518,8 @@ class TestGrep:
     def test_grep_no_args(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("grep")
-        assert output[-1][1] == "red"  # assert usage shown in red
-        assert "Usage" in output[-1][0]
+        assert output[-1][1] == "red", "usage shown in red"
+        assert "Usage" in output[-1][0], "usage text present"
 
     def test_grep_matches(self, repl_env):
         # Arrange
@@ -531,30 +531,30 @@ class TestGrep:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("2 match(es)" in t for t in texts)  # assert match count
-        assert any("2 |" in t and "ERROR" in t for t in texts)  # assert line 2
-        assert any("5 |" in t and "error" in t for t in texts)  # assert line 5
+        assert any("2 match(es)" in t for t in texts), "match count shown"
+        assert any("2 |" in t and "ERROR" in t for t in texts), "line 2 matched"
+        assert any("5 |" in t and "error" in t for t in texts), "line 5 matched"
 
     def test_grep_no_matches(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep zzzznotfound")
         texts = [t for t, _ in output]
-        assert any("no matches" in t for t in texts)  # assert no matches message
+        assert any("no matches" in t for t in texts), "no matches message shown"
 
     def test_grep_case_insensitive(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep ERROR")
         texts = [t for t, _ in output]
-        assert any("2 match(es)" in t for t in texts)  # assert both cases matched
+        assert any("2 match(es)" in t for t in texts), "both cases matched"
 
     def test_grep_regex(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep error|warning")
         texts = [t for t, _ in output]
-        assert any("3 match(es)" in t for t in texts)  # assert regex alternation works
+        assert any("3 match(es)" in t for t in texts), "regex alternation works"
 
     def test_grep_skips_own_output(self, repl_env):
         # Arrange — scrollback contains prior grep output and echoed command
@@ -572,16 +572,16 @@ class TestGrep:
 
         # Assert — only the real line matches, grep noise is skipped
         texts = [t for t, _ in output]
-        assert any("1 match(es)" in t for t in texts)  # assert only 1 match
+        assert any("1 match(es)" in t for t in texts), "only 1 match"
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
-        assert len(grep_lines) == 1  # assert grep output and echoed cmd excluded
+        assert len(grep_lines) == 1, "grep output and echoed cmd excluded"
 
     def test_grep_bad_regex(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep [invalid")
-        assert output[-1][1] == "red"  # assert error shown in red
-        assert "invalid pattern" in output[-1][0]  # assert error message
+        assert output[-1][1] == "red", "error shown in red"
+        assert "invalid pattern" in output[-1][0], "error message shown"
 
     def test_grep_max_output_default(self, repl_env):
         # Arrange — create text with 150 matching lines, no max_grep_lines in cfg
@@ -1150,7 +1150,7 @@ class TestRepeat:
         # Assert — variable cleaned up even on error
         assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
 
-    def test_success_message(self, repl_env):
+    def test_completes_silently(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.dispatch = lambda cmd: None
@@ -1158,9 +1158,9 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=5 cmd=AT")
 
-        # Assert — success message mentions count
+        # Assert — no output from repeat itself (commands produce their own output)
         actual = [t for t, _ in output]
-        assert any("5" in t and "Repeated" in t for t in actual), f"expected 'Repeated 5 times' message, got: {actual}"
+        assert not any("Repeated" in t for t in actual), f"repeat should complete silently, got: {actual}"
 
     def test_stoppable_via_event(self, repl_env):
         # Arrange

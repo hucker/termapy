@@ -30,12 +30,12 @@ class TestCoerceType:
     def test_bool_true_values(self):
         for val in ("true", "1", "yes", "on", "True", "YES"):
             actual = ReplEngine._coerce_type(val, False)
-            assert actual is True  # all truthy strings coerce to True
+            assert actual is True, "all truthy strings coerce to True"
 
     def test_bool_false_values(self):
         for val in ("false", "0", "no", "off", "False", "NO"):
             actual = ReplEngine._coerce_type(val, True)
-            assert actual is False  # all falsy strings coerce to False
+            assert actual is False, "all falsy strings coerce to False"
 
     def test_bool_invalid(self):
         with pytest.raises(ValueError):  # non-bool string raises
@@ -43,8 +43,8 @@ class TestCoerceType:
 
     def test_int(self):
         actual = ReplEngine._coerce_type("42", 0)
-        assert actual == 42  # string coerced to int
-        assert isinstance(actual, int)  # type preserved as int
+        assert actual == 42, "string coerced to int"
+        assert isinstance(actual, int), "type preserved as int"
 
     def test_int_invalid(self):
         with pytest.raises(ValueError):  # non-numeric string raises
@@ -52,12 +52,12 @@ class TestCoerceType:
 
     def test_float(self):
         actual = ReplEngine._coerce_type("3.14", 0.0)
-        assert actual == 3.14  # string coerced to float
-        assert isinstance(actual, float)  # type preserved as float
+        assert actual == 3.14, "string coerced to float"
+        assert isinstance(actual, float), "type preserved as float"
 
     def test_string(self):
         actual = ReplEngine._coerce_type("hello", "default")
-        assert actual == "hello"  # string passes through unchanged
+        assert actual == "hello", "string passes through unchanged"
 
 
 # -- start_script ----------------------------------------------------------
@@ -72,9 +72,9 @@ class TestStartScript:
         path, result = eng.start_script("")
 
         # Assert
-        assert path is None  # no path on missing filename
-        assert not result.success  # failure result
-        assert "Usage" in result.error  # error message
+        assert path is None, "no path on missing filename"
+        assert not result.success, "failure result"
+        assert "Usage" in result.error, "error message"
 
     def test_file_not_found(self, engine):
         # Arrange
@@ -84,9 +84,9 @@ class TestStartScript:
         path, result = eng.start_script("nonexistent.txt")
 
         # Assert
-        assert path is None  # no path when file missing
-        assert not result.success  # failure result
-        assert "not found" in result.error.lower()  # error message
+        assert path is None, "no path when file missing"
+        assert not result.success, "failure result"
+        assert "not found" in result.error.lower(), "error message"
 
     def test_file_found_directly(self, engine, tmp_path):
         # Arrange
@@ -98,9 +98,9 @@ class TestStartScript:
         path, result = eng.start_script(str(script))
 
         # Assert
-        assert path == script  # returns the script path
-        assert result.success  # success result
-        assert eng._script_depth == 1  # marks script as running
+        assert path == script, "returns the script path"
+        assert result.success, "success result"
+        assert eng._script_depth == 1, "marks script as running"
 
     def test_file_found_in_scripts_dir(self, engine):
         # Arrange
@@ -114,9 +114,9 @@ class TestStartScript:
         path, result = eng.start_script("init.txt")
 
         # Assert
-        assert path == script  # resolves relative to scripts dir
-        assert result.success  # success result
-        assert eng._script_depth == 1  # marks script as running
+        assert path == script, "resolves relative to scripts dir"
+        assert result.success, "success result"
+        assert eng._script_depth == 1, "marks script as running"
 
     def test_max_depth_exceeded(self, engine, tmp_path):
         # Arrange
@@ -129,9 +129,9 @@ class TestStartScript:
         path, result = eng.start_script(str(script))
 
         # Assert
-        assert path is None  # no path when max depth reached
-        assert not result.success  # failure result
-        assert "too deep" in result.error.lower()  # error message
+        assert path is None, "no path when max depth reached"
+        assert not result.success, "failure result"
+        assert "too deep" in result.error.lower(), "error message"
 
 
 # -- Properties ------------------------------------------------------------
@@ -141,29 +141,29 @@ class TestProperties:
     def test_ss_dir(self, engine):
         eng, _ = engine
         actual = eng.ss_dir
-        assert actual.name == "ss"  # correct subdir name
-        assert actual.exists()  # directory exists
+        assert actual.name == "ss", "correct subdir name"
+        assert actual.exists(), "directory exists"
 
     def test_scripts_dir(self, engine):
         eng, _ = engine
         actual = eng.scripts_dir
-        assert actual.name == "run"  # correct subdir name
+        assert actual.name == "run", "correct subdir name"
 
     def test_ss_dir_no_config(self):
         eng = ReplEngine({}, "", lambda t, c=None: None)
-        assert eng.ss_dir == Path(".")  # falls back to cwd
+        assert eng.ss_dir == Path("."), "falls back to cwd"
 
     def test_scripts_dir_no_config(self):
         eng = ReplEngine({}, "", lambda t, c=None: None)
-        assert eng.scripts_dir == Path(".")  # falls back to cwd
+        assert eng.scripts_dir == Path("."), "falls back to cwd"
 
     def test_echo_default_true(self, engine):
         eng, _ = engine
-        assert eng.echo is True  # echo enabled by default
+        assert eng.echo is True, "echo enabled by default"
 
     def test_in_script_default_false(self, engine):
         eng, _ = engine
-        assert eng.in_script is False  # no script running by default
+        assert eng.in_script is False, "no script running by default"
 
 
 # -- register_plugin / register_hook ----------------------------------------
@@ -179,7 +179,7 @@ class TestRegisterPlugin:
         eng.register_plugin(info)
 
         # Assert
-        assert "test" in eng._plugins  # plugin registered by name
+        assert "test" in eng._plugins, "plugin registered by name"
 
     def test_register_plugin_overrides(self, engine):
         # Arrange
@@ -192,7 +192,7 @@ class TestRegisterPlugin:
         eng.register_plugin(PluginInfo(name="x", args="", help="", handler=h2))
 
         # Assert
-        assert eng._plugins["x"].handler is h2  # second handler replaced first
+        assert eng._plugins["x"].handler is h2, "second handler replaced first"
 
     def test_register_hook(self, engine):
         # Arrange
@@ -203,9 +203,9 @@ class TestRegisterPlugin:
         eng.register_hook("mytest", "<arg>", "Test hook.", handler)
 
         # Assert
-        assert "mytest" in eng._plugins  # hook registered as plugin
-        assert eng._plugins["mytest"].args == "<arg>"  # args preserved
-        assert eng._plugins["mytest"].source == "built-in"  # default source
+        assert "mytest" in eng._plugins, "hook registered as plugin"
+        assert eng._plugins["mytest"].args == "<arg>", "args preserved"
+        assert eng._plugins["mytest"].source == "built-in", "default source"
 
 
 # -- _apply_cfg -------------------------------------------------------------
@@ -222,9 +222,9 @@ class TestApplyCfg:
         eng._apply_cfg("baud_rate", 9600)
 
         # Assert
-        assert eng.cfg["baud_rate"] == 9600  # config value updated
-        assert callback_calls == [("baud_rate", 9600)]  # callback invoked
-        assert any("session" in t for t, _ in output)  # success message shown
+        assert eng.cfg["baud_rate"] == 9600, "config value updated"
+        assert callback_calls == [("baud_rate", 9600)], "callback invoked"
+        assert any("session" in t for t, _ in output), "success message shown"
 
 
 # -- run_script --------------------------------------------------------------
@@ -264,11 +264,11 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert len(writes) == 2  # both commands sent
-        assert writes[0] == b"ATZ\r"  # first command with line ending
-        assert writes[1] == b"AT+INFO\r"  # second command with line ending
-        assert any("finished" in t for t, _ in output)  # completion message
-        assert eng._script_depth == 0  # script flag cleared
+        assert len(writes) == 2, "both commands sent"
+        assert writes[0] == b"ATZ\r", "first command with line ending"
+        assert writes[1] == b"AT+INFO\r", "second command with line ending"
+        assert any("finished" in t for t, _ in output), "completion message"
+        assert eng._script_depth == 0, "script flag cleared"
 
     def test_comments_and_blanks_skipped(self, tmp_path):
         # Arrange
@@ -278,8 +278,8 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert len(writes) == 1  # only the serial command sent
-        assert writes[0] == b"ATZ\r"  # comment and blank skipped
+        assert len(writes) == 1, "only the serial command sent"
+        assert writes[0] == b"ATZ\r", "comment and blank skipped"
 
     def test_repl_command(self, tmp_path):
         # Arrange
@@ -289,8 +289,8 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert any("hello" in t for t, _ in output)  # REPL command executed
-        assert len(writes) == 0  # nothing sent to serial
+        assert any("hello" in t for t, _ in output), "REPL command executed"
+        assert len(writes) == 0, "nothing sent to serial"
 
     def test_delay_command(self, tmp_path):
         # Arrange
@@ -300,7 +300,7 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert any("Delay" in t for t, _ in output)  # delay confirmation shown
+        assert any("Delay" in t for t, _ in output), "delay confirmation shown"
 
     def test_invalid_delay(self, tmp_path):
         # Arrange
@@ -310,7 +310,7 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert any("Invalid" in t for t, _ in output)  # error message shown
+        assert any("Invalid" in t for t, _ in output), "error message shown"
 
     def test_script_stop(self, tmp_path):
         # Arrange
@@ -321,8 +321,8 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert len(writes) == 0  # no commands sent after stop
-        assert any("stopped" in t.lower() for t, _ in output)  # stop message
+        assert len(writes) == 0, "no commands sent after stop"
+        assert any("stopped" in t.lower() for t, _ in output), "stop message"
 
     def test_not_connected_skips_serial(self, tmp_path):
         # Arrange
@@ -332,8 +332,8 @@ class TestRunScript:
         eng.run_script(script)
 
         # Assert
-        assert len(writes) == 0  # nothing sent when disconnected
-        assert eng._script_depth == 0  # script flag cleared
+        assert len(writes) == 0, "nothing sent when disconnected"
+        assert eng._script_depth == 0, "script flag cleared"
 
     def test_script_error(self, tmp_path):
         # Arrange
@@ -344,8 +344,8 @@ class TestRunScript:
         eng.run_script(bad_path)
 
         # Assert
-        assert any("error" in t.lower() for t, _ in output)  # error message shown
-        assert eng._script_depth == 0  # script flag cleared on error
+        assert any("error" in t.lower() for t, _ in output), "error message shown"
+        assert eng._script_depth == 0, "script flag cleared on error"
 
 
 # -- Transform chains -------------------------------------------------------
@@ -357,11 +357,11 @@ class TestTransformChains:
         eng, _ = engine
 
         # Assert
-        assert eng.has_repl_transforms is True  # env_var + var REPL transforms loaded
-        assert eng.has_serial_transforms is True  # var serial transform loaded
+        assert eng.has_repl_transforms is True, "env_var + var REPL transforms loaded"
+        assert eng.has_serial_transforms is True, "var serial transform loaded"
         names = [t.name for t in eng._transform_infos]
-        assert "env_var" in names  # env_var transform registered
-        assert "var" in names  # var transform registered
+        assert "env_var" in names, "env_var transform registered"
+        assert "var" in names, "var transform registered"
 
     def test_repl_transform_registered(self, engine):
         # Arrange
@@ -373,8 +373,8 @@ class TestTransformChains:
         ))
 
         # Assert
-        assert eng.has_repl_transforms is True  # REPL transform registered
-        assert eng.has_serial_transforms is True  # var serial transform already loaded
+        assert eng.has_repl_transforms is True, "REPL transform registered"
+        assert eng.has_serial_transforms is True, "var serial transform already loaded"
 
     def test_serial_transform_registered(self, engine):
         # Arrange
@@ -387,8 +387,8 @@ class TestTransformChains:
         ))
 
         # Assert
-        assert eng.has_serial_transforms is True  # serial transform registered
-        assert eng.has_repl_transforms is True  # env_var + var REPL transforms loaded
+        assert eng.has_serial_transforms is True, "serial transform registered"
+        assert eng.has_repl_transforms is True, "env_var + var REPL transforms loaded"
 
     def test_repl_transform_applied(self, engine):
         # Arrange
@@ -402,7 +402,7 @@ class TestTransformChains:
 
         # Assert
         expected = "HELLO WORLD"
-        assert actual == expected  # REPL transform uppercased
+        assert actual == expected, "REPL transform uppercased"
 
     def test_serial_transform_applied(self, engine):
         # Arrange
@@ -417,7 +417,7 @@ class TestTransformChains:
 
         # Assert
         expected = "connect COM4"
-        assert actual == expected  # serial transform replaced $port
+        assert actual == expected, "serial transform replaced $port"
 
     def test_chain_order_matches_registration(self, engine):
         # Arrange
@@ -434,7 +434,7 @@ class TestTransformChains:
 
         # Assert
         expected = "cmd [A] [B]"
-        assert actual == expected  # transforms applied in registration order
+        assert actual == expected, "transforms applied in registration order"
 
     def test_transforms_independent(self, engine):
         # Arrange — one transform with both repl and serial functions
@@ -450,8 +450,8 @@ class TestTransformChains:
         actual_serial = eng.transform_serial("test")
 
         # Assert — each path applies only its own function
-        assert actual_repl == "REPL:test"  # repl transform applied, not serial
-        assert actual_serial == "SER:test"  # serial transform applied, not repl
+        assert actual_repl == "REPL:test", "repl transform applied, not serial"
+        assert actual_serial == "SER:test", "serial transform applied, not repl"
 
     def test_identity_when_no_transforms(self, engine):
         # Arrange
@@ -462,8 +462,8 @@ class TestTransformChains:
         actual_serial = eng.transform_serial("hello")
 
         # Assert
-        assert actual_repl == "hello"  # passthrough with no transforms
-        assert actual_serial == "hello"  # passthrough with no transforms
+        assert actual_repl == "hello", "passthrough with no transforms"
+        assert actual_serial == "hello", "passthrough with no transforms"
 
     def test_both_chains_on_one_transform(self, engine):
         # Arrange
@@ -479,8 +479,8 @@ class TestTransformChains:
         actual_serial = eng.transform_serial("Hello")
 
         # Assert
-        assert actual_repl == "HELLO"  # REPL uppercased
-        assert actual_serial == "hello"  # serial lowercased
+        assert actual_repl == "HELLO", "REPL uppercased"
+        assert actual_serial == "hello", "serial lowercased"
 
     def test_transform_infos_tracked(self, engine):
         # Arrange
@@ -491,8 +491,8 @@ class TestTransformChains:
         ))
 
         # Assert
-        assert len(eng._transform_infos) == before + 1  # new transform added
-        assert eng._transform_infos[-1].name == "vars"  # correct name tracked
+        assert len(eng._transform_infos) == before + 1, "new transform added"
+        assert eng._transform_infos[-1].name == "vars", "correct name tracked"
 
 
 # -- dispatch_full -------------------------------------------------------------
@@ -554,8 +554,8 @@ class TestDispatchFull:
         do("ATZ")
 
         # Assert
-        assert writes == [b"ATZ\r"]  # command encoded with line ending
-        assert len(logged) == 0  # serial commands not logged through dispatch
+        assert writes == [b"ATZ\r"], "command encoded with line ending"
+        assert len(logged) == 0, "serial commands not logged through dispatch"
 
     def test_repl_command_dispatched(self, dispatch_env):
         # Arrange
@@ -565,9 +565,9 @@ class TestDispatchFull:
         do("/help")
 
         # Assert
-        assert len(writes) == 0  # not sent to serial
-        assert any(">" in d for d, _ in logged)  # logged as REPL command
-        assert any("/help" in t for t in echoed)  # echoed
+        assert len(writes) == 0, "not sent to serial"
+        assert any(">" in d for d, _ in logged), "logged as REPL command"
+        assert any("/help" in t for t in echoed), "echoed"
 
     def test_raw_bypass(self, dispatch_env):
         # Arrange
@@ -577,8 +577,8 @@ class TestDispatchFull:
         do("/raw hello world")
 
         # Assert
-        assert raw == ["hello world"]  # sent raw, no transforms
-        assert len(writes) == 0  # not through normal serial_write
+        assert raw == ["hello world"], "sent raw, no transforms"
+        assert len(writes) == 0, "not through normal serial_write"
 
     def test_echo_off_suppresses_output(self, dispatch_env):
         # Arrange
@@ -589,7 +589,7 @@ class TestDispatchFull:
         do("/help")
 
         # Assert
-        assert len(echoed) == 0  # no echo when disabled
+        assert len(echoed) == 0, "no echo when disabled"
 
     def test_not_connected_blocks_send(self, dispatch_env):
         # Arrange
@@ -604,8 +604,8 @@ class TestDispatchFull:
         )
 
         # Assert
-        assert len(writes) == 0  # nothing sent
-        assert any("Not connected" in t for t, _ in statuses)  # error shown
+        assert len(writes) == 0, "nothing sent"
+        assert any("Not connected" in t for t, _ in statuses), "error shown"
 
     def test_serial_write_error(self, dispatch_env):
         # Arrange
@@ -623,7 +623,7 @@ class TestDispatchFull:
         )
 
         # Assert
-        assert any("Send error" in t for t, _ in statuses)  # error reported
+        assert any("Send error" in t for t, _ in statuses), "error reported"
 
     def test_echo_input_config(self, dispatch_env):
         # Arrange
@@ -635,7 +635,7 @@ class TestDispatchFull:
         do("ATZ")
 
         # Assert
-        assert any("> ATZ" in t for t in echoed)  # input echoed
+        assert any("> ATZ" in t for t in echoed), "input echoed"
 
     def test_custom_line_ending(self, dispatch_env):
         # Arrange
@@ -646,7 +646,7 @@ class TestDispatchFull:
         do("ATZ")
 
         # Assert
-        assert writes == [b"ATZ\r\n"]  # uses configured line ending
+        assert writes == [b"ATZ\r\n"], "uses configured line ending"
 
     def test_repl_command_echo_quiet_suppressed(self, dispatch_env):
         # Arrange
@@ -656,7 +656,7 @@ class TestDispatchFull:
         do("/echo.quiet off")
 
         # Assert — echo.quiet commands should not be echoed even with echo on
-        assert not any("echo.quiet" in t for t in echoed)  # suppressed
+        assert not any("echo.quiet" in t for t in echoed), "suppressed"
 
 
 # ── wait_for_match / feed_lines ──────────────────────────────────
@@ -673,7 +673,7 @@ class TestWaitForMatch:
         actual = eng.wait_for_match(lambda line: "OK" in line, timeout=0.05)
 
         # Assert
-        assert actual == "OK"  # found in buffer
+        assert actual == "OK", "found in buffer"
 
     def test_timeout_returns_none(self, engine):
         """No match within timeout returns None."""
@@ -684,7 +684,7 @@ class TestWaitForMatch:
         actual = eng.wait_for_match(lambda line: "NOPE" in line, timeout=0.05)
 
         # Assert
-        assert actual is None  # timed out
+        assert actual is None, "timed out"
 
     def test_match_via_feed_lines(self, engine):
         """Match found via feed_lines from another thread."""

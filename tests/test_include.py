@@ -70,32 +70,32 @@ class TestDemoHelpJson:
         actual = _send_cmd(dev, "AT+HELP.JSON")
         # Assert
         data = json.loads(actual)
-        assert isinstance(data, dict)  # response is a JSON object
-        assert "commands" in data  # has commands wrapper
+        assert isinstance(data, dict), "response is a JSON object"
+        assert "commands" in data, "has commands wrapper"
 
     def test_contains_at_commands(self, dev: FakeSerial) -> None:
         # Act
         cmds = json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         # Assert
-        assert "AT" in cmds  # contains AT command
-        assert "AT+INFO" in cmds  # contains AT+INFO
-        assert "AT+TEMP" in cmds  # contains AT+TEMP
-        assert "AT+STATUS" in cmds  # contains AT+STATUS
+        assert "AT" in cmds, "contains AT command"
+        assert "AT+INFO" in cmds, "contains AT+INFO"
+        assert "AT+TEMP" in cmds, "contains AT+TEMP"
+        assert "AT+STATUS" in cmds, "contains AT+STATUS"
 
     def test_contains_non_at_commands(self, dev: FakeSerial) -> None:
         # Act
         cmds = json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         # Assert
-        assert "mem" in cmds  # contains mem command
+        assert "mem" in cmds, "contains mem command"
 
     def test_contains_gps_commands(self, dev: FakeSerial) -> None:
         # Act
         cmds = json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         # Assert
-        assert "$GPGGA" in cmds  # NMEA position fix
-        assert "$GPRMC" in cmds  # NMEA nav data
-        assert "$GPGSA" in cmds  # NMEA DOP
-        assert "$GPGSV" in cmds  # NMEA satellites in view
+        assert "$GPGGA" in cmds, "NMEA position fix"
+        assert "$GPRMC" in cmds, "NMEA nav data"
+        assert "$GPGSA" in cmds, "NMEA DOP"
+        assert "$GPGSV" in cmds, "NMEA satellites in view"
 
     def test_entries_have_help_field(self, dev: FakeSerial) -> None:
         # Act
@@ -103,7 +103,7 @@ class TestDemoHelpJson:
         # Assert
         for name, entry in cmds.items():
             assert "help" in entry, f"'{name}' missing help field"
-            assert isinstance(entry["help"], str)  # help is a string
+            assert isinstance(entry["help"], str), f"'{name}' help is not a string"
 
     def test_entries_have_args_field(self, dev: FakeSerial) -> None:
         # Act
@@ -111,25 +111,25 @@ class TestDemoHelpJson:
         # Assert
         for name, entry in cmds.items():
             assert "args" in entry, f"'{name}' missing args field"
-            assert isinstance(entry["args"], str)  # args is a string
+            assert isinstance(entry["args"], str), f"'{name}' args is not a string"
 
     def test_led_has_args(self, dev: FakeSerial) -> None:
         # Act
         cmds = json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         # Assert
-        assert cmds["AT+LED"]["args"] != ""  # LED has required arg
+        assert cmds["AT+LED"]["args"] != "", "LED has required arg"
 
     def test_at_has_empty_args(self, dev: FakeSerial) -> None:
         # Act
         cmds = json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         # Assert
-        assert cmds["AT"]["args"] == ""  # AT takes no args
+        assert cmds["AT"]["args"] == "", "AT takes no args"
 
     def test_command_count(self, dev: FakeSerial) -> None:
         # Act
         cmds = json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         # Assert
-        assert len(cmds) >= 10  # at least 10 commands exposed
+        assert len(cmds) >= 10, "at least 10 commands exposed"
 
 
 # -- TargetCommand dataclass --------------------------------------------------
@@ -140,15 +140,15 @@ class TestTargetCommand:
         # Act
         tc = TargetCommand(name="AT+LED", help="Control LED", args="<on|off>")
         # Assert
-        assert tc.name == "AT+LED"  # name preserved
-        assert tc.help == "Control LED"  # help preserved
-        assert tc.args == "<on|off>"  # args preserved
+        assert tc.name == "AT+LED", "name preserved"
+        assert tc.help == "Control LED", "help preserved"
+        assert tc.args == "<on|off>", "args preserved"
 
     def test_create_without_args(self) -> None:
         # Act
         tc = TargetCommand(name="AT", help="Connection test")
         # Assert
-        assert tc.args == ""  # args defaults to empty
+        assert tc.args == "", "args defaults to empty"
 
 
 # -- ReplEngine target command storage ----------------------------------------
@@ -159,7 +159,7 @@ class TestTargetCommandStorage:
         # Arrange
         eng, _ = engine
         # Assert
-        assert eng._target_commands == {}  # starts empty
+        assert eng._target_commands == {}, "starts empty"
 
     def test_set_target_commands(self, engine) -> None:
         # Arrange
@@ -171,9 +171,9 @@ class TestTargetCommandStorage:
         # Act
         eng.set_target_commands(commands)
         # Assert
-        assert len(eng._target_commands) == 2  # both stored
-        assert "AT" in eng._target_commands  # AT present
-        assert "AT+INFO" in eng._target_commands  # AT+INFO present
+        assert len(eng._target_commands) == 2, "both stored"
+        assert "AT" in eng._target_commands, "AT present"
+        assert "AT+INFO" in eng._target_commands, "AT+INFO present"
 
     def test_set_replaces_previous(self, engine) -> None:
         # Arrange
@@ -186,8 +186,8 @@ class TestTargetCommandStorage:
             "NEW": TargetCommand(name="NEW", help="new cmd"),
         })
         # Assert
-        assert "OLD" not in eng._target_commands  # old entry removed
-        assert "NEW" in eng._target_commands  # new entry present
+        assert "OLD" not in eng._target_commands, "old entry removed"
+        assert "NEW" in eng._target_commands, "new entry present"
 
     def test_clear_target_commands(self, engine) -> None:
         # Arrange
@@ -198,7 +198,7 @@ class TestTargetCommandStorage:
         # Act
         eng.clear_target_commands()
         # Assert
-        assert eng._target_commands == {}  # cleared
+        assert eng._target_commands == {}, "cleared"
 
 
 # -- JSON parsing (include helpers) -------------------------------------------
@@ -223,8 +223,8 @@ class TestReadJsonParsing:
                     args=entry.get("args", ""),
                 )
         # Assert
-        assert len(commands) >= 10  # built from all entries
-        assert commands["AT+LED"].args == "<on|off>"  # args preserved
+        assert len(commands) >= 10, "built from all entries"
+        assert commands["AT+LED"].args == "<on|off>", "args preserved"
 
     def test_skip_entries_without_help(self) -> None:
         """Entries missing 'help' should be skipped."""
@@ -242,10 +242,10 @@ class TestReadJsonParsing:
                     name=name, help=entry["help"], args=entry.get("args", "")
                 )
         # Assert
-        assert len(commands) == 1  # only valid entry kept
-        assert "good" in commands  # valid entry present
-        assert "bad" not in commands  # missing help skipped
-        assert "also_bad" not in commands  # non-dict skipped
+        assert len(commands) == 1, "only valid entry kept"
+        assert "good" in commands, "valid entry present"
+        assert "bad" not in commands, "missing help skipped"
+        assert "also_bad" not in commands, "non-dict skipped"
 
     def test_json_with_preamble(self) -> None:
         """JSON extraction should work even with preamble text."""
@@ -255,7 +255,7 @@ class TestReadJsonParsing:
         # Act
         data = json.loads(raw[start:])
         # Assert
-        assert "AT" in data  # found JSON despite preamble
+        assert "AT" in data, "found JSON despite preamble"
 
 
 # -- /help.target subcommand --------------------------------------------------
@@ -272,7 +272,7 @@ class TestHelpTarget:
         result = eng.dispatch("help.target")
         # Assert
         messages = [t for t, _ in output]
-        assert any("No target" in m for m in messages)  # says no commands
+        assert any("No target" in m for m in messages), "says no commands"
 
     def test_lists_included_commands(self, engine) -> None:
         """Lists target commands after include."""
@@ -287,9 +287,9 @@ class TestHelpTarget:
         result = eng.dispatch("help.target")
         # Assert
         messages = " ".join(t for t, _ in output)
-        assert "AT" in messages  # AT listed
-        assert "AT+INFO" in messages  # AT+INFO listed
-        assert "Target Device" in messages  # section header shown
+        assert "AT" in messages, "AT listed"
+        assert "AT+INFO" in messages, "AT+INFO listed"
+        assert "Target Device" in messages, "section header shown"
 
     def test_shows_args(self, engine) -> None:
         """Target commands with args display them."""
@@ -303,7 +303,7 @@ class TestHelpTarget:
         result = eng.dispatch("help.target")
         # Assert
         messages = " ".join(t for t, _ in output)
-        assert "on|off" in messages  # args shown
+        assert "on|off" in messages, "args shown"
 
     def test_reports_count(self, engine) -> None:
         """Reports total count of target commands."""
@@ -319,7 +319,7 @@ class TestHelpTarget:
         result = eng.dispatch("help.target")
         # Assert
         messages = " ".join(t for t, _ in output)
-        assert "3 device commands" in messages  # count reported
+        assert "3 device commands" in messages, "count reported"
 
 
 # -- Config key ---------------------------------------------------------------
@@ -332,7 +332,7 @@ class TestTargetHelpCmdConfig:
         # Assert
         expected = "AT+HELP.JSON"
         actual = eng.cfg.get("device_json_cmd", "")
-        assert actual == expected  # config key present
+        assert actual == expected, "config key present"
 
     def test_demo_cfg_has_key(self) -> None:
         """The demo.cfg should have device_json_cmd set."""
@@ -344,15 +344,15 @@ class TestTargetHelpCmdConfig:
         )
         cfg = json.loads(demo_cfg.read_text())
         # Assert
-        assert cfg["device_json_cmd"] == "AT+HELP.JSON"  # demo configured
+        assert cfg["device_json_cmd"] == "AT+HELP.JSON", "demo configured"
 
     def test_default_cfg_has_key(self) -> None:
         """DEFAULT_CFG should include device_json_cmd."""
         # Arrange
         from termapy.defaults import DEFAULT_CFG
         # Assert
-        assert "device_json_cmd" in DEFAULT_CFG  # key in defaults
-        assert DEFAULT_CFG["device_json_cmd"] == ""  # default is empty
+        assert "device_json_cmd" in DEFAULT_CFG, "key in defaults"
+        assert DEFAULT_CFG["device_json_cmd"] == "", "default is empty"
 
 
 # -- Custom prefix ------------------------------------------------------------
@@ -369,8 +369,8 @@ class TestCustomPrefix:
         config_path.write_text(json.dumps(cfg))
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: None)
         # Act / Assert
-        assert eng.cmd("include") == "/include"  # default prefix
-        assert eng.cmd("help") == "/help"  # default prefix
+        assert eng.cmd("include") == "/include", "default prefix"
+        assert eng.cmd("help") == "/help", "default prefix"
 
     def test_cmd_helper_uses_custom_prefix(self, tmp_path) -> None:
         # Arrange
@@ -380,8 +380,8 @@ class TestCustomPrefix:
         config_path.write_text(json.dumps(cfg))
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: None, prefix="!")
         # Act / Assert
-        assert eng.cmd("include") == "!include"  # custom prefix
-        assert eng.cmd("help") == "!help"  # custom prefix
+        assert eng.cmd("include") == "!include", "custom prefix"
+        assert eng.cmd("help") == "!help", "custom prefix"
 
     def test_dispatch_with_custom_prefix(self, tmp_path) -> None:
         """Commands dispatched via custom prefix should work."""
@@ -396,4 +396,4 @@ class TestCustomPrefix:
         # Act
         result = eng.dispatch("ver")
         # Assert
-        assert result.success  # dispatch works with custom prefix
+        assert result.success, "dispatch works with custom prefix"

@@ -20,7 +20,7 @@ class TestEnvVarTransform:
 
         # Assert
         expected = "connect COM7"
-        assert actual == expected  # known var expanded
+        assert actual == expected, "known var expanded"
 
     def test_unknown_var_raises(self):
         # Arrange — ensure var does not exist
@@ -39,7 +39,7 @@ class TestEnvVarTransform:
 
         # Assert
         expected = "connect COM1"
-        assert actual == expected  # fallback value used
+        assert actual == expected, "fallback value used"
 
     def test_fallback_ignored_when_set(self):
         # Arrange
@@ -50,7 +50,7 @@ class TestEnvVarTransform:
 
         # Assert
         expected = "connect COM7"
-        assert actual == expected  # real value used, fallback ignored
+        assert actual == expected, "real value used, fallback ignored"
 
     def test_empty_fallback(self):
         # Arrange
@@ -61,7 +61,7 @@ class TestEnvVarTransform:
 
         # Assert
         expected = "prefixsuffix"
-        assert actual == expected  # empty fallback produces empty string
+        assert actual == expected, "empty fallback produces empty string"
 
     def test_multiple_vars(self):
         # Arrange
@@ -73,7 +73,7 @@ class TestEnvVarTransform:
 
         # Assert
         expected = "AT+PORT=COM3,9600"
-        assert actual == expected  # both vars expanded
+        assert actual == expected, "both vars expanded"
 
     def test_no_placeholders_passthrough(self):
         # Act
@@ -81,7 +81,7 @@ class TestEnvVarTransform:
 
         # Assert
         expected = "ATZ"
-        assert actual == expected  # plain string unchanged
+        assert actual == expected, "plain string unchanged"
 
     def test_bare_dollar_env_not_expanded(self):
         # Act — no parens, should NOT match
@@ -90,7 +90,7 @@ class TestEnvVarTransform:
 
         # Assert
         expected = "$env.FOO"
-        assert actual == expected  # bare syntax not matched
+        assert actual == expected, "bare syntax not matched"
 
     def test_env_is_snapshot(self):
         # Arrange — inject a key only into os.environ
@@ -98,7 +98,7 @@ class TestEnvVarTransform:
         os.environ[sentinel] = "live"
 
         # Assert — _ENV was captured before the sentinel was set
-        assert sentinel not in _ENV  # snapshot does not see later os.environ changes
+        assert sentinel not in _ENV, "snapshot does not see later os.environ changes"
 
         # Cleanup
         os.environ.pop(sentinel, None)
@@ -119,8 +119,8 @@ class TestEnvCommands:
         _handler_set(ctx, "MY_TEST_VAR hello_world")
 
         # Assert
-        assert _ENV["MY_TEST_VAR"] == "hello_world"  # var added to snapshot
-        assert any("hello_world" in t for t, _ in output)  # confirmation shown
+        assert _ENV["MY_TEST_VAR"] == "hello_world", "var added to snapshot"
+        assert any("hello_world" in t for t, _ in output), "confirmation shown"
 
     def test_set_overwrites_existing(self):
         # Arrange
@@ -131,7 +131,7 @@ class TestEnvCommands:
         _handler_set(ctx, "MY_TEST_VAR new")
 
         # Assert
-        assert _ENV["MY_TEST_VAR"] == "new"  # value overwritten
+        assert _ENV["MY_TEST_VAR"] == "new", "value overwritten"
 
     def test_set_missing_value(self):
         # Arrange
@@ -141,8 +141,8 @@ class TestEnvCommands:
         result = _handler_set(ctx, "ONLY_NAME")
 
         # Assert
-        assert not result.success  # handler reports failure
-        assert "Usage" in result.error  # usage error returned
+        assert not result.success, "handler reports failure"
+        assert "Usage" in result.error, "usage error returned"
 
     def test_set_value_with_spaces(self):
         # Arrange
@@ -152,7 +152,7 @@ class TestEnvCommands:
         _handler_set(ctx, "MY_PATH C:\\Program Files\\App")
 
         # Assert
-        assert _ENV["MY_PATH"] == "C:\\Program Files\\App"  # spaces preserved
+        assert _ENV["MY_PATH"] == "C:\\Program Files\\App", "spaces preserved"
 
     def test_set_then_transform(self):
         # Arrange
@@ -164,7 +164,7 @@ class TestEnvCommands:
 
         # Assert
         expected = "connect COM99"
-        assert actual == expected  # set var is expanded by transform
+        assert actual == expected, "set var is expanded by transform"
 
     def test_list_single_var(self):
         # Arrange
@@ -175,7 +175,7 @@ class TestEnvCommands:
         _handler_list(ctx, "LIST_TEST")
 
         # Assert
-        assert any("LIST_TEST=abc" in t for t, _ in output)  # var shown
+        assert any("LIST_TEST=abc" in t for t, _ in output), "var shown"
 
     def test_list_glob_pattern(self):
         # Arrange
@@ -189,9 +189,9 @@ class TestEnvCommands:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("USER_ALPHA=a" in t for t in texts)  # first match shown
-        assert any("USER_BETA=b" in t for t in texts)  # second match shown
-        assert not any("UNRELATED" in t for t in texts)  # non-match excluded
+        assert any("USER_ALPHA=a" in t for t in texts), "first match shown"
+        assert any("USER_BETA=b" in t for t in texts), "second match shown"
+        assert not any("UNRELATED" in t for t in texts), "non-match excluded"
 
     def test_list_glob_no_matches(self):
         # Arrange
@@ -201,8 +201,8 @@ class TestEnvCommands:
         result = _handler_list(ctx, "ZZNOEXIST_*")
 
         # Assert
-        assert not result.success  # handler reports failure
-        assert "No variables matching" in result.error  # error returned
+        assert not result.success, "handler reports failure"
+        assert "No variables matching" in result.error, "error returned"
 
     def test_list_unknown_var(self):
         # Arrange
@@ -213,8 +213,8 @@ class TestEnvCommands:
         result = _handler_list(ctx, "NOPE_XYZ")
 
         # Assert
-        assert not result.success  # handler reports failure
-        assert "not set" in result.error  # error returned
+        assert not result.success, "handler reports failure"
+        assert "not set" in result.error, "error returned"
 
     def test_reload_resets_snapshot(self):
         # Arrange
@@ -225,5 +225,5 @@ class TestEnvCommands:
         _handler_reload(ctx, "")
 
         # Assert — SESSION_ONLY was not in os.environ, so it's gone
-        assert "SESSION_ONLY" not in _ENV  # session var cleared by reload
-        assert any("reloaded" in t.lower() for t, _ in output)  # confirmation
+        assert "SESSION_ONLY" not in _ENV, "session var cleared by reload"
+        assert any("reloaded" in t.lower() for t, _ in output), "confirmation"

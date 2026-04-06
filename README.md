@@ -78,6 +78,16 @@ See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against Rea
 </details>
 
 <details>
+
+<summary><strong>Who This Is Not For</strong> — save yourself some time</summary>
+
+- **You just need a simple serial terminal.** If you open PuTTY, type `AT`, see `OK`, and you're done — keep using PuTTY (or `screen /dev/ttyUSB0 115200` on Linux/macOS). Termapy is built for people who hit the limits of simple terminals and need scripting, protocol testing, data capture, or a plugin system.
+- **You don't want Python on your machine.** Termapy is a Python app. [uv](https://docs.astral.sh/uv/) makes installation isolated and fast (it manages its own Python, won't touch your system), but if "install Python" is a deal-breaker, a native app like CoolTerm or RealTerm is a better fit.
+- **You need a GUI with menus and mouse-driven workflows.** Termapy runs in your terminal. It has a TUI with buttons and dialogs, but it's keyboard-first and text-based. If you want drag-and-drop or a Windows-native look, try Tera Term or Docklight.
+
+</details>
+
+<details>
 <summary><strong>The Basics</strong> — keyboard shortcuts, title bar, REPL commands</summary>
 
 ### Keyboard Shortcuts
@@ -127,80 +137,80 @@ The most common ones:
 <details>
 <summary>Full command list</summary>
 
-| Command                          | Description                                                                      |
-| -------------------------------- | -------------------------------------------------------------------------------- |
-| `/help [cmd]`                    | List commands or show extended help for one                                      |
-| `/help.dev <cmd>`                | Show a command handler's Python docstring                                        |
-| `/port [name]`                   | Open a port by name, or show subcommands                                         |
-| `/port.list`                     | List available serial ports                                                      |
-| `/port.open {name}`              | Connect to the serial port (optional port override)                              |
-| `/port.close`                    | Disconnect from the serial port                                                  |
-| `/port.info`                     | Show port status, serial parameters, and hardware lines                          |
-| `/port.baud_rate {value}`        | Show or set baud rate (hardware only)                                            |
-| `/port.byte_size {value}`        | Show or set data bits (hardware only)                                            |
-| `/port.parity {value}`           | Show or set parity (hardware only)                                               |
-| `/port.stop_bits {value}`        | Show or set stop bits (hardware only)                                            |
-| `/port.flow_control {m}`         | Show or set flow control: none, rtscts, xonxoff, manual                          |
-| `/port.dtr {0\|1}`               | Show or set DTR line                                                             |
-| `/port.rts {0\|1}`               | Show or set RTS line                                                             |
-| `/port.cts`                      | Show CTS state (read-only)                                                       |
-| `/port.dsr`                      | Show DSR state (read-only)                                                       |
-| `/port.ri`                       | Show RI state (read-only)                                                        |
-| `/port.cd`                       | Show CD state (read-only)                                                        |
-| `/port.break {ms}`               | Send break signal (default 250ms)                                                |
-| `/cfg [key [value]]`             | Show config, show a key, or change in-memory value (with confirmation)           |
-| `/cfg.auto <key> <value>`        | Set an in-memory config key immediately (no confirmation)                        |
-| `/cfg.configs`                   | List all config files                                                            |
-| `/cfg.load <name>`               | Switch to a different config by name                                             |
-| `/ss.svg [name]`                 | Save SVG screenshot                                                              |
-| `/ss.txt [name]`                 | Save text screenshot                                                             |
-| `/ss.dir`                        | Show the screenshot folder                                                       |
-| `/cls`                           | Clear the terminal screen                                                        |
-| `/run <filename> {-v}`           | Run a script file (-v/--verbose for per-line timing); nests up to 5 levels deep  |
-| `/run.list`                      | List .run files in the run/ directory                                            |
-| `/run.load <filename>`           | Run a script file (same as /run)                                                 |
-| `/delay <duration>`              | Wait for a duration (e.g. `500ms`, `1.5s`)                                       |
-| `/confirm {message}`             | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)        |
-| `/stop`                          | Abort a running script                                                           |
-| `/seq`                           | Show sequence counters                                                           |
-| `/seq.reset`                     | Reset all sequence counters to zero                                              |
-| `/print <text>`                  | Print a message to the terminal                                                  |
-| `/print.r <text>`                | Print Rich markup text (e.g. `[bold red]Warning![/]`)                            |
-| `/show <name>`                   | Show a file                                                                      |
-| `/show.cfg`                      | Show the current config file                                                     |
-| `/echo [on \| off]`              | Toggle REPL command echo                                                         |
-| `/echo.quiet <on \| off>`        | Set echo on/off silently (for scripts and on_connect_cmd)                        |
-| `/edit <file>`                   | Edit a project file (`run/`/`proto/` path)                                       |
-| `/edit.cfg`                      | Edit the current config file                                                     |
-| `/edit.log`                      | Open the session log in the system viewer                                        |
-| `/edit.info`                     | Open the info report in the system viewer                                        |
-| `/show_line_endings [on \| off]` | Toggle visible `\r` `\n` markers for line-ending troubleshooting                 |
-| `/os <cmd>`                      | Run a shell command (10s timeout, requires `os_cmd_enabled`)                     |
-| `/grep <pattern>`                | Search scrollback for regex matches (case-insensitive, skips own output)         |
-| `/cfg.info {--display}`          | Show project summary; `--display` opens full report in system viewer             |
-| `/cfg.files`                     | Show project directory tree                                                      |
-| `/proto.send <hex>`              | Send raw hex bytes and/or quoted text, display response as hex (see below)       |
-| `/proto.run <file>`              | Run a binary protocol test script (.pro) with pass/fail                          |
-| `/proto.list`                    | List .pro files in the proto/ directory                                          |
-| `/proto.load <file>`             | Run a protocol test script (same as /proto.run)                                  |
-| `/proto.hex [on \| off]`         | Toggle hex display mode for serial I/O                                           |
-| `/proto.crc.list {pat}`          | List available CRC algorithms (optional glob filter)                             |
-| `/proto.crc.help <name>`         | Show CRC algorithm parameters and description                                    |
-| `/proto.crc.calc <n> {d}`        | Compute CRC over hex bytes, text, or file; omit data to verify check string      |
-| `/proto.status`                  | Show current protocol mode state                                                 |
-| `/var {name}`                    | List user variables, or show one by name                                         |
-| `/var.set <NAME> <value>`        | Set a user variable                                                              |
-| `/var.clear`                     | Clear all user variables                                                         |
-| `/env.list {pattern}`            | List environment variables (all, by name, or glob)                               |
-| `/env.set <name> <value>`        | Set a session-scoped environment variable                                        |
-| `/env.reload`                    | Re-snapshot variables from the OS environment                                    |
-| `/cap.text <f> ...`              | Capture serial text to file for a timed duration                                 |
-| `/cap.bin <f> ...`               | Capture raw binary bytes to a file                                               |
-| `/cap.struct <f> ...`            | Capture binary data, decode with format spec to CSV                              |
-| `/cap.hex <f> ...`               | Capture hex text lines, decode with format spec to CSV                           |
-| `/cap.stop`                      | Stop an active capture                                                           |
-| `/raw <text>`                    | Send text to serial with no variable expansion or transforms                     |
-| `/exit`                          | Exit termapy                                                                     |
+| Command                          | Description                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| `/help [cmd]`                    | List commands or show extended help for one                                     |
+| `/help.dev <cmd>`                | Show a command handler's Python docstring                                       |
+| `/port [name]`                   | Open a port by name, or show subcommands                                        |
+| `/port.list`                     | List available serial ports                                                     |
+| `/port.open {name}`              | Connect to the serial port (optional port override)                             |
+| `/port.close`                    | Disconnect from the serial port                                                 |
+| `/port.info`                     | Show port status, serial parameters, and hardware lines                         |
+| `/port.baud_rate {value}`        | Show or set baud rate (hardware only)                                           |
+| `/port.byte_size {value}`        | Show or set data bits (hardware only)                                           |
+| `/port.parity {value}`           | Show or set parity (hardware only)                                              |
+| `/port.stop_bits {value}`        | Show or set stop bits (hardware only)                                           |
+| `/port.flow_control {m}`         | Show or set flow control: none, rtscts, xonxoff, manual                         |
+| `/port.dtr {0\|1}`               | Show or set DTR line                                                            |
+| `/port.rts {0\|1}`               | Show or set RTS line                                                            |
+| `/port.cts`                      | Show CTS state (read-only)                                                      |
+| `/port.dsr`                      | Show DSR state (read-only)                                                      |
+| `/port.ri`                       | Show RI state (read-only)                                                       |
+| `/port.cd`                       | Show CD state (read-only)                                                       |
+| `/port.break {ms}`               | Send break signal (default 250ms)                                               |
+| `/cfg [key [value]]`             | Show config, show a key, or change in-memory value (with confirmation)          |
+| `/cfg.auto <key> <value>`        | Set an in-memory config key immediately (no confirmation)                       |
+| `/cfg.configs`                   | List all config files                                                           |
+| `/cfg.load <name>`               | Switch to a different config by name                                            |
+| `/ss.svg [name]`                 | Save SVG screenshot                                                             |
+| `/ss.txt [name]`                 | Save text screenshot                                                            |
+| `/ss.dir`                        | Show the screenshot folder                                                      |
+| `/cls`                           | Clear the terminal screen                                                       |
+| `/run <filename> {-v}`           | Run a script file (-v/--verbose for per-line timing); nests up to 5 levels deep |
+| `/run.list`                      | List .run files in the run/ directory                                           |
+| `/run.load <filename>`           | Run a script file (same as /run)                                                |
+| `/delay <duration>`              | Wait for a duration (e.g. `500ms`, `1.5s`)                                      |
+| `/confirm {message}`             | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)       |
+| `/stop`                          | Abort a running script                                                          |
+| `/seq`                           | Show sequence counters                                                          |
+| `/seq.reset`                     | Reset all sequence counters to zero                                             |
+| `/print <text>`                  | Print a message to the terminal                                                 |
+| `/print.r <text>`                | Print Rich markup text (e.g. `[bold red]Warning![/]`)                           |
+| `/show <name>`                   | Show a file                                                                     |
+| `/show.cfg`                      | Show the current config file                                                    |
+| `/echo [on \| off]`              | Toggle REPL command echo                                                        |
+| `/echo.quiet <on \| off>`        | Set echo on/off silently (for scripts and on_connect_cmd)                       |
+| `/edit <file>`                   | Edit a project file (`run/`/`proto/` path)                                      |
+| `/edit.cfg`                      | Edit the current config file                                                    |
+| `/edit.log`                      | Open the session log in the system viewer                                       |
+| `/edit.info`                     | Open the info report in the system viewer                                       |
+| `/show_line_endings [on \| off]` | Toggle visible `\r` `\n` markers for line-ending troubleshooting                |
+| `/os <cmd>`                      | Run a shell command (10s timeout, requires `os_cmd_enabled`)                    |
+| `/grep <pattern>`                | Search scrollback for regex matches (case-insensitive, skips own output)        |
+| `/cfg.info {--display}`          | Show project summary; `--display` opens full report in system viewer            |
+| `/cfg.files`                     | Show project directory tree                                                     |
+| `/proto.send <hex>`              | Send raw hex bytes and/or quoted text, display response as hex (see below)      |
+| `/proto.run <file>`              | Run a binary protocol test script (.pro) with pass/fail                         |
+| `/proto.list`                    | List .pro files in the proto/ directory                                         |
+| `/proto.load <file>`             | Run a protocol test script (same as /proto.run)                                 |
+| `/proto.hex [on \| off]`         | Toggle hex display mode for serial I/O                                          |
+| `/proto.crc.list {pat}`          | List available CRC algorithms (optional glob filter)                            |
+| `/proto.crc.help <name>`         | Show CRC algorithm parameters and description                                   |
+| `/proto.crc.calc <n> {d}`        | Compute CRC over hex bytes, text, or file; omit data to verify check string     |
+| `/proto.status`                  | Show current protocol mode state                                                |
+| `/var {name}`                    | List user variables, or show one by name                                        |
+| `/var.set <NAME> <value>`        | Set a user variable                                                             |
+| `/var.clear`                     | Clear all user variables                                                        |
+| `/env.list {pattern}`            | List environment variables (all, by name, or glob)                              |
+| `/env.set <name> <value>`        | Set a session-scoped environment variable                                       |
+| `/env.reload`                    | Re-snapshot variables from the OS environment                                   |
+| `/cap.text <f> ...`              | Capture serial text to file for a timed duration                                |
+| `/cap.bin <f> ...`               | Capture raw binary bytes to a file                                              |
+| `/cap.struct <f> ...`            | Capture binary data, decode with format spec to CSV                             |
+| `/cap.hex <f> ...`               | Capture hex text lines, decode with format spec to CSV                          |
+| `/cap.stop`                      | Stop an active capture                                                          |
+| `/raw <text>`                    | Send text to serial with no variable expansion or transforms                    |
+| `/exit`                          | Exit termapy                                                                    |
 
 </details>
 
@@ -319,13 +329,13 @@ $(NUM_REGS) = 05
 
 Run `/run setup_modbus.run` then `/run test_registers.run` — the variables persist across interactive `/run` calls.
 
-| Command              | Description                            |
-| -------------------- | -------------------------------------- |
-| `$(NAME) = value`    | Set a variable (no `/` prefix needed)  |
-| `/var`               | List all defined variables             |
-| `/var NAME`          | Show one variable's value (or $(NAME)) |
-| `/var.set NAME val`  | Set a variable (explicit command form) |
-| `/var.clear`         | Clear all variables                    |
+| Command             | Description                            |
+| ------------------- | -------------------------------------- |
+| `$(NAME) = value`   | Set a variable (no `/` prefix needed)  |
+| `/var`              | List all defined variables             |
+| `/var NAME`         | Show one variable's value (or $(NAME)) |
+| `/var.set NAME val` | Set a variable (explicit command form) |
+| `/var.clear`        | Clear all variables                    |
 
 **Scope:** Variables persist for the interactive session. They are automatically cleared when a script is launched from the Scripts button or Run menu, but *not* when `/run` is typed interactively or called within a script. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
 
@@ -333,11 +343,11 @@ Run `/run setup_modbus.run` then `/run test_registers.run` — the variables per
 
 **Built-in time variables:**
 
-| Variable | Set when | Updates? |
-| --- | --- | --- |
-| `$(LAUNCH_DATETIME)` | App starts | Never - frozen |
-| `$(SESSION_DATETIME)` | Script launched (Scripts button / Run menu) | Per script launch |
-| `$(DATETIME)` | Every expansion | Always current clock |
+| Variable              | Set when                                    | Updates?             |
+| --------------------- | ------------------------------------------- | -------------------- |
+| `$(LAUNCH_DATETIME)`  | App starts                                  | Never - frozen       |
+| `$(SESSION_DATETIME)` | Script launched (Scripts button / Run menu) | Per script launch    |
+| `$(DATETIME)`         | Every expansion                             | Always current clock |
 
 Each group also has `_DATE` and `_TIME` variants (e.g. `$(LAUNCH_DATE)`, `$(SESSION_TIME)`).
 
@@ -567,20 +577,20 @@ Capture serial data to files without interrupting normal terminal display.
 
 The `fmt=` parameter uses the same format spec language as `/proto` — type codes `H` (hex), `U` (unsigned), `I` (signed), `S` (string), `F` (float), `B` (bit) with 1-based byte ranges. Byte range order determines endianness: `U1-2` = big-endian, `U2-1` = little-endian. Named columns (`Temp:U1-2`) produce a CSV header row; unnamed columns (`U1-2`) omit it.
 
-| Format spec | C type     | Meaning                        |
-|-------------|------------|--------------------------------|
-| `U1`        | `uint8_t`  | 1 unsigned byte                |
-| `U1-2`      | `uint16_t` | 2-byte unsigned, big-endian    |
-| `U2-1`      | `uint16_t` | 2-byte unsigned, little-endian |
-| `U1-4`      | `uint32_t` | 4-byte unsigned, big-endian    |
-| `U1-8`      | `uint64_t` | 8-byte unsigned, big-endian    |
-| `I1`        | `int8_t`   | 1 signed byte                  |
-| `I1-2`      | `int16_t`  | 2-byte signed, big-endian      |
-| `I1-4`      | `int32_t`  | 4-byte signed, big-endian      |
-| `I1-8`      | `int64_t`  | 8-byte signed, big-endian      |
-| `F1-4`      | `float`    | 4-byte IEEE 754 float          |
-| `F1-8`      | `double`   | 8-byte IEEE 754 double         |
-| `S1-10`     | `char[10]` | 10-byte ASCII string           |
+| Format spec | C type     | Meaning                          |
+| ----------- | ---------- | -------------------------------- |
+| `U1`        | `uint8_t`  | 1 unsigned byte                  |
+| `U1-2`      | `uint16_t` | 2-byte unsigned, big-endian      |
+| `U2-1`      | `uint16_t` | 2-byte unsigned, little-endian   |
+| `U1-4`      | `uint32_t` | 4-byte unsigned, big-endian      |
+| `U1-8`      | `uint64_t` | 8-byte unsigned, big-endian      |
+| `I1`        | `int8_t`   | 1 signed byte                    |
+| `I1-2`      | `int16_t`  | 2-byte signed, big-endian        |
+| `I1-4`      | `int32_t`  | 4-byte signed, big-endian        |
+| `I1-8`      | `int64_t`  | 8-byte signed, big-endian        |
+| `F1-4`      | `float`    | 4-byte IEEE 754 float            |
+| `F1-8`      | `double`   | 8-byte IEEE 754 double           |
+| `S1-10`     | `char[10]` | 10-byte ASCII string             |
 | `H1-4`      |            | 4 bytes as hex (e.g. `0A1BFF03`) |
 
 Auto-numbered filenames: use `$(n000)` for a 3-digit rotating sequence (000–999), tracked across sessions in a counter file.
@@ -692,7 +702,6 @@ expect_fmt = "Title:Modbus_Response Slave:H1 Func:H2 Bytes:U3 R0:U4-5 R1:U6-7 R2
 ```
 
 ![Inline format spec — decoded Modbus columns in proto debug screen](img/proto_inline_fmt.png)
-
 
 Finally here is the serial log output of a protocol test:
 
@@ -978,16 +987,16 @@ Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
 <details>
 <summary>Supported types</summary>
 
-| Code   | Meaning          | Example             | Output        |
-| ------ | ---------------- | ------------------- | ------------- |
-| `H`    | Hex bytes        | `H1`, `H3-4`        | `0A`, `01FF`  |
-| `U`    | Unsigned integer | `U1`, `U3-4`        | `10`, `256`   |
-| `I`    | Signed integer   | `I1`, `I3-4`        | `-1`, `+127`  |
-| `S`    | ASCII string     | `S5-12`             | `Hello...`    |
-| `F`    | IEEE 754 float   | `F1-4`              | `3.14`        |
-| `B`    | Bit field        | `B1.3`, `B1-2.7-9`  | `1`, `5`      |
-| `_`    | Padding (hidden) | `_:_3-4`            | *(skipped)*   |
-| `crc*` | CRC verify       | `CRC:crc16m_le`     | pass/fail     |
+| Code   | Meaning          | Example            | Output       |
+| ------ | ---------------- | ------------------ | ------------ |
+| `H`    | Hex bytes        | `H1`, `H3-4`       | `0A`, `01FF` |
+| `U`    | Unsigned integer | `U1`, `U3-4`       | `10`, `256`  |
+| `I`    | Signed integer   | `I1`, `I3-4`       | `-1`, `+127` |
+| `S`    | ASCII string     | `S5-12`            | `Hello...`   |
+| `F`    | IEEE 754 float   | `F1-4`             | `3.14`       |
+| `B`    | Bit field        | `B1.3`, `B1-2.7-9` | `1`, `5`     |
+| `_`    | Padding (hidden) | `_:_3-4`           | *(skipped)*  |
+| `crc*` | CRC verify       | `CRC:crc16m_le`    | pass/fail    |
 
 Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or 8-byte (F64).
 
@@ -1132,11 +1141,11 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 
 All tests run automatically on push to `main` and on pull requests via GitHub Actions.
 
-| Job | What it does |
-| --- | --- |
-| **test** | Runs `pytest` across Python 3.11, 3.12, 3.13, and 3.14 |
+| Job          | What it does                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| **test**     | Runs `pytest` across Python 3.11, 3.12, 3.13, and 3.14                                            |
 | **coverage** | Runs `pytest --cov` on Python 3.14 and uploads to [Codecov](https://codecov.io/gh/hucker/termapy) |
-| **audit** | Runs `pip-audit` to check for known vulnerabilities in dependencies |
+| **audit**    | Runs `pip-audit` to check for known vulnerabilities in dependencies                               |
 
 The CI badge at the top of this README reflects the current status of the test workflow. See [`.github/workflows/tests.yml`](.github/workflows/tests.yml) for the full configuration.
 

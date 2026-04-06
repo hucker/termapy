@@ -40,16 +40,16 @@ class TestExpandVars:
         actual = expand_vars("AT+PORT=$(PORT)")
         expected = "AT+PORT=COM7"
 
-        # Assert — known variable is expanded
-        assert actual == expected
+        # Assert
+        assert actual == expected, "known variable is expanded"
 
     def test_expand_unknown_var_left_as_is(self):
         # Act
         actual = expand_vars("$(UNKNOWN) stays")
         expected = "$(UNKNOWN) stays"
 
-        # Assert — unknown variable left as literal
-        assert actual == expected
+        # Assert
+        assert actual == expected, "unknown variable left as literal"
 
     def test_expand_multiple_vars(self):
         # Arrange
@@ -60,8 +60,8 @@ class TestExpandVars:
         actual = expand_vars("$(A) $(B)")
         expected = "hello world"
 
-        # Assert — both variables expanded
-        assert actual == expected
+        # Assert
+        assert actual == expected, "both variables expanded"
 
     def test_expand_mixed_known_unknown(self):
         # Arrange
@@ -71,16 +71,16 @@ class TestExpandVars:
         actual = expand_vars("$(KNOWN) and $(MISSING)")
         expected = "yes and $(MISSING)"
 
-        # Assert — known expanded, unknown left
-        assert actual == expected
+        # Assert
+        assert actual == expected, "known expanded, unknown left"
 
     def test_no_vars_in_string(self):
         # Act
         actual = expand_vars("no variables here")
         expected = "no variables here"
 
-        # Assert — string unchanged
-        assert actual == expected
+        # Assert
+        assert actual == expected, "string unchanged"
 
     def test_lowercase_var(self):
         # Arrange
@@ -90,8 +90,8 @@ class TestExpandVars:
         actual = expand_vars("$(port) is set")
         expected = "COM7 is set"
 
-        # Assert — lowercase variable names work
-        assert actual == expected
+        # Assert
+        assert actual == expected, "lowercase variable names work"
 
     def test_case_sensitive(self):
         # Arrange
@@ -101,8 +101,8 @@ class TestExpandVars:
         actual = expand_vars("$(port) stays")
         expected = "$(port) stays"
 
-        # Assert — $(port) != $(PORT) (case-sensitive)
-        assert actual == expected
+        # Assert
+        assert actual == expected, "$(port) != $(PORT) (case-sensitive)"
 
     def test_var_with_underscore(self):
         # Arrange
@@ -112,8 +112,8 @@ class TestExpandVars:
         actual = expand_vars("$(MY_VAR)")
         expected = "value"
 
-        # Assert — underscores in name work
-        assert actual == expected
+        # Assert
+        assert actual == expected, "underscores in name work"
 
     def test_var_with_digits(self):
         # Arrange
@@ -123,8 +123,8 @@ class TestExpandVars:
         actual = expand_vars("$(REG0)")
         expected = "100"
 
-        # Assert — digits in name work
-        assert actual == expected
+        # Assert
+        assert actual == expected, "digits in name work"
 
     def test_var_adjacent_to_text(self):
         # Arrange
@@ -134,8 +134,8 @@ class TestExpandVars:
         actual = expand_vars("port=$(PORT),baud=115200")
         expected = "port=COM7,baud=115200"
 
-        # Assert — expanded correctly at boundary
-        assert actual == expected
+        # Assert
+        assert actual == expected, "expanded correctly at boundary"
 
     def test_var_adjacent_to_text_no_ambiguity(self):
         # Arrange
@@ -145,8 +145,8 @@ class TestExpandVars:
         actual = expand_vars("$(PORT)7")
         expected = "COM7"
 
-        # Assert — closing paren terminates the name cleanly
-        assert actual == expected
+        # Assert
+        assert actual == expected, "closing paren terminates the name cleanly"
 
     def test_bare_dollar_not_expanded(self):
         # Arrange
@@ -156,8 +156,8 @@ class TestExpandVars:
         actual = expand_vars("$PORT")
         expected = "$PORT"
 
-        # Assert — bare syntax ignored
-        assert actual == expected
+        # Assert
+        assert actual == expected, "bare syntax ignored"
 
 
 # ── expand_vars escape (\$) ─────────────────────────────────────────────────
@@ -174,16 +174,16 @@ class TestExpandVarsEscape:
         actual = expand_vars("\\$(PORT)")
         expected = "$(PORT)"
 
-        # Assert — escaped $ left as literal
-        assert actual == expected
+        # Assert
+        assert actual == expected, "escaped $ left as literal"
 
     def test_escaped_dollar_unknown_var(self):
         # Act
         actual = expand_vars("\\$(UNKNOWN)")
         expected = "$(UNKNOWN)"
 
-        # Assert — escaped unknown var left as literal
-        assert actual == expected
+        # Assert
+        assert actual == expected, "escaped unknown var left as literal"
 
     def test_mixed_escaped_and_expanded(self):
         # Arrange
@@ -194,16 +194,16 @@ class TestExpandVarsEscape:
         actual = expand_vars("$(A) and \\$(B)")
         expected = "hello and $(B)"
 
-        # Assert — $(A) expanded, \$(B) left as literal
-        assert actual == expected
+        # Assert
+        assert actual == expected, "$(A) expanded, \\$(B) left as literal"
 
     def test_escaped_dollar_in_serial_context(self):
         # Act
         actual = expand_vars("AT+CMD=\\$50")
         expected = "AT+CMD=$50"
 
-        # Assert — escaped $ in serial-like command
-        assert actual == expected
+        # Assert
+        assert actual == expected, "escaped $ in serial-like command"
 
 
 # ── clear_vars ───────────────────────────────────────────────────────────────
@@ -220,15 +220,15 @@ class TestClearVars:
         # Act
         clear_vars()
 
-        # Assert — all variables removed
-        assert _VARS == {}
+        # Assert
+        assert _VARS == {}, "all variables removed"
 
     def test_clear_empty_is_ok(self):
         # Act — no error on empty dict
         clear_vars()
 
         # Assert
-        assert _VARS == {}
+        assert _VARS == {}, "clear on empty dict is ok"
 
 
 # ── Variable name regex ──────────────────────────────────────────────────────
@@ -250,9 +250,9 @@ class TestVarNameRegex:
         # Act
         m = _VAR_REF_RE.search(text)
 
-        # Assert — matches and captures correct name
-        assert m is not None
-        assert m.group(1) == expected_name
+        # Assert
+        assert m is not None, f"regex should match {text}"
+        assert m.group(1) == expected_name, f"captured name for {text}"
 
     @pytest.mark.parametrize("text", [
         "$(123)",        # starts with digit
@@ -262,8 +262,8 @@ class TestVarNameRegex:
         # Act
         m = _VAR_REF_RE.search(text)
 
-        # Assert — does not match as a user variable
-        assert m is None
+        # Assert
+        assert m is None, f"should not match {text}"
 
 
 # ── rewrite_assignment ───────────────────────────────────────────────────────
@@ -277,8 +277,8 @@ class TestRewriteAssignment:
         actual = rewrite_assignment("$(PORT) = COM7")
         expected = "var.set PORT COM7"
 
-        # Assert — rewritten to var.set command
-        assert actual == expected
+        # Assert
+        assert actual == expected, "rewritten to var.set command"
 
     def test_no_spaces(self):
         # Act
@@ -286,7 +286,7 @@ class TestRewriteAssignment:
         expected = "var.set PORT COM7"
 
         # Assert
-        assert actual == expected
+        assert actual == expected, "rewritten without spaces"
 
     def test_extra_spaces(self):
         # Act
@@ -294,58 +294,58 @@ class TestRewriteAssignment:
         expected = "var.set PORT COM7"
 
         # Assert
-        assert actual == expected
+        assert actual == expected, "rewritten with extra spaces"
 
     def test_value_with_spaces(self):
         # Act
         actual = rewrite_assignment("$(MSG) = hello world")
         expected = "var.set MSG hello world"
 
-        # Assert — value includes everything after =
-        assert actual == expected
+        # Assert
+        assert actual == expected, "value includes everything after ="
 
     def test_lowercase_rewritten(self):
         # Act
         actual = rewrite_assignment("$(port) = COM7")
         expected = "var.set port COM7"
 
-        # Assert — lowercase works
-        assert actual == expected
+        # Assert
+        assert actual == expected, "lowercase works"
 
     def test_no_value_not_rewritten(self):
         # Act
         actual = rewrite_assignment("$(PORT) =")
 
-        # Assert — empty value rejected
-        assert actual is None
+        # Assert
+        assert actual is None, "empty value rejected"
 
     def test_no_dollar_not_rewritten(self):
         # Act
         actual = rewrite_assignment("PORT = COM7")
 
-        # Assert — needs $() syntax
-        assert actual is None
+        # Assert
+        assert actual is None, "needs $() syntax"
 
     def test_bare_dollar_not_rewritten(self):
         # Act
         actual = rewrite_assignment("$PORT = COM7")
 
-        # Assert — bare $NAME not rewritten (needs parens)
-        assert actual is None
+        # Assert
+        assert actual is None, "bare $NAME not rewritten (needs parens)"
 
     def test_repl_command_not_rewritten(self):
         # Act
         actual = rewrite_assignment("/var.set PORT COM7")
 
-        # Assert — REPL command not matched
-        assert actual is None
+        # Assert
+        assert actual is None, "REPL command not matched"
 
     def test_serial_command_not_rewritten(self):
         # Act
         actual = rewrite_assignment("AT+PORT=COM7")
 
-        # Assert — AT command not matched
-        assert actual is None
+        # Assert
+        assert actual is None, "AT command not matched"
 
 
 # ── check_bare_dollar ──────────────────────────────────────────────────────
@@ -358,17 +358,17 @@ class TestCheckBareDollar:
         # Act
         actual = check_bare_dollar("$PORT = COM7")
 
-        # Assert — returns warning message
-        assert actual is not None
-        assert "$(PORT)" in actual
+        # Assert
+        assert actual is not None, "returns warning message"
+        assert "$(PORT)" in actual, "warning suggests correct syntax"
 
     def test_bare_no_spaces_warns(self):
         # Act
         actual = check_bare_dollar("$PORT=COM7")
 
-        # Assert — warns even without spaces
-        assert actual is not None
-        assert "$(PORT)" in actual
+        # Assert
+        assert actual is not None, "warns even without spaces"
+        assert "$(PORT)" in actual, "warning suggests correct syntax (no spaces)"
 
     def test_proper_syntax_no_warning(self):
         # Act

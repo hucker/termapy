@@ -1,6 +1,6 @@
 [project]
 name = "termapy"
-version = "0.51.0"
+version = "0.52.0"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 license = "MIT"
 requires-python = ">=3.11"
@@ -67,6 +67,7 @@ omit = [
     "src/termapy/builtins/*.py",
     "src/termapy/app.py",
     "src/termapy/dialogs.py",
+    "src/termapy/vendor/*",
 ]
 
 [tool.coverage.report]

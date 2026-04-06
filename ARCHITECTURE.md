@@ -349,7 +349,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test Coverage
 
-27 test files, 1191 tests, 68% overall coverage:
+28 test files, 1223 tests, 67% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |
@@ -374,6 +374,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | test_cli_gold.py       | CLI gold-standard integration test             |
 | test_vfs.py            | Demo VFS: file list, info, delete, isolation   |
 | test_xmodem.py         | XMODEM transfer, QueueByteReader, FakeSerial   |
+| test_crc_builtins.py   | sum8/sum16 checksum modules                    |
 | test_ymodem.py         | YMODEM transfer, batch send, FakeSerial        |
 
 `app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested — UI is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.

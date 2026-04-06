@@ -44,18 +44,27 @@ You're connected. Type commands and see responses.
 - [Scripting](scripting.md) — automate command sequences
 - [Writing Plugins](writing-plugins.md) — extend with Python
 
-## Web mode (experimental)
+## Web mode (experimental, optional)
 
-Serve the TUI in a web browser using textual-serve:
+There is an experimental browser-based mode that requires an additional install:
 
 ```sh
+pip install termapy[web]
+termapy --web --demo
+```
+
+Or with uv:
+
+```sh
+uv tool install termapy[web]
 termapy --web --demo
 ```
 
 Opens on `http://localhost:8000`. Use `--web-port` to change the port.
 
-Limitations: `/tui` and `/cli` mode switching are not available.
-`/help.open` may not work in the browser.
+This is not the primary way to use termapy -- the TUI and CLI modes are the
+intended interfaces. Web mode has limitations: `/tui` and `/cli` mode switching
+are not available, and `/help.open` may not work in the browser.
 
 ## Uninstall
 

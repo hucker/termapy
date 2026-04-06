@@ -3525,6 +3525,17 @@ def main():
         help="Run a .run script and exit (CLI mode, implies --cli)",
     )
     parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Serve the TUI in a web browser via textual-serve",
+    )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=8000,
+        help="Port for web server (default: 8000)",
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Strip ANSI color codes from output (CLI mode)",
@@ -3580,6 +3591,10 @@ def main():
         _run_proto_headless(args)
         return
 
+    if args.web:
+        _run_web_mode(args)
+        return
+
     if args.run:
         args.cli = True  # --run implies --cli
     # -- Mode switching loop ---------------------------------------------------
@@ -3619,6 +3634,35 @@ def main():
         args.cli = mode == "cli"
         args.run = None  # don't re-run a script on switch
         args.demo = False  # don't re-setup demo on switch
+
+
+def _run_web_mode(args) -> None:
+    """Serve the TUI in a web browser via textual-serve."""
+    from textual_serve.server import Server
+
+    print("=" * 60)
+    print("  EXPERIMENTAL: Web mode via textual-serve")
+    print("  /tui and /cli mode switching are not available.")
+    print("  /help.open may not work in the browser.")
+    print("=" * 60)
+    print()
+
+    # Build the command to re-launch termapy in TUI mode
+    cmd_parts = [sys.executable, "-m", "termapy"]
+    if args.demo:
+        cmd_parts.append("--demo")
+    if args.config:
+        cmd_parts.append(args.config)
+    if args.cfg_dir:
+        cmd_parts.extend(["--cfg-dir", args.cfg_dir])
+
+    server = Server(
+        " ".join(cmd_parts),
+        host="localhost",
+        port=args.web_port,
+        title="Termapy",
+    )
+    server.serve()
 
 
 def _run_tui_mode(args) -> str | None:

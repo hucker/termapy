@@ -60,6 +60,12 @@ Issues = "https://github.com/hucker/termapy/issues"
 testpaths = ["tests"]
 addopts = "-v --cov=termapy --cov-report=term-missing"
 
+[tool.ty.environment]
+# Vendored pyserial lives here. ty needs to see it as a search root so
+# `import serial` resolves to termapy/vendor/serial/ at type-check time,
+# matching the sys.path redirect that vendor/__init__.py does at runtime.
+extra-paths = ["src/termapy/vendor"]
+
 [tool.coverage.run]
 source = ["src/termapy"]
 omit = [

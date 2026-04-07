@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.53.2 (2026-04-07)
+
+Documentation release.
+
+### 0.53.2 Improvements
+
+- **`scripts/README.md`** -- documents the release automation workflow (prep, manual CHANGELOG edit, publish), enforced conventions, and recovery steps for a failed prep run.
+
 ## 0.53.1 (2026-04-07)
 
 Maintenance release. No user-facing changes to the terminal itself.

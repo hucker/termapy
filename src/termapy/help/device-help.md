@@ -1,10 +1,10 @@
-# Device Help Integration
+# Device help integration
 
 If your target device can return a JSON description of its commands,
 termapy will include them and make them available in autocomplete
 and `/help` -- so the device feels integrated into the terminal.
 
-## How It Works
+## How it works
 
 1. You add a command to your firmware that returns a JSON object
 2. You set `device_json_cmd` in your termapy config to the command name
@@ -20,7 +20,7 @@ help display logic. The JSON response is a lightweight data dump --
 termapy handles the formatting, searching, and display. One small
 JSON handler replaces a full help system on the device side.
 
-## JSON Format
+## JSON format
 
 Your device command must return a JSON object with a `commands` key:
 
@@ -63,7 +63,7 @@ subsequent connects load instantly without querying the device.
 | `/include.clear`    | Remove included commands and delete cache       |
 | `/help.target`      | Show only the target device commands            |
 
-## Implementing on Your Device
+## Implementing on your device
 
 The simplest implementation: add a command that prints a JSON string
 to the serial port. For an AT command set, something like:

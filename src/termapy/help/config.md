@@ -2,7 +2,7 @@
 
 ![Config info display](img/doc_10_config_info.svg)
 
-## Config Directory
+## Config directory
 
 Termapy looks for configs in the first directory that matches:
 
@@ -17,7 +17,7 @@ The OS default location is `%APPDATA%\termapy` on Windows,
 `~/Library/Application Support/termapy` on macOS, and
 `~/.config/termapy` on Linux (respects `XDG_CONFIG_HOME`).
 
-## JSON Config File
+## JSON config file
 
 Each configuration is stored as a JSON file at `<config_dir>/<name>/<name>.cfg`.
 On first run, `termapy` creates a default config for you. You can edit it
@@ -67,7 +67,7 @@ Here is an example config for a device called `iot_device`:
 
 This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
-## Config Field Reference
+## Config field reference
 
 | Field                    | Default               | Description                                                                                 |
 | ------------------------ | --------------------- | ------------------------------------------------------------------------------------------- |
@@ -107,7 +107,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `show_traceback`         | `false`               | Show full stack trace on serial errors                                                      |
 | `custom_buttons`         | `[]`                  | Custom button objects (see [Custom Buttons](custom-buttons.md))                             |
 
-## Connection Behavior
+## Connection behavior
 
 `auto_connect` and `auto_reconnect` are independent settings.
 `auto_connect` opens the port when a config loads (app startup or config
@@ -115,21 +115,21 @@ switch). `auto_reconnect` retries the connection when the port drops or
 a manual connect attempt fails -- it does not control startup behavior.
 While reconnecting, the title bar turns amber and shows a spinner.
 
-## Config Management
+## Config management
 
 Click the **Cfg** button in the title bar, click the config name, or use the
 command palette to open the config picker. The picker has four actions:
 
-- **New** — create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.
-- **Edit** — open the highlighted config in the JSON editor
-- **Load** — switch to the highlighted config. If the configured port is not available, a port picker is shown.
-- **Cancel** — close the picker
+- **New:** create a new config from defaults. If one serial port is detected it is used automatically; if multiple ports are found a picker is shown before opening the editor.
+- **Edit:** open the highlighted config in the JSON editor
+- **Load:** switch to the highlighted config. If the configured port is not available, a port picker is shown.
+- **Cancel:** close the picker
 
 The JSON editor provides:
 
-- **Save** — write changes to the current config file
-- **Save As** — save as a new config (creates a new subfolder)
-- **Cancel** — discard changes
+- **Save:** write changes to the current config file
+- **Save As:** save as a new config (creates a new subfolder)
+- **Cancel:** discard changes
 
 Invalid JSON is caught before saving, with the error shown inline.
 

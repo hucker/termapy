@@ -21,6 +21,41 @@ def strip_ansi(text: str) -> str:
     return ANSI_RE.sub("", text)
 
 
+# -- Boolean parsing ---------------------------------------------------------
+
+# Accepted truthy/falsy string tokens. Kept intentionally wide so users can
+# type the form that feels natural without memorizing the allowed set.
+# Hardware signal names like "high"/"low" are deliberately NOT here -- those
+# live with port_control.parse_bool_value which is a separate domain.
+_BOOL_TRUE = frozenset({"on", "1", "true", "yes", "y", "t"})
+_BOOL_FALSE = frozenset({"off", "0", "false", "no", "n", "f"})
+
+
+def parse_bool(val: str) -> bool | None:
+    """Parse a boolean-like string from user input.
+
+    Returns ``True`` for: on, 1, true, yes, y, t
+    Returns ``False`` for: off, 0, false, no, n, f
+    Returns ``None`` for anything else (unrecognized / empty).
+
+    Case-insensitive. Leading and trailing whitespace is stripped.
+    Use this anywhere a command accepts a user-facing boolean so the
+    accepted tokens stay consistent across the app.
+
+    Args:
+        val: Raw string from user input or config.
+
+    Returns:
+        True, False, or None if the string is not a recognized boolean.
+    """
+    s = val.strip().lower()
+    if s in _BOOL_TRUE:
+        return True
+    if s in _BOOL_FALSE:
+        return False
+    return None
+
+
 def expand_template(
     text: str, counters: dict[int, int], start_time: str = ""
 ) -> tuple[str, dict[int, int]]:

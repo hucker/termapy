@@ -1,4 +1,4 @@
-# File Transfer
+# File transfer
 
 Transfer files to and from serial devices using XMODEM or YMODEM
 protocols. Both are widely supported by bootloaders, firmware updaters,
@@ -6,7 +6,7 @@ and embedded systems.
 
 ## XMODEM
 
-### Send a File
+### Send a file
 
 ```text
 /xmodem.send <file>
@@ -23,7 +23,7 @@ relative to the per-config `cap/` directory, or provide an absolute path.
 The device must be waiting to receive via XMODEM before you run this
 command (e.g. after entering a bootloader's receive mode).
 
-### Receive a File
+### Receive a file
 
 ```text
 /xmodem.recv <file>
@@ -37,7 +37,7 @@ Supports auto-numbered filenames with `$(n000)`.
 /xmodem.recv log_$(n000).bin
 ```
 
-### Protocol Details
+### Protocol details
 
 - Automatic CRC/checksum negotiation
 - 128-byte blocks
@@ -48,7 +48,7 @@ Supports auto-numbered filenames with `$(n000)`.
 YMODEM extends XMODEM with batch file transfer, 1024-byte blocks,
 and automatic filename/size metadata in the protocol header.
 
-### Send File(s)
+### Send file(s)
 
 ```text
 /ymodem.send <file> {file2} ...
@@ -62,7 +62,7 @@ protocol, so the receiver knows what to expect.
 /ymodem.send config.json data.bin     batch send
 ```
 
-### Receive File(s)
+### Receive file(s)
 
 ```text
 /ymodem.recv {directory}
@@ -77,13 +77,13 @@ by default.
 /ymodem.recv C:\downloads             save to specific directory
 ```
 
-### YMODEM Protocol Details
+### YMODEM protocol details
 
 - 1024-byte blocks (1K) with CRC-16
 - Filename and filesize sent in protocol header
 - Batch transfer: send/receive multiple files in one session
 
-## File Paths
+## File paths
 
 By default, file paths are resolved relative to the per-config `cap/`
 directory. Absolute paths are always accepted.
@@ -118,13 +118,13 @@ if your config is `termapy_cfg/mydevice/mydevice.cfg`, then `cap/` is
 
 Click the **Cap** button in the toolbar to open the `cap/` folder.
 
-## Common Details
+## Common details
 
 - Serial display is suppressed during transfer and resumes afterward
 - Press **Esc** to cancel an active transfer
 - Progress reported during transfer
 
-## XMODEM vs YMODEM
+## XMODEM vs. YMODEM
 
 | Feature           | XMODEM              | YMODEM              |
 |-------------------|---------------------|---------------------|
@@ -134,7 +134,7 @@ Click the **Cap** button in the toolbar to open the `cap/` folder.
 | Batch transfer    | No                  | Yes                 |
 | Use when          | Simple bootloaders  | Larger files, batch |
 
-## Demo Mode
+## Demo mode
 
 The demo device has a virtual filesystem pre-loaded with sample files.
 All examples below work in demo mode (`termapy --demo`).
@@ -147,7 +147,7 @@ AT+FS.INFO                  file count and total size
 AT+FS.DELETE <file>         delete a file
 ```
 
-### File transfer
+### Transfer commands
 
 ```text
 AT+XMODEM=SEND <file>      send a file from device via XMODEM

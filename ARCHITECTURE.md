@@ -1,10 +1,12 @@
-# Termapy Architecture
+# Termapy architecture
 
-## Core Idea
+For how termapy was built (and the role LLM tooling played), see [On AI assistance](src/termapy/help/on-ai-assistance.md).
 
-Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `/grep`, `/proto`, etc.) are regular plugins loaded from `builtins/plugins/`. The same `Command` + `PluginContext` API that implements the core REPL is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device-specific tools — no compilation or registration required.
+## Core idea
 
-## Module Structure
+Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `/grep`, `/proto`, etc.) are regular plugins loaded from `builtins/plugins/`. The same `Command` + `PluginContext` API that implements the core REPL is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device-specific tools. No compilation or registration required.
+
+## Module structure
 
 ```text
 src/termapy/
@@ -35,13 +37,13 @@ src/termapy/
 └── help.md              #              Legacy single-page help (bundled)
 ```
 
-## The Plugin System
+## The plugin system
 
 The plugin system is the central abstraction. Everything flows through it.
 
 ### Command
 
-A `Command` declares a REPL command — its name, args, help text, handler function, and optional subcommands:
+A `Command` declares a REPL command: its name, args, help text, handler function, and optional subcommands:
 
 ```python
 COMMAND = Command(
@@ -65,7 +67,7 @@ The subcommand tree is flattened at registration into dotted names (`cfg.auto`, 
 
 ### PluginContext
 
-Every handler receives a `PluginContext` — the stable API boundary between plugins and the app:
+Every handler receives a `PluginContext`, the stable API boundary between plugins and the app:
 
 ```text
 Output:          ctx.write(), ctx.write_markup(), ctx.notify()
@@ -82,7 +84,7 @@ Engine:          ctx.engine — internal/unstable API for built-ins
 
 External plugins use `PluginContext` only. `EngineAPI` is internal and may change.
 
-### Loading Order (later overrides earlier)
+### Loading order (later overrides earlier)
 
 ```text
 1. builtins/plugins/         — 22 built-in commands (shipped with termapy)
@@ -91,7 +93,7 @@ External plugins use `PluginContext` only. `EngineAPI` is internal and may chang
 4. App hooks (app.py/cli.py) — commands needing frontend access (ss, run, delay, etc.)
 ```
 
-A user plugin with the same name as a built-in replaces it. App hooks override everything — they need direct access to frontend-specific features (Textual widgets in TUI, readline in CLI).
+A user plugin with the same name as a built-in replaces it. App hooks override everything; they need direct access to frontend-specific features (Textual widgets in TUI, readline in CLI).
 
 ### Transforms
 
@@ -108,7 +110,7 @@ TRANSFORM = Transform(
 
 ### Directives
 
-A `Directive` intercepts raw input lines **before** REPL/serial routing — before transforms, before prefix checking. Used for syntax that doesn't fit the `/command` pattern. Returns a `DirectiveResult` with an action (`rewrite`, `warn`, `error`, or `none`):
+A `Directive` intercepts raw input lines **before** REPL/serial routing, before transforms, before prefix checking. Used for syntax that doesn't fit the `/command` pattern. Returns a `DirectiveResult` with an action (`rewrite`, `warn`, `error`, or `none`):
 
 ```python
 DIRECTIVE = Directive(
@@ -121,7 +123,7 @@ DIRECTIVE = Directive(
 
 Currently the only directive is `var_assign` which rewrites `$(PORT) = COM7` into `var.set PORT COM7`. The directive system exists so this logic lives in the plugin rather than as a hardcoded special case in app.py.
 
-### Plugin File Convention
+### Plugin file convention
 
 A plugin file exports `COMMAND`, `TRANSFORM`, and/or `DIRECTIVE` at module level:
 
@@ -135,7 +137,7 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 
 "Must be at end of file" means after all handler functions it references.
 
-## Layer Diagram
+## Layer diagram
 
 ```text
 ┌──────────────────────────────────────────────────┐
@@ -206,7 +208,7 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 └──────────────────────────────────────────────────┘
 ```
 
-## CLI Mode (`cli.py`)
+## CLI mode (`cli.py`)
 
 `termapy --cli` runs a plain-text terminal without Textual. It shares the same `ReplEngine`, `SerialEngine`, `PluginContext`, and all built-in plugins. The difference is how the frontend wires `PluginContext` callbacks:
 
@@ -220,9 +222,9 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 
 CLI-specific features: readline tab completion, shared command history, `/color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer), no `/edit.cfg` (no config editor modal).
 
-## Key Data Flows
+## Key data flows
 
-### Serial Read (background thread)
+### Serial read (background thread)
 
 ```text
 SerialEngine.read_loop() [background thread]
@@ -237,7 +239,7 @@ SerialEngine.read_loop() [background thread]
                on_error → status message
 ```
 
-### Command Dispatch (user input or script)
+### Command dispatch (user input or script)
 
 ```text
 Input.on_submit → _execute_command()
@@ -250,7 +252,7 @@ Input.on_submit → _execute_command()
     → else → apply serial transforms → serial_write(encoded bytes)
 ```
 
-### Binary Capture Flow
+### Binary capture flow
 
 ```text
 /cap.struct → CaptureEngine.start(path, mode, target, columns, ...)
@@ -260,7 +262,7 @@ Input.on_submit → _execute_command()
   cmd= sends device trigger after capture starts + drain
 ```
 
-### Script Execution
+### Script execution
 
 ```text
 /run script.run → _run_script [background thread]
@@ -275,7 +277,7 @@ Input.on_submit → _execute_command()
   Input disabled during execution, Escape or Stop button aborts
 ```
 
-## Config & Filesystem
+## Config and filesystem
 
 ```text
 termapy_cfg/
@@ -295,7 +297,7 @@ termapy_cfg/
 
 `cfg_data_dir()` auto-creates all subdirs on access. Old `captures/` folders are auto-renamed to `cap/`.
 
-## Threading Model
+## Threading model
 
 ```text
 ┌─────────────────────┐
@@ -320,7 +322,7 @@ termapy_cfg/
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread. `post_message` is used for script lifecycle events (thread-safe).
 
-## Built-in Plugins (22 files)
+## Built-in plugins (22 files)
 
 | Plugin       | Command            | Purpose                                           |
 | ------------ | ------------------ | ------------------------------------------------- |
@@ -347,7 +349,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | var.py       | /var               | User variables                                    |
 | ver.py       | /ver               | Show termapy version                              |
 
-## Test Coverage
+## Test coverage
 
 28 test files, 1223 tests, 67% overall coverage:
 
@@ -377,4 +379,4 @@ At most two workers run concurrently: the serial reader plus one command/script/
 | test_crc_builtins.py   | sum8/sum16 checksum modules                    |
 | test_ymodem.py         | YMODEM transfer, batch send, FakeSerial        |
 
-`app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested — UI is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.
+`app.py`, `proto_debug.py`, and `dialogs.py` are not unit tested; UI is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.

@@ -1,4 +1,4 @@
-# Using with Git
+# Using with git
 
 Termapy configs are self-contained folders. Add one to your project
 repo and the whole team shares the same serial setup -- scripts,
@@ -21,7 +21,7 @@ alias mb="termapy termapy_cfg/main_board/main_board.cfg"
 See [Getting Started](getting-started.md) for more launch options and
 the folder layout.
 
-## What Gets Committed
+## What gets committed
 
 Termapy auto-generates a `.gitignore` in each config folder.
 Items marked *ignored* stay local to each developer:
@@ -54,7 +54,7 @@ termapy_cfg/
     └── plugin/
 ```
 
-## Environment Variables
+## Environment variables
 
 COM port names differ between machines (`COM4` on one, `COM7` on
 another, `/dev/ttyUSB0` on Linux). Use an environment variable with
@@ -82,7 +82,7 @@ The above also shows setting the default UI mode with an environment variable
 defaulting to the `tui`. You can use this technique for any config value -- paths, flags, whatever. Just make sure to document the expected variables for your team, and
 consider providing a `.env` file or setup script to make it easy to get started.
 
-### Setting the Variable
+### Setting the variable
 
 **Windows (permanent):**
 

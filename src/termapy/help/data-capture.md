@@ -1,8 +1,8 @@
-# Data Capture
+# Data capture
 
 Capture serial output to files without interrupting normal display or logging.
 
-## Text Capture (timed)
+## Text capture (timed)
 
 ```text
 /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)}
@@ -19,7 +19,7 @@ Data is written as ANSI-stripped text, one line at a time.
 /cap.text session.txt timeout=10s mode=append
 ```
 
-## Binary Capture (raw bytes)
+## Binary capture (raw bytes)
 
 ```text
 /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}
@@ -32,7 +32,7 @@ Captures raw binary bytes straight to a file.
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
 
-## Structured Capture (format spec to CSV)
+## Structured capture (format spec to CSV)
 
 ```text
 /cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=comma|tab|space} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}
@@ -44,14 +44,14 @@ Use `fmt=` with the format spec language to define the record structure.
 `/cap.struct` reads raw bytes; `/cap.hex` reads hex-encoded text lines.
 Byte ranges are 1-based. Omit names for unnamed columns.
 
-- `records=N` — number of records (record size derived from format spec)
-- `bytes=N` — alternative: total bytes (must be a multiple of record size)
-- `sep=comma|tab|space` — column separator (default comma, produces CSV)
-- `echo=on|off` — print formatted values to terminal (default off)
-- `mode=new|append` — file mode (default new)
+- `records=N`: number of records (record size derived from format spec)
+- `bytes=N`: alternative; total bytes (must be a multiple of record size)
+- `sep=comma|tab|space`: column separator (default comma, produces CSV)
+- `echo=on|off`: print formatted values to terminal (default off)
+- `mode=new|append`: file mode (default new)
 - Header row written when columns have names (e.g. `Temp:U1-2`)
 
-## Format Spec Examples
+## Format spec examples
 
 ```text
 # Single unsigned 16-bit column (big-endian)
@@ -70,7 +70,7 @@ Byte ranges are 1-based. Omit names for unnamed columns.
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
 
-## Format Spec Quick Reference
+## Format spec quick reference
 
 | Spec      | Meaning                              |
 |-----------|--------------------------------------|
@@ -86,7 +86,7 @@ Byte ranges are 1-based. Omit names for unnamed columns.
 
 See [Protocol Testing](protocol-testing.md) for the full format spec language.
 
-## Auto-Numbered Filenames
+## Auto-numbered filenames
 
 Use `$(n000)` in filenames for auto-incrementing sequence numbers.
 The number of zeros sets the digit width (max 3). A counter file in `cap/`

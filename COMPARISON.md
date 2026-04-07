@@ -1,11 +1,11 @@
-# How Termapy Compares
+# How termapy compares
 
-Termapy is a serial terminal workbench for embedded engineers — built for
+Termapy is a serial terminal workbench for embedded engineers, built for
 scripting, protocol testing, and automation in addition to general-purpose
 terminal emulation. It is new (2026), has one developer, requires Python 3.11+
 and `uv` to install, is MIT licensed, and has no community yet.
 
-## Feature Comparison
+## Feature comparison
 
 | Feature                     | Termapy                                                                                                   | RealTerm                                | CoolTerm                   | Tera Term                    | Docklight                             | HTerm                |
 | --------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------- | ---------------------------- | ------------------------------------- | -------------------- |
@@ -36,14 +36,14 @@ and `uv` to install, is MIT licensed, and has no community yet.
 | **Community**               | None                                                                                                      | SourceForge forums                      | User forums                | Active open-source community | Commercial support                    | Minimal              |
 | **Installer**               | Requires Python + uv                                                                                      | Windows .exe                            | Native installer           | Windows .exe                 | Windows installer                     | Standalone binary    |
 
-## Two Layers of Scripting
+## Two layers of scripting
 
 Termapy has two distinct automation layers that serve different users:
 
-### Script files (`.run`) — for technicians/board bring up/testing
+### Script files (`.run`): for technicians/board bring up/testing
 
 Linear sequences of serial commands, delays, and REPL commands. Comparable to
-Tera Term macros or Docklight send sequences. No programming required — they
+Tera Term macros or Docklight send sequences. No programming required; they
 look like what you'd type by hand, just automated.
 
 ```text
@@ -58,7 +58,7 @@ AT+RESET
 /delay 1s
 ```
 
-### Python plugins (`.py`) — for engineers/tool builders
+### Python plugins (`.py`): for engineers/tool builders
 
 Full Python with access to the serial port, config, and UI through a stable
 API. Can implement arbitrary protocol logic, CRC calculations, state machines,
@@ -92,14 +92,14 @@ Sent: '123456789' 31C3
 No equivalent exists in the other tools. Tera Term has DLL extensions but
 those require C/C++ and a compiler. Docklight has VBScript but it's sand-boxed
 to a small object model. Termapy plugins also work through a defined API
-(the `PluginContext`), but they're full Python — you can import any library,
+(the `PluginContext`), but they're full Python. You can import any library,
 do file I/O, make network calls, or spin up threads. They're plain `.py`
 files dropped into a folder, including the built-in commands themselves.
 Drop a file in a folder and you can add commands, override builtins, implement
 protocol handlers, or build a full device simulator. No compilation, no
 registration, no restart.
 
-**Security note:** plugins are plain Python with no sandbox — the same trust
+**Security note:** plugins are plain Python with no sandbox, the same trust
 model as pip packages or VS Code extensions. Only load plugins you wrote or
 reviewed. That said, this is true of any machine with Python installed; the
 plugin system doesn't create an attack surface that `python script.py`
@@ -109,27 +109,27 @@ This is also where AI-assisted development works well - the PluginContext API
 is well-defined (~27 methods, but a typical plugin uses 3-4) and an LLM can
 generate a working plugin from a one-paragraph description.
 
-## Where Others Win
+## Where others win
 
-- **Tera Term** — best terminal emulation (VT100 through VT382), mature
+- **Tera Term:** best terminal emulation (VT100 through VT382), mature
   macro language with decades of refinement, SSH/Telnet support.
-- **Docklight** — most polished protocol testing UI with visual sequence
+- **Docklight:** most polished protocol testing UI with visual sequence
   builder, CRC auto-calculation, trigger-based auto-responses.
-- **RealTerm** — deepest hex/binary display options (decimal, float,
+- **RealTerm:** deepest hex/binary display options (decimal, float,
   signed/unsigned, I2C/SPI awareness).
-- **CoolTerm** — easiest cross-platform install (native GUI, no dependencies),
+- **CoolTerm:** easiest cross-platform install (native GUI, no dependencies),
   clean interface for simple serial work.
-- **All of them** — years to decades of real-world use, bug fixes, community
+- **All of them:** years to decades of real-world use, bug fixes, community
   knowledge, Stack Overflow answers, and one-click installers.
 
-Termapy has none of that history. It compensates with architecture — a plugin
+Termapy has none of that history. It compensates with architecture: a plugin
 system, a REPL, cli that could be in used in CI that make it extensible in ways
 the others aren't.
 
 ## Note on Serial Studio
 
 Serial Studio is sometimes listed alongside serial terminals, but it's a
-different kind of tool — a real-time data visualization dashboard (plots,
+different kind of tool: a real-time data visualization dashboard (plots,
 gauges, maps) rather than an interactive terminal. It's excellent at what
 it does, but it doesn't compete in the same category as termapy, CoolTerm,
 or Tera Term.

@@ -1,4 +1,4 @@
-# Serial Tools
+# Serial tools
 
 Interactive commands for sending raw bytes, computing CRCs, and
 inspecting serial data. These are REPL commands you type at the
@@ -8,7 +8,7 @@ For automated send/expect test scripts, see [Protocol Testing](protocol-testing.
 
 ![Proto subcommands](img/doc_03_help_proto.svg)
 
-## Send Bytes
+## Send bytes
 
 `/proto.send` transmits raw bytes and displays the response. No line ending
 is appended -- you control exactly what goes on the wire.
@@ -76,11 +76,11 @@ Both TX and RX show hex bytes and a smart text representation:
 Packets longer than 16 bytes use a multi-line hex dump with ASCII sidebar.
 Round-trip timing includes all inline delays.
 
-## Hex Display Mode
+## Hex display mode
 
 Toggle hex display for all serial I/O with `/proto.hex on` / `/proto.hex off`.
 
-## CRC Algorithms
+## CRC algorithms
 
 62 named CRC algorithms are built in covering CRC-8, CRC-16, and CRC-32
 families (Modbus, XMODEM, CCITT, USB, and more).
@@ -97,7 +97,7 @@ Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.
 In format specs and `/proto.send`, CRC algorithm names accept suffixes:
 `_le` (little-endian, default), `_be` (big-endian), `_ascii` (hex text).
 
-## CRC Code Generation
+## CRC code generation
 
 ![CRC Python code generation](img/doc_07_crc_python.svg)
 

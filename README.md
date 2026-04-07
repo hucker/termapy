@@ -6,13 +6,15 @@
 
 **Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-testing-yellow)](https://coverage.readthedocs.io/)
 
-*Pronounced "ter-map-ee"*
+Pronounced "ter-map-ee"
 
-A serial interface terminal like PuTTY or Tera Term — but it runs in your terminal, installs in seconds, and comes with scripting, protocol testing, and a plugin system built in.
+A serial interface terminal like PuTTY or Tera Term, but it runs in your terminal, installs in seconds, and comes with scripting, protocol testing, and a plugin system built in.
+
+Runs on Windows, macOS, and Linux. If you already have [uv](https://docs.astral.sh/uv/) installed, you can be up and running in under 10 seconds.
 
 ![termapy screenshot](img/main.png)
 
-## Install and Connect
+## Install and connect
 
 ```sh
 pip install termapy
@@ -26,7 +28,7 @@ uv tool install termapy
 termapy --demo
 ```
 
-That starts a simulated device — no hardware needed. You're typing commands in seconds.
+That starts a simulated device, no hardware needed. You're typing commands in seconds.
 
 For a real device, just point at your config:
 
@@ -44,34 +46,34 @@ termapy --cli smoke_test.run             # run a .run script and exit
 termapy --cli my_device --run test.run   # explicit config + script
 ```
 
-There's a lot more — scripting, binary protocol testing, 62 CRC algorithms, custom buttons, plugins, packet visualizers — expand any section below.
+There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (62 of them, all verified against their check values in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
 
 ---
 
 <details>
-<summary><strong>First 60 Seconds</strong> — connect, type, change settings</summary>
+<summary><strong>First 60 seconds</strong> — connect, type, change settings</summary>
 
-1. **Connect** — click the port button in the title bar, pick your COM port, click the status button to connect (it turns green)
-2. **Type** — enter commands in the input box at the bottom and press Enter
-3. **Change settings** — click `Cfg` to edit port, baud rate, and other settings through the UI
+1. **Connect:** click the port button in the title bar, pick your COM port, click the status button to connect (it turns green)
+2. **Type:** enter commands in the input box at the bottom and press Enter
+3. **Change settings:** click `Cfg` to edit port, baud rate, and other settings through the UI
 
-Everything works through the UI — no config files to edit unless you want to.
+Everything works through the UI. No config files to edit unless you want to.
 
 </details>
 
 <details>
 
-<summary><strong>Why Not Just Use PuTTY?</strong> — what termapy adds</summary>
+<summary><strong>Why not just use PuTTY?</strong> — what termapy adds</summary>
 
 PuTTY works. So does minicom, screen, and CoolTerm. Use them if they do what you need. Here's where termapy goes further:
 
-- **Runs anywhere Python does** — same tool on Windows, macOS, Linux. No GUI installer, no system dependencies.
-- **Session logging and screenshots** — every session is logged. Ctrl+S saves an SVG screenshot you can paste into a report or email.
-- **Scripting** — record a sequence of commands in a text file and replay it with one click. Add delays, prompts, and REPL commands.
-- **Data capture** — capture serial text (timed) or binary data (by byte/record count) to files. Binary captures use the same format spec language as protocol testing to decode mixed-type records into CSV/TSV.
-- **Binary protocol testing** — send raw hex, run scripted send/expect tests with pass/fail, decode Modbus and custom protocols with pluggable visualizers.
-- **Plugin system** — add custom commands with a simple Python API. Drop a file in a folder, define a handler, done. Includes examples to get started.
-- **Everything in one folder** — each device config gets its own subfolder with logs, screenshots, scripts, and plugins. Check it into git so the whole team has the same config.
+- **Runs anywhere Python does.** Same tool on Windows, macOS, Linux. No GUI installer, no system dependencies.
+- **Session logging and screenshots.** Every session is logged. Ctrl+S saves an SVG screenshot you can paste into a report or email.
+- **Scripting.** Record a sequence of commands in a text file and replay it with one click. Add delays, prompts, and REPL commands.
+- **Data capture.** Capture serial text (timed) or binary data (by byte/record count) to files. Binary captures use the same format spec language as protocol testing to decode mixed-type records into CSV/TSV.
+- **Binary protocol testing.** Send raw hex, run scripted send/expect tests with pass/fail, decode Modbus and custom protocols with pluggable visualizers.
+- **Plugin system.** Add custom commands with a simple Python API. Drop a file in a folder, define a handler, done. Includes examples to get started.
+- **Everything in one folder.** Each device config gets its own subfolder with logs, screenshots, scripts, and plugins. Check it into git so the whole team has the same config.
 
 See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against RealTerm, CoolTerm, Tera Term, Docklight, and HTerm.
 
@@ -79,18 +81,18 @@ See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against Rea
 
 <details>
 
-<summary><strong>Who This Is Not For</strong> — save yourself some time</summary>
+<summary><strong>Who this is not for</strong> — save yourself some time</summary>
 
-- **You just need a simple serial terminal.** If you open PuTTY, type `AT`, see `OK`, and you're done — keep using PuTTY (or `screen /dev/ttyUSB0 115200` on Linux/macOS). Termapy is built for people who hit the limits of simple terminals and need scripting, protocol testing, data capture, or a plugin system.
+- **You just need a simple serial terminal.** If you open PuTTY, type `AT`, see `OK`, and you're done, keep using PuTTY (or `screen /dev/ttyUSB0 115200` on Linux/macOS). Termapy is built for people who hit the limits of simple terminals and need scripting, protocol testing, data capture, or a plugin system.
 - **You don't want Python on your machine.** Termapy is a Python app. [uv](https://docs.astral.sh/uv/) makes installation isolated and fast (it manages its own Python, won't touch your system), but if "install Python" is a deal-breaker, a native app like CoolTerm or RealTerm is a better fit.
 - **You need a GUI with menus and mouse-driven workflows.** Termapy runs in your terminal. It has a TUI with buttons and dialogs, but it's keyboard-first and text-based. If you want drag-and-drop or a Windows-native look, try Tera Term or Docklight.
 
 </details>
 
 <details>
-<summary><strong>The Basics</strong> — keyboard shortcuts, title bar, REPL commands</summary>
+<summary><strong>The basics</strong> — keyboard shortcuts, title bar, REPL commands</summary>
 
-### Keyboard Shortcuts
+### Keyboard shortcuts
 
 | Key     | Action                              |
 | ------- | ----------------------------------- |
@@ -102,7 +104,7 @@ See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against Rea
 | Escape  | Clear input / exit history browsing |
 | Right   | Accept type-ahead suggestion        |
 
-### Title Bar
+### Title bar
 
 | Button | Action                                                              |
 | ------ | ------------------------------------------------------------------- |
@@ -114,7 +116,7 @@ See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against Rea
 | Port   | Click to select a serial port                                       |
 | Status | Click to connect/disconnect (red = disconnected, green = connected) |
 
-### REPL Commands
+### REPL commands
 
 Type `/` to access built-in commands (the prefix is configurable). Type `/help` to list them all.
 
@@ -219,11 +221,11 @@ Screenshots and logs are saved in the config's subfolder (`termapy_cfg/<name>/`)
 </details>
 
 <details>
-<summary><strong>Project Files</strong> — config layout, version control, env vars, examples</summary>
+<summary><strong>Project files</strong> — config layout, version control, env vars, examples</summary>
 
 On first run, termapy prompts for a config name and creates one with defaults. If one config exists it loads automatically; if multiple exist, a picker appears. You can edit the config file through the UI (`Cfg` button), or change in-memory settings for the current session with `/cfg baud_rate 9600`.
 
-Everything termapy creates — configs, scripts, test files, plugins, logs — lives in one folder. Run `termapy --demo` and you'll see this structure:
+Everything termapy creates (configs, scripts, test files, plugins, logs) lives in one folder. Run `termapy --demo` and you'll see this structure:
 
 ```text
 termapy_cfg/
@@ -246,9 +248,9 @@ termapy_cfg/
         └── modbus_inline.pro
 ```
 
-Your own configs follow the same layout — create one with `Cfg` → `New` and termapy builds the folder structure automatically.
+Your own configs follow the same layout. Create one with `Cfg` → `New` and termapy builds the folder structure automatically.
 
-### Version Control
+### Version control
 
 Because everything is in one folder, you can commit it to git alongside your firmware source. Point `--cfg-dir` at a folder in your repo:
 
@@ -256,7 +258,7 @@ Because everything is in one folder, you can commit it to git alongside your fir
 termapy --cfg-dir ./termapy_cfg
 ```
 
-Clone on another machine, run the same command — all configs, scripts, and test files are ready to go.
+Clone on another machine, run the same command, and all configs, scripts, and test files are ready to go.
 
 Since COM port names differ between machines, use `$(env.NAME)` placeholders in your config so the same file works everywhere. Set a `COMPORT` environment variable on each machine, and reference it with a fallback:
 
@@ -268,7 +270,7 @@ Since COM port names differ between machines, use `$(env.NAME)` placeholders in 
 }
 ```
 
-On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template — it's expanded in memory at load time, so your checked-in config stays portable.
+On a machine with `COMPORT=COM7`, termapy connects to COM7. On a machine without `COMPORT` set, it falls back to COM4. The config file on disk keeps the raw `$(env.COMPORT|COM4)` template. It's expanded in memory at load time, so your checked-in config stays portable.
 
 Environment variables work in any string config value, not just `port`:
 
@@ -290,9 +292,9 @@ You can also manage environment variables at runtime with REPL commands:
 
 Variables set with `/env.set` are available immediately for `$(env.NAME)` expansion in REPL commands but do not modify the OS environment or the config file.
 
-#### User Variables (`$(NAME)`)
+#### User variables (`$(NAME)`)
 
-User variables let you define values once and reuse them across commands and scripts. This is especially useful when a test references the same address, register, or port in multiple places — change it once at the top instead of everywhere.
+User variables let you define values once and reuse them across commands and scripts. This is especially useful when a test references the same address, register, or port in multiple places. Change it once at the top instead of everywhere.
 
 Assign a variable by typing `$(name) = value` (no `/` prefix needed):
 
@@ -302,7 +304,7 @@ $(reg) = 0064
 $(count) = 05
 ```
 
-Use variables in any command — REPL or serial:
+Use variables in any command, REPL or serial:
 
 ```text
 /proto.send $(slave) 03 00 $(reg) 00 $(count)
@@ -327,7 +329,7 @@ $(NUM_REGS) = 05
 /proto.send $(SLAVE) 06 00 $(BASE_REG) 04 D2
 ```
 
-Run `/run setup_modbus.run` then `/run test_registers.run` — the variables persist across interactive `/run` calls.
+Run `/run setup_modbus.run` then `/run test_registers.run`. The variables persist across interactive `/run` calls.
 
 | Command             | Description                            |
 | ------------------- | -------------------------------------- |
@@ -351,7 +353,7 @@ Run `/run setup_modbus.run` then `/run test_registers.run` — the variables per
 
 Each group also has `_DATE` and `_TIME` variants (e.g. `$(LAUNCH_DATE)`, `$(SESSION_TIME)`).
 
-**vs. environment variables:** `$(env.NAME)` pulls from the OS environment and works in config files. `$(NAME)` is for user-defined session variables in commands and scripts. Both use the `$(...)` syntax — `env.` is required to access environment variables explicitly.
+**vs. environment variables:** `$(env.NAME)` pulls from the OS environment and works in config files. `$(NAME)` is for user-defined session variables in commands and scripts. Both use the `$(...)` syntax. The `env.` prefix is required to access environment variables explicitly.
 
 **Escaping:** Use `\$` to prevent expansion of a single reference, or `/raw` to skip expansion for an entire line.
 
@@ -376,9 +378,9 @@ To override the config directory:
 termapy --cfg-dir /path/to/configs
 ```
 
-### Config Validation
+### Config validation
 
-Termapy validates config files on load and when saving from the editor. Invalid serial settings (baud rate, parity, data bits, stop bits, flow control, encoding) and unknown keys (typos) produce yellow warnings in the log window. Non-standard baud rates are flagged but allowed — some hardware uses custom rates.
+Termapy validates config files on load and when saving from the editor. Invalid serial settings (baud rate, parity, data bits, stop bits, flow control, encoding) and unknown keys (typos) produce yellow warnings in the log window. Non-standard baud rates are flagged but allowed, since some hardware uses custom rates.
 
 To validate a config from the command line without launching the UI:
 
@@ -396,9 +398,9 @@ This prints a JSON result to stdout and exits:
 {"status": "warn", "warnings": ["baud_rate: 115201 is not a standard rate (110, 300, ...)"]}
 ```
 
-The `--check` flag is read-only — it never modifies the config file.
+The `--check` flag is read-only. It never modifies the config file.
 
-### Config Examples
+### Config examples
 
 When you create a new config, termapy writes a complete `.cfg` file with all defaults (~30 lines). Here are some of the settings you can change:
 
@@ -414,7 +416,7 @@ When you create a new config, termapy writes a complete `.cfg` file with all def
 }
 ```
 
-### Custom Buttons
+### Custom buttons
 
 The demo project's "Info" button runs the `/cfg.info` command via a custom button:
 
@@ -436,9 +438,9 @@ Add toolbar buttons that send commands, run scripts, or chain multiple actions. 
 }
 ```
 
-### Hardware Line Control
+### Hardware line control
 
-Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolbar — useful for devices that use these lines for reset or bootloader entry:
+Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolbar. This is useful for devices that use these lines for reset or bootloader entry:
 
 ```json
 {
@@ -487,7 +489,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 
 | Field                | Default                | Description                                                                                              |
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| `config_version`     | `5`                    | Schema version — managed automatically by the migration system, do not edit                              |
+| `config_version`     | `5`                    | Schema version (managed automatically by the migration system, do not edit)                              |
 | `port`               | `""`                   | Serial port name -- auto-detected when only one port available (supports `$(env.NAME\|fallback)`)        |
 | `baud_rate`          | `115200`               | Baud rate                                                                                                |
 | `byte_size`          | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
@@ -519,7 +521,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `show_traceback`     | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`     | `[]`                   | Array of custom button objects (see Custom Buttons above)                                                |
 
-**Note on `show_line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output — turn `show_line_endings` off when not actively debugging.
+**Note on `show_line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `show_line_endings` off when not actively debugging.
 
 </details>
 
@@ -545,24 +547,24 @@ Scripts support delays (`/delay 500ms`), screen clearing (`/cls`), confirmation 
 </details>
 
 <details>
-<summary><strong>Data Capture</strong> — timed text capture, structured binary capture to CSV</summary>
+<summary><strong>Data capture</strong> — timed text capture, structured binary capture to CSV</summary>
 
 Capture serial data to files without interrupting normal terminal display.
 
-**Text capture** — timed, writes decoded text lines:
+**Text capture** (timed, writes decoded text lines):
 
 ```sh
 /cap.text log.txt timeout=3s cmd=AT+INFO              # capture 3 seconds of text
 /cap.text session.txt timeout=10s mode=append          # append, just listen (no command)
 ```
 
-**Binary capture** — raw bytes to file:
+**Binary capture** (raw bytes to file):
 
 ```sh
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
 
-**Structured capture** — binary data decoded via format spec to CSV:
+**Structured capture** (binary data decoded via format spec to CSV):
 
 ```sh
 # Single-type column — 50 big-endian unsigned 16-bit values
@@ -575,7 +577,7 @@ Capture serial data to files without interrupting normal terminal display.
 /cap.struct log.tsv fmt=A:U1-2 B:F3-6 records=100 sep=tab echo=on cmd=read
 ```
 
-The `fmt=` parameter uses the same format spec language as `/proto` — type codes `H` (hex), `U` (unsigned), `I` (signed), `S` (string), `F` (float), `B` (bit) with 1-based byte ranges. Byte range order determines endianness: `U1-2` = big-endian, `U2-1` = little-endian. Named columns (`Temp:U1-2`) produce a CSV header row; unnamed columns (`U1-2`) omit it.
+The `fmt=` parameter uses the same format spec language as `/proto`, with type codes `H` (hex), `U` (unsigned), `I` (signed), `S` (string), `F` (float), `B` (bit) and 1-based byte ranges. Byte range order determines endianness: `U1-2` = big-endian, `U2-1` = little-endian. Named columns (`Temp:U1-2`) produce a CSV header row; unnamed columns (`U1-2`) omit it.
 
 | Format spec | C type     | Meaning                          |
 | ----------- | ---------- | -------------------------------- |
@@ -605,7 +607,7 @@ A progress bar and Stop button overlay the toolbar during capture. The `Cap` but
 </details>
 
 <details>
-<summary><strong>Binary Protocol Testing</strong> — hex send/receive, .pro test scripts, CRC</summary>
+<summary><strong>Binary protocol testing</strong> — hex send/receive, .pro test scripts, CRC</summary>
 
 Send raw hex bytes and see the response:
 
@@ -623,9 +625,9 @@ Mix hex and quoted text:
 /proto.send FF 00 "hello" 0D 0A
 ```
 
-No line ending is appended — you send exactly the bytes you specify. Toggle `/proto.hex` to show all normal serial I/O as hex bytes.
+No line ending is appended; you send exactly the bytes you specify. Toggle `/proto.hex` to show all normal serial I/O as hex bytes.
 
-### Proto Test Scripts
+### Proto test scripts
 
 Write `.pro` files (TOML format) for repeatable send/expect testing with pass/fail:
 
@@ -648,9 +650,9 @@ Run with `/proto.run <file>` or from the proto debug screen, which adds repeat c
 
 <!-- TODO: screenshot — proto debug screen showing test results with pass/fail coloring and visualizer columns -->
 
-### Inline Format Specs
+### Inline format specs
 
-Add `send_fmt` and `expect_fmt` to any test step to decode raw bytes into named columns. The proto debug screen displays the decoded values side by side with pass/fail highlighting — turning opaque hex into readable fields.
+Add `send_fmt` and `expect_fmt` to any test step to decode raw bytes into named columns. The proto debug screen displays the decoded values side by side with pass/fail highlighting, turning opaque hex into readable fields.
 
 ```toml
 [[test]]
@@ -676,17 +678,17 @@ Each column is `Name:TypeBytes` where the type controls how bytes are displayed:
 | `_`    | Padding (skip bytes)      | `_3-4`                | *(hidden)*         |
 | `crc*` | CRC auto-check            | `CRC:crc16-modbus_le` | `OK` / `FAIL`      |
 
-Byte indices are 1-based. Ranges use `-` (e.g. `U3-4` = bytes 3–4). **Byte order is controlled by the index direction** — this is how you handle big-endian vs little-endian protocols:
+Byte indices are 1-based. Ranges use `-` (e.g. `U3-4` = bytes 3–4). **Byte order is controlled by the index direction.** This is how you handle big-endian vs little-endian protocols:
 
-- `U3-4` — big-endian (byte 3 is MSB, byte 4 is LSB)
-- `U4-3` — little-endian (byte 4 is LSB, byte 3 is MSB)
-- `U5-8` — 32-bit big-endian (4 bytes, MSB first)
-- `U8-5` — 32-bit little-endian (4 bytes, LSB first)
+- `U3-4`: big-endian (byte 3 is MSB, byte 4 is LSB)
+- `U4-3`: little-endian (byte 4 is LSB, byte 3 is MSB)
+- `U5-8`: 32-bit big-endian (4 bytes, MSB first)
+- `U8-5`: 32-bit little-endian (4 bytes, LSB first)
 
 This works for all multi-byte types (`U`, `I`, `H`, `F`, `B`). CRC columns auto-compute and verify the checksum over the preceding bytes. Append `_le` or `_be` to the CRC algorithm name for the byte order of the checksum itself:
 
-- `CRC:crc16-modbus_le` — CRC-16/Modbus stored little-endian (low byte first, as Modbus RTU requires)
-- `CRC:crc16-modbus_be` — same algorithm but stored big-endian (high byte first)
+- `CRC:crc16-modbus_le`: CRC-16/Modbus stored little-endian (low byte first, as Modbus RTU requires)
+- `CRC:crc16-modbus_be`: same algorithm but stored big-endian (high byte first)
 
 The demo project includes two `.pro` files that exercise inline format specs: `modbus_inline.pro` (register reads/writes with Modbus decoding) and `bitfield_inline.pro` (bit field extraction and binary display). Run them from the Proto button in `--demo` mode.
 
@@ -748,24 +750,26 @@ Finally here is the serial log output of a protocol test:
 Summary: 4/4 PASS (4 tests)
 ```
 
-### CRC Algorithms
+### CRC algorithms
 
-62 named CRC algorithms from the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) are built in. Browse with `/proto.crc.list`, inspect with `/proto.crc.help <name>`, compute with `/proto.crc.calc`.
+Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) is built in: 62 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.help <name>`, compute with `/proto.crc.calc`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
 
 </details>
 
 <details>
-<summary><strong>Demo Mode</strong> — simulated device for trying everything without hardware</summary>
+<summary><strong>Demo mode</strong> — simulated device for trying everything without hardware</summary>
 
-`termapy --demo` launches a completely simulated COM port — no hardware needed. The simulated device (`BASSOMATIC-77`) responds to AT commands, NMEA/GPS sentences, and binary Modbus RTU frames, so you can exercise every termapy feature: serial I/O, scripting, protocol testing, and plugins.
+`termapy --demo` launches a completely simulated COM port, no hardware needed. The simulated device ([`BASSOMATIC-77`](https://en.wikipedia.org/wiki/Bass-O-Matic), the natural successor to Dan Aykroyd's '76) responds to AT commands, NMEA/GPS sentences, and binary Modbus RTU frames, so you can exercise every termapy feature: serial I/O, scripting, protocol testing, and plugins.
+
+The demo exists for two reasons: people can evaluate termapy without owning hardware, and the test suite has a deterministic target it can drive end-to-end through the same code paths a real device would.
 
 > **Note:** The demo command sets (AT, NMEA, Modbus) are not validated protocol implementations. They simulate familiar interfaces so you can explore termapy's features without hardware.
 
 <!-- TODO: screenshot — demo mode showing AT command output with the device responding -->
 
-#### ASCII Commands
+#### ASCII commands
 
-The device supports a full AT command set — type commands and get responses just like a real device:
+The device supports a full AT command set. Type commands and get responses just like a real device:
 
 | Command            | Description                                       |
 | ------------------ | ------------------------------------------------- |
@@ -783,7 +787,7 @@ The device supports a full AT command set — type commands and get responses ju
 | `mem <addr> [len]` | Hex memory dump (deterministic, max 256 bytes)    |
 | `help`             | List all commands                                 |
 
-#### GPS / NMEA Commands
+#### GPS / NMEA commands
 
 The device responds to standard NMEA queries and PMTK configuration commands. Position is fixed at the 50-yard line of Lumen Field, Seattle.
 
@@ -796,7 +800,7 @@ The device responds to standard NMEA queries and PMTK configuration commands. Po
 | `$PMTK220,1000` | Set update rate (acknowledged, no effect)     |
 | `$PMTK314,...`  | Configure sentence output (acknowledged)      |
 
-#### Binary Protocol Testing
+#### Binary protocol testing
 
 The device also speaks Modbus RTU (binary), so you can try protocol test files and visualizers. Use `/proto.send` with hex bytes (CRC included):
 
@@ -808,20 +812,20 @@ The device also speaks Modbus RTU (binary), so you can try protocol test files a
 
 Modbus RTU supports function 0x03 (read holding registers) and 0x06 (write single register) with CRC16 enforced.
 
-#### Bundled Scripts, Tests, and Plugins
+#### Bundled scripts, tests, and plugins
 
 The demo comes with everything wired up so you can try each feature:
 
-- **Scripts** — `at_demo.run`, `smoke_test.run`, `status_check.run` — run via the Scripts button or `/run`
-- **Proto test files** — `at_test.pro`, `bitfield_inline.pro`, `modbus_inline.pro` — run via the Proto button for pass/fail results
-- **Plugins** — `/probe` sends a command sequence and reports results; `/cmd` adds a custom shortcut
+- **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`. Run via the Scripts button or `/run`.
+- **Proto test files:** `at_test.pro`, `bitfield_inline.pro`, `modbus_inline.pro`. Run via the Proto button for pass/fail results.
+- **Plugins:** `/probe` sends a command sequence and reports results; `/cmd` adds a custom shortcut.
 
 </details>
 
 <details>
-<summary><strong>CLI Mode</strong> — plain-text terminal, no TUI</summary>
+<summary><strong>CLI mode</strong> — plain-text terminal, no TUI</summary>
 
-`termapy --cli` runs a plain-text serial terminal in your existing terminal window - no Textual UI, no mouse, just keyboard input and text output. All built-in plugins, scripting, and serial I/O work the same as the TUI.
+`termapy --cli` runs a plain-text serial terminal in your existing terminal window. No Textual UI, no mouse, just keyboard input and text output. The TUI is the intended way to use termapy, but the CLI exists for two cases: people who don't want a TUI (you know who you are), and pipelines that want to feed termapy's output into a file or another tool. The engine doesn't care which frontend it's running under; the TUI and CLI share the same `ReplEngine`, `SerialEngine`, plugins, scripts, and configs.
 
 ```sh
 termapy --cli my_device              # interactive terminal
@@ -853,9 +857,11 @@ Passing a `.run` file to `--cli` automatically infers the config from the file's
 </details>
 
 <details>
-<summary><strong>Extending Termapy</strong> — plugins, subcommands, visualizers</summary>
+<summary><strong>Extending termapy</strong> — plugins, subcommands, visualizers</summary>
 
 ### Plugins
+
+Every built-in command (`/help`, `/cfg`, `/grep`, all of them) is itself a plugin loaded from the same folder you'd drop your own into. If something was hard to build as a plugin, the API was wrong. [Dogfooding](https://en.wikipedia.org/wiki/Eating_your_own_dog_food) all the way down.
 
 Add custom REPL commands by dropping a `.py` file in a plugin folder. No classes to subclass, no registration:
 
@@ -878,10 +884,10 @@ COMMAND = Command(
 
 **Plugin locations** (loaded in order, later overrides earlier):
 
-1. **Built-in** — shipped with termapy, always available
-2. **Global** — `termapy_cfg/plugin/*.py`, shared across all configs
-3. **Per-config** — `termapy_cfg/<name>/plugin/*.py`, specific to one config
-4. **App hooks** — frontend-specific commands (`/ss`, `/delay`, `/run`, etc.)
+1. **Built-in:** shipped with termapy, always available
+2. **Global:** `termapy_cfg/plugin/*.py`, shared across all configs
+3. **Per-config:** `termapy_cfg/<name>/plugin/*.py`, specific to one config
+4. **App hooks:** frontend-specific commands (`/ss`, `/delay`, `/run`, etc.)
 
 <details>
 <summary>Subcommands</summary>
@@ -939,7 +945,7 @@ The `ctx` object passed to every handler:
 | `ctx.get_screen_text()`     | Get terminal content as plain text                                 |
 | `ctx.open_file(path)`       | Open a file or folder in the system viewer/editor                  |
 
-There is also `ctx.engine` which exposes internal engine state (sequence counters, echo, config save, etc.). This is used by built-in commands and may change between versions — external plugins should avoid it.
+There is also `ctx.engine` which exposes internal engine state (sequence counters, echo, config save, etc.). This is used by built-in commands and may change between versions, so external plugins should avoid it.
 
 </details>
 
@@ -948,16 +954,16 @@ There is also `ctx.engine` which exposes internal engine state (sequence counter
 
 See `examples/plugins/` for working examples:
 
-- **hello.py** — minimal greeting command
-- **at_test.py** — send AT commands over serial
-- **timestamp.py** — print the current date/time
-- **ping.py** — send a command and measure response time
+- **hello.py:** minimal greeting command
+- **at_test.py:** send AT commands over serial
+- **timestamp.py:** print the current date/time
+- **ping.py:** send a command and measure response time
 
 A more complete example ships with `--demo`: the `probe.py` plugin demonstrates the drain → write → read → parse cycle for device interaction. Run `/help probe` or `/help.dev probe` to see its documentation.
 
 </details>
 
-### Binary Format Specs
+### Binary format specs
 
 Embedded protocols send raw bytes. Format specs decode them into human-readable fields - so you see "Temp: 200" and "CRC: OK" instead of `00 C8 ... XX XX`. Used in protocol testing (`.pro` files), data capture (`/cap.struct`, `/cap.hex`), and the proto debug screen.
 
@@ -1085,7 +1091,7 @@ From the REPL:
 <details>
 <summary><strong>Portability</strong></summary>
 
-Developed and tested on **Windows**. Basic usage verified on **macOS** (serial, ANSI rendering, screenshots). macOS support is **alpha** until further testing. Linux has not been tested.
+Developed and tested on **Windows**. Basic usage verified on **macOS** (serial, ANSI rendering, screenshots). macOS support is **alpha** until further testing. **Linux** is exercised by GitHub Actions CI on every push (the full test suite, including the CLI gold-standard integration test, runs on Ubuntu against Python 3.11 through 3.14), but interactive use on Linux has not been hand-verified by the author.
 
 </details>
 
@@ -1108,7 +1114,7 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test Coverage</strong> — 1191 tests, 68% overall</summary>
+<summary><strong>Test coverage</strong> — 1191 tests, 68% overall</summary>
 
 1191 tests across 27 test files. Run with `uv run pytest`.
 
@@ -1130,14 +1136,14 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 | `demo.py`          | 73%      | `test_demo.py`                       |
 | `cli.py`           | 53%      | `test_cli.py`                        |
 
-**Built-in plugins** — 15 of 18 plugins tested via mock `PluginContext` in `test_builtins.py`.
+**Built-in plugins:** 15 of 18 plugins tested via mock `PluginContext` in `test_builtins.py`.
 
-**UI code** — `app.py` (~3400 lines), `proto_debug.py` (~1160 lines), `dialogs.py` (~1200 lines) are Textual UI and tested manually. The 66% overall figure reflects these large untested UI files. Core logic coverage is higher — the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code:** `app.py` (~3400 lines), `proto_debug.py` (~1160 lines), and `dialogs.py` (~1200 lines) are Textual UI and tested manually. The 66% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>
 
 <details>
-<summary><strong>Continuous Integration</strong> — GitHub Actions</summary>
+<summary><strong>Continuous integration</strong> — GitHub Actions</summary>
 
 All tests run automatically on push to `main` and on pull requests via GitHub Actions.
 
@@ -1150,3 +1156,7 @@ All tests run automatically on push to `main` and on pull requests via GitHub Ac
 The CI badge at the top of this README reflects the current status of the test workflow. See [`.github/workflows/tests.yml`](.github/workflows/tests.yml) for the full configuration.
 
 </details>
+
+---
+
+Built with heavy use of Claude. For how that worked out, see [On AI assistance](src/termapy/help/on-ai-assistance.md).

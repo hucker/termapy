@@ -1,22 +1,23 @@
-# Termapy Help
+# Termapy help
 
-Welcome to `termapy` — a TUI serial terminal with scripting, protocol testing, and data capture.
+Welcome to `termapy`, a TUI serial terminal with scripting, protocol testing, and data capture.
 
 ![Termapy TUI](img/doc_01_main_tui.svg)
 
 Select a topic:
 
-- [Installation](installation.md) — requirements, install with uv or pip
-- [Demo Mode](demo.md) — try everything without hardware
-- [Getting Started](getting-started.md) — connect to real hardware, config files, folder layout
-- [Configuration](config.md) — JSON config, field reference, config management
-- [Custom Buttons](custom-buttons.md) — adding toolbar buttons
-- [Toolbar & Shortcuts](toolbar.md) — buttons, keyboard shortcuts, command palette
-- [REPL Commands](commands.md) — full command reference table
-- [Scripting](scripting.md) — automating command sequences
-- [Protocol Testing](protocol-testing.md) — hex send/receive, .pro scripts, CRC, visualizers
-- [Data Capture](data-capture.md) — text and binary capture to files
-- [File Transfer](file-transfer.md) — XMODEM send and receive over serial
-- [Writing Plugins](writing-plugins.md) — add custom commands with Python
-- [Device Help](device-help.md) — integrate your device's commands into termapy
-- [Using with Git](using-git.md) — version control, team workflow, env vars
+- [Installation](installation.md): requirements, install with uv or pip
+- [Demo mode](demo.md): try everything without hardware
+- [Getting started](getting-started.md): connect to real hardware, config files, folder layout
+- [Configuration](config.md): JSON config, field reference, config management
+- [Custom buttons](custom-buttons.md): adding toolbar buttons
+- [Toolbar and shortcuts](toolbar.md): buttons, keyboard shortcuts, command palette
+- [REPL commands](commands.md): full command reference table
+- [Scripting](scripting.md): automating command sequences
+- [Protocol testing](protocol-testing.md): hex send/receive, .pro scripts, CRC, visualizers
+- [Data capture](data-capture.md): text and binary capture to files
+- [File transfer](file-transfer.md): XMODEM send and receive over serial
+- [Writing plugins](writing-plugins.md): add custom commands with Python
+- [Device help](device-help.md): integrate your device's commands into termapy
+- [Using with git](using-git.md): version control, team workflow, env vars
+- [On AI assistance](on-ai-assistance.md): how termapy was built with Claude, and what testing has to do with it

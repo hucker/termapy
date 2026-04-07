@@ -1,9 +1,9 @@
-# Custom Buttons
+# Custom buttons
 
 Add custom buttons to the toolbar by configuring `custom_buttons`
 in your JSON config. Each button can send serial commands, run REPL commands,
-or execute scripts. The default config includes 4 disabled placeholders —
-enable them and fill in the fields, or add more entries.
+or execute scripts. The default config includes 4 disabled placeholders.
+Enable them and fill in the fields, or add more entries.
 
 Each button object has these fields:
 
@@ -39,7 +39,7 @@ Each button object has these fields:
 ]
 ```
 
-## Command Format
+## Command format
 
 - Plain text is sent to the serial device (e.g. `"ATZ"`)
 - Commands starting with `/` run as REPL commands (e.g. `"/run test.run"`)

@@ -8,6 +8,7 @@ import pytest
 from termapy.plugins import CmdResult
 from termapy.scripting import (
     expand_template,
+    parse_bool,
     parse_duration,
     parse_keywords,
     resolve_seq_filename,
@@ -396,3 +397,56 @@ class TestCmdResult:
     def test_value_set(self):
         actual = CmdResult(value="0.35.0")
         assert actual.value == "0.35.0"  # value captured
+
+
+# ── parse_bool ──────────────────────────────────────────────────────────────
+
+
+class TestParseBool:
+    @pytest.mark.parametrize("val", ["on", "1", "true", "yes", "y", "t"])
+    def test_truthy_lowercase(self, val):
+        # Act
+        actual = parse_bool(val)
+
+        # Assert
+        assert actual is True, f"expected True for {val!r}, got {actual!r}"
+
+    @pytest.mark.parametrize("val", ["off", "0", "false", "no", "n", "f"])
+    def test_falsy_lowercase(self, val):
+        # Act
+        actual = parse_bool(val)
+
+        # Assert
+        assert actual is False, f"expected False for {val!r}, got {actual!r}"
+
+    @pytest.mark.parametrize("val", ["ON", "On", "TRUE", "True", "Yes", "Y", "T"])
+    def test_truthy_mixed_case(self, val):
+        # Act
+        actual = parse_bool(val)
+
+        # Assert
+        assert actual is True, f"expected True for {val!r}, got {actual!r}"
+
+    @pytest.mark.parametrize("val", ["OFF", "Off", "FALSE", "False", "No", "N", "F"])
+    def test_falsy_mixed_case(self, val):
+        # Act
+        actual = parse_bool(val)
+
+        # Assert
+        assert actual is False, f"expected False for {val!r}, got {actual!r}"
+
+    @pytest.mark.parametrize("val", ["  on  ", "\toff\n", " true "])
+    def test_whitespace_stripped(self, val):
+        # Act
+        actual = parse_bool(val)
+
+        # Assert — value should be recognized despite surrounding whitespace
+        assert actual is not None, f"expected bool for {val!r}, got None"
+
+    @pytest.mark.parametrize("val", ["", "maybe", "2", "high", "low", "enable", "x"])
+    def test_unrecognized_returns_none(self, val):
+        # Act
+        actual = parse_bool(val)
+
+        # Assert
+        assert actual is None, f"expected None for {val!r}, got {actual!r}"

@@ -1,4 +1,4 @@
-# REPL Commands
+# REPL commands
 
 Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead of being sent to the serial device.
 
@@ -93,7 +93,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/raw <text>`             | Send text to serial with no variable expansion or transforms                |
 | `/exit`                   | Exit termapy                                                                |
 
-## Script Profiling
+## Script profiling
 
 | Command                     | Description                                                  |
 | --------------------------- | ------------------------------------------------------------ |
@@ -104,7 +104,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/run.profile.explore`      | Open `prof/` folder in file explorer                         |
 | `/run.profile.list`         | List profile files                                           |
 
-## Config File Management
+## Config file management
 
 Each config subfolder has a consistent set of subcommands:
 
@@ -118,8 +118,8 @@ Each config subfolder has a consistent set of subcommands:
 
 Examples:
 
-- `/cfg.scripts` — list script files
-- `/cfg.scripts.dump` — print newest script to terminal
-- `/cfg.proto.show` — open newest .pro file in editor
-- `/cfg.cap.clear` — delete all capture files
-- `/cfg.prof.dump` — print newest profile CSV to terminal
+- `/cfg.scripts`: list script files
+- `/cfg.scripts.dump`: print newest script to terminal
+- `/cfg.proto.show`: open newest .pro file in editor
+- `/cfg.cap.clear`: delete all capture files
+- `/cfg.prof.dump`: print newest profile CSV to terminal

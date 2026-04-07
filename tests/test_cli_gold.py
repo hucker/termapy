@@ -93,8 +93,28 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
             lineterm="",
         )
         diff_text = "\n".join(diff)
+
+        # Forensic dump: save raw + normalized + diff so an intermittent
+        # failure leaves evidence behind. Path is stable across runs so the
+        # most recent failure always overwrites.
+        failures_dir = GOLD_DIR / "_failures"
+        failures_dir.mkdir(exist_ok=True)
+        (failures_dir / f"{script_name}.actual_raw.txt").write_text(
+            actual_text, encoding="utf-8"
+        )
+        (failures_dir / f"{script_name}.actual.txt").write_text(
+            "\n".join(actual), encoding="utf-8"
+        )
+        (failures_dir / f"{script_name}.expected.txt").write_text(
+            "\n".join(expected), encoding="utf-8"
+        )
+        (failures_dir / f"{script_name}.diff.txt").write_text(
+            diff_text, encoding="utf-8"
+        )
+
         raise AssertionError(
-            f"CLI output does not match gold file.\n\n{diff_text}"
+            f"CLI output does not match gold file.\n"
+            f"Forensic artifacts written to {failures_dir}\n\n{diff_text}"
         )
 
 

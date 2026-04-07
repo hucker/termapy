@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.53.3 (2026-04-07)
+
+Bug fix and tooling release.
+
+### 0.53.3 Fixes
+
+- **`/cap.bin` help text** -- shortened so the rendered line stays under 120 columns. The previous text wrapped at slightly different points across Rich versions, causing the CLI gold test to fail intermittently under tox.
+
+### 0.53.3 Improvements
+
+- **Forensic dump on CLI gold failure** -- when `tests/test_cli_gold.py` fails it now writes raw output, normalized output, expected output, and a unified diff to `tests/cli_gold/_failures/` so intermittent failures leave evidence behind.
+- **Numbered step progress in `release_prep.py`** -- `[1/10] ... [10/10]` headers so a failed prep tells you exactly which stage died.
+
 ## 0.53.2 (2026-04-07)
 
 Documentation release.

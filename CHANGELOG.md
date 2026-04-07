@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.53.0 (2026-04-07)
+
+### 0.53.0 New Features
+
+- **Universal `.quiet` modifier** -- any command can now be invoked as `<cmd>.quiet` to suppress its terminal output, handled by a single dispatcher in `repl.py` instead of per-plugin subcommands. `/echo.quiet`, `/verbose.quiet`, and so on are all routed through the same mechanism.
+- **`/expect quiet=on` keyword** -- suppress per-step status from a single `/expect` line in scripts.
+- **`parse_bool` shared helper** -- all plugins now accept the same boolean tokens (on/off/1/0/true/false/yes/no) via a single helper.
+- **On AI assistance** -- new help page (`on-ai-assistance.md`) documenting how termapy was built with Claude and the role tests play in that workflow.
+- **Quiet mode and output channels** -- new section in `scripting.md` documenting the result/output/status channels and how to silence each.
+
+### 0.53.0 Improvements
+
+- **Voice and style pass** -- removed em dashes from prose, normalized headings to sentence case across README, ARCHITECTURE.md, COMPARISON.md, reddit_post.md, and all 17 help pages. No content removed; rationale for the plugin system, CRC catalogue, demo, and CLI surfaced where readers will see it.
+- **Plugin help strings** -- `/echo` and `/verbose` advertise their `.quiet` variant inline instead of as a subcommand listing.
+- **README cross-platform pitch** -- "runs on Windows, macOS, Linux; under 10 seconds with uv" surfaced in the intro.
+
 ## 0.52.0 (2026-04-06)
 
 ### 0.52.0 New Features

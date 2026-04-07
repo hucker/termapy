@@ -349,7 +349,7 @@ COMMAND = Command(
         ),
         "bin": Command(
             args="<file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}",
-            help="Capture raw binary bytes to a file.",
+            help="Capture raw binary bytes.",
             handler=_handler_bin,
         ),
         "struct": Command(

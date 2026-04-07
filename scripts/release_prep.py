@@ -106,15 +106,13 @@ def count_lines(rel_path: str) -> int:
 
 def count_tests() -> int:
     """Total test count from `pytest --collect-only -q`."""
-    out = run_out(["uv", "run", "pytest", "--collect-only", "-q"])
-    # Last non-empty line typically reads "1259 tests collected in 0.72s"
-    for line in reversed(out.splitlines()):
-        line = line.strip()
-        if not line:
-            continue
-        m = re.match(r"(\d+) tests? collected", line)
-        if m:
-            return int(m.group(1))
+    # --no-cov so the cov plugin's terminal report doesn't bury the summary line.
+    out = run_out(["uv", "run", "pytest", "--collect-only", "-q", "--no-cov"])
+    # Matches either "1259 tests collected in 0.72s" or the
+    # "======= 1259 tests collected in 1.09s =======" decorated form.
+    m = re.search(r"(\d+) tests? collected", out)
+    if m:
+        return int(m.group(1))
     die("could not parse test count from pytest --collect-only output")
     return 0  # unreachable, satisfies type checker
 

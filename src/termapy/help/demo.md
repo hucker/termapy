@@ -1,9 +1,9 @@
-# Demo Mode
+# Demo mode
 
 The demo device is a simulated serial device for exploring termapy
 without hardware. See [Installation](installation.md) for how to start it.
 
-## Entering Demo Mode
+## Entering demo mode
 
 ```sh
 termapy --demo                   # from the command line
@@ -11,29 +11,29 @@ termapy --demo                   # from the command line
 
 Or from within termapy:
 
-- `/demo` — switch to the demo config (creates it if needed)
-- `/demo.force` — reset demo to defaults and switch to it
+- `/demo`: switch to the demo config (creates it if needed)
+- `/demo.force`: reset demo to defaults and switch to it
 
-## What You Get
+## What you get
 
 The demo creates a complete project at `termapy_cfg/demo/` with:
 
-- A simulated device called **BASSOMATIC-77** that responds to AT
+- A simulated device called **[BASSOMATIC-77](https://en.wikipedia.org/wiki/Bass-O-Matic)** (the natural successor to Dan Aykroyd's '76) that responds to AT
   commands, GPS/NMEA queries, and binary Modbus RTU frames
 - **5 toolbar buttons**: Demo Help, AT Demo, Info, Probe, TempPlot
 - **6 scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo
 - **3 protocol test files**: at_test, bitfield_inline, modbus_inline
 - **3 plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline)
 
-## Device Commands
+## Device commands
 
 The simulated device supports three protocols:
 
-### AT Commands (text)
+### AT commands (text)
 
 | Command                    | Response                                |
 | -------------------------- | --------------------------------------- |
-| `AT`                       | `OK` — connection test                  |
+| `AT`                       | `OK` (connection test)                  |
 | `AT+INFO`                  | Device info, uptime, free memory        |
 | `AT+TEMP`                  | Simulated temperature reading (22-25C)  |
 | `AT+LED on\|off`           | Toggle LED state                        |
@@ -69,7 +69,7 @@ Use `/proto.send` with hex bytes (CRC included):
 Supports function codes 0x03 (read holding registers) and 0x06
 (write single register) with CRC16 enforced.
 
-## Data Capture Commands
+## Data capture commands
 
 ### Text capture
 
@@ -77,24 +77,24 @@ Supports function codes 0x03 (read holding registers) and 0x06
 /cap.text readings.txt timeout=3s cmd=AT+TEXTDUMP 50
 ```
 
-### Binary capture — mixed record to CSV
+### Binary capture: mixed record to CSV
 
 ```text
 /cap.struct mixed.csv fmt=Label:S1-10 Counter:U11 Val16:U13-12 Val32:U17-14 Temp:F21-18 records=20 cmd=AT+BINDUMP 20
 ```
 
-### Binary capture — single type
+### Binary capture: single type
 
 ```text
 /cap.struct u16_data.csv fmt=Value:U2-1 records=50 cmd=AT+BINDUMP u16 50
 ```
 
-## Demo Plugins
+## Demo plugins
 
 | Plugin       | Command      | What it does                                     |
 | ------------ | ------------ | ------------------------------------------------ |
-| cmd.py       | `/cmd`       | Custom shortcut — wraps a device command         |
-| probe.py     | `/probe`     | Device survey — send/receive cycle with output   |
+| cmd.py       | `/cmd`       | Custom shortcut, wraps a device command          |
+| probe.py     | `/probe`     | Device survey, send/receive cycle with output    |
 | temp_plot.py | `/temp_plot` | Sample temperature N times, draw ASCII sparkline |
 
 `probe.py` is the best starting template for writing your own plugins.

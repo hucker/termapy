@@ -1,10 +1,10 @@
-# Writing Plugins
+# Writing plugins
 
 Plugins are `.py` files that add REPL commands. Drop a file into a
-`plugin/` folder and it loads automatically — no compilation, no
+`plugin/` folder and it loads automatically. No compilation, no
 registration, no restart.
 
-## Quick Start: Copy and Modify
+## Quick start: copy and modify
 
 The fastest way to write a plugin is to copy an existing one:
 
@@ -13,35 +13,35 @@ The fastest way to write a plugin is to copy an existing one:
 3. Change the command name, help text, and handler logic
 4. Drop it into `termapy_cfg/plugin/` (all configs) or `termapy_cfg/<config>/plugin/` (one config)
 
-## How Plugins Work
+## How plugins work
 
 When `termapy` starts, it scans the `plugin/` folders for `.py` files.
 Each file is imported and checked for a `COMMAND` object at module level.
-If found, that command is registered in the REPL — users can invoke it
+If found, that command is registered in the REPL, and users can invoke it
 by typing its name with the command prefix (e.g. `/hello`).
 
 The `COMMAND` object tells `termapy`:
 
-- **name** — what the user types to invoke it (`/name`)
-- **args** — the argument syntax shown in `/help` (`{optional}` or `<required>`)
-- **help** — one-line description shown in `/help`
-- **handler** — the Python function to call when the command runs
+- **name:** what the user types to invoke it (`/name`)
+- **args:** the argument syntax shown in `/help` (`{optional}` or `<required>`)
+- **help:** one-line description shown in `/help`
+- **handler:** the Python function to call when the command runs
 
-## The Handler Function
+## The handler function
 
 The handler is where your plugin logic lives. It is called whenever
 a user types your command in the REPL input, or when a `.run` script
 contains your command. The handler receives two arguments:
 
-- **ctx** (PluginContext) — your interface to the terminal, serial port,
+- **ctx** (PluginContext): your interface to the terminal, serial port,
   config, and filesystem. This is the only API your plugin needs.
-- **args** (str) — everything the user typed after the command name.
+- **args** (str): everything the user typed after the command name.
   For `/hello world`, args is `"world"`. For `/hello`, args is `""`.
 
 The handler can do anything: print output, send commands to the serial
 device, read responses, write files, or chain other REPL commands.
 
-## Plugin File Structure
+## Plugin file structure
 
 A minimal plugin:
 
@@ -63,10 +63,10 @@ COMMAND = Command(
 ```
 
 The `COMMAND` object must be defined after all the functions it references.
-`Termapy` looks for this specific name — if your file doesn't have a
+`Termapy` looks for this specific name. If your file doesn't have a
 `COMMAND` object, it is silently skipped.
 
-## Serial I/O Pattern
+## Serial I/O pattern
 
 Most plugins follow this pattern: send a command, read the response, do something with it.
 
@@ -92,10 +92,10 @@ Key points:
 
 - `serial_io()` suppresses the normal terminal display during I/O
 - `serial_drain()` clears any leftover bytes before your command
-- `serial_write()` sends raw bytes — you add the line ending
+- `serial_write()` sends raw bytes; you add the line ending
 - `serial_read_raw()` waits for a complete response (timeout-based framing)
 
-## PluginContext API Reference
+## PluginContext API reference
 
 ### Output
 
@@ -114,7 +114,7 @@ Key points:
 | `ctx.config_path` | Path to the `.cfg` file |
 | `ctx.cfg.get("key", default)` | Read a config value |
 
-### Serial Port
+### Serial port
 
 | Method | Description |
 | --- | --- |
@@ -160,13 +160,13 @@ COMMAND = Command(
 )
 ```
 
-## Example Plugins
+## Example plugins
 
 The demo config ships with three plugins of increasing complexity:
 
-- **cmd.py** — minimal: wraps a single AT command in a custom name
-- **probe.py** — intermediate: send/receive cycle with formatted output, good starting template
-- **temp_plot.py** — advanced: repeated sampling, response parsing, ASCII sparkline visualization
+- **cmd.py:** minimal. Wraps a single AT command in a custom name.
+- **probe.py:** intermediate. Send/receive cycle with formatted output, good starting template.
+- **temp_plot.py:** advanced. Repeated sampling, response parsing, ASCII sparkline visualization.
 
 `temp_plot.py` is the best example for real-world plugin development. It shows:
 
@@ -179,7 +179,7 @@ The demo config ships with three plugins of increasing complexity:
 
 Run `/temp_plot` in demo mode to see it in action, then read the source.
 
-## Using AI Coding Tools
+## Using AI coding tools
 
 `temp_plot.py` was generated in one shot by Claude Code with full
 project context. If you use an AI coding assistant with access to the
@@ -187,6 +187,9 @@ termapy source, describing what you want often produces a working
 plugin on the first try. The key is that the AI can see `probe.py`,
 the device protocol, and the PluginContext API all at once.
 
-Without full project context, expect to iterate — the serial I/O timing
+Without full project context, expect to iterate. The serial I/O timing
 and response parsing are device-specific and hard to get right from an
 API reference alone.
+
+For more on how termapy itself was built with LLM tooling, see
+[On AI assistance](on-ai-assistance.md).

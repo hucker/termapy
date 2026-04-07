@@ -1,6 +1,6 @@
-# Toolbar & Shortcuts
+# Toolbar and shortcuts
 
-## Toolbar Buttons
+## Toolbar buttons
 
 The bottom bar has buttons. Some appear based on context:
 
@@ -17,21 +17,21 @@ The bottom bar has buttons. Some appear based on context:
 | **Custom**  | `custom_buttons` enabled     | User-defined command buttons        |
 | **Exit**    | Always                       | Close the connection and quit       |
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
-| Key        | Action                               |
-| ---------- | ------------------------------------ |
-| **Ctrl+Q** | Quit (also closes any open dialog)   |
-| **Ctrl+L** | Clear screen                         |
-| **Ctrl+P** | Open command palette                 |
-| **F5**     | Save SVG screenshot                  |
-| **F6**     | Open screenshot folder               |
-| **F7**     | Save text screenshot                 |
-| **Up/Down**| Cycle through command history        |
-| **Escape** | Clear input / exit history browsing  |
-| **Right**  | Accept type-ahead suggestion         |
+| Key         | Action                              |
+| ----------- | ----------------------------------- |
+| **Ctrl+Q**  | Quit (also closes any open dialog)  |
+| **Ctrl+L**  | Clear screen                        |
+| **Ctrl+P**  | Open command palette                |
+| **F5**      | Save SVG screenshot                 |
+| **F6**      | Open screenshot folder              |
+| **F7**      | Save text screenshot                |
+| **Up/Down** | Cycle through command history       |
+| **Escape**  | Clear input / exit history browsing |
+| **Right**   | Accept type-ahead suggestion        |
 
-## Command Palette
+## Command palette
 
 Press **Ctrl+P** to open the command palette, which provides quick access to:
 
@@ -47,4 +47,3 @@ Press **Ctrl+P** to open the command palette, which provides quick access to:
 - Show Newest Screenshot
 - Show Newest Text Capture
 - Exit
-

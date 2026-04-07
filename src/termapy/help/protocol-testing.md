@@ -1,11 +1,11 @@
-# Protocol Testing
+# Protocol testing
 
 Automated send/expect test scripts for binary serial protocols.
 Each step sends data, waits for a response, and reports PASS/FAIL.
 
 For interactive sending and CRC commands, see [Serial Tools](serial-tools.md).
 
-## Protocol Test Scripts
+## Protocol test scripts
 
 Create `.pro` files in the per-config `proto/` folder with send/expect sequences:
 
@@ -31,20 +31,20 @@ expect: "V1." ** ** "\r"
 
 Run with `/proto.run example.pro`. Each step reports PASS/FAIL.
 
-## Script Directives
+## Script directives
 
-- `@timeout <duration>` — default expect timeout (default 1000ms)
-- `@frame_gap <duration>` — silence gap to detect frame end (default 50ms)
-- `@strip_ansi` — strip ANSI escape sequences from responses before matching
-- `label: <text>` — name for the next step
-- `send: <hex or "text">` — transmit raw bytes (no line ending appended)
-- `expect: <pattern>` — wait for response and match (`**` = any byte)
-- `timeout: <duration>` — per-step timeout override
-- `delay: <duration>` — fixed sleep
-- `flush: <duration>` — wait for serial silence, then discard received bytes
-- `cmd: <text>` — send a plain text command with config line ending
+- `@timeout <duration>`: default expect timeout (default 1000ms)
+- `@frame_gap <duration>`: silence gap to detect frame end (default 50ms)
+- `@strip_ansi`: strip ANSI escape sequences from responses before matching
+- `label: <text>`: name for the next step
+- `send: <hex or "text">`: transmit raw bytes (no line ending appended)
+- `expect: <pattern>`: wait for response and match (`**` = any byte)
+- `timeout: <duration>`: per-step timeout override
+- `delay: <duration>`: fixed sleep
+- `flush: <duration>`: wait for serial silence, then discard received bytes
+- `cmd: <text>`: send a plain text command with config line ending
 
-## Packet Visualizers
+## Packet visualizers
 
 The proto debug screen uses pluggable visualizers to decode packet bytes into
 named columns. Built-in visualizers (Hex, Text, Modbus) ship with termapy. Add
@@ -68,7 +68,7 @@ send = "01 03 00 00 00 01 84 0A"
 expect = "01 03 02 00 07 F9 86"
 ```
 
-## Format Spec Language
+## Format spec language
 
 Format specs decode raw bytes into named, typed fields. One line defines your
 entire packet layout. Used in protocol testing (`.pro` files), data capture
@@ -100,7 +100,7 @@ Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
                                   match  MISMATCH   match       match
 ```
 
-### Type Reference
+### Type reference
 
 | Code   | Meaning          | Example             | Output        |
 | ------ | ---------------- | ------------------- | ------------- |
@@ -128,7 +128,7 @@ Byte order in the spec IS the endianness - no separate flags needed:
 You read the spec the same way you read the protocol datasheet. Modbus
 devices are big-endian (`U2-3`), x86-based devices are little-endian (`U3-2`).
 
-### Bit Fields
+### Bit fields
 
 Extract individual bits or bit ranges from bytes:
 
@@ -143,7 +143,7 @@ Example: a status byte where each bit means something:
 "Temp:U1-2 Humid:U3 MotorOn:B4.0 AlarmHi:B4.1 AlarmLo:B4.2 Mode:B4.5-7"
 ```
 
-### Real-World Examples
+### Real-world examples
 
 **Modbus RTU response** (read 2 holding registers):
 

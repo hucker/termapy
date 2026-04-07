@@ -6,7 +6,7 @@ Termapy has a variable system that lets you define, expand, and reuse
 values across commands, scripts, and config fields. Variables use
 `$(NAME)` syntax.
 
-## Setting Variables
+## Setting variables
 
 Assign variables directly at the command line (no `/` prefix needed):
 
@@ -22,9 +22,9 @@ Or use the REPL command:
 /var.set ADDR 01
 ```
 
-## Using Variables
+## Using variables
 
-Variables expand anywhere — serial commands, REPL commands, scripts:
+Variables expand anywhere: serial commands, REPL commands, scripts:
 
 ```text
 AT+ADDR=$(ADDR)
@@ -32,7 +32,7 @@ AT+ADDR=$(ADDR)
 /cap.text $(LABEL)_log.txt timeout=5s
 ```
 
-## Built-in Variables
+## Built-in variables
 
 | Variable             | Type    | Description                        |
 | -------------------- | ------- | ---------------------------------- |
@@ -53,7 +53,7 @@ AT+ADDR=$(ADDR)
 **Session** variables are set once when a script launches from the
 Scripts button or Run menu.
 
-## Environment Variables
+## Environment variables
 
 Access OS environment variables with `$(env.NAME)` syntax. This is
 especially useful in config files for values that differ per machine:
@@ -71,7 +71,7 @@ for team workflow details.
 | `/env.set <n> <v>`   | Set a session-scoped environment variable|
 | `/env.reload`        | Re-snapshot variables from the OS        |
 
-## Sequence Counters
+## Sequence counters
 
 Auto-incrementing counters for scripts (useful for numbered filenames):
 
@@ -88,7 +88,7 @@ without incrementing. Counters 1--9 are available.
 | `/seq`       | Show all sequence counter values  |
 | `/seq.reset` | Reset all counters to zero        |
 
-## Variable Commands
+## Variable commands
 
 | Command                | Description                     |
 | ---------------------- | ------------------------------- |

@@ -38,11 +38,11 @@ You're connected. Type commands and see responses.
 
 ## When you need more
 
-- [Getting Started](getting-started.md) — config files, CLI mode, folder layout
-- [Demo Mode](demo.md) — all demo device commands
-- [Serial Tools](serial-tools.md) — hex send, CRC, protocol testing
-- [Scripting](scripting.md) — automate command sequences
-- [Writing Plugins](writing-plugins.md) — extend with Python
+- [Getting Started](getting-started.md): config files, CLI mode, folder layout
+- [Demo Mode](demo.md): all demo device commands
+- [Serial Tools](serial-tools.md): hex send, CRC, protocol testing
+- [Scripting](scripting.md): automate command sequences
+- [Writing Plugins](writing-plugins.md): extend with Python
 
 ## Web mode (experimental, optional)
 

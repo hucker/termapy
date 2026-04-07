@@ -1,4 +1,5 @@
 .generated_files/
+tests/cli_gold/_failures/
 build/
 dist/
 .pytest_cache/

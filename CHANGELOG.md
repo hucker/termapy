@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.53.1 (2026-04-07)
+
+Maintenance release. No user-facing changes to the terminal itself.
+
+### 0.53.1 Improvements
+
+- **Release automation** -- new `scripts/release_prep.py` and `scripts/release_publish.py` handle version bumps, doc count updates, CHANGELOG stub generation, test runs, HTML rebuild, tagging, and GitHub release creation. Stdlib only, two-stage with a manual review checkpoint, no force pushes, no auto-merge without `--yes`. This release is the first one cut with them.
+
 ## 0.53.0 (2026-04-07)
 
 ### 0.53.0 New Features

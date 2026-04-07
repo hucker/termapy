@@ -11,22 +11,22 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 ```text
 src/termapy/
 ├── app.py               # (3767 lines) Textual TUI — UI, modals, app hooks
-├── cli.py               # (581 lines)  Plain-text CLI frontend — CLITerminal class
-├── serial_engine.py     # (215 lines)  Serial connection lifecycle, reader loop orchestrator
-├── serial_port.py       # (280 lines)  Serial I/O wrapper + SerialReader data processor
+├── cli.py               # (892 lines)  Plain-text CLI frontend — CLITerminal class
+├── serial_engine.py     # (238 lines)  Serial connection lifecycle, reader loop orchestrator
+├── serial_port.py       # (302 lines)  Serial I/O wrapper + SerialReader data processor
 ├── capture.py           # (336 lines)  Capture state machine — text, binary, format spec
 ├── dialogs.py           # (1447 lines) Modal screens — config editor, pickers, confirm
 ├── proto_debug.py       # (1161 lines) Interactive protocol debug screen
-├── protocol.py          # (1770 lines) Protocol parsing, format specs, CRC, visualizers
-├── demo.py              # (1440 lines) Simulated device for --demo mode (FakeSerial)
-├── repl.py              # (661 lines)  REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (669 lines)  Plugin system — Command, PluginContext, loading
-├── config.py            # (440 lines)  Config dirs, loading, validation, migration trigger
-├── port_control.py      # (247 lines)  Pure serial port control functions — no Textual
+├── protocol.py          # (1468 lines) Protocol parsing, format specs, CRC, visualizers
+├── demo.py              # (1516 lines) Simulated device for --demo mode (FakeSerial)
+├── repl.py              # (952 lines)  REPL engine — dispatch, scripting, transforms
+├── plugins.py           # (671 lines)  Plugin system — Command, PluginContext, loading
+├── config.py            # (547 lines)  Config dirs, loading, validation, migration trigger
+├── port_control.py      # (251 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (284 lines)  Protocol test script runner
-├── scripting.py         # (136 lines)  Pure functions — templates, duration parsing, ANSI
-├── migration.py         # (130 lines)  Config schema migration chain (v1->v8)
-├── defaults.py          # (377 lines)  DEFAULT_CFG, templates
+├── scripting.py         # (238 lines)  Pure functions — templates, duration parsing, ANSI
+├── migration.py         # (158 lines)  Config schema migration chain (v1->v8)
+├── defaults.py          # (410 lines)  DEFAULT_CFG, templates
 ├── help/                #              Markdown help pages (source for MkDocs)
 ├── html/                #              Generated HTML help (MkDocs Material output)
 ├── builtins/

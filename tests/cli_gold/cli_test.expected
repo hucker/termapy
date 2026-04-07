@@ -240,9 +240,7 @@ Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
     Bytes LE:  CD FB 3C B6
     Bytes BE:  B6 3C FB CD
   === section: help ===
-/echo {on | off} - Toggle REPL command echo, or set on/off. Output is not affected.
-  Subcommands:
-    /echo.quiet <on | off> - Set echo on/off silently (no output message).
+/echo {on | off} - Toggle REPL command echo. Use /echo.quiet to set silently.
 /port {name} - Serial port tools: open, close, list, configure.
   Subcommands:
     /port.baud_rate {value} - Show or set baud rate.
@@ -391,8 +389,7 @@ file for a timed duration.
   /cfg                      {key {value}}              Show or change config values.  (12)
   /cls                                                 Clear the terminal screen.
   /confirm                  {message}                  Show Yes/Cancel dialog; Cancel stops a running script.
-  /echo                     {on | off}                 Toggle REPL command echo, or set on/off. Output is not affected.
-(1)
+  /echo                     {on | off}                 Toggle REPL command echo. Use /echo.quiet to set silently.
   /edit                     <filename>                 Open a project file in the system editor.  (6)
   /env                      {pattern}                  Manage $(env.NAME) expansion for CLI commands.  (3)
   /exit                                                Exit termapy.
@@ -414,7 +411,8 @@ troubleshooting.
   /stop                                                Abort a running script.
   /var                      {name}                     List user variables, or show one by name.  (2)
   /ver                                                 Show termapy version.
-  /verbose                  {on|off}                   Show or toggle verbose status output.
+  /verbose                  {on|off}                   Show or toggle verbose status output. Use /verbose.quiet to set
+silently.
   /xfer                                                File transfer settings.  (1)
   /xmodem                                              XMODEM file transfer.  (2)
   /ymodem                                              YMODEM file transfer (batch, 1K blocks).  (2)

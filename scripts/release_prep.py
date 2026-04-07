@@ -363,48 +363,51 @@ def main() -> None:
 
     info(f"Preparing release v{version}")
 
-    # ── Pre-flight checks ────────────────────────────────────────────────
-    info("Checking environment...")
+    total = 10
+
+    def step(n: int, label: str) -> None:
+        info(f"[{n}/{total}] {label}")
+
+    step(1, "Checking environment and git state...")
     assert_tool_available("git")
     assert_tool_available("uv")
     assert_tool_available("tox")
     assert_tool_available("uvx")
-
-    info("Checking git state...")
     assert_on_main()
     assert_clean_tree()
     assert_main_in_sync_with_origin()
     assert_tag_does_not_exist(version)
     ok("git state is clean and ready")
 
-    # ── Cut release branch ────────────────────────────────────────────────
+    step(2, "Cutting release branch...")
     cut_release_branch(version)
 
-    # ── Bump version files ────────────────────────────────────────────────
-    info("Bumping version files...")
+    step(3, "Bumping version files...")
     bump_pyproject(version)
     bump_mkdocs(version)
     refresh_uv_lock()
 
-    # ── Update doc counts ────────────────────────────────────────────────
-    info("Updating doc counts (test count, line counts)...")
+    step(4, "Updating doc counts (test count, line counts)...")
     test_count = count_tests()
     update_architecture_md(test_count)
     update_readme_md(test_count)
 
-    # ── CHANGELOG stub ────────────────────────────────────────────────────
-    info("Inserting CHANGELOG stub...")
+    step(5, "Inserting CHANGELOG stub...")
     insert_changelog_stub(version)
 
-    # ── Tests ────────────────────────────────────────────────────────────
+    step(6, "Running pytest...")
     run_pytest()
+
+    step(7, "Running tox (multi-version)...")
     run_tox()
 
-    # ── HTML rebuild ──────────────────────────────────────────────────────
+    step(8, "Building HTML help with zensical...")
     run_zensical_build()
+
+    step(9, "Committing HTML rebuild...")
     commit_html_rebuild(version)
 
-    # ── Release commit ───────────────────────────────────────────────────
+    step(10, "Committing release...")
     commit_release(version)
 
     # ── Done ─────────────────────────────────────────────────────────────

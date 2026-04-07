@@ -353,8 +353,7 @@ Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
     /var.set <NAME> <value> - Set a user variable.
 /cap - Data capture tools.
   Subcommands:
-    /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)} - Capture raw binary bytes to a
-file.
+    /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)} - Capture raw binary bytes.
     /cap.hex <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be
 last)} - Capture hex text lines, decode with format spec to CSV.
     /cap.stop - Stop an active capture.

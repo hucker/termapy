@@ -9,10 +9,8 @@
       
       
       
-        <link rel="prev" href="./device-help.html">
+        <link rel="prev" href="./using-git.html">
       
-      
-        <link rel="next" href="./on-ai-assistance.html">
       
       
         
@@ -23,7 +21,7 @@
     
     
       
-        <title>Using with git - Termapy Help v0.53.0</title>
+        <title>On AI assistance - Termapy Help v0.53.0</title>
       
     
     
@@ -73,7 +71,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#using-with-git" class="md-skip">
+        <a href="#on-ai-assistance" class="md-skip">
           Skip to content
         </a>
       
@@ -109,7 +107,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Using with git
+              On AI assistance
             
           </span>
         </div>
@@ -621,6 +619,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="./using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using with Git
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -640,7 +665,7 @@
   <span class="md-ellipsis">
     
   
-    Using with Git
+    On AI Assistance
   
 
     
@@ -651,14 +676,14 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <a href="using-git.html" class="md-nav__link md-nav__link--active">
+      <a href="on-ai-assistance.html" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    Using with Git
+    On AI Assistance
   
 
     
@@ -685,10 +710,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-gets-committed" class="md-nav__link">
+  <a href="#testing-is-the-contract-that-doesnt-live-in-your-prompt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What gets committed
+        Testing is the contract that doesn't live in your prompt
       
     </span>
   </a>
@@ -696,30 +721,24 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#environment-variables" class="md-nav__link">
+  <a href="#what-i-bring-that-the-llm-doesnt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Environment variables
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Environment variables">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#setting-the-variable" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Setting the variable
+        What I bring that the LLM doesn't
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#how-this-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How this started
+      
+    </span>
+  </a>
   
 </li>
       
@@ -727,33 +746,6 @@
   
 </nav>
       
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="./on-ai-assistance.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    On AI Assistance
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -799,10 +791,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-gets-committed" class="md-nav__link">
+  <a href="#testing-is-the-contract-that-doesnt-live-in-your-prompt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What gets committed
+        Testing is the contract that doesn't live in your prompt
       
     </span>
   </a>
@@ -810,30 +802,24 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#environment-variables" class="md-nav__link">
+  <a href="#what-i-bring-that-the-llm-doesnt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Environment variables
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Environment variables">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#setting-the-variable" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Setting the variable
+        What I bring that the LLM doesn't
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#how-this-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How this started
+      
+    </span>
+  </a>
   
 </li>
       
@@ -852,84 +838,18 @@
                 
                   
 
-<h1 id="using-with-git">Using with git<a class="headerlink" href="#using-with-git" title="Permanent link">&para;</a></h1>
-<p>Termapy configs are self-contained folders. Add one to your project
-repo and the whole team shares the same serial setup -- scripts,
-protocol files, plugins, and all. Termapy auto-generates a <code>.gitignore</code>
-in each config folder so transient data stays out of version control.</p>
-<p>Launch termapy from your project root pointing at the config:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>termapy termapy_cfg/main_board/main_board.cfg
-</span></code></pre></div>
-<p>This takes you straight to the right config. A shell alias keeps it
-short:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>alias mb=&quot;termapy termapy_cfg/main_board/main_board.cfg&quot;
-</span></code></pre></div>
-<p>See <a href="getting-started.html">Getting Started</a> for more launch options and
-the folder layout.</p>
-<h2 id="what-gets-committed">What gets committed<a class="headerlink" href="#what-gets-committed" title="Permanent link">&para;</a></h2>
-<p>Termapy auto-generates a <code>.gitignore</code> in each config folder.
-Items marked <em>ignored</em> stay local to each developer:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>termapy_cfg/
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── main_board/
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>│   ├── .gitignore              # auto-generated
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>│   ├── main_board.cfg
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>│   ├── main_board.log          # ignored
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>│   ├── .cmd_history.txt        # ignored
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>│   ├── ss/                     # ignored
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>│   ├── cap/                    # ignored
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>│   ├── prof/                   
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>│   ├── run/
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>│   ├── proto/
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>│   ├── viz/
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>│   └── plugin/
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>└── aux_board/
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    ├── .gitignore              # auto-generated
-</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    ├── aux_board.cfg
-</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    ├── aux_board.log           # ignored
-</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    ├── .cmd_history.txt        # ignored
-</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    ├── ss/                     # ignored
-</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    ├── cap/                    # ignored
-</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    ├── prof/                   
-</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    ├── run/
-</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    ├── proto/
-</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    ├── viz/
-</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    └── plugin/
-</span></code></pre></div>
-<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
-<p>COM port names differ between machines (<code>COM4</code> on one, <code>COM7</code> on
-another, <code>/dev/ttyUSB0</code> on Linux). Use an environment variable with
-a fallback default so the same config works on every checkout:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$(env.MAIN_PORT|COM4)&quot;</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">&quot;baud_rate&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">115200</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">&quot;default_ui&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$(env.TERMAPY_UI|tui)&quot;</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>Each developer sets <code>MAIN_PORT</code> on their machine. The <code>|COM4</code> fallback
-is used when the variable is not set. The checked-in config keeps the
-raw template -- expansion happens in memory at load time, so the file
-in your repo always has <code>$(env.MAIN_PORT|COM4)</code>. The fallback is optional
-and really only useful on machines that might have a default port.
-If you don't need a fallback, just use <code>$(env.MAIN_PORT)</code>.</p>
-<p>Use any variable name that fits your project. Multiple boards? Use
-descriptive names like <code>MAIN_PORT</code>, <code>DEBUG_PORT</code>, <code>AUX_PORT</code>, etc.</p>
-<p>The above also shows setting the default UI mode with an environment variable
-defaulting to the <code>tui</code>. You can use this technique for any config value -- paths, flags, whatever. Just make sure to document the expected variables for your team, and
-consider providing a <code>.env</code> file or setup script to make it easy to get started.</p>
-<h3 id="setting-the-variable">Setting the variable<a class="headerlink" href="#setting-the-variable" title="Permanent link">&para;</a></h3>
-<p><strong>Windows (permanent):</strong></p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>setx MAIN_PORT COM7
-</span></code></pre></div>
-<p>Restart your terminal after <code>setx</code> -- it does not affect the current session.</p>
-<p><strong>Windows (current session only):</strong></p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>set MAIN_PORT=COM7
-</span></code></pre></div>
-<p><strong>macOS / Linux (add to <code>~/.bashrc</code> or <code>~/.zshrc</code> to make permanent):</strong></p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>export MAIN_PORT=/dev/ttyUSB0
-</span></code></pre></div>
-<p>See <a href="variables.html">Variables</a> for the full <code>$(env.NAME)</code> syntax and
-related commands.</p>
-<hr />
+<h1 id="on-ai-assistance">On AI assistance<a class="headerlink" href="#on-ai-assistance" title="Permanent link">&para;</a></h1>
+<p>I built termapy with heavy use of Claude. I'm not going to call it vibe coded.</p>
+<p><strong>I architected it, Claude wrote it, we iterated.</strong> The decisions are mine — the plugin system, the three-channel output model, the CLI/TUI shared engine, verifying all 62 CRCs against the reveng catalogue. Claude wrote most of the code that implements them. Sometimes one round, sometimes ten.</p>
+<h2 id="testing-is-the-contract-that-doesnt-live-in-your-prompt">Testing is the contract that doesn't live in your prompt<a class="headerlink" href="#testing-is-the-contract-that-doesnt-live-in-your-prompt" title="Permanent link">&para;</a></h2>
+<p>1259 tests. The engine, capture, dispatch, and protocol layers are 89-97% covered. The prompt evaporates when the response comes back; the tests don't. They're the only thing in the loop that isn't a fuzzy translation of an idea.</p>
+<h2 id="what-i-bring-that-the-llm-doesnt">What I bring that the LLM doesn't<a class="headerlink" href="#what-i-bring-that-the-llm-doesnt" title="Permanent link">&para;</a></h2>
+<p>Not knowledge — Claude knows plenty about serial ports and USB and timing. What I bring is <em>what matters to me</em> in this specific project, and the willingness to push back when the code doesn't reflect it.</p>
+<p><code>proto_frame_gap_ms</code> defaults to 50. Not arbitrary: 30ms is the perception floor when a user is waiting for a response, USB Full Speed runs on 1ms frames with OS scheduling jitter on top, and the cost is asymmetric — too long is invisible, too short interleaves the next prompt into the device's response. The LLM could derive most of those facts on request. It can't tell me which ones to weight, or that "interleaved output looks broken to a user" is the failure mode I care about more than the others. That's the part I have to bring.</p>
+<h2 id="how-this-started">How this started<a class="headerlink" href="#how-this-started" title="Permanent link">&para;</a></h2>
+<p>One-night hack for a work project that needed ANSI-colored serial output, and had to run on both Mac and Windows. That ruled out most of the existing terminals before I even started. I had a TUI working by morning. Here's what nobody tells you about 1kloc TUIs: they're toys. The moment you try to <em>use</em> one, you find out what's missing — config picker, script editor, port picker, confirm dialog, protocol debug screen. Most of termapy is the stuff I added after the hack night, because I was using it daily for the work project and was too stubborn to live with the rough edges.</p>
+<p>That's why the AI angle works. Claude can write a plugin in one shot. Claude can't tell me the prompt feels laggy after a long protocol test or that the script picker sorts wrong. I had to use the thing to find out.</p>
+<p>If you're skeptical of LLM-built projects, read <code>test_serial_engine.py</code> and decide for yourself.</p>
 
 
 
@@ -961,7 +881,7 @@ related commands.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="./device-help.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Device Help">
+          <a href="./using-git.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Using with Git">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -971,27 +891,11 @@ related commands.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Device Help
+                Using with Git
               </div>
             </div>
           </a>
         
-        
-          
-          <a href="./on-ai-assistance.html" class="md-footer__link md-footer__link--next" aria-label="Next: On AI Assistance">
-            <div class="md-footer__title">
-              <span class="md-footer__direction">
-                Next
-              </span>
-              <div class="md-ellipsis">
-                On AI Assistance
-              </div>
-            </div>
-            <div class="md-footer__button md-icon">
-              
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </div>
-          </a>
         
       </nav>
     

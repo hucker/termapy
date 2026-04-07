@@ -356,12 +356,13 @@ class CLITerminal:
 
     def _hook_color(self, ctx, args: str):
         """Toggle color output on/off."""
+        from termapy.scripting import parse_bool
 
-        val = args.strip().lower()
-        if val in ("on", "1", "true"):
+        val = parse_bool(args)
+        if val is True:
             self.console.no_color = False
             self.status("Color enabled.", "green")
-        elif val in ("off", "0", "false"):
+        elif val is False:
             self.console.no_color = True
             self.status("Color disabled.")
         else:

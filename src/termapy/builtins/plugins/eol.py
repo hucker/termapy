@@ -5,9 +5,23 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command
+from termapy.scripting import parse_bool
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
+
+
+def _apply(ctx: PluginContext, args: str) -> str:
+    """Apply show_line_endings from args. Returns new state string.
+
+    Empty or unrecognized input toggles the current value, matching the
+    behavior of /echo and /verbose.
+    """
+    val = parse_bool(args)
+    current = ctx.cfg.get("show_line_endings", False)
+    new = (not current) if val is None else val
+    ctx.engine.apply_cfg("show_line_endings", new)
+    return "on" if new else "off"
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -20,21 +34,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     Note: markers use ANSI escape sequences and may interfere with
     device ANSI color output. Turn off when not actively debugging.
-
-    Args:
-        ctx: Plugin context for config access and output.
-        args: ``"on"``, ``"off"``, or empty string to toggle.
     """
-    arg = args.strip().lower()
-    current = ctx.cfg.get("show_line_endings", False)
-    if arg == "on":
-        new = True
-    elif arg == "off":
-        new = False
-    else:
-        new = not current
-    ctx.engine.apply_cfg("show_line_endings", new)
-    state = "on" if new else "off"
+    state = _apply(ctx, args)
     ctx.result(state)
     return CmdResult.ok(value=state)
 

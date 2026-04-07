@@ -512,11 +512,37 @@ class ReplEngine:
         args, self._seq_counters = expand_template(
             raw_args, self._seq_counters, self._seq_start_time
         )
+
+        # Universal `.quiet` modifier: any command can be invoked as
+        # `<cmd>.quiet` to suppress its terminal output. We only fall back
+        # to this if no real plugin is registered with the `.quiet` suffix
+        # (so commands that explicitly define a `.quiet` subcommand still
+        # win, preserving their custom behavior).
+        quiet = False
         plugin = self._plugins.get(name)
+        if plugin is None and name.endswith(".quiet"):
+            bare_name = name[: -len(".quiet")]
+            bare_plugin = self._plugins.get(bare_name)
+            if bare_plugin is not None:
+                plugin = bare_plugin
+                name = bare_name
+                quiet = True
+
         if plugin:
             try:
                 t0 = time.perf_counter()
-                result = plugin.handler(self.ctx, args)
+                if quiet:
+                    saved_write = self.ctx.write
+                    saved_write_markup = self.ctx.write_markup
+                    self.ctx.write = lambda text, color=None: None
+                    self.ctx.write_markup = lambda text: None
+                    try:
+                        result = plugin.handler(self.ctx, args)
+                    finally:
+                        self.ctx.write = saved_write
+                        self.ctx.write_markup = saved_write_markup
+                else:
+                    result = plugin.handler(self.ctx, args)
                 if result is None:
                     result = CmdResult.ok()
                 result.elapsed_s = time.perf_counter() - t0
@@ -551,11 +577,11 @@ class ReplEngine:
             ValueError: If conversion fails (e.g. non-boolean string for a bool field).
         """
         if isinstance(existing, bool):
-            if value_str.lower() in ("true", "1", "yes", "on"):
-                return True
-            if value_str.lower() in ("false", "0", "no", "off"):
-                return False
-            raise ValueError(f"Expected bool, got '{value_str}'")
+            from termapy.scripting import parse_bool
+            result = parse_bool(value_str)
+            if result is None:
+                raise ValueError(f"Expected bool, got '{value_str}'")
+            return result
         if isinstance(existing, int):
             return int(value_str)
         if isinstance(existing, float):

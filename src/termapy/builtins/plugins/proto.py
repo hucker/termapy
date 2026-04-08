@@ -387,8 +387,9 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                 crc_data = crc_bytes
             # Append CRC to the last data segment
             for i in range(len(segments) - 1, -1, -1):
-                if isinstance(segments[i], bytes):
-                    segments[i] += crc_data
+                seg = segments[i]
+                if isinstance(seg, bytes):
+                    segments[i] = seg + crc_data
                     break
             else:
                 segments.append(crc_data)
@@ -413,20 +414,20 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
         if has_delays:
             parts = []
             for s in segments:
-                if isinstance(s, float):
-                    if s >= 1.0:
-                        parts.append(f"[dim][~{s:.1f}s][/]")
-                    elif s >= 0.001:
-                        parts.append(f"[dim][~{s * 1000:.0f}ms][/]")
-                    else:
-                        parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
-                else:
+                if isinstance(s, bytes):
                     hex_str = format_hex(s)
                     smart_str = format_smart(s)
                     if hex_str == smart_str:
                         parts.append(f"[cyan]{hex_str}[/]")
                     else:
                         parts.append(f"[cyan]{hex_str}[/]  [dim]{smart_str}[/]")
+                else:
+                    if s >= 1.0:
+                        parts.append(f"[dim][~{s:.1f}s][/]")
+                    elif s >= 0.001:
+                        parts.append(f"[dim][~{s * 1000:.0f}ms][/]")
+                    else:
+                        parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
             ctx.write_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
         else:
             _display_bytes(ctx, "TX", all_data, binary=True)
@@ -473,17 +474,17 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
 
     try:
         text = path.read_text(encoding="utf-8")
-        fmt, parsed = load_proto_script(text)
+        result = load_proto_script(text)
     except (ValueError, OSError) as e:
         return CmdResult.fail(msg=f"Script error: {e}")
 
-    if fmt == "toml":
-        script = parsed
+    if result[0] == "toml":
+        script = result[1]
         if not script.tests:
             return CmdResult.fail(msg="Script has no tests.")
         _run_toml_script(ctx, path, script)
     else:
-        settings, steps = parsed
+        settings, steps = result[1]
         if not steps:
             return CmdResult.fail(msg="Script has no steps.")
         _run_flat_script(ctx, path, settings, steps)

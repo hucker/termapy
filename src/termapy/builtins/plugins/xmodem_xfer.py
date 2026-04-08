@@ -34,12 +34,13 @@ class QueueByteReader:
         self._buf = bytearray()
         self._cancel = cancel
 
-    def getc(self, size: int, timeout: int = 1) -> bytes | None:
+    def getc(self, size: int, timeout: float = 1) -> bytes | None:
         """Read exactly *size* bytes, or None on timeout/cancel.
 
         Args:
             size: Number of bytes to read.
-            timeout: Timeout in seconds.
+            timeout: Timeout in seconds.  Fractional values are supported
+                -- ymodem passes sub-second timeouts through this path.
 
         Returns:
             Exactly *size* bytes, or None if timeout expires or cancelled.

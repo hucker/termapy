@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from io import TextIOWrapper
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from rich.text import Text
 from textual import on, work
@@ -419,8 +419,11 @@ class ProtoDebugScreen(ModalScreen[None]):
         # Result line (once, after all tables)
         if tc.index in self._results:
             if passed:
+                # passed=True is only stored alongside non-None response
+                # data (see _run_test_case:915), but ty cannot see the
+                # cross-variable invariant between passed and actual_data.
                 lines.append(Text(
-                    f"  PASS ({len(actual_data)} bytes, {elapsed_ms:.0f}ms)",
+                    f"  PASS ({len(actual_data)} bytes, {elapsed_ms:.0f}ms)",  # ty: ignore[invalid-argument-type]
                     style="bold italic bright_green"))
             else:
                 lines.append(Text("  FAIL", style="bold italic red"))
@@ -1104,8 +1107,11 @@ class ProtoDebugScreen(ModalScreen[None]):
                     tests, total_pass, total_fail,
                     total_elapsed_ms, json_template)
                 if json_file:
-                    log = self.app.call_from_thread(
-                        self.query_one, "#proto-debug-detail", RichLog)
+                    # call_from_thread forwards query_one's return value
+                    # through an untyped bridge, so ty can't see that
+                    # passing expect_type=RichLog narrows the result.
+                    log = cast(RichLog, self.app.call_from_thread(
+                        self.query_one, "#proto-debug-detail", RichLog))
                     self.app.call_from_thread(
                         log.write,
                         Text(f"  JSON: {json_file}", style="dim"))

@@ -12,7 +12,7 @@ Side effects dict keys:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 from termapy.defaults import VALID_BYTE_SIZES, VALID_FLOW_CONTROLS, VALID_PARITIES, VALID_STOP_BITS
 
@@ -60,7 +60,7 @@ def list_ports() -> Result:
     return _result([_msg(f"  {p.device}  {p.description or ''}") for p in ports])
 
 
-def port_info(cfg: dict, ser: Any | None) -> Result:
+def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     """Format comprehensive port status.
 
     Args:
@@ -92,7 +92,7 @@ def port_info(cfg: dict, ser: Any | None) -> Result:
     return _result(msgs)
 
 
-def get_set_prop(ser: Any | None, cfg: dict, key: str, args: str) -> Result:
+def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -> Result:
     """Get or set a serial port property.
 
     Args:
@@ -132,7 +132,7 @@ def get_set_prop(ser: Any | None, cfg: dict, key: str, args: str) -> Result:
         return _result([_msg(f"{desc} error: {e}", "red")])
 
 
-def get_set_flow(ser: Any | None, cfg: dict, args: str) -> Result:
+def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     """Get or set flow control mode.
 
     Args:
@@ -141,12 +141,11 @@ def get_set_flow(ser: Any | None, cfg: dict, args: str) -> Result:
         args: Flow mode string, or empty to read.
     """
     val = args.strip().lower()
-    connected = ser is not None
     if not val:
         fc = cfg.get("flow_control", "none")
-        suffix = " (disconnected)" if not connected else ""
+        suffix = " (disconnected)" if ser is None else ""
         return _result([_msg(f"{fc}{suffix}")])
-    if not connected:
+    if ser is None:
         return _result([_msg("Not connected.", "yellow")])
     if val not in VALID_FLOW_CONTROLS:
         return _result([_msg(

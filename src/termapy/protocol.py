@@ -11,7 +11,7 @@ import struct
 import time
 import tomllib
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Literal
 
 from termapy.scripting import parse_duration
 
@@ -819,17 +819,28 @@ def parse_toml_script(text: str) -> ProtoScript:
     return script
 
 
-def load_proto_script(text: str) -> tuple[str, ProtoScript | tuple[dict, list[Step]]]:
+def load_proto_script(text: str) -> (
+    tuple[Literal["toml"], ProtoScript]
+    | tuple[Literal["flat"], tuple[dict, list[Step]]]
+):
     """Auto-detect script format and parse accordingly.
 
     Tries TOML first (looks for ``[[test]]`` sections). Falls back
-    to the flat ``.pro`` format.
+    to the flat ``.pro`` format.  The returned tuple is a discriminated
+    union on the first element, so callers can narrow the second element
+    by branching on ``fmt``::
+
+        fmt, parsed = load_proto_script(text)
+        if fmt == "toml":
+            ...  # parsed is ProtoScript here
+        else:
+            settings, steps = parsed  # tuple[dict, list[Step]]
 
     Args:
         text: File content.
 
     Returns:
-        Tuple of ``("toml", ProtoScript)`` or ``("flat", (settings, steps))``.
+        ``("toml", ProtoScript)`` or ``("flat", (settings, steps))``.
     """
     try:
         doc = tomllib.loads(text)

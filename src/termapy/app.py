@@ -1252,7 +1252,7 @@ class SerialTerminal(App):
                 result[0] = confirmed
                 event.set()
 
-            self.push_screen(ConfirmDialog(message), callback=_on_result)  # type: ignore[call-overload]
+            self.push_screen(ConfirmDialog(message), callback=_on_result)  # ty: ignore[no-matching-overload]
 
         try:
             self.call_from_thread(_show)
@@ -1482,7 +1482,7 @@ class SerialTerminal(App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(  # type: ignore[call-overload]
+        self.push_screen(  # ty: ignore[no-matching-overload]
             ConfirmDialog(f"Delete {label} '{name}'?"),
             callback=_on_confirm,
         )
@@ -1908,7 +1908,7 @@ class SerialTerminal(App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(  # type: ignore[call-overload]
+        self.push_screen(  # ty: ignore[no-matching-overload]
             ConfirmDialog(f"Delete {Path(log_path).name}?"),
             callback=on_confirmed,
         )
@@ -3173,6 +3173,15 @@ class SerialTerminal(App):
         call_from_thread wrapper needed for write/dispatch.
         """
         self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
+
+        def _progress(step: int, total: int) -> None:
+            self.post_message(
+                self.ScriptProgress(self.repl._script_stack[:], step, total)
+            )
+
+        def _on_nest() -> None:
+            self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
+
         try:
             self.repl.run_script(
                 path,
@@ -3180,12 +3189,8 @@ class SerialTerminal(App):
                 dispatch=self._dispatch_single,
                 profile=profile,
                 verbose=verbose,
-                progress=lambda s, t: self.post_message(
-                    self.ScriptProgress(self.repl._script_stack[:], s, t)
-                ),
-                on_nest=lambda: self.post_message(
-                    self.ScriptStarted(self.repl._script_stack[:])
-                ),
+                progress=_progress,
+                on_nest=_on_nest,
             )
         except RuntimeError:
             pass
@@ -3637,7 +3642,7 @@ def main():
 def _run_web_mode(args) -> None:
     """Serve the TUI in a web browser via textual-serve."""
     try:
-        from textual_serve.server import Server
+        from textual_serve.server import Server  # ty: ignore[unresolved-import]
     except ImportError:
         print("Error: --web requires textual-serve.")
         print("  pip install termapy[web]")

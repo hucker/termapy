@@ -66,6 +66,13 @@ addopts = "-v --cov=termapy --cov-report=term-missing"
 # matching the sys.path redirect that vendor/__init__.py does at runtime.
 extra-paths = ["src/termapy/vendor"]
 
+[tool.ty.src]
+# Don't type-check the vendored code itself.  pyserial uses Linux-only
+# modules (fcntl, termios, select.POLL*) in its platform shims, and ty
+# flags every reference as unresolved on Windows.  We still need the
+# extra-paths above so `import serial` resolves from our own code.
+exclude = ["src/termapy/vendor/**"]
+
 [tool.coverage.run]
 source = ["src/termapy"]
 omit = [

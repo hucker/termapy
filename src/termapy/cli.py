@@ -18,7 +18,7 @@ from pathlib import Path
 try:
     import readline
 except ImportError:
-    readline = None  # Windows without pyreadline3
+    readline = None  # Windows without pyreadline3  # ty: ignore[invalid-assignment]
 
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial, open_with_system
@@ -62,7 +62,7 @@ class CLITerminal:
 
         # Ensure stdout handles unicode on Windows
         if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # ty: ignore[unresolved-attribute]
 
         # Rich console for colored output
         from rich.console import Console
@@ -654,7 +654,7 @@ class CLITerminal:
                 -self._HISTORY_LIMIT :
             ]:
                 if line.strip():
-                    readline.add_history(line)
+                    readline.add_history(line)  # ty: ignore[unresolved-attribute]
         except (FileNotFoundError, OSError):
             pass
 
@@ -664,8 +664,8 @@ class CLITerminal:
             return
         history_path = Path(self.config_path).parent / ".cmd_history.txt"
         entries = [
-            readline.get_history_item(i + 1)
-            for i in range(readline.get_current_history_length())
+            readline.get_history_item(i + 1)  # ty: ignore[unresolved-attribute]
+            for i in range(readline.get_current_history_length())  # ty: ignore[unresolved-attribute]
         ]
         entries = [e for e in entries if e][-self._HISTORY_LIMIT :]
         try:
@@ -689,7 +689,7 @@ class CLITerminal:
         def _completer(text: str, state: int) -> str | None:
             nonlocal matches
             if state == 0:
-                line = readline.get_line_buffer()
+                line = readline.get_line_buffer()  # ty: ignore[unresolved-attribute]
                 matches = []
 
                 # File completion for /run and /run.edit args
@@ -726,9 +726,9 @@ class CLITerminal:
             if state < len(matches):
                 return matches[state]
             return None
-        readline.set_completer(_completer)
-        readline.parse_and_bind("tab: complete")
-        readline.set_completer_delims("")
+        readline.set_completer(_completer)  # ty: ignore[unresolved-attribute]
+        readline.parse_and_bind("tab: complete")  # ty: ignore[unresolved-attribute]
+        readline.set_completer_delims("")  # ty: ignore[unresolved-attribute]
 
     # -- Reader thread --------------------------------------------------------
 
@@ -756,9 +756,9 @@ class CLITerminal:
 
     # -- Run modes ------------------------------------------------------------
 
-    def _run_script_mode(self) -> None:
+    def _run_script_mode(self, run_script: str) -> None:
         """Execute a .run script and exit."""
-        script_path = Path(self.run_script)
+        script_path = Path(run_script)
         if not script_path.exists():
             scripts_dir = Path(self.config_path).parent / "run"
             alt = scripts_dir / script_path.name
@@ -875,7 +875,7 @@ class CLITerminal:
                         self.engine.serial_port.wait_for_idle()
 
         if self.run_script:
-            self._run_script_mode()
+            self._run_script_mode(self.run_script)
         else:
             self._run_interactive()
         self.repl.fire_lifecycle("on_app_stop")

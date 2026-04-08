@@ -53,6 +53,8 @@ def engine(tmp_path):
         engine=engine_api,
     )
     eng.set_context(ctx)
+    # Seed the `flags` namespace (would be done by app.py._build_context).
+    ctx.ns("flags")["echo"] = True
     return eng, output
 
 

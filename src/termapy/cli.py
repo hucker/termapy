@@ -104,7 +104,6 @@ class CLITerminal:
         )
         self._setup_context()
         self._register_hooks()
-        self.repl._echo = False  # CLI never echoes — readline shows input
 
     # -- Output ---------------------------------------------------------------
 
@@ -148,8 +147,6 @@ class CLITerminal:
         engine_api = EngineAPI(
             prefix=self.prefix,
             plugins=self.repl._plugins,
-            get_echo=lambda: False,
-            set_echo=lambda val: None,  # CLI never echoes
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             start_capture=lambda **kw: self._start_capture(**kw),
@@ -216,6 +213,11 @@ class CLITerminal:
             get_screen_text=lambda: "",
         )
         self.repl.set_context(self.ctx)
+        # Engine-reserved `flags` namespace: CLI never echoes because readline
+        # already shows the user's input.  See app.py._build_context for the
+        # shared convention — `flags` holds engine toggles; per-plugin state
+        # goes in the plugin's own namespace.
+        self.ctx.ns("flags")["echo"] = False
 
     def _register_hooks(self) -> None:
         """Register CLI-specific hooks for /delay, /color, /run."""
@@ -777,7 +779,7 @@ class CLITerminal:
         """Run the interactive input loop."""
         # Readline shows REPL commands — no need to echo those.
         # Serial echo is off — we sync manually with wait_for_idle after dispatch.
-        self.repl._echo = False
+        self.ctx.ns("flags")["echo"] = False
         self.cfg["echo_input"] = False
         try:
             while True:

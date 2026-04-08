@@ -298,8 +298,6 @@ class EngineAPI:
 
     prefix: str = "/"
     plugins: dict = field(default_factory=dict)
-    get_echo: Callable = lambda: True
-    set_echo: Callable = lambda val: None
     in_script: Callable = lambda: False
     script_stop: Callable = lambda: None
     save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm

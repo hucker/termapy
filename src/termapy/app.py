@@ -628,8 +628,6 @@ class SerialTerminal(App):
         engine = EngineAPI(
             prefix=self.cfg.get("cmd_prefix", "/"),
             plugins=self.repl._plugins,
-            get_echo=lambda: self.repl._echo,
-            set_echo=lambda val: setattr(self.repl, "_echo", val),
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             save_cfg=self._hook_cfg_confirm,
@@ -694,6 +692,12 @@ class SerialTerminal(App):
         )
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg
+        # Engine-reserved `flags` namespace: shared engine toggles live here.
+        # Per-plugin private state should use the plugin's own namespace name
+        # (e.g. ctx.ns("myplugin")).  Defaults are set once at construction so
+        # read sites can use bare lookups.
+        flags = ctx.ns("flags")
+        flags.setdefault("echo", True)
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks."""

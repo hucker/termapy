@@ -20,7 +20,11 @@ def engine(tmp_path):
     for sub in ("plugin", "ss", "run"):
         (config_path.parent / sub).mkdir(exist_ok=True)
     output = []
-    return ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c))), output
+    eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+    # Seed the engine-reserved `flags` namespace with the defaults that
+    # app.py._build_context would set in production.
+    eng.ctx.ns("flags")["echo"] = True
+    return eng, output
 
 
 # -- _coerce_type ----------------------------------------------------------
@@ -532,6 +536,8 @@ class TestDispatchFull:
             serial_write=lambda data: serial_writes.append(data),
         )
         eng.set_context(ctx)
+        # Seed the `flags` namespace (would be done by app.py._build_context).
+        ctx.ns("flags")["echo"] = True
 
         def do_dispatch(cmd, connected=True):
             eng.dispatch_full(
@@ -583,7 +589,7 @@ class TestDispatchFull:
     def test_echo_off_suppresses_output(self, dispatch_env):
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
-        eng._echo = False
+        eng.ctx.ns("flags")["echo"] = False
 
         # Act
         do("/help")

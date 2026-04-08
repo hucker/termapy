@@ -24,12 +24,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for engine API and output.
         args: a boolean token, or empty string to toggle.
     """
+    flags = ctx.ns("flags")
     val = parse_bool(args)
     if val is None:
-        ctx.engine.set_echo(not ctx.engine.get_echo())
+        flags["echo"] = not flags["echo"]
     else:
-        ctx.engine.set_echo(val)
-    state = "on" if ctx.engine.get_echo() else "off"
+        flags["echo"] = val
+    state = "on" if flags["echo"] else "off"
     ctx.result(state)
     return CmdResult.ok(value=state)
 

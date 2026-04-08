@@ -136,7 +136,6 @@ class ReplEngine:
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
-        self._echo: bool = True  # echo ! command lines to screen
         # Expect watcher — predicate set by wait_for_match(), checked by feed_lines()
         self._expect_predicate: Callable[[str], bool] | None = None
         self._expect_event = Event()
@@ -418,12 +417,13 @@ class ReplEngine:
         _log = log or (lambda _d, _t: None)
         _echo = echo_markup or (lambda _t: None)
         _status = status or (lambda _t, _c: None)
+        echo_on = self.ctx.ns("flags")["echo"]
 
         # 1. /raw bypass - no transforms, no directives
         if cmd.startswith(prefix + "raw "):
             raw_text = cmd[len(prefix) + 4 :]
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             if serial_write_raw:
                 serial_write_raw(raw_text)
@@ -433,18 +433,18 @@ class ReplEngine:
         result = self.run_directives(cmd)
         if result.action == "rewrite":
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             return self.dispatch(result.payload)
         if result.action == "warn":
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Warning: {result.payload}", "yellow")
             return CmdResult.ok()
         if result.action == "error":
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
@@ -460,7 +460,7 @@ class ReplEngine:
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
-            if self._echo and ".quiet" not in repl_cmd.split()[0]:
+            if echo_on and ".quiet" not in repl_cmd.split()[0]:
                 _echo_cmd(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
@@ -974,7 +974,7 @@ class ReplEngine:
 
     @property
     def echo(self) -> bool:
-        return self._echo
+        return self.ctx.ns("flags")["echo"]
 
     @property
     def in_script(self) -> bool:

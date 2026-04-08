@@ -3173,6 +3173,15 @@ class SerialTerminal(App):
         call_from_thread wrapper needed for write/dispatch.
         """
         self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
+
+        def _progress(step: int, total: int) -> None:
+            self.post_message(
+                self.ScriptProgress(self.repl._script_stack[:], step, total)
+            )
+
+        def _on_nest() -> None:
+            self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
+
         try:
             self.repl.run_script(
                 path,
@@ -3180,12 +3189,8 @@ class SerialTerminal(App):
                 dispatch=self._dispatch_single,
                 profile=profile,
                 verbose=verbose,
-                progress=lambda s, t: self.post_message(
-                    self.ScriptProgress(self.repl._script_stack[:], s, t)
-                ),
-                on_nest=lambda: self.post_message(
-                    self.ScriptStarted(self.repl._script_stack[:])
-                ),
+                progress=_progress,
+                on_nest=_on_nest,
             )
         except RuntimeError:
             pass

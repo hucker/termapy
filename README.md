@@ -8,42 +8,48 @@
 
 Pronounced "ter-map-ee"
 
-A serial interface terminal like PuTTY or Tera Term, but it runs in your terminal, installs in seconds, and comes with scripting, protocol testing, and a plugin system built in.
+Runs on Windows, macOS, and Linux. A serial interface terminal like PuTTY or Tera Term, but it runs in your terminal, installs in seconds, works well with git and teams, and comes with scripting, protocol testing, and a plugin system built in.
 
-Runs on Windows, macOS, and Linux. If you already have [uv](https://docs.astral.sh/uv/) installed, you can be up and running in under 10 seconds.
+Low time commitment: about 1 minute from scratch, or under 10 seconds if you already have [uv](https://docs.astral.sh/uv/) installed.
 
 ![termapy screenshot](img/main.png)
 
 ## Install and connect
 
-```sh
-pip install termapy
-termapy --demo
-```
+[uv](https://docs.astral.sh/uv/) is the preferred package manager: a clean install takes under 10 seconds, and subsequent updates are well under a second.
 
-Or with [uv](https://docs.astral.sh/uv/):
+1) Install Python package manager uv (skip if already installed) — **< 1 minute**:
 
-```sh
-uv tool install termapy
-termapy --demo
-```
+    ```sh
+    # Windows (PowerShell)
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-That starts a simulated device, no hardware needed. You're typing commands in seconds.
+    # macOS / Linux
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
 
-For a real device, just point at your config:
+2) Install termapy — **< 1 second**:
 
-```sh
-termapy my_device              # finds termapy_cfg/my_device/my_device.cfg
-termapy my_device.cfg          # same, explicit extension
-termapy termapy_cfg/my_device  # same, explicit path to folder
-```
+    ```sh
+    uv tool install -q termapy
+    ```
+
+3) Run termapy — starts a simulated device, no hardware needed. You're typing commands in seconds:
+
+    ```sh
+    termapy --demo
+    ```
+
+4) Remove termapy if you don't like it:
+
+    ```sh
+    uv tool uninstall termapy
+    ```
 
 For a plain-text terminal (no TUI), use CLI mode:
 
 ```sh
-termapy --cli my_device                  # interactive CLI
-termapy --cli smoke_test.run             # run a .run script and exit
-termapy --cli my_device --run test.run   # explicit config + script
+termapy --cli --demo
 ```
 
 There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (62 of them, all verified against their check values in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.

@@ -12,7 +12,8 @@ What it does:
     3. Bump version in pyproject.toml and mkdocs.yml
     4. Refresh uv.lock
     5. Update line counts in ARCHITECTURE.md and README.md
-    6. Update test count in README.md and ARCHITECTURE.md
+    6. Update test count in README.md and ARCHITECTURE.md, and ty
+       diagnostic count in the README ty badge
     7. Generate CHANGELOG stub from `git log <last-tag>..HEAD`
     8. Run pytest, then tox
     9. Build HTML help with zensical
@@ -122,6 +123,36 @@ def count_test_files() -> int:
     return len(list((REPO_ROOT / "tests").glob("test_*.py")))
 
 
+def count_ty_issues() -> int:
+    """Total ty diagnostics from `uvx ty check src/termapy/`.
+
+    Vendored code is excluded via [tool.ty.src] in pyproject.toml, so
+    the count reflects only first-party files.  A clean project returns
+    the literal string "All checks passed!" and we report 0.
+    """
+    out = run_out(["uvx", "ty", "check", "src/termapy/"])
+    if "All checks passed!" in out:
+        return 0
+    m = re.search(r"Found (\d+) diagnostics?", out)
+    if m:
+        return int(m.group(1))
+    die("could not parse ty diagnostic count from `ty check` output")
+    return 0  # unreachable, satisfies type checker
+
+
+def ty_badge_color(count: int) -> str:
+    """Return the shields.io color name for a given ty issue count.
+
+    Thresholds match the README badge scheme: 0-9 green, 10-19 yellow,
+    20+ red.
+    """
+    if count < 10:
+        return "brightgreen"
+    if count < 20:
+        return "yellow"
+    return "red"
+
+
 def update_architecture_md(test_count: int) -> None:
     """Update line counts and test count in ARCHITECTURE.md."""
     path = REPO_ROOT / "ARCHITECTURE.md"
@@ -174,8 +205,8 @@ def update_architecture_md(test_count: int) -> None:
     ok(f"ARCHITECTURE.md updated ({updated} line counts, test count={test_count})")
 
 
-def update_readme_md(test_count: int) -> None:
-    """Update test count and rounded UI line counts in README.md."""
+def update_readme_md(test_count: int, ty_count: int) -> None:
+    """Update test count, ty badge, and rounded UI line counts in README.md."""
     path = REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8")
     test_files = count_test_files()
@@ -191,6 +222,16 @@ def update_readme_md(test_count: int) -> None:
     text = re.sub(
         r"\d+ tests across \d+ test files\.",
         f"{test_count} tests across {test_files} test files.",
+        text,
+        count=1,
+    )
+
+    # ty badge: count + color track how many diagnostics ty currently
+    # reports.  Thresholds: 0-9 green, 10-19 yellow, 20+ red.
+    color = ty_badge_color(ty_count)
+    text = re.sub(
+        r"badge/ty-\d+%20issues-[a-z]+",
+        f"badge/ty-{ty_count}%20issues-{color}",
         text,
         count=1,
     )
@@ -211,7 +252,10 @@ def update_readme_md(test_count: int) -> None:
     )
 
     path.write_text(text, encoding="utf-8")
-    ok(f"README.md updated (tests={test_count}, app.py~{app_lines}, dialogs.py~{dialogs_lines})")
+    ok(
+        f"README.md updated (tests={test_count}, ty={ty_count} ({color}), "
+        f"app.py~{app_lines}, dialogs.py~{dialogs_lines})"
+    )
 
 
 # ── changelog ────────────────────────────────────────────────────────────────
@@ -387,10 +431,11 @@ def main() -> None:
     bump_mkdocs(version)
     refresh_uv_lock()
 
-    step(4, "Updating doc counts (test count, line counts)...")
+    step(4, "Updating doc counts (test count, ty count, line counts)...")
     test_count = count_tests()
+    ty_count = count_ty_issues()
     update_architecture_md(test_count)
-    update_readme_md(test_count)
+    update_readme_md(test_count, ty_count)
 
     step(5, "Inserting CHANGELOG stub...")
     insert_changelog_stub(version)

@@ -141,12 +141,11 @@ def get_set_flow(ser: Any | None, cfg: dict, args: str) -> Result:
         args: Flow mode string, or empty to read.
     """
     val = args.strip().lower()
-    connected = ser is not None
     if not val:
         fc = cfg.get("flow_control", "none")
-        suffix = " (disconnected)" if not connected else ""
+        suffix = " (disconnected)" if ser is None else ""
         return _result([_msg(f"{fc}{suffix}")])
-    if not connected:
+    if ser is None:
         return _result([_msg("Not connected.", "yellow")])
     if val not in VALID_FLOW_CONTROLS:
         return _result([_msg(

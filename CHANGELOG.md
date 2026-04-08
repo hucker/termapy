@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.54.1 (2026-04-08)
+
+Type-check cleanup release.  Brings `uvx ty check src/termapy/` from 370 diagnostics down to 0 while fixing a handful of real correctness issues surfaced by the audit.  No user-visible behavior changes.
+
+### 0.54.1 Improvements
+
+- **Zero ty diagnostics in first-party code** -- a mix of ~8 genuine fixes (narrowing, widening function signatures to `Mapping`, a discriminated-union return type for `load_proto_script`, fixing `QueueByteReader.getc`'s `timeout` annotation from `int` to `float` to match what ymodem actually passes) and ~4 well-documented `# ty: ignore` comments for things the type checker can't see through (POSIX-only typeshed stubs for `readline`/`sys.stdout.reconfigure` on Windows, Textual's heavily-generic `push_screen` overloads, an optional `textual_serve` import, and a cross-variable runtime invariant in `proto_debug`).
+- **`pyproject.toml` excludes vendored pyserial from ty** -- the vendored tree references Linux-only modules (`fcntl`, `termios`, `select.POLL*`) in its platform shims, producing ~340 false-positive diagnostics on Windows.  `[tool.ty.src]` now excludes it; `extra-paths` in `[tool.ty.environment]` still makes `import serial` resolve from first-party code.
+- **`load_proto_script` has a discriminated-union return type** -- `tuple[Literal["toml"], ProtoScript] | tuple[Literal["flat"], tuple[dict, list[Step]]]` instead of the previous untagged union.  Callers that branch on `result[0]` now get `result[1]` narrowed automatically without `# type: ignore` workarounds.
+- **ty badge in the README, auto-updated by `release_prep.py`** -- the release prep script now counts diagnostics from `uvx ty check src/termapy/` and bumps the badge alongside the existing test-count automation.  Thresholds: 0-9 green, 10-19 yellow, 20+ red.  Drift is visible on every release without manual inspection.
+
+### 0.54.1 Fixes
+
+- **`QueueByteReader.getc` `timeout` parameter widened from `int` to `float`** -- the body always did float arithmetic (`deadline = time.monotonic() + timeout`, `min(remaining, 0.05)`) and `ymodem_xfer._read` passes fractional-second timeouts through it, but the `int` annotation was wrong.  No runtime change; just the annotation catching up to reality.
+- **`CliEngine._run_script_mode` takes the script path as a parameter** -- previously it read `self.run_script` (typed `str | None`) and passed it to `Path()`, which is correct at runtime because the only caller guards with `if self.run_script:` first.  Making the parameter explicit moves the guarantee into the method signature rather than an implicit runtime invariant.
+
 ## 0.54.0 (2026-04-08)
 
 Plugin API release. Two new primitives let plugins own their own session state and lifecycle, and five built-ins (seq, target_commands, echo, hex_mode, verbose) migrate onto them as worked examples. `EngineAPI` is now a legible escape hatch containing only Textual/threading/serial handles — anything that could live in a plain dict has been moved out.

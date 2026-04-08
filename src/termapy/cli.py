@@ -150,9 +150,6 @@ class CLITerminal:
             plugins=self.repl._plugins,
             get_echo=lambda: False,
             set_echo=lambda val: None,  # CLI never echoes
-            get_seq_counters=lambda: self.repl._seq_counters,
-            set_seq_counters=lambda val: setattr(self.repl, "_seq_counters", val),
-            reset_seq=self.repl._reset_seq,
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             start_capture=lambda **kw: self._start_capture(**kw),

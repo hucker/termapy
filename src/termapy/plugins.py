@@ -300,9 +300,6 @@ class EngineAPI:
     plugins: dict = field(default_factory=dict)
     get_echo: Callable = lambda: True
     set_echo: Callable = lambda val: None
-    get_seq_counters: Callable = lambda: {}
-    set_seq_counters: Callable = lambda val: None
-    reset_seq: Callable = lambda: None
     in_script: Callable = lambda: False
     script_stop: Callable = lambda: None
     save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm

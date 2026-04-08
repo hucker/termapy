@@ -32,9 +32,6 @@ def repl_env(tmp_path):
         plugins=engine._plugins,
         get_echo=lambda: engine._echo,
         set_echo=lambda val: setattr(engine, "_echo", val),
-        get_seq_counters=lambda: engine._seq_counters,
-        set_seq_counters=lambda val: setattr(engine, "_seq_counters", val),
-        reset_seq=engine._reset_seq,
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
@@ -122,7 +119,9 @@ class TestSeq:
     def test_seq_show_with_counters(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine._seq_counters = {1: 3, 2: 7}
+        seq = engine.ctx.ns("seq")
+        seq[1] = 3
+        seq[2] = 7
 
         # Act
         engine.dispatch("seq")
@@ -134,13 +133,15 @@ class TestSeq:
     def test_seq_reset(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine._seq_counters = {1: 5}
+        seq = engine.ctx.ns("seq")
+        seq[1] = 5
 
         # Act
         engine.dispatch("seq.reset")
 
         # Assert
-        assert engine._seq_counters == {}, "counters cleared"
+        remaining_counters = {k: v for k, v in seq.items() if isinstance(k, int)}
+        assert remaining_counters == {}, "counters cleared"
         assert any("reset" in t.lower() for t, _ in output), "confirmation shown"
 
 

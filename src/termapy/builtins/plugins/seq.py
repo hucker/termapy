@@ -1,13 +1,52 @@
-"""Built-in plugin: show or reset sequence counters."""
+"""Built-in plugin: show or reset sequence counters.
+
+This plugin owns the ``seq`` namespace.  Layout:
+
+- Integer keys ``0..9`` hold the counter values used by ``{seqN}`` and
+  ``{seqN+}`` template expansions in scripts.
+- String key ``"_start_time"`` holds the timestamp substituted for the
+  ``{starttime}`` placeholder.  Set on ``on_app_start`` and refreshed
+  on every ``on_script_start``.
+
+The leading underscore on ``_start_time`` is a convention signalling
+"plugin-internal, don't walk this as a counter."
+"""
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
+
+
+def _now() -> str:
+    """Return a filename-safe timestamp (YYYYmmdd_HHMMSS)."""
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def on_app_start(ctx: PluginContext) -> None:
+    """Seed the seq namespace with a start-time timestamp.
+
+    Fires once after plugins load and the context is wired.  Counters
+    start empty; they are created on first ``{seqN+}`` expansion.
+    """
+    ctx.ns("seq")["_start_time"] = _now()
+
+
+def on_script_start(ctx: PluginContext) -> None:
+    """Reset counters and refresh the start-time timestamp.
+
+    Fires only at the outermost script boundary.  Nested ``/run`` does
+    not re-fire, so inner scripts inherit the outer script's counters
+    and start time.
+    """
+    seq = ctx.ns("seq")
+    seq.clear()
+    seq["_start_time"] = _now()
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -20,7 +59,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for engine state and output.
         args: Unused.
     """
-    counters = ctx.engine.get_seq_counters()
+    # Integer keys only -- _start_time is plugin-internal, not a counter.
+    counters = {k: v for k, v in ctx.ns("seq").items() if isinstance(k, int)}
     if counters:
         parts = [f"seq{k}={v}" for k, v in sorted(counters.items())]
         ctx.write(f"Counters: {', '.join(parts)}")
@@ -32,11 +72,17 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
     """Reset all sequence counters to zero.
 
+    Preserves ``_start_time`` so ``{starttime}`` keeps working until
+    the next script starts.
+
     Args:
         ctx: Plugin context for engine state and output.
         args: Unused.
     """
-    ctx.engine.reset_seq()
+    seq = ctx.ns("seq")
+    start_time = seq.get("_start_time", "")
+    seq.clear()
+    seq["_start_time"] = start_time
     ctx.write("Sequence counters reset.")
     return CmdResult.ok()
 

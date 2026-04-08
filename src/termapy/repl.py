@@ -133,8 +133,6 @@ class ReplEngine:
         self.write = write  # write(text, color="dim") callback
         self.prefix = prefix
         self.cmd = lambda name: f"{prefix}{name}"
-        self._seq_counters: dict[int, int] = {}
-        self._seq_start_time: str = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._script_depth: int = 0
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
@@ -540,9 +538,7 @@ class ReplEngine:
             return CmdResult.ok()
         name = parts[0].lower()
         raw_args = parts[1] if len(parts) > 1 else ""
-        args, self._seq_counters = expand_template(
-            raw_args, self._seq_counters, self._seq_start_time
-        )
+        args = self._expand_template(raw_args)
 
         # Universal `.quiet` modifier: any command can be invoked as
         # `<cmd>.quiet` to suppress its terminal output. We only fall back
@@ -636,10 +632,24 @@ class ReplEngine:
         if self._after_cfg:
             self._after_cfg(key, new_val)
 
-    def _reset_seq(self) -> None:
-        """Reset sequence counters and start time."""
-        self._seq_counters = {}
-        self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    def _expand_template(self, text: str) -> str:
+        """Expand ``{seqN}``, ``{seqN+}``, ``{datetime}``, ``{starttime}``.
+
+        Reads the seq counter state from ``ctx.ns("seq")``.  Integer keys
+        are counters; the string key ``_start_time`` is the timestamp for
+        ``{starttime}``.  After expansion, writes the updated counters
+        back in place so the namespace dict identity is preserved for any
+        cached references.
+        """
+        seq_ns = self.ctx.ns("seq")
+        start_time = seq_ns.get("_start_time", "")
+        counters = {k: v for k, v in seq_ns.items() if isinstance(k, int)}
+        result, new_counters = expand_template(text, counters, start_time)
+        for k in list(seq_ns):
+            if isinstance(k, int):
+                del seq_ns[k]
+        seq_ns.update(new_counters)
+        return result
 
     # -- Transform chains ------------------------------------------------------
 
@@ -700,9 +710,9 @@ class ReplEngine:
             self._script_stop.clear()
         self._script_depth += 1
         self._script_stack.append(path.name)
-        self._seq_counters = {}
-        self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         if outermost:
+            # on_script_start fires for the outermost script only.  The seq
+            # plugin clears counters and refreshes {starttime} from its hook.
             self.fire_lifecycle("on_script_start")
         self.ctx.status(f"Running script: {filename}")
         return path, CmdResult.ok()
@@ -711,11 +721,7 @@ class ReplEngine:
 
     def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /delay in scripts — sleep on background thread."""
-        expanded, self._seq_counters = expand_template(
-            args.strip(),
-            self._seq_counters,
-            self._seq_start_time,
-        )
+        expanded = self._expand_template(args.strip())
         try:
             seconds = parse_duration(expanded)
         except ValueError as e:

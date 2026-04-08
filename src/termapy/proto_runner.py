@@ -17,7 +17,6 @@ from pathlib import Path
 from termapy.config import open_serial
 from termapy.protocol import (
     FrameCollector,
-    ProtoScript,
     TestCase,
     load_proto_script,
     match_response,
@@ -181,13 +180,13 @@ def run_proto_tests(
     """
     # Parse script
     text = pro_path.read_text(encoding="utf-8")
-    fmt, parsed = load_proto_script(text)
-    if fmt != "toml":
+    result = load_proto_script(text)
+    if result[0] != "toml":
         raise ValueError(
             f"{pro_path.name} is flat format - only TOML scripts with "
             f"[[test]] sections are supported for JSON test results"
         )
-    script: ProtoScript = parsed  # type: ignore[assignment]
+    script = result[1]
 
     # Open serial port
     ser = open_serial(cfg)

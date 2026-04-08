@@ -828,6 +828,7 @@ class CLITerminal:
             Mode to switch to ("tui") or None for normal exit.
         """
         self.switch_to: str | None = None
+        self.repl.fire_lifecycle("on_app_start")
         if not self.engine.connect():
             port = self.cfg.get("port", "?")
             detail = self.engine.last_error
@@ -876,6 +877,7 @@ class CLITerminal:
             self._run_script_mode()
         else:
             self._run_interactive()
+        self.repl.fire_lifecycle("on_app_stop")
         return self.switch_to
 
 

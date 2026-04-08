@@ -603,6 +603,7 @@ class SerialTerminal(App):
         self._register_tui_hooks()
         self._load_plugins()
         self._run_startup()
+        self.repl.fire_lifecycle("on_app_start")
 
     def _setup_vars(self) -> None:
         """Set launch/context variables for plugin use."""
@@ -999,6 +1000,7 @@ class SerialTerminal(App):
         self.query_one("#cmd", Input).focus()
 
     def on_unmount(self) -> None:
+        self.repl.fire_lifecycle("on_app_stop")
         self._save_history()
         self._disconnect()
         self._engine.reader_stopped.wait(timeout=0.2)
@@ -1385,6 +1387,8 @@ class SerialTerminal(App):
         for directive in result.directives:
             self.repl.register_directive(directive)
             loaded.append(f"@{directive.name}")
+        for hook in result.lifecycle_hooks:
+            self.repl.register_lifecycle_hook(hook)
         if loaded:
             self.repl.ctx.status(
                 f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),

@@ -223,11 +223,59 @@ class TransformInfo:
 
 
 @dataclass
+class LifecycleHook:
+    """A lifecycle hook discovered on a plugin module.
+
+    Plugins declare hooks by exporting top-level functions with specific
+    names.  There is no base class and no decorators — a plugin is a module
+    that exports stuff, and lifecycle functions are just more stuff it can
+    export.
+
+    Supported hook names (see :data:`LIFECYCLE_HOOK_NAMES`):
+
+    - ``on_app_start``   — fires once after plugins are loaded and the
+                           context is wired, before first dispatch.
+    - ``on_app_stop``    — fires once during graceful shutdown.  Not
+                           guaranteed on crash.
+    - ``on_script_start`` — fires when a script begins executing.
+    - ``on_script_stop``  — fires after a script finishes, including on
+                           ``/stop`` or exception.  Mirrors ``on_script_start``.
+
+    Attributes:
+        name: The hook name (e.g. ``"on_app_start"``).
+        handler: The function the plugin module exported.  Signature:
+            ``handler(ctx: PluginContext) -> None``.
+        source: Where the plugin was loaded from ("built-in", "global",
+            or a config name).  Used for diagnostics only.
+        plugin: The plugin file stem, for error messages.
+    """
+
+    name: str
+    handler: Callable
+    source: str = "built-in"
+    plugin: str = ""
+
+
+# Lifecycle hook names plugins may export as top-level functions.  Adding
+# a new hook is: append here, then call ReplEngine.fire_lifecycle(name)
+# from the matching dispatch point.
+LIFECYCLE_HOOK_NAMES = (
+    "on_app_start",
+    "on_app_stop",
+    "on_script_start",
+    "on_script_stop",
+)
+
+
+@dataclass
 class LoadResult:
     """Result of loading plugins from a directory.
 
     Attributes:
         plugins: Successfully loaded PluginInfo entries.
+        transforms: Successfully loaded TransformInfo entries.
+        directives: Successfully loaded DirectiveInfo entries.
+        lifecycle_hooks: LifecycleHook entries discovered on plugin modules.
         skipped: File names that were skipped (no COMMAND instance).
         errors: File names that raised exceptions during loading.
     """
@@ -235,6 +283,7 @@ class LoadResult:
     plugins: list = field(default_factory=list)
     transforms: list = field(default_factory=list)
     directives: list = field(default_factory=list)
+    lifecycle_hooks: list[LifecycleHook] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -545,14 +594,16 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         if py_file.name.startswith("_"):
             continue
         try:
-            infos, xforms, dirs = _load_plugin_file(py_file, source)
+            infos, xforms, dirs, hooks = _load_plugin_file(py_file, source)
             if infos:
                 result.plugins.extend(infos)
             if xforms:
                 result.transforms.extend(xforms)
             if dirs:
                 result.directives.extend(dirs)
-            if not infos and not xforms and not dirs:
+            if hooks:
+                result.lifecycle_hooks.extend(hooks)
+            if not infos and not xforms and not dirs and not hooks:
                 result.skipped.append(py_file.name)
         except Exception as e:
             result.errors.append(f"{py_file.name}: {e}")
@@ -561,19 +612,21 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
 
 def _load_plugin_file(
     path: Path, source: str,
-) -> tuple[list[PluginInfo], list[TransformInfo], list[DirectiveInfo]]:
-    """Import a single plugin file and extract commands, transforms, and directives.
+) -> tuple[list[PluginInfo], list[TransformInfo], list[DirectiveInfo], list[LifecycleHook]]:
+    """Import a single plugin file and extract commands, transforms, directives, and hooks.
 
     A valid plugin module may export a ``COMMAND`` instance (a ``Command``
     dataclass), a ``TRANSFORM`` instance (a ``Transform`` dataclass),
-    and/or a ``DIRECTIVE`` instance (a ``Directive`` dataclass).
+    a ``DIRECTIVE`` instance (a ``Directive`` dataclass), and/or top-level
+    lifecycle functions named in :data:`LIFECYCLE_HOOK_NAMES`.
 
     Args:
         path: Path to the .py plugin file.
         source: Label for the plugin's origin.
 
     Returns:
-        Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list).
+        Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list,
+        LifecycleHook list).
     """
     # Derive the package name if this is a builtin plugin, so the module
     # is registered under both the dynamic name and the package path.
@@ -595,7 +648,7 @@ def _load_plugin_file(
     else:
         spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:
-            return [], [], []
+            return [], [], [], []
         mod = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = mod
         if pkg_name:
@@ -632,7 +685,19 @@ def _load_plugin_file(
             source=source,
         ))
 
-    return plugins, transforms, directives
+    # Lifecycle hooks -- top-level functions named in LIFECYCLE_HOOK_NAMES
+    lifecycle_hooks: list[LifecycleHook] = []
+    for hook_name in LIFECYCLE_HOOK_NAMES:
+        handler = getattr(mod, hook_name, None)
+        if callable(handler):
+            lifecycle_hooks.append(LifecycleHook(
+                name=hook_name,
+                handler=handler,
+                source=source,
+                plugin=path.stem,
+            ))
+
+    return plugins, transforms, directives, lifecycle_hooks
 
 
 def _flatten_command(

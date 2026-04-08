@@ -103,6 +103,23 @@ The `flags` namespace is engine-reserved. Third-party plugins should use their o
 
 Contrast with `ctx.engine`: `EngineAPI` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction — `engine` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
 
+#### Lifecycle hooks
+
+Plugins that need setup, teardown, or per-script reset can export top-level lifecycle functions. There is no `Plugin` base class and no decorators — a plugin is a module that exports stuff, and lifecycle functions are just more stuff it can export.
+
+```text
+on_app_start(ctx)     — once after plugins load and ctx is wired, before first dispatch
+on_app_stop(ctx)      — once during graceful shutdown (not guaranteed on crash)
+on_script_start(ctx)  — when the outermost script begins (nested /run does NOT fire)
+on_script_stop(ctx)   — when the outermost script ends, including on /stop or error
+```
+
+Script hooks fire only at the top level — nested `/run` inside a running script does not re-fire `on_script_start`. A plugin that clears state in `on_script_start` will not have its state wiped by inner scripts. Plugins that need per-file nesting can track depth themselves via `ctx.engine.in_script()`.
+
+Hooks are stored in a flat list in load order (`ReplEngine._lifecycle_hooks`). `fire_lifecycle(name)` filters by name and calls matching handlers in registration order, catching exceptions per-hook so one bad plugin can't prevent later hooks from running. Errors surface through `ctx.status()`.
+
+Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` and wires `on_script_start` to clear it, so scripts start with a clean counter set without `ReplEngine` knowing anything about sequence counters. This is the pattern to follow for any plugin with session-scoped state that needs lifecycle management.
+
 ### Loading order (later overrides earlier)
 
 ```text
@@ -144,17 +161,22 @@ Currently the only directive is `var_assign` which rewrites `$(PORT) = COM7` int
 
 ### Plugin file convention
 
-A plugin file exports `COMMAND`, `TRANSFORM`, and/or `DIRECTIVE` at module level:
+A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, and/or top-level lifecycle functions (`on_app_start`, `on_app_stop`, `on_script_start`, `on_script_stop`). All are optional; the loader picks up whatever's there.
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:
     ctx.write("Hello!")
+
+def on_app_start(ctx: PluginContext) -> None:
+    ctx.ns("hello")["greeting"] = "Hello!"
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handler)
 ```
 
 "Must be at end of file" means after all handler functions it references.
+
+There is deliberately no `Plugin` base class. A plugin is a module that exports stuff; the loader finds what's there. This keeps the mental model one sentence long and avoids the inheritance, decorator, and metaclass traps that creep into most plugin systems. If a plugin needs internal organization, it can use a class *inside* the module — the module boundary is the plugin boundary.
 
 ## Layer diagram
 
@@ -206,7 +228,9 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 │  • Command — declares name, args, handler, subs  │
 │  • Transform — post-routing text rewriters       │
 │  • Directive / DirectiveResult — pre-routing     │
+│  • LifecycleHook — on_app/script_start/stop      │
 │  • PluginContext — stable API for all plugins    │
+│  • ctx.ns(name) — session-scoped state dicts     │
 │  • PluginInfo — flattened metadata + handler     │
 │  • EngineAPI — internal API for built-ins        │
 │  • load_plugins_from_dir() — file discovery      │

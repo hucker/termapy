@@ -19,6 +19,7 @@ from typing import Callable
 from termapy.plugins import (
     DirectiveInfo,
     DirectiveResult,
+    LifecycleHook,
     PluginContext,
     PluginInfo,
     TargetCommand,
@@ -170,6 +171,10 @@ class ReplEngine:
         # Directive chain - pre-dispatch line rewriters
         self._directives: list[DirectiveInfo] = []
 
+        # Lifecycle hooks - flat list in load order. fire_lifecycle() filters
+        # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
+        self._lifecycle_hooks: list[LifecycleHook] = []
+
         # Target device commands - help-only, not dispatched
         self._target_commands: dict[str, TargetCommand] = {}
 
@@ -185,6 +190,8 @@ class ReplEngine:
             self.register_transform(xform)
         for directive in result.directives:
             self.register_directive(directive)
+        for hook in result.lifecycle_hooks:
+            self.register_lifecycle_hook(hook)
 
     # -- Expect / pattern matching ---------------------------------------------
 
@@ -274,6 +281,30 @@ class ReplEngine:
     def register_directive(self, info: DirectiveInfo) -> None:
         """Register a pre-dispatch directive. Appended in load order."""
         self._directives.append(info)
+
+    def register_lifecycle_hook(self, hook: LifecycleHook) -> None:
+        """Register a plugin lifecycle hook. Appended in load order."""
+        self._lifecycle_hooks.append(hook)
+
+    def fire_lifecycle(self, name: str) -> None:
+        """Fire every registered lifecycle hook matching *name* in load order.
+
+        Exceptions are caught per-hook so one bad plugin cannot prevent
+        later hooks from running.  Errors surface through ``ctx.status``
+        so they are visible without crashing the app.
+
+        Args:
+            name: Hook name (must be in ``LIFECYCLE_HOOK_NAMES``).
+        """
+        for hook in self._lifecycle_hooks:
+            if hook.name != name:
+                continue
+            try:
+                hook.handler(self.ctx)
+            except Exception as e:
+                self.ctx.status(
+                    f"Lifecycle hook {hook.plugin}:{name} failed: {e}"
+                )
 
     def run_directives(self, line: str) -> DirectiveResult:
         """Run all directives in load order against a raw input line.
@@ -664,12 +695,15 @@ class ReplEngine:
             return None, CmdResult.fail(
                 msg=f"Script nesting too deep ({self._max_script_depth} levels). Use /stop first."
             )
-        if self._script_depth == 0:
+        outermost = self._script_depth == 0
+        if outermost:
             self._script_stop.clear()
         self._script_depth += 1
         self._script_stack.append(path.name)
         self._seq_counters = {}
         self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if outermost:
+            self.fire_lifecycle("on_script_start")
         self.ctx.status(f"Running script: {filename}")
         return path, CmdResult.ok()
 
@@ -833,6 +867,8 @@ class ReplEngine:
             self._script_depth -= 1
             if self._script_stack:
                 self._script_stack.pop()
+            if self._script_depth == 0:
+                self.fire_lifecycle("on_script_stop")
             yield sctx  # yield empty context so 'with' block runs (lines is empty)
             return
         sctx.lines = [
@@ -857,6 +893,8 @@ class ReplEngine:
             self._script_depth -= 1
             if self._script_stack:
                 self._script_stack.pop()
+            if self._script_depth == 0:
+                self.fire_lifecycle("on_script_stop")
             if on_nest:
                 on_nest()
             if sctx.prof_fh:

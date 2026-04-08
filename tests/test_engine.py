@@ -25,6 +25,7 @@ def engine(tmp_path):
     # app.py._build_context would set in production.
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
+    flags["verbose"] = True
     flags["hex_mode"] = False
     return eng, output
 
@@ -257,6 +258,11 @@ class TestRunScript:
             serial_wait_idle=lambda: None,
         )
         eng.set_context(ctx)
+        # Seed the `flags` namespace (would be done by app.py._build_context).
+        flags = ctx.ns("flags")
+        flags["echo"] = True
+        flags["verbose"] = True
+        flags["hex_mode"] = False
         script = tmp_path / "test.run"
         script.write_text(script_text)
         eng._script_depth = 1
@@ -541,6 +547,7 @@ class TestDispatchFull:
         # Seed the `flags` namespace (would be done by app.py._build_context).
         flags = ctx.ns("flags")
         flags["echo"] = True
+        flags["verbose"] = True
         flags["hex_mode"] = False
 
         def do_dispatch(cmd, connected=True):

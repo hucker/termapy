@@ -222,7 +222,7 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 │  • dispatch_full() — full command routing        │
 │  • dispatch() — REPL command → plugin handler    │
 │  • Script runner with nested /run support        │
-│  • State: seq counters, echo, variables          │
+│  • fire_lifecycle() — run on_*_start/stop hooks  │
 ├──────────────────────────────────────────────────┤
 │  plugins.py — Plugin System                      │
 │  • Command — declares name, args, handler, subs  │
@@ -232,7 +232,7 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 │  • PluginContext — stable API for all plugins    │
 │  • ctx.ns(name) — session-scoped state dicts     │
 │  • PluginInfo — flattened metadata + handler     │
-│  • EngineAPI — internal API for built-ins        │
+│  • EngineAPI — Textual/threading/serial handles  │
 │  • load_plugins_from_dir() — file discovery      │
 ├──────────────────────────────────────────────────┤
 │  protocol.py — Protocol Engine                   │

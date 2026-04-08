@@ -217,7 +217,10 @@ class CLITerminal:
         # already shows the user's input.  See app.py._build_context for the
         # shared convention — `flags` holds engine toggles; per-plugin state
         # goes in the plugin's own namespace.
-        self.ctx.ns("flags")["echo"] = False
+        flags = self.ctx.ns("flags")
+        flags["echo"] = False
+        flags.setdefault("verbose", True)
+        flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 
     def _register_hooks(self) -> None:
         """Register CLI-specific hooks for /delay, /color, /run."""

@@ -553,7 +553,9 @@ class SerialTerminal(App):
 
     def _show_config_info(self, path: str) -> None:
         """Print config dir, file, and log file paths (verbose only)."""
-        if not getattr(self.repl, "ctx", None) or not self.repl.ctx.verbose:
+        if not getattr(self.repl, "ctx", None):
+            return
+        if not self.repl.ctx.ns("flags")["verbose"]:
             return
         resolved = Path(path).resolve()
         self._status(f"Config dir:  {resolved.parent}", "green")
@@ -695,6 +697,7 @@ class SerialTerminal(App):
         # read sites can use bare lookups.
         flags = ctx.ns("flags")
         flags.setdefault("echo", True)
+        flags.setdefault("verbose", True)
         flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 
     def _register_tui_hooks(self) -> None:
@@ -1436,15 +1439,16 @@ class SerialTerminal(App):
     def _start_demo_async(self, force: bool) -> None:
         """Background thread for demo setup so status messages render."""
         try:
-            if self.repl.ctx.verbose:
+            verbose_on = self.repl.ctx.ns("flags")["verbose"]
+            if verbose_on:
                 self.call_from_thread(self._status, "Setting up demo files...", "dim")
             config_path = setup_demo_config(cfg_dir(), force=force)
 
-            if self.repl.ctx.verbose:
+            if verbose_on:
                 self.call_from_thread(self._status, "Loading demo config...", "dim")
             cfg = load_config(str(config_path))
 
-            if self.repl.ctx.verbose:
+            if verbose_on:
                 self.call_from_thread(
                     self._status, "Switching to demo device...", "dim"
                 )

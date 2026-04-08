@@ -395,7 +395,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
 
-    if algo is not None and ctx.verbose:
+    if algo is not None and ctx.ns("flags")["verbose"]:
         endian_label = "BE" if big_endian else "LE"
         mode_label = "ascii" if ascii_crc else "bin"
         ctx.write(
@@ -409,7 +409,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     ctx.engine.set_proto_active(True)
     ctx.serial_drain()
-    if ctx.verbose:
+    if ctx.ns("flags")["verbose"]:
         if has_delays:
             parts = []
             for s in segments:
@@ -443,7 +443,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     if response:
         _display_bytes(ctx, "RX", response, binary=True)
-        if ctx.verbose:
+        if ctx.ns("flags")["verbose"]:
             ctx.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
         ctx.write("  RX: (no response)", "red")

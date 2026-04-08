@@ -18,10 +18,11 @@ def _set_verbose(ctx: PluginContext, args: str) -> str:
     this is what makes ``/verbose`` alone act as a "show current state"
     query. Callers that want strict parsing should validate first.
     """
+    flags = ctx.ns("flags")
     val = parse_bool(args)
     if val is not None:
-        ctx.verbose = val
-    return "on" if ctx.verbose else "off"
+        flags["verbose"] = val
+    return "on" if flags["verbose"] else "off"
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

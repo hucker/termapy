@@ -936,7 +936,7 @@ class ReplEngine:
                 if not profile and self._script_depth <= 1:
                     if self._script_stop.is_set():
                         w("Script aborted.", "red")
-                    elif self.ctx.verbose:
+                    elif self.ctx.ns("flags")["verbose"]:
                         w("Script finished.")
 
     # -- Properties -----------------------------------------------------------

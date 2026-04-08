@@ -290,10 +290,21 @@ class LoadResult:
 
 @dataclass
 class EngineAPI:
-    """Engine internals exposed to built-in plugins only.
+    """Privileged escape hatch exposed to built-in plugins only.
 
-    External plugins should not use this - it may change between versions.
-    Access via ctx.engine from built-in command handlers.
+    Holds Textual, threading, and pyserial handles that are genuinely
+    frontend-specific and cannot be generified: the plugin registry,
+    config apply hooks, port connect/disconnect, capture lifecycle,
+    proto debug screen, the raw RX queue, cancel/stop events, etc.
+
+    For session state (flags, counters, target commands, per-plugin
+    scratch space) use ``ctx.ns()`` instead.  That is the supported API
+    for both built-in and external plugins.  Anything that could live in
+    a plain dict has been migrated off ``EngineAPI`` on purpose -- what's
+    left is the set of things that must remain frontend-coupled.
+
+    Access from built-in plugins via ``ctx.engine``.  External plugins
+    should not use this; it is unstable and may change between versions.
     """
 
     prefix: str = "/"
@@ -373,11 +384,17 @@ class PluginContext:
         save_screenshot: Save the terminal view. Signature: ``save_screenshot(path)``.
         get_screen_text: Return all visible terminal output as a plain-text string.
         exit_app: Exit the application.
-        engine: Internal engine API (``EngineAPI``). **Built-in plugins only** -
-            this is unstable and may change between versions.
+        engine: Privileged escape hatch (``EngineAPI``).  Textual, threading,
+            and pyserial handles that cannot be generified.  **Built-in
+            plugins only** -- unstable, may change between versions.  For
+            session state, prefer ``ctx.ns()``.
         ns: Return a session-scoped namespace dict, creating it on first
-            access. The supported API for storing per-session state from
-            both built-in and third-party plugins. See ``PluginContext.ns``.
+            access.  The supported API for storing per-session state in
+            both built-in and third-party plugins.  See ``PluginContext.ns``.
+            Engine toggles like ``echo``, ``verbose``, and ``hex_mode`` live
+            in the reserved ``flags`` namespace; plugins should use their
+            own namespace name (e.g. ``ctx.ns("myplugin")``) to avoid
+            collision.
     """
 
     # Core I/O
@@ -426,9 +443,6 @@ class PluginContext:
 
     # Engine internals - used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
-
-    # Verbose flag - controls ctx.status() visibility
-    verbose: bool = True
 
     # Namespace registry - plugin/builtin session-scoped state.
     # See ctx.ns() below for the public interface.
@@ -484,8 +498,15 @@ class PluginContext:
         self.write(text, color)
 
     def status(self, text: str) -> None:
-        """Write a status/progress message. Suppressed when verbose is off."""
-        if self.verbose:
+        """Write a status/progress message. Suppressed when verbose is off.
+
+        Reads the verbose flag from ``ctx.ns("flags")`` with an inline
+        default of ``True`` -- the one sanctioned exception to the
+        "flag defaults live in _build_context" rule.  ``status()`` is
+        the definition of "what verbose means" and must never raise on
+        a missing key.
+        """
+        if self.ns("flags").get("verbose", True):
             self.write(text, "dim")
 
     @contextmanager

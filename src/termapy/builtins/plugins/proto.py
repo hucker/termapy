@@ -531,18 +531,17 @@ def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for engine API access.
         args: ``"on"``, ``"off"``, or empty string to toggle.
     """
+    flags = ctx.ns("flags")
     arg = args.strip().lower()
     if arg == "on":
-        ctx.engine.set_hex_mode(True)
+        flags["hex_mode"] = True
         ctx.write("Hex display mode enabled.", "bright_green")
     elif arg == "off":
-        ctx.engine.set_hex_mode(False)
+        flags["hex_mode"] = False
         ctx.write("Hex display mode disabled.", "bright_green")
     else:
-        # Toggle
-        current = ctx.engine.get_hex_mode()
-        ctx.engine.set_hex_mode(not current)
-        state = "enabled" if not current else "disabled"
+        flags["hex_mode"] = not flags["hex_mode"]
+        state = "enabled" if flags["hex_mode"] else "disabled"
         ctx.write(f"Hex display mode {state}.", "bright_green")
     return CmdResult.ok()
 
@@ -556,7 +555,7 @@ def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for engine state and output.
         args: Ignored.
     """
-    hex_mode = ctx.engine.get_hex_mode()
+    hex_mode = ctx.ns("flags")["hex_mode"]
     connected = ctx.is_connected()
     ctx.write(f"Hex mode: {'on' if hex_mode else 'off'}")
     ctx.write(f"Connected: {'yes' if connected else 'no'}")

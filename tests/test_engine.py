@@ -23,7 +23,9 @@ def engine(tmp_path):
     eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
     # Seed the engine-reserved `flags` namespace with the defaults that
     # app.py._build_context would set in production.
-    eng.ctx.ns("flags")["echo"] = True
+    flags = eng.ctx.ns("flags")
+    flags["echo"] = True
+    flags["hex_mode"] = False
     return eng, output
 
 
@@ -537,7 +539,9 @@ class TestDispatchFull:
         )
         eng.set_context(ctx)
         # Seed the `flags` namespace (would be done by app.py._build_context).
-        ctx.ns("flags")["echo"] = True
+        flags = ctx.ns("flags")
+        flags["echo"] = True
+        flags["hex_mode"] = False
 
         def do_dispatch(cmd, connected=True):
             eng.dispatch_full(

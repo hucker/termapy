@@ -324,7 +324,6 @@ class SerialTerminal(App):
         self._popup_mode: str = "commands"
         self._show_line_numbers: bool = cfg.get("show_line_numbers", False)
         self._line_counter: int = 0
-        self._proto_hex_mode: bool = cfg.get("hex_mode", False)
         self._xfer_cancel = threading.Event()
 
         # File capture engine
@@ -633,8 +632,6 @@ class SerialTerminal(App):
             save_cfg=self._hook_cfg_confirm,
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
-            get_hex_mode=lambda: self._proto_hex_mode,
-            set_hex_mode=self._set_hex_mode,
             set_proto_active=lambda active: setattr(
                 self._engine, "proto_active", active
             ),
@@ -698,6 +695,7 @@ class SerialTerminal(App):
         # read sites can use bare lookups.
         flags = ctx.ns("flags")
         flags.setdefault("echo", True)
+        flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks."""
@@ -1084,10 +1082,6 @@ class SerialTerminal(App):
         finally:
             self._reconnecting = False
 
-    def _set_hex_mode(self, enabled: bool) -> None:
-        """Toggle hex display mode for serial I/O."""
-        self._proto_hex_mode = enabled
-
     def _open_proto_debug(self, path, script) -> None:
         """Open the interactive protocol debug screen.
 
@@ -1336,7 +1330,7 @@ class SerialTerminal(App):
         if not cfg.get("device_json_cmd", ""):
             self.repl.ctx.ns("target_commands").clear()
             self._rebuild_suggester_commands()
-        self._proto_hex_mode = cfg.get("hex_mode", False)
+        self.repl.ctx.ns("flags")["hex_mode"] = cfg.get("hex_mode", False)
         self._show_line_numbers = cfg.get("show_line_numbers", False)
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
@@ -2213,7 +2207,7 @@ class SerialTerminal(App):
         log = self.query_one("#output", RichLog)
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
-        hex_mode = self._proto_hex_mode
+        hex_mode = self.repl.ctx.ns("flags")["hex_mode"]
         enc = self.cfg.get("encoding", "utf-8")
         for text in lines:
             self._line_counter += 1

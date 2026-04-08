@@ -54,7 +54,9 @@ def engine(tmp_path):
     )
     eng.set_context(ctx)
     # Seed the `flags` namespace (would be done by app.py._build_context).
-    ctx.ns("flags")["echo"] = True
+    flags = ctx.ns("flags")
+    flags["echo"] = True
+    flags["hex_mode"] = False
     return eng, output
 
 

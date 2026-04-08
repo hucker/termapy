@@ -49,7 +49,9 @@ def repl_env(tmp_path):
     # Seed the engine-reserved `flags` namespace with the defaults that
     # _build_context would set in production.  Tests that construct
     # PluginContext directly bypass that path, so do it explicitly here.
-    ctx.ns("flags")["echo"] = True
+    flags = ctx.ns("flags")
+    flags["echo"] = True
+    flags["hex_mode"] = False
     return engine, cfg, config_path, output
 
 

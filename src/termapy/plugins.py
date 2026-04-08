@@ -303,8 +303,6 @@ class EngineAPI:
     save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
     apply_cfg: Callable = lambda key, val: None
     coerce_type: Callable = lambda val, existing: val
-    get_hex_mode: Callable = lambda: False
-    set_hex_mode: Callable = lambda enabled: None
     set_proto_active: Callable = lambda active: None
     open_proto_debug: Callable = lambda path, script: None
     start_capture: Callable = lambda **kw: None

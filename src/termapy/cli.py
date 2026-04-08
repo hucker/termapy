@@ -756,9 +756,9 @@ class CLITerminal:
 
     # -- Run modes ------------------------------------------------------------
 
-    def _run_script_mode(self) -> None:
+    def _run_script_mode(self, run_script: str) -> None:
         """Execute a .run script and exit."""
-        script_path = Path(self.run_script)
+        script_path = Path(run_script)
         if not script_path.exists():
             scripts_dir = Path(self.config_path).parent / "run"
             alt = scripts_dir / script_path.name
@@ -875,7 +875,7 @@ class CLITerminal:
                         self.engine.serial_port.wait_for_idle()
 
         if self.run_script:
-            self._run_script_mode()
+            self._run_script_mode(self.run_script)
         else:
             self._run_interactive()
         self.repl.fire_lifecycle("on_app_stop")

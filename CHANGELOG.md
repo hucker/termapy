@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.54.0 (2026-04-08)
+
+Plugin API release. Two new primitives let plugins own their own session state and lifecycle, and five built-ins (seq, target_commands, echo, hex_mode, verbose) migrate onto them as worked examples. `EngineAPI` is now a legible escape hatch containing only Textual/threading/serial handles — anything that could live in a plain dict has been moved out.
+
+### 0.54.0 New Features
+
+- **`ctx.ns(name)` namespace primitive** -- plugins get a sanctioned, session-scoped `dict` for their state instead of monkeypatching `ctx` or using module globals. Lazy creation on first access, same dict returned on every call with the same name, flat visibility (any plugin can read any namespace) so cooperating plugins can share state on purpose. See `ARCHITECTURE.md` for the full pattern.
+- **Plugin lifecycle hooks** -- plugins can now declare `on_app_start`, `on_app_stop`, `on_script_start`, and `on_script_stop` as top-level functions in their module. The loader discovers them alongside `COMMAND`/`TRANSFORM`/`DIRECTIVE`. Exceptions are caught per-hook so one bad plugin cannot block others. Script hooks fire only at the outermost script boundary; nested `/run` does not re-fire. No base class, no decorators — a plugin is still a module that exports stuff.
+- **`flags` namespace** -- engine-reserved namespace holding `echo`, `verbose`, and `hex_mode`. Defaults are seeded once in `_build_context` and read sites use bare key access, so a missing key is a construction bug not silent drift. Third-party plugins should use their own namespace name to avoid collision.
+
+### 0.54.0 Improvements
+
+- **`seq` plugin is now self-contained** -- sequence counters and the `{starttime}` timestamp live in `ctx.ns("seq")`, and the plugin wires its own `on_app_start`/`on_script_start` hooks to seed and reset state. `ReplEngine` no longer has `_seq_counters`, `_seq_start_time`, or `_reset_seq`. A reader can now open `seq.py` top-to-bottom and understand every aspect of sequence-counter behavior in one file.
+- **Nested `/run` no longer resets counters** -- previously, a nested script would blow away its parent's sequence counters because `start_script` cleared them unconditionally. Now the reset happens in the seq plugin's `on_script_start` hook, which only fires at the outermost script boundary. Inner scripts inherit their parent's counters, which is the less surprising behavior.
+- **`EngineAPI` class docstring rewritten** -- reframed as a privileged escape hatch for Textual/threading/pyserial handles rather than a general plugin surface. The field list is now the set of things that genuinely must remain frontend-coupled; anything that could live in a plain dict has been migrated off.
+- **CLI install instructions restructured** -- README leads with uv as the preferred package manager, breaks install into numbered steps with time estimates (under a minute from scratch), and simplifies the CLI-mode quickstart to `termapy --cli --demo` so readers can try it without a config.
+
+### 0.54.0 Fixes
+
+- **`/echo on` now actually works in CLI mode** -- previously the CLI hardcoded `get_echo=lambda: False` and `set_echo=lambda val: None` in its `EngineAPI` wiring, so `/echo on` silently did nothing and the plugin reported `off` regardless. After the namespace migration the toggle honestly flips the flag and REPL commands echo when requested, matching TUI behavior. The CLI still defaults to echo off (readline shows input) but users can now turn it on for script debugging.
+
+### 0.54.0 Notes
+
+- **No user-facing config changes.** All three migrated flags (`echo`, `verbose`, `hex_mode`) still read their defaults from the same places they always did.
+- **`EngineAPI` lost 11 fields** (`get_echo`/`set_echo`, `get_seq_counters`/`set_seq_counters`/`reset_seq`, `target_commands`/`set_target_commands`/`clear_target_commands`, `get_hex_mode`/`set_hex_mode`, plus `PluginContext.verbose`). External plugins that reached into these via `ctx.engine` will need to migrate to `ctx.ns()`. External plugins that were already using only the public `PluginContext` surface are unaffected.
+
 ## 0.53.3 (2026-04-07)
 
 Bug fix and tooling release.

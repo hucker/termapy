@@ -474,17 +474,17 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
 
     try:
         text = path.read_text(encoding="utf-8")
-        fmt, parsed = load_proto_script(text)
+        result = load_proto_script(text)
     except (ValueError, OSError) as e:
         return CmdResult.fail(msg=f"Script error: {e}")
 
-    if fmt == "toml":
-        script = parsed
+    if result[0] == "toml":
+        script = result[1]
         if not script.tests:
             return CmdResult.fail(msg="Script has no tests.")
         _run_toml_script(ctx, path, script)
     else:
-        settings, steps = parsed
+        settings, steps = result[1]
         if not steps:
             return CmdResult.fail(msg="Script has no steps.")
         _run_flat_script(ctx, path, settings, steps)

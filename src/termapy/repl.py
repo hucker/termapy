@@ -22,7 +22,6 @@ from termapy.plugins import (
     LifecycleHook,
     PluginContext,
     PluginInfo,
-    TargetCommand,
     TransformInfo,
     builtins_dir,
     load_plugins_from_dir,
@@ -172,9 +171,6 @@ class ReplEngine:
         # Lifecycle hooks - flat list in load order. fire_lifecycle() filters
         # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
         self._lifecycle_hooks: list[LifecycleHook] = []
-
-        # Target device commands - help-only, not dispatched
-        self._target_commands: dict[str, TargetCommand] = {}
 
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
@@ -384,17 +380,6 @@ class ReplEngine:
         name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
         plugin = self._plugins.get(name)
         return plugin.raw_args if plugin else False
-
-    # -- Target commands -------------------------------------------------------
-
-    def set_target_commands(self, commands: dict[str, TargetCommand]) -> None:
-        """Replace all target commands with a new set from /include."""
-        self._target_commands.clear()
-        self._target_commands.update(commands)
-
-    def clear_target_commands(self) -> None:
-        """Remove all imported target commands."""
-        self._target_commands.clear()
 
     # -- Full dispatch pipeline ------------------------------------------------
 

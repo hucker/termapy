@@ -133,7 +133,9 @@ def _fetch_and_include(ctx: PluginContext, cmd: str, timeout_ms: int) -> CmdResu
     if not commands:
         return CmdResult.fail(msg="Include: JSON contained no valid commands.")
 
-    ctx.engine.set_target_commands(commands)
+    target = ctx.ns("target_commands")
+    target.clear()
+    target.update(commands)
     _save_cache(ctx, commands)
     ctx.result(f"Included {len(commands)} device commands.")
     return CmdResult.ok(value=str(len(commands)))
@@ -166,7 +168,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Keyword args: timeout=<dur>, cmd=<command>.
     """
     # 1. Memory cache
-    existing = ctx.engine.target_commands
+    existing = ctx.ns("target_commands")
     if existing:
         ctx.result(f"{len(existing)} device commands (cached).")
         return CmdResult.ok(value=str(len(existing)))
@@ -174,7 +176,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # 2. Disk cache
     from_disk = _load_cache(ctx)
     if from_disk:
-        ctx.engine.set_target_commands(from_disk)
+        existing.update(from_disk)
         ctx.result(f"Included {len(from_disk)} device commands (from cache).")
         return CmdResult.ok(value=str(len(from_disk)))
 
@@ -197,7 +199,7 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     """Pretty-print the included target commands as JSON."""
-    target = ctx.engine.target_commands
+    target = ctx.ns("target_commands")
     if not target:
         ctx.result("No target commands included.")
         return CmdResult.ok()
@@ -208,7 +210,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
     """Remove all included target commands and delete cache file."""
-    ctx.engine.clear_target_commands()
+    ctx.ns("target_commands").clear()
     try:
         _cache_path(ctx).unlink(missing_ok=True)
     except OSError:
@@ -219,7 +221,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List currently included target commands."""
-    target = ctx.engine.target_commands
+    target = ctx.ns("target_commands")
     if not target:
         ctx.result("No target commands included.")
         return CmdResult.ok()

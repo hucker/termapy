@@ -154,9 +154,6 @@ class CLITerminal:
             script_stop=lambda: self.repl._script_stop.set(),
             start_capture=lambda **kw: self._start_capture(**kw),
             stop_capture=lambda: self._stop_capture(),
-            target_commands=self.repl._target_commands,
-            set_target_commands=self.repl.set_target_commands,
-            clear_target_commands=self.repl.clear_target_commands,
             script_stop_event=self.repl._script_stop,
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
@@ -712,12 +709,14 @@ class CLITerminal:
                         for name in repl._plugins
                         if f"{prefix}{name}".startswith(line)
                     )
-                elif repl._target_commands:
-                    matches = sorted(
-                        name
-                        for name in repl._target_commands
-                        if name.lower().startswith(line.lower())
-                    )
+                else:
+                    target_cmds = repl.ctx.ns("target_commands")
+                    if target_cmds:
+                        matches = sorted(
+                            name
+                            for name in target_cmds
+                            if name.lower().startswith(line.lower())
+                        )
 
             if state < len(matches):
                 return matches[state]

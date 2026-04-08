@@ -1252,7 +1252,7 @@ class SerialTerminal(App):
                 result[0] = confirmed
                 event.set()
 
-            self.push_screen(ConfirmDialog(message), callback=_on_result)  # type: ignore[call-overload]
+            self.push_screen(ConfirmDialog(message), callback=_on_result)  # ty: ignore[no-matching-overload]
 
         try:
             self.call_from_thread(_show)
@@ -1482,7 +1482,7 @@ class SerialTerminal(App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(  # type: ignore[call-overload]
+        self.push_screen(  # ty: ignore[no-matching-overload]
             ConfirmDialog(f"Delete {label} '{name}'?"),
             callback=_on_confirm,
         )
@@ -1908,7 +1908,7 @@ class SerialTerminal(App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(  # type: ignore[call-overload]
+        self.push_screen(  # ty: ignore[no-matching-overload]
             ConfirmDialog(f"Delete {Path(log_path).name}?"),
             callback=on_confirmed,
         )

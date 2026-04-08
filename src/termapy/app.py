@@ -324,7 +324,6 @@ class SerialTerminal(App):
         self._popup_mode: str = "commands"
         self._show_line_numbers: bool = cfg.get("show_line_numbers", False)
         self._line_counter: int = 0
-        self._proto_hex_mode: bool = cfg.get("hex_mode", False)
         self._xfer_cancel = threading.Event()
 
         # File capture engine
@@ -445,7 +444,7 @@ class SerialTerminal(App):
                 commands.append(f"{prefix}{name} {plugin.args}")
         for f in self._project_files():
             commands.append(f"{prefix}edit {f}")
-        for name in self.repl._target_commands:
+        for name in self.repl.ctx.ns("target_commands"):
             commands.append(name)
         self._cached_commands = commands
         self._suggester.update(commands, self.history, prefix)
@@ -554,7 +553,9 @@ class SerialTerminal(App):
 
     def _show_config_info(self, path: str) -> None:
         """Print config dir, file, and log file paths (verbose only)."""
-        if not getattr(self.repl, "ctx", None) or not self.repl.ctx.verbose:
+        if not getattr(self.repl, "ctx", None):
+            return
+        if not self.repl.ctx.ns("flags")["verbose"]:
             return
         resolved = Path(path).resolve()
         self._status(f"Config dir:  {resolved.parent}", "green")
@@ -603,6 +604,7 @@ class SerialTerminal(App):
         self._register_tui_hooks()
         self._load_plugins()
         self._run_startup()
+        self.repl.fire_lifecycle("on_app_start")
 
     def _setup_vars(self) -> None:
         """Set launch/context variables for plugin use."""
@@ -627,18 +629,11 @@ class SerialTerminal(App):
         engine = EngineAPI(
             prefix=self.cfg.get("cmd_prefix", "/"),
             plugins=self.repl._plugins,
-            get_echo=lambda: self.repl._echo,
-            set_echo=lambda val: setattr(self.repl, "_echo", val),
-            get_seq_counters=lambda: self.repl._seq_counters,
-            set_seq_counters=lambda val: setattr(self.repl, "_seq_counters", val),
-            reset_seq=self.repl._reset_seq,
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             save_cfg=self._hook_cfg_confirm,
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
-            get_hex_mode=lambda: self._proto_hex_mode,
-            set_hex_mode=self._set_hex_mode,
             set_proto_active=lambda active: setattr(
                 self._engine, "proto_active", active
             ),
@@ -648,9 +643,6 @@ class SerialTerminal(App):
             start_capture=self._cap_start,
             stop_capture=self._cap_stop,
             directives=self.repl._directives,
-            target_commands=self.repl._target_commands,
-            set_target_commands=self._set_target_commands,
-            clear_target_commands=self._clear_target_commands,
             connect=self._connect,
             disconnect=self._disconnect,
             update_port=self._update_port,
@@ -699,6 +691,14 @@ class SerialTerminal(App):
         )
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg
+        # Engine-reserved `flags` namespace: shared engine toggles live here.
+        # Per-plugin private state should use the plugin's own namespace name
+        # (e.g. ctx.ns("myplugin")).  Defaults are set once at construction so
+        # read sites can use bare lookups.
+        flags = ctx.ns("flags")
+        flags.setdefault("echo", True)
+        flags.setdefault("verbose", True)
+        flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks."""
@@ -999,6 +999,7 @@ class SerialTerminal(App):
         self.query_one("#cmd", Input).focus()
 
     def on_unmount(self) -> None:
+        self.repl.fire_lifecycle("on_app_stop")
         self._save_history()
         self._disconnect()
         self._engine.reader_stopped.wait(timeout=0.2)
@@ -1083,10 +1084,6 @@ class SerialTerminal(App):
             pass  # call_from_thread fails during app shutdown
         finally:
             self._reconnecting = False
-
-    def _set_hex_mode(self, enabled: bool) -> None:
-        """Toggle hex display mode for serial I/O."""
-        self._proto_hex_mode = enabled
 
     def _open_proto_debug(self, path, script) -> None:
         """Open the interactive protocol debug screen.
@@ -1291,16 +1288,6 @@ class SerialTerminal(App):
             location = "unknown"
         self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
 
-    def _set_target_commands(self, commands: dict) -> None:
-        """Update target commands and rebuild suggestions."""
-        self.repl.set_target_commands(commands)
-        self._rebuild_suggester_commands()
-
-    def _clear_target_commands(self) -> None:
-        """Clear target commands and rebuild suggestions."""
-        self.repl.clear_target_commands()
-        self._rebuild_suggester_commands()
-
     def _disconnect(self) -> None:
         if self._capture.active:
             self._cap_stop()
@@ -1344,8 +1331,9 @@ class SerialTerminal(App):
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
         if not cfg.get("device_json_cmd", ""):
-            self._clear_target_commands()
-        self._proto_hex_mode = cfg.get("hex_mode", False)
+            self.repl.ctx.ns("target_commands").clear()
+            self._rebuild_suggester_commands()
+        self.repl.ctx.ns("flags")["hex_mode"] = cfg.get("hex_mode", False)
         self._show_line_numbers = cfg.get("show_line_numbers", False)
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
@@ -1385,6 +1373,8 @@ class SerialTerminal(App):
         for directive in result.directives:
             self.repl.register_directive(directive)
             loaded.append(f"@{directive.name}")
+        for hook in result.lifecycle_hooks:
+            self.repl.register_lifecycle_hook(hook)
         if loaded:
             self.repl.ctx.status(
                 f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),
@@ -1449,15 +1439,16 @@ class SerialTerminal(App):
     def _start_demo_async(self, force: bool) -> None:
         """Background thread for demo setup so status messages render."""
         try:
-            if self.repl.ctx.verbose:
+            verbose_on = self.repl.ctx.ns("flags")["verbose"]
+            if verbose_on:
                 self.call_from_thread(self._status, "Setting up demo files...", "dim")
             config_path = setup_demo_config(cfg_dir(), force=force)
 
-            if self.repl.ctx.verbose:
+            if verbose_on:
                 self.call_from_thread(self._status, "Loading demo config...", "dim")
             cfg = load_config(str(config_path))
 
-            if self.repl.ctx.verbose:
+            if verbose_on:
                 self.call_from_thread(
                     self._status, "Switching to demo device...", "dim"
                 )
@@ -2220,7 +2211,7 @@ class SerialTerminal(App):
         log = self.query_one("#output", RichLog)
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
-        hex_mode = self._proto_hex_mode
+        hex_mode = self.repl.ctx.ns("flags")["hex_mode"]
         enc = self.cfg.get("encoding", "utf-8")
         for text in lines:
             self._line_counter += 1

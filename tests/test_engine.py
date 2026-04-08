@@ -20,7 +20,14 @@ def engine(tmp_path):
     for sub in ("plugin", "ss", "run"):
         (config_path.parent / sub).mkdir(exist_ok=True)
     output = []
-    return ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c))), output
+    eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+    # Seed the engine-reserved `flags` namespace with the defaults that
+    # app.py._build_context would set in production.
+    flags = eng.ctx.ns("flags")
+    flags["echo"] = True
+    flags["verbose"] = True
+    flags["hex_mode"] = False
+    return eng, output
 
 
 # -- _coerce_type ----------------------------------------------------------
@@ -251,6 +258,11 @@ class TestRunScript:
             serial_wait_idle=lambda: None,
         )
         eng.set_context(ctx)
+        # Seed the `flags` namespace (would be done by app.py._build_context).
+        flags = ctx.ns("flags")
+        flags["echo"] = True
+        flags["verbose"] = True
+        flags["hex_mode"] = False
         script = tmp_path / "test.run"
         script.write_text(script_text)
         eng._script_depth = 1
@@ -532,6 +544,11 @@ class TestDispatchFull:
             serial_write=lambda data: serial_writes.append(data),
         )
         eng.set_context(ctx)
+        # Seed the `flags` namespace (would be done by app.py._build_context).
+        flags = ctx.ns("flags")
+        flags["echo"] = True
+        flags["verbose"] = True
+        flags["hex_mode"] = False
 
         def do_dispatch(cmd, connected=True):
             eng.dispatch_full(
@@ -583,7 +600,7 @@ class TestDispatchFull:
     def test_echo_off_suppresses_output(self, dispatch_env):
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
-        eng._echo = False
+        eng.ctx.ns("flags")["echo"] = False
 
         # Act
         do("/help")

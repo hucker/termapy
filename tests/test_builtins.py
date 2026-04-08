@@ -30,11 +30,6 @@ def repl_env(tmp_path):
     engine_api = EngineAPI(
         prefix="/",
         plugins=engine._plugins,
-        get_echo=lambda: engine._echo,
-        set_echo=lambda val: setattr(engine, "_echo", val),
-        get_seq_counters=lambda: engine._seq_counters,
-        set_seq_counters=lambda val: setattr(engine, "_seq_counters", val),
-        reset_seq=engine._reset_seq,
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
@@ -51,6 +46,13 @@ def repl_env(tmp_path):
         engine=engine_api,
     )
     engine.set_context(ctx)
+    # Seed the engine-reserved `flags` namespace with the defaults that
+    # _build_context would set in production.  Tests that construct
+    # PluginContext directly bypass that path, so do it explicitly here.
+    flags = ctx.ns("flags")
+    flags["echo"] = True
+    flags["verbose"] = True
+    flags["hex_mode"] = False
     return engine, cfg, config_path, output
 
 
@@ -61,13 +63,13 @@ class TestEcho:
     def test_echo_on(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine._echo = False
+        engine.ctx.ns("flags")["echo"] = False
 
         # Act
         engine.dispatch("echo on")
 
         # Assert
-        assert engine._echo is True, "echo enabled"
+        assert engine.ctx.ns("flags")["echo"] is True, "echo enabled"
         assert any("on" in t for t, _ in output), "confirmation shown"
 
     def test_echo_off(self, repl_env):
@@ -78,21 +80,21 @@ class TestEcho:
         engine.dispatch("echo off")
 
         # Assert
-        assert engine._echo is False, "echo disabled"
+        assert engine.ctx.ns("flags")["echo"] is False, "echo disabled"
         assert any("off" in t for t, _ in output), "confirmation shown"
 
     def test_echo_toggle(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        assert engine._echo is True, "starts enabled"
+        assert engine.ctx.ns("flags")["echo"] is True, "starts enabled"
 
         # Act / Assert — toggle off
         engine.dispatch("echo")
-        assert engine._echo is False, "toggled off"
+        assert engine.ctx.ns("flags")["echo"] is False, "toggled off"
 
         # Act / Assert — toggle on
         engine.dispatch("echo")
-        assert engine._echo is True, "toggled back on"
+        assert engine.ctx.ns("flags")["echo"] is True, "toggled back on"
 
 
 # -- /print ---------------------------------------------------------------
@@ -122,7 +124,9 @@ class TestSeq:
     def test_seq_show_with_counters(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine._seq_counters = {1: 3, 2: 7}
+        seq = engine.ctx.ns("seq")
+        seq[1] = 3
+        seq[2] = 7
 
         # Act
         engine.dispatch("seq")
@@ -134,13 +138,15 @@ class TestSeq:
     def test_seq_reset(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine._seq_counters = {1: 5}
+        seq = engine.ctx.ns("seq")
+        seq[1] = 5
 
         # Act
         engine.dispatch("seq.reset")
 
         # Assert
-        assert engine._seq_counters == {}, "counters cleared"
+        remaining_counters = {k: v for k, v in seq.items() if isinstance(k, int)}
+        assert remaining_counters == {}, "counters cleared"
         assert any("reset" in t.lower() for t, _ in output), "confirmation shown"
 
 
@@ -494,7 +500,7 @@ class TestDispatch:
     def test_command_case_insensitive(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("ECHO off")
-        assert engine._echo is False, "uppercase command works"
+        assert engine.ctx.ns("flags")["echo"] is False, "uppercase command works"
 
 
 # -- /grep ----------------------------------------------------------------

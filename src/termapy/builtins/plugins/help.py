@@ -126,7 +126,7 @@ def _show_command_help(ctx: PluginContext, name: str,
     plugin = ctx.engine.plugins.get(name)
     if not plugin:
         # Check target commands (no prefix, help-only)
-        tc = ctx.engine.target_commands.get(name)
+        tc = ctx.ns("target_commands").get(name)
         if tc:
             arg_str = f" {_color_args(tc.args)}" if tc.args else ""
             ctx.write_markup(
@@ -251,7 +251,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                 _render_scripts(ctx, scripts, prefix, cmd_w)
 
         # Target device commands section
-        if ctx.engine.target_commands:
+        if ctx.ns("target_commands"):
             ctx.write_markup("")
             _render_target(ctx)
     return CmdResult.ok()
@@ -261,10 +261,10 @@ def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
     """Show only imported target device commands.
 
     Args:
-        ctx: Plugin context for engine target command registry and output.
+        ctx: Plugin context for target command namespace and output.
         args: Unused.
     """
-    target_cmds = ctx.engine.target_commands
+    target_cmds = ctx.ns("target_commands")
     if not target_cmds:
         ctx.result("No target commands included. Use /include first.")
         return CmdResult.ok()
@@ -278,8 +278,9 @@ def _render_target(ctx: PluginContext) -> None:
     cmd_w = 25
     arg_w = 25
     ctx.write_markup(f"[{_SEP}]-- Target Device --[/]")
-    for cmd_name in sorted(ctx.engine.target_commands):
-        tc = ctx.engine.target_commands[cmd_name]
+    target_cmds = ctx.ns("target_commands")
+    for cmd_name in sorted(target_cmds):
+        tc = target_cmds[cmd_name]
         cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
         arg_col = _pad(
             _color_args(tc.args), arg_w

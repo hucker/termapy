@@ -223,11 +223,59 @@ class TransformInfo:
 
 
 @dataclass
+class LifecycleHook:
+    """A lifecycle hook discovered on a plugin module.
+
+    Plugins declare hooks by exporting top-level functions with specific
+    names.  There is no base class and no decorators — a plugin is a module
+    that exports stuff, and lifecycle functions are just more stuff it can
+    export.
+
+    Supported hook names (see :data:`LIFECYCLE_HOOK_NAMES`):
+
+    - ``on_app_start``   — fires once after plugins are loaded and the
+                           context is wired, before first dispatch.
+    - ``on_app_stop``    — fires once during graceful shutdown.  Not
+                           guaranteed on crash.
+    - ``on_script_start`` — fires when a script begins executing.
+    - ``on_script_stop``  — fires after a script finishes, including on
+                           ``/stop`` or exception.  Mirrors ``on_script_start``.
+
+    Attributes:
+        name: The hook name (e.g. ``"on_app_start"``).
+        handler: The function the plugin module exported.  Signature:
+            ``handler(ctx: PluginContext) -> None``.
+        source: Where the plugin was loaded from ("built-in", "global",
+            or a config name).  Used for diagnostics only.
+        plugin: The plugin file stem, for error messages.
+    """
+
+    name: str
+    handler: Callable
+    source: str = "built-in"
+    plugin: str = ""
+
+
+# Lifecycle hook names plugins may export as top-level functions.  Adding
+# a new hook is: append here, then call ReplEngine.fire_lifecycle(name)
+# from the matching dispatch point.
+LIFECYCLE_HOOK_NAMES = (
+    "on_app_start",
+    "on_app_stop",
+    "on_script_start",
+    "on_script_stop",
+)
+
+
+@dataclass
 class LoadResult:
     """Result of loading plugins from a directory.
 
     Attributes:
         plugins: Successfully loaded PluginInfo entries.
+        transforms: Successfully loaded TransformInfo entries.
+        directives: Successfully loaded DirectiveInfo entries.
+        lifecycle_hooks: LifecycleHook entries discovered on plugin modules.
         skipped: File names that were skipped (no COMMAND instance).
         errors: File names that raised exceptions during loading.
     """
@@ -235,40 +283,42 @@ class LoadResult:
     plugins: list = field(default_factory=list)
     transforms: list = field(default_factory=list)
     directives: list = field(default_factory=list)
+    lifecycle_hooks: list[LifecycleHook] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
 @dataclass
 class EngineAPI:
-    """Engine internals exposed to built-in plugins only.
+    """Privileged escape hatch exposed to built-in plugins only.
 
-    External plugins should not use this - it may change between versions.
-    Access via ctx.engine from built-in command handlers.
+    Holds Textual, threading, and pyserial handles that are genuinely
+    frontend-specific and cannot be generified: the plugin registry,
+    config apply hooks, port connect/disconnect, capture lifecycle,
+    proto debug screen, the raw RX queue, cancel/stop events, etc.
+
+    For session state (flags, counters, target commands, per-plugin
+    scratch space) use ``ctx.ns()`` instead.  That is the supported API
+    for both built-in and external plugins.  Anything that could live in
+    a plain dict has been migrated off ``EngineAPI`` on purpose -- what's
+    left is the set of things that must remain frontend-coupled.
+
+    Access from built-in plugins via ``ctx.engine``.  External plugins
+    should not use this; it is unstable and may change between versions.
     """
 
     prefix: str = "/"
     plugins: dict = field(default_factory=dict)
-    get_echo: Callable = lambda: True
-    set_echo: Callable = lambda val: None
-    get_seq_counters: Callable = lambda: {}
-    set_seq_counters: Callable = lambda val: None
-    reset_seq: Callable = lambda: None
     in_script: Callable = lambda: False
     script_stop: Callable = lambda: None
     save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
     apply_cfg: Callable = lambda key, val: None
     coerce_type: Callable = lambda val, existing: val
-    get_hex_mode: Callable = lambda: False
-    set_hex_mode: Callable = lambda enabled: None
     set_proto_active: Callable = lambda active: None
     open_proto_debug: Callable = lambda path, script: None
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
     directives: list = field(default_factory=list)
-    target_commands: dict = field(default_factory=dict)
-    set_target_commands: Callable = lambda cmds: None
-    clear_target_commands: Callable = lambda: None
     connect: Callable = lambda port=None: None
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None
@@ -334,8 +384,17 @@ class PluginContext:
         save_screenshot: Save the terminal view. Signature: ``save_screenshot(path)``.
         get_screen_text: Return all visible terminal output as a plain-text string.
         exit_app: Exit the application.
-        engine: Internal engine API (``EngineAPI``). **Built-in plugins only** -
-            this is unstable and may change between versions.
+        engine: Privileged escape hatch (``EngineAPI``).  Textual, threading,
+            and pyserial handles that cannot be generified.  **Built-in
+            plugins only** -- unstable, may change between versions.  For
+            session state, prefer ``ctx.ns()``.
+        ns: Return a session-scoped namespace dict, creating it on first
+            access.  The supported API for storing per-session state in
+            both built-in and third-party plugins.  See ``PluginContext.ns``.
+            Engine toggles like ``echo``, ``verbose``, and ``hex_mode`` live
+            in the reserved ``flags`` namespace; plugins should use their
+            own namespace name (e.g. ``ctx.ns("myplugin")``) to avoid
+            collision.
     """
 
     # Core I/O
@@ -385,8 +444,48 @@ class PluginContext:
     # Engine internals - used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
 
-    # Verbose flag - controls ctx.status() visibility
-    verbose: bool = True
+    # Namespace registry - plugin/builtin session-scoped state.
+    # See ctx.ns() below for the public interface.
+    _namespaces: dict[str, dict] = field(default_factory=dict)
+
+    # -- Namespaces ------------------------------------------------------------
+
+    def ns(self, name: str) -> dict:
+        """Return a session-scoped namespace dict, creating it on first access.
+
+        Namespaces are uniform mutable ``dict`` s keyed by name.  They live for
+        the lifetime of the ``PluginContext`` (one app session) and are the
+        supported way for both built-in and third-party plugins to keep
+        per-session state.  Prefer this over monkeypatching ``ctx`` or using
+        module-level globals.
+
+        Namespaces are not isolated -- any caller can read or write any
+        namespace by name.  The naming convention is collision avoidance, not
+        access control.  Plugins that publish state for other plugins to read
+        should document their key schema.
+
+        The ``flags`` namespace is engine-reserved for toggles like ``echo``,
+        ``verbose``, and ``hex_mode``.  Third-party plugins should use their
+        own namespace name (conventionally the plugin name).
+
+        Example::
+
+            def _handler(ctx, args):
+                store = ctx.ns("myplugin")
+                store["requests_sent"] = store.get("requests_sent", 0) + 1
+                ctx.write(f"sent {store['requests_sent']} requests")
+
+        Args:
+            name: Namespace identifier.  Created empty on first access.
+
+        Returns:
+            The namespace dict.  Mutations persist for the life of the
+            ``PluginContext``.  Successive calls with the same name return
+            the same dict.
+        """
+        if name not in self._namespaces:
+            self._namespaces[name] = {}
+        return self._namespaces[name]
 
     # -- Output channels -------------------------------------------------------
 
@@ -399,8 +498,15 @@ class PluginContext:
         self.write(text, color)
 
     def status(self, text: str) -> None:
-        """Write a status/progress message. Suppressed when verbose is off."""
-        if self.verbose:
+        """Write a status/progress message. Suppressed when verbose is off.
+
+        Reads the verbose flag from ``ctx.ns("flags")`` with an inline
+        default of ``True`` -- the one sanctioned exception to the
+        "flag defaults live in _build_context" rule.  ``status()`` is
+        the definition of "what verbose means" and must never raise on
+        a missing key.
+        """
+        if self.ns("flags").get("verbose", True):
             self.write(text, "dim")
 
     @contextmanager
@@ -499,14 +605,16 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         if py_file.name.startswith("_"):
             continue
         try:
-            infos, xforms, dirs = _load_plugin_file(py_file, source)
+            infos, xforms, dirs, hooks = _load_plugin_file(py_file, source)
             if infos:
                 result.plugins.extend(infos)
             if xforms:
                 result.transforms.extend(xforms)
             if dirs:
                 result.directives.extend(dirs)
-            if not infos and not xforms and not dirs:
+            if hooks:
+                result.lifecycle_hooks.extend(hooks)
+            if not infos and not xforms and not dirs and not hooks:
                 result.skipped.append(py_file.name)
         except Exception as e:
             result.errors.append(f"{py_file.name}: {e}")
@@ -515,19 +623,21 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
 
 def _load_plugin_file(
     path: Path, source: str,
-) -> tuple[list[PluginInfo], list[TransformInfo], list[DirectiveInfo]]:
-    """Import a single plugin file and extract commands, transforms, and directives.
+) -> tuple[list[PluginInfo], list[TransformInfo], list[DirectiveInfo], list[LifecycleHook]]:
+    """Import a single plugin file and extract commands, transforms, directives, and hooks.
 
     A valid plugin module may export a ``COMMAND`` instance (a ``Command``
     dataclass), a ``TRANSFORM`` instance (a ``Transform`` dataclass),
-    and/or a ``DIRECTIVE`` instance (a ``Directive`` dataclass).
+    a ``DIRECTIVE`` instance (a ``Directive`` dataclass), and/or top-level
+    lifecycle functions named in :data:`LIFECYCLE_HOOK_NAMES`.
 
     Args:
         path: Path to the .py plugin file.
         source: Label for the plugin's origin.
 
     Returns:
-        Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list).
+        Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list,
+        LifecycleHook list).
     """
     # Derive the package name if this is a builtin plugin, so the module
     # is registered under both the dynamic name and the package path.
@@ -549,7 +659,7 @@ def _load_plugin_file(
     else:
         spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:
-            return [], [], []
+            return [], [], [], []
         mod = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = mod
         if pkg_name:
@@ -586,7 +696,19 @@ def _load_plugin_file(
             source=source,
         ))
 
-    return plugins, transforms, directives
+    # Lifecycle hooks -- top-level functions named in LIFECYCLE_HOOK_NAMES
+    lifecycle_hooks: list[LifecycleHook] = []
+    for hook_name in LIFECYCLE_HOOK_NAMES:
+        handler = getattr(mod, hook_name, None)
+        if callable(handler):
+            lifecycle_hooks.append(LifecycleHook(
+                name=hook_name,
+                handler=handler,
+                source=source,
+                plugin=path.stem,
+            ))
+
+    return plugins, transforms, directives, lifecycle_hooks
 
 
 def _flatten_command(

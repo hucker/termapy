@@ -19,9 +19,9 @@ from typing import Callable
 from termapy.plugins import (
     DirectiveInfo,
     DirectiveResult,
+    LifecycleHook,
     PluginContext,
     PluginInfo,
-    TargetCommand,
     TransformInfo,
     builtins_dir,
     load_plugins_from_dir,
@@ -132,13 +132,10 @@ class ReplEngine:
         self.write = write  # write(text, color="dim") callback
         self.prefix = prefix
         self.cmd = lambda name: f"{prefix}{name}"
-        self._seq_counters: dict[int, int] = {}
-        self._seq_start_time: str = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._script_depth: int = 0
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
-        self._echo: bool = True  # echo ! command lines to screen
         # Expect watcher — predicate set by wait_for_match(), checked by feed_lines()
         self._expect_predicate: Callable[[str], bool] | None = None
         self._expect_event = Event()
@@ -170,8 +167,9 @@ class ReplEngine:
         # Directive chain - pre-dispatch line rewriters
         self._directives: list[DirectiveInfo] = []
 
-        # Target device commands - help-only, not dispatched
-        self._target_commands: dict[str, TargetCommand] = {}
+        # Lifecycle hooks - flat list in load order. fire_lifecycle() filters
+        # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
+        self._lifecycle_hooks: list[LifecycleHook] = []
 
         # Load built-in plugins from termapy/builtins/
         self._load_builtins()
@@ -185,6 +183,8 @@ class ReplEngine:
             self.register_transform(xform)
         for directive in result.directives:
             self.register_directive(directive)
+        for hook in result.lifecycle_hooks:
+            self.register_lifecycle_hook(hook)
 
     # -- Expect / pattern matching ---------------------------------------------
 
@@ -275,6 +275,30 @@ class ReplEngine:
         """Register a pre-dispatch directive. Appended in load order."""
         self._directives.append(info)
 
+    def register_lifecycle_hook(self, hook: LifecycleHook) -> None:
+        """Register a plugin lifecycle hook. Appended in load order."""
+        self._lifecycle_hooks.append(hook)
+
+    def fire_lifecycle(self, name: str) -> None:
+        """Fire every registered lifecycle hook matching *name* in load order.
+
+        Exceptions are caught per-hook so one bad plugin cannot prevent
+        later hooks from running.  Errors surface through ``ctx.status``
+        so they are visible without crashing the app.
+
+        Args:
+            name: Hook name (must be in ``LIFECYCLE_HOOK_NAMES``).
+        """
+        for hook in self._lifecycle_hooks:
+            if hook.name != name:
+                continue
+            try:
+                hook.handler(self.ctx)
+            except Exception as e:
+                self.ctx.status(
+                    f"Lifecycle hook {hook.plugin}:{name} failed: {e}"
+                )
+
     def run_directives(self, line: str) -> DirectiveResult:
         """Run all directives in load order against a raw input line.
 
@@ -356,17 +380,6 @@ class ReplEngine:
         plugin = self._plugins.get(name)
         return plugin.raw_args if plugin else False
 
-    # -- Target commands -------------------------------------------------------
-
-    def set_target_commands(self, commands: dict[str, TargetCommand]) -> None:
-        """Replace all target commands with a new set from /include."""
-        self._target_commands.clear()
-        self._target_commands.update(commands)
-
-    def clear_target_commands(self) -> None:
-        """Remove all imported target commands."""
-        self._target_commands.clear()
-
     # -- Full dispatch pipeline ------------------------------------------------
 
     def dispatch_full(
@@ -404,12 +417,13 @@ class ReplEngine:
         _log = log or (lambda _d, _t: None)
         _echo = echo_markup or (lambda _t: None)
         _status = status or (lambda _t, _c: None)
+        echo_on = self.ctx.ns("flags")["echo"]
 
         # 1. /raw bypass - no transforms, no directives
         if cmd.startswith(prefix + "raw "):
             raw_text = cmd[len(prefix) + 4 :]
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             if serial_write_raw:
                 serial_write_raw(raw_text)
@@ -419,18 +433,18 @@ class ReplEngine:
         result = self.run_directives(cmd)
         if result.action == "rewrite":
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             return self.dispatch(result.payload)
         if result.action == "warn":
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Warning: {result.payload}", "yellow")
             return CmdResult.ok()
         if result.action == "error":
             _log(">", cmd)
-            if self._echo:
+            if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
@@ -446,7 +460,7 @@ class ReplEngine:
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
-            if self._echo and ".quiet" not in repl_cmd.split()[0]:
+            if echo_on and ".quiet" not in repl_cmd.split()[0]:
                 _echo_cmd(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
@@ -509,9 +523,7 @@ class ReplEngine:
             return CmdResult.ok()
         name = parts[0].lower()
         raw_args = parts[1] if len(parts) > 1 else ""
-        args, self._seq_counters = expand_template(
-            raw_args, self._seq_counters, self._seq_start_time
-        )
+        args = self._expand_template(raw_args)
 
         # Universal `.quiet` modifier: any command can be invoked as
         # `<cmd>.quiet` to suppress its terminal output. We only fall back
@@ -605,10 +617,24 @@ class ReplEngine:
         if self._after_cfg:
             self._after_cfg(key, new_val)
 
-    def _reset_seq(self) -> None:
-        """Reset sequence counters and start time."""
-        self._seq_counters = {}
-        self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    def _expand_template(self, text: str) -> str:
+        """Expand ``{seqN}``, ``{seqN+}``, ``{datetime}``, ``{starttime}``.
+
+        Reads the seq counter state from ``ctx.ns("seq")``.  Integer keys
+        are counters; the string key ``_start_time`` is the timestamp for
+        ``{starttime}``.  After expansion, writes the updated counters
+        back in place so the namespace dict identity is preserved for any
+        cached references.
+        """
+        seq_ns = self.ctx.ns("seq")
+        start_time = seq_ns.get("_start_time", "")
+        counters = {k: v for k, v in seq_ns.items() if isinstance(k, int)}
+        result, new_counters = expand_template(text, counters, start_time)
+        for k in list(seq_ns):
+            if isinstance(k, int):
+                del seq_ns[k]
+        seq_ns.update(new_counters)
+        return result
 
     # -- Transform chains ------------------------------------------------------
 
@@ -664,12 +690,15 @@ class ReplEngine:
             return None, CmdResult.fail(
                 msg=f"Script nesting too deep ({self._max_script_depth} levels). Use /stop first."
             )
-        if self._script_depth == 0:
+        outermost = self._script_depth == 0
+        if outermost:
             self._script_stop.clear()
         self._script_depth += 1
         self._script_stack.append(path.name)
-        self._seq_counters = {}
-        self._seq_start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if outermost:
+            # on_script_start fires for the outermost script only.  The seq
+            # plugin clears counters and refreshes {starttime} from its hook.
+            self.fire_lifecycle("on_script_start")
         self.ctx.status(f"Running script: {filename}")
         return path, CmdResult.ok()
 
@@ -677,11 +706,7 @@ class ReplEngine:
 
     def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /delay in scripts — sleep on background thread."""
-        expanded, self._seq_counters = expand_template(
-            args.strip(),
-            self._seq_counters,
-            self._seq_start_time,
-        )
+        expanded = self._expand_template(args.strip())
         try:
             seconds = parse_duration(expanded)
         except ValueError as e:
@@ -833,6 +858,8 @@ class ReplEngine:
             self._script_depth -= 1
             if self._script_stack:
                 self._script_stack.pop()
+            if self._script_depth == 0:
+                self.fire_lifecycle("on_script_stop")
             yield sctx  # yield empty context so 'with' block runs (lines is empty)
             return
         sctx.lines = [
@@ -857,6 +884,8 @@ class ReplEngine:
             self._script_depth -= 1
             if self._script_stack:
                 self._script_stack.pop()
+            if self._script_depth == 0:
+                self.fire_lifecycle("on_script_stop")
             if on_nest:
                 on_nest()
             if sctx.prof_fh:
@@ -907,7 +936,7 @@ class ReplEngine:
                 if not profile and self._script_depth <= 1:
                     if self._script_stop.is_set():
                         w("Script aborted.", "red")
-                    elif self.ctx.verbose:
+                    elif self.ctx.ns("flags")["verbose"]:
                         w("Script finished.")
 
     # -- Properties -----------------------------------------------------------
@@ -945,7 +974,7 @@ class ReplEngine:
 
     @property
     def echo(self) -> bool:
-        return self._echo
+        return self.ctx.ns("flags")["echo"]
 
     @property
     def in_script(self) -> bool:

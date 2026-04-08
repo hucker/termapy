@@ -20,6 +20,11 @@ def send_env():
         serial_read_raw=lambda timeout_ms=1000, frame_gap_ms=0: b"",
         engine=EngineAPI(),
     )
+    # Seed the `flags` namespace (would be done by app.py._build_context).
+    flags = ctx.ns("flags")
+    flags["echo"] = True
+    flags["verbose"] = True
+    flags["hex_mode"] = False
     return ctx, output, tx_bytes
 
 

@@ -104,7 +104,6 @@ class CLITerminal:
         )
         self._setup_context()
         self._register_hooks()
-        self.repl._echo = False  # CLI never echoes — readline shows input
 
     # -- Output ---------------------------------------------------------------
 
@@ -148,18 +147,10 @@ class CLITerminal:
         engine_api = EngineAPI(
             prefix=self.prefix,
             plugins=self.repl._plugins,
-            get_echo=lambda: False,
-            set_echo=lambda val: None,  # CLI never echoes
-            get_seq_counters=lambda: self.repl._seq_counters,
-            set_seq_counters=lambda val: setattr(self.repl, "_seq_counters", val),
-            reset_seq=self.repl._reset_seq,
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             start_capture=lambda **kw: self._start_capture(**kw),
             stop_capture=lambda: self._stop_capture(),
-            target_commands=self.repl._target_commands,
-            set_target_commands=self.repl.set_target_commands,
-            clear_target_commands=self.repl.clear_target_commands,
             script_stop_event=self.repl._script_stop,
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
@@ -222,6 +213,14 @@ class CLITerminal:
             get_screen_text=lambda: "",
         )
         self.repl.set_context(self.ctx)
+        # Engine-reserved `flags` namespace: CLI never echoes because readline
+        # already shows the user's input.  See app.py._build_context for the
+        # shared convention — `flags` holds engine toggles; per-plugin state
+        # goes in the plugin's own namespace.
+        flags = self.ctx.ns("flags")
+        flags["echo"] = False
+        flags.setdefault("verbose", True)
+        flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 
     def _register_hooks(self) -> None:
         """Register CLI-specific hooks for /delay, /color, /run."""
@@ -715,12 +714,14 @@ class CLITerminal:
                         for name in repl._plugins
                         if f"{prefix}{name}".startswith(line)
                     )
-                elif repl._target_commands:
-                    matches = sorted(
-                        name
-                        for name in repl._target_commands
-                        if name.lower().startswith(line.lower())
-                    )
+                else:
+                    target_cmds = repl.ctx.ns("target_commands")
+                    if target_cmds:
+                        matches = sorted(
+                            name
+                            for name in target_cmds
+                            if name.lower().startswith(line.lower())
+                        )
 
             if state < len(matches):
                 return matches[state]
@@ -781,7 +782,7 @@ class CLITerminal:
         """Run the interactive input loop."""
         # Readline shows REPL commands — no need to echo those.
         # Serial echo is off — we sync manually with wait_for_idle after dispatch.
-        self.repl._echo = False
+        self.ctx.ns("flags")["echo"] = False
         self.cfg["echo_input"] = False
         try:
             while True:
@@ -828,6 +829,7 @@ class CLITerminal:
             Mode to switch to ("tui") or None for normal exit.
         """
         self.switch_to: str | None = None
+        self.repl.fire_lifecycle("on_app_start")
         if not self.engine.connect():
             port = self.cfg.get("port", "?")
             detail = self.engine.last_error
@@ -876,6 +878,7 @@ class CLITerminal:
             self._run_script_mode()
         else:
             self._run_interactive()
+        self.repl.fire_lifecycle("on_app_stop")
         return self.switch_to
 
 

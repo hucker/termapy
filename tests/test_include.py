@@ -44,9 +44,6 @@ def engine(tmp_path):
     eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
     engine_api = EngineAPI(
         plugins=eng._plugins,
-        target_commands=eng._target_commands,
-        set_target_commands=eng.set_target_commands,
-        clear_target_commands=eng.clear_target_commands,
     )
     ctx = PluginContext(
         write=lambda t, c=None: output.append((t, c)),
@@ -56,6 +53,11 @@ def engine(tmp_path):
         engine=engine_api,
     )
     eng.set_context(ctx)
+    # Seed the `flags` namespace (would be done by app.py._build_context).
+    flags = ctx.ns("flags")
+    flags["echo"] = True
+    flags["verbose"] = True
+    flags["hex_mode"] = False
     return eng, output
 
 
@@ -159,7 +161,7 @@ class TestTargetCommandStorage:
         # Arrange
         eng, _ = engine
         # Assert
-        assert eng._target_commands == {}, "starts empty"
+        assert eng.ctx.ns("target_commands") == {}, "starts empty"
 
     def test_set_target_commands(self, engine) -> None:
         # Arrange
@@ -169,36 +171,42 @@ class TestTargetCommandStorage:
             "AT+INFO": TargetCommand(name="AT+INFO", help="Device info"),
         }
         # Act
-        eng.set_target_commands(commands)
+        target = eng.ctx.ns("target_commands")
+        target.clear()
+        target.update(commands)
         # Assert
-        assert len(eng._target_commands) == 2, "both stored"
-        assert "AT" in eng._target_commands, "AT present"
-        assert "AT+INFO" in eng._target_commands, "AT+INFO present"
+        assert len(target) == 2, "both stored"
+        assert "AT" in target, "AT present"
+        assert "AT+INFO" in target, "AT+INFO present"
 
     def test_set_replaces_previous(self, engine) -> None:
         # Arrange
         eng, _ = engine
-        eng.set_target_commands({
+        target = eng.ctx.ns("target_commands")
+        target.clear()
+        target.update({
             "OLD": TargetCommand(name="OLD", help="old cmd"),
         })
         # Act
-        eng.set_target_commands({
+        target.clear()
+        target.update({
             "NEW": TargetCommand(name="NEW", help="new cmd"),
         })
         # Assert
-        assert "OLD" not in eng._target_commands, "old entry removed"
-        assert "NEW" in eng._target_commands, "new entry present"
+        assert "OLD" not in target, "old entry removed"
+        assert "NEW" in target, "new entry present"
 
     def test_clear_target_commands(self, engine) -> None:
         # Arrange
         eng, _ = engine
-        eng.set_target_commands({
+        target = eng.ctx.ns("target_commands")
+        target.update({
             "AT": TargetCommand(name="AT", help="Connection test"),
         })
         # Act
-        eng.clear_target_commands()
+        target.clear()
         # Assert
-        assert eng._target_commands == {}, "cleared"
+        assert target == {}, "cleared"
 
 
 # -- JSON parsing (include helpers) -------------------------------------------
@@ -278,7 +286,7 @@ class TestHelpTarget:
         """Lists target commands after include."""
         # Arrange
         eng, output = engine
-        eng.set_target_commands({
+        eng.ctx.ns("target_commands").update({
             "AT": TargetCommand(name="AT", help="Connection test"),
             "AT+INFO": TargetCommand(name="AT+INFO", help="Device info"),
         })
@@ -295,7 +303,7 @@ class TestHelpTarget:
         """Target commands with args display them."""
         # Arrange
         eng, output = engine
-        eng.set_target_commands({
+        eng.ctx.ns("target_commands").update({
             "AT+LED": TargetCommand(name="AT+LED", help="Control LED", args="<on|off>"),
         })
         # Act
@@ -309,7 +317,7 @@ class TestHelpTarget:
         """Reports total count of target commands."""
         # Arrange
         eng, output = engine
-        eng.set_target_commands({
+        eng.ctx.ns("target_commands").update({
             "AT": TargetCommand(name="AT", help="test"),
             "AT+INFO": TargetCommand(name="AT+INFO", help="test"),
             "AT+TEMP": TargetCommand(name="AT+TEMP", help="test"),

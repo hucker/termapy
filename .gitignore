@@ -13,6 +13,7 @@ cmake/**/.generated/*
 cmake/**/CMake*
 out/
 __pycache__/
+.ruff_cache/
 *.egg-info/
 .venv/
 .tox/

@@ -341,3 +341,277 @@ class TestSerialIo:
 
         # Assert
         assert "release" in calls, "release called despite exception"
+
+
+class TestNamespaces:
+    """Tests for ctx.ns() — the session-scoped namespace primitive."""
+
+    def _ctx(self):
+        return PluginContext(write=lambda t, c=None: None)
+
+    def test_lazy_creation_returns_empty_dict(self):
+        # Arrange
+        ctx = self._ctx()
+
+        # Act
+        actual = ctx.ns("fresh")
+
+        # Assert
+        expected: dict = {}
+        assert actual == expected, "new namespace should be an empty dict"
+
+    def test_mutation_visible_on_next_access(self):
+        # Arrange
+        ctx = self._ctx()
+        ctx.ns("seq")["counter"] = 42
+
+        # Act
+        actual = ctx.ns("seq")["counter"]
+
+        # Assert
+        expected = 42
+        assert actual == expected, "mutation should persist across ns() calls"
+
+    def test_same_name_returns_same_dict(self):
+        # Arrange
+        ctx = self._ctx()
+        first = ctx.ns("flags")
+
+        # Act
+        second = ctx.ns("flags")
+
+        # Assert
+        assert first is second, "ns() must return the same dict for the same name"
+
+    def test_different_names_are_independent(self):
+        # Arrange
+        ctx = self._ctx()
+
+        # Act
+        ctx.ns("a")["x"] = 1
+        ctx.ns("b")["x"] = 2
+
+        # Assert
+        actual_a = ctx.ns("a")["x"]
+        actual_b = ctx.ns("b")["x"]
+        assert actual_a == 1, "namespace a should not see b's writes"
+        assert actual_b == 2, "namespace b should not see a's writes"
+
+    def test_namespaces_isolated_per_context(self):
+        # Arrange
+        ctx1 = self._ctx()
+        ctx2 = self._ctx()
+        ctx1.ns("seq")["counter"] = 99
+
+        # Act
+        actual = ctx2.ns("seq")
+
+        # Assert
+        expected: dict = {}
+        assert actual == expected, "each PluginContext has its own namespace registry"
+
+    def test_dict_like_api_works(self):
+        # Arrange
+        ctx = self._ctx()
+        ns = ctx.ns("myplugin")
+
+        # Act
+        ns["a"] = 1
+        ns.setdefault("b", 2)
+        ns.update({"c": 3})
+
+        # Assert
+        actual = dict(ns)
+        expected = {"a": 1, "b": 2, "c": 3}
+        assert actual == expected, "namespace should support full dict interface"
+
+    def test_clear_empties_in_place(self):
+        # Arrange
+        ctx = self._ctx()
+        ns = ctx.ns("seq")
+        ns["x"] = 1
+        ns["y"] = 2
+
+        # Act
+        ns.clear()
+
+        # Assert
+        actual = ctx.ns("seq")
+        expected: dict = {}
+        assert actual == expected, "clear() should empty the namespace"
+        assert actual is ns, "clear() preserves identity so cached refs stay valid"
+
+
+class TestLifecycleHookDiscovery:
+    """Tests for loader discovery of on_app_start / on_script_start / etc."""
+
+    def test_discovers_on_app_start(self, plugin_dir):
+        # Arrange
+        _write_plugin(plugin_dir, "hooked.py", '''
+from termapy.plugins import Command
+
+def _handler(ctx, args):
+    pass
+
+def on_app_start(ctx):
+    ctx.ns("hooked")["started"] = True
+
+COMMAND = Command(name="hooked", help="x", handler=_handler)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        names = [h.name for h in result.lifecycle_hooks]
+        assert "on_app_start" in names, "on_app_start hook should be discovered"
+        assert len(result.lifecycle_hooks) == 1, "only one hook exported"
+        assert result.lifecycle_hooks[0].plugin == "hooked", "plugin stem recorded"
+
+    def test_discovers_all_four_hooks(self, plugin_dir):
+        # Arrange
+        _write_plugin(plugin_dir, "fully_hooked.py", '''
+from termapy.plugins import Command
+
+def _handler(ctx, args):
+    pass
+
+def on_app_start(ctx): pass
+def on_app_stop(ctx): pass
+def on_script_start(ctx): pass
+def on_script_stop(ctx): pass
+
+COMMAND = Command(name="fully_hooked", help="x", handler=_handler)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        actual = sorted(h.name for h in result.lifecycle_hooks)
+        expected = ["on_app_start", "on_app_stop", "on_script_start", "on_script_stop"]
+        assert actual == expected, "all four lifecycle hooks discovered"
+
+    def test_non_hook_functions_ignored(self, plugin_dir):
+        # Arrange
+        _write_plugin(plugin_dir, "noisy.py", '''
+from termapy.plugins import Command
+
+def _handler(ctx, args):
+    pass
+
+def on_something_else(ctx):
+    """Not a recognized hook name."""
+    pass
+
+def helper():
+    pass
+
+COMMAND = Command(name="noisy", help="x", handler=_handler)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        assert result.lifecycle_hooks == [], "unknown function names are not hooks"
+
+    def test_hook_only_plugin_not_skipped(self, plugin_dir):
+        """A file that exports only a hook (no COMMAND) is still a valid plugin."""
+        # Arrange
+        _write_plugin(plugin_dir, "hook_only.py", '''
+def on_app_start(ctx):
+    pass
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+
+        # Assert
+        assert len(result.lifecycle_hooks) == 1, "hook-only plugin is loaded"
+        assert "hook_only.py" not in result.skipped, "not reported as skipped"
+
+
+class TestFireLifecycle:
+    """Tests for ReplEngine.fire_lifecycle — ordering, filtering, isolation."""
+
+    def _engine(self, tmp_path):
+        from termapy.repl import ReplEngine
+        cfg_path = tmp_path / "test.cfg"
+        cfg_path.write_text("{}", encoding="utf-8")
+        return ReplEngine({}, str(cfg_path), lambda t, c=None: None)
+
+    def test_fire_calls_matching_hooks_only(self, tmp_path):
+        # Arrange
+        from termapy.plugins import LifecycleHook
+        calls = []
+        eng = self._engine(tmp_path)
+        eng._lifecycle_hooks = []  # clear builtin hooks for isolation
+        eng.register_lifecycle_hook(LifecycleHook(
+            name="on_app_start",
+            handler=lambda ctx: calls.append("start"),
+        ))
+        eng.register_lifecycle_hook(LifecycleHook(
+            name="on_app_stop",
+            handler=lambda ctx: calls.append("stop"),
+        ))
+
+        # Act
+        eng.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert calls == ["start"], "only the named hook fires"
+
+    def test_fire_preserves_registration_order(self, tmp_path):
+        # Arrange
+        from termapy.plugins import LifecycleHook
+        calls = []
+        eng = self._engine(tmp_path)
+        eng._lifecycle_hooks = []
+        for label in ("a", "b", "c"):
+            eng.register_lifecycle_hook(LifecycleHook(
+                name="on_app_start",
+                handler=lambda ctx, lbl=label: calls.append(lbl),
+            ))
+
+        # Act
+        eng.fire_lifecycle("on_app_start")
+
+        # Assert
+        actual = calls
+        expected = ["a", "b", "c"]
+        assert actual == expected, "hooks fire in registration order"
+
+    def test_exception_in_one_hook_does_not_block_others(self, tmp_path):
+        # Arrange
+        from termapy.plugins import LifecycleHook
+        calls = []
+        eng = self._engine(tmp_path)
+        eng._lifecycle_hooks = []
+
+        def bad_hook(ctx):
+            raise RuntimeError("boom")
+
+        eng.register_lifecycle_hook(LifecycleHook(
+            name="on_app_start",
+            handler=bad_hook,
+            plugin="bad",
+        ))
+        eng.register_lifecycle_hook(LifecycleHook(
+            name="on_app_start",
+            handler=lambda ctx: calls.append("survivor"),
+        ))
+
+        # Act
+        eng.fire_lifecycle("on_app_start")
+
+        # Assert
+        assert calls == ["survivor"], "later hooks run despite earlier exception"
+
+    def test_fire_with_no_matching_hooks_is_noop(self, tmp_path):
+        # Arrange
+        eng = self._engine(tmp_path)
+        eng._lifecycle_hooks = []
+
+        # Act + Assert — just must not raise
+        eng.fire_lifecycle("on_app_stop")

@@ -341,3 +341,102 @@ class TestSerialIo:
 
         # Assert
         assert "release" in calls, "release called despite exception"
+
+
+class TestNamespaces:
+    """Tests for ctx.ns() — the session-scoped namespace primitive."""
+
+    def _ctx(self):
+        return PluginContext(write=lambda t, c=None: None)
+
+    def test_lazy_creation_returns_empty_dict(self):
+        # Arrange
+        ctx = self._ctx()
+
+        # Act
+        actual = ctx.ns("fresh")
+
+        # Assert
+        expected: dict = {}
+        assert actual == expected, "new namespace should be an empty dict"
+
+    def test_mutation_visible_on_next_access(self):
+        # Arrange
+        ctx = self._ctx()
+        ctx.ns("seq")["counter"] = 42
+
+        # Act
+        actual = ctx.ns("seq")["counter"]
+
+        # Assert
+        expected = 42
+        assert actual == expected, "mutation should persist across ns() calls"
+
+    def test_same_name_returns_same_dict(self):
+        # Arrange
+        ctx = self._ctx()
+        first = ctx.ns("flags")
+
+        # Act
+        second = ctx.ns("flags")
+
+        # Assert
+        assert first is second, "ns() must return the same dict for the same name"
+
+    def test_different_names_are_independent(self):
+        # Arrange
+        ctx = self._ctx()
+
+        # Act
+        ctx.ns("a")["x"] = 1
+        ctx.ns("b")["x"] = 2
+
+        # Assert
+        actual_a = ctx.ns("a")["x"]
+        actual_b = ctx.ns("b")["x"]
+        assert actual_a == 1, "namespace a should not see b's writes"
+        assert actual_b == 2, "namespace b should not see a's writes"
+
+    def test_namespaces_isolated_per_context(self):
+        # Arrange
+        ctx1 = self._ctx()
+        ctx2 = self._ctx()
+        ctx1.ns("seq")["counter"] = 99
+
+        # Act
+        actual = ctx2.ns("seq")
+
+        # Assert
+        expected: dict = {}
+        assert actual == expected, "each PluginContext has its own namespace registry"
+
+    def test_dict_like_api_works(self):
+        # Arrange
+        ctx = self._ctx()
+        ns = ctx.ns("myplugin")
+
+        # Act
+        ns["a"] = 1
+        ns.setdefault("b", 2)
+        ns.update({"c": 3})
+
+        # Assert
+        actual = dict(ns)
+        expected = {"a": 1, "b": 2, "c": 3}
+        assert actual == expected, "namespace should support full dict interface"
+
+    def test_clear_empties_in_place(self):
+        # Arrange
+        ctx = self._ctx()
+        ns = ctx.ns("seq")
+        ns["x"] = 1
+        ns["y"] = 2
+
+        # Act
+        ns.clear()
+
+        # Assert
+        actual = ctx.ns("seq")
+        expected: dict = {}
+        assert actual == expected, "clear() should empty the namespace"
+        assert actual is ns, "clear() preserves identity so cached refs stay valid"

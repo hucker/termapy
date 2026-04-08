@@ -79,10 +79,29 @@ Serial I/O:     ctx.serial_write(), ctx.serial_read_raw(), ctx.serial_drain()
 Filesystem:      ctx.ss_dir, ctx.scripts_dir, ctx.proto_dir, ctx.cap_dir
 Interaction:     ctx.confirm(), ctx.clear_screen(), ctx.open_file()
 Dispatch:        ctx.dispatch() — route a command through the full pipeline
+Namespaces:     ctx.ns(name) — session-scoped state (see below)
 Engine:          ctx.engine — internal/unstable API for built-ins
 ```
 
 External plugins use `PluginContext` only. `EngineAPI` is internal and may change.
+
+#### Namespaces (`ctx.ns()`)
+
+`ctx.ns(name)` returns a session-scoped dict, created lazily on first access, shared across every call with the same name for the lifetime of the `PluginContext`. It is the supported way for both built-in and third-party plugins to keep per-session state — a sanctioned alternative to monkeypatching `ctx` or using module-level globals.
+
+Namespaces are plain mutable `dict`s. They are not persisted (use `ctx.cfg` for that) and not isolated — any caller can read any namespace. The name is a collision-avoidance convention, not access control, which lets cooperating plugins share state on purpose (a "stats" plugin can walk every namespace and surface counters without the producers knowing it exists).
+
+Built-ins use namespaces as worked examples of the pattern:
+
+```text
+ctx.ns("seq")              — sequence counters, mutated by {seqN+} template expansion
+ctx.ns("target_commands")  — device commands imported via /include
+ctx.ns("flags")            — engine-owned toggles: echo, verbose, hex_mode
+```
+
+The `flags` namespace is engine-reserved. Third-party plugins should use their own namespace name (conventionally the plugin name, e.g. `ctx.ns("myplugin")`). The engine's flag defaults are set once at context construction in `_build_context`; read sites access them with bare key lookups, so a missing key is a construction bug, not silent drift.
+
+Contrast with `ctx.engine`: `EngineAPI` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction — `engine` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
 
 ### Loading order (later overrides earlier)
 

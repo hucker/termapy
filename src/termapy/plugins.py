@@ -336,6 +336,9 @@ class PluginContext:
         exit_app: Exit the application.
         engine: Internal engine API (``EngineAPI``). **Built-in plugins only** -
             this is unstable and may change between versions.
+        ns: Return a session-scoped namespace dict, creating it on first
+            access. The supported API for storing per-session state from
+            both built-in and third-party plugins. See ``PluginContext.ns``.
     """
 
     # Core I/O
@@ -387,6 +390,49 @@ class PluginContext:
 
     # Verbose flag - controls ctx.status() visibility
     verbose: bool = True
+
+    # Namespace registry - plugin/builtin session-scoped state.
+    # See ctx.ns() below for the public interface.
+    _namespaces: dict[str, dict] = field(default_factory=dict)
+
+    # -- Namespaces ------------------------------------------------------------
+
+    def ns(self, name: str) -> dict:
+        """Return a session-scoped namespace dict, creating it on first access.
+
+        Namespaces are uniform mutable ``dict`` s keyed by name.  They live for
+        the lifetime of the ``PluginContext`` (one app session) and are the
+        supported way for both built-in and third-party plugins to keep
+        per-session state.  Prefer this over monkeypatching ``ctx`` or using
+        module-level globals.
+
+        Namespaces are not isolated -- any caller can read or write any
+        namespace by name.  The naming convention is collision avoidance, not
+        access control.  Plugins that publish state for other plugins to read
+        should document their key schema.
+
+        The ``flags`` namespace is engine-reserved for toggles like ``echo``,
+        ``verbose``, and ``hex_mode``.  Third-party plugins should use their
+        own namespace name (conventionally the plugin name).
+
+        Example::
+
+            def _handler(ctx, args):
+                store = ctx.ns("myplugin")
+                store["requests_sent"] = store.get("requests_sent", 0) + 1
+                ctx.write(f"sent {store['requests_sent']} requests")
+
+        Args:
+            name: Namespace identifier.  Created empty on first access.
+
+        Returns:
+            The namespace dict.  Mutations persist for the life of the
+            ``PluginContext``.  Successive calls with the same name return
+            the same dict.
+        """
+        if name not in self._namespaces:
+            self._namespaces[name] = {}
+        return self._namespaces[name]
 
     # -- Output channels -------------------------------------------------------
 

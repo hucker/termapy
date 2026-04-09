@@ -30,3 +30,5 @@ coverage.xml
 REVIEW.md
 notes/
 .pypirc
+.claude/
+todo.md

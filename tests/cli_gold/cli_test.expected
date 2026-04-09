@@ -208,6 +208,7 @@ demo> /port.info
     Frame:        8N1
     Flow control: none
     Encoding:     utf-8
+
     DTR:          1
     RTS:          1
     CTS:          1
@@ -252,12 +253,13 @@ demo> /port
     /port.break {duration_ms} - Send a break signal (default 250ms).
     /port.byte_size {value} - Show or set data bits.
     /port.cd - Show Carrier Detect state (read-only).
+    /port.chip {name|*} - Identify USB-serial chip(s) and report USB speed class.
     /port.close - Disconnect from the serial port.
     /port.cts - Show CTS state (read-only).
     /port.dsr - Show DSR state (read-only).
     /port.dtr {0|1} - Show or set DTR line (hardware only).
     /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
-    /port.info - Show port status, serial parameters, and hardware lines.
+    /port.info - Show status, params, chip, and live signals for the connected port.
     /port.list - List available serial ports.
     /port.open {name} - Connect to the serial port (optional port override).
     /port.parity {value} - Show or set parity.
@@ -327,12 +329,13 @@ demo> /help port
     /port.break {duration_ms} - Send a break signal (default 250ms).
     /port.byte_size {value} - Show or set data bits.
     /port.cd - Show Carrier Detect state (read-only).
+    /port.chip {name|*} - Identify USB-serial chip(s) and report USB speed class.  ...
     /port.close - Disconnect from the serial port.
     /port.cts - Show CTS state (read-only).
     /port.dsr - Show DSR state (read-only).
     /port.dtr {0|1} - Show or set DTR line (hardware only).
     /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
-    /port.info - Show port status, serial parameters, and hardware lines.
+    /port.info - Show status, params, chip, and live signals for the connected port.
     /port.list - List available serial ports.
     /port.open {name} - Connect to the serial port (optional port override).
     /port.parity {value} - Show or set parity.
@@ -486,7 +489,7 @@ demo> /help.plugin
   /include                  ... /help include          Include device command help from JSON response.  (4)
   /os                       <cmd>                      Run a shell command and show output (10s timeout). e.g. /os dir
   /ping                     ... /help ping             Send a command and measure response time.  (1)
-  /port                     {name}                     Serial port tools: open, close, list, configure.  (16)
+  /port                     {name}                     Serial port tools: open, close, list, configure.  (17)
   /print                    <text>                     Print a message to the terminal.  (1)
   /proto                                               Binary protocol tools: send, run, debug, hex, crc, status.  (7)
   /repeat                   ... /help repeat           Repeat a command N times with optional delay (escape to cancel).

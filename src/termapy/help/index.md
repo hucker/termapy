@@ -10,6 +10,7 @@ Select a topic:
 - [Demo mode](demo.md): try everything without hardware
 - [Getting started](getting-started.md): connect to real hardware, config files, folder layout
 - [Configuration](config.md): JSON config, field reference, config management
+- [Serial ports](ports.md): picking a port, chip info, USB speed, latency tuning
 - [Custom buttons](custom-buttons.md): adding toolbar buttons
 - [Toolbar and shortcuts](toolbar.md): buttons, keyboard shortcuts, command palette
 - [REPL commands](commands.md): full command reference table

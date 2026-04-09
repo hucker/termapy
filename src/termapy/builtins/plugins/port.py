@@ -62,6 +62,25 @@ def _handler_close(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
+    """Show port info for the currently-connected port.
+
+    Dumps configured serial parameters, USB chip identification, and
+    live hardware signal lines (DTR/RTS/CTS/DSR/RI/CD).  This is the
+    richest port report termapy can produce, but it only works on the
+    port termapy is actually connected to because the live signals
+    come from an open Serial object.
+
+    For chip info on any other port (or all ports at once), use
+    /port.chip which has a compatible argument shape.
+    """
+    arg = args.strip()
+    if arg:
+        return CmdResult.fail(
+            msg=(
+                f"/port.info only reports on the connected port. "
+                f"For chip info on {arg!r}, use /port.chip {arg}"
+            )
+        )
     _apply(ctx, port_control.port_info(ctx.cfg, ctx.port()))
     return CmdResult.ok()
 
@@ -74,6 +93,32 @@ def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
     _apply(ctx, port_control.send_break(ctx.port(), args))
     return CmdResult.ok()
+
+
+def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
+    current = ctx.cfg.get("port", "") or ""
+    _apply(ctx, port_control.chip_info(args, current))
+    return CmdResult.ok()
+
+
+def _make_chip_field_handler(field: str):
+    """Build a handler for /port.chip.<field>.
+
+    The handler takes an optional port name (or ``*`` for all ports).
+    With no argument it queries the current port from cfg["port"].
+    """
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
+        current = ctx.cfg.get("port", "") or ""
+        result = port_control.chip_field(field, args, current)
+        _apply(ctx, result)
+        # Single-port single-field call: return value via CmdResult.value
+        # so .quiet mode is useful for scripting.
+        msgs, _ = result
+        if len(msgs) == 1:
+            return CmdResult.ok(value=msgs[0][0])
+        return CmdResult.ok()
+
+    return _handler
 
 
 def _make_prop_handler(key: str):
@@ -122,7 +167,7 @@ COMMAND = Command(
             handler=_handler_close,
         ),
         "info": Command(
-            help="Show port status, serial parameters, and hardware lines.",
+            help="Show status, params, chip, and live signals for the connected port.",
             handler=_handler_info,
         ),
         "baud_rate": Command(
@@ -180,6 +225,93 @@ COMMAND = Command(
             args="{duration_ms}",
             help="Send a break signal (default 250ms).",
             handler=_handler_break,
+        ),
+        "chip": Command(
+            args="{name|*}",
+            help="Identify USB-serial chip(s) and report USB speed class.",
+            handler=_handler_chip,
+            sub_commands={
+                "device": Command(
+                    args="{name|*}",
+                    help="Show port device name.",
+                    handler=_make_chip_field_handler("device"),
+                ),
+                "description": Command(
+                    args="{name|*}",
+                    help="Show OS-reported port description.",
+                    handler=_make_chip_field_handler("description"),
+                ),
+                "manufacturer": Command(
+                    args="{name|*}",
+                    help="Show USB manufacturer string.",
+                    handler=_make_chip_field_handler("manufacturer"),
+                ),
+                "product": Command(
+                    args="{name|*}",
+                    help="Show USB product string.",
+                    handler=_make_chip_field_handler("product"),
+                ),
+                "serial": Command(
+                    args="{name|*}",
+                    help="Show USB serial number of the cable.",
+                    handler=_make_chip_field_handler("serial"),
+                ),
+                "location": Command(
+                    args="{name|*}",
+                    help="Show USB topology location.",
+                    handler=_make_chip_field_handler("location"),
+                ),
+                "interface": Command(
+                    args="{name|*}",
+                    help="Show interface label (multi-channel chips).",
+                    handler=_make_chip_field_handler("interface"),
+                ),
+                "vid_pid": Command(
+                    args="{name|*}",
+                    help="Show USB VID:PID hex string.",
+                    handler=_make_chip_field_handler("vid_pid"),
+                ),
+                "model": Command(
+                    args="{name|*}",
+                    help="Show identified chip model from the lookup table.",
+                    handler=_make_chip_field_handler("model"),
+                ),
+                "usb_speed": Command(
+                    args="{name|*}",
+                    help="Show theoretical USB speed class for the chip.",
+                    handler=_make_chip_field_handler("usb_speed"),
+                ),
+                "negotiated": Command(
+                    args="{name|*}",
+                    help="Show OS-reported negotiated USB link speed (Linux only).",
+                    handler=_make_chip_field_handler("negotiated"),
+                ),
+                "driver": Command(
+                    args="{name|*}",
+                    help="Show kernel driver name (Linux only).",
+                    handler=_make_chip_field_handler("driver"),
+                ),
+                "latency_timer": Command(
+                    args="{name|*}",
+                    help="Show FTDI latency timer value (Linux + FTDI only).",
+                    handler=_make_chip_field_handler("latency_timer"),
+                ),
+                "max_baud": Command(
+                    args="{name|*}",
+                    help="Show maximum baud rate the chip supports.",
+                    handler=_make_chip_field_handler("max_baud"),
+                ),
+                "permissions": Command(
+                    args="{name|*}",
+                    help="Show read/write permission status for the device.",
+                    handler=_make_chip_field_handler("permissions"),
+                ),
+                "in_use": Command(
+                    args="{name|*}",
+                    help="Show whether another process has the port open.",
+                    handler=_make_chip_field_handler("in_use"),
+                ),
+            },
         ),
     },
 )

@@ -130,6 +130,9 @@ class SerialTerminal(App):
     TITLE = "termapy"
 
     CSS = """
+    Tooltip {
+        max-width: 80;
+    }
     #title-bar {
         dock: top;
         height: 1;
@@ -1570,44 +1573,166 @@ class SerialTerminal(App):
         self._show_config_info(new_path)
 
     def _port_info_str(self) -> str:
-        """Format port info like '[COM4 115200 8N1]' for title bar."""
+        """Format port info like 'COM4 115200 8N1' for title bar.
+
+        Brackets were previously wrapped around the string but interacted
+        badly with Rich markup parsing -- the closing ``]`` was consumed
+        as a malformed markup tag terminator.  The bare label is cleaner
+        and fits the title-bar button without escaping concerns.
+        """
         from termapy.config import connection_string
 
-        return f"\\[{connection_string(self.cfg, 'short')}]"
+        return connection_string(self.cfg, 'short')
+
+    @staticmethod
+    def _format_title_tooltip(
+        title: str, kv_pairs: list[tuple[str, object]], action: str
+    ) -> str:
+        """Render a title-bar tooltip with the shared three-section layout.
+
+        Layout::
+
+            <title>
+
+            key1            = value1
+            key2            = value2
+            key3            = value3
+
+            Click to: <action>
+
+        Keys are left-aligned and padded so the ``=`` signs line up
+        across rows.  Values are formatted with ``_format_tooltip_value``
+        so booleans appear as ``ON``/``OFF``, ``None`` becomes ``(none)``,
+        and strings with control characters are repr'd.
+
+        Args:
+            title: Heading line shown at the top.
+            kv_pairs: List of (key, value) tuples for the body.  Order
+                preserved.  Empty keys are silently skipped.
+            action: Verb fragment shown after ``Click to:`` at the bottom.
+
+        Returns:
+            Formatted tooltip string with embedded newlines.
+        """
+        body_pairs = [(k, v) for k, v in kv_pairs if k]
+        key_width = max((len(k) for k, _ in body_pairs), default=0)
+        lines: list[str] = [title, ""]
+        for key, value in body_pairs:
+            display = SerialTerminal._format_tooltip_value(value)
+            lines.append(f"{key.ljust(key_width)}  = {display}")
+        lines.append("")
+        lines.append(f"Click to: {action}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_tooltip_value(value: object) -> str:
+        """Render a config value for display in a tooltip body line.
+
+        Booleans become ``ON``/``OFF`` (matching how the user toggles
+        them in config).  ``None`` becomes ``(none)``.  Strings with
+        non-printable characters (like ``\\r``) are wrapped in repr()
+        so they're visually distinct from regular text.  Numbers and
+        plain strings pass through unchanged.
+        """
+        if value is None:
+            return "(none)"
+        if isinstance(value, bool):
+            return "ON" if value else "OFF"
+        if isinstance(value, str):
+            if not value:
+                return "(empty)"
+            if any(not c.isprintable() for c in value):
+                return repr(value)
+            return value
+        return str(value)
 
     def _update_title(self) -> None:
-        from termapy.config import connection_string
-
         title = self.cfg.get("title", "") or self.config_path
         center = self.query_one("#title-center", Button)
         center.label = Text(title)
-        # Build informative tooltip
-        tip_lines = []
-        if self.config_path:
-            tip_lines.append(f"Config: {self.config_path}")
-        tip_lines.append(connection_string(self.cfg, level="full"))
-        le = self.cfg.get("line_ending", "\r")
-        tip_lines.append(f"Line ending: {repr(le)}")
-        if self.cfg.get("on_connect_cmd"):
-            tip_lines.append(f"On connect: {self.cfg['on_connect_cmd']}")
-        features = []
-        if self.cfg.get("auto_connect"):
-            features.append("autoconnect")
-        if self.cfg.get("auto_reconnect"):
-            features.append("auto-reconnect")
-        if self.cfg.get("echo_input"):
-            features.append("echo")
-        if self.cfg.get("show_timestamps"):
-            features.append("timestamps")
-        if self.cfg.get("os_cmd_enabled"):
-            features.append("os-commands")
-        if features:
-            tip_lines.append(f"Features: {', '.join(features)}")
-        tip_lines.append("")
-        tip_lines.append("Click to edit config")
-        center.tooltip = "\n".join(tip_lines)
-        self.query_one("#title-left", Button).label = self._port_info_str()
+
+        # Cfg button (center) tooltip
+        cfg_title = self.cfg.get("title", "") or (
+            Path(self.config_path).stem if self.config_path else "Config"
+        )
+        sb = self.cfg.get("stop_bits", 1)
+        sb_str = str(int(sb)) if sb == int(sb) else str(sb)
+        frame = (
+            f"{self.cfg.get('byte_size', 8)}"
+            f"{self.cfg.get('parity', 'N')}{sb_str}"
+        )
+        cfg_pairs: list[tuple[str, object]] = [
+            ("config_path", self.config_path or "(none)"),
+            ("port", self.cfg.get("port", "?")),
+            ("baud_rate", self.cfg.get("baud_rate", "?")),
+            ("frame", frame),
+            ("flow_control", self.cfg.get("flow_control", "none")),
+            ("encoding", self.cfg.get("encoding", "utf-8")),
+            ("line_ending", self.cfg.get("line_ending", "\r")),
+            ("on_connect_cmd", self.cfg.get("on_connect_cmd") or None),
+            ("auto_connect", bool(self.cfg.get("auto_connect"))),
+            ("auto_reconnect", bool(self.cfg.get("auto_reconnect"))),
+            ("echo_input", bool(self.cfg.get("echo_input"))),
+            ("show_timestamps", bool(self.cfg.get("show_timestamps"))),
+            ("os_cmd_enabled", bool(self.cfg.get("os_cmd_enabled"))),
+        ]
+        center.tooltip = self._format_title_tooltip(
+            cfg_title, cfg_pairs, "edit config"
+        )
+
+        # Port button (left) tooltip + label
+        port_btn = self.query_one("#title-left", Button)
+        port_btn.label = self._port_info_str()
+        port_btn.tooltip = self._port_button_tooltip()
+
+        # Connection status button (right) tooltip
         self._update_conn_tooltip()
+
+    def _port_button_tooltip(self) -> str:
+        """Build the title-bar port button tooltip with chip info.
+
+        Uses the shared three-section layout (title / kv body / action).
+        The title is the device name from cfg["port"].  The body shows
+        chip identification fields from port_control.gather_chip_facts():
+        description, manufacturer, model, USB speed, VID:PID, max baud,
+        and the in_use status.  Linux-only fields (driver, latency_timer,
+        negotiated link speed) appear automatically when available.
+
+        Falls back to a brief "no USB chip info available" body when the
+        port is not enumerable (DEMO, unplugged cable, non-USB device).
+        """
+        from termapy import port_control
+
+        port_name = self.cfg.get("port", "") or "(none)"
+        facts = (
+            port_control.gather_chip_facts(port_name)
+            if port_name and port_name != "(none)"
+            else None
+        )
+        pairs: list[tuple[str, object]] = []
+        if facts is not None:
+            for field_name in (
+                "description",
+                "manufacturer",
+                "model",
+                "usb_speed",
+                "vid_pid",
+                "serial",
+                "negotiated",
+                "driver",
+                "latency_timer",
+                "max_baud",
+                "in_use",
+            ):
+                value = getattr(facts, field_name)
+                if value is None:
+                    continue
+                pairs.append((field_name, value))
+        else:
+            pairs.append(("status", "no USB chip info available"))
+        return self._format_title_tooltip(
+            port_name, pairs, "select serial port"
+        )
 
     def _set_conn_status(self, text: str, style: str = "") -> None:
         try:
@@ -1626,21 +1751,27 @@ class SerialTerminal(App):
             pass  # widgets gone during shutdown
 
     def _update_conn_tooltip(self, widget: Button | None = None) -> None:
-        """Update the connection button tooltip with auto-connect config."""
+        """Update the connection button tooltip with status and config.
+
+        Uses the shared three-section layout (title / kv body / action).
+        Title is the live connection state (Connected / Disconnected).
+        Body shows port name and the auto-connect / auto-reconnect flags
+        as ON/OFF so the user can discover them without opening config.
+        Action verb tracks state: "disconnect" when connected,
+        "connect" when not.
+        """
         try:
             if widget is None:
                 widget = self.query_one("#title-right", Button)
-            tip = "Click to connect/disconnect."
-            ac = self.cfg.get("auto_connect")
-            ar = self.cfg.get("auto_reconnect")
-            if ac or ar:
-                flags = []
-                if ac:
-                    flags.append("auto-connect")
-                if ar:
-                    flags.append("auto-reconnect")
-                tip += f"\n{', '.join(flags)}: on"
-            widget.tooltip = tip
+            connected = self.is_connected
+            title = "Connected" if connected else "Disconnected"
+            action = "disconnect" if connected else "connect"
+            pairs: list[tuple[str, object]] = [
+                ("port", self.cfg.get("port", "?")),
+                ("auto_connect", bool(self.cfg.get("auto_connect"))),
+                ("auto_reconnect", bool(self.cfg.get("auto_reconnect"))),
+            ]
+            widget.tooltip = self._format_title_tooltip(title, pairs, action)
         except Exception:
             pass
 
@@ -3471,6 +3602,38 @@ def _run_proto_headless(args) -> None:
     sys.exit(0 if failed == 0 else 1)
 
 
+def _run_info(args) -> None:
+    """Print serial port chip info to stdout and exit.
+
+    Implements the --info CLI flag.  Calls port_control.chip_info()
+    directly with no termapy infrastructure setup -- the underlying
+    function uses pyserial's comports() and works without any config
+    or open Serial object.
+
+    Color hints from the internal Result are dropped because stdout
+    output is intended for piping to grep/awk/jq, not for terminal
+    rendering.  Run termapy interactively and use /port.chip if you
+    want colored output.
+
+    Exits with status 0 if at least one port matched and was printed,
+    or 1 if the named port wasn't found, no ports are connected, or
+    any other error condition was reported.
+    """
+    from termapy import port_control
+
+    msgs, _ = port_control.chip_info(args.info, current_port="")
+    error = False
+    for text, color in msgs:
+        print(text)
+        if color in ("red", "yellow") and (
+            "No port" in text
+            or "No current port" in text
+            or "No serial ports" in text
+        ):
+            error = True
+    sys.exit(1 if error else 0)
+
+
 def main():
     import termapy.config as _cfg_mod
 
@@ -3549,6 +3712,15 @@ def main():
         default=None,
         help="Override terminal width for CLI mode (default: auto-detect)",
     )
+    parser.add_argument(
+        "--info",
+        nargs="?",
+        const="*",
+        default=None,
+        metavar="PORT",
+        help="Show serial port chip info and exit. Optional PORT name "
+             "(e.g. COM3, /dev/ttyUSB0); omit for all connected ports.",
+    )
     args = parser.parse_args()
 
     if args.cfg_dir:
@@ -3592,6 +3764,10 @@ def main():
 
     if args.proto is not None:
         _run_proto_headless(args)
+        return
+
+    if args.info is not None:
+        _run_info(args)
         return
 
     if args.web:

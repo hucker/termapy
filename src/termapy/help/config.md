@@ -17,6 +17,15 @@ The OS default location is `%APPDATA%\termapy` on Windows,
 `~/Library/Application Support/termapy` on macOS, and
 `~/.config/termapy` on Linux (respects `XDG_CONFIG_HOME`).
 
+## Creating a new config
+
+When you create a new config (first run, or **Cfg → New**), termapy shows
+a quick-setup dialog where you pick a name, a serial port, and a baud
+rate.  Hit **Connect** to save and connect, or **Advanced** to drop into
+the full JSON editor for fine-grained control.
+
+![New config quick-setup dialog](img/new_cfg.png)
+
 ## JSON config file
 
 Each configuration is stored as a JSON file at `<config_dir>/<name>/<name>.cfg`.

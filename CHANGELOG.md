@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.55.0 (2026-04-09)
+
+Serial-port diagnostics release.  Termapy now identifies the USB chip behind any serial port -- model, USB speed class, driver, latency timer, max baud, in-use state, permissions, VID:PID -- and surfaces the data through the REPL, the title bar, the port picker, the new-config dialog, and a new shell flag.  No breaking changes.
+
+### 0.55.0 New Features
+
+- **`/port.chip` and `/port.chip.<field>` REPL commands** -- 16 single-field subcommands (model, usb_speed, driver, latency_timer, max_baud, permissions, in_use, vid_pid, serial, negotiated, ...) accepting an optional port name or `*` for every connected port.  Backed by a `USB_SERIAL_CHIPS` lookup table covering FTDI, Silicon Labs, WCH, Prolific, and MCU native USB.
+- **`/port.info` rewritten as a unified full report** -- configured serial parameters, the complete chip field set, and live DTR/RTS/DSR/CTS signal lines for the currently-connected port.  Rejects a port argument with a pointer to `/port.chip`.
+- **`termapy --info[=PORT]` shell flag** -- one-shot chip diagnostics without launching the TUI.  `termapy --info` lists every connected port; `termapy --info=COM4` targets one; exit 0 on success, 1 on error.  Pipe-friendly for shell scripts and CI.
+- **Column-aligned port picker** -- PORT / MANUFACTURER / DESCRIPTION / CHIP / SPEED / VID:PID with header and separator rows, data-driven column widths, and shrink-on-overflow (description first, chip second).  The new-config QuickSetup dialog uses the same helpers so its port list is byte-for-byte identical.
+- **Expanded QuickSetup baud rate list** -- 300 through 3,000,000, covering the full span from legacy serial devices to FTDI H-series at 12 Mbaud.
+- **`help/ports.md` -- a new serial-ports help page** -- 10-second happy path (plug in, pick a port, 115200 8N1, connect) followed by scenario-based troubleshooting: multiple cables, Linux+FTDI latency tuning, Full-Speed vs High-Speed cable purchasing, unknown-chip lookups, "in use" diagnosis, and Linux permission-denied recovery.  Cross-linked from the toolbar page and index.
+
+### 0.55.0 Improvements
+
+- **Unified title-bar tooltips** -- the Cfg, Port, and Connection buttons all use the same three-section format (title / aligned `key = value` body / "Click to: action" line) via a shared `_format_title_tooltip` helper.  Consistent visuals, no more bracket-markup rendering glitches.
+- **`In use` detection that actually works on Windows** -- `_check_in_use()` now tries to open the port (and close it immediately) rather than returning `unknown`.
+- **Windows FTDI latency-timer hint** -- reports `Latency timer: n/a (Windows - check Device Manager)` for FTDI cables on Windows, nudging users toward where the setting lives instead of a bare `n/a`.
+- **Port picker screenshot added** -- `help/img/com_port_select.png` in `help/ports.md` shows what the picker looks like with real chip data.
+- **New-config screenshot added** -- `help/img/new_cfg.png` in `help/config.md` under a new "Creating a new config" section documents the QuickSetup first-run flow.
+- **Windows FTDI latency-timer screenshot added** -- `help/img/latency_picker.png` in `help/ports.md` shows the Device Manager Advanced port-settings dialog for the tuning walkthrough.
+
 ## 0.54.1 (2026-04-08)
 
 Type-check cleanup release.  Brings `uvx ty check src/termapy/` from 370 diagnostics down to 0 while fixing a handful of real correctness issues surfaced by the audit.  No user-visible behavior changes.

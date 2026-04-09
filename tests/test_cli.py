@@ -552,3 +552,98 @@ class TestHookRegistration:
         # Assert
         for name in expected:
             assert name in cli.repl._plugins, f"hook {name} not registered"
+
+
+# -- --info CLI flag ---------------------------------------------------------
+
+
+class TestInfoFlag:
+    """Tests for the --info one-shot diagnostic flag in app.main().
+
+    The --info flag prints serial-port chip identification to stdout
+    and exits without launching the TUI or CLI interactive modes.  See
+    plan: --info CLI flag for one-shot serial port chip diagnostics.
+    """
+
+    def test_info_no_args_exits_cleanly(self, capsys, monkeypatch):
+        # Arrange — bare --info should query all ports.  We can't
+        # assume the test machine has any serial ports, so we just
+        # confirm the call exits with 0 or 1 (both are valid: 0 if
+        # any port is connected, 1 if none) and produces some output.
+        monkeypatch.setattr("sys.argv", ["termapy", "--info"])
+        from termapy.app import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        actual_code = exc.value.code
+        assert actual_code in (0, 1), f"--info exited cleanly, got {actual_code}"
+        assert out, "--info produced some stdout output"
+
+    def test_info_with_unknown_port_exits_nonzero(self, capsys, monkeypatch):
+        # Arrange — a port name that almost certainly doesn't exist
+        # on any test runner.
+        monkeypatch.setattr(
+            "sys.argv", ["termapy", "--info=DEFINITELY_NOT_A_PORT_999"]
+        )
+        from termapy.app import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        actual_code = exc.value.code
+        expected_code = 1
+        assert actual_code == expected_code, "unknown port exits with status 1"
+        assert "No port matching" in out, "prints the not-found message"
+
+    def test_info_with_equals_syntax(self, capsys, monkeypatch):
+        # Arrange — --info=NAME should parse the same as --info NAME.
+        monkeypatch.setattr(
+            "sys.argv", ["termapy", "--info=COM_DOES_NOT_EXIST"]
+        )
+        from termapy.app import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert "COM_DOES_NOT_EXIST" in out, "named port appears in output"
+
+    def test_info_with_space_syntax(self, capsys, monkeypatch):
+        # Arrange — --info NAME should parse the same as --info=NAME.
+        monkeypatch.setattr(
+            "sys.argv", ["termapy", "--info", "ANOTHER_FAKE_PORT"]
+        )
+        from termapy.app import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert "ANOTHER_FAKE_PORT" in out, "named port appears in output"
+
+    def test_info_help_text_appears(self, capsys, monkeypatch):
+        # Arrange — --help output should mention the new --info flag.
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        from termapy.app import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        actual_code = exc.value.code
+        expected_code = 0
+        assert actual_code == expected_code, "--help exits with status 0"
+        assert "--info" in out, "--info flag is documented in --help"

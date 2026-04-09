@@ -496,7 +496,7 @@ class QuickSetup(ModalScreen[tuple | None]):
     QuickSetup {{ align: center middle; }}
     QuickSetup Button {{ {_MODAL_BTN_CSS} }}
     #qs-dialog {{
-        width: 55; height: auto;
+        width: 116; height: auto;
         border: solid $primary; background: $surface; padding: 1 2;
         border-title-align: left;
     }}
@@ -507,7 +507,10 @@ class QuickSetup(ModalScreen[tuple | None]):
     .qs-first {{ margin-top: 0; }}
     """
 
-    _COMMON_BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
+    _COMMON_BAUDS = [
+        300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600,
+        115200, 230400, 460800, 921600, 1500000, 2000000, 3000000,
+    ]
 
     def __init__(self, title: str = "New Config") -> None:
         super().__init__()
@@ -528,13 +531,7 @@ class QuickSetup(ModalScreen[tuple | None]):
             yield Input(placeholder="e.g. my_device", id="qs-name")
             yield Static("Serial port:", classes="qs-label")
             port_list = OptionList(id="qs-port-list")
-            if ports:
-                for p in ports:
-                    desc = p.description or ""
-                    label = f"{p.device} - {desc}" if desc else p.device
-                    port_list.add_option(Option(label, id=p.device))
-            else:
-                port_list.add_option(Option("(no ports found)", disabled=True))
+            _populate_port_option_list(port_list, ports, row_width=110)
             yield port_list
             yield Static("Baud rate:", classes="qs-label")
             baud_list = OptionList(id="qs-baud-list")
@@ -1399,6 +1396,203 @@ class WelcomeDialog(ModalScreen[None]):
         self.dismiss(None)
 
 
+# ── Shared serial port row formatting ────────────────────────────────────────
+#
+# Used by both PortPicker (the dedicated port selection modal) and
+# QuickSetup (the first-run / new-config wizard) so their port lists
+# render identically.  Each function is pure and stateless: pass in
+# the ports, get back formatted lines.
+#
+# Column order is most-at-a-glance-useful (the port name you click)
+# through to most-technical-detail (raw USB identifier).
+
+
+# Column order for the port table, left-to-right.  Defined in one place
+# so width computation, header rendering, and row formatting all
+# iterate in the same order.
+_PORT_COLUMNS: tuple[str, ...] = (
+    "port",
+    "manufacturer",
+    "description",
+    "chip",
+    "speed",
+    "vid_pid",
+)
+
+# Header labels shown in the table header row.
+_PORT_COLUMN_HEADERS: dict[str, str] = {
+    "port": "PORT",
+    "manufacturer": "MANUFACTURER",
+    "description": "DESCRIPTION",
+    "chip": "CHIP",
+    "speed": "SPEED",
+    "vid_pid": "VID:PID",
+}
+
+# Column separator between adjacent fields.
+_PORT_COL_SEP = "  "
+
+
+def _gather_port_row(p, port_control) -> tuple[str, dict]:
+    """Collect the six displayable fields for one serial port.
+
+    Returns a (port_id, fields) pair where port_id is the device name
+    used as the OptionList item id and fields is a dict with keys
+    "port", "manufacturer", "description", "chip", "speed", "vid_pid"
+    suitable for the column-width computation and row formatter.
+    """
+    # Port name as-is.
+    port = p.device
+
+    # Description, with the redundant trailing "(COMx)" stripped.
+    description = (p.description or "").strip()
+    if description.endswith(f"({p.device})"):
+        description = description[: -(len(p.device) + 3)].rstrip()
+    if not description:
+        description = "Serial port"
+
+    # Chip name, speed class, vid_pid, and manufacturer from the
+    # chip_facts lookup.  Speed goes in its own column so the chip
+    # name stays clean (no trailing speed suffix).
+    facts = port_control.gather_chip_facts(p.device)
+    if facts is not None:
+        chip = (
+            facts.model
+            if facts.model and facts.model != "unknown"
+            else "-"
+        )
+        speed = "-"
+        if facts.usb_speed:
+            if "Full-Speed" in facts.usb_speed:
+                speed = "Full-Speed"
+            elif "High-Speed" in facts.usb_speed:
+                speed = "High-Speed"
+        vid_pid = facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else "-"
+        manufacturer = facts.manufacturer or "-"
+    else:
+        chip = "-"
+        speed = "-"
+        vid_pid = "-"
+        manufacturer = (p.manufacturer or "-")
+
+    return port, {
+        "port": port,
+        "manufacturer": manufacturer,
+        "description": description,
+        "chip": chip,
+        "speed": speed,
+        "vid_pid": vid_pid,
+    }
+
+
+def _compute_port_column_widths(
+    rows: list[tuple[str, dict]], row_width: int
+) -> dict:
+    """Compute the width of each column from the actual row data.
+
+    Columns start at their natural (data-driven) widths, then if the
+    total row width would exceed ``row_width`` the flexible columns
+    (description first, then chip) are shrunk to fit.  PORT, VID:PID,
+    and MANUFACTURER are never truncated; users need port and vid:pid
+    in full and the manufacturer is usually short (FTDI, Microsoft).
+
+    Returns a dict mapping column name to integer width.
+    """
+    # Natural width: max of data entries and the header label.
+    widths = {
+        col: max(
+            len(_PORT_COLUMN_HEADERS[col]),
+            max((len(row[col]) for _, row in rows), default=0),
+        )
+        for col in _PORT_COLUMNS
+    }
+
+    sep_total = len(_PORT_COL_SEP) * (len(_PORT_COLUMNS) - 1)
+    total = sum(widths.values()) + sep_total
+
+    if total <= row_width:
+        return widths
+
+    # Over budget: shrink description first, then chip.  Each shrink
+    # step takes characters off the column until we fit or hit minimum
+    # widths.
+    min_desc = 10
+    min_chip = 10
+    over = total - row_width
+
+    # Shrink description first.
+    shrink = min(over, widths["description"] - min_desc)
+    if shrink > 0:
+        widths["description"] -= shrink
+        over -= shrink
+
+    # Then shrink chip if still over.
+    if over > 0:
+        shrink = min(over, widths["chip"] - min_chip)
+        if shrink > 0:
+            widths["chip"] -= shrink
+            over -= shrink
+
+    # If still over after both flexible columns hit their floors, the
+    # dialog isn't wide enough for the data.  Accept the overrun rather
+    # than truncating port / vid_pid / manufacturer.
+    return widths
+
+
+def _format_port_header(widths: dict) -> tuple[str, str]:
+    """Return (header_line, separator_line) for the port table header."""
+    header = _PORT_COL_SEP.join(
+        _PORT_COLUMN_HEADERS[col].ljust(widths[col]) for col in _PORT_COLUMNS
+    )
+    separator = _PORT_COL_SEP.join(
+        "-" * widths[col] for col in _PORT_COLUMNS
+    )
+    return header, separator
+
+
+def _format_port_row(row: dict, widths: dict) -> str:
+    """Format one port row as a single line aligned to the given widths.
+
+    Fields longer than their column width are truncated with a
+    three-dot ellipsis (``...``) at the end.  ASCII dots are used
+    instead of the Unicode ellipsis character so the table renders
+    correctly on terminals with limited Unicode support.
+    """
+    def _fit(value: str, width: int) -> str:
+        if len(value) <= width:
+            return value.ljust(width)
+        if width <= 3:
+            return "..."[:width].ljust(width)
+        return (value[: width - 3] + "...").ljust(width)
+
+    return _PORT_COL_SEP.join(
+        _fit(row[col], widths[col]) for col in _PORT_COLUMNS
+    )
+
+
+def _populate_port_option_list(
+    ol: OptionList, ports: list, row_width: int
+) -> None:
+    """Fill an OptionList with a header, separator, and one row per port.
+
+    Called by both PortPicker and QuickSetup so their port lists look
+    identical.  ``row_width`` is the usable column budget for the list,
+    which differs between dialogs based on their CSS width.
+    """
+    from termapy import port_control
+
+    if not ports:
+        ol.add_option(Option("(no ports found)", disabled=True))
+        return
+    rows = [_gather_port_row(p, port_control) for p in ports]
+    widths = _compute_port_column_widths(rows, row_width)
+    header, separator = _format_port_header(widths)
+    ol.add_option(Option(header, disabled=True))
+    ol.add_option(Option(separator, disabled=True))
+    for port_id, row_data in rows:
+        ol.add_option(Option(_format_port_row(row_data, widths), id=port_id))
+
+
 class PortPicker(ModalScreen[str | None]):
     """Modal dialog to select an available serial port."""
 
@@ -1408,13 +1602,19 @@ class PortPicker(ModalScreen[str | None]):
     PortPicker {{ align: center middle; }}
     PortPicker Button {{ {_MODAL_BTN_CSS} }}
     #port-dialog {{
-        width: 60; height: 18;
+        width: 120; height: 24;
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #port-title {{ height: 1; text-style: bold; }}
     #port-list {{ height: 1fr; border: thick $primary; }}
     #port-buttons {{ height: 1; align: right middle; }}
     """
+
+    # Usable row width inside the dialog (dialog width - border - padding
+    # - OptionList border).  Matches #port-dialog width: 120 with
+    # border:solid (2), padding:1 2 (4 horizontal), and the OptionList's
+    # thick border (2).  Adjust if the dialog width in CSS changes.
+    _ROW_WIDTH = 110
 
     def action_dismiss_modal(self) -> None:
         """Close the modal on Ctrl+Q."""
@@ -1428,13 +1628,7 @@ class PortPicker(ModalScreen[str | None]):
         with Vertical(id="port-dialog"):
             yield Static("Select Serial Port", id="port-title")
             ol = OptionList(id="port-list")
-            if ports:
-                for p in ports:
-                    desc = p.description or ""
-                    label = f"{p.device} - {desc}" if desc else p.device
-                    ol.add_option(Option(label, id=p.device))
-            else:
-                ol.add_option(Option("(no ports found)", disabled=True))
+            _populate_port_option_list(ol, ports, self._ROW_WIDTH)
             yield ol
             with Horizontal(id="port-buttons"):
                 yield Button("Cancel", id="port-cancel", variant="error")

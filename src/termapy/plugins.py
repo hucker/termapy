@@ -233,13 +233,16 @@ class LifecycleHook:
 
     Supported hook names (see :data:`LIFECYCLE_HOOK_NAMES`):
 
-    - ``on_app_start``   — fires once after plugins are loaded and the
-                           context is wired, before first dispatch.
-    - ``on_app_stop``    — fires once during graceful shutdown.  Not
-                           guaranteed on crash.
+    - ``on_app_start``    — fires once after plugins are loaded and the
+                            context is wired, before first dispatch.
+    - ``on_app_stop``     — fires once during graceful shutdown.  Not
+                            guaranteed on crash.
+    - ``on_connect``      — fires after the serial port is successfully opened.
+    - ``on_disconnect``   — fires before the serial port is closed (user-initiated).
+    - ``on_config_load``  — fires after switching to a new config via ``/cfg.load``.
     - ``on_script_start`` — fires when a script begins executing.
     - ``on_script_stop``  — fires after a script finishes, including on
-                           ``/stop`` or exception.  Mirrors ``on_script_start``.
+                            ``/stop`` or exception.  Mirrors ``on_script_start``.
 
     Attributes:
         name: The hook name (e.g. ``"on_app_start"``).
@@ -262,6 +265,9 @@ class LifecycleHook:
 LIFECYCLE_HOOK_NAMES = (
     "on_app_start",
     "on_app_stop",
+    "on_connect",
+    "on_disconnect",
+    "on_config_load",
     "on_script_start",
     "on_script_stop",
 )
@@ -584,6 +590,33 @@ def builtins_dir() -> Path:
     return Path(__file__).parent / "builtins" / "plugins"
 
 
+def _clean_stale_pyc(folder: Path) -> None:
+    """Remove orphaned .pyc files whose .py source no longer exists.
+
+    Prevents stale bytecode from being loaded after a plugin file is
+    deleted or renamed.
+    """
+    cache = folder / "__pycache__"
+    if not cache.is_dir():
+        return
+    for pyc in cache.glob("*.pyc"):
+        # PEP 3147: foo.cpython-311.pyc → foo.py
+        stem = pyc.stem.split(".")[0]
+        if not (folder / f"{stem}.py").exists():
+            try:
+                pyc.unlink()
+            except OSError:
+                pass
+    # Remove __pycache__ if empty
+    try:
+        next(cache.iterdir())
+    except (StopIteration, OSError):
+        try:
+            cache.rmdir()
+        except OSError:
+            pass
+
+
 def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     """Discover and load plugin .py files from a directory.
 
@@ -601,6 +634,7 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
     result = LoadResult()
     if not folder.is_dir():
         return result
+    _clean_stale_pyc(folder)
     for py_file in sorted(folder.glob("*.py")):
         if py_file.name.startswith("_"):
             continue

@@ -428,12 +428,15 @@ class CLITerminal:
             cfg = load_config(str(config_path))
             # Disconnect current, switch config, reconnect
             if self.engine.is_connected:
+                self.repl.fire_lifecycle("on_disconnect")
                 self.engine.disconnect()
             self.repl.replace_cfg(cfg, str(config_path))
             self.config_path = str(config_path)
             self.cfg = cfg
             self._setup_context()
+            self.repl.fire_lifecycle("on_config_load")
             if self.engine.connect():
+                self.repl.fire_lifecycle("on_connect")
                 self._start_reader()
             msg = "Switched to demo device"
             if force:
@@ -592,6 +595,7 @@ class CLITerminal:
             hw = hardware_signals(self.engine.port_obj)
             full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
             self.write(full, "green")
+            self.repl.fire_lifecycle("on_connect")
         else:
             self.status(f"Cannot connect to {self.cfg.get('port', '?')}", "red")
 
@@ -600,6 +604,7 @@ class CLITerminal:
         if not self.engine.is_connected:
             self.write("Not connected.", "yellow")
             return
+        self.repl.fire_lifecycle("on_disconnect")
         self.engine.disconnect()
         self.write("Disconnected.", "red")
 
@@ -847,6 +852,7 @@ class CLITerminal:
         hw = hardware_signals(self.engine.port_obj)
         full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
         self.write(full, "green")
+        self.repl.fire_lifecycle("on_connect")
 
         self._load_history()
         self._setup_completion()

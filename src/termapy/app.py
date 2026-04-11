@@ -1045,6 +1045,7 @@ class SerialTerminal(App):
         inp.placeholder = "REPL:type command, Enter to send"
         inp.focus()
         self._sync_hw_buttons()
+        self.repl.fire_lifecycle("on_connect")
         self._run_reader()
         connect_cmds: list[str] = []
         if self.cfg.get("device_json_cmd", ""):
@@ -1295,6 +1296,8 @@ class SerialTerminal(App):
         if self._capture.active:
             self._cap_stop()
         was_open = self.is_connected
+        if was_open:
+            self.repl.fire_lifecycle("on_disconnect")
         self._engine.disconnect()
         try:
             if was_open:
@@ -1354,6 +1357,7 @@ class SerialTerminal(App):
         self._sync_cmd_prefix()
         self._sync_all_buttons()
         self._open_log()
+        self.repl.fire_lifecycle("on_config_load")
         if was_connected or cfg.get("auto_connect"):
             self._connect()
 

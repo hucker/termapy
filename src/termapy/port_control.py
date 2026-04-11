@@ -17,6 +17,8 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+import re
+
 from termapy.defaults import VALID_BYTE_SIZES, VALID_FLOW_CONTROLS, VALID_PARITIES, VALID_STOP_BITS
 
 # Type alias for message lists: (text, color_or_None)
@@ -39,6 +41,137 @@ PORT_PROPS = {
     "parity": ("parity", str, "Parity", VALID_PARITIES),
     "stop_bits": ("stopbits", float, "Stop bits", VALID_STOP_BITS),
 }
+
+# Regex for mode strings like N81, E71, O81.5
+_MODE_RE = re.compile(r"^([NEOMS])([5-8])(1\.5|[12])$", re.IGNORECASE)
+
+
+def parse_mode(mode: str) -> tuple[str, int, float] | None:
+    """Parse a serial mode string like 'N81' into (parity, byte_size, stop_bits).
+
+    Args:
+        mode: Mode string, e.g. 'N81', 'E71', 'O81.5'.
+
+    Returns:
+        Tuple of (parity, byte_size, stop_bits), or None if invalid.
+    """
+    m = _MODE_RE.match(mode.strip())
+    if not m:
+        return None
+    parity = m.group(1).upper()
+    byte_size = int(m.group(2))
+    stop_bits = float(m.group(3))
+    return parity, byte_size, stop_bits
+
+
+def parse_open_args(args: str) -> tuple[str | None, int | None, tuple[str, int, float] | None, str | None]:
+    """Parse /port.open arguments: {name} {baud} {mode}.
+
+    Each part is optional and position-independent (except port name must
+    not be purely numeric and must not match the mode pattern).
+
+    Args:
+        args: Raw argument string from the REPL.
+
+    Returns:
+        Tuple of (port_name, baud_rate, mode_tuple, error_message).
+        error_message is non-None only when a token cannot be classified.
+    """
+    port: str | None = None
+    baud: int | None = None
+    mode: tuple[str, int, float] | None = None
+    for token in args.split():
+        # Try mode first (e.g. N81)
+        parsed = parse_mode(token)
+        if parsed:
+            if mode is not None:
+                return None, None, None, f"Duplicate mode: {token}"
+            mode = parsed
+            continue
+        # Try baud rate (purely numeric)
+        if token.isdigit():
+            if baud is not None:
+                return None, None, None, f"Duplicate baud rate: {token}"
+            baud = int(token)
+            continue
+        # Must be port name
+        if port is not None:
+            return None, None, None, f"Unexpected argument: {token}"
+        port = token
+    return port, baud, mode, None
+
+
+def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
+    """Set serial frame parameters from a mode string and optional baud rate.
+
+    Accepts: {baud} {mode}, e.g. '9600 N81', 'E71', '115200'.
+
+    Args:
+        ser: Serial-like object, or None if disconnected.
+        cfg: Config dict.
+        args: Mode string with optional baud rate prefix.
+    """
+    if not args.strip():
+        sb = cfg.get("stop_bits", 1)
+        sb_str = str(int(sb)) if sb == int(sb) else str(sb)
+        current = (
+            f"{cfg.get('baud_rate', '?')} "
+            f"{cfg.get('byte_size', 8)}{cfg.get('parity', 'N')}{sb_str}"
+        )
+        suffix = " (disconnected)" if ser is None else ""
+        return _result([_msg(f"{current}{suffix}")])
+
+    baud: int | None = None
+    mode: tuple[str, int, float] | None = None
+    for token in args.split():
+        parsed = parse_mode(token)
+        if parsed:
+            if mode is not None:
+                return _result([_msg(f"Duplicate mode: {token}", "red")])
+            mode = parsed
+            continue
+        if token.isdigit():
+            if baud is not None:
+                return _result([_msg(f"Duplicate baud rate: {token}", "red")])
+            baud = int(token)
+            continue
+        return _result([_msg(
+            f"Invalid mode argument: {token} (use e.g. 9600 N81)", "red"
+        )])
+
+    if baud is None and mode is None:
+        return _result([_msg("Nothing to set.", "yellow")])
+
+    if ser is None:
+        return _result([_msg("Not connected.", "yellow")])
+
+    cfg_update: dict[str, Any] = {}
+    msgs: list[Msg] = []
+    try:
+        if baud is not None:
+            ser.baudrate = baud
+            cfg_update["baud_rate"] = baud
+        if mode is not None:
+            parity, byte_size, stop_bits = mode
+            ser.parity = parity
+            ser.bytesize = byte_size
+            ser.stopbits = stop_bits
+            cfg_update["parity"] = parity
+            cfg_update["byte_size"] = byte_size
+            cfg_update["stop_bits"] = stop_bits
+        # Build summary
+        sb = cfg_update.get("stop_bits", cfg.get("stop_bits", 1))
+        sb_str = str(int(sb)) if sb == int(sb) else str(sb)
+        summary = (
+            f"{cfg_update.get('baud_rate', cfg.get('baud_rate', '?'))} "
+            f"{cfg_update.get('byte_size', cfg.get('byte_size', 8))}"
+            f"{cfg_update.get('parity', cfg.get('parity', 'N'))}"
+            f"{sb_str}"
+        )
+        msgs.append(_msg(f"Mode -> {summary}"))
+    except (ValueError, OSError) as e:
+        return _result([_msg(f"Mode error: {e}", "red")])
+    return _result(msgs, update_title=True, cfg_update=cfg_update)
 
 # USB-serial chip identification by (vendor_id, product_id).
 # Tuple is (chip_model_name, usb_speed_class, max_baud).

@@ -261,7 +261,8 @@ demo> /port
     /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
     /port.info - Show status, params, chip, and live signals for the connected port.
     /port.list - List available serial ports.
-    /port.open {name} - Connect to the serial port (optional port override).
+    /port.mode {baud} {mode} - Show or set serial mode (e.g. /port.mode 9600 N81).
+    /port.open {name} {baud} {mode} - Connect to the serial port (e.g. /port.open COM3 9600 N81).
     /port.parity {value} - Show or set parity.
     /port.ri - Show Ring Indicator state (read-only).
     /port.rts {0|1} - Show or set RTS line (hardware only).
@@ -337,7 +338,8 @@ demo> /help port
     /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
     /port.info - Show status, params, chip, and live signals for the connected port.
     /port.list - List available serial ports.
-    /port.open {name} - Connect to the serial port (optional port override).
+    /port.mode {baud} {mode} - Show or set serial mode (e.g. /port.mode 9600 N81).
+    /port.open {name} {baud} {mode} - Connect to the serial port (e.g. /port.open COM3 9600 N81).
     /port.parity {value} - Show or set parity.
     /port.ri - Show Ring Indicator state (read-only).
     /port.rts {0|1} - Show or set RTS line (hardware only).
@@ -489,7 +491,7 @@ demo> /help.plugin
   /include                  ... /help include          Include device command help from JSON response.  (4)
   /os                       <cmd>                      Run a shell command and show output (10s timeout). e.g. /os dir
   /ping                     ... /help ping             Send a command and measure response time.  (1)
-  /port                     {name}                     Serial port tools: open, close, list, configure.  (17)
+  /port                     {name}                     Serial port tools: open, close, list, configure.  (18)
   /print                    <text>                     Print a message to the terminal.  (1)
   /proto                                               Binary protocol tools: send, run, debug, hex, crc, status.  (7)
   /repeat                   ... /help repeat           Repeat a command N times with optional delay (escape to cancel).

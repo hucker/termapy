@@ -13,9 +13,12 @@ from termapy.port_control import (
     get_set_prop,
     list_ports,
     parse_bool_value,
+    parse_mode,
+    parse_open_args,
     port_info,
     read_signal,
     send_break,
+    set_mode,
 )
 
 
@@ -338,3 +341,256 @@ class TestSendBreak:
 
         # Assert
         assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
+
+
+# ── parse_mode ──────────────────────────────────────────────────────────────
+
+
+class TestParseMode:
+
+    def test_n81(self):
+        # Act
+        actual = parse_mode("N81")
+
+        # Assert
+        expected = ("N", 8, 1.0)
+        assert actual == expected, "N81 should parse to (N, 8, 1.0)"
+
+    def test_e71(self):
+        # Act
+        actual = parse_mode("E71")
+
+        # Assert
+        expected = ("E", 7, 1.0)
+        assert actual == expected, "E71 should parse to (E, 7, 1.0)"
+
+    def test_o81_5(self):
+        # Act
+        actual = parse_mode("O81.5")
+
+        # Assert
+        expected = ("O", 8, 1.5)
+        assert actual == expected, "O81.5 should parse to (O, 8, 1.5)"
+
+    def test_s52(self):
+        # Act
+        actual = parse_mode("S52")
+
+        # Assert
+        expected = ("S", 5, 2.0)
+        assert actual == expected, "S52 should parse to (S, 5, 2.0)"
+
+    def test_lowercase(self):
+        # Act
+        actual = parse_mode("n81")
+
+        # Assert
+        expected = ("N", 8, 1.0)
+        assert actual == expected, "lowercase n81 should parse to (N, 8, 1.0)"
+
+    def test_invalid_parity(self):
+        assert parse_mode("X81") is None, "X is not a valid parity letter"
+
+    def test_invalid_byte_size(self):
+        assert parse_mode("N91") is None, "9 is not a valid byte size"
+
+    def test_invalid_stop_bits(self):
+        assert parse_mode("N83") is None, "3 is not a valid stop bits value"
+
+    def test_empty(self):
+        assert parse_mode("") is None, "empty string should return None"
+
+    def test_garbage(self):
+        assert parse_mode("COM3") is None, "port name should not parse as mode"
+
+    def test_just_digits(self):
+        assert parse_mode("9600") is None, "baud rate should not parse as mode"
+
+
+# ── parse_open_args ─────────────────────────────────────────────────────────
+
+
+class TestParseOpenArgs:
+
+    def test_port_only(self):
+        # Act
+        port, baud, mode, err = parse_open_args("COM3")
+
+        # Assert
+        assert port == "COM3", "should extract port name"
+        assert baud is None, "baud should be None"
+        assert mode is None, "mode should be None"
+        assert err is None, "no error expected"
+
+    def test_port_and_baud(self):
+        # Act
+        port, baud, mode, err = parse_open_args("COM3 9600")
+
+        # Assert
+        assert port == "COM3", "should extract port name"
+        assert baud == 9600, "should extract baud rate"
+        assert mode is None, "mode should be None"
+        assert err is None, "no error expected"
+
+    def test_port_baud_mode(self):
+        # Act
+        port, baud, mode, err = parse_open_args("COM3 9600 N81")
+
+        # Assert
+        assert port == "COM3", "should extract port name"
+        assert baud == 9600, "should extract baud rate"
+        assert mode == ("N", 8, 1.0), "should extract mode tuple"
+        assert err is None, "no error expected"
+
+    def test_port_and_mode_no_baud(self):
+        # Act
+        port, baud, mode, err = parse_open_args("COM3 N81")
+
+        # Assert
+        assert port == "COM3", "should extract port name"
+        assert baud is None, "baud should be None when omitted"
+        assert mode == ("N", 8, 1.0), "should extract mode tuple"
+        assert err is None, "no error expected"
+
+    def test_empty(self):
+        # Act
+        port, baud, mode, err = parse_open_args("")
+
+        # Assert
+        assert port is None, "port should be None"
+        assert baud is None, "baud should be None"
+        assert mode is None, "mode should be None"
+        assert err is None, "no error for empty args"
+
+    def test_linux_port(self):
+        # Act
+        port, baud, mode, err = parse_open_args("/dev/ttyUSB0 115200 E71")
+
+        # Assert
+        assert port == "/dev/ttyUSB0", "should handle Linux device paths"
+        assert baud == 115200, "should extract baud rate"
+        assert mode == ("E", 7, 1.0), "should extract mode tuple"
+        assert err is None, "no error expected"
+
+    def test_duplicate_baud_error(self):
+        # Act
+        _, _, _, err = parse_open_args("COM3 9600 115200")
+
+        # Assert
+        assert err is not None, "should error on duplicate baud rate"
+        assert "Duplicate baud" in err, "error should mention duplicate baud"
+
+    def test_duplicate_mode_error(self):
+        # Act
+        _, _, _, err = parse_open_args("COM3 N81 E71")
+
+        # Assert
+        assert err is not None, "should error on duplicate mode"
+        assert "Duplicate mode" in err, "error should mention duplicate mode"
+
+    def test_duplicate_port_error(self):
+        # Act
+        _, _, _, err = parse_open_args("COM3 COM4")
+
+        # Assert
+        assert err is not None, "should error on duplicate port name"
+        assert "Unexpected" in err, "error should mention unexpected argument"
+
+
+# ── set_mode ────────────────────────────────────────────────────────────────
+
+
+class TestSetMode:
+
+    def test_show_current_disconnected(self):
+        # Act
+        msgs, _ = set_mode(None, _cfg(), "")
+
+        # Assert
+        texts = " ".join(t for t, _ in msgs)
+        assert "115200" in texts, "should show current baud rate"
+        assert "8N1" in texts, "should show current mode"
+        assert "disconnected" in texts, "should show disconnected"
+
+    def test_show_current_connected(self):
+        # Arrange
+        ser = _mock_ser()
+
+        # Act
+        msgs, _ = set_mode(ser, _cfg(), "")
+
+        # Assert
+        texts = " ".join(t for t, _ in msgs)
+        assert "115200" in texts, "should show current baud rate"
+        assert "disconnected" not in texts, "should not show disconnected"
+
+    def test_set_mode_only(self):
+        # Arrange
+        ser = _mock_ser()
+
+        # Act
+        msgs, effects = set_mode(ser, _cfg(), "E71")
+
+        # Assert
+        assert ser.parity == "E", "parity should be set to E"
+        assert ser.bytesize == 7, "bytesize should be set to 7"
+        assert ser.stopbits == 1.0, "stopbits should be set to 1"
+        assert effects["cfg_update"]["parity"] == "E", "cfg_update parity should be E"
+        assert effects["cfg_update"]["byte_size"] == 7, "cfg_update byte_size should be 7"
+        assert effects["cfg_update"]["stop_bits"] == 1.0, "cfg_update stop_bits should be 1.0"
+
+    def test_set_baud_only(self):
+        # Arrange
+        ser = _mock_ser()
+
+        # Act
+        msgs, effects = set_mode(ser, _cfg(), "9600")
+
+        # Assert
+        assert ser.baudrate == 9600, "baudrate should be set to 9600"
+        assert effects["cfg_update"]["baud_rate"] == 9600, "cfg_update baud_rate should be 9600"
+        assert "parity" not in effects["cfg_update"], "should not touch parity when only baud set"
+
+    def test_set_baud_and_mode(self):
+        # Arrange
+        ser = _mock_ser()
+
+        # Act
+        msgs, effects = set_mode(ser, _cfg(), "9600 N81")
+
+        # Assert
+        assert ser.baudrate == 9600, "baudrate should be set to 9600"
+        assert ser.parity == "N", "parity should be set to N"
+        assert ser.bytesize == 8, "bytesize should be set to 8"
+        assert ser.stopbits == 1.0, "stopbits should be set to 1"
+        text = msgs[0][0]
+        assert "9600" in text, "summary should include baud rate"
+        assert "8N1" in text, "summary should include mode"
+
+    def test_disconnected(self):
+        # Act
+        msgs, _ = set_mode(None, _cfg(), "9600 N81")
+
+        # Assert
+        assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
+
+    def test_invalid_token(self):
+        # Arrange
+        ser = _mock_ser()
+
+        # Act
+        msgs, _ = set_mode(ser, _cfg(), "garbage")
+
+        # Assert
+        assert any("red" == c for _, c in msgs), "should show red error for invalid token"
+
+    def test_summary_format(self):
+        # Arrange
+        ser = _mock_ser()
+
+        # Act
+        msgs, _ = set_mode(ser, _cfg(), "9600 O81.5")
+
+        # Assert
+        text = msgs[0][0]
+        assert "Mode -> 9600 8O1.5" in text, "summary should show baud and frame"

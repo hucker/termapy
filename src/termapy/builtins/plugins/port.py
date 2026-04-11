@@ -52,7 +52,22 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_open(ctx: PluginContext, args: str) -> CmdResult:
-    ctx.engine.connect(args.strip() if args.strip() else None)
+    port, baud, mode, err = port_control.parse_open_args(args)
+    if err:
+        ctx.write(err, "red")
+        return CmdResult.fail(msg=err)
+    # Apply baud/mode to config before connecting so the port opens
+    # with the right settings.
+    if baud is not None:
+        ctx.engine.apply_port_effects({"cfg_update": {"baud_rate": baud}})
+    if mode is not None:
+        parity, byte_size, stop_bits = mode
+        ctx.engine.apply_port_effects({"cfg_update": {
+            "parity": parity,
+            "byte_size": byte_size,
+            "stop_bits": stop_bits,
+        }})
+    ctx.engine.connect(port)
     return CmdResult.ok()
 
 
@@ -82,6 +97,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             )
         )
     _apply(ctx, port_control.port_info(ctx.cfg, ctx.port()))
+    return CmdResult.ok()
+
+
+def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
+    _apply(ctx, port_control.set_mode(ctx.port(), ctx.cfg, args))
     return CmdResult.ok()
 
 
@@ -158,9 +178,14 @@ COMMAND = Command(
             handler=_handler_list,
         ),
         "open": Command(
-            args="{name}",
-            help="Connect to the serial port (optional port override).",
+            args="{name} {baud} {mode}",
+            help="Connect to the serial port (e.g. /port.open COM3 9600 N81).",
             handler=_handler_open,
+        ),
+        "mode": Command(
+            args="{baud} {mode}",
+            help="Show or set serial mode (e.g. /port.mode 9600 N81).",
+            handler=_handler_mode,
         ),
         "close": Command(
             help="Disconnect from the serial port.",

@@ -128,97 +128,98 @@ Type `/` to access built-in commands (the prefix is configurable). Type `/help` 
 
 The most common ones:
 
-| Command              | Description                        |
-| -------------------- | ---------------------------------- |
-| `/help [cmd]`        | List commands or show help for one |
-| `/port.list`         | List available serial ports        |
-| `/port.open {name}`  | Connect to a port                  |
-| `/port.info`         | Show port status and parameters    |
-| `/cfg [key [value]]` | Show or change in-memory config    |
-| `/ss.svg [name]`     | Save SVG screenshot                |
-| `/cls`               | Clear the terminal                 |
-| `/run <filename>`    | Run a script file                  |
-| `/echo [on \| off]`  | Toggle command echo                |
-| `/grep <pattern>`    | Search scrollback                  |
-| `/exit`              | Exit termapy                       |
+| Command                            | Description                                            |
+| ---------------------------------- | ------------------------------------------------------ |
+| `/help [cmd]`                      | List commands or show help for one                     |
+| `/port.list`                       | List available serial ports                            |
+| `/port.open {name} {baud} {mode}`  | Connect with optional baud rate and mode (e.g. N81)    |
+| `/port.info`                       | Show port status and parameters                        |
+| `/cfg [key [value]]`               | Show or change in-memory config                        |
+| `/ss.svg [name]`                   | Save SVG screenshot                                    |
+| `/cls`                             | Clear the terminal                                     |
+| `/run <filename>`                  | Run a script file                                      |
+| `/echo [on \| off]`                | Toggle command echo                                    |
+| `/grep <pattern>`                  | Search scrollback                                      |
+| `/exit`                            | Exit termapy                                           |
 
 <details>
 <summary>Full command list</summary>
 
-| Command                          | Description                                                                     |
-| -------------------------------- | ------------------------------------------------------------------------------- |
-| `/help [cmd]`                    | List commands or show extended help for one                                     |
-| `/help.dev <cmd>`                | Show a command handler's Python docstring                                       |
-| `/port [name]`                   | Open a port by name, or show subcommands                                        |
-| `/port.list`                     | List available serial ports                                                     |
-| `/port.open {name}`              | Connect to the serial port (optional port override)                             |
-| `/port.close`                    | Disconnect from the serial port                                                 |
-| `/port.info`                     | Show port status, serial parameters, and hardware lines                         |
-| `/port.baud_rate {value}`        | Show or set baud rate (hardware only)                                           |
-| `/port.byte_size {value}`        | Show or set data bits (hardware only)                                           |
-| `/port.parity {value}`           | Show or set parity (hardware only)                                              |
-| `/port.stop_bits {value}`        | Show or set stop bits (hardware only)                                           |
-| `/port.flow_control {m}`         | Show or set flow control: none, rtscts, xonxoff, manual                         |
-| `/port.dtr {0\|1}`               | Show or set DTR line                                                            |
-| `/port.rts {0\|1}`               | Show or set RTS line                                                            |
-| `/port.cts`                      | Show CTS state (read-only)                                                      |
-| `/port.dsr`                      | Show DSR state (read-only)                                                      |
-| `/port.ri`                       | Show RI state (read-only)                                                       |
-| `/port.cd`                       | Show CD state (read-only)                                                       |
-| `/port.break {ms}`               | Send break signal (default 250ms)                                               |
-| `/cfg [key [value]]`             | Show config, show a key, or change in-memory value (with confirmation)          |
-| `/cfg.auto <key> <value>`        | Set an in-memory config key immediately (no confirmation)                       |
-| `/cfg.configs`                   | List all config files                                                           |
-| `/cfg.load <name>`               | Switch to a different config by name                                            |
-| `/ss.svg [name]`                 | Save SVG screenshot                                                             |
-| `/ss.txt [name]`                 | Save text screenshot                                                            |
-| `/ss.dir`                        | Show the screenshot folder                                                      |
-| `/cls`                           | Clear the terminal screen                                                       |
-| `/run <filename> {-v}`           | Run a script file (-v/--verbose for per-line timing); nests up to 5 levels deep |
-| `/run.list`                      | List .run files in the run/ directory                                           |
-| `/run.load <filename>`           | Run a script file (same as /run)                                                |
-| `/delay <duration>`              | Wait for a duration (e.g. `500ms`, `1.5s`)                                      |
-| `/confirm {message}`             | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)       |
-| `/stop`                          | Abort a running script                                                          |
-| `/seq`                           | Show sequence counters                                                          |
-| `/seq.reset`                     | Reset all sequence counters to zero                                             |
-| `/print <text>`                  | Print a message to the terminal                                                 |
-| `/print.r <text>`                | Print Rich markup text (e.g. `[bold red]Warning![/]`)                           |
-| `/show <name>`                   | Show a file                                                                     |
-| `/show.cfg`                      | Show the current config file                                                    |
-| `/echo [on \| off]`              | Toggle REPL command echo                                                        |
-| `/echo.quiet <on \| off>`        | Set echo on/off silently (for scripts and on_connect_cmd)                       |
-| `/edit <file>`                   | Edit a project file (`run/`/`proto/` path)                                      |
-| `/edit.cfg`                      | Edit the current config file                                                    |
-| `/edit.log`                      | Open the session log in the system viewer                                       |
-| `/edit.info`                     | Open the info report in the system viewer                                       |
-| `/show_line_endings [on \| off]` | Toggle visible `\r` `\n` markers for line-ending troubleshooting                |
-| `/os <cmd>`                      | Run a shell command (10s timeout, requires `os_cmd_enabled`)                    |
-| `/grep <pattern>`                | Search scrollback for regex matches (case-insensitive, skips own output)        |
-| `/cfg.info {--display}`          | Show project summary; `--display` opens full report in system viewer            |
-| `/cfg.files`                     | Show project directory tree                                                     |
-| `/proto.send <hex>`              | Send raw hex bytes and/or quoted text, display response as hex (see below)      |
-| `/proto.run <file>`              | Run a binary protocol test script (.pro) with pass/fail                         |
-| `/proto.list`                    | List .pro files in the proto/ directory                                         |
-| `/proto.load <file>`             | Run a protocol test script (same as /proto.run)                                 |
-| `/proto.hex [on \| off]`         | Toggle hex display mode for serial I/O                                          |
-| `/proto.crc.list {pat}`          | List available CRC algorithms (optional glob filter)                            |
-| `/proto.crc.help <name>`         | Show CRC algorithm parameters and description                                   |
-| `/proto.crc.calc <n> {d}`        | Compute CRC over hex bytes, text, or file; omit data to verify check string     |
-| `/proto.status`                  | Show current protocol mode state                                                |
-| `/var {name}`                    | List user variables, or show one by name                                        |
-| `/var.set <NAME> <value>`        | Set a user variable                                                             |
-| `/var.clear`                     | Clear all user variables                                                        |
-| `/env.list {pattern}`            | List environment variables (all, by name, or glob)                              |
-| `/env.set <name> <value>`        | Set a session-scoped environment variable                                       |
-| `/env.reload`                    | Re-snapshot variables from the OS environment                                   |
-| `/cap.text <f> ...`              | Capture serial text to file for a timed duration                                |
-| `/cap.bin <f> ...`               | Capture raw binary bytes to a file                                              |
-| `/cap.struct <f> ...`            | Capture binary data, decode with format spec to CSV                             |
-| `/cap.hex <f> ...`               | Capture hex text lines, decode with format spec to CSV                          |
-| `/cap.stop`                      | Stop an active capture                                                          |
-| `/raw <text>`                    | Send text to serial with no variable expansion or transforms                    |
-| `/exit`                          | Exit termapy                                                                    |
+| Command                             | Description                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `/help [cmd]`                       | List commands or show extended help for one                                     |
+| `/help.dev <cmd>`                   | Show a command handler's Python docstring                                       |
+| `/port [name]`                      | Open a port by name, or show subcommands                                        |
+| `/port.list`                        | List available serial ports                                                     |
+| `/port.open {name} {baud} {mode}`   | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81)             |
+| `/port.mode {baud} {mode}`          | Show or set serial mode (e.g. /port.mode 9600 N81)                              |
+| `/port.close`                       | Disconnect from the serial port                                                 |
+| `/port.info`                        | Show port status, serial parameters, and hardware lines                         |
+| `/port.baud_rate {value}`           | Show or set baud rate (hardware only)                                           |
+| `/port.byte_size {value}`           | Show or set data bits (hardware only)                                           |
+| `/port.parity {value}`              | Show or set parity (hardware only)                                              |
+| `/port.stop_bits {value}`           | Show or set stop bits (hardware only)                                           |
+| `/port.flow_control {m}`            | Show or set flow control: none, rtscts, xonxoff, manual                         |
+| `/port.dtr {0\|1}`                  | Show or set DTR line                                                            |
+| `/port.rts {0\|1}`                  | Show or set RTS line                                                            |
+| `/port.cts`                         | Show CTS state (read-only)                                                      |
+| `/port.dsr`                         | Show DSR state (read-only)                                                      |
+| `/port.ri`                          | Show RI state (read-only)                                                       |
+| `/port.cd`                          | Show CD state (read-only)                                                       |
+| `/port.break {ms}`                  | Send break signal (default 250ms)                                               |
+| `/cfg [key [value]]`                | Show config, show a key, or change in-memory value (with confirmation)          |
+| `/cfg.auto <key> <value>`           | Set an in-memory config key immediately (no confirmation)                       |
+| `/cfg.configs`                      | List all config files                                                           |
+| `/cfg.load <name>`                  | Switch to a different config by name                                            |
+| `/ss.svg [name]`                    | Save SVG screenshot                                                             |
+| `/ss.txt [name]`                    | Save text screenshot                                                            |
+| `/ss.dir`                           | Show the screenshot folder                                                      |
+| `/cls`                              | Clear the terminal screen                                                       |
+| `/run <filename> {-v}`              | Run a script file (-v/--verbose for per-line timing); nests up to 5 levels deep |
+| `/run.list`                         | List .run files in the run/ directory                                           |
+| `/run.load <filename>`              | Run a script file (same as /run)                                                |
+| `/delay <duration>`                 | Wait for a duration (e.g. `500ms`, `1.5s`)                                      |
+| `/confirm {message}`                | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)       |
+| `/stop`                             | Abort a running script                                                          |
+| `/seq`                              | Show sequence counters                                                          |
+| `/seq.reset`                        | Reset all sequence counters to zero                                             |
+| `/print <text>`                     | Print a message to the terminal                                                 |
+| `/print.r <text>`                   | Print Rich markup text (e.g. `[bold red]Warning![/]`)                           |
+| `/show <name>`                      | Show a file                                                                     |
+| `/show.cfg`                         | Show the current config file                                                    |
+| `/echo [on \| off]`                 | Toggle REPL command echo                                                        |
+| `/echo.quiet <on \| off>`           | Set echo on/off silently (for scripts and on_connect_cmd)                       |
+| `/edit <file>`                      | Edit a project file (`run/`/`proto/` path)                                      |
+| `/edit.cfg`                         | Edit the current config file                                                    |
+| `/edit.log`                         | Open the session log in the system viewer                                       |
+| `/edit.info`                        | Open the info report in the system viewer                                       |
+| `/show_line_endings [on \| off]`    | Toggle visible `\r` `\n` markers for line-ending troubleshooting                |
+| `/os <cmd>`                         | Run a shell command (10s timeout, requires `os_cmd_enabled`)                    |
+| `/grep <pattern>`                   | Search scrollback for regex matches (case-insensitive, skips own output)        |
+| `/cfg.info {--display}`             | Show project summary; `--display` opens full report in system viewer            |
+| `/cfg.files`                        | Show project directory tree                                                     |
+| `/proto.send <hex>`                 | Send raw hex bytes and/or quoted text, display response as hex (see below)      |
+| `/proto.run <file>`                 | Run a binary protocol test script (.pro) with pass/fail                         |
+| `/proto.list`                       | List .pro files in the proto/ directory                                         |
+| `/proto.load <file>`                | Run a protocol test script (same as /proto.run)                                 |
+| `/proto.hex [on \| off]`            | Toggle hex display mode for serial I/O                                          |
+| `/proto.crc.list {pat}`             | List available CRC algorithms (optional glob filter)                            |
+| `/proto.crc.help <name>`            | Show CRC algorithm parameters and description                                   |
+| `/proto.crc.calc <n> {d}`           | Compute CRC over hex bytes, text, or file; omit data to verify check string     |
+| `/proto.status`                     | Show current protocol mode state                                                |
+| `/var {name}`                       | List user variables, or show one by name                                        |
+| `/var.set <NAME> <value>`           | Set a user variable                                                             |
+| `/var.clear`                        | Clear all user variables                                                        |
+| `/env.list {pattern}`               | List environment variables (all, by name, or glob)                              |
+| `/env.set <name> <value>`           | Set a session-scoped environment variable                                       |
+| `/env.reload`                       | Re-snapshot variables from the OS environment                                   |
+| `/cap.text <f> ...`                 | Capture serial text to file for a timed duration                                |
+| `/cap.bin <f> ...`                  | Capture raw binary bytes to a file                                              |
+| `/cap.struct <f> ...`               | Capture binary data, decode with format spec to CSV                             |
+| `/cap.hex <f> ...`                  | Capture hex text lines, decode with format spec to CSV                          |
+| `/cap.stop`                         | Stop an active capture                                                          |
+| `/raw <text>`                       | Send text to serial with no variable expansion or transforms                    |
+| `/exit`                             | Exit termapy                                                                    |
 
 </details>
 

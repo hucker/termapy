@@ -1059,6 +1059,7 @@ class SerialTerminal(App):
         self.notify(full, timeout=0.75)
         self._status(full, "green")
         self._set_conn_status("Connected")
+        self._update_title()
         inp = self.query_one("#cmd", Input)
         inp.placeholder = "REPL:type command, Enter to send"
         inp.focus()
@@ -1365,6 +1366,7 @@ class SerialTerminal(App):
                 self.notify("Disconnected", severity="warning", timeout=0.75)
                 self._status("Disconnected", "red")
             self._set_conn_status("Disconnected")
+            self._update_title()
             try:
                 inp = self.query_one("#cmd", Input)
                 prefix = self.cfg.get("cmd_prefix", "/")
@@ -1769,8 +1771,9 @@ class SerialTerminal(App):
         from termapy import port_control
 
         port_name = self.cfg.get("port", "") or "(none)"
+        connected = port_name if self.is_connected else ""
         facts = (
-            port_control.gather_chip_facts(port_name)
+            port_control.gather_chip_facts(port_name, connected)
             if port_name and port_name != "(none)"
             else None
         )

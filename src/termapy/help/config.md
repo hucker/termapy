@@ -44,6 +44,7 @@ Here is an example config for a device called `iot_device`:
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": false,
+    "cli_intellisense": true,
     "config_read_only": false,
     "os_cmd_enabled": false,
     "port": "COM4",
@@ -111,6 +112,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `cmd_prefix`             | `/`                   | Prefix for local REPL commands                                                              |
 | `cli_prompt`             | `$(CFG)>`             | Prompt string in CLI mode (supports variables)                                              |
 | `cli_echo_input`         | `false`               | Echo sent commands in CLI mode                                                              |
+| `cli_intellisense`       | `true`                | Enable CLI tab completion, auto-suggest, and help toolbar                                   |
 | `config_read_only`       | `false`               | Disable Edit button in pickers (`/cfg` still changes in-memory values)                      |
 | `os_cmd_enabled`         | `false`               | Allow `/os` to run shell commands                                                           |
 | `show_traceback`         | `false`               | Show full stack trace on serial errors                                                      |

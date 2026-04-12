@@ -63,6 +63,26 @@ stdin and writes to stdout. Useful for headless environments, SSH sessions,
 piping output, or when you prefer a minimal interface. Start with
 `termapy --cli` or set `"default_ui": "cli"` in your config.
 
+### CLI intellisense
+
+CLI mode includes built-in intellisense powered by prompt\_toolkit:
+
+- **Tab completion** -- press Tab to complete REPL commands, subcommands, and device commands
+- **Auto-suggest** -- recent history appears as grey text as you type; press Right arrow to accept
+- **Help toolbar** -- a bottom bar shows the help string for the command you are typing
+
+![CLI intellisense](img/cli_intellisense.png)
+
+Toggle intellisense during a session with `/cli.intellisense on|off`, or
+disable it in your config:
+
+```json
+"cli_intellisense": false
+```
+
+When output is piped to a file, intellisense is automatically disabled
+to keep the output clean.
+
 ### Switching modes
 
 Use the `/tui` and `/cli` REPL commands to switch modes during a session.

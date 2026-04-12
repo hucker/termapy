@@ -338,7 +338,7 @@ class TestConnect:
 
         # Assert
         actual = capsys.readouterr().out
-        assert "Cannot connect" in actual, "reports failure"
+        assert "Cannot open" in actual, "reports failure"
 
     def test_connect_with_port(self, cli):
         # Arrange

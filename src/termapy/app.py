@@ -1030,44 +1030,21 @@ class SerialTerminal(TerminalHost, App):
             self.log_fh.close()
             self.log_fh = None
 
-    def _connect(self, port: str | None = None) -> None:
+    def _connect(self, port: str | None = None) -> bool:
         if self.is_connected:
-            return
-        if port:
-            self.repl._cfg_data["port"] = port
-        self._engine.reader_stopped.wait(timeout=0.3)
-        self._try_open_port()
-
-    def _try_open_port(self) -> bool:
-        """Attempt to open the serial port. Returns True on success."""
-        if not self._engine.connect():
-            self._engine.reader_stopped.set()
-            port = self.cfg.get("port", "?")
-            detail = self._engine.last_error
-            if detail:
-                self._status(f"Cannot open {port}: {detail}", "red")
-            else:
-                self._status(f"Cannot open {port}", "red")
-            self._set_conn_status("Disconnected")
-            if self.cfg.get("auto_reconnect"):
-                self._auto_reconnect()
             return False
+        self._engine.reader_stopped.wait(timeout=0.3)
+        return super()._connect(port)
 
-        from termapy.config import connection_string, hardware_signals
-
-        conn = connection_string(self.cfg)
-        hw = hardware_signals(self.ser)
-        full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
-        self.notify(full, timeout=0.75)
-        self._status(full, "green")
+    def _on_connected(self, message: str) -> None:
+        """TUI post-connect: notify, update UI, run on_connect_cmd."""
+        self.notify(message, timeout=0.75)
         self._set_conn_status("Connected")
         self._update_title()
         inp = self.query_one("#cmd", Input)
         inp.placeholder = "REPL:type command, Enter to send"
         inp.focus()
         self._sync_hw_buttons()
-        self.repl.fire_lifecycle("on_connect")
-        self._run_reader()
         connect_cmds: list[str] = []
         if self.cfg.get("device_json_cmd", ""):
             connect_cmds.append(self.repl.cmd("include"))
@@ -1076,7 +1053,13 @@ class SerialTerminal(TerminalHost, App):
             connect_cmds.extend(auto_cmd.replace("\\n", "\n").split("\n"))
         if connect_cmds:
             self._run_lines(connect_cmds, delay=0.2)
-        return True
+
+    def _on_connect_failed(self) -> None:
+        """TUI post-connect failure: update status, auto-reconnect."""
+        self._engine.reader_stopped.set()
+        self._set_conn_status("Disconnected")
+        if self.cfg.get("auto_reconnect"):
+            self._auto_reconnect()
 
     _SPINNER = "|/-\\"
 
@@ -1353,14 +1336,12 @@ class SerialTerminal(TerminalHost, App):
     def _disconnect(self) -> None:
         if self._capture.active:
             self._cap_stop()
-        was_open = self.is_connected
-        if was_open:
-            self.repl.fire_lifecycle("on_disconnect")
-        self._engine.disconnect()
+        super()._disconnect()
+
+    def _on_disconnected(self) -> None:
+        """TUI post-disconnect: notify, update status, title, placeholder, buttons."""
         try:
-            if was_open:
-                self.notify("Disconnected", severity="warning", timeout=0.75)
-                self._status("Disconnected", "red")
+            self.notify("Disconnected", severity="warning", timeout=0.75)
             self._set_conn_status("Disconnected")
             self._update_title()
             try:

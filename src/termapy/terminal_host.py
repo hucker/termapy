@@ -77,13 +77,61 @@ class TerminalHost:
         """Prompt for user confirmation."""
         raise NotImplementedError
 
-    def _connect(self, port: str | None = None) -> None:
-        """Connect to a serial port."""
-        raise NotImplementedError
+    def _connect(self, port: str | None = None) -> bool:
+        """Connect to a serial port.
+
+        Handles the shared logic: set port, call engine.connect(), build
+        connection string, fire lifecycle, start reader.  Returns True on
+        success.  Subclasses override ``_on_connected()`` and
+        ``_on_connect_failed()`` for UI updates.
+        """
+        if self.engine.is_connected:
+            self.status("Already connected", "yellow")
+            return False
+        if port:
+            self.repl._cfg_data["port"] = port
+        if not self.engine.connect():
+            port_name = self.cfg.get("port", "?")
+            detail = self.engine.last_error
+            if detail:
+                self.status(f"Cannot open {port_name}: {detail}", "red")
+            else:
+                self.status(f"Cannot open {port_name}", "red")
+            self._on_connect_failed()
+            return False
+        from termapy.config import connection_string, hardware_signals
+
+        conn = connection_string(self.cfg)
+        hw = hardware_signals(self.engine.port_obj)
+        full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
+        self.write(full, "green")
+        self.repl.fire_lifecycle("on_connect")
+        self._start_reader()
+        self._on_connected(full)
+        return True
+
+    def _on_connected(self, message: str) -> None:
+        """Called after a successful connection.  Override for UI updates."""
+
+    def _on_connect_failed(self) -> None:
+        """Called after a failed connection.  Override for UI updates."""
 
     def _disconnect(self) -> None:
-        """Disconnect from the serial port."""
-        raise NotImplementedError
+        """Disconnect from the serial port.
+
+        Handles the shared logic: fire lifecycle, engine.disconnect().
+        Subclasses override ``_on_disconnected()`` for UI updates.
+        """
+        if not self.engine.is_connected:
+            self.status("Not connected.", "yellow")
+            return
+        self.repl.fire_lifecycle("on_disconnect")
+        self.engine.disconnect()
+        self.write("Disconnected.", "red")
+        self._on_disconnected()
+
+    def _on_disconnected(self) -> None:
+        """Called after disconnection.  Override for UI updates."""
 
     # -- Context builders (subclass extends, not replaces) --------------------
 

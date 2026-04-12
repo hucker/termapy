@@ -511,6 +511,9 @@ class TestConfirm:
 class TestHistory:
     def test_save_and_load_history(self, cli):
         """Save then load history round-trip (if readline available)."""
+        import termapy.cli as cli_mod
+        if cli_mod.readline is None:
+            pytest.skip("readline disabled on this platform")
         import importlib
         try:
             readline = importlib.import_module("readline")

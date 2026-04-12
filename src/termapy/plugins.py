@@ -502,6 +502,10 @@ class PluginContext:
             cached per session.  Call ``.save()`` to write to disk.
             Use ``ns()`` for session-only state, ``plugin_cfg()`` for
             state that must survive across sessions.
+        status_bar: Show transient text in the bottom status bar (TUI only).
+            The text shares space with the REPL input and auto-clears after
+            a timeout (default 5 seconds).  No-op in CLI mode.
+            Signature: ``status_bar(text, timeout=5.0)``.
         add_rx_observer: Register a callback that receives every raw RX byte
             chunk from the serial port.  Observers see data alongside the
             normal display pipeline -- they cannot modify or block it.
@@ -539,6 +543,9 @@ class PluginContext:
     serial_claim: Callable = lambda: None    # suppress terminal display, claim raw bytes
     serial_release: Callable = lambda: None  # resume normal terminal display
     wait_for_match: Callable = lambda predicate, timeout=5.0: None  # block until line matches
+
+    # Status bar - transient text in the bottom bar (TUI only, no-op in CLI)
+    status_bar: Callable = lambda text, timeout=5.0: None
 
     # Serial observers - see raw bytes without disrupting the pipeline
     add_rx_observer: Callable = lambda cb: None

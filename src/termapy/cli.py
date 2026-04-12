@@ -95,6 +95,7 @@ class CLITerminal(TerminalHost):
         self.run_script = run_script
         self.term_width = term_width
         self.prefix = cfg.get("cmd_prefix", "/")
+        self._xfer_cancel = threading.Event()
 
         # Ensure stdout handles unicode on Windows
         if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
@@ -292,6 +293,20 @@ class CLITerminal(TerminalHost):
             self._hook_cli_intellisense,
             source="app",
         )
+        # TUI-only stubs — warn when invoked in CLI
+        def _tui_only(ctx, args, name=""):
+            return CmdResult.fail(msg="Only available in /tui mode.")
+
+        for name, args_spec, help_text in [
+            ("line_no", "{on|off}", "Toggle line numbers (TUI only)."),
+        ]:
+            self.repl.register_hook(
+                name,
+                args_spec,
+                help_text,
+                lambda ctx, a, n=name: _tui_only(ctx, a, n),
+                source="app",
+            )
 
     # -- Hook handlers --------------------------------------------------------
 

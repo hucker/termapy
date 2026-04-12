@@ -680,18 +680,12 @@ class SerialTerminal(TerminalHost, App):
         engine = self._build_engine_api()
         # TUI-specific EngineAPI extensions
         engine.save_cfg = self._hook_cfg_confirm
-        engine.set_proto_active = lambda active: setattr(
-            self._engine, "proto_active", active
-        )
         engine.open_proto_debug = lambda path, script: self.call_later(
             self._open_proto_debug, path, script
         )
         engine.start_capture = self._cap_start
         engine.stop_capture = self._cap_stop
         engine.directives = self.repl._directives
-        engine.update_port = self._update_port
-        engine.rx_queue = self._engine.rx_queue
-        engine.xfer_cancel = self._xfer_cancel
 
         ctx = self._build_plugin_context(engine)
         # TUI-specific PluginContext overrides

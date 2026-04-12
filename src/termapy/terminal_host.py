@@ -151,11 +151,20 @@ class TerminalHost:
             script_stop=lambda: self.repl._script_stop.set(),
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
+            set_proto_active=lambda active: setattr(
+                self.engine, "proto_active", active
+            ),
+            open_proto_debug=lambda path, script: self.status(
+                "Only available in /tui mode.", "yellow"
+            ),
             start_capture=lambda **kw: self._start_capture(**kw),
             stop_capture=lambda: self._stop_capture(),
             connect=lambda port=None: self._connect(port),
             disconnect=lambda: self._disconnect(),
+            update_port=lambda name: self._update_port(name),
             apply_port_effects=lambda effects: self._apply_port_effects(effects),
+            rx_queue=self.engine.rx_queue,
+            xfer_cancel=getattr(self, "_xfer_cancel", None),
             script_stop_event=self.repl._script_stop,
         )
 
@@ -297,6 +306,20 @@ class TerminalHost:
             for key, val in effects["cfg_update"].items():
                 self.repl._cfg_data[key] = val
 
+    # -- Port switching ---------------------------------------------------------
+
+    def _update_port(self, port: str) -> None:
+        """Change serial port for this session and reconnect.
+
+        Does not write to disk -- keeps $(env.NAME) templates intact.
+        """
+        self.cfg["port"] = port
+        if self.engine.is_connected:
+            self._disconnect()
+        self._connect()
+        if self.engine.is_connected:
+            self.status(f"Port changed to {port} (session)", "green")
+
     # -- Capture helpers ------------------------------------------------------
 
     def _start_capture(self, **kwargs) -> bool:
@@ -313,6 +336,8 @@ class TerminalHost:
             return False
         mode = kwargs.get("mode", "?")
         path = kwargs.get("path", "?")
+        if mode != "text":
+            self.engine.proto_active = True
         self.status(f"Capture started: {path} ({mode})")
         return True
 
@@ -322,6 +347,8 @@ class TerminalHost:
         Subclasses may override to add UI (timer cleanup, progress).
         """
         result = self.capture.stop()
+        if not self.repl.in_script:
+            self.engine.proto_active = False
         if result:
             self.status(f"Capture complete: {result.path} ({result.size_label})")
 

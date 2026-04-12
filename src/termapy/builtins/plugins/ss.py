@@ -22,7 +22,7 @@ def _handler_dir(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_not_supported(ctx: PluginContext, args: str) -> CmdResult:
-    return CmdResult.fail(msg="Screenshots are not supported in CLI mode.")
+    return CmdResult.fail(msg="Only available in /tui mode.")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

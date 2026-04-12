@@ -505,39 +505,28 @@ class TestConfirm:
         assert actual is False, "EOF returns False"
 
 
-# -- History -----------------------------------------------------------------
+# -- History / prompt session ------------------------------------------------
 
 
 class TestHistory:
-    def test_save_and_load_history(self, cli):
-        """Save then load history round-trip (if readline available)."""
-        import termapy.cli as cli_mod
-        if cli_mod.readline is None:
-            pytest.skip("readline disabled on this platform")
-        import importlib
-        try:
-            readline = importlib.import_module("readline")
-        except ImportError:
-            pytest.skip("readline not available")
-
-        # Arrange
-        readline.clear_history()
-        readline.add_history("cmd1")
-        readline.add_history("cmd2")
-
+    def test_history_path(self, cli):
+        """History path is derived from config path."""
         # Act
-        cli._save_history()
-        readline.clear_history()
-        cli._load_history()
+        actual = cli._history_path()
 
         # Assert
-        actual = readline.get_current_history_length()
-        assert actual == 2, "both entries restored"
+        assert actual.endswith("test.history"), "history file uses config stem"
 
-    def test_load_missing_history(self, cli):
-        """Loading from nonexistent file doesn't raise."""
-        # Act / Assert — no exception
-        cli._load_history()
+    def test_build_session_creates_completer(self, cli):
+        """Completer class is wired with repl and prefix."""
+        from termapy.cli import _TermapyCompleter
+
+        # Act
+        completer = _TermapyCompleter(cli.repl, cli.prefix, cli.config_path)
+
+        # Assert
+        assert completer._prefix == "/", "prefix wired"
+        assert completer._repl is cli.repl, "repl wired"
 
 
 # -- Hook registration ------------------------------------------------------

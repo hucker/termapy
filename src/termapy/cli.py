@@ -15,17 +15,10 @@ import threading
 import time
 from pathlib import Path
 
-if sys.platform != "win32":
-    try:
-        import readline
-    except ImportError:
-        readline = None  # ty: ignore[invalid-assignment]
-else:
-    # pyreadline3 on Windows breaks terminal scrolling at the bottom of
-    # the screen — it uses Win32 console APIs that fight with Python's
-    # stdout.  Plain input() scrolls correctly.  We lose tab completion
-    # but gain a working terminal.
-    readline = None  # ty: ignore[invalid-assignment]
+from prompt_toolkit import PromptSession
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.history import FileHistory
 
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial
@@ -34,6 +27,45 @@ from termapy.repl import ReplEngine
 from termapy.scripting import strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
+
+
+class _TermapyCompleter(Completer):
+    """Tab completer for REPL commands, device commands, and script files."""
+
+    def __init__(self, repl: ReplEngine, prefix: str, config_path: str) -> None:
+        self._repl = repl
+        self._prefix = prefix
+        self._scripts_dir = Path(config_path).parent / "run"
+        self._file_cmds = (f"{prefix}run ", f"{prefix}run.edit ")
+
+    def get_completions(self, document, complete_event):  # noqa: ARG002
+        """Yield completions for the current input."""
+        line = document.text
+
+        # File completion for /run and /run.edit args
+        for fc in self._file_cmds:
+            if line.startswith(fc):
+                partial = line[len(fc):]
+                if self._scripts_dir.is_dir():
+                    for f in sorted(self._scripts_dir.glob("*.run")):
+                        if f.name.startswith(partial):
+                            yield Completion(f.name, start_position=-len(partial))
+                return
+
+        # REPL command completion
+        if line.startswith(self._prefix):
+            for name in sorted(self._repl._plugins):
+                full = f"{self._prefix}{name}"
+                if full.startswith(line):
+                    yield Completion(full, start_position=-len(line))
+            return
+
+        # Device command completion
+        target_cmds = self._repl.ctx.ns("target_commands")
+        if target_cmds:
+            for name in sorted(target_cmds):
+                if name.lower().startswith(line.lower()):
+                    yield Completion(name, start_position=-len(line))
 
 
 class CLITerminal(TerminalHost):
@@ -271,8 +303,33 @@ class CLITerminal(TerminalHost):
             lambda ctx, args: CmdResult.ok(),
             source="app",
         )
+        self.repl.register_hook(
+            "cli.intellisense",
+            "{on|off}",
+            "Show or toggle CLI tab completion, auto-suggest, and help toolbar.",
+            self._hook_cli_intellisense,
+            source="app",
+        )
 
     # -- Hook handlers --------------------------------------------------------
+
+    def _hook_cli_intellisense(self, ctx, args: str):
+        """Show or toggle CLI intellisense (completion, suggest, toolbar)."""
+        from termapy.scripting import parse_bool
+
+        val = parse_bool(args)
+        if val is True:
+            self.cfg["cli_intellisense"] = True
+            self._session = self._build_session()
+            self.status("CLI intellisense enabled.", "green")
+        elif val is False:
+            self.cfg["cli_intellisense"] = False
+            self._session = None
+            self.status("CLI intellisense disabled.")
+        else:
+            state = "on" if self.cfg.get("cli_intellisense", True) else "off"
+            self.status(f"CLI intellisense: {state}")
+        return CmdResult.ok()
 
     def _hook_delay(self, ctx, args: str):
         """Wait with progress bar (>=1s) or silently (<1s).
@@ -479,93 +536,57 @@ class CLITerminal(TerminalHost):
         except (EOFError, KeyboardInterrupt):
             return False
 
-    # -- History --------------------------------------------------------------
+    # -- Prompt session (history + tab completion via prompt_toolkit) ----------
 
-    def _load_history(self) -> None:
-        """Load command history from the same file the TUI uses."""
-        if not readline:
-            return
-        history_path = Path(self.config_path).parent / ".cmd_history.txt"
-        try:
-            for line in history_path.read_text(encoding="utf-8").splitlines()[
-                -self._HISTORY_LIMIT :
-            ]:
-                if line.strip():
-                    readline.add_history(line)  # ty: ignore[unresolved-attribute]
-        except (FileNotFoundError, OSError):
-            pass
+    def _history_path(self) -> str:
+        """Return the path to the history file (matches TUI path)."""
+        if self.config_path:
+            p = Path(self.config_path)
+            return str(p.parent / f"{p.stem}.history")
+        return str(Path.cwd() / ".cmd_history.txt")
 
-    def _save_history(self) -> None:
-        """Save command history to the same file the TUI uses."""
-        if not readline:
-            return
-        history_path = Path(self.config_path).parent / ".cmd_history.txt"
-        entries = [
-            readline.get_history_item(i + 1)  # ty: ignore[unresolved-attribute]
-            for i in range(readline.get_current_history_length())  # ty: ignore[unresolved-attribute]
-        ]
-        entries = [e for e in entries if e][-self._HISTORY_LIMIT :]
-        try:
-            history_path.write_text("\n".join(entries), encoding="utf-8")
-        except OSError:
-            pass
+    def _build_session(self) -> PromptSession | None:
+        """Create a prompt_toolkit session with history and tab completion.
 
-    # -- Tab completion -------------------------------------------------------
+        Returns None when stdout is not a terminal, or when
+        ``cli_intellisense`` is disabled in the config.
+        """
+        if not sys.stdout.isatty():
+            return None
+        if not self.cfg.get("cli_intellisense", True):
+            return None
 
-    def _setup_completion(self) -> None:
-        """Set up readline tab completion for commands and script files."""
-        if not readline:
-            return
-        scripts_dir = Path(self.config_path).parent / "run"
-        file_cmds = (f"{self.prefix}run ", f"{self.prefix}run.edit ")
         repl = self.repl
         prefix = self.prefix
 
-        matches: list[str] = []
+        def _toolbar():
+            """Show help for the command currently being typed."""
+            buf = session.default_buffer
+            text = buf.text.strip()
+            if not text.startswith(prefix):
+                return ""
+            after = text[len(prefix):]
+            cmd_part = after.split()[0] if after else ""
+            if not cmd_part:
+                return ""
+            # Try exact match first, then progressively shorter dot-prefixes
+            # so "/cfg.show" matches "cfg" if "cfg.show" doesn't exist
+            parts = cmd_part.split(".")
+            for i in range(len(parts), 0, -1):
+                candidate = ".".join(parts[:i])
+                plugin = repl._plugins.get(candidate)
+                if plugin:
+                    args = f" {plugin.args}" if plugin.args else ""
+                    return f" {prefix}{plugin.name}{args} -- {plugin.help}"
+            return ""
 
-        def _completer(text: str, state: int) -> str | None:
-            nonlocal matches
-            if state == 0:
-                line = readline.get_line_buffer()  # ty: ignore[unresolved-attribute]
-                matches = []
-
-                # File completion for /run and /run.edit args
-                for fc in file_cmds:
-                    if line.startswith(fc):
-                        file_partial = line[len(fc) :]
-                        if scripts_dir.is_dir():
-                            matches = [
-                                fc + f.name
-                                for f in sorted(scripts_dir.glob("*.run"))
-                                if f.name.startswith(file_partial)
-                            ]
-                        # Only complete if exactly one match
-                        if len(matches) != 1:
-                            matches = []
-                        return matches[0] if matches else None
-
-                # Command completion
-                if line.startswith(prefix):
-                    matches = sorted(
-                        f"{prefix}{name}"
-                        for name in repl._plugins
-                        if f"{prefix}{name}".startswith(line)
-                    )
-                else:
-                    target_cmds = repl.ctx.ns("target_commands")
-                    if target_cmds:
-                        matches = sorted(
-                            name
-                            for name in target_cmds
-                            if name.lower().startswith(line.lower())
-                        )
-
-            if state < len(matches):
-                return matches[state]
-            return None
-        readline.set_completer(_completer)  # ty: ignore[unresolved-attribute]
-        readline.parse_and_bind("tab: complete")  # ty: ignore[unresolved-attribute]
-        readline.set_completer_delims("")  # ty: ignore[unresolved-attribute]
+        session = PromptSession(
+            history=FileHistory(self._history_path()),
+            completer=_TermapyCompleter(self.repl, self.prefix, self.config_path),
+            auto_suggest=AutoSuggestFromHistory(),
+            bottom_toolbar=_toolbar,
+        )
+        return session
 
     # -- Reader thread --------------------------------------------------------
 
@@ -617,17 +638,19 @@ class CLITerminal(TerminalHost):
 
     def _run_interactive(self) -> None:
         """Run the interactive input loop."""
-        # Readline shows REPL commands — no need to echo those.
+        # prompt_toolkit shows REPL commands — no need to echo those.
         # Serial echo is off — we sync manually with wait_for_idle after dispatch.
         self.ctx.ns("flags")["echo"] = False
         self.cfg["echo_input"] = False
+        self._session = self._build_session()
         try:
             while True:
                 try:
                     from termapy.builtins.plugins.var import expand_vars
 
                     prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
-                    line = input(prompt)
+                    s = self._session
+                    line = s.prompt(prompt) if s else input(prompt)
                 except EOFError:
                     break
 
@@ -645,15 +668,13 @@ class CLITerminal(TerminalHost):
 
                 self._dispatch(line)
                 # Wait for device response to finish printing before
-                # readline draws the next prompt. Without this, the
-                # background reader prints over readline's prompt.
+                # prompt_toolkit draws the next prompt.
                 if self.engine.is_connected and self.engine.serial_port:
                     self.engine.serial_port.wait_for_idle()
 
         except KeyboardInterrupt:
             self._raw("\nInterrupted")
         finally:
-            self._save_history()
             self.engine.disconnect()
             self.write("Disconnected.", "red")
 
@@ -686,8 +707,6 @@ class CLITerminal(TerminalHost):
         self.write(full, "green")
         self.repl.fire_lifecycle("on_connect")
 
-        self._load_history()
-        self._setup_completion()
         self._start_reader()
 
         # Show hint before on_connect_cmd so it appears first

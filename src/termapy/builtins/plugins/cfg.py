@@ -427,7 +427,7 @@ def _build_folder_subs() -> dict[str, Command]:
                 handler=_make_clear_handler(spec.name, spec.pattern),
             )
         subs[spec.name] = Command(
-            help=f"List files in {spec.name}/.",
+            help=f"List files in {spec.name}/ folder.",
             handler=_make_folder_handler(spec.name, spec.pattern),
             sub_commands=nested,
         )

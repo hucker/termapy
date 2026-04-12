@@ -40,6 +40,7 @@ DEFAULT_CFG = {
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": False,
+    "cli_intellisense": True,
     "config_read_only": False,
     "os_cmd_enabled": False,
     "device_json_cmd": "",
@@ -282,6 +283,10 @@ CFG_HELP: dict[str, tuple] = {
     "cli_echo_input": (
         "Echo sent commands in CLI mode (readline already shows input).",
         "true, false. Default: false",
+    ),
+    "cli_intellisense": (
+        "Enable CLI tab completion, auto-suggest, and help toolbar.",
+        "true, false. Default: true",
     ),
     # Display
     "title": (

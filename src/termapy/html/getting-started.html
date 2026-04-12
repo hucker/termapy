@@ -23,7 +23,7 @@
     
     
       
-        <title>Getting started - Termapy Help v0.55.0</title>
+        <title>Getting started - Termapy Help v0.56.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.55.0" class="md-header__button md-logo" aria-label="Termapy Help v0.55.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.56.0" class="md-header__button md-logo" aria-label="Termapy Help v0.56.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.55.0
+            Termapy Help v0.56.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.55.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.55.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.56.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.56.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.55.0
+    Termapy Help v0.56.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -366,6 +366,17 @@
   
     <nav class="md-nav" aria-label="User interface modes">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli-intellisense" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI intellisense
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#switching-modes" class="md-nav__link">
@@ -915,6 +926,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#cli-intellisense" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI intellisense
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#switching-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1038,28 +1060,42 @@ scripts, and more.</p>
 stdin and writes to stdout. Useful for headless environments, SSH sessions,
 piping output, or when you prefer a minimal interface. Start with
 <code>termapy --cli</code> or set <code>"default_ui": "cli"</code> in your config.</p>
+<h3 id="cli-intellisense">CLI intellisense<a class="headerlink" href="#cli-intellisense" title="Permanent link">&para;</a></h3>
+<p>CLI mode includes built-in intellisense powered by prompt_toolkit:</p>
+<ul>
+<li><strong>Tab completion</strong> -- press Tab to complete REPL commands, subcommands, and device commands</li>
+<li><strong>Auto-suggest</strong> -- recent history appears as grey text as you type; press Right arrow to accept</li>
+<li><strong>Help toolbar</strong> -- a bottom bar shows the help string for the command you are typing</li>
+</ul>
+<p><img alt="CLI intellisense" src="img/cli_intellisense.png" /></p>
+<p>Toggle intellisense during a session with <code>/cli.intellisense on|off</code>, or
+disable it in your config:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">&quot;cli_intellisense&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+</span></code></pre></div>
+<p>When output is piped to a file, intellisense is automatically disabled
+to keep the output clean.</p>
 <h3 id="switching-modes">Switching modes<a class="headerlink" href="#switching-modes" title="Permanent link">&para;</a></h3>
 <p>Use the <code>/tui</code> and <code>/cli</code> REPL commands to switch modes during a session.
 The serial connection and config carry over; only the interface changes.</p>
 <p>You can also set the default mode in your config:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">&quot;default_ui&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tui&quot;</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">&quot;default_ui&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tui&quot;</span>
 </span></code></pre></div>
 <p>Set to <code>"cli"</code> to always start in CLI mode without the <code>--cli</code> flag.</p>
 <h2 id="folder-layout">Folder layout<a class="headerlink" href="#folder-layout" title="Permanent link">&para;</a></h2>
 <p>All data for each config (logs, screenshots, scripts, command history,
 plugins) is stored alongside its JSON file in a subfolder:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>termapy_cfg/
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── iot_device/
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>│   ├── iot_device.cfg         # config file
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>│   ├── iot_device.log         # session log
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>│   ├── .cmd_history.txt       # command history
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>│   ├── ss/                    # screenshots
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>│   ├── run/                   # script files
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>│   ├── proto/                 # protocol test scripts (.pro)
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>│   ├── cap/                   # data capture output files
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>│   ├── viz/                   # per-config packet visualizers
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>│   └── plugin/                # per-config plugins
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>└── plugin/                    # global plugins (all configs)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>termapy_cfg/
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>├── iot_device/
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>│   ├── iot_device.cfg         # config file
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>│   ├── iot_device.log         # session log
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│   ├── .cmd_history.txt       # command history
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>│   ├── ss/                    # screenshots
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>│   ├── run/                   # script files
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>│   ├── proto/                 # protocol test scripts (.pro)
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>│   ├── cap/                   # data capture output files
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>│   ├── viz/                   # per-config packet visualizers
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>│   └── plugin/                # per-config plugins
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>└── plugin/                    # global plugins (all configs)
 </span></code></pre></div>
 <h2 id="title-bar">Title bar<a class="headerlink" href="#title-bar" title="Permanent link">&para;</a></h2>
 <p>The title bar buttons (left to right):</p>

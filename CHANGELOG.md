@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.56.0 (2026-04-12)
+
+Architecture and CLI experience release. Extracts a shared TerminalHost base class from the TUI and CLI frontends, replaces pyreadline3 with prompt_toolkit for cross-platform CLI intellisense, and adds serial observer hooks, plugin config persistence, and status bar APIs for plugin authors.
+
+### 0.56.0 New Features
+
+- **CLI intellisense** -- tab completion, fish-style auto-suggest from history, and a help toolbar that shows command docs as you type. Toggle with `/cli.intellisense on|off` or the `cli_intellisense` config key.
+- **Serial observers** -- plugins can register RX/TX observer callbacks to monitor serial traffic without disrupting the display pipeline.
+- **Status bar API** -- `ctx.status_bar(text)` shows transient text in the TUI bottom bar (no-op in CLI).
+- **PluginConfig API** -- persistent per-config key-value storage for plugins (`ctx.plugin_cfg("name")`), backed by JSON files in the plugin/ folder.
+- **PIC map plugin** -- parse Microchip PIC memory map files and look up symbols by address.
+- **Port mode command** -- `/port.open` accepts baud+mode args, `/port.mode` sets serial parameters inline.
+- **Lifecycle hooks** -- new `on_app_start`, `on_app_stop` hooks for plugin initialization and cleanup.
+
+### 0.56.0 Improvements
+
+- **TerminalHost extraction** -- shared base class for TUI and CLI consolidates serial I/O, dispatch, capture, context wiring, and hook handlers. ~240 lines of duplicated code removed, 27 callbacks written once.
+- **CLI scrolling fixed** -- terminal output now scrolls correctly at the bottom of the window on all Windows console hosts.
+- **Shared history** -- TUI and CLI modes use the same history file per config.
+- **Test coverage boost** -- 68 new tests covering terminal_host.py (92%), repl.py (89%), overall 66% to 70%.
+- **Type checker clean** -- all `ty check` overrides resolved.
+- **Port in-use detection** -- correctly identifies when termapy itself has a port open vs another process.
+
+
 ## 0.55.0 (2026-04-09)
 
 Serial-port diagnostics release.  Termapy now identifies the USB chip behind any serial port -- model, USB speed class, driver, latency timer, max baud, in-use state, permissions, VID:PID -- and surfaces the data through the REPL, the title bar, the port picker, the new-config dialog, and a new shell flag.  No breaking changes.

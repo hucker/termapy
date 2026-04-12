@@ -10,9 +10,9 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (3939 lines) Textual TUI — UI, modals, app hooks
-├── cli.py               # (895 lines)  Plain-text CLI frontend — CLITerminal class
-├── serial_engine.py     # (238 lines)  Serial connection lifecycle, reader loop orchestrator
+├── app.py               # (3962 lines) Textual TUI — UI, modals, app hooks
+├── cli.py               # (738 lines)  Plain-text CLI frontend — CLITerminal class
+├── serial_engine.py     # (300 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py       # (302 lines)  Serial I/O wrapper + SerialReader data processor
 ├── capture.py           # (336 lines)  Capture state machine — text, binary, format spec
 ├── dialogs.py           # (1641 lines) Modal screens — config editor, pickers, confirm
@@ -20,13 +20,13 @@ src/termapy/
 ├── protocol.py          # (1479 lines) Protocol parsing, format specs, CRC, visualizers
 ├── demo.py              # (1516 lines) Simulated device for --demo mode (FakeSerial)
 ├── repl.py              # (981 lines)  REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (793 lines)  Plugin system — Command, PluginContext, loading
+├── plugins.py           # (994 lines)  Plugin system — Command, PluginContext, loading
 ├── config.py            # (547 lines)  Config dirs, loading, validation, migration trigger
-├── port_control.py      # (702 lines)  Pure serial port control functions — no Textual
+├── port_control.py      # (828 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (283 lines)  Protocol test script runner
 ├── scripting.py         # (238 lines)  Pure functions — templates, duration parsing, ANSI
 ├── migration.py         # (158 lines)  Config schema migration chain (v1->v8)
-├── defaults.py          # (410 lines)  DEFAULT_CFG, templates
+├── defaults.py          # (415 lines)  DEFAULT_CFG, templates
 ├── help/                #              Markdown help pages (source for MkDocs)
 ├── html/                #              Generated HTML help (MkDocs Material output)
 ├── builtins/
@@ -394,7 +394,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test coverage
 
-28 test files, 1279 tests, 67% overall coverage:
+31 test files, 1441 tests, 67% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |

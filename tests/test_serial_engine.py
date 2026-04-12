@@ -347,3 +347,63 @@ class TestRxObservers:
         # Assert — second observer should still receive data
         assert len(received) > 0, "second observer should work despite first raising"
         engine.disconnect()
+
+
+# -- TX observers ---------------------------------------------------------------
+
+
+class TestTxObservers:
+
+    def test_add_and_remove(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        cb = lambda data: None
+
+        # Act
+        engine.add_tx_observer(cb)
+        engine.remove_tx_observer(cb)
+
+        # Assert
+        assert cb not in engine._tx_observers, "observer should be removed"
+
+    def test_notify_tx_fires_observers(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        received = []
+        engine.add_tx_observer(lambda data: received.append(data))
+
+        # Act
+        engine.notify_tx(b"hello")
+        engine.notify_tx(b"world")
+
+        # Assert
+        assert received == [b"hello", b"world"], "observer should receive TX data"
+
+    def test_exception_in_tx_observer_does_not_block_others(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        received = []
+
+        def bad_observer(data):
+            raise ValueError("boom")
+
+        engine.add_tx_observer(bad_observer)
+        engine.add_tx_observer(lambda data: received.append(data))
+
+        # Act
+        engine.notify_tx(b"test")
+
+        # Assert
+        assert received == [b"test"], "second observer should work despite first raising"
+
+    def test_add_duplicate_is_noop(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        cb = lambda data: None
+
+        # Act
+        engine.add_tx_observer(cb)
+        engine.add_tx_observer(cb)
+
+        # Assert
+        assert engine._tx_observers.count(cb) == 1, "should not add duplicate"

@@ -509,6 +509,12 @@ class PluginContext:
             Signature: ``add_rx_observer(cb: Callable[[bytes], None])``.
         remove_rx_observer: Unregister an RX observer callback.
             Signature: ``remove_rx_observer(cb: Callable[[bytes], None])``.
+        add_tx_observer: Register a callback that receives every TX byte
+            chunk sent to the serial port.  Observers see data alongside
+            the normal write path.  Callbacks fire on the calling thread.
+            Signature: ``add_tx_observer(cb: Callable[[bytes], None])``.
+        remove_tx_observer: Unregister a TX observer callback.
+            Signature: ``remove_tx_observer(cb: Callable[[bytes], None])``.
     """
 
     # Core I/O
@@ -534,9 +540,11 @@ class PluginContext:
     serial_release: Callable = lambda: None  # resume normal terminal display
     wait_for_match: Callable = lambda predicate, timeout=5.0: None  # block until line matches
 
-    # RX observers - see raw bytes without disrupting the display pipeline
+    # Serial observers - see raw bytes without disrupting the pipeline
     add_rx_observer: Callable = lambda cb: None
     remove_rx_observer: Callable = lambda cb: None
+    add_tx_observer: Callable = lambda cb: None
+    remove_tx_observer: Callable = lambda cb: None
 
     # Filesystem
     ss_dir: Path = field(default_factory=lambda: Path("."))

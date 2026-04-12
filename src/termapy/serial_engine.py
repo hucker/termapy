@@ -72,6 +72,7 @@ class SerialEngine:
         self._reader_stopped.set()
         self._proto_active: bool = False
         self._rx_observers: list[Callable[[bytes], None]] = []
+        self._tx_observers: list[Callable[[bytes], None]] = []
         self.last_error: str = ""
 
     @property
@@ -142,6 +143,37 @@ class SerialEngine:
             self._rx_observers.remove(cb)
         except ValueError:
             pass
+
+    def add_tx_observer(self, cb: Callable[[bytes], None]) -> None:
+        """Register a callback that receives every TX byte chunk.
+
+        Observers see data alongside the normal write path — they cannot
+        modify or block it.  Callbacks fire on the calling thread.
+
+        Args:
+            cb: Called with raw bytes on each serial write.
+        """
+        if cb not in self._tx_observers:
+            self._tx_observers.append(cb)
+
+    def remove_tx_observer(self, cb: Callable[[bytes], None]) -> None:
+        """Unregister a TX observer callback.
+
+        Args:
+            cb: The callback previously registered.
+        """
+        try:
+            self._tx_observers.remove(cb)
+        except ValueError:
+            pass
+
+    def notify_tx(self, data: bytes) -> None:
+        """Fire TX observers. Called by the app/cli write path."""
+        for obs in self._tx_observers:
+            try:
+                obs(data)
+            except Exception:
+                pass
 
     def connect(self) -> bool:
         """Open the serial port and create SerialPort + SerialReader.

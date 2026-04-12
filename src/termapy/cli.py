@@ -176,18 +176,8 @@ class CLITerminal:
                 else None
             ),
             is_connected=lambda: self.engine.is_connected,
-            serial_write=lambda data: (
-                self.engine.serial_port.write(data) if self.engine.serial_port else None
-            ),
-            serial_send=lambda text: (
-                self.engine.serial_port.write(
-                    (text + self.cfg.get("line_ending", "\r")).encode(
-                        self.cfg.get("encoding", "utf-8")
-                    )
-                )
-                if self.engine.serial_port
-                else None
-            ),
+            serial_write=self._serial_write,
+            serial_send=self._serial_send,
             serial_read_raw=lambda timeout_ms=1000, frame_gap_ms=50: (
                 self.engine.serial_port.read_raw(timeout_ms, frame_gap_ms)
                 if self.engine.serial_port
@@ -200,6 +190,8 @@ class CLITerminal:
             serial_release=lambda: setattr(self.engine, "proto_active", False),
             add_rx_observer=self.engine.add_rx_observer,
             remove_rx_observer=self.engine.remove_rx_observer,
+            add_tx_observer=self.engine.add_tx_observer,
+            remove_tx_observer=self.engine.remove_tx_observer,
             serial_wait_idle=lambda timeout_ms=20, max_wait_s=3.0: (
                 self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
                 if self.engine.serial_port
@@ -565,13 +557,26 @@ class CLITerminal:
             log=self._log,
             echo_markup=self.write_markup,
             status=self.status,
-            serial_write=lambda data: (
-                self.engine.serial_port.write(data) if self.engine.serial_port else None
-            ),
+            serial_write=self._serial_write,
             serial_write_raw=lambda text: self._serial_write_raw(text),
             is_connected=lambda: self.engine.is_connected,
             eol_label=eol_label,
         )
+
+    def _serial_write(self, data: bytes) -> None:
+        """Write raw bytes to the serial port and notify TX observers."""
+        if self.engine.serial_port:
+            self.engine.serial_port.write(data)
+            self.engine.notify_tx(data)
+
+    def _serial_send(self, text: str) -> None:
+        """Send text with configured line ending/encoding and notify TX observers."""
+        if self.engine.serial_port:
+            ending = self.cfg.get("line_ending", "\r")
+            encoding = self.cfg.get("encoding", "utf-8")
+            data = (text + ending).encode(encoding)
+            self.engine.serial_port.write(data)
+            self.engine.notify_tx(data)
 
     def _serial_write_raw(self, text: str) -> None:
         """Send raw text to serial - mimics app.py's _send_serial_raw."""
@@ -581,7 +586,9 @@ class CLITerminal:
         line_ending = self.cfg.get("line_ending", "\r")
         encoding = self.cfg.get("encoding", "utf-8")
         if self.engine.serial_port:
-            self.engine.serial_port.write((text + line_ending).encode(encoding))
+            data = (text + line_ending).encode(encoding)
+            self.engine.serial_port.write(data)
+            self.engine.notify_tx(data)
 
     def _connect(self, port: str | None = None) -> None:
         """Connect to a serial port."""

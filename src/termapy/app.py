@@ -879,7 +879,7 @@ class SerialTerminal(TerminalHost, App):
             "log.clear",
             "",
             "Delete the session log file.",
-            lambda ctx, args: self._hook_log_clear(),
+            lambda ctx, args: self._tui_hook_log_clear(),
             source="app",
         )
         self.repl.register_hook(
@@ -967,7 +967,7 @@ class SerialTerminal(TerminalHost, App):
             "raw",
             "<text>",
             "Send text to serial with no variable expansion or transforms.",
-            lambda ctx, args: self._hook_raw(args),
+            lambda ctx, args: self._tui_hook_raw(args),
             source="app",
         )
         self.repl.register_hook(
@@ -2510,7 +2510,7 @@ class SerialTerminal(TerminalHost, App):
             ),
         )
 
-    def _hook_raw(self, text: str) -> CmdResult:
+    def _tui_hook_raw(self, text: str) -> CmdResult:
         """Hook wrapper for /raw — sends text with no transforms."""
         self._send_serial_raw(text)
         return CmdResult.ok()
@@ -2979,7 +2979,7 @@ class SerialTerminal(TerminalHost, App):
         open_with_system(self._log_path())
         return CmdResult.ok()
 
-    def _hook_log_clear(self) -> CmdResult:
+    def _tui_hook_log_clear(self) -> CmdResult:
         """Delete the session log file."""
         log_path = self._log_path()
         if not log_path or not Path(log_path).exists():

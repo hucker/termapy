@@ -149,7 +149,7 @@ class MapFile:
                     size = int(m.group("size"), 16)
                     if addr not in seen_addrs:
                         symbols.append(Symbol(
-                            pending_name, addr, size, pending_section,
+                            pending_name, addr, size, pending_section or "",
                         ))
                         seen_addrs.add(addr)
                 pending_name = None

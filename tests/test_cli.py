@@ -472,34 +472,34 @@ class TestApplyPortEffects:
 
 
 class TestConfirm:
-    def test_confirm_yes(self):
+    def test_confirm_yes(self, cli):
         # Act
         with patch("builtins.input", return_value="y"):
-            actual = CLITerminal._confirm("Continue?")
+            actual = cli._confirm("Continue?")
 
         # Assert
         assert actual is True, "y means yes"
 
-    def test_confirm_no(self):
+    def test_confirm_no(self, cli):
         # Act
         with patch("builtins.input", return_value="n"):
-            actual = CLITerminal._confirm("Continue?")
+            actual = cli._confirm("Continue?")
 
         # Assert
         assert actual is False, "n means no"
 
-    def test_confirm_empty(self):
+    def test_confirm_empty(self, cli):
         # Act
         with patch("builtins.input", return_value=""):
-            actual = CLITerminal._confirm("Continue?")
+            actual = cli._confirm("Continue?")
 
         # Assert
         assert actual is False, "empty defaults to no"
 
-    def test_confirm_eof(self):
+    def test_confirm_eof(self, cli):
         # Act
         with patch("builtins.input", side_effect=EOFError):
-            actual = CLITerminal._confirm("Continue?")
+            actual = cli._confirm("Continue?")
 
         # Assert
         assert actual is False, "EOF returns False"

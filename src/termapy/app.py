@@ -675,6 +675,10 @@ class SerialTerminal(App):
             serial_claim=lambda: setattr(self._engine, "proto_active", True),
             serial_release=lambda: setattr(self._engine, "proto_active", False),
             wait_for_match=self.repl.wait_for_match,
+            add_rx_observer=self._engine.add_rx_observer,
+            remove_rx_observer=self._engine.remove_rx_observer,
+            add_tx_observer=self._engine.add_tx_observer,
+            remove_tx_observer=self._engine.remove_tx_observer,
             dispatch=self._dispatch_single,
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
@@ -1216,6 +1220,7 @@ class SerialTerminal(App):
         """Write bytes to serial port and log TX (delegates to SerialPort)."""
         if self._engine.serial_port:
             self._engine.serial_port.write(data)
+            self._engine.notify_tx(data)
         else:
             self._log_line(">", data.hex(" "))
 

@@ -253,3 +253,157 @@ class TestReconnect:
 
         # Assert
         assert result is False, "reconnect should fail with bad port"
+
+
+# -- RX observers ---------------------------------------------------------------
+
+
+class TestRxObservers:
+
+    def test_add_and_remove(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        received = []
+        cb = lambda data: received.append(data)
+
+        # Act
+        engine.add_rx_observer(cb)
+        engine.remove_rx_observer(cb)
+
+        # Assert — no error, observer list empty
+        assert cb not in engine._rx_observers, "observer should be removed"
+
+    def test_add_duplicate_is_noop(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        cb = lambda data: None
+
+        # Act
+        engine.add_rx_observer(cb)
+        engine.add_rx_observer(cb)
+
+        # Assert
+        assert engine._rx_observers.count(cb) == 1, "should not add duplicate"
+
+    def test_remove_nonexistent_is_noop(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+
+        # Act / Assert — should not raise
+        engine.remove_rx_observer(lambda data: None)
+
+    def test_observer_receives_rx_data(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        engine.connect()
+        received = []
+        engine.add_rx_observer(lambda data: received.append(data))
+
+        # Send a command to generate a response
+        engine.port_obj.write(b"AT\r")
+        time.sleep(0.05)
+
+        # Act — run the reader briefly
+        t = threading.Thread(
+            target=lambda: engine.read_loop(on_lines=lambda lines: None),
+            daemon=True,
+        )
+        t.start()
+        time.sleep(0.3)
+        engine.stop_event.set()
+        t.join(timeout=2)
+
+        # Assert
+        assert len(received) > 0, "observer should have received RX data"
+        assert all(isinstance(d, bytes) for d in received), "data should be bytes"
+        engine.disconnect()
+
+    def test_exception_in_observer_does_not_block_others(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        engine.connect()
+        received = []
+
+        def bad_observer(data):
+            raise ValueError("boom")
+
+        engine.add_rx_observer(bad_observer)
+        engine.add_rx_observer(lambda data: received.append(data))
+
+        # Send a command to generate a response
+        engine.port_obj.write(b"AT\r")
+        time.sleep(0.05)
+
+        # Act
+        t = threading.Thread(
+            target=lambda: engine.read_loop(on_lines=lambda lines: None),
+            daemon=True,
+        )
+        t.start()
+        time.sleep(0.3)
+        engine.stop_event.set()
+        t.join(timeout=2)
+
+        # Assert — second observer should still receive data
+        assert len(received) > 0, "second observer should work despite first raising"
+        engine.disconnect()
+
+
+# -- TX observers ---------------------------------------------------------------
+
+
+class TestTxObservers:
+
+    def test_add_and_remove(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        cb = lambda data: None
+
+        # Act
+        engine.add_tx_observer(cb)
+        engine.remove_tx_observer(cb)
+
+        # Assert
+        assert cb not in engine._tx_observers, "observer should be removed"
+
+    def test_notify_tx_fires_observers(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        received = []
+        engine.add_tx_observer(lambda data: received.append(data))
+
+        # Act
+        engine.notify_tx(b"hello")
+        engine.notify_tx(b"world")
+
+        # Assert
+        assert received == [b"hello", b"world"], "observer should receive TX data"
+
+    def test_exception_in_tx_observer_does_not_block_others(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        received = []
+
+        def bad_observer(data):
+            raise ValueError("boom")
+
+        engine.add_tx_observer(bad_observer)
+        engine.add_tx_observer(lambda data: received.append(data))
+
+        # Act
+        engine.notify_tx(b"test")
+
+        # Assert
+        assert received == [b"test"], "second observer should work despite first raising"
+
+    def test_add_duplicate_is_noop(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        cb = lambda data: None
+
+        # Act
+        engine.add_tx_observer(cb)
+        engine.add_tx_observer(cb)
+
+        # Assert
+        assert engine._tx_observers.count(cb) == 1, "should not add duplicate"

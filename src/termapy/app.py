@@ -675,6 +675,8 @@ class SerialTerminal(App):
             serial_claim=lambda: setattr(self._engine, "proto_active", True),
             serial_release=lambda: setattr(self._engine, "proto_active", False),
             wait_for_match=self.repl.wait_for_match,
+            add_rx_observer=self._engine.add_rx_observer,
+            remove_rx_observer=self._engine.remove_rx_observer,
             dispatch=self._dispatch_single,
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,

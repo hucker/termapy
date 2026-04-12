@@ -502,6 +502,13 @@ class PluginContext:
             cached per session.  Call ``.save()`` to write to disk.
             Use ``ns()`` for session-only state, ``plugin_cfg()`` for
             state that must survive across sessions.
+        add_rx_observer: Register a callback that receives every raw RX byte
+            chunk from the serial port.  Observers see data alongside the
+            normal display pipeline -- they cannot modify or block it.
+            Callbacks fire on the reader background thread.
+            Signature: ``add_rx_observer(cb: Callable[[bytes], None])``.
+        remove_rx_observer: Unregister an RX observer callback.
+            Signature: ``remove_rx_observer(cb: Callable[[bytes], None])``.
     """
 
     # Core I/O
@@ -526,6 +533,10 @@ class PluginContext:
     serial_claim: Callable = lambda: None    # suppress terminal display, claim raw bytes
     serial_release: Callable = lambda: None  # resume normal terminal display
     wait_for_match: Callable = lambda predicate, timeout=5.0: None  # block until line matches
+
+    # RX observers - see raw bytes without disrupting the display pipeline
+    add_rx_observer: Callable = lambda cb: None
+    remove_rx_observer: Callable = lambda cb: None
 
     # Filesystem
     ss_dir: Path = field(default_factory=lambda: Path("."))

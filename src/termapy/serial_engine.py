@@ -71,6 +71,7 @@ class SerialEngine:
         self._reader_stopped = Event()
         self._reader_stopped.set()
         self._proto_active: bool = False
+        self._rx_observers: list[Callable[[bytes], None]] = []
         self.last_error: str = ""
 
     @property
@@ -117,6 +118,30 @@ class SerialEngine:
         self._proto_active = value
         if self._reader:
             self._reader._proto_active = lambda: value
+
+    def add_rx_observer(self, cb: Callable[[bytes], None]) -> None:
+        """Register a callback that receives every raw RX byte chunk.
+
+        Observers see data alongside the normal pipeline — they cannot
+        modify or block it.  Callbacks fire on the reader background
+        thread; keep them fast or offload to a queue.
+
+        Args:
+            cb: Called with raw bytes on each serial read.
+        """
+        if cb not in self._rx_observers:
+            self._rx_observers.append(cb)
+
+    def remove_rx_observer(self, cb: Callable[[bytes], None]) -> None:
+        """Unregister an RX observer callback.
+
+        Args:
+            cb: The callback previously registered.
+        """
+        try:
+            self._rx_observers.remove(cb)
+        except ValueError:
+            pass
 
     def connect(self) -> bool:
         """Open the serial port and create SerialPort + SerialReader.
@@ -206,6 +231,11 @@ class SerialEngine:
 
                 if data:
                     self._rx_queue.put(data)
+                    for obs in self._rx_observers:
+                        try:
+                            obs(data)
+                        except Exception:
+                            pass
 
                 result = reader.process(data)
 

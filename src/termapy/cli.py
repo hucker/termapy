@@ -198,6 +198,8 @@ class CLITerminal:
             ),
             serial_claim=lambda: setattr(self.engine, "proto_active", True),
             serial_release=lambda: setattr(self.engine, "proto_active", False),
+            add_rx_observer=self.engine.add_rx_observer,
+            remove_rx_observer=self.engine.remove_rx_observer,
             serial_wait_idle=lambda timeout_ms=20, max_wait_s=3.0: (
                 self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
                 if self.engine.serial_port

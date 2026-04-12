@@ -66,7 +66,7 @@ from textual.message import Message
 from textual.timer import Timer
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, OptionList, RichLog, Static
+from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
 from textual.widgets.option_list import Option
 from textual.suggester import Suggester
 
@@ -198,6 +198,18 @@ class SerialTerminal(App):
         width: 1fr;
         border: none;
         height: 1;
+    }
+    #status-bar {
+        width: auto;
+        max-width: 50%;
+        height: 1;
+        display: none;
+        color: $text-muted;
+        content-align: right middle;
+        padding: 0 1;
+    }
+    #status-bar.visible {
+        display: block;
     }
     #cmd.repl-mode {
         color: red;
@@ -509,6 +521,7 @@ class SerialTerminal(App):
                     id="cmd",
                     suggester=self._suggester,
                 )
+                yield Label("", id="status-bar")
 
                 def _btn(label, id, tip, variant="default", display=True):
                     b = Button(label, id=id, variant=variant)
@@ -675,6 +688,7 @@ class SerialTerminal(App):
             serial_claim=lambda: setattr(self._engine, "proto_active", True),
             serial_release=lambda: setattr(self._engine, "proto_active", False),
             wait_for_match=self.repl.wait_for_match,
+            status_bar=self._set_status_bar,
             add_rx_observer=self._engine.add_rx_observer,
             remove_rx_observer=self._engine.remove_rx_observer,
             add_tx_observer=self._engine.add_tx_observer,
@@ -1200,6 +1214,48 @@ class SerialTerminal(App):
         except Exception:
             pass  # widgets gone during shutdown
         self._log_line("#", text)
+
+    _status_bar_timer: Timer | None = None
+
+    def _set_status_bar(self, text: str, timeout: float = 5.0) -> None:
+        """Show transient text in the bottom status bar.
+
+        The text appears in the status area next to the REPL input,
+        sharing 50% of the width.  It auto-clears after *timeout*
+        seconds.  Pass empty string to clear immediately.
+
+        Thread-safe: posts to the main thread if called from background.
+        """
+        if self._thread_id != threading.get_ident():
+            try:
+                self.call_from_thread(self._set_status_bar, text, timeout)
+            except RuntimeError:
+                pass
+            return
+        try:
+            label = self.query_one("#status-bar", Label)
+            if text:
+                label.update(text)
+                label.add_class("visible")
+                if self._status_bar_timer is not None:
+                    self._status_bar_timer.stop()
+                self._status_bar_timer = self.set_timer(
+                    timeout, self._clear_status_bar
+                )
+            else:
+                self._clear_status_bar()
+        except Exception:
+            pass  # widgets gone during shutdown
+
+    def _clear_status_bar(self) -> None:
+        """Clear the status bar text and hide the widget."""
+        try:
+            label = self.query_one("#status-bar", Label)
+            label.update("")
+            label.remove_class("visible")
+            self._status_bar_timer = None
+        except Exception:
+            pass
 
     def _log_line(self, prefix: str, text: str) -> None:
         """Write a prefixed line to the log file.

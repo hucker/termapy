@@ -9,7 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from termapy.cli import CLITerminal, _parse_run_flags
+from termapy.cli import CLITerminal
+from termapy.terminal_host import TerminalHost
 from termapy.plugins import CmdResult
 
 
@@ -44,7 +45,7 @@ def cli(tmp_path):
 class TestParseRunFlags:
     def test_no_flags(self):
         # Act
-        script, verbose = _parse_run_flags("myscript.run")
+        script, verbose = TerminalHost._parse_run_flags("myscript.run")
 
         # Assert
         assert script == "myscript.run", "script name preserved"
@@ -52,7 +53,7 @@ class TestParseRunFlags:
 
     def test_verbose_short(self):
         # Act
-        script, verbose = _parse_run_flags("-v myscript.run")
+        script, verbose = TerminalHost._parse_run_flags("-v myscript.run")
 
         # Assert
         assert script == "myscript.run", "flag stripped from script name"
@@ -60,7 +61,7 @@ class TestParseRunFlags:
 
     def test_verbose_long(self):
         # Act
-        script, verbose = _parse_run_flags("myscript.run --verbose")
+        script, verbose = TerminalHost._parse_run_flags("myscript.run --verbose")
 
         # Assert
         assert script == "myscript.run", "flag stripped"
@@ -68,7 +69,7 @@ class TestParseRunFlags:
 
     def test_empty(self):
         # Act
-        script, verbose = _parse_run_flags("")
+        script, verbose = TerminalHost._parse_run_flags("")
 
         # Assert
         assert script == "", "empty input returns empty"

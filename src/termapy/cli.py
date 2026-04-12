@@ -21,16 +21,15 @@ except ImportError:
     readline = None  # Windows without pyreadline3  # ty: ignore[invalid-assignment]
 
 from termapy.capture import CaptureEngine
-from termapy.config import open_serial, open_with_system
-from termapy.plugins import EngineAPI, PluginContext
-from termapy.repl import ReplEngine
+from termapy.config import open_serial
 from termapy.plugins import CmdResult
+from termapy.repl import ReplEngine
 from termapy.scripting import strip_ansi
 from termapy.serial_engine import SerialEngine
-from termapy.serial_port import eol_label
+from termapy.terminal_host import TerminalHost
 
 
-class CLITerminal:
+class CLITerminal(TerminalHost):
     """Plain-text serial terminal - no Textual dependency.
 
     Owns the serial engine, REPL engine, capture engine, and Rich console.
@@ -42,8 +41,6 @@ class CLITerminal:
         no_color: Strip ANSI color codes from output.
         run_script: Optional .run script to execute then exit.
     """
-
-    _HISTORY_LIMIT = 30
 
     def __init__(
         self,
@@ -144,77 +141,35 @@ class CLITerminal:
 
     def _setup_context(self) -> None:
         """Build PluginContext and EngineAPI, wire to REPL."""
-        engine_api = EngineAPI(
-            prefix=self.prefix,
-            plugins=self.repl._plugins,
-            in_script=lambda: self.repl.in_script,
-            script_stop=lambda: self.repl._script_stop.set(),
-            start_capture=lambda **kw: self._start_capture(**kw),
-            stop_capture=lambda: self._stop_capture(),
-            script_stop_event=self.repl._script_stop,
-            apply_cfg=self.repl._apply_cfg,
-            coerce_type=ReplEngine._coerce_type,
-            connect=lambda port=None: self._connect(port),
-            disconnect=lambda: self._disconnect(),
-            apply_port_effects=lambda effects: self._apply_port_effects(effects),
-        )
+        engine_api = self._build_engine_api()
 
-        self.ctx = PluginContext(
-            write=self.status,
-            write_markup=self.write_markup,
-            cfg=self.cfg,
-            config_path=self.config_path,
-            engine=engine_api,
-            ss_dir=self.repl.ss_dir,
-            scripts_dir=self.repl.scripts_dir,
-            proto_dir=self.repl.proto_dir,
-            cap_dir=self.repl.cap_dir,
-            prof_dir=self.repl.prof_dir,
-            port=lambda: (
-                self.engine.serial_port.port
-                if self.engine.is_connected and self.engine.serial_port
-                else None
-            ),
-            is_connected=lambda: self.engine.is_connected,
-            serial_write=self._serial_write,
-            serial_send=self._serial_send,
-            serial_read_raw=lambda timeout_ms=1000, frame_gap_ms=50: (
-                self.engine.serial_port.read_raw(timeout_ms, frame_gap_ms)
-                if self.engine.serial_port
-                else b""
-            ),
-            serial_drain=lambda: (
-                self.engine.serial_port.drain() if self.engine.serial_port else 0
-            ),
-            serial_claim=lambda: setattr(self.engine, "proto_active", True),
-            serial_release=lambda: setattr(self.engine, "proto_active", False),
-            add_rx_observer=self.engine.add_rx_observer,
-            remove_rx_observer=self.engine.remove_rx_observer,
-            add_tx_observer=self.engine.add_tx_observer,
-            remove_tx_observer=self.engine.remove_tx_observer,
-            serial_wait_idle=lambda timeout_ms=20, max_wait_s=3.0: (
-                self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
-                if self.engine.serial_port
-                else None
-            ),
-            dispatch=lambda cmd: self._dispatch(cmd),
-            confirm=lambda msg: self._confirm(msg),
-            notify=lambda text, **kw: self.write(f"[notice] {text}"),
-            clear_screen=lambda: self._raw("\x1b[2J\x1b[H", end=""),
-            open_file=lambda path: open_with_system(str(path)),
-            exit_app=lambda: None,
-            log=self._log,
-            get_screen_text=lambda: "",
+        self.ctx = self._build_plugin_context(engine_api)
+        # CLI-specific callbacks
+        self.ctx.port = lambda: (
+            self.engine.serial_port.port
+            if self.engine.is_connected and self.engine.serial_port
+            else None
         )
+        self.ctx.serial_read_raw = lambda timeout_ms=1000, frame_gap_ms=50: (
+            self.engine.serial_port.read_raw(timeout_ms, frame_gap_ms)
+            if self.engine.serial_port
+            else b""
+        )
+        self.ctx.serial_drain = lambda: (
+            self.engine.serial_port.drain() if self.engine.serial_port else 0
+        )
+        self.ctx.serial_wait_idle = lambda timeout_ms=20, max_wait_s=3.0: (
+            self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
+            if self.engine.serial_port
+            else None
+        )
+        self.ctx.notify = lambda text, **kw: self.write(f"[notice] {text}")
+        self.ctx.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
+        self.ctx.exit_app = lambda: None
+        self.ctx.get_screen_text = lambda: ""
+
         self.repl.set_context(self.ctx)
-        # Engine-reserved `flags` namespace: CLI never echoes because readline
-        # already shows the user's input.  See app.py._build_context for the
-        # shared convention — `flags` holds engine toggles; per-plugin state
-        # goes in the plugin's own namespace.
-        flags = self.ctx.ns("flags")
-        flags["echo"] = False
-        flags.setdefault("verbose", True)
-        flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
+        self._init_flags(echo=False)
 
     def _register_hooks(self) -> None:
         """Register CLI-specific hooks for /delay, /color, /run."""
@@ -380,7 +335,7 @@ class CLITerminal:
             for f in files:
                 self.status(f"  {f.name}")
             return CmdResult.ok()
-        script, verbose = _parse_run_flags(script)
+        script, verbose = self._parse_run_flags(script)
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
@@ -398,7 +353,7 @@ class CLITerminal:
         if not script:
             self.status("Usage: /run.profile <script>", "red")
             return CmdResult.fail(msg="Usage: /run.profile <script>")
-        script, verbose = _parse_run_flags(script)
+        script, verbose = self._parse_run_flags(script)
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
@@ -440,79 +395,8 @@ class CLITerminal:
         except Exception as e:
             return CmdResult.fail(msg=f"Demo setup failed: {e}")
 
-    def _hook_raw(self, ctx, args: str):
-        """Send raw text to serial without transforms or line ending."""
 
-        if not self.engine.is_connected:
-            return CmdResult.fail(msg="Not connected.")
-        if not args:
-            return CmdResult.fail(msg="Usage: /raw <text>")
-        if self.engine.serial_port:
-            self.engine.serial_port.write(
-                args.encode(self.cfg.get("encoding", "utf-8"))
-            )
-        return CmdResult.ok()
-
-    def _hook_log_clear(self, ctx, args: str):
-        """Delete the session log file."""
-        from termapy.config import cfg_log_path
-
-        log_path = cfg_log_path(self.config_path) if self.config_path else ""
-        if not log_path or not Path(log_path).exists():
-            self.status("No log file to delete.", "yellow")
-            return CmdResult.fail(msg="No log file.")
-        try:
-            Path(log_path).unlink()
-            self.status(f"Deleted {Path(log_path).name}", "green")
-            return CmdResult.ok()
-        except OSError as e:
-            self.status(f"Delete failed: {e}", "red")
-            return CmdResult.fail(msg=str(e))
-
-    _help_server_port: int = 0
-
-    def _ensure_help_server(self) -> int:
-        """Start a local HTTP server for help docs if not already running."""
-        if self._help_server_port:
-            return self._help_server_port
-        import threading
-        from http.server import HTTPServer, SimpleHTTPRequestHandler
-        from importlib.resources import files as pkg_files
-
-        html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
-
-        class QuietHandler(SimpleHTTPRequestHandler):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, directory=html_dir, **kwargs)
-
-            def log_message(self, format, *args):
-                pass
-
-        server = HTTPServer(("127.0.0.1", 0), QuietHandler)
-        self._help_server_port = server.server_address[1]
-        t = threading.Thread(target=server.serve_forever, daemon=True)
-        t.start()
-        return self._help_server_port
-
-    def _hook_help_open(self, ctx, args: str):
-        """Open help topic in the local docs server."""
-        from importlib.resources import files as pkg_files
-
-        html_dir = pkg_files("termapy").joinpath("html")
-        topic = args.strip()
-        if not topic:
-            page = "index.html"
-        else:
-            topic = topic.replace(".md", "").replace(".html", "")
-            page = f"{topic}.html"
-        if not Path(str(html_dir.joinpath(page))).exists():
-            return CmdResult.fail(msg=f"Unknown help topic: {topic}")
-        port = self._ensure_help_server()
-        import webbrowser
-        webbrowser.open(f"http://127.0.0.1:{port}/{page}")
-        return CmdResult.ok()
-
-    # -- Progress bar ---------------------------------------------------------
+    # -- Progress bar (CLI-specific: blocking sleep with bar) -----------------
 
     def _draw_progress_bar(self, seconds: float, label: str) -> None:
         """Draw a progress bar with sub-character resolution.
@@ -548,47 +432,7 @@ class CLITerminal:
         msg = f"Delay {label} done."
         self._raw(f"\r  {msg}{' ' * (width + 10 - len(msg))}")
 
-    # -- Serial helpers -------------------------------------------------------
-
-    def _dispatch(self, cmd: str):
-        """Route a command through the full dispatch pipeline."""
-        return self.repl.dispatch_full(
-            cmd,
-            log=self._log,
-            echo_markup=self.write_markup,
-            status=self.status,
-            serial_write=self._serial_write,
-            serial_write_raw=lambda text: self._serial_write_raw(text),
-            is_connected=lambda: self.engine.is_connected,
-            eol_label=eol_label,
-        )
-
-    def _serial_write(self, data: bytes) -> None:
-        """Write raw bytes to the serial port and notify TX observers."""
-        if self.engine.serial_port:
-            self.engine.serial_port.write(data)
-            self.engine.notify_tx(data)
-
-    def _serial_send(self, text: str) -> None:
-        """Send text with configured line ending/encoding and notify TX observers."""
-        if self.engine.serial_port:
-            ending = self.cfg.get("line_ending", "\r")
-            encoding = self.cfg.get("encoding", "utf-8")
-            data = (text + ending).encode(encoding)
-            self.engine.serial_port.write(data)
-            self.engine.notify_tx(data)
-
-    def _serial_write_raw(self, text: str) -> None:
-        """Send raw text to serial - mimics app.py's _send_serial_raw."""
-        if not self.engine.is_connected:
-            self.status("Not connected.", "red")
-            return
-        line_ending = self.cfg.get("line_ending", "\r")
-        encoding = self.cfg.get("encoding", "utf-8")
-        if self.engine.serial_port:
-            data = (text + line_ending).encode(encoding)
-            self.engine.serial_port.write(data)
-            self.engine.notify_tx(data)
+    # -- Connection (CLI-specific UI) -----------------------------------------
 
     def _connect(self, port: str | None = None) -> None:
         """Connect to a serial port."""
@@ -616,34 +460,6 @@ class CLITerminal:
         self.repl.fire_lifecycle("on_disconnect")
         self.engine.disconnect()
         self.write("Disconnected.", "red")
-
-    def _apply_port_effects(self, effects: dict) -> None:
-        """Apply port_control side effects."""
-        if effects.get("cfg_update"):
-            for key, val in effects["cfg_update"].items():
-                self.repl._cfg_data[key] = val
-
-    # -- Capture helpers ------------------------------------------------------
-
-    def _start_capture(self, **kwargs) -> bool:
-        """Start a capture session."""
-        if self.capture.active:
-            self.status("Capture already active - use /cap.stop")
-            return False
-        started = self.capture.start(**kwargs)
-        if not started:
-            self.status("Cannot open capture file")
-            return False
-        mode = kwargs.get("mode", "?")
-        path = kwargs.get("path", "?")
-        self.status(f"Capture started: {path} ({mode})")
-        return True
-
-    def _stop_capture(self) -> None:
-        """Stop a capture session."""
-        result = self.capture.stop()
-        if result:
-            self.status(f"Capture complete: {result.path} ({result.size_label})")
 
     # -- Confirmation ---------------------------------------------------------
 
@@ -895,16 +711,3 @@ class CLITerminal:
             self._run_interactive()
         self.repl.fire_lifecycle("on_app_stop")
         return self.switch_to
-
-
-def _parse_run_flags(args: str) -> tuple[str, bool]:
-    """Extract -v/--verbose from /run args."""
-    tokens = args.split()
-    verbose = False
-    clean = []
-    for tok in tokens:
-        if tok in ("-v", "--verbose"):
-            verbose = True
-        else:
-            clean.append(tok)
-    return " ".join(clean), verbose

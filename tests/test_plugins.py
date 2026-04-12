@@ -2,7 +2,7 @@
 
 import pytest
 
-from termapy.plugins import PluginContext, PluginInfo, load_plugins_from_dir
+from termapy.plugins import PluginConfig, PluginContext, PluginInfo, load_plugins_from_dir
 
 
 @pytest.fixture
@@ -615,3 +615,148 @@ class TestFireLifecycle:
 
         # Act + Assert — just must not raise
         eng.fire_lifecycle("on_app_stop")
+
+
+# ── PluginConfig ────────────────────────────────────────────────────────────
+
+
+class TestPluginConfig:
+
+    def test_get_set_save_reload(self, tmp_path):
+        # Arrange
+        path = tmp_path / "test.cfg"
+        cfg = PluginConfig(path)
+
+        # Act
+        cfg["key1"] = "value1"
+        cfg["key2"] = 42
+        cfg.save()
+
+        # Assert — reload from disk
+        cfg2 = PluginConfig(path)
+        assert cfg2["key1"] == "value1", "should persist string value"
+        assert cfg2["key2"] == 42, "should persist int value"
+
+    def test_get_default(self, tmp_path):
+        # Arrange
+        cfg = PluginConfig(tmp_path / "missing.cfg")
+
+        # Act / Assert
+        assert cfg.get("nope", "fallback") == "fallback", "should return default for missing key"
+
+    def test_missing_file_returns_empty(self, tmp_path):
+        # Arrange
+        cfg = PluginConfig(tmp_path / "missing.cfg")
+
+        # Assert
+        assert len(cfg) == 0, "missing file should yield empty config"
+
+    def test_pop(self, tmp_path):
+        # Arrange
+        path = tmp_path / "test.cfg"
+        cfg = PluginConfig(path)
+        cfg["key"] = "value"
+        cfg.save()
+
+        # Act
+        cfg2 = PluginConfig(path)
+        actual = cfg2.pop("key", None)
+        cfg2.save()
+
+        # Assert
+        assert actual == "value", "pop should return the value"
+        cfg3 = PluginConfig(path)
+        assert "key" not in cfg3, "key should be gone after pop + save"
+
+    def test_contains(self, tmp_path):
+        # Arrange
+        cfg = PluginConfig(tmp_path / "test.cfg")
+        cfg["present"] = True
+
+        # Assert
+        assert "present" in cfg, "should report key as present"
+        assert "absent" not in cfg, "should report missing key as absent"
+
+    def test_del(self, tmp_path):
+        # Arrange
+        cfg = PluginConfig(tmp_path / "test.cfg")
+        cfg["key"] = "value"
+
+        # Act
+        del cfg["key"]
+
+        # Assert
+        assert "key" not in cfg, "key should be gone after del"
+
+    def test_creates_parent_dirs(self, tmp_path):
+        # Arrange
+        path = tmp_path / "deep" / "nested" / "test.cfg"
+        cfg = PluginConfig(path)
+        cfg["key"] = "value"
+
+        # Act
+        cfg.save()
+
+        # Assert
+        assert path.exists(), "save should create parent directories"
+
+    def test_corrupt_file_returns_empty(self, tmp_path):
+        # Arrange
+        path = tmp_path / "bad.cfg"
+        path.write_text("not json{{{", encoding="utf-8")
+
+        # Act
+        cfg = PluginConfig(path)
+
+        # Assert
+        assert len(cfg) == 0, "corrupt JSON should yield empty config"
+
+    def test_items(self, tmp_path):
+        # Arrange
+        cfg = PluginConfig(tmp_path / "test.cfg")
+        cfg["a"] = 1
+        cfg["b"] = 2
+
+        # Act
+        actual = dict(cfg.items())
+
+        # Assert
+        assert actual == {"a": 1, "b": 2}, "items() should return all key-value pairs"
+
+
+class TestPluginContextPluginCfg:
+
+    def test_returns_plugin_config(self, tmp_path):
+        # Arrange
+        cfg_path = tmp_path / "test.cfg"
+        cfg_path.write_text("{}", encoding="utf-8")
+        ctx = PluginContext(write=lambda *a, **kw: None, config_path=str(cfg_path))
+
+        # Act
+        pcfg = ctx.plugin_cfg("myplugin")
+
+        # Assert
+        expected = tmp_path / "plugin" / "myplugin.cfg"
+        assert pcfg.path == expected, "should resolve to <config_dir>/plugin/<name>.cfg"
+
+    def test_caches_across_calls(self, tmp_path):
+        # Arrange
+        cfg_path = tmp_path / "test.cfg"
+        cfg_path.write_text("{}", encoding="utf-8")
+        ctx = PluginContext(write=lambda *a, **kw: None, config_path=str(cfg_path))
+
+        # Act
+        pcfg1 = ctx.plugin_cfg("myplugin")
+        pcfg2 = ctx.plugin_cfg("myplugin")
+
+        # Assert
+        assert pcfg1 is pcfg2, "should return the same instance on repeated calls"
+
+    def test_raises_without_config_path(self):
+        # Arrange
+        ctx = PluginContext(write=lambda *a, **kw: None, config_path="")
+
+        # Act / Assert
+        import pytest
+        with pytest.raises(RuntimeError, match="no config loaded"):
+            ctx.plugin_cfg("myplugin")

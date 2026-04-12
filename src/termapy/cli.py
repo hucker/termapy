@@ -496,34 +496,9 @@ class CLITerminal(TerminalHost):
         msg = f"Delay {label} done."
         self._raw(f"\r  {msg}{' ' * (width + 10 - len(msg))}")
 
-    # -- Connection (CLI-specific UI) -----------------------------------------
-
-    def _connect(self, port: str | None = None) -> None:
-        """Connect to a serial port."""
-        if self.engine.is_connected:
-            self.status("Already connected", "yellow")
-            return
-        if port:
-            self.cfg["port"] = port
-        if self.engine.connect():
-            from termapy.config import connection_string, hardware_signals
-
-            conn = connection_string(self.cfg)
-            hw = hardware_signals(self.engine.port_obj)
-            full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
-            self.write(full, "green")
-            self.repl.fire_lifecycle("on_connect")
-        else:
-            self.status(f"Cannot connect to {self.cfg.get('port', '?')}", "red")
-
-    def _disconnect(self) -> None:
-        """Disconnect from the serial port."""
-        if not self.engine.is_connected:
-            self.write("Not connected.", "yellow")
-            return
-        self.repl.fire_lifecycle("on_disconnect")
-        self.engine.disconnect()
-        self.write("Disconnected.", "red")
+    # -- Connection uses TerminalHost._connect / _disconnect -------------------
+    # CLI has no additional UI to update on connect/disconnect, so the
+    # base class implementation is used as-is.
 
     # -- Confirmation ---------------------------------------------------------
 
@@ -687,26 +662,8 @@ class CLITerminal(TerminalHost):
         """
         self.switch_to: str | None = None
         self.repl.fire_lifecycle("on_app_start")
-        if not self.engine.connect():
-            port = self.cfg.get("port", "?")
-            detail = self.engine.last_error
-            msg = (
-                f"termapy: cannot open {port}: {detail}"
-                if detail
-                else f"termapy: cannot open {port}"
-            )
-            self._err(msg)
+        if not self._connect():
             sys.exit(1)
-
-        from termapy.config import connection_string, hardware_signals
-
-        conn = connection_string(self.cfg)
-        hw = hardware_signals(self.engine.port_obj)
-        full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
-        self.write(full, "green")
-        self.repl.fire_lifecycle("on_connect")
-
-        self._start_reader()
 
         # Show hint before on_connect_cmd so it appears first
         if not self.run_script:

@@ -698,15 +698,11 @@ class SerialTerminal(TerminalHost, App):
         ctx.write = self._status
         ctx.write_markup = self._write_output_markup
         ctx.log = self._log_line
-        ctx.port = lambda: self.ser if self.is_connected else None
         ctx.serial_wait_for_data = lambda timeout_ms=250: (
             self._engine.serial_port.wait_for_data(timeout_ms)
             if self._engine.serial_port
             else False
         )
-        ctx.serial_wait_idle = lambda timeout_ms=400: self._wait_for_idle(timeout_ms)
-        ctx.serial_read_raw = self._serial_read_raw
-        ctx.serial_drain = self._drain_rx_queue
         ctx.wait_for_match = self.repl.wait_for_match
         ctx.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
@@ -1061,33 +1057,19 @@ class SerialTerminal(TerminalHost, App):
         if self.cfg.get("auto_reconnect"):
             self._auto_reconnect()
 
-    _SPINNER = "|/-\\"
-
     @work(thread=True)
     def _auto_reconnect(self) -> None:
-        """Background thread: retry connecting every 2.5s until success or stop."""
+        """Background thread: retry connecting until success or stop."""
         self._engine.stop_event.clear()
         self._reconnecting = True
-        step = 0
         try:
-            while not self._engine.stop_event.is_set():
-                # Animate spinner in 0.25s steps across the 2.5s wait
-                for _ in range(10):
-                    if self._engine.stop_event.is_set():
-                        return
-                    ch = self._SPINNER[step % len(self._SPINNER)]
-                    self.call_from_thread(
-                        self._set_conn_status,
-                        f"Connecting {ch}",
-                        "retry",
-                    )
-                    step += 1
-                    time.sleep(0.25)
-                if self._engine.stop_event.is_set():
-                    break
-                if self._engine.try_reconnect():
-                    self.call_from_thread(self._try_open_port)
-                    return
+            success = self._engine.reconnect_loop(
+                on_status=lambda msg: self.call_from_thread(
+                    self._set_conn_status, msg, "retry"
+                ),
+            )
+            if success:
+                self.call_from_thread(self._connect)
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
         finally:
@@ -1117,24 +1099,6 @@ class SerialTerminal(TerminalHost, App):
 
         ctx = self.repl.ctx
         self.push_screen(ProtoDebugScreen(path, ctx, script, final))
-
-    def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
-        """Collect raw bytes using timeout-based framing (delegates to SerialPort)."""
-        frame_gap = frame_gap_ms or self.cfg.get("proto_frame_gap_ms", 50)
-        if self._engine.serial_port:
-            return self._engine.serial_port.read_raw(timeout_ms, frame_gap)
-        return b""
-
-    def _drain_rx_queue(self) -> int:
-        """Discard all pending bytes in the RX queue (delegates to SerialPort)."""
-        if self._engine.serial_port:
-            return self._engine.serial_port.drain()
-        return 0
-
-    def _wait_for_idle(self, timeout_ms: int = 100, max_wait_s: float = 3.0) -> None:
-        """Wait until no serial data arrives for timeout_ms (delegates to SerialPort)."""
-        if self._engine.serial_port:
-            self._engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
 
     @work(thread=True)
     def _run_lines(
@@ -1265,13 +1229,6 @@ class SerialTerminal(TerminalHost, App):
             self._engine.notify_tx(data)
         else:
             self._log_line(">", data.hex(" "))
-
-    def _serial_op(self, label: str, fn) -> None:
-        """Run a serial operation, catching OSError/SerialException."""
-        try:
-            fn()
-        except (OSError, serial.SerialException) as e:
-            self._status(f"{label} error: {e}", "red")
 
     def _confirm(self, message: str) -> bool:
         """Show a Yes/Cancel dialog and block until the user responds.
@@ -1825,10 +1782,11 @@ class SerialTerminal(TerminalHost, App):
         if reset:
             self._btn_dtr.label = "DTR:0"
             self._btn_rts.label = "RTS:0"
-        elif self.is_connected and self.ser:
+        elif self.is_connected:
             try:
-                self._btn_dtr.label = f"DTR:{int(self.ser.dtr)}"
-                self._btn_rts.label = f"RTS:{int(self.ser.rts)}"
+                dtr, rts = self._engine.get_hw_state()
+                self._btn_dtr.label = f"DTR:{int(dtr)}"
+                self._btn_rts.label = f"RTS:{int(rts)}"
             except (OSError, serial.SerialException) as e:
                 self._report_exception(e)
 
@@ -1861,28 +1819,28 @@ class SerialTerminal(TerminalHost, App):
             )
 
     def _on_btn_dtr(self) -> None:
-        if self.is_connected and self.ser:
-
-            def _toggle():
-                self.ser.dtr = not self.ser.dtr
-                self._btn_dtr.label = f"DTR:{int(self.ser.dtr)}"
-
-            self._serial_op("DTR", _toggle)
+        if self.is_connected:
+            self._serial_op(
+                "DTR",
+                lambda: setattr(
+                    self._btn_dtr, "label", f"DTR:{int(self._engine.toggle_dtr())}"
+                ),
+            )
 
     def _on_btn_rts(self) -> None:
-        if self.is_connected and self.ser:
-
-            def _toggle():
-                self.ser.rts = not self.ser.rts
-                self._btn_rts.label = f"RTS:{int(self.ser.rts)}"
-
-            self._serial_op("RTS", _toggle)
+        if self.is_connected:
+            self._serial_op(
+                "RTS",
+                lambda: setattr(
+                    self._btn_rts, "label", f"RTS:{int(self._engine.toggle_rts())}"
+                ),
+            )
 
     def _on_btn_break(self) -> None:
-        if self.is_connected and self.ser:
+        if self.is_connected:
 
             def _send():
-                self.ser.send_break(duration=0.25)
+                self._engine.send_break()
                 self.notify("Break sent", timeout=1.5)
 
             self._serial_op("Break", _send)
@@ -2169,7 +2127,6 @@ class SerialTerminal(TerminalHost, App):
         self._disconnect()
         self.exit()
 
-    @work(thread=True)
     @work(thread=True)
     def _run_reader(self) -> None:
         """Background thread: delegates to SerialEngine.read_loop."""

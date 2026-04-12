@@ -407,3 +407,130 @@ class TestTxObservers:
 
         # Assert
         assert engine._tx_observers.count(cb) == 1, "should not add duplicate"
+
+
+# -- Hardware signal control ---------------------------------------------------
+
+
+class TestHardwareSignals:
+    def test_toggle_dtr(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        engine.connect()
+
+        # Act
+        result = engine.toggle_dtr()
+
+        # Assert
+        assert isinstance(result, bool), "should return bool"
+        engine.disconnect()
+
+    def test_toggle_rts(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        engine.connect()
+
+        # Act
+        result = engine.toggle_rts()
+
+        # Assert
+        assert isinstance(result, bool), "should return bool"
+        engine.disconnect()
+
+    def test_send_break(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        engine.connect()
+
+        # Act / Assert — should not raise
+        engine.send_break()
+        engine.disconnect()
+
+    def test_get_hw_state(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        engine.connect()
+
+        # Act
+        dtr, rts = engine.get_hw_state()
+
+        # Assert
+        assert isinstance(dtr, bool), "DTR should be bool"
+        assert isinstance(rts, bool), "RTS should be bool"
+        engine.disconnect()
+
+    def test_toggle_dtr_when_disconnected(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+
+        # Act / Assert
+        with pytest.raises(OSError, match="Not connected"):
+            engine.toggle_dtr()
+
+    def test_toggle_rts_when_disconnected(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+
+        # Act / Assert
+        with pytest.raises(OSError, match="Not connected"):
+            engine.toggle_rts()
+
+    def test_send_break_when_disconnected(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+
+        # Act / Assert
+        with pytest.raises(OSError, match="Not connected"):
+            engine.send_break()
+
+    def test_get_hw_state_when_disconnected(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+
+        # Act / Assert
+        with pytest.raises(OSError, match="Not connected"):
+            engine.get_hw_state()
+
+
+# -- Reconnect loop ------------------------------------------------------------
+
+
+class TestReconnectLoop:
+    def test_reconnect_loop_success(self):
+        # Arrange
+        engine, _, _ = _make_engine()
+        statuses = []
+
+        # Act — FakeSerial always succeeds, so first try should work
+        def run():
+            return engine.reconnect_loop(on_status=statuses.append)
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        t.join(timeout=5.0)
+
+        # Assert
+        assert len(statuses) > 0, "should have received status updates"
+        assert all("Connecting" in s for s in statuses), "status should show connecting"
+
+    def test_reconnect_loop_cancelled(self):
+        # Arrange — use a port that always fails
+        capture = CaptureEngine()
+        engine = SerialEngine(
+            cfg={"port": "BAD"},
+            capture=capture,
+            open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
+        )
+
+        # Act — cancel after brief delay
+        def run():
+            return engine.reconnect_loop(interval=0.5)
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        time.sleep(0.3)
+        engine.stop_event.set()
+        t.join(timeout=2.0)
+
+        # Assert
+        assert not t.is_alive(), "thread should have exited"

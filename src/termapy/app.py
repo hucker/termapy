@@ -59,6 +59,7 @@ from termapy.capture import CaptureEngine, CaptureResult
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
 from termapy.repl import ReplEngine
+from termapy.terminal_host import TerminalHost
 from termapy.plugins import CmdResult
 from termapy.scripting import parse_duration
 from textual.app import App, ComposeResult
@@ -101,7 +102,7 @@ class CommandSuggester(Suggester):
 from termapy.scripting import ANSI_RE  # noqa: E402 - used for log stripping
 
 
-class SerialTerminal(App):
+class SerialTerminal(TerminalHost, App):
     """Textual app: scrolling output + local input line."""
 
     class ScriptStarted(Message):
@@ -364,6 +365,16 @@ class SerialTerminal(App):
         return self.repl.cfg
 
     @property
+    def engine(self) -> SerialEngine:
+        """SerialEngine instance (TerminalHost protocol)."""
+        return self._engine
+
+    @property
+    def capture(self) -> CaptureEngine:
+        """CaptureEngine instance (TerminalHost protocol)."""
+        return self._capture
+
+    @property
     def is_connected(self) -> bool:
         return self._engine.is_connected
 
@@ -371,6 +382,30 @@ class SerialTerminal(App):
     def ser(self):
         """The underlying serial port object (for DTR/RTS/break access)."""
         return self._engine.port_obj
+
+    # -- TerminalHost abstract method implementations -------------------------
+    # These satisfy the ABC contract by delegating to the TUI-specific methods
+    # that already exist.  In later phases, the internal names may be unified.
+
+    def write(self, text: str, color: str = "") -> None:
+        """Write text to the terminal output (TerminalHost protocol)."""
+        self._status(text, color or "dim")
+
+    def write_markup(self, text: str) -> None:
+        """Write Rich markup to the terminal output (TerminalHost protocol)."""
+        self._write_output_markup(text)
+
+    def status(self, text: str, color: str = "") -> None:
+        """Write an indented status message (TerminalHost protocol)."""
+        self._status(text, color or "dim")
+
+    def _log(self, direction: str, text: str) -> None:
+        """Log callback (TerminalHost protocol)."""
+        self._log_line(direction, text)
+
+    def _start_reader(self) -> None:
+        """Start the background serial reader (TerminalHost protocol)."""
+        self._run_reader()
 
     def _history_path(self) -> str:
         if self.config_path:
@@ -642,84 +677,51 @@ class SerialTerminal(App):
 
     def _build_context(self) -> None:
         """Build PluginContext and EngineAPI, wire to REPL."""
-        engine = EngineAPI(
-            prefix=self.cfg.get("cmd_prefix", "/"),
-            plugins=self.repl._plugins,
-            in_script=lambda: self.repl.in_script,
-            script_stop=lambda: self.repl._script_stop.set(),
-            save_cfg=self._hook_cfg_confirm,
-            apply_cfg=self.repl._apply_cfg,
-            coerce_type=ReplEngine._coerce_type,
-            set_proto_active=lambda active: setattr(
-                self._engine, "proto_active", active
-            ),
-            open_proto_debug=lambda path, script: self.call_later(
-                self._open_proto_debug, path, script
-            ),
-            start_capture=self._cap_start,
-            stop_capture=self._cap_stop,
-            directives=self.repl._directives,
-            connect=self._connect,
-            disconnect=self._disconnect,
-            update_port=self._update_port,
-            apply_port_effects=self._apply_port_effects,
-            rx_queue=self._engine.rx_queue,
-            xfer_cancel=self._xfer_cancel,
-            script_stop_event=self.repl._script_stop,
+        engine = self._build_engine_api()
+        # TUI-specific EngineAPI extensions
+        engine.save_cfg = self._hook_cfg_confirm
+        engine.set_proto_active = lambda active: setattr(
+            self._engine, "proto_active", active
         )
-        ctx = PluginContext(
-            write=self._status,
-            write_markup=self._write_output_markup,
-            log=self._log_line,
-            cfg=self.cfg,
-            config_path=self.config_path,
-            port=lambda: self.ser if self.is_connected else None,
-            is_connected=lambda: self.is_connected,
-            serial_write=self._serial_write,
-            serial_send=self._serial_send,
-            serial_wait_for_data=lambda timeout_ms=250: (
-                self._engine.serial_port.wait_for_data(timeout_ms)
-                if self._engine.serial_port
-                else False
-            ),
-            serial_wait_idle=lambda timeout_ms=400: self._wait_for_idle(timeout_ms),
-            serial_read_raw=self._serial_read_raw,
-            serial_drain=self._drain_rx_queue,
-            serial_claim=lambda: setattr(self._engine, "proto_active", True),
-            serial_release=lambda: setattr(self._engine, "proto_active", False),
-            wait_for_match=self.repl.wait_for_match,
-            status_bar=self._set_status_bar,
-            add_rx_observer=self._engine.add_rx_observer,
-            remove_rx_observer=self._engine.remove_rx_observer,
-            add_tx_observer=self._engine.add_tx_observer,
-            remove_tx_observer=self._engine.remove_tx_observer,
-            dispatch=self._dispatch_single,
-            ss_dir=self.repl.ss_dir,
-            scripts_dir=self.repl.scripts_dir,
-            proto_dir=self.repl.proto_dir,
-            cap_dir=self.repl.cap_dir,
-            prof_dir=self.repl.prof_dir,
-            confirm=self._confirm,
-            notify=lambda text, **kw: self._on_main(self.notify, text, **kw),
-            clear_screen=lambda: self._on_main(self._clear_output),
-            save_screenshot=lambda *a, **kw: self._on_main(
-                self.save_screenshot, *a, **kw
-            ),
-            get_screen_text=lambda: self._on_main(self._get_screen_text),
-            open_file=lambda path: open_with_system(str(path)),
-            exit_app=lambda: self._on_main(self.exit),
-            engine=engine,
+        engine.open_proto_debug = lambda path, script: self.call_later(
+            self._open_proto_debug, path, script
         )
+        engine.start_capture = self._cap_start
+        engine.stop_capture = self._cap_stop
+        engine.directives = self.repl._directives
+        engine.update_port = self._update_port
+        engine.rx_queue = self._engine.rx_queue
+        engine.xfer_cancel = self._xfer_cancel
+
+        ctx = self._build_plugin_context(engine)
+        # TUI-specific PluginContext overrides
+        ctx.write = self._status
+        ctx.write_markup = self._write_output_markup
+        ctx.log = self._log_line
+        ctx.port = lambda: self.ser if self.is_connected else None
+        ctx.serial_wait_for_data = lambda timeout_ms=250: (
+            self._engine.serial_port.wait_for_data(timeout_ms)
+            if self._engine.serial_port
+            else False
+        )
+        ctx.serial_wait_idle = lambda timeout_ms=400: self._wait_for_idle(timeout_ms)
+        ctx.serial_read_raw = self._serial_read_raw
+        ctx.serial_drain = self._drain_rx_queue
+        ctx.wait_for_match = self.repl.wait_for_match
+        ctx.status_bar = self._set_status_bar
+        ctx.dispatch = self._dispatch_single
+        ctx.notify = lambda text, **kw: self._on_main(self.notify, text, **kw)
+        ctx.clear_screen = lambda: self._on_main(self._clear_output)
+        ctx.save_screenshot = lambda *a, **kw: self._on_main(
+            self.save_screenshot, *a, **kw
+        )
+        ctx.get_screen_text = lambda: self._on_main(self._get_screen_text)
+        ctx.exit_app = lambda: self._on_main(self.exit)
+
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg
-        # Engine-reserved `flags` namespace: shared engine toggles live here.
-        # Per-plugin private state should use the plugin's own namespace name
-        # (e.g. ctx.ns("myplugin")).  Defaults are set once at construction so
-        # read sites can use bare lookups.
-        flags = ctx.ns("flags")
-        flags.setdefault("echo", True)
-        flags.setdefault("verbose", True)
-        flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
+        self.ctx = ctx
+        self._init_flags(echo=True)
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks."""
@@ -1287,12 +1289,6 @@ class SerialTerminal(App):
             fn()
         except (OSError, serial.SerialException) as e:
             self._status(f"{label} error: {e}", "red")
-
-    def _serial_send(self, text: str) -> None:
-        """Send text with configured line ending and encoding."""
-        ending = self.cfg.get("line_ending", "\r")
-        encoding = self.cfg.get("encoding", "utf-8")
-        self._serial_write((text + ending).encode(encoding))
 
     def _confirm(self, message: str) -> bool:
         """Show a Yes/Cancel dialog and block until the user responds.
@@ -2134,34 +2130,6 @@ class SerialTerminal(App):
         "using-git",
         "demo",
     ]
-
-    _help_server_port: int = 0
-
-    def _ensure_help_server(self) -> int:
-        """Start a local HTTP server for help docs if not already running.
-
-        Returns the port number. The server runs as a daemon thread and
-        stops automatically when the app exits.
-        """
-        if self._help_server_port:
-            return self._help_server_port
-        from http.server import HTTPServer, SimpleHTTPRequestHandler
-        from importlib.resources import files as pkg_files
-
-        html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
-
-        class QuietHandler(SimpleHTTPRequestHandler):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, directory=html_dir, **kwargs)
-
-            def log_message(self, format, *args):
-                pass  # suppress request logging
-
-        server = HTTPServer(("127.0.0.1", 0), QuietHandler)
-        self._help_server_port = server.server_address[1]
-        t = threading.Thread(target=server.serve_forever, daemon=True)
-        t.start()
-        return self._help_server_port
 
     def _hook_help_open(self, ctx: "PluginContext | None", args: str) -> CmdResult:
         """Open a help topic in the local docs server."""
@@ -3124,19 +3092,6 @@ class SerialTerminal(App):
         if path:
             self._run_script(path, verbose=verbose)
         return result
-
-    @staticmethod
-    def _parse_run_flags(args: str) -> tuple[str, bool]:
-        """Extract -v/--verbose from /run args. Returns (clean_args, verbose)."""
-        tokens = args.split()
-        verbose = False
-        clean = []
-        for tok in tokens:
-            if tok in ("-v", "--verbose"):
-                verbose = True
-            else:
-                clean.append(tok)
-        return " ".join(clean), verbose
 
     _PROFILE_TMP_PREFIX = "_profile_tmp_"
 

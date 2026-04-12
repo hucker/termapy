@@ -167,3 +167,9 @@ $(PORT_NUM) = 42
 /port.parity X
 /port.dtr maybe
 /port.break -5
+
+# ── TUI-only commands (verify warnings) ─────────────────────────────────────
+/print === section: tui-only warnings ===
+/line_no on
+/ss.svg
+/ss.txt

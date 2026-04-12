@@ -15,10 +15,17 @@ import threading
 import time
 from pathlib import Path
 
-try:
-    import readline
-except ImportError:
-    readline = None  # Windows without pyreadline3  # ty: ignore[invalid-assignment]
+if sys.platform != "win32":
+    try:
+        import readline
+    except ImportError:
+        readline = None  # ty: ignore[invalid-assignment]
+else:
+    # pyreadline3 on Windows breaks terminal scrolling at the bottom of
+    # the screen — it uses Win32 console APIs that fight with Python's
+    # stdout.  Plain input() scrolls correctly.  We lose tab completion
+    # but gain a working terminal.
+    readline = None  # ty: ignore[invalid-assignment]
 
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial

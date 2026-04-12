@@ -382,24 +382,19 @@ def _gather_linux_extras(facts: ChipFacts, device: str) -> None:
         pass
 
 
-def _check_in_use(device: str) -> str:
-    """Return 'yes' or 'no' for whether the device is currently open.
+def _check_in_use(device: str, connected_port: str = "") -> str:
+    """Return 'yes', 'yes (this session)', or 'no'.
 
-    Cross-platform implementation: try to open the port read-only with
-    the most-non-disruptive flags possible (no flow control, no DSR/DTR
-    changes), then immediately close it.  If the open succeeds, nothing
-    else has the port (we just briefly held it).  If the open fails,
-    something else has the port -- typically the current termapy session
-    if connected, or another process otherwise.
+    If *device* matches *connected_port*, the port is known to be open
+    by this termapy session — return immediately without probing.  This
+    avoids the Windows issue where a process can re-open its own COM
+    port, which would falsely report "no".
 
-    The open attempt uses ``timeout=0`` so it doesn't block waiting for
-    data, and explicitly disables hardware flow control to minimise the
-    chance of glitching DTR or RTS on the connected device (the famous
-    Arduino auto-reset gotcha).  Even so, briefly opening a serial port
-    can momentarily toggle modem-control lines on some hardware; this
-    is unavoidable for any "is the port busy" check that doesn't rely
-    on platform-specific kernel introspection.
+    For other ports, try to open briefly.  If the open succeeds, nothing
+    else has the port.  If it fails, something else has it open.
     """
+    if connected_port and device == connected_port:
+        return "yes (this session)"
     try:
         import serial
 
@@ -414,11 +409,6 @@ def _check_in_use(device: str) -> str:
         s.close()
         return "no"
     except (OSError, serial.SerialException):
-        # Could be "busy", "permission denied", or "device does not
-        # exist" -- but in the context of checking a port we already
-        # know exists from comports(), the overwhelmingly likely cause
-        # is that another process (or the current termapy session) has
-        # it open.  Report "yes" rather than over-classifying.
         return "yes"
 
 
@@ -435,7 +425,7 @@ def _check_permissions(device: str) -> str:
     return "denied"
 
 
-def _facts_from_port_info(p: Any) -> ChipFacts:
+def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
     """Build a ChipFacts from a pyserial ListPortInfo plus platform extras."""
     facts = ChipFacts(
         device=p.device,
@@ -466,7 +456,7 @@ def _facts_from_port_info(p: Any) -> ChipFacts:
     else:
         facts.vid_pid = "not a USB device"
     facts.permissions = _check_permissions(p.device)
-    facts.in_use = _check_in_use(p.device)
+    facts.in_use = _check_in_use(p.device, connected_port)
     _gather_linux_extras(facts, p.device)
     if (
         facts.latency_timer is None
@@ -478,11 +468,12 @@ def _facts_from_port_info(p: Any) -> ChipFacts:
     return facts
 
 
-def gather_chip_facts(port_name: str) -> ChipFacts | None:
+def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | None:
     """Look up the named port and return all known facts about it.
 
     Args:
         port_name: Exact device name (e.g. ``COM3`` or ``/dev/ttyUSB0``).
+        connected_port: The port termapy currently has open, if any.
 
     Returns:
         ChipFacts on success, or None if no connected port matches.
@@ -491,16 +482,16 @@ def gather_chip_facts(port_name: str) -> ChipFacts | None:
 
     for p in comports():
         if p.device == port_name:
-            return _facts_from_port_info(p)
+            return _facts_from_port_info(p, connected_port)
     return None
 
 
-def _gather_all_chip_facts() -> list[ChipFacts]:
+def _gather_all_chip_facts(connected_port: str = "") -> list[ChipFacts]:
     """Return ChipFacts for every connected port, sorted by device name."""
     from serial.tools.list_ports import comports
 
     return [
-        _facts_from_port_info(p)
+        _facts_from_port_info(p, connected_port)
         for p in sorted(comports(), key=lambda x: x.device)
     ]
 
@@ -527,7 +518,7 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
     return msgs
 
 
-def chip_info(arg: str, current_port: str) -> Result:
+def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
     """Show full chip info for one port, all ports, or the current port.
 
     Args:
@@ -535,6 +526,7 @@ def chip_info(arg: str, current_port: str) -> Result:
             ``"*"`` for all connected ports.
         current_port: The port name from ``cfg["port"]``, used when arg
             is empty.
+        connected_port: The port termapy currently has open, if any.
 
     Returns:
         Messages with per-port chip information.
@@ -543,7 +535,7 @@ def chip_info(arg: str, current_port: str) -> Result:
 
     # All-ports mode
     if arg == "*":
-        all_facts = _gather_all_chip_facts()
+        all_facts = _gather_all_chip_facts(connected_port)
         if not all_facts:
             return _result([_msg("No serial ports found", "yellow")])
         msgs: list[Msg] = []
@@ -557,13 +549,13 @@ def chip_info(arg: str, current_port: str) -> Result:
     target = arg or current_port
     if not target:
         return _result([_msg("No current port set.", "red")])
-    facts = gather_chip_facts(target)
+    facts = gather_chip_facts(target, connected_port)
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     return _result(_format_facts_full(facts))
 
 
-def chip_field(field: str, arg: str, current_port: str) -> Result:
+def chip_field(field: str, arg: str, current_port: str, connected_port: str = "") -> Result:
     """Show a single field's value for one or more ports.
 
     Args:
@@ -583,7 +575,7 @@ def chip_field(field: str, arg: str, current_port: str) -> Result:
     arg = arg.strip()
 
     if arg == "*":
-        all_facts = _gather_all_chip_facts()
+        all_facts = _gather_all_chip_facts(connected_port)
         if not all_facts:
             return _result([_msg("No serial ports found", "yellow")])
         msgs: list[Msg] = []
@@ -596,7 +588,7 @@ def chip_field(field: str, arg: str, current_port: str) -> Result:
     target = arg or current_port
     if not target:
         return _result([_msg("No current port set.", "red")])
-    facts = gather_chip_facts(target)
+    facts = gather_chip_facts(target, connected_port)
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     value = getattr(facts, field)
@@ -645,8 +637,9 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     # silently if the port name doesn't match any enumerable device
     # (e.g. FakeSerial / DEMO, unplugged cable, non-USB port).
     port_name = cfg.get("port", "")
+    connected = port_name if ser is not None else ""
     if port_name:
-        facts = gather_chip_facts(port_name)
+        facts = gather_chip_facts(port_name, connected)
         if facts is not None:
             msgs.append(_msg(""))
             for field_name in CHIP_FIELDS:

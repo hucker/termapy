@@ -117,7 +117,8 @@ def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
     current = ctx.cfg.get("port", "") or ""
-    _apply(ctx, port_control.chip_info(args, current))
+    connected = current if ctx.is_connected() else ""
+    _apply(ctx, port_control.chip_info(args, current, connected))
     return CmdResult.ok()
 
 
@@ -129,7 +130,8 @@ def _make_chip_field_handler(field: str):
     """
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         current = ctx.cfg.get("port", "") or ""
-        result = port_control.chip_field(field, args, current)
+        connected = current if ctx.is_connected() else ""
+        result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value
         # so .quiet mode is useful for scripting.

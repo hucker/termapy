@@ -16,11 +16,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-# Matches section entries like:
+# Summary section (truncated names):
 #   .text.FunctionName      0x12345   0x100   256
-#   .bss.variable_name      0x20000000  0x40   64
-# The symbol name portion may be truncated by the linker.
-_ENTRY_RE = re.compile(
+_SUMMARY_RE = re.compile(
     r"^\.(?P<section>text|bss|data|rodata)\."
     r"(?P<name>\S+)"
     r"\s+(?P<addr>0x[0-9a-fA-F]+)"
@@ -28,9 +26,25 @@ _ENTRY_RE = re.compile(
     r"\s+(?P<dec>\d+)"
 )
 
-# Matches global symbols from the linker map section:
+# Detailed linker section -- full names with %NNN suffix.
+# Two formats:
+#   .text.FullName%123                         (name only, addr on next line)
+#   .bss.FullName%10    0x20002aa4   0x702     (name + addr on same line)
+_DETAIL_RE = re.compile(
+    r"^\.(?P<section>text|bss|data|rodata)\."
+    r"(?P<name>[^%\s]+)"
+    r"%\d+"
+    r"(?:\s+(?P<addr>0x[0-9a-fA-F]+)\s+(?P<size>0x[0-9a-fA-F]+))?"
+)
+
+# Continuation line with address + size (follows a name-only detail line):
+#                 0x00016c1e       0xd4
+_DETAIL_ADDR_RE = re.compile(
+    r"^\s+(?P<addr>0x[0-9a-fA-F]+)\s+(?P<size>0x[0-9a-fA-F]+)\s*$"
+)
+
+# Global symbols from the linker map section:
 #                 0x20005a58                sCal
-# These have an address and a name but no size.
 _GLOBAL_RE = re.compile(
     r"^\s+(?P<addr>0x[0-9a-fA-F]+)\s+(?P<name>[a-zA-Z_]\w+)\s*$"
 )
@@ -105,19 +119,60 @@ class MapFile:
         """
         symbols: list[Symbol] = []
         seen_addrs: set[int] = set()
-        for line in text.splitlines():
-            m = _ENTRY_RE.match(line)
+        lines = text.splitlines()
+
+        # Pass 1: detailed linker section (full, untruncated names).
+        pending_name: str | None = None
+        pending_section: str | None = None
+        for line in lines:
+            m = _DETAIL_RE.match(line)
+            if m:
+                name = m.group("name")
+                section = m.group("section")
+                if m.group("addr"):
+                    # Name + addr on same line
+                    addr = int(m.group("addr"), 16)
+                    size = int(m.group("size"), 16)
+                    if addr not in seen_addrs:
+                        symbols.append(Symbol(name, addr, size, section))
+                        seen_addrs.add(addr)
+                    pending_name = None
+                else:
+                    # Name only — addr on next line
+                    pending_name = name
+                    pending_section = section
+                continue
+            if pending_name is not None:
+                m = _DETAIL_ADDR_RE.match(line)
+                if m:
+                    addr = int(m.group("addr"), 16)
+                    size = int(m.group("size"), 16)
+                    if addr not in seen_addrs:
+                        symbols.append(Symbol(
+                            pending_name, addr, size, pending_section,
+                        ))
+                        seen_addrs.add(addr)
+                pending_name = None
+                pending_section = None
+                continue
+
+        # Pass 2: summary section (fallback for any addresses not yet seen).
+        for line in lines:
+            m = _SUMMARY_RE.match(line)
             if m:
                 addr = int(m.group("addr"), 16)
-                symbols.append(Symbol(
-                    name=m.group("name"),
-                    addr=addr,
-                    size=int(m.group("size"), 16),
-                    section=m.group("section"),
-                ))
-                seen_addrs.add(addr)
+                if addr not in seen_addrs:
+                    symbols.append(Symbol(
+                        name=m.group("name"),
+                        addr=addr,
+                        size=int(m.group("size"), 16),
+                        section=m.group("section"),
+                    ))
+                    seen_addrs.add(addr)
                 continue
-            # Global symbols from linker map (no size)
+
+        # Pass 3: global symbols (address + name, no size).
+        for line in lines:
             m = _GLOBAL_RE.match(line)
             if m:
                 addr = int(m.group("addr"), 16)
@@ -129,6 +184,7 @@ class MapFile:
                         section="global",
                     ))
                     seen_addrs.add(addr)
+
         return cls(symbols, path)
 
     def __len__(self) -> int:

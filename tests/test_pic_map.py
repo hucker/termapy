@@ -15,6 +15,8 @@ section                    address  length [bytes]      (dec)  Description
 .text.MonGpio               0xcac0          0x308         776
 .text.PinDiag_PinWrCmd      0x6b30          0x5ee        1518
 .text.SERCOM4_USART_Ser     0xec5c          0x260         608
+.text.u8PicAdcInternal_     0x16c1e           0xd4         212
+.text.u8PicAdcInternal_     0x187ea           0x98         152
 .rodata.sCmdTableA          0xc15c          0x334         820
 .bss.SERCOM4_USART_Writ 0x20000000         0x1400        5120
 .bss.sDispatch          0x200038a8          0x658        1624
@@ -22,6 +24,15 @@ section                    address  length [bytes]      (dec)  Description
 .data.sFaultFn          0x20006530            0x4           4
 
 Linker script and memory map
+
+.text.u8PicAdcInternal_ReadBlockingAvg%358
+                0x00016c1e       0xd4
+
+.text.u8PicAdcInternal_EnableIfNeeded%398
+                0x000187ea       0x98
+
+.bss.SERCOM4_USART_WriteBuffer%6
+                0x20000000     0x1400
 
                 0x20005a58                sCal
                 0x200061d8                __stderr_used
@@ -149,7 +160,7 @@ class TestMapFileParse:
 
         # Assert
         names = [s.name for s in mf.symbols if s.section == "bss"]
-        assert "SERCOM4_USART_Writ" in names, "should parse .bss symbol"
+        assert "SERCOM4_USART_WriteBuffer" in names, "should parse .bss symbol with full name"
         assert "sDispatch" in names, "should parse .bss.sDispatch"
 
     def test_parses_data_symbols(self):
@@ -192,6 +203,27 @@ class TestMapFileParse:
         # Assert
         assert stats["text"] >= 3, "should have at least 3 text symbols"
         assert stats["bss"] >= 2, "should have at least 2 bss symbols"
+
+    def test_detail_section_provides_full_names(self):
+        # Act
+        mf = MapFile.from_text(SAMPLE_MAP)
+
+        # Assert — detailed section should override truncated summary names
+        names = [s.name for s in mf.symbols]
+        assert "u8PicAdcInternal_ReadBlockingAvg" in names, (
+            "should use full name from detailed section"
+        )
+        assert "u8PicAdcInternal_EnableIfNeeded" in names, (
+            "should use full name from detailed section"
+        )
+        assert "SERCOM4_USART_WriteBuffer" in names, (
+            "should use full bss name from detailed section"
+        )
+        # Truncated names should NOT appear when full names are available
+        truncated = [s for s in mf.symbols if s.name == "u8PicAdcInternal_"]
+        assert len(truncated) == 0, (
+            "truncated names should be replaced by full names"
+        )
 
     def test_parses_global_symbols(self):
         # Act

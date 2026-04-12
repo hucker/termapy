@@ -4,8 +4,8 @@ A complex plugin example demonstrating:
 
   - Multiple subcommands with nesting (map.path, map.path.clear)
   - Required and optional arguments (<address>, {path})
-  - Persistent per-config storage (pic_map.cfg in the plugin folder)
-  - Lifecycle hooks (on_app_start for auto-loading at startup)
+  - Persistent per-config storage via ctx.plugin_cfg()
+  - Lifecycle hooks (on_app_start, on_config_load for auto-loading)
   - Plugin namespace for session state (ctx.ns() for caching loaded data)
   - File change detection (mtime-based auto-reload)
   - Search with glob, regex, and substring fallback
@@ -27,7 +27,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -40,41 +39,7 @@ if TYPE_CHECKING:
 _NS_KEY = "pic_map"
 
 _MAP_FILENAME = "mem.map"
-_CFG_FILENAME = "pic_map.cfg"
-
-
-# ── Plugin config (persisted to plugin/pic_map.cfg) ────────────────────────
-
-
-def _cfg_path(ctx: PluginContext) -> Path | None:
-    """Return the path to this plugin's config file, or None."""
-    if not ctx.config_path:
-        return None
-    return Path(ctx.config_path).parent / "plugin" / _CFG_FILENAME
-
-
-def _load_cfg(ctx: PluginContext) -> dict:
-    """Load plugin config from disk. Returns empty dict on any error."""
-    p = _cfg_path(ctx)
-    if p is None or not p.exists():
-        return {}
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def _save_cfg(ctx: PluginContext, cfg: dict) -> bool:
-    """Save plugin config to disk. Returns True on success."""
-    p = _cfg_path(ctx)
-    if p is None:
-        return False
-    try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-        return True
-    except OSError:
-        return False
+_PLUGIN_NAME = "pic_map"
 
 
 # ── Map file resolution ────────────────────────────────────────────────────
@@ -85,9 +50,10 @@ def _resolve_map_path(ctx: PluginContext) -> Path | None:
 
     Returns the first path that exists, or None.
     """
-    # 1. Configured path from pic_map.cfg
-    cfg = _load_cfg(ctx)
-    saved = cfg.get("map_path", "")
+    # 1. Configured path from plugin config
+    saved = ""
+    if ctx.config_path:
+        saved = ctx.plugin_cfg(_PLUGIN_NAME).get("map_path", "")
     if saved:
         p = Path(saved)
         if p.exists():
@@ -253,8 +219,8 @@ def _handler_path(ctx: PluginContext, args: str) -> CmdResult:
 
     if not arg:
         # Show current
-        cfg = _load_cfg(ctx)
-        saved = cfg.get("map_path", "")
+        pcfg = ctx.plugin_cfg(_PLUGIN_NAME)
+        saved = pcfg.get("map_path", "")
         if saved:
             exists = Path(saved).exists()
             status = "" if exists else " (file not found)"
@@ -269,10 +235,9 @@ def _handler_path(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"File not found: {p}")
 
     resolved = p.resolve()
-    cfg = _load_cfg(ctx)
-    cfg["map_path"] = str(resolved)
-    if not _save_cfg(ctx, cfg):
-        return CmdResult.fail(msg="Cannot write config (no config path?)")
+    pcfg = ctx.plugin_cfg(_PLUGIN_NAME)
+    pcfg["map_path"] = str(resolved)
+    pcfg.save()
 
     # Load immediately so the user can start using it
     from termapy import pic_map
@@ -288,13 +253,11 @@ def _handler_path(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_path_clear(ctx: PluginContext, args: str) -> CmdResult:
     """Clear the saved map file path."""
-    cfg = _load_cfg(ctx)
-    cfg.pop("map_path", None)
-    if _save_cfg(ctx, cfg):
-        ctx.write("Map path cleared.", "green")
-    else:
-        return CmdResult.fail(msg="Cannot write config (no config path?)")
+    pcfg = ctx.plugin_cfg(_PLUGIN_NAME)
+    pcfg.pop("map_path", None)
+    pcfg.save()
     _set_map(ctx, None)
+    ctx.write("Map path cleared.", "green")
     return CmdResult.ok()
 
 
@@ -387,8 +350,7 @@ def _try_auto_load(ctx: PluginContext) -> None:
     if not ctx.config_path:
         return
     # Check saved config path
-    cfg = _load_cfg(ctx)
-    saved = cfg.get("map_path", "")
+    saved = ctx.plugin_cfg(_PLUGIN_NAME).get("map_path", "")
     if saved and Path(saved).exists():
         _auto_load(ctx)
         return
@@ -399,34 +361,14 @@ def _try_auto_load(ctx: PluginContext) -> None:
 
 
 def on_app_start(ctx: PluginContext) -> None:
-    """Called once after plugins are loaded, before first dispatch."""
+    """Auto-load the map file at startup."""
     _try_auto_load(ctx)
-
-
-def on_app_stop(ctx: PluginContext) -> None:
-    """Called once during graceful shutdown. Not guaranteed on crash."""
-
-
-def on_connect(ctx: PluginContext) -> None:
-    """Called after the serial port is successfully opened."""
-
-
-def on_disconnect(ctx: PluginContext) -> None:
-    """Called before the serial port is closed."""
 
 
 def on_config_load(ctx: PluginContext) -> None:
-    """Called after switching to a new config via /cfg.load."""
+    """Re-load the map file when the config changes."""
     _set_map(ctx, None)
     _try_auto_load(ctx)
-
-
-def on_script_start(ctx: PluginContext) -> None:
-    """Called when a /run script begins executing."""
-
-
-def on_script_stop(ctx: PluginContext) -> None:
-    """Called after a /run script finishes (including /stop or exception)."""
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

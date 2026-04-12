@@ -49,6 +49,7 @@ Later plugins can override earlier ones by using the same name.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -334,6 +335,100 @@ class EngineAPI:
     script_stop_event: Any = None  # threading.Event — set by /stop to abort scripts
 
 
+class PluginConfig:
+    """Persistent per-config key-value storage for a plugin.
+
+    Each plugin's config is a JSON file at a deterministic path::
+
+        termapy_cfg/<config>/plugin/<plugin_name>.cfg
+
+    The config is loaded lazily on first access and cached in memory.
+    Call ``save()`` to write changes to disk.
+
+    Usage::
+
+        def _handler(ctx, args):
+            cfg = ctx.plugin_cfg("pic_map")
+            cfg["map_path"] = "/path/to/mem.map"
+            cfg.save()
+
+            # Read back
+            path = cfg.get("map_path", "")
+
+    The dict-like interface supports ``get()``, ``[]``, ``[]=``,
+    ``pop()``, ``in``, ``del``, and iteration.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._data: dict | None = None
+
+    @property
+    def path(self) -> Path:
+        """The on-disk path to this config file."""
+        return self._path
+
+    def _ensure_loaded(self) -> dict:
+        if self._data is None:
+            if self._path.exists():
+                try:
+                    self._data = json.loads(
+                        self._path.read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError):
+                    self._data = {}
+            else:
+                self._data = {}
+        return self._data
+
+    def save(self) -> None:
+        """Write the current config to disk.
+
+        Creates the parent directory if needed.
+
+        Raises:
+            OSError: If the file cannot be written.
+        """
+        data = self._ensure_loaded()
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(
+            json.dumps(data, indent=2) + "\n", encoding="utf-8"
+        )
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get a value, returning *default* if the key is absent."""
+        return self._ensure_loaded().get(key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        return self._ensure_loaded()[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._ensure_loaded()[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self._ensure_loaded()[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._ensure_loaded()
+
+    def __iter__(self):
+        return iter(self._ensure_loaded())
+
+    def __len__(self) -> int:
+        return len(self._ensure_loaded())
+
+    def pop(self, key: str, *args: Any) -> Any:
+        """Remove and return a value.  Accepts an optional default."""
+        return self._ensure_loaded().pop(key, *args)
+
+    def items(self):
+        """Return key-value pairs."""
+        return self._ensure_loaded().items()
+
+    def __repr__(self) -> str:
+        return f"PluginConfig({self._path})"
+
+
 @dataclass
 class PluginContext:
     """Stable API for plugin interaction with the terminal.
@@ -401,6 +496,12 @@ class PluginContext:
             in the reserved ``flags`` namespace; plugins should use their
             own namespace name (e.g. ``ctx.ns("myplugin")``) to avoid
             collision.
+        plugin_cfg: Return a persistent ``PluginConfig`` object for a named
+            plugin.  The config file is stored at
+            ``termapy_cfg/<config>/plugin/<name>.cfg``.  Loaded lazily,
+            cached per session.  Call ``.save()`` to write to disk.
+            Use ``ns()`` for session-only state, ``plugin_cfg()`` for
+            state that must survive across sessions.
     """
 
     # Core I/O
@@ -454,6 +555,9 @@ class PluginContext:
     # See ctx.ns() below for the public interface.
     _namespaces: dict[str, dict] = field(default_factory=dict)
 
+    # Plugin config cache - keyed by plugin name, lazy-loaded from disk.
+    _plugin_cfgs: dict[str, PluginConfig] = field(default_factory=dict)
+
     # -- Namespaces ------------------------------------------------------------
 
     def ns(self, name: str) -> dict:
@@ -492,6 +596,43 @@ class PluginContext:
         if name not in self._namespaces:
             self._namespaces[name] = {}
         return self._namespaces[name]
+
+    def plugin_cfg(self, name: str) -> PluginConfig:
+        """Return a persistent config object for a plugin.
+
+        The config file lives at a deterministic path::
+
+            termapy_cfg/<config>/plugin/<name>.cfg
+
+        The file is loaded lazily on first access and cached for the
+        session.  Call ``.save()`` to write changes to disk.
+
+        Example::
+
+            def _handler(ctx, args):
+                cfg = ctx.plugin_cfg("pic_map")
+                cfg["map_path"] = args.strip()
+                cfg.save()
+
+        Args:
+            name: Plugin name.  Used as the config file stem.
+
+        Returns:
+            A ``PluginConfig`` instance backed by the JSON file.
+
+        Raises:
+            RuntimeError: If no config is loaded (no ``config_path``).
+        """
+        if name in self._plugin_cfgs:
+            return self._plugin_cfgs[name]
+        if not self.config_path:
+            raise RuntimeError(
+                f"Cannot access plugin config for {name!r}: no config loaded"
+            )
+        path = Path(self.config_path).parent / "plugin" / f"{name}.cfg"
+        pc = PluginConfig(path)
+        self._plugin_cfgs[name] = pc
+        return pc
 
     # -- Output channels -------------------------------------------------------
 

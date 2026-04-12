@@ -166,7 +166,7 @@ class TerminalHost:
         replace any frontend-specific fields before calling
         ``repl.set_context()``.
         """
-        return PluginContext(
+        ctx = PluginContext(
             write=self.status,
             write_markup=self.write_markup,
             log=self._log,
@@ -195,6 +195,14 @@ class TerminalHost:
             # Shared UI
             open_file=lambda path: open_with_system(str(path)),
         )
+        # Serial port helpers — shared by TUI and CLI
+        ctx.port = lambda: self.engine.port_obj if self.engine.is_connected else None
+        ctx.serial_read_raw = self._serial_read_raw
+        ctx.serial_drain = self._drain_rx_queue
+        ctx.serial_wait_idle = lambda timeout_ms=100, max_wait_s=3.0: (
+            self._wait_for_idle(timeout_ms, max_wait_s)
+        )
+        return ctx
 
     def _init_flags(self, echo: bool = True) -> None:
         """Initialise the ``flags`` namespace with shared engine defaults.
@@ -208,6 +216,33 @@ class TerminalHost:
         flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 
     # -- Serial I/O -----------------------------------------------------------
+
+    def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
+        """Collect raw bytes using timeout-based framing (delegates to SerialPort)."""
+        frame_gap = frame_gap_ms or self.cfg.get("proto_frame_gap_ms", 50)
+        if self.engine.serial_port:
+            return self.engine.serial_port.read_raw(timeout_ms, frame_gap)
+        return b""
+
+    def _drain_rx_queue(self) -> int:
+        """Discard all pending bytes in the RX queue (delegates to SerialPort)."""
+        if self.engine.serial_port:
+            return self.engine.serial_port.drain()
+        return 0
+
+    def _wait_for_idle(self, timeout_ms: int = 100, max_wait_s: float = 3.0) -> None:
+        """Wait until no serial data arrives for timeout_ms (delegates to SerialPort)."""
+        if self.engine.serial_port:
+            self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
+
+    def _serial_op(self, label: str, fn) -> None:
+        """Run a serial operation, catching OSError/SerialException."""
+        from serial import SerialException
+
+        try:
+            fn()
+        except (OSError, SerialException) as e:
+            self.status(f"{label} error: {e}", "red")
 
     def _serial_write(self, data: bytes) -> None:
         """Write raw bytes to the serial port and notify TX observers."""

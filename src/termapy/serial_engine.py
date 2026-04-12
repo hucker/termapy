@@ -290,6 +290,52 @@ class SerialEngine:
                 self._serial_port = None
             self._reader_stopped.set()
 
+    # -- Hardware signal control ------------------------------------------------
+
+    def toggle_dtr(self) -> bool:
+        """Toggle DTR and return new state.
+
+        Raises:
+            OSError: If the port operation fails.
+        """
+        if not self._port_obj:
+            raise OSError("Not connected")
+        self._port_obj.dtr = not self._port_obj.dtr
+        return self._port_obj.dtr
+
+    def toggle_rts(self) -> bool:
+        """Toggle RTS and return new state.
+
+        Raises:
+            OSError: If the port operation fails.
+        """
+        if not self._port_obj:
+            raise OSError("Not connected")
+        self._port_obj.rts = not self._port_obj.rts
+        return self._port_obj.rts
+
+    def send_break(self, duration: float = 0.25) -> None:
+        """Send a break signal.
+
+        Raises:
+            OSError: If the port operation fails.
+        """
+        if not self._port_obj:
+            raise OSError("Not connected")
+        self._port_obj.send_break(duration=duration)
+
+    def get_hw_state(self) -> tuple[bool, bool]:
+        """Return current (DTR, RTS) states.
+
+        Raises:
+            OSError: If the port operation fails.
+        """
+        if not self._port_obj:
+            raise OSError("Not connected")
+        return self._port_obj.dtr, self._port_obj.rts
+
+    # -- Reconnection ----------------------------------------------------------
+
     def try_reconnect(self) -> bool:
         """Attempt a single reconnect. Returns True on success."""
         try:
@@ -298,3 +344,36 @@ class SerialEngine:
             return True
         except Exception:
             return False
+
+    def reconnect_loop(
+        self,
+        *,
+        interval: float = 2.5,
+        on_status: Callable[[str], None] | None = None,
+    ) -> bool:
+        """Blocking reconnect loop — call from a background thread.
+
+        Retries ``try_reconnect()`` every *interval* seconds until success
+        or ``stop_event`` is set.  Calls *on_status* with a spinner label
+        every 0.25 s so the frontend can animate.
+
+        Returns:
+            True if reconnection succeeded, False if cancelled.
+        """
+        spinner = "|/-\\"
+        step = 0
+        ticks = int(interval / 0.25)
+        while not self._stop_event.is_set():
+            for _ in range(ticks):
+                if self._stop_event.is_set():
+                    return False
+                if on_status:
+                    ch = spinner[step % len(spinner)]
+                    on_status(f"Connecting {ch}")
+                step += 1
+                time.sleep(0.25)
+            if self._stop_event.is_set():
+                return False
+            if self.try_reconnect():
+                return True
+        return False

@@ -184,24 +184,6 @@ class CLITerminal(TerminalHost):
 
         self.ctx = self._build_plugin_context(engine_api)
         # CLI-specific callbacks
-        self.ctx.port = lambda: (
-            self.engine.serial_port.port
-            if self.engine.is_connected and self.engine.serial_port
-            else None
-        )
-        self.ctx.serial_read_raw = lambda timeout_ms=1000, frame_gap_ms=50: (
-            self.engine.serial_port.read_raw(timeout_ms, frame_gap_ms)
-            if self.engine.serial_port
-            else b""
-        )
-        self.ctx.serial_drain = lambda: (
-            self.engine.serial_port.drain() if self.engine.serial_port else 0
-        )
-        self.ctx.serial_wait_idle = lambda timeout_ms=20, max_wait_s=3.0: (
-            self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
-            if self.engine.serial_port
-            else None
-        )
         self.ctx.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
         self.ctx.exit_app = lambda: None

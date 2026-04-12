@@ -5,14 +5,14 @@ of thinking:**
 
 1. Plug in the cable.
 2. Click the port name in the title bar (top-right), pick your port from
-   the list. It's usually obvious which one is yours — your FTDI cable
+   the list. It's usually obvious which one is yours: your FTDI cable
    says `FTDI`, your Arduino says `Arduino`.
 3. If your device needs something other than **115200 8N1 no-flow-control**,
    click **Cfg** and change it. Most modern devices don't.
 4. Click **Connect**.
 
 That's it. You're talking to your device. The rest of this page is for
-the times something weird happens — a cable that doesn't work, a
+the times something weird happens: a cable that doesn't work, a
 latency problem, a chip you don't recognize, a "permission denied"
 error. Skim the rest so you know it's here, then come back when you're
 stuck.
@@ -40,7 +40,7 @@ is.  Use whichever entry point is convenient:
 Open the port picker (click the port name in the title bar) or run
 `/port.chip *`.  The list shows manufacturer, description, chip model,
 USB speed class, and VID:PID for every connected port.  The manufacturer
-column is usually enough to disambiguate — `FTDI` for FTDI cables,
+column is usually enough to disambiguate: `FTDI` for FTDI cables,
 `Microsoft` for a generic Microsoft CDC device, `Teensy` for a Teensy,
 and so on.
 
@@ -80,12 +80,12 @@ doesn't expose it via the same path).
 
 USB-serial chips come in two speed classes:
 
-- **USB Full-Speed** (12 Mbit/s) — 1 ms minimum USB transaction floor.
-  Most cheap cables: FTDI FT232R, FT230X, Silicon Labs CP2102, WCH
-  CH340, Prolific PL2303.  Fine for terminal use, max practical baud
-  rate around 3 Mbaud.
-- **USB High-Speed** (480 Mbit/s) — 125 µs minimum USB transaction
-  floor, 8× faster.  Specifically the FTDI "H" series: FT232H, FT2232H,
+- **USB Full-Speed** (12 Mbit/s) has a 1 ms minimum USB transaction
+  floor. Most cheap cables: FTDI FT232R, FT230X, Silicon Labs CP2102,
+  WCH CH340, Prolific PL2303.  Fine for terminal use, max practical
+  baud rate around 3 Mbaud.
+- **USB High-Speed** (480 Mbit/s) has a 125 µs minimum USB transaction
+  floor, 8x faster.  Specifically the FTDI "H" series: FT232H, FT2232H,
   FT4232H, FT4232HP.  Fine for high-speed debug output, max baud rate
   up to 12 Mbaud.
 

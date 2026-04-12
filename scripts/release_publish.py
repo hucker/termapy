@@ -15,7 +15,8 @@ What it does:
     7. Create tag v<version>
     8. Push main, tag, and release branch to origin
     9. Create GitHub release with notes extracted from CHANGELOG.md
-    10. Print summary
+    10. Build and publish to PyPI via uv
+    11. Print summary
 
 Aborts loudly on any failure. Never force-pushes. Never deletes branches.
 """
@@ -161,6 +162,43 @@ def create_github_release(version: str, notes: str) -> None:
     ok(f"GitHub release {tag} created")
 
 
+def _get_pypi_token() -> str:
+    """Read PyPI token from UV_PUBLISH_TOKEN env var or .pypirc in repo root."""
+    import configparser
+    import os
+
+    token = os.environ.get("UV_PUBLISH_TOKEN", "")
+    if token:
+        return token
+    pypirc = REPO_ROOT / ".pypirc"
+    if pypirc.exists():
+        cfg = configparser.ConfigParser()
+        cfg.read(str(pypirc))
+        if cfg.has_section("pypi") and cfg.get("pypi", "username", fallback="") == "__token__":
+            return cfg.get("pypi", "password", fallback="")
+    die(
+        "No PyPI token found. Set UV_PUBLISH_TOKEN env var or "
+        "add a .pypirc file with [pypi] username=__token__ password=pypi-..."
+    )
+    return ""  # unreachable, keeps type checker happy
+
+
+def build_and_publish_pypi(version: str) -> None:
+    """Build sdist + wheel and publish to PyPI."""
+    import shutil
+
+    token = _get_pypi_token()
+    dist_dir = REPO_ROOT / "dist"
+    if dist_dir.exists():
+        shutil.rmtree(dist_dir)
+    info(f"Building v{version} for PyPI...")
+    run(["uv", "build"], cwd=str(REPO_ROOT))
+    ok("built sdist and wheel")
+    info("Publishing to PyPI...")
+    run(["uv", "publish", "--token", token], cwd=str(REPO_ROOT))
+    ok(f"v{version} published to PyPI")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -177,6 +215,7 @@ def main() -> None:
     info("Checking environment...")
     assert_tool_available("git")
     assert_tool_available("gh")
+    assert_tool_available("uv")
     assert_gh_authenticated()
 
     info("Checking branch and tree state...")
@@ -203,12 +242,16 @@ def main() -> None:
     # ── GitHub release ───────────────────────────────────────────────────
     create_github_release(version, notes)
 
+    # ── PyPI ─────────────────────────────────────────────────────────────
+    build_and_publish_pypi(version)
+
     # ── Done ─────────────────────────────────────────────────────────────
     print()
     ok(f"v{version} published")
     print()
     info("Post-release:")
     print(f"  - GitHub release: gh release view v{version} --web")
+    print(f"  - PyPI: https://pypi.org/project/termapy/{version}/")
     print(f"  - You are now on main, at the merge commit.")
     print(f"  - The release branch {release_branch} is preserved (per project convention).")
     print()

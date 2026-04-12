@@ -77,6 +77,14 @@ class TerminalHost:
         """Prompt for user confirmation."""
         raise NotImplementedError
 
+    def _connect(self, port: str | None = None) -> None:
+        """Connect to a serial port."""
+        raise NotImplementedError
+
+    def _disconnect(self) -> None:
+        """Disconnect from the serial port."""
+        raise NotImplementedError
+
     # -- Context builders (subclass extends, not replaces) --------------------
 
     def _build_engine_api(self) -> EngineAPI:

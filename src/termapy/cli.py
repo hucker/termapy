@@ -527,8 +527,7 @@ class CLITerminal(TerminalHost):
 
     # -- Confirmation ---------------------------------------------------------
 
-    @staticmethod
-    def _confirm(message: str) -> bool:
+    def _confirm(self, message: str) -> bool:
         """Prompt for y/n confirmation on stdin."""
         try:
             answer = input(f"  {message} [y/N] ").strip().lower()

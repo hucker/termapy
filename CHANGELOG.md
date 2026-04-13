@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.57.0 (2026-04-12)
+
+### 0.57.0 New Features
+
+- **Custom baud rates** -- new `custom_baud` config option unlocks non-standard baud rates (>= 300) for hardware that needs them. By default only standard rates are accepted to catch typos that silently break connections. QuickSetup dialog adds a toggle button to switch between standard list and custom entry. Config editor blocks save on non-standard rates unless `custom_baud` is enabled.
+- **TUI-only command warnings** -- CLI now shows "Only available in /tui mode" for commands that require the TUI (screenshots, line numbers, proto debug) instead of silently doing nothing.
+
+### 0.57.0 Improvements
+
+- **Serial engine decoupling** -- DTR/RTS/break toggle, reconnect loop, and hardware signal queries moved from the TUI into SerialEngine. All serial operations now go through the engine rather than touching pyserial directly.
+- **TerminalHost base class** -- connect/disconnect lifecycle, serial helpers, capture proto_active handling, port switching, and context callbacks consolidated in the shared base class, removing duplication between TUI and CLI.
+- **New Config dialog** -- first serial port selected by default, Connect button disabled with "No Ports" label when no ports are available, title case labels.
+- **PyPI publish** -- release_publish.py now builds and uploads to PyPI as part of the release flow.
+
 ## 0.56.0 (2026-04-12)
 
 Architecture and CLI experience release. Extracts a shared TerminalHost base class from the TUI and CLI frontends, replaces pyreadline3 with prompt_toolkit for cross-platform CLI intellisense, and adds serial observer hooks, plugin config persistence, and status bar APIs for plugin authors.

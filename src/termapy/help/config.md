@@ -34,9 +34,10 @@ from within the app by clicking the center title bar button or using `/cfg`.
 
 Here is an example config for a device called `iot_device`:
 
+<!-- validate-config-keys -->
 ```json
 {
-    "config_version": 3,
+    "config_version": 12,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -47,8 +48,10 @@ Here is an example config for a device called `iot_device`:
     "cli_intellisense": true,
     "config_read_only": false,
     "os_cmd_enabled": false,
+    "device_json_cmd": "",
     "port": "COM4",
     "baud_rate": 115200,
+    "custom_baud": false,
     "byte_size": 8,
     "parity": "N",
     "stop_bits": 1,
@@ -67,10 +70,23 @@ Here is an example config for a device called `iot_device`:
     "proto_results_template": "{name}_results.json",
     "show_timestamps": false,
     "show_line_endings": false,
+    "show_line_numbers": false,
+    "hex_mode": false,
     "max_grep_lines": 100,
+    "file_xfer_root": "",
     "custom_buttons": [
-        {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
-        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200", "tooltip": "Reset and set baud"}
+        {
+            "enabled": true,
+            "name": "Reset",
+            "command": "ATZ",
+            "tooltip": "Reset device"
+        },
+        {
+            "enabled": true,
+            "name": "Init",
+            "command": "ATZ\\nAT+BAUD=115200",
+            "tooltip": "Reset and set baud"
+        }
     ]
 }
 ```

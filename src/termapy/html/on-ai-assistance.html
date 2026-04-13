@@ -21,7 +21,7 @@
     
     
       
-        <title>On AI assistance - Termapy Help v0.56.0</title>
+        <title>On AI assistance - Termapy Help v0.57.0</title>
       
     
     
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.56.0" class="md-header__button md-logo" aria-label="Termapy Help v0.56.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.57.0" class="md-header__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -101,7 +101,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.56.0
+            Termapy Help v0.57.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -172,13 +172,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.56.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.56.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.57.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.56.0
+    Termapy Help v0.57.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -867,14 +867,14 @@
 
 <h1 id="on-ai-assistance">On AI assistance<a class="headerlink" href="#on-ai-assistance" title="Permanent link">&para;</a></h1>
 <p>I built termapy with heavy use of Claude. I'm not going to call it vibe coded.</p>
-<p><strong>I architected it, Claude wrote it, we iterated.</strong> The decisions are mine — the plugin system, the three-channel output model, the CLI/TUI shared engine, verifying all 62 CRCs against the reveng catalogue. Claude wrote most of the code that implements them. Sometimes one round, sometimes ten.</p>
+<p><strong>I architected it, Claude wrote it, we iterated.</strong> I made the decisions: the plugin system, the three-channel output model, the CLI/TUI shared engine, verifying all 62 CRCs against the reveng catalogue. Claude wrote most of the code that implements them. Sometimes one round, sometimes ten.</p>
 <h2 id="testing-is-the-contract-that-doesnt-live-in-your-prompt">Testing is the contract that doesn't live in your prompt<a class="headerlink" href="#testing-is-the-contract-that-doesnt-live-in-your-prompt" title="Permanent link">&para;</a></h2>
 <p>1259 tests. The engine, capture, dispatch, and protocol layers are 89-97% covered. The prompt evaporates when the response comes back; the tests don't. They're the only thing in the loop that isn't a fuzzy translation of an idea.</p>
 <h2 id="what-i-bring-that-the-llm-doesnt">What I bring that the LLM doesn't<a class="headerlink" href="#what-i-bring-that-the-llm-doesnt" title="Permanent link">&para;</a></h2>
-<p>Not knowledge — Claude knows plenty about serial ports and USB and timing. What I bring is <em>what matters to me</em> in this specific project, and the willingness to push back when the code doesn't reflect it.</p>
-<p><code>proto_frame_gap_ms</code> defaults to 50. Not arbitrary: 30ms is the perception floor when a user is waiting for a response, USB Full Speed runs on 1ms frames with OS scheduling jitter on top, and the cost is asymmetric — too long is invisible, too short interleaves the next prompt into the device's response. The LLM could derive most of those facts on request. It can't tell me which ones to weight, or that "interleaved output looks broken to a user" is the failure mode I care about more than the others. That's the part I have to bring.</p>
+<p>Not knowledge. Claude knows plenty about serial ports and USB and timing. What I bring is <em>what matters to me</em> in this specific project, and the willingness to push back when the code doesn't reflect it.</p>
+<p><code>proto_frame_gap_ms</code> defaults to 50. Not arbitrary: 30ms is the perception floor when a user is waiting for a response, USB Full Speed runs on 1ms frames with OS scheduling jitter on top, and the cost is asymmetric: too long is invisible, too short interleaves the next prompt into the device's response. The LLM could derive most of those facts on request. It can't tell me which ones to weight, or that "interleaved output looks broken to a user" is the failure mode I care about more than the others. That's the part I have to bring.</p>
 <h2 id="how-this-started">How this started<a class="headerlink" href="#how-this-started" title="Permanent link">&para;</a></h2>
-<p>One-night hack for a work project that needed ANSI-colored serial output, and had to run on both Mac and Windows. That ruled out most of the existing terminals before I even started. I had a TUI working by morning. Here's what nobody tells you about 1kloc TUIs: they're toys. The moment you try to <em>use</em> one, you find out what's missing — config picker, script editor, port picker, confirm dialog, protocol debug screen. Most of termapy is the stuff I added after the hack night, because I was using it daily for the work project and was too stubborn to live with the rough edges.</p>
+<p>One-night hack for a work project that needed ANSI-colored serial output, and had to run on both Mac and Windows. That ruled out most of the existing terminals before I even started. I had a TUI working by morning. Here's what nobody tells you about 1-kloc TUIs: they're toys. The moment you try to <em>use</em> one, you find out what's missing. Config picker, script editor, port picker, confirm dialog, protocol debug screen. Most of termapy is the stuff I added after the hack night, because I was using it daily for the work project and was too stubborn to live with the rough edges.</p>
 <p>That's why the AI angle works. Claude can write a plugin in one shot. Claude can't tell me the prompt feels laggy after a long protocol test or that the script picker sorts wrong. I had to use the thing to find out.</p>
 <p>If you're skeptical of LLM-built projects, read <code>test_serial_engine.py</code> and decide for yourself.</p>
 

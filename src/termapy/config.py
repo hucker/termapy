@@ -305,16 +305,25 @@ def validate_config(cfg: dict) -> list[str]:
     _check_set(cfg, "stop_bits", (int, float), VALID_STOP_BITS, warnings)
     _check_set(cfg, "flow_control", str, VALID_FLOW_CONTROLS, warnings)
 
-    # Baud rate - warn on non-standard but don't reject
+    # custom_baud - must be bool
+    cb = cfg.get("custom_baud")
+    if cb is not None and not isinstance(cb, bool):
+        warnings.append(f"custom_baud: expected bool, got {type(cb).__name__}")
+
+    # Baud rate - standard rates only unless custom_baud is enabled
     val = cfg.get("baud_rate")
     if val is not None:
         if not isinstance(val, int):
             warnings.append(f"baud_rate: expected int, got {type(val).__name__}")
         elif val <= 0:
             warnings.append(f"baud_rate: must be positive, got {val}")
+        elif cfg.get("custom_baud"):
+            if val < 300:
+                warnings.append(f"baud_rate: custom baud requires >= 300, got {val}")
         elif val not in STANDARD_BAUD_RATES:
-            rates = ", ".join(str(r) for r in STANDARD_BAUD_RATES)
-            warnings.append(f"baud_rate: {val} is not a standard rate ({rates})")
+            warnings.append(
+                f"baud_rate: {val} is not a standard rate -- set custom_baud to true to allow non-standard rates"
+            )
 
     # Encoding - must be a valid Python codec
     enc = cfg.get("encoding")

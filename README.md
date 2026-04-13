@@ -498,7 +498,8 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `config_version`     | `5`                    | Schema version (managed automatically by the migration system, do not edit)                              |
 | `port`               | `""`                   | Serial port name -- auto-detected when only one port available (supports `$(env.NAME\|fallback)`)        |
-| `baud_rate`          | `115200`               | Baud rate                                                                                                |
+| `baud_rate`          | `115200`               | Baud rate -- non-standard rates require `custom_baud`                                                    |
+| `custom_baud`        | `false`                | Allow any baud rate >= 300 (modern drivers support arbitrary rates; disable to catch typos)               |
 | `byte_size`          | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
 | `parity`             | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
 | `stop_bits`          | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |

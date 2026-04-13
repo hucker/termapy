@@ -292,3 +292,29 @@ def test_v10_to_v11_preserves_existing_file_xfer_root():
     # Assert
     assert result["file_xfer_root"] == "C:\\builds", "existing file_xfer_root preserved"
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
+def test_v11_to_v12_adds_custom_baud():
+    """Migration v11->v12 adds custom_baud."""
+    # Arrange
+    cfg = {"config_version": 11, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["custom_baud"] is False, "custom_baud defaults to False"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
+def test_v11_to_v12_preserves_existing_custom_baud():
+    """Migration v11->v12 preserves existing custom_baud."""
+    # Arrange
+    cfg = {"config_version": 11, "port": "COM4", "custom_baud": True}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["custom_baud"] is True, "existing custom_baud preserved"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"

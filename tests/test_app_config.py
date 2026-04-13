@@ -470,6 +470,60 @@ class TestValidateConfig:
         # Assert
         assert len(actual) == 1, "warns but doesn't reject"
         assert "not a standard rate" in actual[0], "clear message"
+        assert "custom_baud" in actual[0], "tells user how to fix"
+
+    def test_custom_baud_accepts_nonstandard(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=625000, custom_baud=True)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert actual == [], "no warnings with custom_baud enabled"
+
+    def test_custom_baud_rejects_below_300(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=150, custom_baud=True)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, "warns even with custom_baud"
+        assert "300" in actual[0], "mentions minimum"
+
+    def test_custom_baud_accepts_300(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=300, custom_baud=True)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert actual == [], "300 is accepted"
+
+    def test_custom_baud_false_still_warns(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, baud_rate=625000, custom_baud=False)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, "warns when custom_baud is False"
+        assert "not a standard rate" in actual[0], "standard warning"
+
+    def test_custom_baud_wrong_type(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, custom_baud="yes")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, "exactly one warning"
+        assert "expected bool" in actual[0], "type error"
 
     def test_standard_baud_rate_ok(self):
         # Arrange

@@ -9,17 +9,15 @@ Usage:
 What it does:
     1. Sanity-check git state (on main, clean, in sync with origin)
     2. Cut release/v<version> branch from main
-    3. Bump version in pyproject.toml and mkdocs.yml
-    4. Refresh uv.lock
-    5. Update line counts in ARCHITECTURE.md and README.md
-    6. Update test count in README.md and ARCHITECTURE.md, and ty
-       diagnostic count in the README ty badge
-    7. Generate CHANGELOG stub from `git log <last-tag>..HEAD`
-    8. Run pytest, then tox
+    3. Bump version in pyproject.toml and mkdocs.yml, refresh uv.lock
+    4. Update doc counts (test count, ty count, line counts)
+    5. Update tagged config examples in help docs
+    6. Insert CHANGELOG stub
+    7. Run pytest
+    8. Run tox (multi-version)
     9. Build HTML help with zensical
-    10. Commit HTML rebuild as one commit
-    11. Commit version bump + CHANGELOG as the release commit
-    12. Print next steps
+    10. Commit HTML rebuild
+    11. Commit release
 
 Aborts loudly on any failure. Safe-restart: if it fails halfway, delete
 the release branch and start over (`git checkout main && git branch -D
@@ -407,7 +405,7 @@ def main() -> None:
 
     info(f"Preparing release v{version}")
 
-    total = 10
+    total = 11
 
     def step(n: int, label: str) -> None:
         info(f"[{n}/{total}] {label}")
@@ -437,22 +435,30 @@ def main() -> None:
     update_architecture_md(test_count)
     update_readme_md(test_count, ty_count)
 
-    step(5, "Inserting CHANGELOG stub...")
+    step(5, "Updating config examples in docs...")
+    from update_doc_configs import update_doc_configs
+    updated = update_doc_configs()
+    if updated:
+        ok(f"updated {len(updated)} config example(s)")
+    else:
+        ok("all config examples current")
+
+    step(6, "Inserting CHANGELOG stub...")
     insert_changelog_stub(version)
 
-    step(6, "Running pytest...")
+    step(7, "Running pytest...")
     run_pytest()
 
-    step(7, "Running tox (multi-version)...")
+    step(8, "Running tox (multi-version)...")
     run_tox()
 
-    step(8, "Building HTML help with zensical...")
+    step(9, "Building HTML help with zensical...")
     run_zensical_build()
 
-    step(9, "Committing HTML rebuild...")
+    step(10, "Committing HTML rebuild...")
     commit_html_rebuild(version)
 
-    step(10, "Committing release...")
+    step(11, "Committing release...")
     commit_release(version)
 
     # ── Done ─────────────────────────────────────────────────────────────

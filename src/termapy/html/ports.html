@@ -23,7 +23,7 @@
     
     
       
-        <title>Serial ports - Termapy Help v0.56.0</title>
+        <title>Serial ports - Termapy Help v0.57.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.56.0" class="md-header__button md-logo" aria-label="Termapy Help v0.56.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.57.0" class="md-header__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.56.0
+            Termapy Help v0.57.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.56.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.56.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.57.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.56.0
+    Termapy Help v0.57.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -961,14 +961,14 @@ of thinking:</strong></p>
 <ol>
 <li>Plug in the cable.</li>
 <li>Click the port name in the title bar (top-right), pick your port from
-   the list. It's usually obvious which one is yours — your FTDI cable
+   the list. It's usually obvious which one is yours: your FTDI cable
    says <code>FTDI</code>, your Arduino says <code>Arduino</code>.</li>
 <li>If your device needs something other than <strong>115200 8N1 no-flow-control</strong>,
    click <strong>Cfg</strong> and change it. Most modern devices don't.</li>
 <li>Click <strong>Connect</strong>.</li>
 </ol>
 <p>That's it. You're talking to your device. The rest of this page is for
-the times something weird happens — a cable that doesn't work, a
+the times something weird happens: a cable that doesn't work, a
 latency problem, a chip you don't recognize, a "permission denied"
 error. Skim the rest so you know it's here, then come back when you're
 stuck.</p>
@@ -1023,7 +1023,7 @@ is.  Use whichever entry point is convenient:</p>
 <p>Open the port picker (click the port name in the title bar) or run
 <code>/port.chip *</code>.  The list shows manufacturer, description, chip model,
 USB speed class, and VID:PID for every connected port.  The manufacturer
-column is usually enough to disambiguate — <code>FTDI</code> for FTDI cables,
+column is usually enough to disambiguate: <code>FTDI</code> for FTDI cables,
 <code>Microsoft</code> for a generic Microsoft CDC device, <code>Teensy</code> for a Teensy,
 and so on.</p>
 <h2 id="when-your-serial-link-feels-laggy-linux-ftdi">When your serial link feels laggy (Linux + FTDI)<a class="headerlink" href="#when-your-serial-link-feels-laggy-linux-ftdi" title="Permanent link">&para;</a></h2>
@@ -1050,12 +1050,12 @@ doesn't expose it via the same path).</p>
 <h2 id="when-youre-evaluating-whether-to-buy-a-faster-cable">When you're evaluating whether to buy a faster cable<a class="headerlink" href="#when-youre-evaluating-whether-to-buy-a-faster-cable" title="Permanent link">&para;</a></h2>
 <p>USB-serial chips come in two speed classes:</p>
 <ul>
-<li><strong>USB Full-Speed</strong> (12 Mbit/s) — 1 ms minimum USB transaction floor.
-  Most cheap cables: FTDI FT232R, FT230X, Silicon Labs CP2102, WCH
-  CH340, Prolific PL2303.  Fine for terminal use, max practical baud
-  rate around 3 Mbaud.</li>
-<li><strong>USB High-Speed</strong> (480 Mbit/s) — 125 µs minimum USB transaction
-  floor, 8× faster.  Specifically the FTDI "H" series: FT232H, FT2232H,
+<li><strong>USB Full-Speed</strong> (12 Mbit/s) has a 1 ms minimum USB transaction
+  floor. Most cheap cables: FTDI FT232R, FT230X, Silicon Labs CP2102,
+  WCH CH340, Prolific PL2303.  Fine for terminal use, max practical
+  baud rate around 3 Mbaud.</li>
+<li><strong>USB High-Speed</strong> (480 Mbit/s) has a 125 µs minimum USB transaction
+  floor, 8x faster.  Specifically the FTDI "H" series: FT232H, FT2232H,
   FT4232H, FT4232HP.  Fine for high-speed debug output, max baud rate
   up to 12 Mbaud.</li>
 </ul>

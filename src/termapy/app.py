@@ -1973,13 +1973,14 @@ class SerialTerminal(TerminalHost, App):
     def _on_quick_setup(self, result: tuple | None) -> None:
         if result is None:
             return
-        action, name, port, baud = result
+        action, name, port, baud, custom_baud = result
         config_path = str(cfg_path_for_name(name))
         cfg = dict(DEFAULT_CFG)
         cfg["title"] = name
         if port:
             cfg["port"] = port
         cfg["baud_rate"] = baud
+        cfg["custom_baud"] = custom_baud
         if action == "advanced":
             # Open the full config editor with pre-filled values
             cfg_data_dir(config_path)

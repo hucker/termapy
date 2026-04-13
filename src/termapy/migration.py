@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 11
+CURRENT_CONFIG_VERSION = 12
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
@@ -134,6 +134,15 @@ def _migrate_v10_to_v11(cfg: dict) -> dict:
 
 
 MIGRATIONS[10] = _migrate_v10_to_v11
+
+
+def _migrate_v11_to_v12(cfg: dict) -> dict:
+    """Add custom_baud option (default False)."""
+    cfg.setdefault("custom_baud", False)
+    return cfg
+
+
+MIGRATIONS[11] = _migrate_v11_to_v12
 
 
 def migrate_config(cfg: dict) -> dict:

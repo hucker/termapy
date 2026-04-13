@@ -93,7 +93,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 11,
+    "config_version": 12,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -107,6 +107,7 @@ demo> /cfg.dump
     "device_json_cmd": "AT+HELP.JSON",
     "port": "DEMO",
     "baud_rate": 115200,
+    "custom_baud": false,
     "byte_size": 8,
     "parity": "N",
     "stop_bits": 1,

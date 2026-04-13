@@ -82,7 +82,8 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | Field                    | Default               | Description                                                                                 |
 | ------------------------ | --------------------- | ------------------------------------------------------------------------------------------- |
 | `port`                   | `""`                  | Serial port name (e.g. COM4, /dev/ttyUSB0) -- auto-detected when only one port is available |
-| `baud_rate`              | `115200`              | Serial baud rate                                                                            |
+| `baud_rate`              | `115200`              | Serial baud rate -- non-standard rates require `custom_baud`                                |
+| `custom_baud`            | `false`               | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates              |
 | `byte_size`              | `8`                   | Data bits per byte (5, 6, 7, or 8)                                                          |
 | `parity`                 | `N`                   | Parity: None, Even, Odd, Mark, or Space                                                     |
 | `stop_bits`              | `1`                   | Stop bits (1, 1.5, or 2)                                                                    |

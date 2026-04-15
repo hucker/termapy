@@ -625,27 +625,53 @@ COMMAND = Command(
         "text": Command(
             args="<file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)}",
             help="Capture serial text to a file for a timed duration.",
+            long_help=(
+                "Passively captures all text arriving from the device for a\n"
+                "fixed duration.  Use /cap.stop to end early.\n"
+                "\n"
+                "Parameters:\n"
+                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+                "  timeout=<dur>     REQUIRED duration, e.g. 3s, 500ms, 1.5s\n"
+                "  mode=new|append   file mode (default: new)\n"
+                "  echo=on|off       also print captured text to terminal (default off)\n"
+                "  cmd=...           command to send after capture starts (must be last)"
+            ),
             handler=_handler_text,
         ),
         "bin": Command(
             args="<file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture raw binary bytes.",
+            long_help=(
+                "Captures a fixed number of raw bytes to a binary file.  Ends\n"
+                "when the byte count is reached or the optional timeout expires.\n"
+                "\n"
+                "Parameters:\n"
+                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+                "  bytes=<N>         REQUIRED target byte count\n"
+                "  mode=new|append   file mode (default: new)\n"
+                "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
+                "  cmd=...           command to send after capture starts (must be last)"
+            ),
             handler=_handler_bin,
         ),
         "struct": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture raw bytes, decode with format spec to CSV.",
             long_help=(
-                "Decode binary data using C struct field mapping.\n"
-                "fmt= uses the protocol format spec language.\n"
-                "  e.g. fmt=Temp:U1-2 Pressure:F3-6 Status:H7\n"
-                "records=N: number of records to capture.\n"
-                "  Alternatively, bytes=N for total byte count.\n"
-                "mode=new|append: file mode (default: new).\n"
-                "sep=comma|tab|space: column separator (default comma).\n"
-                "echo=on|off: print formatted values to terminal (default off).\n"
-                "timeout=: optional safety timeout (e.g. 10s).\n"
-                "cmd=...: command to send after capture starts (must be last)."
+                "Decodes binary data using C struct field mapping into CSV rows.\n"
+                "\n"
+                "Parameters:\n"
+                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+                "  fmt=<spec>        REQUIRED format spec, e.g.\n"
+                "                    fmt=Temp:U1-2 Pressure:F3-6 Status:H7\n"
+                "  records=<N>       REQUIRED record count (or bytes=N for total bytes)\n"
+                "  mode=new|append   file mode (default: new)\n"
+                "  sep=comma|tab|space  column separator (default: comma)\n"
+                "  echo=on|off       print formatted values to terminal (default off)\n"
+                "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
+                "  cmd=...           command to send after capture starts (must be last)\n"
+                "\n"
+                "See /help writing-plugins for the format spec language."
             ),
             handler=_handler_struct,
         ),
@@ -653,11 +679,19 @@ COMMAND = Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture hex text lines, decode with format spec to CSV.",
             long_help=(
-                "Like /cap.struct but reads hex-encoded text lines\n"
-                "(e.g. '01 02 FF AB') instead of raw binary bytes.\n"
-                "The hex bytes are converted to binary, then decoded\n"
+                "Like /cap.struct but reads hex-encoded text lines (e.g. '01 02 FF AB')\n"
+                "instead of raw binary bytes.  Hex is converted to binary, then decoded\n"
                 "with the same format spec pipeline.\n"
-                "cmd=...: must be the last parameter."
+                "\n"
+                "Parameters:\n"
+                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+                "  fmt=<spec>        REQUIRED format spec (same as /cap.struct)\n"
+                "  records=<N>       REQUIRED record count\n"
+                "  mode=new|append   file mode (default: new)\n"
+                "  sep=comma|tab|space  column separator (default: comma)\n"
+                "  echo=on|off       print formatted values to terminal (default off)\n"
+                "  timeout=<dur>     safety timeout (default: no timeout)\n"
+                "  cmd=...           command to send after capture starts (must be last)"
             ),
             handler=_handler_hex,
         ),

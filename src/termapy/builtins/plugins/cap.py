@@ -340,18 +340,15 @@ def _parse_poll_args(args: str) -> dict[str, str]:
         return result
     before, cmd = args.split("cmd=", 1)
     result["cmd"] = cmd.strip()
-    # Parse the remaining keywords (space-separated key=value)
+    # Parse the remaining keywords (space-separated key=value).
+    # --overwrite / --notime flags are handled as first-class flags and
+    # stripped by the dispatcher before this parser ever runs.
     for tok in before.split():
         lower = tok.lower()
         for kw in _POLL_KWS:
             if lower.startswith(kw):
                 result[kw.rstrip("=")] = tok[len(kw):]
                 break
-        else:
-            if lower == "--overwrite":
-                result["overwrite"] = "1"
-            elif lower == "--notime":
-                result["notime"] = "1"
     return result
 
 
@@ -451,8 +448,8 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 
     # Output file (optional)
     path: Path | None = None
-    overwrite = "overwrite" in sections
-    notime = "notime" in sections
+    overwrite = ctx.flag("--overwrite")
+    notime = ctx.flag("--notime")
     if "file" in sections:
         name = sections["file"]
         p = Path(name)
@@ -696,7 +693,11 @@ COMMAND = Command(
             handler=_handler_hex,
         ),
         "poll": Command(
-            args="{count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>} {--overwrite} {--notime} cmd=<commands> (must be last)",
+            args="{count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>} cmd=<commands> (must be last)",
+            flags={
+                "--overwrite": "Overwrite existing file instead of auto-numbering.",
+                "--notime": "Omit the timestamp column (useful for tests).",
+            },
             help="Poll commands on a schedule, display (and optionally save) results.",
             long_help=(
                 "Runs one or more commands every `delay=` seconds, printing each\n"
@@ -719,8 +720,6 @@ COMMAND = Command(
                 "  fmt=csv|json      output format (default: csv).  json writes\n"
                 "                    JSON Lines (.jsonl).\n"
                 "  timeout=<dur>     per-command response timeout (default: 1s)\n"
-                "  --overwrite       overwrite existing file instead of auto-numbering\n"
-                "  --notime          omit the timestamp column (useful for tests)\n"
                 "\n"
                 "Without regex=, the first sample must be numeric or the command\n"
                 "aborts.  With regex=, non-matching responses become empty values."

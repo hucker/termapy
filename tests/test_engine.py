@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from termapy.plugins import PluginContext, PluginInfo, TransformInfo
-from termapy.repl import ReplEngine
+from termapy.repl import ReplEngine, _parse_flags, _resolve_flag
 
 
 @pytest.fixture
@@ -767,3 +767,214 @@ class TestFeedLines:
         # Assert
         actual = list(eng._recent_lines)
         assert actual == ["line1", "line2"]  # buffered
+
+
+class TestParseFlags:
+    """Pure-function tests for the flag parser."""
+
+    def test_no_declared_flags_passthrough(self):
+        """With no declared flags, args are returned untouched."""
+        # Arrange
+        declared: dict[str, str] = {}
+
+        # Act
+        remaining, active, err = _parse_flags("foo --bar baz", declared)
+
+        # Assert
+        assert remaining == "foo --bar baz", "args unchanged"
+        assert active == set(), "no flags recorded"
+        assert err is None, "no error"
+
+    def test_known_flag_stripped(self):
+        """A declared flag is removed from args and recorded in the active set."""
+        # Arrange
+        declared = {"--table": "Use lookup table."}
+
+        # Act
+        remaining, active, err = _parse_flags("crc16-cms --table", declared)
+
+        # Assert
+        assert remaining == "crc16-cms", "flag stripped from args"
+        assert active == {"--table"}, "flag recorded"
+        assert err is None, "no error"
+
+    def test_unknown_flag_returns_error_with_suggestion(self):
+        """A typo close to a declared flag yields a 'did you mean' hint."""
+        # Arrange
+        declared = {"--table": "Use lookup table."}
+
+        # Act
+        _, _, err = _parse_flags("crc16-cms --talbe", declared)
+
+        # Assert
+        assert err is not None, "unknown flag should error"
+        assert "--talbe" in err, "names the bad flag"
+        assert "--table" in err, "suggests the close match"
+
+    def test_alias_resolves_to_canonical(self):
+        """Short aliases point at the canonical flag name."""
+        # Arrange
+        declared = {"--verbose": "Verbose mode.", "-v": "--verbose"}
+
+        # Act
+        remaining, active, err = _parse_flags("/run test.run -v", declared)
+
+        # Assert
+        assert "-v" not in remaining, "alias stripped"
+        assert active == {"--verbose"}, "alias resolved to canonical"
+        assert err is None, "no error"
+
+    def test_double_dash_stops_parsing(self):
+        """Tokens after ``--`` are treated as literal even if they look like flags."""
+        # Arrange
+        declared = {"--foo": "Foo."}
+
+        # Act
+        remaining, active, err = _parse_flags("a -- --foo b", declared)
+
+        # Assert
+        assert remaining == "a --foo b", "post-`--` tokens preserved"
+        assert active == set(), "no flags consumed"
+        assert err is None, "no error"
+
+    def test_negative_number_not_a_flag(self):
+        """Leading dash on a numeric token is not a flag lookup."""
+        # Arrange
+        declared = {"--foo": "Foo."}
+
+        # Act
+        remaining, active, err = _parse_flags("-5 --foo", declared)
+
+        # Assert
+        assert remaining == "-5", "negative number stays positional"
+        assert active == {"--foo"}, "real flag still consumed"
+        assert err is None, "no error"
+
+    def test_resolve_flag_passthrough(self):
+        """Canonical flag lookup returns the same name."""
+        # Arrange
+        declared = {"--table": "Use lookup table."}
+
+        # Act
+        actual = _resolve_flag("--table", declared)
+
+        # Assert
+        assert actual == "--table", "canonical resolves to itself"
+
+
+class TestDispatchFlags:
+    """Dispatch-level flag integration tests (parser + ctx.flag wiring)."""
+
+    @pytest.fixture
+    def flag_env(self, tmp_path):
+        """Engine with a flag-declaring plugin registered; captures calls."""
+        cfg = {"port": "COM4", "baud_rate": 115200}
+        config_path = tmp_path / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+
+        output = []
+        eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+        ctx = PluginContext(
+            write=lambda t, c=None: output.append((t, c)),
+            write_markup=lambda t: output.append((t, "markup")),
+            cfg=cfg,
+            config_path=str(config_path),
+        )
+        eng.set_context(ctx)
+
+        # Capture what the handler saw.
+        calls: list[tuple[str, set[str]]] = []
+
+        def handler(ctx, args):
+            calls.append((args, set(ctx.active_flags)))
+
+        eng.register_plugin(PluginInfo(
+            name="flagtest",
+            args="<positional>",
+            help="Test flag parsing.",
+            handler=handler,
+            flags={"--table": "Use lookup table.", "--verbose": "Verbose.",
+                   "-v": "--verbose"},
+        ))
+        return eng, ctx, calls, output
+
+    def test_flag_stripped_before_handler(self, flag_env):
+        """Handler receives args without the flag token."""
+        # Arrange
+        eng, ctx, calls, _ = flag_env
+
+        # Act
+        eng.dispatch("flagtest crc16-cms --table")
+
+        # Assert
+        actual_args, actual_flags = calls[0]
+        assert actual_args == "crc16-cms", "flag stripped"
+        assert actual_flags == {"--table"}, "flag recorded on ctx"
+
+    def test_ctx_flag_helper_returns_bool(self, flag_env):
+        """ctx.flag() reports presence of a declared flag."""
+        # Arrange
+        eng, ctx, calls, _ = flag_env
+        observed: list[bool] = []
+
+        def handler(ctx, args):
+            observed.append(ctx.flag("--table"))
+
+        eng.register_plugin(PluginInfo(
+            name="ft2", args="", help="h",
+            handler=handler,
+            flags={"--table": "Use table."},
+        ))
+
+        # Act
+        eng.dispatch("ft2 --table")
+        eng.dispatch("ft2")
+
+        # Assert
+        actual = observed
+        expected = [True, False]
+        assert actual == expected, f"{actual} == {expected}"
+
+    def test_alias_resolves_via_ctx_flag(self, flag_env):
+        """Short alias ``-v`` sets the canonical ``--verbose`` on the context."""
+        # Arrange
+        eng, ctx, calls, _ = flag_env
+
+        # Act
+        eng.dispatch("flagtest target -v")
+
+        # Assert
+        _, actual_flags = calls[0]
+        assert actual_flags == {"--verbose"}, "alias canonicalized"
+
+    def test_unknown_flag_is_failure_not_crash(self, flag_env):
+        """Typos on declared-flag commands fail cleanly with a suggestion."""
+        # Arrange
+        eng, ctx, calls, output = flag_env
+
+        # Act
+        result = eng.dispatch("flagtest x --talbe")
+
+        # Assert
+        assert result.success is False, "unknown flag fails"
+        assert "--talbe" in result.error, "names the bad flag"
+        assert "--table" in result.error, "suggests the real flag"
+        assert len(calls) == 0, "handler not called"
+
+    def test_active_flags_reset_between_dispatches(self, flag_env):
+        """ctx.active_flags is cleared after each command so state doesn't leak."""
+        # Arrange
+        eng, ctx, calls, _ = flag_env
+
+        # Act
+        eng.dispatch("flagtest x --table")
+        # Next call on a command with no declared flags should see empty set.
+        eng.register_plugin(PluginInfo(
+            name="noflags", args="", help="h",
+            handler=lambda c, a: calls.append((a, set(c.active_flags))),
+        ))
+        eng.dispatch("noflags")
+
+        # Assert — the second handler invocation observed a clean slate.
+        _, second_flags = calls[-1]
+        assert second_flags == set(), "flags reset before next dispatch"

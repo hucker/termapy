@@ -368,7 +368,7 @@ demo> /help cfg
     /cfg.configs - List all config files.
     /cfg.dump - Print current config as JSON to the terminal.
     /cfg.explore - Open config directory in file explorer.
-    /cfg.info {--display} - Show project summary. --display opens full report.
+    /cfg.info - Show project summary.
     /cfg.plugin - List files in plugin/ folder.  ...
     /cfg.prof - List files in prof/ folder.  ...
     /cfg.proto - List files in proto/ folder.  ...
@@ -378,15 +378,12 @@ demo> /help cfg
 demo> /help proto.crc
 /proto.crc - Browse and compute CRC algorithms.
   Subcommands:
-    /proto.crc.c <name> {--table} - Generate C source code for a CRC algorithm. Add --table for 256-entry lookup table
-(4-8x faster).
+    /proto.crc.c <name> - Generate C source code for a CRC algorithm.
     /proto.crc.calc <name> {data} - Compute CRC over hex bytes, text, or file.
     /proto.crc.help <name> - Show algorithm parameters and description.
     /proto.crc.list {pattern} - List algorithms (optional glob filter).
-    /proto.crc.python <name> {--table} - Generate Python source code for a CRC algorithm. Add --table for 256-entry
-lookup table (4-8x faster).
-    /proto.crc.rust <name> {--table} - Generate Rust source code for a CRC algorithm. Add --table for 256-entry lookup
-table (4-8x faster).
+    /proto.crc.python <name> - Generate Python source code for a CRC algorithm.
+    /proto.crc.rust <name> - Generate Rust source code for a CRC algorithm.
 demo> /help var
 /var {name} - List user variables, or show one by name.
     User-defined variables use $(NAME) syntax (case-sensitive).
@@ -458,8 +455,7 @@ demo> /help cap
     /cap.hex <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be
 last)} - Capture hex text lines, decode with format spec to CSV.
     /cap.poll {count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>}
-{--overwrite} {--notime} cmd=<commands> (must be last) - Poll commands on a schedule, display (and optionally save)
-results.
+cmd=<commands> (must be last) - Poll commands on a schedule, display (and optionally save) results.
     /cap.stop - Stop an active capture.
     /cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must
 be last)} - Capture raw bytes, decode with format spec to CSV.

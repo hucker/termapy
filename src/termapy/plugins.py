@@ -124,6 +124,14 @@ class Command:
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
         raw_args: When True, REPL transforms are skipped for this command.
             Use for commands that take variable names as arguments.
+        flags: Mapping of ``--flag`` (or short ``-f``) to either a
+            description string (canonical flag) or another flag name
+            (alias).  Declared flags are parsed out of the args string
+            before the handler runs; the handler reads them via
+            ``ctx.flag("--name")``.  Unknown ``-x`` / ``--xxx`` tokens
+            fail dispatch with a "did you mean" suggestion.  Commands
+            with an empty ``flags`` dict do no flag parsing at all,
+            preserving full back-compat.
     """
 
     help: str
@@ -133,6 +141,7 @@ class Command:
     handler: Callable | None = None
     sub_commands: dict[str, "Command"] | None = None
     raw_args: bool = False
+    flags: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -589,6 +598,13 @@ class PluginContext:
     # Engine internals - used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
 
+    # Per-dispatch flag set — populated by ReplEngine.dispatch from the
+    # invoking command's declared Command.flags before the handler runs.
+    # Reset on every dispatch. Handlers read via ``ctx.flag("--name")``
+    # which normalizes aliases. Distinct from the ``ns("flags")``
+    # namespace (echo/verbose/hex_mode toggles).
+    active_flags: set[str] = field(default_factory=set)
+
     # Namespace registry - plugin/builtin session-scoped state.
     # See ctx.ns() below for the public interface.
     _namespaces: dict[str, dict] = field(default_factory=dict)
@@ -634,6 +650,24 @@ class PluginContext:
         if name not in self._namespaces:
             self._namespaces[name] = {}
         return self._namespaces[name]
+
+    def flag(self, name: str) -> bool:
+        """Return True if the given flag was passed on the invoking command.
+
+        Handlers declare flags on their ``Command(flags={...})`` dict; the
+        dispatcher strips them from the args string and records them in
+        ``ctx.active_flags`` before calling the handler. Aliases resolve
+        to the canonical name, so ``ctx.flag("--verbose")`` is true whether
+        the user typed ``-v`` or ``--verbose``.
+
+        Args:
+            name: Canonical flag name including the leading dashes
+                (e.g. ``"--table"``).
+
+        Returns:
+            True if the flag was present on the invocation.
+        """
+        return name in self.active_flags
 
     def plugin_cfg(self, name: str) -> PluginConfig:
         """Return a persistent config object for a plugin.
@@ -734,6 +768,10 @@ class PluginInfo:
             or the config name).
         children: Dotted names of direct subcommands (empty for leaf commands).
         raw_args: When True, REPL transforms are skipped for this command.
+        flags: Resolved flag map inherited from ``Command.flags``. Keys
+            are canonical flag names (e.g. ``--table``); values are
+            either a description (canonical) or another flag key (alias).
+            Empty dict means the command opts out of flag parsing.
     """
 
     name: str
@@ -744,6 +782,7 @@ class PluginInfo:
     source: str = "built-in"
     children: list[str] = field(default_factory=list)
     raw_args: bool = False
+    flags: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -974,6 +1013,7 @@ def _flatten_command(
         source=source,
         children=children,
         raw_args=node.raw_args,
+        flags=dict(node.flags),
     )
     result.insert(0, info)
     return result

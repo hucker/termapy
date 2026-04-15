@@ -756,6 +756,10 @@ class SerialTerminal(TerminalHost, App):
             "Run a script file. Checks scripts/ folder then cwd.",
             self._hook_run,
             source="app",
+            flags={
+                "--verbose": "Show each command and its result as the script runs.",
+                "-v": "--verbose",
+            },
         )
         self.repl.register_hook(
             "run.profile",
@@ -763,6 +767,10 @@ class SerialTerminal(TerminalHost, App):
             "Run a script with per-line timing.",
             self._hook_run_profile,
             source="app",
+            flags={
+                "--verbose": "Show each command and its result as the script runs.",
+                "-v": "--verbose",
+            },
         )
         self.repl.register_hook(
             "run.profile.show",
@@ -3020,7 +3028,7 @@ class SerialTerminal(TerminalHost, App):
         return CmdResult.ok()
 
     def _hook_run(self, ctx, args: str) -> CmdResult:
-        args, verbose = self._parse_run_flags(args)
+        verbose = ctx.flag("--verbose")
         path, result = self.repl.start_script(args)
         if path:
             self._run_script(path, verbose=verbose)

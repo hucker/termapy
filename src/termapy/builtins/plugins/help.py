@@ -114,51 +114,187 @@ def _list_children(ctx: PluginContext, plugin, prefix: str,
 
 
 # Fields searched by the /help fuzzy fallback, in priority order. Earlier
-# fields rank higher when sorting matches for display. The same field set is
-# what /help.search uses without --dev (docstring excluded).
-_FUZZY_FIELDS = ("name", "help", "args", "long_help")
+# fields rank higher when sorting matches for display. An exact flag-name
+# hit is nearly as specific as a command-name hit, so "flags" sits right
+# after "name". /help.search uses the same set (docstring added with --dev).
+_FUZZY_FIELDS = ("name", "flags", "help", "args", "long_help")
+
+# Section headings shown for each matched field on "Did you mean" output.
+# Commands are grouped under the heading of the highest-priority field
+# that matched. Keeps rows clean (no per-row label column).
+_FIELD_HEADING = {
+    "name": "Command Name:",
+    "flags": "Flags:",
+    "help": "Help String:",
+    "args": "Arguments:",
+    "long_help": "Long Help:",
+}
 
 
-def _fuzzy_matches(needle: str, plugins: dict) -> list[str]:
-    """Return command names whose name/help/args/long_help contain ``needle``.
+def _field_text(name: str, plugin, field: str) -> str:
+    """Return the text body for a given fuzzy-search field on one plugin."""
+    if field == "name":
+        return name
+    if field == "flags":
+        parts = []
+        for canonical, aliases, desc in _canonical_flags(plugin):
+            parts.extend([canonical, *aliases, desc])
+        return " ".join(parts)
+    return getattr(plugin, field, "") or ""
 
-    Case-insensitive substring match. Results sorted by highest-priority
-    field hit first (name > short help > args > long_help), then
-    alphabetically within a tier. A command only appears once even if it
-    matches in multiple fields.
+
+def _parse_search_terms(query: str) -> tuple[list[str], list[str]]:
+    """Split a ``/help`` query into positive and negative substring terms.
+
+    Rules:
+      - tokens starting with a single ``-`` followed by a non-dash char
+        (e.g. ``-foo``) are *negative* terms and strip the leading dash
+      - every other token is a *positive* term, taken verbatim. This
+        means ``--flag`` stays literal and matches declared flag names.
+
+    Returns ``(positives, negatives)`` with the leading dash already
+    stripped from negatives. Either list may be empty.
     """
+    positives: list[str] = []
+    negatives: list[str] = []
+    for tok in query.split():
+        if len(tok) > 1 and tok[0] == "-" and tok[1] != "-":
+            negatives.append(tok[1:])
+        else:
+            positives.append(tok)
+    return positives, negatives
+
+
+def _best_tier(needle: str, name: str, plugin) -> tuple[int | None, str]:
+    """Return the highest-priority (tier, field) where ``needle`` appears."""
     needle = needle.lower()
-    ranked: list[tuple[int, str]] = []
+    for tier, field in enumerate(_FUZZY_FIELDS):
+        text = _field_text(name, plugin, field).lower()
+        if needle in text:
+            return tier, field
+    return None, ""
+
+
+def _fuzzy_matches(query: str, plugins: dict) -> list[tuple[str, str]]:
+    """Return ``(command_name, field)`` pairs for a multi-term query.
+
+    Query grammar: space-separated terms; a leading single ``-`` marks a
+    term as excluded. All positive terms must appear somewhere in the
+    searched fields; any match on an excluded term drops the command.
+
+    Field priority (name > flags > help > args > long_help) comes from the
+    *first* positive term, so ranking stays predictable when two terms
+    could each match different fields. Results are sorted by that tier,
+    then alphabetically.
+    """
+    positives, negatives = _parse_search_terms(query)
+    if not positives:
+        return []
+    ranked: list[tuple[int, str, str]] = []
     for name, plugin in plugins.items():
-        best_tier = None
-        for tier, field in enumerate(_FUZZY_FIELDS):
-            if field == "name":
-                text = name
-            else:
-                text = getattr(plugin, field, "") or ""
-            if needle in text.lower():
-                best_tier = tier
-                break
-        if best_tier is not None:
-            ranked.append((best_tier, name))
+        # Every positive must match somewhere; the first term drives the tier.
+        tier, field = _best_tier(positives[0], name, plugin)
+        if tier is None:
+            continue
+        if not all(_best_tier(t, name, plugin)[0] is not None for t in positives[1:]):
+            continue
+        # Any excluded term hit drops this command.
+        if any(_best_tier(t, name, plugin)[0] is not None for t in negatives):
+            continue
+        ranked.append((tier, name, field))
     ranked.sort(key=lambda item: (item[0], item[1]))
-    return [name for _, name in ranked]
+    return [(name, field) for _, name, field in ranked]
 
 
-def _show_did_you_mean(ctx: PluginContext, name: str, matches: list[str]) -> CmdResult:
-    """Render a 'Did you mean:' list for multi-match substring lookups."""
+def _canonical_flags(plugin) -> list[tuple[str, list[str], str]]:
+    """Walk ``plugin.flags`` and return one row per canonical flag.
+
+    Returns a list of ``(canonical, aliases, description)`` tuples, sorted
+    by canonical name. Alias entries (``"-v": "--verbose"``) collapse onto
+    their canonical row.
+    """
+    if not plugin.flags:
+        return []
+    aliases_of: dict[str, list[str]] = {}
+    descriptions: dict[str, str] = {}
+    for flag, val in plugin.flags.items():
+        if val.startswith("-") and val in plugin.flags:
+            aliases_of.setdefault(val, []).append(flag)
+        else:
+            descriptions[flag] = val
+            aliases_of.setdefault(flag, [])
+    return [
+        (flag, sorted(aliases_of[flag]), descriptions[flag])
+        for flag in sorted(descriptions)
+    ]
+
+
+def _matching_flag_names(needles: str | list[str], plugin) -> list[str]:
+    """Canonical flag names whose name/alias/description matches any needle."""
+    if isinstance(needles, str):
+        needles = [needles]
+    needles = [n.lower() for n in needles if n]
+    hits = []
+    for canonical, aliases, desc in _canonical_flags(plugin):
+        haystacks = [canonical.lower(), desc.lower(), *(a.lower() for a in aliases)]
+        if any(n in h for n in needles for h in haystacks):
+            hits.append(canonical)
+    return hits
+
+
+def _underline(text: str, needles: str | list[str]) -> str:
+    """Wrap every case-insensitive occurrence of any needle in ``[u]...[/u]``."""
+    if isinstance(needles, str):
+        needles = [needles]
+    needles = [n for n in needles if n]
+    if not needles or not text:
+        return text
+    pattern = "|".join(re.escape(n) for n in needles)
+    return re.sub(
+        pattern, lambda m: f"[u]{m.group()}[/u]", text, flags=re.IGNORECASE,
+    )
+
+
+def _show_did_you_mean(
+    ctx: PluginContext, query: str, matches: list[tuple[str, str]],
+) -> CmdResult:
+    """Render a 'Did you mean:' list grouped by matched field.
+
+    Positive terms from ``query`` drive what gets underlined and which
+    flag names are called out on Flags: rows. Negative terms are already
+    filtered by the caller and never appear in output.
+    """
+    positives, _ = _parse_search_terms(query)
     prefix = ctx.engine.prefix
     plugins = ctx.engine.plugins
-    ctx.write_markup(
-        f"No exact match for [{_CMD}]{prefix}{name}[/]. Did you mean:"
-    )
-    for match_name in matches:
+    ctx.write_markup(f"Did you mean:")
+    current_field: str | None = None
+    for match_name, field in matches:
+        if field != current_field:
+            heading = _FIELD_HEADING.get(field, field)
+            ctx.write_markup(f"  [{_SEP}]{heading}[/]")
+            current_field = field
         p = plugins[match_name]
-        arg_str = f" {_color_args(p.args)}" if p.args else ""
+        name_rendered = _underline(match_name, positives)
+        args_rendered = _underline(p.args, positives) if p.args else ""
+        help_rendered = _underline(p.help, positives)
+        arg_str = f" {_color_args(args_rendered)}" if args_rendered else ""
+        flag_hint = ""
+        if field == "flags":
+            hits = _matching_flag_names(positives, p)
+            if hits:
+                rendered = " ".join(_underline(h, positives) for h in hits)
+                flag_hint = f" [{_OPT}]{rendered}[/]"
         ctx.write_markup(
-            f"  [{_CMD}]{prefix}{match_name}[/]{arg_str} - {p.help}"
+            f"    [{_CMD}]{prefix}{name_rendered}[/]{arg_str}{flag_hint}"
+            f" - {help_rendered}"
         )
-    return CmdResult.ok(value="\n".join(matches))
+        if field == "long_help" and p.long_help:
+            for line in p.long_help.strip().splitlines():
+                ctx.write_markup(
+                    f"      [{_SEP}]{_underline(line, positives)}[/]"
+                )
+    return CmdResult.ok(value="\n".join(m for m, _ in matches))
 
 
 def _show_command_help(ctx: PluginContext, name: str,
@@ -177,6 +313,7 @@ def _show_command_help(ctx: PluginContext, name: str,
         dev_mode: If True, show handler docstring instead of long_help.
     """
     prefix = ctx.engine.prefix
+    query = name  # preserve what the user typed so we can underline it
     plugin = ctx.engine.plugins.get(name)
     if not plugin:
         # Check target commands (no prefix, help-only)
@@ -188,18 +325,26 @@ def _show_command_help(ctx: PluginContext, name: str,
             )
             ctx.write_markup(f"  [{_SRC}](source: target device)[/]")
             return CmdResult.ok()
-        # Forgiving fallback: substring match across name/help/args/long_help.
+        # Forgiving fallback: substring match across name, flags, help,
+        # args, long_help. Each hit carries the field that matched.
         matches = _fuzzy_matches(name, ctx.engine.plugins)
         if len(matches) == 1:
-            name = matches[0]
+            name = matches[0][0]
             plugin = ctx.engine.plugins[name]
             # fall through to the rendering block below
         elif matches:
             return _show_did_you_mean(ctx, name, matches)
         else:
             return CmdResult.fail(msg=f"Unknown command: {name}")
-    arg_str = f" {_color_args(plugin.args)}" if plugin.args else ""
-    ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} - {plugin.help}")
+    # Underline the user's query wherever it appears -- works for both
+    # exact matches (/help var) and single-hit fuzzy matches.
+    positives, _ = _parse_search_terms(query)
+    args_rendered = _underline(plugin.args, positives) if plugin.args else ""
+    help_rendered = _underline(plugin.help, positives)
+    arg_str = f" {_color_args(args_rendered)}" if args_rendered else ""
+    ctx.write_markup(
+        f"[{_CMD}]{prefix}{_underline(name, positives)}[/]{arg_str} - {help_rendered}"
+    )
     if dev_mode:
         docstring = getattr(plugin.handler, "__doc__", None)
         if docstring:
@@ -208,8 +353,21 @@ def _show_command_help(ctx: PluginContext, name: str,
         else:
             ctx.output("  (no docstring)")
     elif plugin.long_help:
+        # status (ctx.write) auto-indents 2 spaces; write_markup does not,
+        # so pre-pad to match the legacy indentation.
         for line in plugin.long_help.strip().splitlines():
-            ctx.write(f"  {line}")
+            ctx.write_markup(f"    {_underline(line, positives)}")
+    # Show declared flags (first-class). Aliases collapse onto their
+    # canonical row so each flag is documented exactly once.
+    rows = _canonical_flags(plugin)
+    if rows:
+        ctx.write_markup(f"  [{_SEP}]Flags:[/]")
+        for canonical, aliases, desc in rows:
+            names = ", ".join([canonical, *aliases])
+            ctx.write_markup(
+                f"    [{_OPT}]{_underline(names, positives)}[/]"
+                f" - {_underline(desc, positives)}"
+            )
     # Show subcommands if any
     if plugin.children:
         ctx.write_markup(f"  [{_SEP}]Subcommands:[/]")
@@ -217,11 +375,14 @@ def _show_command_help(ctx: PluginContext, name: str,
         for child_name in sorted(plugin.children):
             child = plugins.get(child_name)
             if child:
-                arg_str = f" {_color_args(child.args)}" if child.args else ""
+                child_args = (
+                    _underline(child.args, positives) if child.args else ""
+                )
+                arg_str = f" {_color_args(child_args)}" if child_args else ""
                 suffix = f"  [{_SEP}]...[/]" if child.children else ""
                 ctx.write_markup(
-                    f"    [{_CMD}]{prefix}{child_name}[/]{arg_str}"
-                    f" - {child.help}{suffix}"
+                    f"    [{_CMD}]{prefix}{_underline(child_name, positives)}[/]"
+                    f"{arg_str} - {_underline(child.help, positives)}{suffix}"
                 )
     if plugin.source not in ("built-in", "app"):
         ctx.write_markup(f"  [{_SRC}](source: {plugin.source})[/]")
@@ -491,6 +652,7 @@ def _search_fields(name: str, plugin, include_dev: bool) -> list[tuple[str, str]
         ("name", name),
         ("help", plugin.help or ""),
         ("args", plugin.args or ""),
+        ("flags", _field_text(name, plugin, "flags")),
         ("long_help", plugin.long_help or ""),
     ]
     if include_dev:
@@ -511,9 +673,8 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for engine plugin registry and output.
         args: Pattern to search for, optionally prefixed with ``--dev``.
     """
+    include_dev = ctx.flag("--dev")
     tokens = args.split() if isinstance(args, str) else []
-    include_dev = "--dev" in tokens
-    tokens = [t for t in tokens if t != "--dev"]
     if not tokens:
         return CmdResult.fail(msg="Usage: /help.search {--dev} <pattern>")
     pattern = " ".join(tokens)
@@ -591,19 +752,21 @@ Three modes:
             handler=_handler_dev,
         ),
         "search": Command(
-            args="{--dev} <pattern>",
+            args="<pattern>",
+            flags={"--dev": "Also search handler docstrings."},
             help="Search command names and help text for a regex or literal.",
             long_help="""\
-Search every registered command's name, short help, args, and long_help
-for a pattern. No regex metacharacters: treated as a case-insensitive
-literal substring. Otherwise: compiled as a case-insensitive regex.
+Search every registered command's name, short help, args, flags, and
+long_help for a pattern. No regex metacharacters: treated as a
+case-insensitive literal substring. Otherwise: compiled as a
+case-insensitive regex.
 
   /help.search timeout            find all commands mentioning "timeout"
   /help.search ^proto\\.           commands starting with "proto."
   /help.search --dev ctx\\.result  also search handler docstrings
 
-Returns a list of matching command names as CmdResult.value, suitable
-for $(VAR) <- capture in scripts.""",
+Returns matching command names as CmdResult.value (newline-joined),
+suitable for $(VAR) <- capture in scripts.""",
             handler=_handler_search,
         ),
     },

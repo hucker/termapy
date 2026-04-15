@@ -31,6 +31,87 @@ from termapy.plugins import CmdResult
 from termapy.scripting import expand_template, parse_duration, parse_keywords
 
 
+def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
+    """Resolve a raw flag token (``-v``, ``--verbose``) to its canonical name.
+
+    Aliases in ``declared`` point at their canonical form as a string value;
+    canonical entries have a description string as the value. Either way, the
+    resolver follows one alias hop (no chaining) and returns the canonical
+    flag name, or ``None`` if the raw token isn't a declared flag.
+    """
+    if raw not in declared:
+        return None
+    val = declared[raw]
+    # Alias: value is another flag name (starts with '-' and exists in the dict).
+    if val.startswith("-") and val in declared:
+        return val
+    return raw
+
+
+def _parse_flags(
+    args: str, declared: dict[str, str],
+) -> tuple[str, set[str], str | None]:
+    """Strip declared flags from ``args`` and return the normalized result.
+
+    Tokenizes ``args`` on whitespace, extracts any token matching a declared
+    flag (including aliases), and returns the remaining args joined with
+    single spaces. Unknown ``-x`` / ``--xxx`` tokens produce an error.
+
+    Tokens after a ``--`` separator are treated as literal and never parsed
+    as flags. Equal-sign forms (``--foo=bar``) are not supported: every
+    declared flag is boolean. This keeps the grammar trivial and matches
+    every current use site.
+
+    Args:
+        args: Raw argument string after the command name.
+        declared: ``Command.flags`` — maps flag names to descriptions
+            (canonical) or to another flag name (alias).
+
+    Returns:
+        ``(remaining_args, active_flags, error)``. On success, ``error``
+        is None and the set contains canonical flag names. On failure,
+        ``error`` is a user-facing message and the other fields are empty.
+    """
+    if not declared:
+        return args, set(), None
+
+    tokens = args.split()
+    remaining: list[str] = []
+    active: set[str] = set()
+    literal_rest = False
+    for tok in tokens:
+        if literal_rest:
+            remaining.append(tok)
+            continue
+        if tok == "--":
+            literal_rest = True
+            continue
+        # Only tokens that *look* like flags participate in flag parsing.
+        # Positional args like "file.txt" or "0x01" pass through unchanged.
+        if tok.startswith("-") and len(tok) > 1 and not tok[1].isdigit():
+            canonical = _resolve_flag(tok, declared)
+            if canonical is None:
+                # Typo path: suggest a near match from the declared set.
+                candidates = sorted(declared.keys())
+                suggestion = _closest_flag(tok, candidates)
+                hint = f" -- did you mean {suggestion}?" if suggestion else ""
+                return "", set(), f"Unknown flag: {tok}{hint}"
+            active.add(canonical)
+            continue
+        remaining.append(tok)
+    return " ".join(remaining), active, None
+
+
+def _closest_flag(needle: str, candidates: list[str]) -> str | None:
+    """Return the nearest declared flag by edit distance, or None."""
+    best: tuple[int, str] | None = None
+    for cand in candidates:
+        d = _edit_distance(needle, cand)
+        if d <= 2 and (best is None or d < best[0]):
+            best = (d, cand)
+    return best[1] if best else None
+
+
 def _suggest_command(name: str, plugins: dict, prefix: str = "/") -> str | None:
     """Find close command names using edit distance (max 2, top 3)."""
     candidates = []
@@ -321,6 +402,7 @@ class ReplEngine:
         source: str = "built-in",
         long_help: str = "",
         raw_args: bool = False,
+        flags: dict[str, str] | None = None,
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -337,6 +419,7 @@ class ReplEngine:
             source: Label for origin (default "built-in").
             long_help: Extended help for ``/help <cmd>`` (default "").
             raw_args: Skip REPL transforms for this command (default False).
+            flags: First-class flag declarations (see ``Command.flags``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -357,6 +440,7 @@ class ReplEngine:
             long_help=long_help,
             source=source,
             raw_args=raw_args,
+            flags=dict(flags) if flags else {},
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -541,6 +625,16 @@ class ReplEngine:
                 quiet = True
 
         if plugin:
+            # First-class flag parsing: strip declared flags from args and
+            # record them on the context for the handler to read via
+            # ctx.flag(). Commands with no declared flags opt out entirely
+            # (args passed through unchanged; set is empty).
+            args, active_flags, flag_error = _parse_flags(args, plugin.flags)
+            if flag_error:
+                result = CmdResult.fail(msg=flag_error)
+                self.write(result.err_msg, "red")
+                return result
+            self.ctx.active_flags = active_flags
             try:
                 t0 = time.perf_counter()
                 if quiet:
@@ -560,6 +654,10 @@ class ReplEngine:
                 result.elapsed_s = time.perf_counter() - t0
             except Exception as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
+            finally:
+                # Release the per-dispatch flag set so the next command
+                # starts clean even if the handler forgot to reset state.
+                self.ctx.active_flags = set()
         else:
             suggestion = _suggest_command(name, self._plugins, self.prefix)
             if suggestion:
@@ -728,11 +826,20 @@ class ReplEngine:
         return CmdResult.ok()
 
     def _script_run(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /run and /run.profile in scripts — nested execution."""
+        """Handle /run and /run.profile in scripts — nested execution.
+
+        Flags on /run are declared on the registered hook (see
+        app.py/cli.py), but scripts bypass dispatch() and call us
+        directly, so we strip flags here using the same parser.  The
+        flags themselves are inherited from sctx.verbose for nested runs.
+        """
         nested_profile = name == "run.profile"
+        plugin = self._plugins.get(name)
         run_args = args.strip()
-        run_tokens = run_args.split()
-        run_args = " ".join(t for t in run_tokens if t not in ("-v", "--verbose"))
+        if plugin:
+            run_args, _active, flag_error = _parse_flags(run_args, plugin.flags)
+            if flag_error:
+                return CmdResult.fail(msg=flag_error)
         nested_path, result = self.start_script(run_args)
         if nested_path:
             if sctx.on_nest:

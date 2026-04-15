@@ -146,6 +146,10 @@ $(BAUD) <- /port.baud_rate
 /print === section: help.plugin ===
 /help.plugin
 
+# ── REPL: cap.poll ──────────────────────────────────────────────────────────
+/print === section: cap.poll ===
+/cap.poll count=3 delay=0 --notime cmd=AT+RAMP
+
 # ── REPL: repeat ────────────────────────────────────────────────────────────
 /print === section: repeat ===
 /repeat count=3 cmd=/print hello

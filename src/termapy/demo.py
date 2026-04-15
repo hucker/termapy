@@ -54,6 +54,7 @@ class FakeSerial:
         self._connect_count: int = 1
         self._device_name: str = "Bassomatic v77"
         self._device_baud: int = 115200
+        self._ramp_step: int = 0  # 0..10, used by AT+RAMP (saw wave)
 
         # Modbus holding registers (addr 0-99)
         self._registers: dict[int, int] = {}
@@ -359,6 +360,12 @@ class FakeSerial:
             temp = round(random.uniform(22.0, 25.0), 1)
             return f"+TEMP: {temp}C\r\n".encode()
 
+        if upper == "AT+RAMP":
+            # Saw wave 0.0, 0.1, ..., 1.0, 0.0, 0.1, ... (deterministic)
+            value = self._ramp_step / 10
+            self._ramp_step = (self._ramp_step + 1) % 11
+            return f"{value}\r\n".encode()
+
         if upper.startswith("AT+LED"):
             parts = cmd.split()
             if len(parts) >= 2:
@@ -444,6 +451,7 @@ class FakeSerial:
                 "AT+PROD-ID": {"help": "Product identifier", "args": ""},
                 "AT+INFO": {"help": "Device information", "args": ""},
                 "AT+TEMP": {"help": "Read temperature", "args": ""},
+                "AT+RAMP": {"help": "Deterministic saw wave 0.0-1.0", "args": ""},
                 "AT+LED": {"help": "Control LED", "args": "<on|off>"},
                 "AT+NAME?": {"help": "Query device name", "args": ""},
                 "AT+NAME=": {"help": "Set device name", "args": "<val>"},

@@ -70,6 +70,41 @@ Byte ranges are 1-based. Omit names for unnamed columns.
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
 
+## Timed polling: `/cap.poll`
+
+```text
+/cap.poll {count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>} {--overwrite} {--notime} cmd=<commands>
+```
+
+Runs commands on a schedule and collects their responses. Unlike the
+other `/cap.*` variants (which passively capture device output), `/cap.poll`
+actively issues commands and records each response as a row.
+
+Without `file=`, results go only to the terminal. With `file=`, results
+also stream to a CSV or JSONL file.
+
+Simplest form -- 60 samples at 1s intervals, terminal only:
+
+```text
+/cap.poll cmd=AT+BAT
+```
+
+Multi-column, saved to file:
+
+```text
+/cap.poll count=30 file=readings cmd=AT+BAT\nAT+TEMP
+```
+
+Extract a number from a prose response with a regex:
+
+```text
+/cap.poll count=10 regex=[-\d.]+ cmd=AT+TEMP
+```
+
+Defaults: `count=60`, `delay=1s`, `fmt=csv`, `timeout=1s`. Use `delay=0`
+to go as fast as possible. Without `regex=`, the first sample must be a
+numeric value or the command aborts.
+
 ## Format spec quick reference
 
 | Spec      | Meaning                              |

@@ -759,7 +759,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
                     f"  Check:     FAIL - expected " f"0x{expected:0{hex_w}X}",
                     "red",
                 )
-    return CmdResult.ok()
+    return CmdResult.ok(value=crc_hex)
 
 
 def _cmd_list(ctx: PluginContext, args: str) -> CmdResult:

@@ -22,6 +22,18 @@ Or use the REPL command:
 /var.set ADDR 01
 ```
 
+## Capturing command output
+
+Use `<-` to run a command and store its result in a variable. The
+right-hand side is executed — as a REPL command (if it starts with
+`/`) or as a device command (sent to the serial port) — and the
+response is captured.
+
+```text
+$(BAUD) <- /port.baud_rate    # captures REPL command output
+$(TEMP) <- AT+TEMP            # captures device response
+```
+
 ## Using variables
 
 Variables expand anywhere: serial commands, REPL commands, scripts:
@@ -90,12 +102,13 @@ without incrementing. Counters 1--9 are available.
 
 ## Variable commands
 
-| Command                | Description                     |
-| ---------------------- | ------------------------------- |
-| `/var`                 | List all variables              |
-| `/var NAME`            | Show one variable               |
-| `/var.set <NAME> <v>`  | Set a variable                  |
-| `/var.clear`           | Clear all user variables        |
+| Command                     | Description                                 |
+| --------------------------- | ------------------------------------------- |
+| `/var`                      | List all variables                          |
+| `/var NAME`                 | Show one variable                           |
+| `/var.set <NAME> <v>`       | Set a variable to a literal value           |
+| `/var.capture <NAME> <cmd>` | Run cmd and store its result as NAME        |
+| `/var.clear`                | Clear all user variables                    |
 
 ## Escaping
 

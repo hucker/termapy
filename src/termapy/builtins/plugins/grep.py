@@ -57,7 +57,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     ]
     if not matches:
         ctx.write(f"  grep: '{pattern}' - no matches")
-        return CmdResult.ok()
+        return CmdResult.ok(value="0")
     total = len(matches)
     shown = matches[:max_matches]
     if total > max_matches:
@@ -67,7 +67,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     for lineno, line in shown:
         clean = _ANSI_RE.sub("", line)
         ctx.write(f"  grep: {lineno:>5} | {clean}")
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(total))
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

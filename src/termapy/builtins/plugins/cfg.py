@@ -80,7 +80,7 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     except (ValueError, TypeError) as e:
         return CmdResult.fail(msg=f"Type error: {e}")
     ctx.engine.apply_cfg(key, new_val)
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(new_val))
 
 
 # ── /cfg.configs handler ──────────────────────────────────────────────────────

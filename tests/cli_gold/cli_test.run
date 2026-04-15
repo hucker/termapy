@@ -38,6 +38,8 @@ $(PORT_NUM) = 42
 /var PORT_NUM
 /var.set DEVICE updated_value
 /var DEVICE
+$(BAUD) <- /port.baud_rate
+/var BAUD
 /var.clear
 /var DEVICE
 

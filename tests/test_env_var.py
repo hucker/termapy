@@ -172,10 +172,11 @@ class TestEnvCommands:
         _ENV["LIST_TEST"] = "abc"
 
         # Act
-        _handler_list(ctx, "LIST_TEST")
+        result = _handler_list(ctx, "LIST_TEST")
 
         # Assert
         assert any("LIST_TEST=abc" in t for t, _ in output), "var shown"
+        assert result.value == "abc", "value returned for scripting"
 
     def test_list_glob_pattern(self):
         # Arrange

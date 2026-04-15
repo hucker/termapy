@@ -66,6 +66,36 @@ The `COMMAND` object must be defined after all the functions it references.
 `Termapy` looks for this specific name. If your file doesn't have a
 `COMMAND` object, it is silently skipped.
 
+## Returning scriptable values
+
+Handlers return `CmdResult` to indicate success or failure:
+
+- `CmdResult.ok()` -- success, no scriptable data
+- `CmdResult.ok(value="...")` -- success, `value` is available to scripts
+- `CmdResult.fail(msg="...")` -- failure with error message
+
+**Set `value=` when your command produces data a script might capture.**
+Scripts run in quiet mode read the `value` field; without it they get nothing.
+
+```python
+def _handler(ctx: PluginContext, args: str):
+    temp = read_temperature()
+    ctx.write(f"Temperature: {temp}C")
+    return CmdResult.ok(value=str(temp))
+```
+
+Examples that should set `value=`:
+
+- Query commands (`/port.baud_rate` returns `"115200"`)
+- State toggles (`/echo on` returns `"on"`)
+- Computed values (`/proto.crc.calc` returns the CRC)
+- Ping timings, version strings, variable values
+
+Examples that should not:
+
+- Pure side-effect commands (`/cls`, `/edit`, `/cap.stop`)
+- Commands that print multiple lines (`/cfg.configs`, `/help`)
+
 ## Serial I/O pattern
 
 Most plugins follow this pattern: send a command, read the response, do something with it.

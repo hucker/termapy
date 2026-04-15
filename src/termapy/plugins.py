@@ -65,6 +65,18 @@ class CmdResult:
     Handlers return ``CmdResult.ok()`` on success or
     ``CmdResult.fail(msg="...")`` on error.  ``dispatch()`` sets
     ``elapsed_s`` automatically after the handler returns.
+
+    **The ``value`` field matters for scripting.** When a script runs a
+    command in quiet mode, the result is the value.  Handlers that produce
+    scriptable data (a config value, a port property, a CRC, a ping time,
+    a toggle state) should pass ``value=`` so scripts can capture it:
+
+        return CmdResult.ok(value=str(baud_rate))
+
+    Handlers that only perform side effects (clear screen, edit file,
+    start capture, send break) don't need a value.  When in doubt: if a
+    user might want to assign this command's output to a variable, set
+    ``value=``.
     """
 
     err_prefix: ClassVar[str] = "Error:"  # Set globally: CmdResult.err_prefix = "Fail:"

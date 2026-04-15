@@ -20,11 +20,17 @@ _VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)")
 # Match $(NAME) = value assignment (with or without spaces around =)
 _VAR_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*(.+)$")
 
+# Match $(NAME) <- value capture (run value as command, store result)
+_VAR_CAPTURE_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*<-\s*(.+)$")
+
 # Match bare $NAME = value (old syntax) for helpful warning
 _BARE_ASSIGN_RE = re.compile(r"^\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*.*$")
 
 # Match $(NAME) = (with no value) for error
 _EMPTY_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*$")
+
+# Match $(NAME) <- (with no value) for error
+_EMPTY_CAPTURE_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*<-\s*$")
 
 # Match optional $(NAME) or bare NAME wrapper for user input stripping
 _STRIP_WRAPPER_RE = re.compile(r"^\$\((.+)\)$")
@@ -64,6 +70,25 @@ def rewrite_assignment(line: str) -> str | None:
     m = _VAR_ASSIGN_RE.match(line)
     if m:
         return f"var.set {m.group(1)} {m.group(2)}"
+    return None
+
+
+def rewrite_capture(line: str) -> str | None:
+    """Rewrite ``$(VAR) <- command`` into ``var.capture VAR command``.
+
+    The command may be a REPL command (starts with ``/``) or a device
+    command (sent to serial).  The captured result becomes the variable's
+    value.
+
+    Args:
+        line: Raw input line.
+
+    Returns:
+        Rewritten command for REPL dispatch, or None.
+    """
+    m = _VAR_CAPTURE_RE.match(line)
+    if m:
+        return f"var.capture {m.group(1)} {m.group(2)}"
     return None
 
 
@@ -219,6 +244,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
                 val = ctx_fn()
         if val is not None:
             ctx.write_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
+            return CmdResult.ok(value=str(val))
         else:
             ctx.write(f"  $({name}) - not defined", "red")
         return CmdResult.ok()
@@ -257,6 +283,55 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
+def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
+    """Capture command output into a user variable.
+
+    If the command starts with the REPL prefix (e.g. ``/port.baud_rate``),
+    dispatch it and use ``CmdResult.value``.  Otherwise treat it as a
+    device command: send to serial and capture the response.
+
+    Args:
+        ctx: Plugin context.
+        args: ``"NAME command"`` string.
+    """
+    parts = args.strip().split(None, 1)
+    if len(parts) < 2:
+        return CmdResult.fail(msg="Usage: /var.capture <NAME> <command>")
+    m = _STRIP_WRAPPER_RE.match(parts[0])
+    name = m.group(1) if m else parts[0]
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
+    cmd = parts[1]
+    prefix = ctx.engine.prefix
+    if cmd.startswith(prefix):
+        # REPL command: dispatch with .quiet suffix to suppress terminal output,
+        # then use CmdResult.value.  The user doesn't want to see the inner
+        # command's output -- only the variable assignment.
+        parts_cmd = cmd.split(None, 1)
+        quiet_cmd = parts_cmd[0] + ".quiet"
+        if len(parts_cmd) > 1:
+            quiet_cmd += " " + parts_cmd[1]
+        result = ctx.dispatch(quiet_cmd)
+        if not result.success:
+            return CmdResult.fail(msg=result.error or f"command failed: {cmd}")
+        value = result.value
+    else:
+        # Device command: send to serial and capture response
+        if not ctx.is_connected():
+            return CmdResult.fail(msg="Not connected.")
+        encoding = ctx.cfg.get("encoding", "utf-8")
+        with ctx.serial_io():
+            ctx.serial_drain()
+            ctx.serial_send(cmd)
+            response = ctx.serial_read_raw(timeout_ms=1000)
+        if not response:
+            return CmdResult.fail(msg=f"no response from device: {cmd}")
+        value = response.decode(encoding, errors="replace").strip()
+    _VARS[name] = value
+    ctx.write_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
+    return CmdResult.ok(value=value)
+
+
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
     """Clear all user variables.
 
@@ -279,18 +354,20 @@ COMMAND = Command(
 User-defined variables use $(NAME) syntax (case-sensitive).
 
 Setting variables (no / prefix needed):
-  $(PORT) = COM7
-  $(ADDR) = 01
+  $(PORT) = COM7                - store literal value
+  $(BAUD) <- /port.baud_rate    - capture REPL command output
+  $(TEMP) <- AT+TEMP            - capture device response
 
 Using variables in commands:
   /print $(PORT)
   AT+PORT=$(PORT)
 
 Commands:
-  /var               - list all variables
-  /var PORT          - show one variable (bare name or $(PORT))
-  /var.set PORT val  - set a variable (bare name or $(PORT))
-  /var.clear         - clear all variables
+  /var                   - list all variables
+  /var PORT              - show one variable (bare name or $(PORT))
+  /var.set PORT val      - set a variable (literal string)
+  /var.capture NAME cmd  - run cmd and store its result as NAME
+  /var.clear             - clear all variables
 
 Dynamic variables (current clock at point of use):
   $(DATE)              - current date (YYYY-MM-DD)
@@ -337,8 +414,14 @@ Use /var.clear to reset manually.""",
     sub_commands={
         "set": Command(
             args="<NAME> <value>",
-            help="Set a user variable.",
+            help="Set a user variable to a literal value.",
             handler=_handler_set,
+            raw_args=True,
+        ),
+        "capture": Command(
+            args="<NAME> <command>",
+            help="Capture command output into a user variable.",
+            handler=_handler_capture,
             raw_args=True,
         ),
         "clear": Command(
@@ -358,7 +441,15 @@ TRANSFORM = Transform(
 
 
 def _directive_var_assign(line: str) -> DirectiveResult | None:
-    """Handle $(VAR) = value assignment, empty value error, and bare $VAR warning."""
+    """Handle $(VAR) = value, $(VAR) <- command, and related syntax errors."""
+    # Capture syntax: $(VAR) <- command
+    captured = rewrite_capture(line)
+    if captured is not None:
+        return DirectiveResult("rewrite", captured)
+    m = _EMPTY_CAPTURE_RE.match(line)
+    if m:
+        return DirectiveResult("error", f"$({m.group(1)}) <- requires a command.")
+    # Literal assignment: $(VAR) = value
     rewritten = rewrite_assignment(line)
     if rewritten is not None:
         return DirectiveResult("rewrite", rewritten)

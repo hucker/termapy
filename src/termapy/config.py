@@ -473,8 +473,10 @@ def open_serial(cfg: dict) -> Any:
         return FakeSerial(baudrate=cfg["baud_rate"])
 
     fc = cfg.get("flow_control", "none")
-    return serial.Serial(
-        port=cfg["port"],
+    # serial_for_url handles both plain ports ("COM3", "/dev/ttyUSB0")
+    # and URLs ("rfc2217://host:port", "socket://host:port", "loop://").
+    return serial.serial_for_url(
+        cfg["port"],
         baudrate=cfg["baud_rate"],
         bytesize=cfg["byte_size"],
         parity=cfg["parity"],

@@ -16,6 +16,7 @@ from termapy.config import (
     expand_env_str,
     load_config,
     migrate_json_to_cfg,
+    open_serial,
     validate_config,
 )
 
@@ -744,3 +745,36 @@ class TestRunCheck:
         # Assert
         actual = cfg_file.read_text()
         assert actual == original, "file unchanged (read-only check)"
+
+
+# -- open_serial: URL support (rfc2217, socket, loop) -----------------------
+
+
+class TestOpenSerialUrl:
+    def test_demo_port_returns_fake(self):
+        # Arrange
+        cfg = dict(DEFAULT_CFG, port="DEMO")
+
+        # Act
+        ser = open_serial(cfg)
+
+        # Assert
+        assert ser.__class__.__name__ == "FakeSerial", "DEMO port returns FakeSerial"
+
+    def test_loopback_url_works(self):
+        """loop:// URL round-trips bytes through pyserial's loopback handler."""
+        # Arrange
+        cfg = dict(DEFAULT_CFG, port="loop://", baud_rate=115200)
+
+        # Act
+        ser = open_serial(cfg)
+        try:
+            ser.write(b"test\r")
+            import time
+            time.sleep(0.05)
+            data = ser.read(100)
+        finally:
+            ser.close()
+
+        # Assert
+        assert data == b"test\r", "loopback returns written bytes"

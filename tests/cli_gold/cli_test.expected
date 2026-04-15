@@ -53,8 +53,12 @@ demo> /var.set DEVICE updated_value
   $(DEVICE) = updated_value
 demo> /var DEVICE
   $(DEVICE) = updated_value
+> $(BAUD) <- /port.baud_rate
+  $(BAUD) = 115200
+demo> /var BAUD
+  $(BAUD) = 115200
 demo> /var.clear
-  Cleared 2 variable(s).
+  Cleared 3 variable(s).
 demo> /var DEVICE
     $(DEVICE) - not defined
 demo> /print === section: config read ===
@@ -385,18 +389,20 @@ demo> /help var
     User-defined variables use $(NAME) syntax (case-sensitive).
 
     Setting variables (no / prefix needed):
-      $(PORT) = COM7
-      $(ADDR) = 01
+      $(PORT) = COM7                - store literal value
+      $(BAUD) <- /port.baud_rate    - capture REPL command output
+      $(TEMP) <- AT+TEMP            - capture device response
 
     Using variables in commands:
       /print $(PORT)
       AT+PORT=$(PORT)
 
     Commands:
-      /var               - list all variables
-      /var PORT          - show one variable (bare name or $(PORT))
-      /var.set PORT val  - set a variable (bare name or $(PORT))
-      /var.clear         - clear all variables
+      /var                   - list all variables
+      /var PORT              - show one variable (bare name or $(PORT))
+      /var.set PORT val      - set a variable (literal string)
+      /var.capture NAME cmd  - run cmd and store its result as NAME
+      /var.clear             - clear all variables
 
     Dynamic variables (current clock at point of use):
       $(DATE)              - current date (YYYY-MM-DD)
@@ -439,8 +445,9 @@ demo> /help var
     or the Run menu, but NOT when /run is typed interactively.
     Use /var.clear to reset manually.
   Subcommands:
+    /var.capture <NAME> <command> - Capture command output into a user variable.
     /var.clear - Clear all user variables.
-    /var.set <NAME> <value> - Set a user variable.
+    /var.set <NAME> <value> - Set a user variable to a literal value.
 demo> /help cap
 /cap - Data capture tools.
   Subcommands:
@@ -504,7 +511,7 @@ demo> /help.plugin
 troubleshooting.
   /ss                                                  Screenshot tools: save SVG/text, show folder.  (3)
   /stop                                                Abort a running script.
-  /var                      {name}                     List user variables, or show one by name.  (2)
+  /var                      {name}                     List user variables, or show one by name.  (3)
   /ver                                                 Show termapy version.
   /verbose                  {on|off}                   Show or toggle verbose status output. Use /verbose.quiet to set
 silently.

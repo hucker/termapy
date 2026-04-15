@@ -73,9 +73,9 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         val = _ENV.get(pattern)
         if val is not None:
             ctx.write(f"  {pattern}={val}")
+            return CmdResult.ok(value=val)
         else:
             return CmdResult.fail(msg=f"  {pattern} - not set")
-        return CmdResult.ok()
     ctx.write(f"Environment snapshot ({len(_ENV)} vars):")
     for k in sorted(_ENV):
         ctx.write(f"  {k}={_ENV[k]}")

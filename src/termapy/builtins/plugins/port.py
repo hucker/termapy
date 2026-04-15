@@ -143,26 +143,48 @@ def _make_chip_field_handler(field: str):
     return _handler
 
 
+def _read_value(result: port_control.Result) -> str:
+    """Extract the read value from a single-message non-error result.
+
+    Strips "(disconnected)" annotation if present so scripts get clean
+    values (e.g. "115200" not "115200 (disconnected)").
+    """
+    msgs, _ = result
+    if len(msgs) == 1 and msgs[0][1] not in ("red", "yellow"):
+        text = msgs[0][0]
+        if text.endswith(" (disconnected)"):
+            text = text[: -len(" (disconnected)")]
+        return text
+    return ""
+
+
 def _make_prop_handler(key: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        _apply(ctx, port_control.get_set_prop(ctx.port(), ctx.cfg, key, args))
-        return CmdResult.ok()
+        result = port_control.get_set_prop(ctx.port(), ctx.cfg, key, args)
+        _apply(ctx, result)
+        # Only return value on read (no args); set returns prose not useful as value
+        value = _read_value(result) if not args.strip() else ""
+        return CmdResult.ok(value=value)
 
     return _handler
 
 
 def _make_hw_handler(line: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        _apply(ctx, port_control.get_set_hw_line(ctx.port(), line, args))
-        return CmdResult.ok()
+        result = port_control.get_set_hw_line(ctx.port(), line, args)
+        _apply(ctx, result)
+        value = _read_value(result) if not args.strip() else ""
+        return CmdResult.ok(value=value)
 
     return _handler
 
 
 def _make_signal_handler(signal: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        _apply(ctx, port_control.read_signal(ctx.port(), signal, args))
-        return CmdResult.ok()
+        # Signals are always read-only; extract value from the single msg
+        result = port_control.read_signal(ctx.port(), signal, args)
+        _apply(ctx, result)
+        return CmdResult.ok(value=_read_value(result))
 
     return _handler
 

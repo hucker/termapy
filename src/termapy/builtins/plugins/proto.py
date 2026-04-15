@@ -889,18 +889,21 @@ in the proto/ subfolder of your config directory.""",
                     handler=_crc_calc,
                 ),
                 "c": Command(
-                    args="<name>",
-                    help="Generate C source code for a CRC algorithm.",
+                    args="<name> {--table}",
+                    help="Generate C source code for a CRC algorithm. "
+                         "Add --table for 256-entry lookup table (4-8x faster).",
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
                 ),
                 "python": Command(
-                    args="<name>",
-                    help="Generate Python source code for a CRC algorithm.",
+                    args="<name> {--table}",
+                    help="Generate Python source code for a CRC algorithm. "
+                         "Add --table for 256-entry lookup table (4-8x faster).",
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "python"),
                 ),
                 "rust": Command(
-                    args="<name>",
-                    help="Generate Rust source code for a CRC algorithm.",
+                    args="<name> {--table}",
+                    help="Generate Rust source code for a CRC algorithm. "
+                         "Add --table for 256-entry lookup table (4-8x faster).",
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
                 ),
             },

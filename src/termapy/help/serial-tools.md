@@ -124,6 +124,50 @@ All algorithm parameters (polynomial, init, reflect, xorout) are
 baked into the generated code. Copy-paste into your firmware or
 test script.
 
+### Example: bit-by-bit vs table-driven
+
+For `/proto.crc.python crc16-cms`:
+
+```python
+def crc16_cms(data: bytes) -> int:
+    """crc16-cms - CMS (RPM package format)
+
+    check: crc(b'123456789') == 0xAEE7
+    """
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = (crc << 1) ^ 0x8005
+            else:
+                crc <<= 1
+            crc &= 0xFFFF
+    return crc
+```
+
+And `/proto.crc.python crc16-cms --table`:
+
+```python
+_TABLE = (
+    0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
+    # ... 248 more entries ...
+)
+
+def crc16_cms(data: bytes) -> int:
+    """crc16-cms - CMS (RPM package format)
+
+    check: crc(b'123456789') == 0xAEE7
+    """
+    crc = 0xFFFF
+    for byte in data:
+        crc = _TABLE[((crc >> 8) ^ byte) & 0xFF] ^ (crc << 8) & 0xFFFF
+    return crc
+```
+
+Both forms return `0xAEE7` for `b"123456789"` -- the docstring shows the
+catalogue check value so you can verify after pasting.
+
 **NOTE:** Currently only the generated Python code is test-verified
 against all 62 catalogue check values (both bit-by-bit and
 table-driven). C and Rust output is structurally correct but not

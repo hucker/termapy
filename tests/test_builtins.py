@@ -395,6 +395,235 @@ class TestHelp:
         expected = 1  # just the "/briefcmd — Just brief." line
         assert actual == expected, f"expected {actual} == {expected}"
 
+    def test_help_search_literal_match(self, repl_env):
+        """/help.search <literal> finds commands whose help contains the substring."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="widgettimer", args="", help="Sets a widget timeout.",
+            handler=lambda ctx, args: None,
+        ))
+        engine.register_plugin(PluginInfo(
+            name="unrelated", args="", help="Does other stuff.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        result = engine.dispatch("help.search timeout")
+
+        # Assert
+        names = result.value.splitlines() if result.value else []
+        assert "widgettimer" in names, "matching command present"
+        assert "unrelated" not in names, "non-matching command absent"
+
+    def test_help_search_regex_anchor(self, repl_env):
+        """Patterns with regex metacharacters are compiled as regex."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="proto.foo", args="", help="Alpha.",
+            handler=lambda ctx, args: None,
+        ))
+        engine.register_plugin(PluginInfo(
+            name="other.proto", args="", help="Beta.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act — anchor to names starting with "proto."
+        result = engine.dispatch(r"help.search ^proto\.")
+
+        # Assert
+        names = result.value.splitlines() if result.value else []
+        assert "proto.foo" in names, "anchored match included"
+        assert "other.proto" not in names, "non-anchored excluded"
+
+    def test_help_search_invalid_regex(self, repl_env):
+        """Malformed regex returns a failure result, not a crash."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act — unbalanced paren is a regex error
+        result = engine.dispatch("help.search (unclosed")
+
+        # Assert
+        assert result.success is False, "invalid regex should fail"
+        assert "Invalid regex" in result.error, "failure message explains why"
+
+    def test_help_search_no_args(self, repl_env):
+        """Empty pattern returns usage-style failure."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        result = engine.dispatch("help.search")
+
+        # Assert
+        assert result.success is False, "empty pattern should fail"
+        assert "Usage" in result.error, "shows usage line"
+
+    def test_help_search_dev_flag_searches_docstring(self, repl_env):
+        """--dev extends the search to include handler docstrings."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def handler_with_secret(ctx, args):
+            """This handler mentions zebras in its docstring."""
+            return None
+
+        engine.register_plugin(PluginInfo(
+            name="zebracmd", args="", help="Unrelated short help.",
+            handler=handler_with_secret,
+        ))
+
+        # Act — without --dev, docstring isn't searched
+        result_plain = engine.dispatch("help.search zebras")
+        plain_names = result_plain.value.splitlines() if result_plain.value else []
+        # Act — with --dev, docstring is searched
+        result_dev = engine.dispatch("help.search --dev zebras")
+        dev_names = result_dev.value.splitlines() if result_dev.value else []
+
+        # Assert
+        assert "zebracmd" not in plain_names, "docstring not searched without --dev"
+        assert "zebracmd" in dev_names, "docstring searched with --dev"
+
+    def test_help_partial_single_match(self, repl_env):
+        """/help <partial> falls back to substring match when exactly one hits."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="zebralicious", args="", help="Has stripes.",
+            handler=lambda ctx, args: None,
+            long_help="Stripes long help.",
+        ))
+
+        # Act — user typed a fragment, not the full name
+        result = engine.dispatch("help zebral")
+
+        # Assert — rendered as if they typed the full name (no "Did you mean")
+        texts = [t for t, _ in output]
+        assert result.success, "single-match fallback succeeds"
+        assert any("zebralicious" in t for t in texts), "shows the matched command"
+        assert not any("Did you mean" in t for t in texts), "no disambiguation list"
+
+    def test_help_partial_multi_match_did_you_mean(self, repl_env):
+        """/help <partial> with multiple hits renders a 'Did you mean' list."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="stripe.alpha", args="", help="One.",
+            handler=lambda ctx, args: None,
+        ))
+        engine.register_plugin(PluginInfo(
+            name="stripe.beta", args="", help="Two.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        result = engine.dispatch("help stripe")
+
+        # Assert — both options shown under a "Did you mean" header
+        texts = [t for t, _ in output]
+        assert result.success, "multi-match fallback still succeeds"
+        assert any("Did you mean" in t for t in texts), "disambiguation header"
+        assert any("stripe.alpha" in t for t in texts), "first option listed"
+        assert any("stripe.beta" in t for t in texts), "second option listed"
+
+    def test_help_partial_matches_long_help(self, repl_env):
+        """Fallback finds substrings in long_help (e.g. --table inside docs)."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="gadget", args="", help="A gadget.",
+            handler=lambda ctx, args: None,
+            long_help="Pass --specialflag to enable the special mode.",
+        ))
+
+        # Act — needle appears only in long_help, not in the name
+        result = engine.dispatch("help specialflag")
+
+        # Assert — gadget is found via its long_help text
+        assert result.success, "long_help substring match succeeds"
+        texts = [t for t, _ in output]
+        assert any("gadget" in t for t in texts), "gadget surfaced from long_help"
+
+    def test_help_partial_matches_args(self, repl_env):
+        """Fallback finds substrings in the args string too."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="widget", args="<unusualparam>", help="A widget.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        result = engine.dispatch("help unusualparam")
+
+        # Assert
+        assert result.success, "args substring match succeeds"
+        texts = [t for t, _ in output]
+        assert any("widget" in t for t in texts), "widget surfaced from args"
+
+    def test_help_partial_no_match_fails(self, repl_env):
+        """/help with a fragment matching nothing still fails."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act — no command contains "xyzzynoplace"
+        result = engine.dispatch("help xyzzynoplace")
+
+        # Assert
+        assert result.success is False, "no matches should fail"
+        assert "Unknown command" in result.error, "error names the miss"
+
+    def test_help_dev_partial_single_match(self, repl_env):
+        """/help.dev <partial> uses the same substring fallback."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def handler(ctx, args):
+            """Docstring for fallback test."""
+            return None
+
+        engine.register_plugin(PluginInfo(
+            name="uniquename", args="", help="Unique.",
+            handler=handler,
+        ))
+
+        # Act
+        result = engine.dispatch("help.dev uniqu")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert result.success, "fallback resolves for help.dev too"
+        assert any("Docstring for fallback" in t for t in texts), \
+            "developer docstring shown via partial match"
+
+    def test_help_search_returns_value_for_scripting(self, repl_env):
+        """CmdResult.value is the newline-joined matching command names."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="alphacmd", args="", help="zzz unique-token-xyz zzz.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        result = engine.dispatch("help.search unique-token-xyz")
+
+        # Assert
+        actual = result.value
+        expected = "alphacmd"
+        assert actual == expected, f"{actual} == {expected}"
+
 
 # -- /show ----------------------------------------------------------------
 

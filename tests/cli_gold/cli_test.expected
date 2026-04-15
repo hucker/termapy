@@ -454,6 +454,9 @@ demo> /help cap
     /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)} - Capture raw binary bytes.
     /cap.hex <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be
 last)} - Capture hex text lines, decode with format spec to CSV.
+    /cap.poll {count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>}
+{--overwrite} {--notime} cmd=<commands> (must be last) - Poll commands on a schedule, display (and optionally save)
+results.
     /cap.stop - Stop an active capture.
     /cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must
 be last)} - Capture raw bytes, decode with format spec to CSV.
@@ -487,7 +490,7 @@ demo> /help.plugin
   /tui                                                 Switch to TUI mode.
 
 -- Application Plugins --
-  /cap                                                 Data capture tools.  (5)
+  /cap                                                 Data capture tools.  (6)
   /cfg                      {key {value}}              Show or change config values.  (12)
   /cls                                                 Clear the terminal screen.
   /confirm                  {message}                  Show Yes/Cancel dialog; Cancel stops a running script.
@@ -519,6 +522,14 @@ silently.
   /xmodem                                              XMODEM file transfer.  (2)
   /ymodem                                              YMODEM file transfer (batch, 1K blocks).  (2)
   37 commands.
+demo> /print === section: cap.poll ===
+  === section: cap.poll ===
+demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
+    counter     AT+RAMP
+          1         0.0
+          2         0.1
+          3         0.2
+  Poll complete (3 samples)
 demo> /print === section: repeat ===
   === section: repeat ===
 demo> /repeat count=3 cmd=/print hello

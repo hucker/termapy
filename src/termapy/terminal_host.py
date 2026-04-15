@@ -429,21 +429,3 @@ class TerminalHost:
             self.status(f"Delete failed: {e}", "red")
             return CmdResult.fail(msg=str(e))
 
-    # -- Utilities ------------------------------------------------------------
-
-    @staticmethod
-    def _parse_run_flags(args: str) -> tuple[str, bool]:
-        """Extract -v/--verbose from /run args.
-
-        Returns:
-            Tuple of (clean_args, verbose).
-        """
-        tokens = args.split()
-        verbose = False
-        clean: list[str] = []
-        for tok in tokens:
-            if tok in ("-v", "--verbose"):
-                verbose = True
-            else:
-                clean.append(tok)
-        return " ".join(clean), verbose

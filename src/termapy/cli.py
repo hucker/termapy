@@ -222,6 +222,10 @@ class CLITerminal(TerminalHost):
             "Run a script file, or list available scripts.",
             self._hook_run,
             source="app",
+            flags={
+                "--verbose": "Show each command and its result as the script runs.",
+                "-v": "--verbose",
+            },
         )
         self.repl.register_hook(
             "run.profile",
@@ -229,6 +233,10 @@ class CLITerminal(TerminalHost):
             "Run a script with per-command timing.",
             self._hook_run_profile,
             source="app",
+            flags={
+                "--verbose": "Show each command and its result as the script runs.",
+                "-v": "--verbose",
+            },
         )
         self.repl.register_hook(
             "demo",
@@ -396,7 +404,7 @@ class CLITerminal(TerminalHost):
             for f in files:
                 self.status(f"  {f.name}")
             return CmdResult.ok()
-        script, verbose = self._parse_run_flags(script)
+        verbose = ctx.flag("--verbose")
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
@@ -414,7 +422,7 @@ class CLITerminal(TerminalHost):
         if not script:
             self.status("Usage: /run.profile <script>", "red")
             return CmdResult.fail(msg="Usage: /run.profile <script>")
-        script, verbose = self._parse_run_flags(script)
+        verbose = ctx.flag("--verbose")
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(

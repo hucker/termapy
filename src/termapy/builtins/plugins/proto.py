@@ -792,9 +792,8 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """
     from termapy.crc_codegen import GENERATORS
 
+    use_table = ctx.flag("--table")
     tokens = args.strip().lower().split()
-    use_table = "--table" in tokens
-    tokens = [t for t in tokens if t != "--table"]
     name = tokens[0] if tokens else ""
     if not name:
         return CmdResult.fail(msg=f"Usage: /proto.crc.{lang} <algorithm> {{--table}}")
@@ -889,21 +888,21 @@ in the proto/ subfolder of your config directory.""",
                     handler=_crc_calc,
                 ),
                 "c": Command(
-                    args="<name> {--table}",
-                    help="Generate C source code for a CRC algorithm. "
-                         "Add --table for 256-entry lookup table (4-8x faster).",
+                    args="<name>",
+                    flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
+                    help="Generate C source code for a CRC algorithm.",
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
                 ),
                 "python": Command(
-                    args="<name> {--table}",
-                    help="Generate Python source code for a CRC algorithm. "
-                         "Add --table for 256-entry lookup table (4-8x faster).",
+                    args="<name>",
+                    flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
+                    help="Generate Python source code for a CRC algorithm.",
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "python"),
                 ),
                 "rust": Command(
-                    args="<name> {--table}",
-                    help="Generate Rust source code for a CRC algorithm. "
-                         "Add --table for 256-entry lookup table (4-8x faster).",
+                    args="<name>",
+                    flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
+                    help="Generate Rust source code for a CRC algorithm.",
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
                 ),
             },

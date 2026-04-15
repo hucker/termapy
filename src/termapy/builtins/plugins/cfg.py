@@ -272,7 +272,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         report_path = data_dir / f"{config_name}.md"
         report_path.write_text("\n".join(md_lines), encoding="utf-8")
 
-        if "--display" in args.lower():
+        if ctx.flag("--display"):
             open_with_system(str(report_path))
     except Exception as e:
         return CmdResult.fail(msg=f"Info error: {e}")
@@ -462,8 +462,9 @@ Use /cfg.auto to set values without confirmation (for scripts).""",
             handler=_handler_configs,
         ),
         "info": Command(
-            args="{--display}",
-            help="Show project summary. --display opens full report.",
+            args="",
+            flags={"--display": "Open full report in the system viewer."},
+            help="Show project summary.",
             handler=_handler_info,
         ),
         "explore": Command(

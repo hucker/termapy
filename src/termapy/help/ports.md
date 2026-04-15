@@ -135,3 +135,17 @@ sudo usermod -aG dialout $USER
 
 `/port.chip.permissions` reports `ok` or `denied` for each port so you
 can tell ahead of time whether you'll be able to open it.
+
+## Advanced: URL-style ports
+
+Termapy supports every port format pyserial accepts, including:
+
+- `loop://` -- in-process loopback (what you write comes back, useful for testing)
+- `socket://host:port` -- raw TCP
+- `rfc2217://host:port` -- network serial over RFC 2217 (ser2net, etc.)
+- `hwgrep://regex` -- find by device description
+- `spy://...` -- packet capture wrapper
+
+Just put the URL in the `port` config field. See [pyserial's URL handler
+docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
+the full list.

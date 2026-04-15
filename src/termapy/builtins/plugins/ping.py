@@ -69,10 +69,28 @@ COMMAND = Command(
     "Send a command and measure response time.",
     name="ping",
     args="{count=<N>} {timeout=<dur>} cmd=<command>",
+    long_help=(
+        "Sends a command to the device and measures round-trip time,\n"
+        "repeating for count iterations.  Reports min/max/mean timing.\n"
+        "\n"
+        "Parameters:\n"
+        "  cmd=<command>     REQUIRED command to send (must be last)\n"
+        "  count=<N>         number of pings (default: 1)\n"
+        "  timeout=<dur>     response timeout per ping (default: 1s)"
+    ),
     handler=_handler,
     sub_commands={
         "quiet": Command(
             "Ping without showing device response.",
+            long_help=(
+                "Same as /ping but suppresses the device response text;\n"
+                "only the timing summary is printed.\n"
+                "\n"
+                "Parameters:\n"
+                "  cmd=<command>     REQUIRED command to send (must be last)\n"
+                "  count=<N>         number of pings (default: 1)\n"
+                "  timeout=<dur>     response timeout per ping (default: 1s)"
+            ),
             handler=_handler_quiet,
             args="{count=<N>} {timeout=<dur>} cmd=<command>",
         ),

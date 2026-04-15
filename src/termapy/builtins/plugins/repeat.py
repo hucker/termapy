@@ -104,5 +104,17 @@ COMMAND = Command(
     name="repeat",
     args="count=<N> {delay=<dur>} {var=<name>} cmd=<command>",
     help="Repeat a command N times with optional delay (escape to cancel).",
+    long_help=(
+        "Runs a command count times in sequence, optionally with a delay\n"
+        "between iterations.  Press Escape to cancel.  If var= is given,\n"
+        "the current iteration index (1..N) is available as $(var) in\n"
+        "the command.\n"
+        "\n"
+        "Parameters:\n"
+        "  cmd=<command>     REQUIRED command to repeat (must be last)\n"
+        "  count=<N>         REQUIRED number of repetitions\n"
+        "  delay=<dur>       pause between iterations, e.g. 100ms (default: no delay)\n"
+        "  var=<name>        variable name for the iteration index"
+    ),
     handler=_handler,
 )

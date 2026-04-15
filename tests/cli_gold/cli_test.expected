@@ -378,12 +378,15 @@ demo> /help cfg
 demo> /help proto.crc
 /proto.crc - Browse and compute CRC algorithms.
   Subcommands:
-    /proto.crc.c <name> - Generate C source code for a CRC algorithm.
+    /proto.crc.c <name> {--table} - Generate C source code for a CRC algorithm. Add --table for 256-entry lookup table
+(4-8x faster).
     /proto.crc.calc <name> {data} - Compute CRC over hex bytes, text, or file.
     /proto.crc.help <name> - Show algorithm parameters and description.
     /proto.crc.list {pattern} - List algorithms (optional glob filter).
-    /proto.crc.python <name> - Generate Python source code for a CRC algorithm.
-    /proto.crc.rust <name> - Generate Rust source code for a CRC algorithm.
+    /proto.crc.python <name> {--table} - Generate Python source code for a CRC algorithm. Add --table for 256-entry
+lookup table (4-8x faster).
+    /proto.crc.rust <name> {--table} - Generate Rust source code for a CRC algorithm. Add --table for 256-entry lookup
+table (4-8x faster).
 demo> /help var
 /var {name} - List user variables, or show one by name.
     User-defined variables use $(NAME) syntax (case-sensitive).
@@ -500,7 +503,7 @@ demo> /help.plugin
   /exit                                                Exit termapy.
   /grep                     <pattern>                  Search the scrollback for lines matching a pattern
 (case-insensitive regex).
-  /help                     {cmd}                      List REPL commands, or show help for one command.  (5)
+  /help                     {cmd}                      List REPL commands, or show help for one command.  (6)
   /include                  ... /help include          Include device command help from JSON response.  (4)
   /os                       <cmd>                      Run a shell command and show output (10s timeout). e.g. /os dir
   /ping                     ... /help ping             Send a command and measure response time.  (1)

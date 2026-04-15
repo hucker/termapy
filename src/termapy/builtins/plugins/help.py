@@ -113,13 +113,67 @@ def _list_children(ctx: PluginContext, plugin, prefix: str,
             _list_children(ctx, child, prefix, cmd_w, arg_w, depth + 1)
 
 
+# Fields searched by the /help fuzzy fallback, in priority order. Earlier
+# fields rank higher when sorting matches for display. The same field set is
+# what /help.search uses without --dev (docstring excluded).
+_FUZZY_FIELDS = ("name", "help", "args", "long_help")
+
+
+def _fuzzy_matches(needle: str, plugins: dict) -> list[str]:
+    """Return command names whose name/help/args/long_help contain ``needle``.
+
+    Case-insensitive substring match. Results sorted by highest-priority
+    field hit first (name > short help > args > long_help), then
+    alphabetically within a tier. A command only appears once even if it
+    matches in multiple fields.
+    """
+    needle = needle.lower()
+    ranked: list[tuple[int, str]] = []
+    for name, plugin in plugins.items():
+        best_tier = None
+        for tier, field in enumerate(_FUZZY_FIELDS):
+            if field == "name":
+                text = name
+            else:
+                text = getattr(plugin, field, "") or ""
+            if needle in text.lower():
+                best_tier = tier
+                break
+        if best_tier is not None:
+            ranked.append((best_tier, name))
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    return [name for _, name in ranked]
+
+
+def _show_did_you_mean(ctx: PluginContext, name: str, matches: list[str]) -> CmdResult:
+    """Render a 'Did you mean:' list for multi-match substring lookups."""
+    prefix = ctx.engine.prefix
+    plugins = ctx.engine.plugins
+    ctx.write_markup(
+        f"No exact match for [{_CMD}]{prefix}{name}[/]. Did you mean:"
+    )
+    for match_name in matches:
+        p = plugins[match_name]
+        arg_str = f" {_color_args(p.args)}" if p.args else ""
+        ctx.write_markup(
+            f"  [{_CMD}]{prefix}{match_name}[/]{arg_str} - {p.help}"
+        )
+    return CmdResult.ok(value="\n".join(matches))
+
+
 def _show_command_help(ctx: PluginContext, name: str,
                       dev_mode: bool = False) -> CmdResult:
     """Show help for a single command by name.
 
+    Exact-match first. On miss, falls back to case-insensitive substring
+    matching against registered command names:
+      - 1 match  -> show it (same as if the user typed the full name)
+      - 2+ match -> render a "Did you mean:" list
+      - 0 match  -> fail
+
     Args:
         ctx: Plugin context for engine plugin registry and output.
-        name: Dotted command name to look up.
+        name: Dotted command name (or partial) to look up.
         dev_mode: If True, show handler docstring instead of long_help.
     """
     prefix = ctx.engine.prefix
@@ -134,7 +188,16 @@ def _show_command_help(ctx: PluginContext, name: str,
             )
             ctx.write_markup(f"  [{_SRC}](source: target device)[/]")
             return CmdResult.ok()
-        return CmdResult.fail(msg=f"Unknown command: {name}")
+        # Forgiving fallback: substring match across name/help/args/long_help.
+        matches = _fuzzy_matches(name, ctx.engine.plugins)
+        if len(matches) == 1:
+            name = matches[0]
+            plugin = ctx.engine.plugins[name]
+            # fall through to the rendering block below
+        elif matches:
+            return _show_did_you_mean(ctx, name, matches)
+        else:
+            return CmdResult.fail(msg=f"Unknown command: {name}")
     arg_str = f" {_color_args(plugin.args)}" if plugin.args else ""
     ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} - {plugin.help}")
     if dev_mode:
@@ -398,6 +461,106 @@ def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
     return _show_command_help(ctx, name, dev_mode=True)
 
 
+# Regex metacharacters that signal "user meant a pattern, not a literal".
+_REGEX_META_RE = re.compile(r"[.^$*+?()\[\]{}|\\]")
+
+# Max matches to render before truncating.
+_MAX_SEARCH_RESULTS = 50
+
+# Characters of context to show around a match in long_help / docstrings.
+_SEARCH_CONTEXT = 40
+
+
+def _highlight(text: str, span: tuple[int, int]) -> str:
+    """Wrap the matched span in yellow markup, trimming surrounding context."""
+    start, end = span
+    left = max(0, start - _SEARCH_CONTEXT)
+    right = min(len(text), end + _SEARCH_CONTEXT)
+    prefix = "..." if left > 0 else ""
+    suffix = "..." if right < len(text) else ""
+    # Replace newlines/tabs with spaces so output stays one line.
+    before = text[left:start].replace("\n", " ").replace("\t", " ")
+    hit = text[start:end].replace("\n", " ").replace("\t", " ")
+    after = text[end:right].replace("\n", " ").replace("\t", " ")
+    return f"{prefix}{before}[yellow]{hit}[/]{after}{suffix}"
+
+
+def _search_fields(name: str, plugin, include_dev: bool) -> list[tuple[str, str]]:
+    """Return (field_label, field_text) pairs to search for one plugin."""
+    fields = [
+        ("name", name),
+        ("help", plugin.help or ""),
+        ("args", plugin.args or ""),
+        ("long_help", plugin.long_help or ""),
+    ]
+    if include_dev:
+        docstring = getattr(plugin.handler, "__doc__", None) or ""
+        fields.append(("docstring", docstring))
+    return fields
+
+
+def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
+    """Search command names and help text for a regex or literal string.
+
+    Searches across every registered command's name, short help, args, and
+    long_help. Pass ``--dev`` to also search handler docstrings. If the
+    pattern has no regex metacharacters, it is treated as a case-insensitive
+    literal. Otherwise it is compiled as a case-insensitive regex.
+
+    Args:
+        ctx: Plugin context for engine plugin registry and output.
+        args: Pattern to search for, optionally prefixed with ``--dev``.
+    """
+    tokens = args.split() if isinstance(args, str) else []
+    include_dev = "--dev" in tokens
+    tokens = [t for t in tokens if t != "--dev"]
+    if not tokens:
+        return CmdResult.fail(msg="Usage: /help.search {--dev} <pattern>")
+    pattern = " ".join(tokens)
+
+    if _REGEX_META_RE.search(pattern):
+        try:
+            rx = re.compile(pattern, re.IGNORECASE)
+        except re.error as e:
+            return CmdResult.fail(msg=f"Invalid regex: {e}")
+    else:
+        rx = re.compile(re.escape(pattern), re.IGNORECASE)
+
+    prefix = ctx.engine.prefix
+    matches: list[str] = []  # command names, for CmdResult.value
+    rendered = 0
+    truncated = False
+
+    for name in sorted(ctx.engine.plugins):
+        plugin = ctx.engine.plugins[name]
+        hit_fields: list[tuple[str, str, tuple[int, int]]] = []
+        for label, text in _search_fields(name, plugin, include_dev):
+            m = rx.search(text)
+            if m:
+                hit_fields.append((label, text, m.span()))
+        if not hit_fields:
+            continue
+        matches.append(name)
+        if rendered >= _MAX_SEARCH_RESULTS:
+            truncated = True
+            continue
+        arg_str = f" {_color_args(plugin.args)}" if plugin.args else ""
+        ctx.write_markup(f"[{_CMD}]{prefix}{name}[/]{arg_str} - {plugin.help}")
+        for label, text, span in hit_fields:
+            if label in ("name", "help", "args"):
+                continue  # already visible in the header line above
+            ctx.write_markup(f"  [{_SEP}]({label})[/] {_highlight(text, span)}")
+        rendered += 1
+
+    if not matches:
+        ctx.result(f"No matches for '{pattern}'.")
+        return CmdResult.ok(value="")
+    suffix = f" (showing first {_MAX_SEARCH_RESULTS})" if truncated else ""
+    ctx.result(f"{len(matches)} match{'es' if len(matches) != 1 else ''}{suffix}.")
+    # Newline-joined names follow the CmdResult.value convention (strings).
+    return CmdResult.ok(value="\n".join(matches))
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="help",
@@ -426,6 +589,22 @@ Three modes:
             args="<cmd>",
             help="Show a command handler's Python docstring.",
             handler=_handler_dev,
+        ),
+        "search": Command(
+            args="{--dev} <pattern>",
+            help="Search command names and help text for a regex or literal.",
+            long_help="""\
+Search every registered command's name, short help, args, and long_help
+for a pattern. No regex metacharacters: treated as a case-insensitive
+literal substring. Otherwise: compiled as a case-insensitive regex.
+
+  /help.search timeout            find all commands mentioning "timeout"
+  /help.search ^proto\\.           commands starting with "proto."
+  /help.search --dev ctx\\.result  also search handler docstrings
+
+Returns a list of matching command names as CmdResult.value, suitable
+for $(VAR) <- capture in scripts.""",
+            handler=_handler_search,
         ),
     },
 )

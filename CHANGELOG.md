@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.58.0 (2026-04-15)
+
+### 0.58.0 New Features
+
+- **Forgiving `/help`** -- `/help` now does substring matching across command names, flags, args, and help text when there is no exact match. `/help crc` surfaces every CRC-related command; `/help dev` finds `/help.dev` and `/help.search --dev`. Results group under headings (Command Name, Flags, Help String, Arguments, Long Help) so you can see *why* each command matched, and the matched terms are underlined throughout.
+- **Multi-term `/help` search** -- combine terms to narrow down in a sea of commands:
+  - `/help table crc` -- commands matching both words
+  - `/help crc -table` -- CRC commands, excluding the `--table` codegen ones
+  - `/help --table` -- literal flag lookup
+
+  Long-help hits render the full long_help inline so you don't need a second command.
+- **`/help.search <pattern>`** -- regex search across every command. Pass `--dev` to also search handler docstrings. Returns matching command names as `CmdResult.value` so scripts can capture the list with `$(VAR) <- /help.search ...`.
+- **First-class flags** -- plugin commands now declare their flags on a `Command(flags={...})` dict. The dispatcher parses and strips declared flags before the handler runs; handlers read them via `ctx.flag("--name")`. Benefits you will notice:
+  - Flags appear under their own **Flags:** section in `/help <cmd>` output
+  - `/help table` finds `--table` directly
+  - Typos like `--talbe` get a `did you mean --table?` suggestion instead of being silently ignored
+  - Short aliases work uniformly: `/run foo.run -v` and `/run foo.run --verbose` both set the same flag
+- **`/cap.poll`** -- new command for polling one or more device commands on a schedule, streaming the responses to a CSV or JSONL file. Supports `count=`, `delay=`, `file=`, `labels=`, `regex=` extraction, and `--overwrite` / `--notime` flags.
+- **Network serial ports** -- pyserial URL-style ports (`loop://`, `socket://<host>:<port>`, `rfc2217://...`) are now accepted wherever a port name would go.
+- **`CmdResult.value` for scripting** -- plugin handlers can now return a captured value that scripts read back with `$(VAR) <- /command`. Enables composing command output into variables without parsing terminal text.
+- **`/cap.poll --table` CRC codegen** -- `/proto.crc.{c,python,rust}` now ship a worked bit-by-bit vs table-driven example in the help pages, so you can see what the generated code looks like for either form.
+
+### 0.58.0 Improvements
+
+- **Getting Started** page gains a concise "finding commands" section listing the `/help` search forms.
+- **`/cfg.info --display`**, **`/cap.poll --overwrite / --notime`**, **`/help.search --dev`**, **`/run --verbose`** all converted to first-class flags. Behavior unchanged; discoverability improved.
+- **`long_help`** text added for `/cap.text`, `/cap.bin`, `/ping`, `/ping.quiet`, `/repeat` so `/help <cmd>` actually explains what they do.
+- **Config help examples validated** -- README and `config.md` examples are now checked at release time to make sure they match the real config schema.
+
+### 0.58.0 Bug Fixes
+
+- **`/cap.poll` JSONL output** -- fixed two type-checker errors that could surface when writing JSON Lines capture output with the `--notime` flag. No behavior change.
+
 ## 0.57.0 (2026-04-12)
 
 ### 0.57.0 New Features

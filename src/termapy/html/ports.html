@@ -19,11 +19,11 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.32">
+      <meta name="generator" content="zensical-0.0.33">
     
     
       
-        <title>Serial ports - Termapy Help v0.57.0</title>
+        <title>Serial ports - Termapy Help v0.58.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.57.0" class="md-header__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.58.0" class="md-header__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.57.0
+            Termapy Help v0.58.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.57.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.58.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.57.0
+    Termapy Help v0.58.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -458,6 +458,17 @@
     <span class="md-ellipsis">
       
         When you hit "Permission denied" on Linux
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-url-style-ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced: URL-style ports
       
     </span>
   </a>
@@ -940,6 +951,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#advanced-url-style-ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced: URL-style ports
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1094,6 +1116,18 @@ group (Arch/Fedora).  Add yourself and log out / back in:</p>
 </span></code></pre></div>
 <p><code>/port.chip.permissions</code> reports <code>ok</code> or <code>denied</code> for each port so you
 can tell ahead of time whether you'll be able to open it.</p>
+<h2 id="advanced-url-style-ports">Advanced: URL-style ports<a class="headerlink" href="#advanced-url-style-ports" title="Permanent link">&para;</a></h2>
+<p>Termapy supports every port format pyserial accepts, including:</p>
+<ul>
+<li><code>loop://</code> -- in-process loopback (what you write comes back, useful for testing)</li>
+<li><code>socket://host:port</code> -- raw TCP</li>
+<li><code>rfc2217://host:port</code> -- network serial over RFC 2217 (ser2net, etc.)</li>
+<li><code>hwgrep://regex</code> -- find by device description</li>
+<li><code>spy://...</code> -- packet capture wrapper</li>
+</ul>
+<p>Just put the URL in the <code>port</code> config field. See <a href="https://pyserial.readthedocs.io/en/latest/url_handlers.html">pyserial's URL handler
+docs</a> for
+the full list.</p>
 
 
 
@@ -1188,7 +1222,7 @@ can tell ahead of time whether you'll be able to open it.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.91a19a9e.min.js"></script>
+      <script src="./assets/javascripts/bundle.63456bd9.min.js"></script>
       
     
   </body>

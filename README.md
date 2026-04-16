@@ -1133,9 +1133,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> — 1475 tests, 67% overall</summary>
+<summary><strong>Test coverage</strong> — 1505 tests, 67% overall</summary>
 
-1475 tests across 32 test files. Run with `uv run pytest`.
+1505 tests across 32 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 

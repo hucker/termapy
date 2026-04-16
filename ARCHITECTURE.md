@@ -10,18 +10,18 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (3895 lines) Textual TUI — UI, modals, app hooks
-├── cli.py               # (692 lines)  Plain-text CLI frontend — CLITerminal class
+├── app.py               # (3903 lines) Textual TUI — UI, modals, app hooks
+├── cli.py               # (700 lines)  Plain-text CLI frontend — CLITerminal class
 ├── serial_engine.py     # (379 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py       # (302 lines)  Serial I/O wrapper + SerialReader data processor
 ├── capture.py           # (336 lines)  Capture state machine — text, binary, format spec
 ├── dialogs.py           # (1721 lines) Modal screens — config editor, pickers, confirm
 ├── proto_debug.py       # (1167 lines) Interactive protocol debug screen
 ├── protocol.py          # (1479 lines) Protocol parsing, format specs, CRC, visualizers
-├── demo.py              # (1516 lines) Simulated device for --demo mode (FakeSerial)
-├── repl.py              # (981 lines)  REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (994 lines)  Plugin system — Command, PluginContext, loading
-├── config.py            # (556 lines)  Config dirs, loading, validation, migration trigger
+├── demo.py              # (1524 lines) Simulated device for --demo mode (FakeSerial)
+├── repl.py              # (1088 lines)  REPL engine — dispatch, scripting, transforms
+├── plugins.py           # (1046 lines)  Plugin system — Command, PluginContext, loading
+├── config.py            # (558 lines)  Config dirs, loading, validation, migration trigger
 ├── port_control.py      # (828 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (283 lines)  Protocol test script runner
 ├── scripting.py         # (238 lines)  Pure functions — templates, duration parsing, ANSI
@@ -394,7 +394,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test coverage
 
-32 test files, 1475 tests, 67% overall coverage:
+32 test files, 1505 tests, 67% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |

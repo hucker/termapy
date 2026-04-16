@@ -19,11 +19,11 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.32">
+      <meta name="generator" content="zensical-0.0.33">
     
     
       
-        <title>Data capture - Termapy Help v0.57.0</title>
+        <title>Data capture - Termapy Help v0.58.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.57.0" class="md-header__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.58.0" class="md-header__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.57.0
+            Termapy Help v0.58.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.57.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.58.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.57.0
+    Termapy Help v0.58.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -648,6 +648,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#timed-polling-cappoll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timed polling: /cap.poll
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#format-spec-quick-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -897,6 +908,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#timed-polling-cappoll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timed polling: /cap.poll
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#format-spec-quick-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -985,6 +1007,26 @@ Byte ranges are 1-based. Omit names for unnamed columns.</p>
 </span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a># Raw binary (no format spec)
 </span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>/cap.bin raw.bin bytes=256 cmd=read_all
 </span></code></pre></div>
+<h2 id="timed-polling-cappoll">Timed polling: <code>/cap.poll</code><a class="headerlink" href="#timed-polling-cappoll" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>/cap.poll {count=N} {delay=&lt;dur&gt;} {file=&lt;name&gt;} {labels=&lt;names&gt;} {regex=&lt;pattern&gt;} {fmt=csv|json} {timeout=&lt;dur&gt;} {--overwrite} {--notime} cmd=&lt;commands&gt;
+</span></code></pre></div>
+<p>Runs commands on a schedule and collects their responses. Unlike the
+other <code>/cap.*</code> variants (which passively capture device output), <code>/cap.poll</code>
+actively issues commands and records each response as a row.</p>
+<p>Without <code>file=</code>, results go only to the terminal. With <code>file=</code>, results
+also stream to a CSV or JSONL file.</p>
+<p>Simplest form -- 60 samples at 1s intervals, terminal only:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>/cap.poll cmd=AT+BAT
+</span></code></pre></div>
+<p>Multi-column, saved to file:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>/cap.poll count=30 file=readings cmd=AT+BAT\nAT+TEMP
+</span></code></pre></div>
+<p>Extract a number from a prose response with a regex:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>/cap.poll count=10 regex=[-\d.]+ cmd=AT+TEMP
+</span></code></pre></div>
+<p>Defaults: <code>count=60</code>, <code>delay=1s</code>, <code>fmt=csv</code>, <code>timeout=1s</code>. Use <code>delay=0</code>
+to go as fast as possible. Without <code>regex=</code>, the first sample must be a
+numeric value or the command aborts.</p>
 <h2 id="format-spec-quick-reference">Format spec quick reference<a class="headerlink" href="#format-spec-quick-reference" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1059,8 +1101,8 @@ tracks the last-used number across sessions, with rollover.</p>
 </tr>
 </tbody>
 </table>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>/cap.text log_$(n000).txt timeout=3s cmd=AT+INFO
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a># → log_000.txt, log_001.txt, log_002.txt, ...
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>/cap.text log_$(n000).txt timeout=3s cmd=AT+INFO
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a># → log_000.txt, log_001.txt, log_002.txt, ...
 </span></code></pre></div>
 <p>Bare filenames are saved to the per-config <code>cap/</code> directory.
 A progress bar and Stop button overlay the toolbar during capture.
@@ -1159,7 +1201,7 @@ The <strong>Cap</strong> button opens the cap/ folder.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.91a19a9e.min.js"></script>
+      <script src="./assets/javascripts/bundle.63456bd9.min.js"></script>
       
     
   </body>

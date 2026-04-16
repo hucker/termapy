@@ -875,29 +875,68 @@ in the proto/ subfolder of your config directory.""",
                 "help": Command(
                     args="<name>",
                     help="Show algorithm parameters and description.",
+                    long_help=(
+                        "Shows the polynomial, init, reflection, xor-out, and check\n"
+                        "value for one CRC algorithm. Use /proto.crc.list to see\n"
+                        "every available name."
+                    ),
                     handler=_crc_help,
                 ),
                 "calc": Command(
                     args="<name> {data}",
                     help="Compute CRC over hex bytes, text, or file.",
+                    long_help=(
+                        "Computes a CRC over the supplied data. Use /proto.crc.list\n"
+                        "to see every available algorithm name.\n"
+                        "\n"
+                        "Example:\n"
+                        "  /proto.crc.calc crc16-modbus 01 03 00 00 00 01"
+                    ),
                     handler=_crc_calc,
                 ),
                 "c": Command(
                     args="<name>",
                     flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
                     help="Generate C source code for a CRC algorithm.",
+                    long_help=(
+                        "Prints a self-contained C implementation for the named\n"
+                        "CRC. Use /proto.crc.list to see every available algorithm\n"
+                        "name, or /proto.crc.help <name> for its parameters.\n"
+                        "\n"
+                        "Example:\n"
+                        "  /proto.crc.c crc16-modbus\n"
+                        "  /proto.crc.c crc32 --table"
+                    ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
                 ),
                 "python": Command(
                     args="<name>",
                     flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
                     help="Generate Python source code for a CRC algorithm.",
+                    long_help=(
+                        "Prints a self-contained Python implementation for the named\n"
+                        "CRC. Use /proto.crc.list to see every available algorithm\n"
+                        "name, or /proto.crc.help <name> for its parameters.\n"
+                        "\n"
+                        "Example:\n"
+                        "  /proto.crc.python crc16-modbus\n"
+                        "  /proto.crc.python crc32 --table"
+                    ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "python"),
                 ),
                 "rust": Command(
                     args="<name>",
                     flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
                     help="Generate Rust source code for a CRC algorithm.",
+                    long_help=(
+                        "Prints a self-contained Rust implementation for the named\n"
+                        "CRC. Use /proto.crc.list to see every available algorithm\n"
+                        "name, or /proto.crc.help <name> for its parameters.\n"
+                        "\n"
+                        "Example:\n"
+                        "  /proto.crc.rust crc16-modbus\n"
+                        "  /proto.crc.rust crc32 --table"
+                    ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
                 ),
             },

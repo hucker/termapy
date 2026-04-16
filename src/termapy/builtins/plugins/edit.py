@@ -12,10 +12,11 @@ explore, log, info) works the same in both frontends via ctx.open_file().
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from termapy.config import cfg_log_path
 from termapy.folders import EXT_TO_FOLDER
+from termapy.help_dynamic import folder_line
 from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
@@ -146,19 +147,32 @@ def _make_explore_handler(get_dir):
     return handler
 
 
-def _build_folder_sub(get_dir, ext, pattern):
-    """Build a folder subcommand with edit, list, and explore."""
+def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
+    """Build a folder subcommand with edit, list, and explore.
+
+    ``kind`` is the ``folders.py`` folder name (``run``, ``proto``, etc.).
+    When supplied, every subcommand gets a dynamic ``long_help`` showing
+    the current file count in that folder, so ``/help edit.run`` prints
+    "42 scripts in run/" in green.
+    """
+    long_help: str | Callable = ""
+    if kind is not None:
+        def long_help(ctx):
+            return folder_line(ctx, kind, noun=noun)
     return Command(
         args="{filename}",
         help=f"Open a {ext} file in the system editor.",
+        long_help=long_help,
         handler=_make_edit_handler(get_dir, ext, pattern),
         sub_commands={
             "list": Command(
                 help=f"List {ext} files.",
+                long_help=long_help,
                 handler=_make_list_handler(get_dir, pattern),
             ),
             "explore": Command(
                 help="Open folder in file explorer.",
+                long_help=long_help,
                 handler=_make_explore_handler(get_dir),
             ),
         },
@@ -175,13 +189,16 @@ COMMAND = Command(
     sub_commands={
         "run": _build_folder_sub(
             lambda ctx: ctx.scripts_dir, ".run", "*.run",
+            kind="run", noun="script",
         ),
         "proto": _build_folder_sub(
             lambda ctx: ctx.proto_dir, ".pro", "*.pro",
+            kind="proto", noun="script",
         ),
         "plugin": _build_folder_sub(
             lambda ctx: Path(ctx.config_path).parent / "plugin" if ctx.config_path else Path("."),
             ".py", "*.py",
+            kind="plugin",
         ),
         "cfg": Command(
             help="Open the config file in the system editor.",

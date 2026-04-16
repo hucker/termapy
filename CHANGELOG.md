@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### New Features
+
+- **Dynamic help** -- `Command.long_help` (and `PluginInfo.long_help`) now accepts a callable `(PluginContext) -> str` as well as a static string. Callables are invoked at render time so a command's DESCRIPTION section can reflect live runtime state (loaded files, current connection, cached counts). Existing static-string declarations are unchanged. See `writing-plugins.md` for the pattern.
+- **Dynamic help on built-in commands** -- `/help` for `/cfg`, `/port` and each port subcommand, `/include`, `/cap.*`, `/ss`, `/run.edit`, `/proto` (+ subcommands), `/edit.run|proto|plugin`, `/var`, `/env`, and `/seq` now opens with a green single-line status reflecting the current state (active cfg name, connected port, counter count, file counts in the relevant folder, etc.). Single-value commands show only the state line; multi-option commands keep their existing prose.
+- **Dynamic-help helpers** -- new `termapy.help_dynamic` module supplies small reusable building blocks (`state_line`, `folder_line`, `port_status`, `cfg_status`, `ns_count`, `compose`, `green`) so plugin authors can wire dynamic DESCRIPTION content in one or two lines. See `writing-plugins.md`.
+
 ## 0.58.0 (2026-04-15)
 
 ### 0.58.0 New Features

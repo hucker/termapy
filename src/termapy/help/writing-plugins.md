@@ -96,6 +96,85 @@ Examples that should not:
 - Pure side-effect commands (`/cls`, `/edit`, `/cap.stop`)
 - Commands that print multiple lines (`/cfg.configs`, `/help`)
 
+## Dynamic help for runtime state
+
+If your command owns runtime state that a user should see right on its
+help page — a loaded file, an open connection, a count of cached items —
+set `long_help` to a function instead of a string. The function takes
+the `PluginContext` and returns a string. It's invoked at render time,
+so whatever it reads from `ctx.ns(...)` or `ctx.cfg` is live.
+
+```python
+def _dynamic_long_help(ctx):
+    target = ctx.ns("target_commands")
+    if target:
+        state = f"Currently loaded: {len(target)} device command(s)."
+    else:
+        state = "Currently loaded: none."
+    return f"""{state}
+
+Sends a command to the device and parses the JSON response to include
+command help. Use /include.reload to refresh."""
+
+COMMAND = Command(
+    name="include",
+    help="Include device command help from JSON response.",
+    long_help=_dynamic_long_help,   # a function, not a string
+    handler=_handler,
+)
+```
+
+When the user runs `/help include`, the DESCRIPTION section calls this
+function and the first line reflects the current state. No change to
+the rendering path, no extra registration — the `long_help` field just
+accepts either form.
+
+Two caveats:
+
+1. **Read ctx defensively.** Use `ctx.ns("x").get("k", default)`
+   rather than indexing blindly. Help may be invoked at any moment,
+   including before your plugin's state is populated.
+2. **Never raise.** The renderer catches exceptions and substitutes
+   `(dynamic help failed: <error>)` so `/help` never crashes, but a
+   noisy fallback is worse than a thoughtful default like
+   `"(not loaded)"`.
+
+### Reusable helpers (`termapy.help_dynamic`)
+
+Most dynamic help lines fall into a handful of shapes, so the built-ins
+share a small helper module. Prefer these over hand-rolling — the
+output is green-on-default and uniform across every command.
+
+```python
+from termapy.help_dynamic import (
+    state_line,   # "Current <label> = <value>" in green
+    folder_line,  # "<N> files in <folder>/" in green
+    port_status,  # "Connected: COM3 @ 115200 8N1" or "Not connected"
+    cfg_status,   # "Active cfg = demo (2 configs available)"
+    ns_count,     # len(ctx.ns(name)), guards a missing ns
+    compose,      # join non-empty parts with a blank line between
+    green,        # wrap any text in green markup
+)
+
+def _long_help(ctx):
+    return compose(
+        folder_line(ctx, "run", noun="script"),
+        "Run a .run script from the run/ folder.",
+    )
+```
+
+`compose` drops empty parts, so a callable that returns `""` for
+"no state yet" collapses gracefully. For a single-value command
+that needs no prose, you can pass the helper directly:
+
+```python
+"baud_rate": Command(
+    help="Show or set baud rate.",
+    long_help=lambda ctx: state_line("baud rate", ctx.cfg.get("baud_rate")),
+    handler=_baud_handler,
+),
+```
+
 ## Serial I/O pattern
 
 Most plugins follow this pattern: send a command, read the response, do something with it.

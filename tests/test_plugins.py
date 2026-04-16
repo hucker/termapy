@@ -102,7 +102,7 @@ class TestCapabilitySet:
         """Typos in field names fail loudly at construction time."""
         # Act / Assert — a misspelled field is not silently ignored.
         with pytest.raises(TypeError):
-            CapabilitySet(block_untill=True)  # type: ignore[call-arg]
+            CapabilitySet(block_untl=True)  # type: ignore[call-arg]
 
     def test_baseline_defaults_true(self):
         """Baseline capabilities default True so every environment has them."""
@@ -338,6 +338,37 @@ COMMAND = Command(
         assert "tool.sub" in names, "interior"
         assert "tool.sub.leaf" in names, "leaf"
         assert len(result.plugins) == 3, "root + interior + leaf"
+
+    def test_flatten_preserves_callable_long_help(self, plugin_dir):
+        """A callable long_help survives the Command -> PluginInfo copy.
+
+        Guards against a future refactor that might coerce long_help to str
+        at flatten time. Dynamic help is a contract with the renderer; the
+        callable must reach it unchanged.
+        """
+        # Arrange
+        _write_plugin(plugin_dir, "dyn.py", '''
+from termapy.plugins import Command
+
+def _handler(ctx, args): pass
+def _dyn(ctx): return "live text"
+
+COMMAND = Command(
+    name="dyn",
+    help="Dynamic help test.",
+    long_help=_dyn,
+    handler=_handler,
+)
+''')
+
+        # Act
+        result = load_plugins_from_dir(plugin_dir, "test")
+        info = [p for p in result.plugins if p.name == "dyn"][0]
+
+        # Assert — long_help is still callable (same identity isn't possible
+        # across module loads, but we can check it's callable and returns our text)
+        assert callable(info.long_help), "callable survived flatten"
+        assert info.long_help(None) == "live text", "callable still works"
 
     def test_interior_gets_synthetic_handler(self, plugin_dir):
         # Arrange

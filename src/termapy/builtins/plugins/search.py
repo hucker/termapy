@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CmdResult, Command, resolve_long_help
 
 # Reuse only the thin rendering helpers from the help plugin. Everything
 # search-specific (grammar, field extraction, highlighter) lives below.
@@ -74,8 +74,15 @@ def _parse_search_terms(query: str) -> tuple[list[str], list[str]]:
     return positives, negatives
 
 
-def _field_text(name: str, plugin, field: str) -> str:
-    """Return the text body for a given searchable field on one plugin."""
+def _field_text(name: str, plugin, field: str,
+                ctx: PluginContext | None = None) -> str:
+    """Return the text body for a given searchable field on one plugin.
+
+    ``long_help`` may be a callable; when ``ctx`` is supplied we resolve
+    it. Without ``ctx`` (some unit tests) a callable long_help contributes
+    no searchable text. Exceptions inside a callable are caught via
+    ``resolve_long_help``.
+    """
     if field == "name":
         return name
     if field == "flags":
@@ -85,6 +92,11 @@ def _field_text(name: str, plugin, field: str) -> str:
         return " ".join(parts)
     if field == "docstring":
         return getattr(plugin.handler, "__doc__", None) or ""
+    if field == "long_help":
+        if ctx is not None:
+            return resolve_long_help(plugin, ctx)
+        lh = plugin.long_help
+        return lh if isinstance(lh, str) else ""
     return getattr(plugin, field, "") or ""
 
 
@@ -95,19 +107,25 @@ def _tier_fields(include_dev: bool) -> tuple[str, ...]:
     return _FUZZY_FIELDS
 
 
-def _best_tier(needle: str, name: str, plugin,
-               fields: tuple[str, ...]) -> tuple[int | None, str]:
-    """Return the highest-priority (tier, field) where ``needle`` appears."""
+def _best_tier(needle: str, name: str, plugin, fields: tuple[str, ...],
+               ctx: PluginContext | None = None
+               ) -> tuple[int | None, str]:
+    """Return the highest-priority (tier, field) where ``needle`` appears.
+
+    ``ctx`` is forwarded to ``_field_text`` so callable long_help is
+    resolved to its current rendered string before matching.
+    """
     needle = needle.lower()
     for tier, field in enumerate(fields):
-        text = _field_text(name, plugin, field).lower()
+        text = _field_text(name, plugin, field, ctx).lower()
         if needle in text:
             return tier, field
     return None, ""
 
 
-def _fuzzy_matches(query: str, plugins: dict,
-                   include_dev: bool = False) -> list[tuple[str, str]]:
+def _fuzzy_matches(query: str, plugins: dict, include_dev: bool = False,
+                   ctx: PluginContext | None = None
+                   ) -> list[tuple[str, str]]:
     """Return ``(command_name, field)`` pairs for a multi-term query.
 
     All positive terms must appear somewhere in the searched fields; any
@@ -116,6 +134,9 @@ def _fuzzy_matches(query: str, plugins: dict,
     comes from the *first* positive term, keeping ranking predictable
     when two terms could each hit different fields. Results sorted by
     that tier, then alphabetically.
+
+    ``ctx`` is threaded through to ``_field_text`` so callable long_help
+    values are resolved before matching.
     """
     positives, negatives = _parse_search_terms(query)
     if not positives:
@@ -123,16 +144,16 @@ def _fuzzy_matches(query: str, plugins: dict,
     fields = _tier_fields(include_dev)
     ranked: list[tuple[int, str, str]] = []
     for name, plugin in plugins.items():
-        tier, field = _best_tier(positives[0], name, plugin, fields)
+        tier, field = _best_tier(positives[0], name, plugin, fields, ctx)
         if tier is None:
             continue
         if not all(
-            _best_tier(t, name, plugin, fields)[0] is not None
+            _best_tier(t, name, plugin, fields, ctx)[0] is not None
             for t in positives[1:]
         ):
             continue
         if any(
-            _best_tier(t, name, plugin, fields)[0] is not None
+            _best_tier(t, name, plugin, fields, ctx)[0] is not None
             for t in negatives
         ):
             continue
@@ -158,15 +179,28 @@ def _highlight(text: str, span: tuple[int, int]) -> str:
     return f"{prefix}{before}[yellow]{hit}[/]{after}{suffix}"
 
 
-def _search_fields(name: str, plugin, include_dev: bool
+def _search_fields(name: str, plugin, include_dev: bool,
+                   ctx: PluginContext | None = None
                    ) -> list[tuple[str, str]]:
-    """Return (field_label, field_text) pairs to search for one plugin."""
+    """Return (field_label, field_text) pairs to search for one plugin.
+
+    ``long_help`` may be a callable; when ``ctx`` is supplied we resolve it
+    via ``resolve_long_help`` so dynamic DESCRIPTION content is searchable
+    too. If ``ctx`` is None (e.g. a unit test that doesn't have one handy)
+    the callable is not invoked and a callable long_help contributes no
+    search text.
+    """
+    if ctx is not None:
+        long_help_text = resolve_long_help(plugin, ctx)
+    else:
+        lh = plugin.long_help
+        long_help_text = lh if isinstance(lh, str) else ""
     fields = [
         ("name", name),
         ("help", plugin.help or ""),
         ("args", plugin.args or ""),
         ("flags", _field_text(name, plugin, "flags")),
-        ("long_help", plugin.long_help or ""),
+        ("long_help", long_help_text),
     ]
     if include_dev:
         docstring = getattr(plugin.handler, "__doc__", None) or ""
@@ -240,7 +274,7 @@ def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
     for name in sorted(ctx.engine.plugins):
         plugin = ctx.engine.plugins[name]
         hit_fields: list[tuple[str, str, tuple[int, int]]] = []
-        for label, text in _search_fields(name, plugin, include_dev):
+        for label, text in _search_fields(name, plugin, include_dev, ctx):
             m = rx.search(text)
             if m:
                 hit_fields.append((label, text, m.span()))
@@ -259,7 +293,9 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
                  prefix: str) -> CmdResult:
     """Literal-mode search: multi-term AND + `-exclude` grammar, context snippets."""
     positives, _ = _parse_search_terms(pattern)
-    matches = _fuzzy_matches(pattern, ctx.engine.plugins, include_dev=include_dev)
+    matches = _fuzzy_matches(
+        pattern, ctx.engine.plugins, include_dev=include_dev, ctx=ctx,
+    )
     rendered = 0
     truncated = False
     ordered_names: list[str] = []
@@ -267,7 +303,7 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
         ordered_names.append(name)
         plugin = ctx.engine.plugins[name]
         hit_fields: list[tuple[str, str, tuple[int, int]]] = []
-        for label, text in _search_fields(name, plugin, include_dev):
+        for label, text in _search_fields(name, plugin, include_dev, ctx):
             text_lc = text.lower()
             for term in positives:
                 idx = text_lc.find(term.lower())

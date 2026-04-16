@@ -439,6 +439,177 @@ class TestHelp:
             "DESCRIPTION skipped when long_help is empty"
         )
 
+    def test_help_callable_long_help_is_invoked(self, repl_env):
+        """A callable long_help is called at render time and its result appears."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="dyncmd", args="", help="Dynamic test.",
+            handler=lambda ctx, args: None,
+            long_help=lambda ctx: "dynamic text here",
+        ))
+
+        # Act
+        engine.dispatch("help dyncmd")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("DESCRIPTION" in t for t in texts), "DESCRIPTION header emitted"
+        assert any("dynamic text here" in t for t in texts), \
+            "callable result appears in rendered output"
+
+    def test_help_callable_long_help_receives_ctx(self, repl_env):
+        """The callable gets the live PluginContext and can read ns/cfg."""
+        # Arrange — callable that reads a namespace populated in the fixture
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def dyn(ctx):
+            items = ctx.ns("mytest")
+            return f"count={len(items)}"
+
+        engine.register_plugin(PluginInfo(
+            name="ctxcmd", args="", help="Reads ctx.ns.",
+            handler=lambda ctx, args: None,
+            long_help=dyn,
+        ))
+        # Seed the ns after registration -- the callable reads live state.
+        engine.ctx.ns("mytest").update({"a": 1, "b": 2})
+
+        # Act
+        engine.dispatch("help ctxcmd")
+
+        # Assert — the two items are reflected live.
+        texts = [t for t, _ in output]
+        assert any("count=2" in t for t in texts), \
+            "callable receives live ctx and reads ns() correctly"
+
+    def test_help_callable_long_help_exception_is_caught(self, repl_env):
+        """A raising callable yields a fallback string; /help does not crash."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def boom(ctx):
+            raise RuntimeError("boom")
+
+        engine.register_plugin(PluginInfo(
+            name="boomcmd", args="", help="Broken help.",
+            handler=lambda ctx, args: None,
+            long_help=boom,
+        ))
+
+        # Act — must not propagate
+        result = engine.dispatch("help boomcmd")
+
+        # Assert — fallback present, command reports success
+        texts = [t for t, _ in output]
+        assert result.success is True, "rendering survives exception"
+        assert any("dynamic help failed" in t for t in texts), \
+            "fallback prefix appears"
+        assert any("boom" in t for t in texts), "exception message included"
+
+    def test_help_callable_empty_result_omits_description(self, repl_env):
+        """Callable returning '' omits DESCRIPTION, matching static-empty behavior."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="silentcmd", args="", help="No dynamic text.",
+            handler=lambda ctx, args: None,
+            long_help=lambda ctx: "",
+        ))
+
+        # Act
+        engine.dispatch("help silentcmd")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert not any("DESCRIPTION" in t for t in texts), \
+            "empty callable result hides the DESCRIPTION section"
+
+    def test_search_callable_long_help_is_indexed(self, repl_env):
+        """/search invokes callable long_help so dynamic text is findable."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="uniquecmd", args="", help="Plain help.",
+            handler=lambda ctx, args: None,
+            long_help=lambda ctx: "UNIQUEHAPAX appears only in dynamic help",
+        ))
+
+        # Act
+        result = engine.dispatch("search UNIQUEHAPAX")
+
+        # Assert — the command surfaces via its dynamic long_help text
+        names = result.value.splitlines() if result.value else []
+        assert "uniquecmd" in names, \
+            "callable long_help contributes to /search index"
+
+    def test_help_cfg_shows_active_cfg_line(self, repl_env):
+        """/help cfg prepends the Active cfg line (dynamic help wired via cfg_status)."""
+        # Arrange -- repl_env gives us a config_path under tmp_path.
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help cfg")
+
+        # Assert -- the dynamic state line lands in DESCRIPTION, and the
+        # existing prose still follows it. The cfg name is the parent
+        # directory stem; with the test fixture that's the tmp_path's
+        # pytest-generated name, so we just look for the prefix.
+        texts = [t for t, _ in output]
+        assert any("Active cfg =" in t for t in texts), \
+            "Active cfg label appears in DESCRIPTION"
+        assert any("Three modes" in t for t in texts), \
+            "existing cfg prose still renders after dynamic line"
+
+    def test_help_port_baud_rate_shows_current_value(self, repl_env):
+        """/help port.baud_rate prints the single-value state line."""
+        # Arrange -- fixture cfg["baud_rate"] = 115200
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help port.baud_rate")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("Current baud rate = 115200" in t for t in texts), \
+            "dynamic state line reflects cfg value"
+
+    def test_help_include_reports_zero_included(self, repl_env):
+        """/help include opens with 'Currently included: none' when ns is empty."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help include")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("Currently included: none" in t for t in texts), \
+            "empty target_commands ns reflected in help"
+
+    def test_help_include_reports_count_when_populated(self, repl_env):
+        """Populating ns('target_commands') updates /help include output."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import TargetCommand
+        engine.ctx.ns("target_commands").update({
+            "X": TargetCommand(name="X", help="x", args=""),
+            "Y": TargetCommand(name="Y", help="y", args=""),
+        })
+
+        # Act
+        engine.dispatch("help include")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("2 device commands" in t for t in texts), \
+            "count reflects populated ns"
+
     def test_help_renders_flags_section(self, repl_env):
         """/help <cmd> shows a FLAGS section for commands that declare flags."""
         # Arrange

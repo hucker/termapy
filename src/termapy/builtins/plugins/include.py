@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from packaging.version import InvalidVersion, Version
+
 from termapy.help_dynamic import compose, green, ns_count
 from termapy.plugins import CapabilitySet, CmdResult, Command, TargetCommand
 from termapy.scripting import parse_duration, parse_keywords
@@ -26,42 +28,154 @@ def _cache_path(ctx: PluginContext) -> Path:
     return Path(ctx.config_path).parent / _CACHE_NAME
 
 
+def _is_newer(new: str | None, cached: str | None) -> bool:
+    """Return True if ``new`` is strictly newer than ``cached``.
+
+    Versions are compared with PEP 440 semantics (``packaging.Version``)
+    so ``"1.10"`` beats ``"1.9"`` and ``"2024.11.5"`` works.  If either
+    side isn't parseable (e.g. a git hash like ``a3f2c91``), we fall
+    back to plain string inequality: differ = newer, equal = not newer.
+
+    A ``None`` new version is never newer than anything.  A ``None``
+    cached version means the cache has no version recorded; any
+    explicit new version is treated as newer so the first time a
+    device starts publishing a version, the richer data wins.
+    """
+    if new is None:
+        return False
+    if cached is None:
+        return True
+    try:
+        return Version(new) > Version(cached)
+    except InvalidVersion:
+        return new != cached
+
+
+def _extract_version(data: dict) -> str | None:
+    """Pull the top-level ``version`` key off an include JSON blob.
+
+    Returns ``None`` when absent, when the value isn't a string, or
+    when the string is empty -- every "unknown" shape collapses to
+    the same "no version" answer so callers don't have to branch.
+    """
+    v = data.get("version")
+    if isinstance(v, str) and v:
+        return v
+    return None
+
+
+# ``target_meta`` holds metadata about the currently-loaded target
+# command set.  Today that's just the schema version string; keeping it
+# in its own namespace means the ``target_commands`` dict stays a pure
+# mapping of ``{name: TargetCommand}`` which is what every other
+# consumer (help.py, search.py, app.py, cli.py) iterates.
+_META_NS = "target_meta"
+
+
+def _set_version(ctx: PluginContext, version: str | None) -> None:
+    """Record the version of the currently-loaded target command set."""
+    meta = ctx.ns(_META_NS)
+    if version:
+        meta["version"] = version
+    else:
+        meta.pop("version", None)
+
+
+def _get_version(ctx: PluginContext) -> str | None:
+    """Return the version of the currently-loaded target command set."""
+    return ctx.ns(_META_NS).get("version")
+
+
 def _build_commands(cmd_dict: dict) -> dict[str, TargetCommand]:
-    """Build TargetCommand dict from a commands dict."""
+    """Build TargetCommand dict from a commands dict.
+
+    The JSON entry shape is::
+
+        {
+            "help":      "<one-line summary>",       # required
+            "args":      "<arg spec>",                # optional
+            "long_help": "<multi-line prose>",        # optional
+            "flags":     {"--name": "description"}    # optional
+        }
+
+    Only ``help`` is required.  Unknown keys are ignored so a device can
+    emit future fields without breaking older termapy.  Malformed
+    ``long_help`` (non-string) or ``flags`` (non-dict / non-string-value)
+    are silently dropped rather than failing the whole include.
+    """
     commands: dict[str, TargetCommand] = {}
     for name, entry in cmd_dict.items():
-        if isinstance(entry, dict) and "help" in entry:
-            commands[name] = TargetCommand(
-                name=name,
-                help=entry["help"],
-                args=entry.get("args", ""),
-            )
+        if not (isinstance(entry, dict) and "help" in entry):
+            continue
+        raw_long = entry.get("long_help", "")
+        long_help = raw_long if isinstance(raw_long, str) else ""
+        raw_flags = entry.get("flags", {})
+        flags: dict[str, str] = {}
+        if isinstance(raw_flags, dict):
+            flags = {
+                str(k): str(v)
+                for k, v in raw_flags.items()
+                if isinstance(k, str) and isinstance(v, str)
+            }
+        commands[name] = TargetCommand(
+            name=name,
+            help=entry["help"],
+            args=entry.get("args", ""),
+            long_help=long_help,
+            flags=flags,
+        )
     return commands
 
 
-def _to_json_dict(target: dict[str, TargetCommand]) -> dict:
-    """Convert target commands back to the JSON format."""
-    return {
-        "commands": {
-            name: {"help": tc.help, "args": tc.args}
-            for name, tc in sorted(target.items())
-        }
-    }
+def _to_json_dict(
+    target: dict[str, TargetCommand], version: str | None = None,
+) -> dict:
+    """Convert target commands back to the JSON format.
+
+    Empty ``long_help`` / ``flags`` are omitted so a round-trip of an
+    "old-shape" JSON (help + args only) stays byte-identical.  A
+    ``None`` or empty ``version`` is likewise omitted -- devices that
+    never ship a version keep round-tripping unchanged.
+    """
+    out: dict[str, dict] = {}
+    for name, tc in sorted(target.items()):
+        entry: dict = {"help": tc.help, "args": tc.args}
+        if tc.long_help:
+            entry["long_help"] = tc.long_help
+        if tc.flags:
+            entry["flags"] = dict(tc.flags)
+        out[name] = entry
+    payload: dict = {}
+    if version:
+        payload["version"] = version
+    payload["commands"] = out
+    return payload
 
 
-def _save_cache(ctx: PluginContext, target: dict[str, TargetCommand]) -> None:
-    """Write target commands to the cache file."""
+def _save_cache(
+    ctx: PluginContext,
+    target: dict[str, TargetCommand],
+    version: str | None = None,
+) -> None:
+    """Write target commands (and optional schema version) to the cache file."""
     try:
         _cache_path(ctx).write_text(
-            json.dumps(_to_json_dict(target), indent=2),
+            json.dumps(_to_json_dict(target, version), indent=2),
             encoding="utf-8",
         )
     except OSError:
         pass
 
 
-def _load_cache(ctx: PluginContext) -> dict[str, TargetCommand] | None:
-    """Load target commands from cache file. Returns None if missing/corrupt."""
+def _load_cache(
+    ctx: PluginContext,
+) -> tuple[dict[str, TargetCommand], str | None] | None:
+    """Load target commands + cached schema version from disk.
+
+    Returns ``(commands, version)`` on success or ``None`` if the cache
+    is missing, corrupt, or empty.  The version is the cached JSON's
+    top-level ``version`` field, or ``None`` if absent.
+    """
     path = _cache_path(ctx)
     if not path.exists():
         return None
@@ -75,7 +189,8 @@ def _load_cache(ctx: PluginContext) -> dict[str, TargetCommand] | None:
         if not commands:
             path.unlink(missing_ok=True)
             return None
-        return commands
+        version = _extract_version(data) if isinstance(data, dict) else None
+        return commands, version
     except (OSError, json.JSONDecodeError, ValueError):
         path.unlink(missing_ok=True)
         return None
@@ -106,8 +221,21 @@ def _read_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
     return None
 
 
-def _fetch_and_include(ctx: PluginContext, cmd: str, timeout_ms: int) -> CmdResult:
-    """Send command, read JSON, build TargetCommands, save cache."""
+def _fetch_and_include(
+    ctx: PluginContext, cmd: str, timeout_ms: int, *, force: bool = False,
+) -> CmdResult:
+    """Send command, read JSON, build TargetCommands, cache on version win.
+
+    Version gating:
+      - ``force=True`` (``/include.reload``): always overwrite.
+      - ``force=False`` (auto path): load the cache first, parse both
+        versions, and keep the cache when the fetched version isn't
+        strictly newer.  See ``_is_newer``.
+
+    The compare uses the cache's file copy as the source of truth for
+    "what version do we currently have" -- the in-memory ns can be
+    empty on a fresh process even when a cache exists on disk.
+    """
     if not ctx.is_connected():
         return CmdResult.fail(msg="Not connected.")
 
@@ -134,11 +262,33 @@ def _fetch_and_include(ctx: PluginContext, cmd: str, timeout_ms: int) -> CmdResu
     if not commands:
         return CmdResult.fail(msg="Include: JSON contained no valid commands.")
 
+    new_version = _extract_version(data)
+
+    # Version gate -- only on the auto path, and only when a cache exists.
+    # No cache => always use the fetch (covers first-time include).
+    if not force:
+        cached = _load_cache(ctx)
+        if cached is not None:
+            cached_commands, cached_version = cached
+            if not _is_newer(new_version, cached_version):
+                target = ctx.ns("target_commands")
+                target.clear()
+                target.update(cached_commands)
+                _set_version(ctx, cached_version)
+                ctx.result(
+                    f"Included {len(cached_commands)} device commands "
+                    f"(cache kept, version {cached_version or '?'} "
+                    f">= fetched {new_version or '?'})."
+                )
+                return CmdResult.ok(value=str(len(cached_commands)))
+
     target = ctx.ns("target_commands")
     target.clear()
     target.update(commands)
-    _save_cache(ctx, commands)
-    ctx.result(f"Included {len(commands)} device commands.")
+    _set_version(ctx, new_version)
+    _save_cache(ctx, commands, new_version)
+    tag = f" (v{new_version})" if new_version else ""
+    ctx.result(f"Included {len(commands)} device commands{tag}.")
     return CmdResult.ok(value=str(len(commands)))
 
 
@@ -176,10 +326,15 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     # 2. Disk cache
     from_disk = _load_cache(ctx)
-    if from_disk:
-        existing.update(from_disk)
-        ctx.result(f"Included {len(from_disk)} device commands (from cache).")
-        return CmdResult.ok(value=str(len(from_disk)))
+    if from_disk is not None:
+        commands, version = from_disk
+        existing.update(commands)
+        _set_version(ctx, version)
+        tag = f" (v{version})" if version else ""
+        ctx.result(
+            f"Included {len(commands)} device commands (from cache{tag})."
+        )
+        return CmdResult.ok(value=str(len(commands)))
 
     # 3. Serial command
     parsed = _parse_include_args(ctx, args)
@@ -190,21 +345,26 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
-    """Force re-include from device, ignoring all caches."""
+    """Force re-include from device, ignoring all caches and version checks."""
     parsed = _parse_include_args(ctx, args)
     if isinstance(parsed, CmdResult):
         return parsed
     cmd, timeout_ms = parsed
-    return _fetch_and_include(ctx, cmd, timeout_ms)
+    return _fetch_and_include(ctx, cmd, timeout_ms, force=True)
 
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """Pretty-print the included target commands as JSON."""
+    """Pretty-print the included target commands as JSON.
+
+    Preserves the ``version`` key from the original JSON so a dump is
+    a valid input to a future ``/include.reload``.
+    """
     target = ctx.ns("target_commands")
     if not target:
         ctx.result("No target commands included.")
         return CmdResult.ok()
-    for line in json.dumps(_to_json_dict(target), indent=2).splitlines():
+    payload = _to_json_dict(target, _get_version(ctx))
+    for line in json.dumps(payload, indent=2).splitlines():
         ctx.output(f"  {line}")
     return CmdResult.ok()
 
@@ -212,6 +372,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
     """Remove all included target commands and delete cache file."""
     ctx.ns("target_commands").clear()
+    _set_version(ctx, None)
     try:
         _cache_path(ctx).unlink(missing_ok=True)
     except OSError:

@@ -32,10 +32,67 @@ Each command entry has:
 
 - `help` (required) -- one-line description
 - `args` (optional) -- argument spec, defaults to empty
+- `long_help` (optional) -- multi-line prose shown in the DESCRIPTION
+  section of `/help <command>`. Plain text, no markup.
+- `flags` (optional) -- flag map, same shape as a plugin's `Command.flags`.
+  Keys are canonical flag names (e.g. `--verbose`) with a description
+  string value, or aliases (key = alias, value = canonical flag name).
+
+A richer entry looks like this:
+
+```json
+{
+    "AT+LED": {
+        "help": "Control LED",
+        "args": "<on|off> {--blink}",
+        "long_help": "Drive the on-board status LED.\n\nExamples:\n  AT+LED on          - solid on\n  AT+LED on --blink  - blink at 2 Hz",
+        "flags": {
+            "--blink": "Blink at 2 Hz instead of solid on.",
+            "-b": "--blink"
+        }
+    }
+}
+```
+
+`/help AT+LED` then renders NAME, SYNOPSIS, DESCRIPTION, and FLAGS in
+the same layout as a built-in plugin. `/search` also indexes these
+fields, so `/search blink` finds the device command by its flag
+description.
+
+Only `help` is required -- entries with just `help` + `args` still
+work and render a short one-line form, so existing firmware that
+ships an older schema isn't affected.
 
 The JSON can be a single line or pretty-printed. Termapy scans the
 response for the first `{` and parses from there, so preamble text
 (echo, status messages) before the JSON is fine.
+
+## Schema versioning
+
+The top-level JSON may optionally carry a `version` string.  This is
+the **device's** schema version -- not termapy's -- so firmware can
+signal when the command set changes and termapy should refresh its
+cache.  Any string works (semver, date, build hash).
+
+```json
+{
+    "version": "1.4.0",
+    "commands": { "...": {} }
+}
+```
+
+On every include from the device, termapy compares the fetched
+`version` to the cached one:
+
+- **Strictly newer** (PEP 440 compare, or string inequality for
+  unparseable values) -> overwrite the cache.
+- **Equal, older, or missing on the new side** -> keep the cache.
+- **No cache on disk** -> always use the fetch (first-time case).
+
+`/include.reload` bypasses the gate and always overwrites, so users
+who want to force a refresh still have a lever.  The version is
+preserved through `/include.dump` so a dumped JSON is a valid
+drop-in for another device.
 
 ## Config
 

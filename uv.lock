@@ -832,6 +832,7 @@ name = "termapy"
 version = "0.58.0"
 source = { editable = "." }
 dependencies = [
+    { name = "packaging" },
     { name = "prompt-toolkit" },
     { name = "pygments" },
     { name = "textual" },
@@ -853,6 +854,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "packaging", specifier = ">=24.0" },
     { name = "prompt-toolkit", specifier = ">=3.0" },
     { name = "pygments", specifier = ">=2.20.0" },
     { name = "textual", specifier = ">=0.80" },

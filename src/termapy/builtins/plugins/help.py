@@ -326,6 +326,50 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
         ctx.write_markup(f"  [{_SRC}](source: {plugin.source})[/]")
 
 
+def _render_target_man_page(ctx: PluginContext, tc) -> None:
+    """Render a device-supplied command in the same man-page shape as plugins.
+
+    Sections: NAME, SYNOPSIS (if args), DESCRIPTION (if long_help),
+    FLAGS (if any).  The source line always reads "target device" so
+    users can see at a glance that a command came from /include rather
+    than a plugin.
+
+    There is intentionally no REQUIRES, SUBCOMMANDS, or SEE ALSO --
+    target commands have no capability declarations, no subcommand
+    tree, and no sibling relationships in termapy's registry.
+    """
+    # NAME ────────────────────────────────────────────────────────────────────
+    ctx.write_markup(_SECTION_FMT.format(text="NAME"))
+    ctx.write_markup(f"  [{_CMD}]{tc.name}[/] - {tc.help}")
+
+    # SYNOPSIS ────────────────────────────────────────────────────────────────
+    if tc.args:
+        ctx.write_markup("")
+        ctx.write_markup(_SECTION_FMT.format(text="SYNOPSIS"))
+        ctx.write_markup(f"  [{_CMD}]{tc.name}[/] {_color_args(tc.args)}")
+
+    # DESCRIPTION ─────────────────────────────────────────────────────────────
+    if tc.long_help:
+        ctx.write_markup("")
+        ctx.write_markup(_SECTION_FMT.format(text="DESCRIPTION"))
+        for line in tc.long_help.strip().splitlines():
+            ctx.write_markup(f"  {line}")
+
+    # FLAGS ───────────────────────────────────────────────────────────────────
+    # _canonical_flags is duck-typed on a `.flags` attribute, so it works
+    # for TargetCommand unchanged.
+    rows = _canonical_flags(tc)
+    if rows:
+        ctx.write_markup("")
+        ctx.write_markup(_SECTION_FMT.format(text="FLAGS"))
+        for canonical, aliases, desc in rows:
+            names = ", ".join([canonical, *aliases])
+            ctx.write_markup(f"  [{_OPT}]{names}[/] - {desc}")
+
+    ctx.write_markup("")
+    ctx.write_markup(f"  [{_SRC}](source: target device)[/]")
+
+
 # ── Candidate list rendering ─────────────────────────────────────────────────
 
 
@@ -378,10 +422,7 @@ def _show_command_help(ctx: PluginContext, name: str,
     # 2. Target device (help-only commands imported from a connected device).
     tc = ctx.ns("target_commands").get(name)
     if tc is not None:
-        arg_str = f" {_color_args(tc.args)}" if tc.args else ""
-        ctx.write_markup(_SECTION_FMT.format(text="NAME"))
-        ctx.write_markup(f"  [{_CMD}]{tc.name}[/]{arg_str} - {tc.help}")
-        ctx.write_markup(f"  [{_SRC}](source: target device)[/]")
+        _render_target_man_page(ctx, tc)
         return CmdResult.ok()
 
     # 3. Forgiving candidate list (name + short help only -- args, long_help,
@@ -414,7 +455,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for engine plugin registry and output.
         args: Optional command name (or search term) to look up.
     """
-    name = args.strip().lower() if isinstance(args, str) else ""
+    # Preserve case: plugin names are conventionally lowercase, but device
+    # commands brought in by /include (AT+INFO, $GPGGA) are usually upper.
+    # Matching exactly lets both kinds round-trip; users who mistype the
+    # casing fall through to the forgiving candidate list, which does its
+    # own case-insensitive matching internally.
+    name = args.strip() if isinstance(args, str) else ""
     prefix = ctx.engine.prefix
     if name:
         return _show_command_help(ctx, name)
@@ -642,7 +688,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
     """Show a command handler's Python docstring (developer info)."""
-    name = args.strip().lower() if isinstance(args, str) else ""
+    name = args.strip() if isinstance(args, str) else ""
     if not name:
         return CmdResult.fail(msg="Usage: /help.dev <cmd>")
     return _show_command_help(ctx, name, dev_mode=True)

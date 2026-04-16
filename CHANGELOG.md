@@ -7,6 +7,12 @@
 - **Dynamic help** -- `Command.long_help` (and `PluginInfo.long_help`) now accepts a callable `(PluginContext) -> str` as well as a static string. Callables are invoked at render time so a command's DESCRIPTION section can reflect live runtime state (loaded files, current connection, cached counts). Existing static-string declarations are unchanged. See `writing-plugins.md` for the pattern.
 - **Dynamic help on built-in commands** -- `/help` for `/cfg`, `/port` and each port subcommand, `/include`, `/cap.*`, `/ss`, `/run.edit`, `/proto` (+ subcommands), `/edit.run|proto|plugin`, `/var`, `/env`, and `/seq` now opens with a green single-line status reflecting the current state (active cfg name, connected port, counter count, file counts in the relevant folder, etc.). Single-value commands show only the state line; multi-option commands keep their existing prose.
 - **Dynamic-help helpers** -- new `termapy.help_dynamic` module supplies small reusable building blocks (`state_line`, `folder_line`, `port_status`, `cfg_status`, `ns_count`, `compose`, `green`) so plugin authors can wire dynamic DESCRIPTION content in one or two lines. See `writing-plugins.md`.
+- **Target-command parity** -- `/include`'d device commands now support optional `long_help` and `flags` fields in their JSON. `/help <target>` renders a full man page (NAME, SYNOPSIS, DESCRIPTION, FLAGS, source marker) when those fields are present. `/search` indexes target commands alongside REPL plugins, tagging device-command hits with `(target)` so they're visually distinct. The demo device's `AT+HELP.JSON` uses the new fields on `AT+INFO`, `AT+TEMP`, `AT+LED`, and `AT+BINDUMP` so the feature is live out of the box in `--demo`.
+- **Device schema versioning** -- `/include` JSON may carry an optional top-level `version` string (device's own schema version, not termapy's). On fetch, if the device's version is strictly newer than the cached one (PEP 440 compare), the cache is overwritten; otherwise the cache is kept. First-time fetches with no cache always apply. `/include.reload` still bypasses the gate for manual refresh. The demo device advertises `"version": "1.0.0"` so the round-trip is exercised end-to-end.
+
+### Changes
+
+- **`/help` is now case-sensitive on exact match** -- the argument is no longer lowercased before lookup. Plugin names (conventionally lowercase) and device AT commands (conventionally upper) both match exactly. Typing `/help INCLUDE` used to silently lowercase and hit `/include`; it now falls through to the forgiving candidate list (which is still case-insensitive internally), where `/include` surfaces as a candidate. This is the change that makes `/help AT+INFO` work for included device commands.
 
 ## 0.58.0 (2026-04-15)
 
@@ -77,7 +83,6 @@ Architecture and CLI experience release. Extracts a shared TerminalHost base cla
 - **Test coverage boost** -- 68 new tests covering terminal_host.py (92%), repl.py (89%), overall 66% to 70%.
 - **Type checker clean** -- all `ty check` overrides resolved.
 - **Port in-use detection** -- correctly identifies when termapy itself has a port open vs another process.
-
 
 ## 0.55.0 (2026-04-09)
 

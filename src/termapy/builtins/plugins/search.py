@@ -49,6 +49,22 @@ _CMD = "cyan"
 _SEP = "dim"
 
 
+def _indexable_commands(ctx: PluginContext) -> dict:
+    """Merged view of REPL plugins plus included target-device commands.
+
+    TargetCommand duck-types on the attributes search reads:
+    ``help``, ``args``, ``flags``, ``long_help``.  It has no ``handler``;
+    the ``--dev`` docstring branch in ``_field_text`` uses
+    ``getattr(..., None)`` and degrades cleanly to empty.
+
+    Plugin names win on collision -- a REPL /command wearing the same
+    spelling as a device command is the more specific hit.
+    """
+    merged = dict(ctx.ns("target_commands"))
+    merged.update(ctx.engine.plugins)
+    return merged
+
+
 # ── Grammar + matching ───────────────────────────────────────────────────────
 
 
@@ -210,8 +226,13 @@ def _search_fields(name: str, plugin, include_dev: bool,
 
 def _render_hit(ctx: PluginContext, prefix: str, name: str, plugin,
                 hit_fields: list[tuple[str, str, tuple[int, int]]],
-                underlines: list[str] | None = None) -> None:
-    """Render a single search result: header line + per-field context sublines."""
+                underlines: list[str] | None = None,
+                is_target: bool = False) -> None:
+    """Render a single search result: header line + per-field context sublines.
+
+    ``is_target`` suppresses the REPL prefix and appends a dim "(target)"
+    marker so device commands are visually distinguishable from plugins.
+    """
     args_colored = _color_args(plugin.args) if plugin.args else ""
     if underlines:
         header_name = _underline(name, underlines)
@@ -220,8 +241,10 @@ def _render_hit(ctx: PluginContext, prefix: str, name: str, plugin,
         header_name = name
         header_help = plugin.help
     arg_str = f" {args_colored}" if args_colored else ""
+    shown_prefix = "" if is_target else prefix
+    target_tag = f"  [{_SEP}](target)[/]" if is_target else ""
     ctx.write_markup(
-        f"[{_CMD}]{prefix}{header_name}[/]{arg_str} - {header_help}"
+        f"[{_CMD}]{shown_prefix}{header_name}[/]{arg_str} - {header_help}{target_tag}"
     )
     for label, text, span in hit_fields:
         if label in ("name", "help", "args"):
@@ -268,11 +291,13 @@ def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
     except re.error as e:
         return CmdResult.fail(msg=f"Invalid regex: {e}")
 
+    indexable = _indexable_commands(ctx)
+    targets = ctx.ns("target_commands")
     matches: list[str] = []
     rendered = 0
     truncated = False
-    for name in sorted(ctx.engine.plugins):
-        plugin = ctx.engine.plugins[name]
+    for name in sorted(indexable):
+        plugin = indexable[name]
         hit_fields: list[tuple[str, str, tuple[int, int]]] = []
         for label, text in _search_fields(name, plugin, include_dev, ctx):
             m = rx.search(text)
@@ -284,7 +309,8 @@ def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
         if rendered >= _MAX_SEARCH_RESULTS:
             truncated = True
             continue
-        _render_hit(ctx, prefix, name, plugin, hit_fields)
+        _render_hit(ctx, prefix, name, plugin, hit_fields,
+                    is_target=(name in targets and name not in ctx.engine.plugins))
         rendered += 1
     return _finish(ctx, pattern, matches, truncated)
 
@@ -293,15 +319,17 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
                  prefix: str) -> CmdResult:
     """Literal-mode search: multi-term AND + `-exclude` grammar, context snippets."""
     positives, _ = _parse_search_terms(pattern)
+    indexable = _indexable_commands(ctx)
+    targets = ctx.ns("target_commands")
     matches = _fuzzy_matches(
-        pattern, ctx.engine.plugins, include_dev=include_dev, ctx=ctx,
+        pattern, indexable, include_dev=include_dev, ctx=ctx,
     )
     rendered = 0
     truncated = False
     ordered_names: list[str] = []
     for name, _field in matches:
         ordered_names.append(name)
-        plugin = ctx.engine.plugins[name]
+        plugin = indexable[name]
         hit_fields: list[tuple[str, str, tuple[int, int]]] = []
         for label, text in _search_fields(name, plugin, include_dev, ctx):
             text_lc = text.lower()
@@ -315,7 +343,8 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
         if rendered >= _MAX_SEARCH_RESULTS:
             truncated = True
             continue
-        _render_hit(ctx, prefix, name, plugin, hit_fields, underlines=positives)
+        _render_hit(ctx, prefix, name, plugin, hit_fields, underlines=positives,
+                    is_target=(name in targets and name not in ctx.engine.plugins))
         rendered += 1
     return _finish(ctx, pattern, ordered_names, truncated)
 
@@ -344,6 +373,10 @@ COMMAND = Command(
     long_help="""\
 /search hits every searchable field -- name, short help, args, flags,
 long help. It's the deep counterpart to /help's forgiving lookup.
+
+Scope: all REPL commands (plugins) plus target-device commands brought
+in by /include. Device-command hits render without the / prefix and are
+tagged "(target)" so they're easy to spot in results.
 
 Grammar (literal mode, no regex metacharacters):
   /search timeout             all commands mentioning "timeout" somewhere.

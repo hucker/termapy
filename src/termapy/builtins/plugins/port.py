@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy import port_control
+from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
@@ -189,12 +190,107 @@ def _make_signal_handler(signal: str):
     return _handler
 
 
+# ── Dynamic long_help helpers ────────────────────────────────────────────────
+
+# Single-value subcommands just print "Current <label> = <value>" using the
+# config dict as the source of truth. Config holds the mode even when no
+# port is open, so these still show something useful while disconnected.
+
+def _cfg_value_long_help(key: str, label: str):
+    """Build a callable that renders a state_line for a single cfg key."""
+
+    def _long(ctx: PluginContext) -> str:
+        value = ctx.cfg.get(key, "?")
+        return state_line(label, value)
+
+    return _long
+
+
+def _port_root_long_help(ctx: PluginContext) -> str:
+    return compose(
+        port_status(ctx),
+        "Open, close, list, or configure the serial port.\n"
+        "Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),\n"
+        "USB chip identification (/port.chip.*), and the four mode\n"
+        "settings baud_rate, byte_size, parity, stop_bits.",
+    )
+
+
+def _port_info_long_help(ctx: PluginContext) -> str:
+    return compose(
+        port_status(ctx),
+        "Dumps configured serial parameters, USB chip identification,\n"
+        "and live hardware signal lines (DTR/RTS/CTS/DSR/RI/CD). Works\n"
+        "only on the currently-connected port because the live signals\n"
+        "come from an open Serial object. For chip info on another\n"
+        "port, use /port.chip which has a compatible argument shape.",
+    )
+
+
+def _port_mode_long_help(ctx: PluginContext) -> str:
+    byte = ctx.cfg.get("byte_size", "?")
+    par = ctx.cfg.get("parity", "?")
+    stop = ctx.cfg.get("stop_bits", "?")
+    baud = ctx.cfg.get("baud_rate", "?")
+    return compose(
+        green(f"Current mode = {baud} {par}{byte}{stop}"),
+        "Combined form for baud + mode triple. Accepts '/port.mode\n"
+        "115200 N81' or a subset. Individual subcommands\n"
+        "(/port.baud_rate, /port.byte_size, /port.parity,\n"
+        "/port.stop_bits) exist too.",
+    )
+
+
+def _port_parity_long_help(ctx: PluginContext) -> str:
+    return compose(
+        state_line("parity", ctx.cfg.get("parity", "?")),
+        "Parity bit mode. Values:\n"
+        "  N - none (default for most modern devices)\n"
+        "  E - even\n"
+        "  O - odd\n"
+        "  M - mark (always 1)\n"
+        "  S - space (always 0)",
+    )
+
+
+def _port_flow_long_help(ctx: PluginContext) -> str:
+    return compose(
+        state_line("flow control", ctx.cfg.get("flow_control", "none")),
+        "Serial flow-control mode. Values:\n"
+        "  none    - no flow control (default; most modern devices)\n"
+        "  rtscts  - hardware handshake using the RTS/CTS lines\n"
+        "  xonxoff - software handshake using the 0x11/0x13 bytes\n"
+        "  manual  - leave DTR/RTS under plugin control\n"
+        "Use rtscts only when both ends agree -- a mismatch will\n"
+        "hang transmission silently.",
+    )
+
+
+def _port_hw_line_long_help(line: str, direction: str):
+    """Build long_help for dtr/rts (set) or cts/dsr/ri/cd (read-only)."""
+
+    def _long(ctx: PluginContext) -> str:
+        value = "?"
+        try:
+            p = ctx.port()
+            if p is not None:
+                value = getattr(p, line, "?")
+        except Exception:
+            value = "?"
+        if value is None:
+            value = "?"
+        return state_line(f"{line.upper()} ({direction})", value)
+
+    return _long
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 
 COMMAND = Command(
     name="port",
     args="{name}",
     help="Serial port tools: open, close, list, configure.",
+    long_help=_port_root_long_help,
     handler=_handler_root,
     sub_commands={
         "list": Command(
@@ -209,65 +305,79 @@ COMMAND = Command(
         "mode": Command(
             args="{baud} {mode}",
             help="Show or set serial mode (e.g. /port.mode 9600 N81).",
+            long_help=_port_mode_long_help,
             handler=_handler_mode,
         ),
         "close": Command(
             help="Disconnect from the serial port.",
+            long_help=port_status,
             handler=_handler_close,
         ),
         "info": Command(
             help="Show status, params, chip, and live signals for the connected port.",
+            long_help=_port_info_long_help,
             handler=_handler_info,
         ),
         "baud_rate": Command(
             args="{value}",
             help="Show or set baud rate.",
+            long_help=_cfg_value_long_help("baud_rate", "baud rate"),
             handler=_make_prop_handler("baud_rate"),
         ),
         "byte_size": Command(
             args="{value}",
             help="Show or set data bits.",
+            long_help=_cfg_value_long_help("byte_size", "byte size"),
             handler=_make_prop_handler("byte_size"),
         ),
         "parity": Command(
             args="{value}",
             help="Show or set parity.",
+            long_help=_port_parity_long_help,
             handler=_make_prop_handler("parity"),
         ),
         "stop_bits": Command(
             args="{value}",
             help="Show or set stop bits.",
+            long_help=_cfg_value_long_help("stop_bits", "stop bits"),
             handler=_make_prop_handler("stop_bits"),
         ),
         "flow_control": Command(
             args="{mode}",
             help="Show or set flow control (none/rtscts/xonxoff/manual).",
+            long_help=_port_flow_long_help,
             handler=_handler_flow,
         ),
         "dtr": Command(
             args="{0|1}",
             help="Show or set DTR line (hardware only).",
+            long_help=_port_hw_line_long_help("dtr", "out"),
             handler=_make_hw_handler("dtr"),
         ),
         "rts": Command(
             args="{0|1}",
             help="Show or set RTS line (hardware only).",
+            long_help=_port_hw_line_long_help("rts", "out"),
             handler=_make_hw_handler("rts"),
         ),
         "cts": Command(
             help="Show CTS state (read-only).",
+            long_help=_port_hw_line_long_help("cts", "in"),
             handler=_make_signal_handler("cts"),
         ),
         "dsr": Command(
             help="Show DSR state (read-only).",
+            long_help=_port_hw_line_long_help("dsr", "in"),
             handler=_make_signal_handler("dsr"),
         ),
         "ri": Command(
             help="Show Ring Indicator state (read-only).",
+            long_help=_port_hw_line_long_help("ri", "in"),
             handler=_make_signal_handler("ri"),
         ),
         "cd": Command(
             help="Show Carrier Detect state (read-only).",
+            long_help=_port_hw_line_long_help("cd", "in"),
             handler=_make_signal_handler("cd"),
         ),
         "break": Command(

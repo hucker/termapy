@@ -139,6 +139,42 @@ Two caveats:
    noisy fallback is worse than a thoughtful default like
    `"(not loaded)"`.
 
+### Reusable helpers (`termapy.help_dynamic`)
+
+Most dynamic help lines fall into a handful of shapes, so the built-ins
+share a small helper module. Prefer these over hand-rolling — the
+output is green-on-default and uniform across every command.
+
+```python
+from termapy.help_dynamic import (
+    state_line,   # "Current <label> = <value>" in green
+    folder_line,  # "<N> files in <folder>/" in green
+    port_status,  # "Connected: COM3 @ 115200 8N1" or "Not connected"
+    cfg_status,   # "Active cfg = demo (2 configs available)"
+    ns_count,     # len(ctx.ns(name)), guards a missing ns
+    compose,      # join non-empty parts with a blank line between
+    green,        # wrap any text in green markup
+)
+
+def _long_help(ctx):
+    return compose(
+        folder_line(ctx, "run", noun="script"),
+        "Run a .run script from the run/ folder.",
+    )
+```
+
+`compose` drops empty parts, so a callable that returns `""` for
+"no state yet" collapses gracefully. For a single-value command
+that needs no prose, you can pass the helper directly:
+
+```python
+"baud_rate": Command(
+    help="Show or set baud rate.",
+    long_help=lambda ctx: state_line("baud rate", ctx.cfg.get("baud_rate")),
+    handler=_baud_handler,
+),
+```
+
 ## Serial I/O pattern
 
 Most plugins follow this pattern: send a command, read the response, do something with it.

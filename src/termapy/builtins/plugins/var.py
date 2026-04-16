@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
+from termapy.help_dynamic import compose, green
 from termapy.plugins import CmdResult, Command, Directive, DirectiveResult, Transform
 
 if TYPE_CHECKING:
@@ -345,12 +346,26 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    name="var",
-    args="{name}",
-    help="List user variables, or show one by name.",
-    long_help="""\
+# ── Dynamic long_help ─────────────────────────────────────────────────────────
+
+
+def _var_state_line(ctx: PluginContext) -> str:
+    """Green one-liner: current user + launch + context var counts."""
+    # ctx is unused -- vars live in module-level storage, same across all
+    # PluginContexts within a session. Signature matches the dynamic
+    # long_help contract.
+    _ = ctx
+    user = len(_VARS)
+    launch = len(_LAUNCH_VARS)
+    dyn = len(_DYNAMIC_VARS)
+    ctxv = len(_CONTEXT_VARS)
+    return green(
+        f"Currently defined: {user} user, {launch} launch, "
+        f"{dyn} dynamic, {ctxv} context"
+    )
+
+
+_VAR_PROSE = """\
 User-defined variables use $(NAME) syntax (case-sensitive).
 
 Setting variables (no / prefix needed):
@@ -408,24 +423,39 @@ Escaping (when your data contains literal $):
 Scope: variables persist for the session. They are cleared
 automatically when a script is launched from the Scripts button
 or the Run menu, but NOT when /run is typed interactively.
-Use /var.clear to reset manually.""",
+Use /var.clear to reset manually."""
+
+
+def _var_long_help(ctx: PluginContext) -> str:
+    return compose(_var_state_line(ctx), _VAR_PROSE)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="var",
+    args="{name}",
+    help="List user variables, or show one by name.",
+    long_help=_var_long_help,
     handler=_handler_list,
     raw_args=True,
     sub_commands={
         "set": Command(
             args="<NAME> <value>",
             help="Set a user variable to a literal value.",
+            long_help=_var_state_line,
             handler=_handler_set,
             raw_args=True,
         ),
         "capture": Command(
             args="<NAME> <command>",
             help="Capture command output into a user variable.",
+            long_help=_var_state_line,
             handler=_handler_capture,
             raw_args=True,
         ),
         "clear": Command(
             help="Clear all user variables.",
+            long_help=_var_state_line,
             handler=_handler_clear,
             raw_args=True,
         ),

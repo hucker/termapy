@@ -340,6 +340,14 @@ NAME
 SYNOPSIS
   /port {name}
 
+DESCRIPTION
+  Connected: DEMO @ 115200 8N1
+
+  Open, close, list, or configure the serial port.
+  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
+  USB chip identification (/port.chip.*), and the four mode
+  settings baud_rate, byte_size, parity, stop_bits.
+
 SUBCOMMANDS
   /port.baud_rate       Show or set baud rate.
   /port.break           Send a break signal (default 250ms).
@@ -367,6 +375,8 @@ SYNOPSIS
   /cfg {key {value}}
 
 DESCRIPTION
+  Active cfg = demo (1 config available)
+
   Three modes:
     /cfg              - show all config key/value pairs
     /cfg baud_rate    - show current value of 'baud_rate'
@@ -413,6 +423,8 @@ SYNOPSIS
   /var {name}
 
 DESCRIPTION
+  Currently defined: 0 user, 4 launch, 3 dynamic, 15 context
+
   User-defined variables use $(NAME) syntax (case-sensitive).
 
   Setting variables (no / prefix needed):
@@ -479,6 +491,9 @@ SUBCOMMANDS
 demo> /help cap
 NAME
   /cap - Data capture tools.
+
+DESCRIPTION
+  0 files in cap/
 
 SUBCOMMANDS
   /cap.bin       Capture raw binary bytes.

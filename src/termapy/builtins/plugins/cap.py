@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.protocol import parse_format_spec
 from termapy.scripting import parse_duration, resolve_seq_filename
@@ -615,86 +616,138 @@ def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
+# ── Dynamic long_help ─────────────────────────────────────────────────────────
+
+def _cap_folder_line(ctx: PluginContext) -> str:
+    """Green one-liner showing the count of files in cap/."""
+    return folder_line(ctx, "cap")
+
+
+def _cap_long_help_with_prose(prose: str):
+    """Build a callable that prepends the cap/ file count to a fixed prose body."""
+
+    def _long(ctx: PluginContext) -> str:
+        return compose(_cap_folder_line(ctx), prose)
+
+    return _long
+
+
+_CAP_TEXT_PROSE = (
+    "Passively captures all text arriving from the device for a\n"
+    "fixed duration.  Use /cap.stop to end early.\n"
+    "\n"
+    "Parameters:\n"
+    "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+    "  timeout=<dur>     REQUIRED duration, e.g. 3s, 500ms, 1.5s\n"
+    "  mode=new|append   file mode (default: new)\n"
+    "  echo=on|off       also print captured text to terminal (default off)\n"
+    "  cmd=...           command to send after capture starts (must be last)"
+)
+
+_CAP_BIN_PROSE = (
+    "Captures a fixed number of raw bytes to a binary file.  Ends\n"
+    "when the byte count is reached or the optional timeout expires.\n"
+    "\n"
+    "Parameters:\n"
+    "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+    "  bytes=<N>         REQUIRED target byte count\n"
+    "  mode=new|append   file mode (default: new)\n"
+    "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
+    "  cmd=...           command to send after capture starts (must be last)"
+)
+
+_CAP_STRUCT_PROSE = (
+    "Decodes binary data using C struct field mapping into CSV rows.\n"
+    "\n"
+    "Parameters:\n"
+    "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+    "  fmt=<spec>        REQUIRED format spec, e.g.\n"
+    "                    fmt=Temp:U1-2 Pressure:F3-6 Status:H7\n"
+    "  records=<N>       REQUIRED record count (or bytes=N for total bytes)\n"
+    "  mode=new|append   file mode (default: new)\n"
+    "  sep=comma|tab|space  column separator (default: comma)\n"
+    "  echo=on|off       print formatted values to terminal (default off)\n"
+    "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
+    "  cmd=...           command to send after capture starts (must be last)\n"
+    "\n"
+    "See /help writing-plugins for the format spec language."
+)
+
+_CAP_HEX_PROSE = (
+    "Like /cap.struct but reads hex-encoded text lines (e.g. '01 02 FF AB')\n"
+    "instead of raw binary bytes.  Hex is converted to binary, then decoded\n"
+    "with the same format spec pipeline.\n"
+    "\n"
+    "Parameters:\n"
+    "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
+    "  fmt=<spec>        REQUIRED format spec (same as /cap.struct)\n"
+    "  records=<N>       REQUIRED record count\n"
+    "  mode=new|append   file mode (default: new)\n"
+    "  sep=comma|tab|space  column separator (default: comma)\n"
+    "  echo=on|off       print formatted values to terminal (default off)\n"
+    "  timeout=<dur>     safety timeout (default: no timeout)\n"
+    "  cmd=...           command to send after capture starts (must be last)"
+)
+
+_CAP_POLL_PROSE = (
+    "Runs one or more commands every `delay=` seconds, printing each\n"
+    "response as a row.  With `file=`, also writes to CSV or JSONL.\n"
+    "\n"
+    "cmd= is newline-separated for multiple columns:\n"
+    "  /cap.poll cmd=AT+BAT\\nAT+TEMP\n"
+    "\n"
+    "Parameters:\n"
+    "  cmd=<commands>    REQUIRED, must be last.  \\n-separated list.\n"
+    "  count=<N>         number of samples (default: 60)\n"
+    "  delay=<dur>       between samples, e.g. 500ms (default: 1s).\n"
+    "                    Use delay=0 to go as fast as possible.\n"
+    "  file=<name>       output file.  Without this, results only\n"
+    "                    print to the terminal.\n"
+    "  labels=<names>    space-separated column names (identifier\n"
+    "                    chars only).  Defaults to the cmd strings.\n"
+    "  regex=<pattern>   regex to extract value from each response\n"
+    "                    (e.g. regex=[-\\d.]+ pulls 23.4 from '+TEMP: 23.4C')\n"
+    "  fmt=csv|json      output format (default: csv).  json writes\n"
+    "                    JSON Lines (.jsonl).\n"
+    "  timeout=<dur>     per-command response timeout (default: 1s)\n"
+    "\n"
+    "Without regex=, the first sample must be numeric or the command\n"
+    "aborts.  With regex=, non-matching responses become empty values."
+)
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="cap",
     help="Data capture tools.",
+    long_help=_cap_folder_line,
     handler=None,
     sub_commands={
         "text": Command(
             args="<file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)}",
             help="Capture serial text to a file for a timed duration.",
-            long_help=(
-                "Passively captures all text arriving from the device for a\n"
-                "fixed duration.  Use /cap.stop to end early.\n"
-                "\n"
-                "Parameters:\n"
-                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
-                "  timeout=<dur>     REQUIRED duration, e.g. 3s, 500ms, 1.5s\n"
-                "  mode=new|append   file mode (default: new)\n"
-                "  echo=on|off       also print captured text to terminal (default off)\n"
-                "  cmd=...           command to send after capture starts (must be last)"
-            ),
+            long_help=_cap_long_help_with_prose(_CAP_TEXT_PROSE),
             handler=_handler_text,
             needs=CapabilitySet(serial_connected=True),
         ),
         "bin": Command(
             args="<file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture raw binary bytes.",
-            long_help=(
-                "Captures a fixed number of raw bytes to a binary file.  Ends\n"
-                "when the byte count is reached or the optional timeout expires.\n"
-                "\n"
-                "Parameters:\n"
-                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
-                "  bytes=<N>         REQUIRED target byte count\n"
-                "  mode=new|append   file mode (default: new)\n"
-                "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
-                "  cmd=...           command to send after capture starts (must be last)"
-            ),
+            long_help=_cap_long_help_with_prose(_CAP_BIN_PROSE),
             handler=_handler_bin,
             needs=CapabilitySet(serial_connected=True),
         ),
         "struct": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture raw bytes, decode with format spec to CSV.",
-            long_help=(
-                "Decodes binary data using C struct field mapping into CSV rows.\n"
-                "\n"
-                "Parameters:\n"
-                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
-                "  fmt=<spec>        REQUIRED format spec, e.g.\n"
-                "                    fmt=Temp:U1-2 Pressure:F3-6 Status:H7\n"
-                "  records=<N>       REQUIRED record count (or bytes=N for total bytes)\n"
-                "  mode=new|append   file mode (default: new)\n"
-                "  sep=comma|tab|space  column separator (default: comma)\n"
-                "  echo=on|off       print formatted values to terminal (default off)\n"
-                "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
-                "  cmd=...           command to send after capture starts (must be last)\n"
-                "\n"
-                "See /help writing-plugins for the format spec language."
-            ),
+            long_help=_cap_long_help_with_prose(_CAP_STRUCT_PROSE),
             handler=_handler_struct,
             needs=CapabilitySet(serial_connected=True),
         ),
         "hex": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture hex text lines, decode with format spec to CSV.",
-            long_help=(
-                "Like /cap.struct but reads hex-encoded text lines (e.g. '01 02 FF AB')\n"
-                "instead of raw binary bytes.  Hex is converted to binary, then decoded\n"
-                "with the same format spec pipeline.\n"
-                "\n"
-                "Parameters:\n"
-                "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
-                "  fmt=<spec>        REQUIRED format spec (same as /cap.struct)\n"
-                "  records=<N>       REQUIRED record count\n"
-                "  mode=new|append   file mode (default: new)\n"
-                "  sep=comma|tab|space  column separator (default: comma)\n"
-                "  echo=on|off       print formatted values to terminal (default off)\n"
-                "  timeout=<dur>     safety timeout (default: no timeout)\n"
-                "  cmd=...           command to send after capture starts (must be last)"
-            ),
+            long_help=_cap_long_help_with_prose(_CAP_HEX_PROSE),
             handler=_handler_hex,
             needs=CapabilitySet(serial_connected=True),
         ),
@@ -705,31 +758,7 @@ COMMAND = Command(
                 "--notime": "Omit the timestamp column (useful for tests).",
             },
             help="Poll commands on a schedule, display (and optionally save) results.",
-            long_help=(
-                "Runs one or more commands every `delay=` seconds, printing each\n"
-                "response as a row.  With `file=`, also writes to CSV or JSONL.\n"
-                "\n"
-                "cmd= is newline-separated for multiple columns:\n"
-                "  /cap.poll cmd=AT+BAT\\nAT+TEMP\n"
-                "\n"
-                "Parameters:\n"
-                "  cmd=<commands>    REQUIRED, must be last.  \\n-separated list.\n"
-                "  count=<N>         number of samples (default: 60)\n"
-                "  delay=<dur>       between samples, e.g. 500ms (default: 1s).\n"
-                "                    Use delay=0 to go as fast as possible.\n"
-                "  file=<name>       output file.  Without this, results only\n"
-                "                    print to the terminal.\n"
-                "  labels=<names>    space-separated column names (identifier\n"
-                "                    chars only).  Defaults to the cmd strings.\n"
-                "  regex=<pattern>   regex to extract value from each response\n"
-                "                    (e.g. regex=[-\\d.]+ pulls 23.4 from '+TEMP: 23.4C')\n"
-                "  fmt=csv|json      output format (default: csv).  json writes\n"
-                "                    JSON Lines (.jsonl).\n"
-                "  timeout=<dur>     per-command response timeout (default: 1s)\n"
-                "\n"
-                "Without regex=, the first sample must be numeric or the command\n"
-                "aborts.  With regex=, non-matching responses become empty values."
-            ),
+            long_help=_cap_long_help_with_prose(_CAP_POLL_PROSE),
             handler=_handler_poll,
             raw_args=True,
         ),

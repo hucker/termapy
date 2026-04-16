@@ -22,6 +22,7 @@ from termapy.protocol import (
 )
 from termapy.protocol_crc import CRC_CATALOGUE, get_crc_registry
 
+from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -806,11 +807,9 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     return CmdResult.ok()
 
 
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    name="proto",
-    help="Binary protocol tools: send, run, debug, hex, crc, status.",
-    long_help="""\
+# ── Dynamic long_help ─────────────────────────────────────────────────────────
+
+_PROTO_PROSE = """\
 Send examples:
   /proto.send 01 02 03         - send three hex bytes
   /proto.send "AT\\r"           - send text with carriage return
@@ -835,7 +834,23 @@ CRC tools:
 
 Script files (.pro) support TOML format with [[test]] sections
 or flat format with send:/expect: directives. Scripts are found
-in the proto/ subfolder of your config directory.""",
+in the proto/ subfolder of your config directory."""
+
+
+def _proto_folder_line(ctx: PluginContext) -> str:
+    """Green one-liner showing the count of .pro scripts."""
+    return folder_line(ctx, "proto", noun="script")
+
+
+def _proto_long_help(ctx: PluginContext) -> str:
+    return compose(_proto_folder_line(ctx), _PROTO_PROSE)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="proto",
+    help="Binary protocol tools: send, run, debug, hex, crc, status.",
+    long_help=_proto_long_help,
     sub_commands={
         "send": Command(
             args='{algo[_le|_be][_ascii]} <hex|"text">',
@@ -846,16 +861,19 @@ in the proto/ subfolder of your config directory.""",
         "run": Command(
             args="<file.pro>",
             help="Run a protocol test script.",
+            long_help=_proto_folder_line,
             handler=_cmd_run,
             needs=CapabilitySet(serial_connected=True),
         ),
         "list": Command(
             help="List .pro files in the proto/ directory.",
+            long_help=_proto_folder_line,
             handler=_cmd_list,
         ),
         "debug": Command(
             args="<file.pro>",
             help="Interactive protocol debug screen.",
+            long_help=_proto_folder_line,
             handler=_cmd_debug,
             needs=CapabilitySet(tui_mode=True, serial_connected=True),
         ),

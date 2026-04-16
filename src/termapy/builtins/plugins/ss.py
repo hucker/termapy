@@ -11,10 +11,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.help_dynamic import folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
+
+
+def _ss_long_help(ctx: PluginContext) -> str:
+    """Green one-liner showing the count of saved screenshots."""
+    return folder_line(ctx, "ss", noun="screenshot")
 
 
 def _handler_dir(ctx: PluginContext, args: str) -> CmdResult:
@@ -41,20 +47,24 @@ def _handler_placeholder(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     name="ss",
     help="Screenshot tools: save SVG/text, show folder.",
+    long_help=_ss_long_help,
     sub_commands={
         "dir": Command(
             help="Show the screenshot folder path.",
+            long_help=_ss_long_help,
             handler=_handler_dir,
         ),
         "svg": Command(
             args="{name}",
             help="Save an SVG screenshot of the terminal.",
+            long_help=_ss_long_help,
             handler=_handler_placeholder,
             needs=CapabilitySet(screen_capture=True),
         ),
         "txt": Command(
             args="{name}",
             help="Save a text screenshot of the terminal.",
+            long_help=_ss_long_help,
             handler=_handler_placeholder,
             needs=CapabilitySet(screen_capture=True),
         ),

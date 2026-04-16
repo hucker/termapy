@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.help_dynamic import compose, green, ns_count
 from termapy.plugins import CapabilitySet, CmdResult, Command, TargetCommand
 from termapy.scripting import parse_duration, parse_keywords
 
@@ -233,13 +234,9 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=str(len(target)))
 
 
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    "Include device command help from JSON response.",
-    name="include",
-    args="{timeout=<dur>} {cmd=<command>}",
-    handler=_handler,
-    long_help="""\
+# ── Dynamic long_help ─────────────────────────────────────────────────────────
+
+_INCLUDE_PROSE = """\
 Sends a command to the device and parses the JSON response to include
 command help. Included commands appear in suggestions and /help but
 are not REPL commands -- type them directly as device commands.
@@ -252,25 +249,50 @@ Use /include.clear to remove commands and delete the cache.
   /include timeout=2s cmd=HELP_JSON
   /include                       (uses device_json_cmd from config)
 
-JSON format: {"commands": {"cmd": {"help": "...", "args": "..."}, ...}}""",
+JSON format: {"commands": {"cmd": {"help": "...", "args": "..."}, ...}}"""
+
+
+def _include_state_line(ctx: PluginContext) -> str:
+    n = ns_count(ctx, "target_commands")
+    if n == 0:
+        return green("Currently included: none")
+    word = "command" if n == 1 else "commands"
+    return green(f"Currently included: {n} device {word}")
+
+
+def _include_long_help(ctx: PluginContext) -> str:
+    return compose(_include_state_line(ctx), _INCLUDE_PROSE)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    "Include device command help from JSON response.",
+    name="include",
+    args="{timeout=<dur>} {cmd=<command>}",
+    handler=_handler,
+    long_help=_include_long_help,
     sub_commands={
         "reload": Command(
             "Re-include from device, ignoring all caches.",
             handler=_handler_reload,
             args="{timeout=<dur>} {cmd=<command>}",
             needs=CapabilitySet(serial_connected=True),
+            long_help=_include_state_line,
         ),
         "dump": Command(
             "Dump included commands as JSON.",
             handler=_handler_dump,
+            long_help=_include_state_line,
         ),
         "clear": Command(
             "Remove all included target commands and cache.",
             handler=_handler_clear,
+            long_help=_include_state_line,
         ),
         "list": Command(
             "List currently included target commands.",
             handler=_handler_list,
+            long_help=_include_state_line,
         ),
     },
 )

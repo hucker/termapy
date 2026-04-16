@@ -548,6 +548,68 @@ class TestHelp:
         assert "uniquecmd" in names, \
             "callable long_help contributes to /search index"
 
+    def test_help_cfg_shows_active_cfg_line(self, repl_env):
+        """/help cfg prepends the Active cfg line (dynamic help wired via cfg_status)."""
+        # Arrange -- repl_env gives us a config_path under tmp_path.
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help cfg")
+
+        # Assert -- the dynamic state line lands in DESCRIPTION, and the
+        # existing prose still follows it. The cfg name is the parent
+        # directory stem; with the test fixture that's the tmp_path's
+        # pytest-generated name, so we just look for the prefix.
+        texts = [t for t, _ in output]
+        assert any("Active cfg =" in t for t in texts), \
+            "Active cfg label appears in DESCRIPTION"
+        assert any("Three modes" in t for t in texts), \
+            "existing cfg prose still renders after dynamic line"
+
+    def test_help_port_baud_rate_shows_current_value(self, repl_env):
+        """/help port.baud_rate prints the single-value state line."""
+        # Arrange -- fixture cfg["baud_rate"] = 115200
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help port.baud_rate")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("Current baud rate = 115200" in t for t in texts), \
+            "dynamic state line reflects cfg value"
+
+    def test_help_include_reports_zero_included(self, repl_env):
+        """/help include opens with 'Currently included: none' when ns is empty."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help include")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("Currently included: none" in t for t in texts), \
+            "empty target_commands ns reflected in help"
+
+    def test_help_include_reports_count_when_populated(self, repl_env):
+        """Populating ns('target_commands') updates /help include output."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import TargetCommand
+        engine.ctx.ns("target_commands").update({
+            "X": TargetCommand(name="X", help="x", args=""),
+            "Y": TargetCommand(name="Y", help="y", args=""),
+        })
+
+        # Act
+        engine.dispatch("help include")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("2 device commands" in t for t in texts), \
+            "count reflects populated ns"
+
     def test_help_renders_flags_section(self, repl_env):
         """/help <cmd> shows a FLAGS section for commands that declare flags."""
         # Arrange

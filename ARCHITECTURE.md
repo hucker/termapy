@@ -19,8 +19,9 @@ src/termapy/
 ├── proto_debug.py       # (1167 lines) Interactive protocol debug screen
 ├── protocol.py          # (1479 lines) Protocol parsing, format specs, CRC, visualizers
 ├── demo.py              # (1524 lines) Simulated device for --demo mode (FakeSerial)
-├── repl.py              # (1088 lines)  REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (1046 lines)  Plugin system — Command, PluginContext, loading
+├── repl.py              # (1190 lines) REPL engine — dispatch, scripting, transforms
+├── plugins.py           # (1286 lines) Plugin system — Command, PluginContext, loading
+├── help_dynamic.py      # (245 lines)  Reusable helpers for callable long_help
 ├── config.py            # (558 lines)  Config dirs, loading, validation, migration trigger
 ├── port_control.py      # (828 lines)  Pure serial port control functions — no Textual
 ├── proto_runner.py      # (283 lines)  Protocol test script runner

@@ -7,6 +7,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from termapy.help_dynamic import compose, green
 from termapy.plugins import CmdResult, Command, Transform
 
 if TYPE_CHECKING:
@@ -120,13 +121,9 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    name="env",
-    args="{pattern}",
-    handler=_handler_list,
-    help="Manage $(env.NAME) expansion for CLI commands.",
-    long_help="""\
+# ── Dynamic long_help ─────────────────────────────────────────────────────────
+
+_ENV_PROSE = """\
 The $(env.NAME) transform expands placeholders in REPL commands
 using a snapshot of the process environment taken at startup.
 
@@ -138,20 +135,42 @@ Commands:
   /env.list              - list all captured variables
   /env.list PATH         - show a single variable's value
   /env.set PORT COM7     - set a session-scoped variable
-  /env.reload            - re-snapshot from OS environment""",
+  /env.reload            - re-snapshot from OS environment"""
+
+
+def _env_state_line(ctx: PluginContext) -> str:
+    """Green one-liner: size of the frozen environment snapshot."""
+    _ = ctx  # snapshot is module-level
+    return green(f"Snapshot size = {len(_ENV)} variables")
+
+
+def _env_long_help(ctx: PluginContext) -> str:
+    return compose(_env_state_line(ctx), _ENV_PROSE)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="env",
+    args="{pattern}",
+    handler=_handler_list,
+    help="Manage $(env.NAME) expansion for CLI commands.",
+    long_help=_env_long_help,
     sub_commands={
         "list": Command(
             args="{pattern}",
             help="Show environment variables (all, by name, or glob pattern).",
+            long_help=_env_state_line,
             handler=_handler_list,
         ),
         "set": Command(
             args="<name> <value>",
             help="Set a session-scoped variable (in-memory only).",
+            long_help=_env_state_line,
             handler=_handler_set,
         ),
         "reload": Command(
             help="Re-snapshot the process environment.",
+            long_help=_env_state_line,
             handler=_handler_reload,
         ),
     },

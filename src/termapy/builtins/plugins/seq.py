@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from termapy.help_dynamic import compose, green
 from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
@@ -87,11 +88,9 @@ def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    name="seq",
-    help="Show sequence counters.",
-    long_help="""\
+# ── Dynamic long_help ─────────────────────────────────────────────────────────
+
+_SEQ_PROSE = """\
 Sequence counters are used in script templates for auto-numbering.
 
 Placeholders:
@@ -109,11 +108,32 @@ Use cases:
     Test {seq1+}.{seq2+}   -> Test 2.1 (seq2 resets on seq1 increment)
 
   Automatic file naming (e.g. screenshots in a script):
-    /ss.txt capture_{seq1+}  -> capture_1.txt, capture_2.txt, ...""",
+    /ss.txt capture_{seq1+}  -> capture_1.txt, capture_2.txt, ..."""
+
+
+def _seq_state_line(ctx: PluginContext) -> str:
+    """Green line showing current counter count + start-time stamp."""
+    seq = ctx.ns("seq")
+    counters = sum(1 for k in seq if isinstance(k, int))
+    start = seq.get("_start_time", "(none)")
+    word = "counter" if counters == 1 else "counters"
+    return green(f"Currently set: {counters} {word}; start_time = {start}")
+
+
+def _seq_long_help(ctx: PluginContext) -> str:
+    return compose(_seq_state_line(ctx), _SEQ_PROSE)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="seq",
+    help="Show sequence counters.",
+    long_help=_seq_long_help,
     handler=_handler,
     sub_commands={
         "reset": Command(
             help="Reset all counters to zero.",
+            long_help=_seq_state_line,
             handler=_handler_reset,
         ),
     },

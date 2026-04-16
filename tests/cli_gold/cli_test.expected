@@ -328,202 +328,226 @@ demo> /proto.crc.calc crc32 01 02 03 04
 demo> /print === section: help ===
   === section: help ===
 demo> /help echo
-/echo {on | off} - Toggle REPL command echo. Use /echo.quiet to set silently.
+NAME
+  /echo - Toggle REPL command echo. Use /echo.quiet to set silently.
+
+SYNOPSIS
+  /echo {on | off}
 demo> /help port
-/port {name} - Serial port tools: open, close, list, configure.
-  Subcommands:
-    /port.baud_rate {value} - Show or set baud rate.
-    /port.break {duration_ms} - Send a break signal (default 250ms).
-    /port.byte_size {value} - Show or set data bits.
-    /port.cd - Show Carrier Detect state (read-only).
-    /port.chip {name|*} - Identify USB-serial chip(s) and report USB speed class.  ...
-    /port.close - Disconnect from the serial port.
-    /port.cts - Show CTS state (read-only).
-    /port.dsr - Show DSR state (read-only).
-    /port.dtr {0|1} - Show or set DTR line (hardware only).
-    /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
-    /port.info - Show status, params, chip, and live signals for the connected port.
-    /port.list - List available serial ports.
-    /port.mode {baud} {mode} - Show or set serial mode (e.g. /port.mode 9600 N81).
-    /port.open {name} {baud} {mode} - Connect to the serial port (e.g. /port.open COM3 9600 N81).
-    /port.parity {value} - Show or set parity.
-    /port.ri - Show Ring Indicator state (read-only).
-    /port.rts {0|1} - Show or set RTS line (hardware only).
-    /port.stop_bits {value} - Show or set stop bits.
+NAME
+  /port - Serial port tools: open, close, list, configure.
+
+SYNOPSIS
+  /port {name}
+
+SUBCOMMANDS
+  /port.baud_rate       Show or set baud rate.
+  /port.break           Send a break signal (default 250ms).
+  /port.byte_size       Show or set data bits.
+  /port.cd              Show Carrier Detect state (read-only).
+  /port.chip            Identify USB-serial chip(s) and report USB speed class.
+  /port.close           Disconnect from the serial port.
+  /port.cts             Show CTS state (read-only).
+  /port.dsr             Show DSR state (read-only).
+  /port.dtr             Show or set DTR line (hardware only).
+  /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
+  /port.info            Show status, params, chip, and live signals for the connected port.
+  /port.list            List available serial ports.
+  /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
+  /port.open            Connect to the serial port (e.g. /port.open COM3 9600 N81).
+  /port.parity          Show or set parity.
+  /port.ri              Show Ring Indicator state (read-only).
+  /port.rts             Show or set RTS line (hardware only).
+  /port.stop_bits       Show or set stop bits.
 demo> /help cfg
-/cfg {key {value}} - Show or change config values.
-    Three modes:
-      /cfg              - show all config key/value pairs
-      /cfg baud_rate    - show current value of 'baud_rate'
-      /cfg baud_rate 115200 - change with confirmation dialog
+NAME
+  /cfg - Show or change config values.
 
-    Type is auto-detected from the existing value (int, float,
-    bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
-    Changes are saved to the JSON config file.
+SYNOPSIS
+  /cfg {key {value}}
 
-    Use /cfg.auto to set values without confirmation (for scripts).
-  Subcommands:
-    /cfg.auto <key> <value> - Set immediately (no confirmation).
-    /cfg.cap - List files in cap/ folder.  ...
-    /cfg.configs - List all config files.
-    /cfg.dump - Print current config as JSON to the terminal.
-    /cfg.explore - Open config directory in file explorer.
-    /cfg.info - Show project summary.
-    /cfg.plugin - List files in plugin/ folder.  ...
-    /cfg.prof - List files in prof/ folder.  ...
-    /cfg.proto - List files in proto/ folder.  ...
-    /cfg.run - List files in run/ folder.  ...
-    /cfg.ss - List files in ss/ folder.  ...
-    /cfg.viz - List files in viz/ folder.  ...
+DESCRIPTION
+  Three modes:
+    /cfg              - show all config key/value pairs
+    /cfg baud_rate    - show current value of 'baud_rate'
+    /cfg baud_rate 115200 - change with confirmation dialog
+
+  Type is auto-detected from the existing value (int, float,
+  bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
+  Changes are saved to the JSON config file.
+
+  Use /cfg.auto to set values without confirmation (for scripts).
+
+SUBCOMMANDS
+  /cfg.auto       Set immediately (no confirmation).
+  /cfg.cap        List files in cap/ folder.
+  /cfg.configs    List all config files.
+  /cfg.dump       Print current config as JSON to the terminal.
+  /cfg.explore    Open config directory in file explorer.
+  /cfg.info       Show project summary.
+  /cfg.plugin     List files in plugin/ folder.
+  /cfg.prof       List files in prof/ folder.
+  /cfg.proto      List files in proto/ folder.
+  /cfg.run        List files in run/ folder.
+  /cfg.ss         List files in ss/ folder.
+  /cfg.viz        List files in viz/ folder.
 demo> /help proto.crc
-/proto.crc - Browse and compute CRC algorithms.
-  Subcommands:
-    /proto.crc.c <name> - Generate C source code for a CRC algorithm.
-    /proto.crc.calc <name> {data} - Compute CRC over hex bytes, text, or file.
-    /proto.crc.help <name> - Show algorithm parameters and description.
-    /proto.crc.list {pattern} - List algorithms (optional glob filter).
-    /proto.crc.python <name> - Generate Python source code for a CRC algorithm.
-    /proto.crc.rust <name> - Generate Rust source code for a CRC algorithm.
+NAME
+  /proto.crc - Browse and compute CRC algorithms.
+
+SUBCOMMANDS
+  /proto.crc.c         Generate C source code for a CRC algorithm.
+  /proto.crc.calc      Compute CRC over hex bytes, text, or file.
+  /proto.crc.help      Show algorithm parameters and description.
+  /proto.crc.list      List algorithms (optional glob filter).
+  /proto.crc.python    Generate Python source code for a CRC algorithm.
+  /proto.crc.rust      Generate Rust source code for a CRC algorithm.
+
+SEE ALSO
+  /proto.debug, /proto.hex, /proto.list, /proto.run, /proto.send, /proto.status, /proto
 demo> /help var
-/var {name} - List user variables, or show one by name.
-    User-defined variables use $(NAME) syntax (case-sensitive).
+NAME
+  /var - List user variables, or show one by name.
 
-    Setting variables (no / prefix needed):
-      $(PORT) = COM7                - store literal value
-      $(BAUD) <- /port.baud_rate    - capture REPL command output
-      $(TEMP) <- AT+TEMP            - capture device response
+SYNOPSIS
+  /var {name}
 
-    Using variables in commands:
-      /print $(PORT)
-      AT+PORT=$(PORT)
+DESCRIPTION
+  User-defined variables use $(NAME) syntax (case-sensitive).
 
-    Commands:
-      /var                   - list all variables
-      /var PORT              - show one variable (bare name or $(PORT))
-      /var.set PORT val      - set a variable (literal string)
-      /var.capture NAME cmd  - run cmd and store its result as NAME
-      /var.clear             - clear all variables
+  Setting variables (no / prefix needed):
+    $(PORT) = COM7                - store literal value
+    $(BAUD) <- /port.baud_rate    - capture REPL command output
+    $(TEMP) <- AT+TEMP            - capture device response
 
-    Dynamic variables (current clock at point of use):
-      $(DATE)              - current date (YYYY-MM-DD)
-      $(TIME)              - current time (HH:MM:SS)
-      $(DATETIME)          - current date and time
+  Using variables in commands:
+    /print $(PORT)
+    AT+PORT=$(PORT)
 
-    Launch variables (frozen when the app starts):
-      $(LAUNCH_DATE)       - app start date
-      $(LAUNCH_TIME)       - app start time
-      $(LAUNCH_DATETIME)   - app start date and time
+  Commands:
+    /var                   - list all variables
+    /var PORT              - show one variable (bare name or $(PORT))
+    /var.set PORT val      - set a variable (literal string)
+    /var.capture NAME cmd  - run cmd and store its result as NAME
+    /var.clear             - clear all variables
 
-    Session variables (set once per script launch, frozen):
-      $(SESSION_DATE)      - script start date
-      $(SESSION_TIME)      - script start time
-      $(SESSION_DATETIME)  - script start date and time
+  Dynamic variables (current clock at point of use):
+    $(DATE)              - current date (YYYY-MM-DD)
+    $(TIME)              - current time (HH:MM:SS)
+    $(DATETIME)          - current date and time
 
-    Config variables (resolved paths from current config):
-      $(CFG)               - config name (e.g. demo)
-      $(CFG.DIR)           - config directory (resolved)
-      $(CFG.FILE)          - config file path (resolved)
-      $(CFG.LOG_FILE)      - log file path (resolved)
-      $(CFG.RUN_DIR)       - scripts directory
-      $(CFG.PROTO_DIR)     - protocol test directory
-      $(CFG.PLUGIN_DIR)    - plugin directory
-      $(CFG.SS_DIR)        - screenshot directory
-      $(CFG.CAP_DIR)       - capture directory
-      $(CFG.PROF_DIR)      - profile directory
-      $(CFG.VIZ_DIR)       - visualizer directory
-      $(CFG.PORT)          - serial port name
-      $(CFG.BAUD)          - baud rate
-      $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
-      $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
+  Launch variables (frozen when the app starts):
+    $(LAUNCH_DATE)       - app start date
+    $(LAUNCH_TIME)       - app start time
+    $(LAUNCH_DATETIME)   - app start date and time
 
-    Escaping (when your data contains literal $):
-      \$(PORT)           - literal $(PORT) (not expanded)
-      /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
+  Session variables (set once per script launch, frozen):
+    $(SESSION_DATE)      - script start date
+    $(SESSION_TIME)      - script start time
+    $(SESSION_DATETIME)  - script start date and time
 
-    Scope: variables persist for the session. They are cleared
-    automatically when a script is launched from the Scripts button
-    or the Run menu, but NOT when /run is typed interactively.
-    Use /var.clear to reset manually.
-  Subcommands:
-    /var.capture <NAME> <command> - Capture command output into a user variable.
-    /var.clear - Clear all user variables.
-    /var.set <NAME> <value> - Set a user variable to a literal value.
+  Config variables (resolved paths from current config):
+    $(CFG)               - config name (e.g. demo)
+    $(CFG.DIR)           - config directory (resolved)
+    $(CFG.FILE)          - config file path (resolved)
+    $(CFG.LOG_FILE)      - log file path (resolved)
+    $(CFG.RUN_DIR)       - scripts directory
+    $(CFG.PROTO_DIR)     - protocol test directory
+    $(CFG.PLUGIN_DIR)    - plugin directory
+    $(CFG.SS_DIR)        - screenshot directory
+    $(CFG.CAP_DIR)       - capture directory
+    $(CFG.PROF_DIR)      - profile directory
+    $(CFG.VIZ_DIR)       - visualizer directory
+    $(CFG.PORT)          - serial port name
+    $(CFG.BAUD)          - baud rate
+    $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
+    $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
+
+  Escaping (when your data contains literal $):
+    \$(PORT)           - literal $(PORT) (not expanded)
+    /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
+
+  Scope: variables persist for the session. They are cleared
+  automatically when a script is launched from the Scripts button
+  or the Run menu, but NOT when /run is typed interactively.
+  Use /var.clear to reset manually.
+
+SUBCOMMANDS
+  /var.capture    Capture command output into a user variable.
+  /var.clear      Clear all user variables.
+  /var.set        Set a user variable to a literal value.
 demo> /help cap
-/cap - Data capture tools.
-  Subcommands:
-    /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)} - Capture raw binary bytes.
-    /cap.hex <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be
-last)} - Capture hex text lines, decode with format spec to CSV.
-    /cap.poll {count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>}
-cmd=<commands> (must be last) - Poll commands on a schedule, display (and optionally save) results.
-    /cap.stop - Stop an active capture.
-    /cap.struct <file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must
-be last)} - Capture raw bytes, decode with format spec to CSV.
-    /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)} - Capture serial text to a
-file for a timed duration.
+NAME
+  /cap - Data capture tools.
+
+SUBCOMMANDS
+  /cap.bin       Capture raw binary bytes.
+  /cap.hex       Capture hex text lines, decode with format spec to CSV.
+  /cap.poll      Poll commands on a schedule, display (and optionally save) results.
+  /cap.stop      Stop an active capture.
+  /cap.struct    Capture raw bytes, decode with format spec to CSV.
+  /cap.text      Capture serial text to a file for a timed duration.
 demo> /print === section: help.run ===
   === section: help.run ===
 demo> /help.run
 -- Scripts --
-  /run at_demo                                         Walks through all demo device commands
-  /run doc_screenshots                                 Generate documentation images
-  /run expect_test                                     Expect command test
-  /run gps_demo                                        Query simulated GPS receiver
-  /run smoke_test                                      Smoke test for demo device
-  /run status_check                                    Quick status check
-  /run var_demo                                        Set variables and use them in commands
-  /run welcome                                         Runs on connect via on_connect_cmd config
+  /run at_demo                  Walks through all demo device commands
+  /run doc_screenshots          Generate documentation images
+  /run expect_test              Expect command test
+  /run gps_demo                 Query simulated GPS receiver
+  /run smoke_test               Smoke test for demo device
+  /run status_check             Quick status check
+  /run var_demo                 Set variables and use them in commands
+  /run welcome                  Runs on connect via on_connect_cmd config
   8 scripts.
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
 demo> /help.plugin
 -- Application --
-  /cli                                                 Already in CLI mode.  (1)
-  /clr                                                 Clear the terminal screen (alias for /cls).
-  /color                    {on|off}                   Show or toggle color output.
-  /delay                    <duration>                 Wait for duration with progress bar (e.g. 500ms, 1.5s).  (1)
-  /demo                                                Set up and switch to the demo device config.  (1)
-  /raw                      <text>                     Send raw text to serial (no transforms or line ending).
-  /run                      {filename}                 Run a script file, or list available scripts.  (1)
-  /tui                                                 Switch to TUI mode.
+  /cli                  Already in CLI mode.
+  /clr                  Clear the terminal screen (alias for /cls).
+  /color                Show or toggle color output.
+  /delay                Wait for duration with progress bar (e.g. 500ms, 1.5s).
+  /demo                 Set up and switch to the demo device config.
+  /raw                  Send raw text to serial (no transforms or line ending).
+  /run                  Run a script file, or list available scripts.
+  /tui                  Switch to TUI mode.
 
 -- Application Plugins --
-  /cap                                                 Data capture tools.  (6)
-  /cfg                      {key {value}}              Show or change config values.  (12)
-  /cls                                                 Clear the terminal screen.
-  /echo                     {on | off}                 Toggle REPL command echo. Use /echo.quiet to set silently.
-  /edit                     <filename>                 Open a project file in the system editor.  (6)
-  /env                      {pattern}                  Manage $(env.NAME) expansion for CLI commands.  (3)
-  /exit                                                Exit termapy.
-  /grep                     <pattern>                  Search the scrollback for lines matching a pattern
-(case-insensitive regex).
-  /help                     {cmd}                      List REPL commands, or show help for one command.  (6)
-  /include                  ... /help include          Include device command help from JSON response.  (4)
-  /line_no                  <on|off>                   Toggle line numbers on or off.
-  /os                       <cmd>                      Run a shell command and show output (10s timeout). e.g. /os dir
-  /ping                     ... /help ping             Send a command and measure response time.  (1)
-  /port                     {name}                     Serial port tools: open, close, list, configure.  (18)
-  /print                    <text>                     Print a message to the terminal.  (1)
-  /proto                                               Binary protocol tools: send, run, debug, hex, crc, status.  (7)
-  /repeat                   ... /help repeat           Repeat a command N times with optional delay (escape to cancel).
-  /seq                                                 Show sequence counters.  (1)
-  /show                     <name>                     Show a file.  (1)
-  /show_line_endings        {on | off}                 Toggle visible \r \n markers in serial output for line-ending
-troubleshooting.
-  /ss                                                  Screenshot tools: save SVG/text, show folder.  (3)
-  /stop                                                Abort a running script.
-  /var                      {name}                     List user variables, or show one by name.  (3)
-  /ver                                                 Show termapy version.
-  /verbose                  {on|off}                   Show or toggle verbose status output. Use /verbose.quiet to set
-silently.
-  /xfer                                                File transfer settings.  (1)
-  /xmodem                                              XMODEM file transfer.  (2)
-  /ymodem                                              YMODEM file transfer (batch, 1K blocks).  (2)
+  /cap                  Data capture tools.
+  /cfg                  Show or change config values.
+  /cls                  Clear the terminal screen.
+  /echo                 Toggle REPL command echo. Use /echo.quiet to set silently.
+  /edit                 Open a project file in the system editor.
+  /env                  Manage $(env.NAME) expansion for CLI commands.
+  /exit                 Exit termapy.
+  /grep                 Search the scrollback for lines matching a pattern (case-insensitive regex).
+  /help                 Show the command landscape or look up a specific command.
+  /include              Include device command help from JSON response.
+  /line_no              Toggle line numbers on or off.
+  /os                   Run a shell command and show output (10s timeout). e.g. /os dir
+  /ping                 Send a command and measure response time.
+  /port                 Serial port tools: open, close, list, configure.
+  /print                Print a message to the terminal.
+  /proto                Binary protocol tools: send, run, debug, hex, crc, status.
+  /repeat               Repeat a command N times with optional delay (escape to cancel).
+  /search               Deep-search every command's metadata (name, help, args, flags, long help).
+  /seq                  Show sequence counters.
+  /show                 Show a file.
+  /show_line_endings    Toggle visible \r \n markers in serial output for line-ending troubleshooting.
+  /ss                   Screenshot tools: save SVG/text, show folder.
+  /stop                 Abort a running script.
+  /var                  List user variables, or show one by name.
+  /ver                  Show termapy version.
+  /verbose              Show or toggle verbose status output. Use /verbose.quiet to set silently.
+  /xfer                 File transfer settings.
+  /xmodem               XMODEM file transfer.
+  /ymodem               YMODEM file transfer (batch, 1K blocks).
 
 -- Script Commands (.run files only) --
-  /confirm                  {message}                  Show Yes/Cancel dialog; Cancel stops a running script.
-  /expect                   ... /help expect           Wait for text in serial output (script-only).
-  38 commands.
+  /confirm              Show Yes/Cancel dialog; Cancel stops a running script.
+  /expect               Wait for text in serial output (script-only).
+  39 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

@@ -186,7 +186,20 @@ class TestStop:
 # -- /help ----------------------------------------------------------------
 
 
+import re as _re
+
+
+def _plain(text: str) -> str:
+    """Strip underline markup so substring checks are markup-insensitive."""
+    return _re.sub(r"\[/?u\]", "", text)
+
+
 class TestHelp:
+    """Tests for the man-inspired /help command: landscape, exact detail,
+    candidate list on miss, and hard-fail with /search hint when nothing
+    matches name+help.
+    """
+
     def test_help_lists_commands(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
@@ -199,6 +212,19 @@ class TestHelp:
         assert any("help" in t for t in texts), "help command listed"
         assert any("cfg" in t for t in texts), "cfg command listed"
 
+    def test_help_landscape_has_footer_hint(self, repl_env):
+        """Landscape view teaches the other two modes via a dim footer."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("/help <term>" in t for t in texts), "footer mentions /help <term>"
+        assert any("/search" in t for t in texts), "footer mentions /search"
+
     def test_help_specific_command(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
@@ -209,36 +235,252 @@ class TestHelp:
         # Assert
         texts = [t for t, _ in output]
         assert any("echo" in t.lower() for t in texts), "echo help shown"
+        assert any("NAME" in t for t in texts), "man-page NAME section present"
 
-    def test_help_unknown_command(self, repl_env):
-        # Arrange
-        engine, _, _, output = repl_env
-
-        # Act
-        engine.dispatch("help nonexistent")
-
-        # Assert
-        assert any("Unknown" in t for t, _ in output), "error message"
-        assert output[-1][1] == "red", "shown in red"
-
-    def test_help_shows_long_help(self, repl_env):
-        """/help <cmd> shows LONG_HELP lines when present."""
+    def test_help_man_page_sections(self, repl_env):
+        """Leaf with args + long_help renders NAME, SYNOPSIS, DESCRIPTION."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="testcmd", args="<arg>", help="Short help.",
+            name="fullcmd", args="<arg>", help="Short help.",
             long_help="Line one.\nLine two.",
             handler=lambda ctx, args: None,
         ))
 
         # Act
-        engine.dispatch("help testcmd")
+        engine.dispatch("help fullcmd")
 
-        # Assert — long help lines appear indented
+        # Assert
         texts = [t for t, _ in output]
-        assert any("Line one." in t for t in texts), "first long_help line"
-        assert any("Line two." in t for t in texts), "second long_help line"
+        assert any("NAME" in t for t in texts), "NAME section"
+        assert any("SYNOPSIS" in t for t in texts), "SYNOPSIS section"
+        assert any("DESCRIPTION" in t for t in texts), "DESCRIPTION section"
+        assert any("Line one." in t for t in texts), "long_help line 1 present"
+        assert any("Line two." in t for t in texts), "long_help line 2 present"
+
+    def test_help_zero_matches_fails_with_search_hint(self, repl_env):
+        """/help <term> with no name+help hits hard-fails and points at /search."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        result = engine.dispatch("help xyzzyghhh")
+
+        # Assert
+        assert result.success is False, "zero-hit miss hard-fails"
+        assert "No command matches" in result.error, "error names the miss"
+        assert "/search" in result.error, "hint points at /search"
+
+    def test_help_term_shows_candidates_when_no_exact(self, repl_env):
+        """/help <term> with no exact match renders a candidate list."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="one.shiny", args="", help="First shiny thing.",
+            handler=lambda ctx, args: None,
+        ))
+        engine.register_plugin(PluginInfo(
+            name="two.shiny", args="", help="Second shiny thing.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        result = engine.dispatch("help shiny")
+
+        # Assert — both names surface as candidates, result is ok with names
+        texts = [_plain(t) for t, _ in output]
+        assert result.success, "candidate list succeeds"
+        assert any("Candidates matching" in t for t in texts), "banner shown"
+        assert any("one.shiny" in t for t in texts), "first candidate listed"
+        assert any("two.shiny" in t for t in texts), "second candidate listed"
+        assert "one.shiny" in result.value.splitlines(), "name in scripting value"
+        assert "two.shiny" in result.value.splitlines(), "name in scripting value"
+
+    def test_help_exact_prefers_over_candidates(self, repl_env):
+        """Exact match wins even when the name is a substring of others."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="foo", args="", help="Exact.",
+            handler=lambda ctx, args: None,
+        ))
+        engine.register_plugin(PluginInfo(
+            name="foobar", args="", help="Not exact.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        engine.dispatch("help foo")
+
+        # Assert — man-page detail for /foo, not a candidate list
+        texts = [t for t, _ in output]
+        assert any("NAME" in t for t in texts), "man-page rendered"
+        assert not any("Candidates matching" in t for t in texts), (
+            "no candidate list when exact match exists"
+        )
+
+    def test_help_term_matches_short_help(self, repl_env):
+        """Candidate search hits when the term appears in a command's short help."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="widgetcmd", args="", help="Measures mumblefrotz devices.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act — term appears only in help, not in name
+        result = engine.dispatch("help mumblefrotz")
+
+        # Assert
+        texts = [_plain(t) for t, _ in output]
+        assert result.success, "help-text match succeeds"
+        assert any("widgetcmd" in t for t in texts), "found via short help"
+
+    def test_help_parent_shows_subcommand_section(self, repl_env):
+        """/help <parent> renders SUBCOMMANDS with name+one-liner only."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="group", args="", help="Group of things.",
+            handler=lambda ctx, args: None,
+            children=["group.one", "group.two"],
+        ))
+        engine.register_plugin(PluginInfo(
+            name="group.one", args="<really-long-arg-list>",
+            help="First child.",
+            handler=lambda ctx, args: None,
+        ))
+        engine.register_plugin(PluginInfo(
+            name="group.two", args="", help="Second child.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        engine.dispatch("help group")
+
+        # Assert — SUBCOMMANDS section present; child args are NOT rendered
+        texts = [t for t, _ in output]
+        assert any("SUBCOMMANDS" in t for t in texts), "SUBCOMMANDS section present"
+        assert any("group.one" in t for t in texts), "first child listed"
+        assert any("group.two" in t for t in texts), "second child listed"
+        assert not any("really-long-arg-list" in t for t in texts), (
+            "child args column is omitted in parent listing"
+        )
+
+    def test_help_see_also_contains_siblings_and_parent(self, repl_env):
+        """SEE ALSO includes siblings of a leaf plus its parent."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="grp", args="", help="Parent.",
+            handler=lambda ctx, args: None,
+            children=["grp.a", "grp.b", "grp.c"],
+        ))
+        for leaf in ("grp.a", "grp.b", "grp.c"):
+            engine.register_plugin(PluginInfo(
+                name=leaf, args="", help=f"Leaf {leaf}.",
+                handler=lambda ctx, args: None,
+            ))
+
+        # Act
+        engine.dispatch("help grp.a")
+
+        # Assert — SEE ALSO mentions siblings and parent
+        texts = [t for t, _ in output]
+        see_lines = [t for t in texts if "SEE ALSO" in t or "/grp" in t]
+        combined = " ".join(see_lines)
+        assert "SEE ALSO" in combined, "SEE ALSO header present"
+        assert "/grp.b" in combined, "sibling /grp.b listed"
+        assert "/grp.c" in combined, "sibling /grp.c listed"
+        assert "/grp" in combined, "parent /grp listed"
+
+    def test_help_see_also_skipped_for_rootless_leaf(self, repl_env):
+        """Top-level root commands without a parent don't render SEE ALSO."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="lonecmd", args="", help="Stands alone.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        engine.dispatch("help lonecmd")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert not any("SEE ALSO" in t for t in texts), (
+            "no SEE ALSO section when command has no peers"
+        )
+
+    def test_help_no_long_help_omits_description(self, repl_env):
+        """/help <cmd> with empty long_help skips the DESCRIPTION section."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="briefcmd", args="", help="Just brief.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        engine.dispatch("help briefcmd")
+
+        # Assert — NAME section is present; DESCRIPTION is not (no long_help)
+        texts = [t for t, _ in output]
+        assert any("NAME" in t for t in texts), "NAME always shown"
+        assert not any("DESCRIPTION" in t for t in texts), (
+            "DESCRIPTION skipped when long_help is empty"
+        )
+
+    def test_help_renders_flags_section(self, repl_env):
+        """/help <cmd> shows a FLAGS section for commands that declare flags."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="flagcmd", args="<name>", help="Has flags.",
+            handler=lambda ctx, args: None,
+            flags={"--table": "Use 256-entry lookup table."},
+        ))
+
+        # Act
+        engine.dispatch("help flagcmd")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("FLAGS" in t for t in texts), "FLAGS header rendered"
+        assert any("--table" in t for t in texts), "flag name rendered"
+        assert any("lookup table" in t for t in texts), "description rendered"
+
+    def test_help_collapses_alias_onto_canonical(self, repl_env):
+        """Alias flags render on the same line as their canonical form."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="runner", args="<script>", help="Run a script.",
+            handler=lambda ctx, args: None,
+            flags={"--verbose": "Verbose mode.", "-v": "--verbose"},
+        ))
+
+        # Act
+        engine.dispatch("help runner")
+
+        # Assert — one FLAGS row containing both names, not two separate rows.
+        texts = [t for t, _ in output]
+        combo_lines = [t for t in texts if "--verbose" in t and "-v" in t]
+        assert combo_lines, "alias listed alongside canonical on one line"
+        desc_count = sum(1 for t in texts if "Verbose mode." in t)
+        assert desc_count == 1, f"description printed once, got {desc_count}"
+
+    # ── /help.dev (still uses forgiving lookup + man-page frame) ─────────────
 
     def test_help_dev_shows_docstring(self, repl_env):
         """/help.dev <cmd> shows the handler's Python docstring."""
@@ -262,10 +504,10 @@ class TestHelp:
         # Act
         engine.dispatch("help.dev devtest")
 
-        # Assert — docstring lines appear
+        # Assert — docstring lines appear inside the man-page DESCRIPTION
         texts = [t for t, _ in output]
         assert any("dev docstring" in t for t in texts), "docstring content shown"
-        assert any("developer docstring" in t for t in texts), "header shown"
+        assert any("DESCRIPTION" in t for t in texts), "rendered inside DESCRIPTION"
 
     def test_help_dev_summary_bold(self, repl_env):
         """/help.dev renders summary line bold when followed by blank line."""
@@ -287,7 +529,7 @@ class TestHelp:
         # Act
         engine.dispatch("help.dev boldsummary")
 
-        # Assert — summary rendered via write_markup with bold tags
+        # Assert
         markup_lines = [t for t, c in output if c == "markup"]
         assert any("[bold]Summary line here.[/]" in t for t in markup_lines), "bold summary"
 
@@ -315,7 +557,7 @@ class TestHelp:
         # Act
         engine.dispatch("help.dev sections")
 
-        # Assert — Args: and Returns: rendered bold via write_markup
+        # Assert
         markup_lines = [t for t, c in output if c == "markup"]
         assert any("[bold]Args:[/]" in t for t in markup_lines), "Args header bold"
         assert any("[bold]Returns:[/]" in t for t in markup_lines), "Returns header bold"
@@ -342,7 +584,7 @@ class TestHelp:
         # Act
         engine.dispatch("help.dev params")
 
-        # Assert — param names bold, descriptions not in bold tags
+        # Assert
         markup_lines = [t for t, c in output if c == "markup"]
         assert any("[bold]ctx:[/] Plugin context" in t for t in markup_lines), "ctx: bold"
         assert any("[bold]args:[/] Command arguments" in t for t in markup_lines), "args: bold"
@@ -365,7 +607,7 @@ class TestHelp:
         assert any("no docstring" in t for t in texts), "no-doc message shown"
 
     def test_help_dev_skips_long_help(self, repl_env):
-        """/help.dev shows docstring instead of LONG_HELP."""
+        """/help.dev shows docstring instead of the command's long_help."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -382,32 +624,24 @@ class TestHelp:
         # Act
         engine.dispatch("help.dev both")
 
-        # Assert — docstring shown, LONG_HELP not shown
+        # Assert — docstring shown, long_help not shown
         texts = [t for t, _ in output]
         assert any("Handler docstring" in t for t in texts), "docstring shown"
-        assert not any("long help" in t.lower() for t in texts), "LONG_HELP not shown"
+        assert not any("This is the long help" in t for t in texts), (
+            "user-facing long_help suppressed in dev mode"
+        )
 
-    def test_help_no_long_help_omits_extra(self, repl_env):
-        """/help <cmd> with empty LONG_HELP shows only the one-liner."""
-        # Arrange
-        engine, _, _, output = repl_env
-        from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="briefcmd", args="", help="Just brief.",
-            handler=lambda ctx, args: None,
-        ))
 
-        # Act
-        engine.dispatch("help briefcmd")
+# -- /search ----------------------------------------------------------------
 
-        # Assert — only one output line (the usage line)
-        texts = [t for t, _ in output]
-        actual = len(texts)
-        expected = 1  # just the "/briefcmd — Just brief." line
-        assert actual == expected, f"expected {actual} == {expected}"
 
-    def test_help_search_literal_match(self, repl_env):
-        """/help.search <literal> finds commands whose help contains the substring."""
+class TestSearch:
+    """Tests for the top-level /search command -- the Google-style deep
+    search counterpart to /help's forgiving lookup.
+    """
+
+    def test_search_literal_match(self, repl_env):
+        """/search <literal> finds commands whose help contains the substring."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -421,14 +655,14 @@ class TestHelp:
         ))
 
         # Act
-        result = engine.dispatch("help.search timeout")
+        result = engine.dispatch("search timeout")
 
         # Assert
         names = result.value.splitlines() if result.value else []
         assert "widgettimer" in names, "matching command present"
         assert "unrelated" not in names, "non-matching command absent"
 
-    def test_help_search_regex_anchor(self, repl_env):
+    def test_search_regex_anchor(self, repl_env):
         """Patterns with regex metacharacters are compiled as regex."""
         # Arrange
         engine, _, _, output = repl_env
@@ -443,38 +677,38 @@ class TestHelp:
         ))
 
         # Act — anchor to names starting with "proto."
-        result = engine.dispatch(r"help.search ^proto\.")
+        result = engine.dispatch(r"search ^proto\.")
 
         # Assert
         names = result.value.splitlines() if result.value else []
         assert "proto.foo" in names, "anchored match included"
         assert "other.proto" not in names, "non-anchored excluded"
 
-    def test_help_search_invalid_regex(self, repl_env):
+    def test_search_invalid_regex(self, repl_env):
         """Malformed regex returns a failure result, not a crash."""
         # Arrange
         engine, _, _, output = repl_env
 
-        # Act — unbalanced paren is a regex error
-        result = engine.dispatch("help.search (unclosed")
+        # Act
+        result = engine.dispatch("search (unclosed")
 
         # Assert
         assert result.success is False, "invalid regex should fail"
         assert "Invalid regex" in result.error, "failure message explains why"
 
-    def test_help_search_no_args(self, repl_env):
+    def test_search_no_args(self, repl_env):
         """Empty pattern returns usage-style failure."""
         # Arrange
         engine, _, _, output = repl_env
 
         # Act
-        result = engine.dispatch("help.search")
+        result = engine.dispatch("search")
 
         # Assert
         assert result.success is False, "empty pattern should fail"
         assert "Usage" in result.error, "shows usage line"
 
-    def test_help_search_dev_flag_searches_docstring(self, repl_env):
+    def test_search_dev_flag_searches_docstring(self, repl_env):
         """--dev extends the search to include handler docstrings."""
         # Arrange
         engine, _, _, output = repl_env
@@ -490,67 +724,18 @@ class TestHelp:
         ))
 
         # Act — without --dev, docstring isn't searched
-        result_plain = engine.dispatch("help.search zebras")
+        result_plain = engine.dispatch("search zebras")
         plain_names = result_plain.value.splitlines() if result_plain.value else []
         # Act — with --dev, docstring is searched
-        result_dev = engine.dispatch("help.search --dev zebras")
+        result_dev = engine.dispatch("search --dev zebras")
         dev_names = result_dev.value.splitlines() if result_dev.value else []
 
         # Assert
         assert "zebracmd" not in plain_names, "docstring not searched without --dev"
         assert "zebracmd" in dev_names, "docstring searched with --dev"
 
-    def test_help_partial_single_match(self, repl_env):
-        """/help <partial> falls back to substring match when exactly one hits."""
-        # Arrange
-        engine, _, _, output = repl_env
-        from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="zebralicious", args="", help="Has stripes.",
-            handler=lambda ctx, args: None,
-            long_help="Stripes long help.",
-        ))
-
-        # Act — user typed a fragment, not the full name
-        result = engine.dispatch("help zebral")
-
-        # Assert — rendered as if they typed the full name (no "Did you mean").
-        # Strip [u]...[/u] since the match is underlined.
-        import re as _re
-        texts = [_re.sub(r"\[/?u\]", "", t) for t, _ in output]
-        assert result.success, "single-match fallback succeeds"
-        assert any("zebralicious" in t for t in texts), "shows the matched command"
-        assert not any("Did you mean" in t for t in texts), "no disambiguation list"
-
-    def test_help_partial_multi_match_did_you_mean(self, repl_env):
-        """/help <partial> with multiple hits renders a 'Did you mean' list."""
-        # Arrange
-        engine, _, _, output = repl_env
-        from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="stripe.alpha", args="", help="One.",
-            handler=lambda ctx, args: None,
-        ))
-        engine.register_plugin(PluginInfo(
-            name="stripe.beta", args="", help="Two.",
-            handler=lambda ctx, args: None,
-        ))
-
-        # Act
-        result = engine.dispatch("help stripe")
-
-        # Assert — both options shown under a "Did you mean" header.
-        # Strip Rich [u]...[/u] underline markup so substring checks work
-        # regardless of how the renderer highlights the matched needle.
-        import re as _re
-        texts = [_re.sub(r"\[/?u\]", "", t) for t, _ in output]
-        assert result.success, "multi-match fallback still succeeds"
-        assert any("Did you mean" in t for t in texts), "disambiguation header"
-        assert any("stripe.alpha" in t for t in texts), "first option listed"
-        assert any("stripe.beta" in t for t in texts), "second option listed"
-
-    def test_help_partial_matches_long_help(self, repl_env):
-        """Fallback finds substrings in long_help (e.g. --table inside docs)."""
+    def test_search_matches_long_help(self, repl_env):
+        """/search finds substrings in long_help (deep field /help doesn't hit)."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -560,16 +745,15 @@ class TestHelp:
             long_help="Pass --specialflag to enable the special mode.",
         ))
 
-        # Act — needle appears only in long_help, not in the name
-        result = engine.dispatch("help specialflag")
+        # Act
+        result = engine.dispatch("search specialflag")
 
-        # Assert — gadget is found via its long_help text
-        assert result.success, "long_help substring match succeeds"
-        texts = [t for t, _ in output]
-        assert any("gadget" in t for t in texts), "gadget surfaced from long_help"
+        # Assert
+        names = result.value.splitlines() if result.value else []
+        assert "gadget" in names, "long_help match surfaces in /search"
 
-    def test_help_partial_matches_args(self, repl_env):
-        """Fallback finds substrings in the args string too."""
+    def test_search_matches_args(self, repl_env):
+        """/search finds substrings in the args string."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -579,44 +763,41 @@ class TestHelp:
         ))
 
         # Act
-        result = engine.dispatch("help unusualparam")
+        result = engine.dispatch("search unusualparam")
 
         # Assert
-        assert result.success, "args substring match succeeds"
-        texts = [t for t, _ in output]
-        assert any("widget" in t for t in texts), "widget surfaced from args"
+        names = result.value.splitlines() if result.value else []
+        assert "widget" in names, "args match surfaces in /search"
 
-    def test_help_multi_term_and(self, repl_env):
-        """/help term1 term2 requires both terms to match (AND)."""
+    def test_search_multi_term_and(self, repl_env):
+        """/search term1 term2 requires both terms (AND)."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="alpha", args="", help="table and crc stuff",
+            name="alphacmd", args="", help="table and crc stuff",
             handler=lambda ctx, args: None,
         ))
         engine.register_plugin(PluginInfo(
-            name="tableonly", args="", help="table only, no other thing",
+            name="tableonly", args="", help="table only",
             handler=lambda ctx, args: None,
         ))
         engine.register_plugin(PluginInfo(
-            name="crconly", args="", help="crc only, no other thing",
+            name="crconly", args="", help="crc only",
             handler=lambda ctx, args: None,
         ))
 
         # Act
-        result = engine.dispatch("help table crc")
+        result = engine.dispatch("search table crc")
 
-        # Assert — only the command matching BOTH terms surfaces
-        import re as _re
-        texts = [_re.sub(r"\[/?u\]", "", t) for t, _ in output]
-        assert result.success, "AND match succeeds"
-        assert any("alpha" in t for t in texts), "command matching both terms shown"
-        assert not any("tableonly" in t for t in texts), "single-term match filtered"
-        assert not any("crconly" in t for t in texts), "single-term match filtered"
+        # Assert
+        names = result.value.splitlines() if result.value else []
+        assert "alphacmd" in names, "command with both terms included"
+        assert "tableonly" not in names, "single-term match excluded"
+        assert "crconly" not in names, "single-term match excluded"
 
-    def test_help_negative_term_excludes(self, repl_env):
-        """/help foo -bar excludes commands that also match 'bar'."""
+    def test_search_negative_term_excludes(self, repl_env):
+        """/search foo -bar excludes commands matching 'bar'."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -630,95 +811,15 @@ class TestHelp:
         ))
 
         # Act
-        result = engine.dispatch("help banana -apricot")
+        result = engine.dispatch("search banana -apricot")
 
         # Assert
-        import re as _re
-        texts = [_re.sub(r"\[/?u\]", "", t) for t, _ in output]
-        assert result.success, "query succeeds"
-        assert any("keep" in t for t in texts), "matching command kept"
-        assert not any("drop" in t for t in texts), "excluded command removed"
+        names = result.value.splitlines() if result.value else []
+        assert "keep" in names, "command matching positive-only kept"
+        assert "drop" not in names, "command matching negative excluded"
 
-    def test_help_partial_no_match_fails(self, repl_env):
-        """/help with a fragment matching nothing still fails."""
-        # Arrange
-        engine, _, _, output = repl_env
-
-        # Act — no command contains "xyzzynoplace"
-        result = engine.dispatch("help xyzzynoplace")
-
-        # Assert
-        assert result.success is False, "no matches should fail"
-        assert "Unknown command" in result.error, "error names the miss"
-
-    def test_help_dev_partial_single_match(self, repl_env):
-        """/help.dev <partial> uses the same substring fallback."""
-        # Arrange
-        engine, _, _, output = repl_env
-        from termapy.plugins import PluginInfo
-
-        def handler(ctx, args):
-            """Docstring for fallback test."""
-            return None
-
-        engine.register_plugin(PluginInfo(
-            name="uniquename", args="", help="Unique.",
-            handler=handler,
-        ))
-
-        # Act
-        result = engine.dispatch("help.dev uniqu")
-
-        # Assert
-        texts = [t for t, _ in output]
-        assert result.success, "fallback resolves for help.dev too"
-        assert any("Docstring for fallback" in t for t in texts), \
-            "developer docstring shown via partial match"
-
-    def test_help_renders_flags_section(self, repl_env):
-        """/help <cmd> shows a 'Flags:' section for commands that declare flags."""
-        # Arrange
-        engine, _, _, output = repl_env
-        from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="flagcmd", args="<name>", help="Has flags.",
-            handler=lambda ctx, args: None,
-            flags={"--table": "Use 256-entry lookup table."},
-        ))
-
-        # Act
-        engine.dispatch("help flagcmd")
-
-        # Assert
-        texts = [t for t, _ in output]
-        assert any("Flags:" in t for t in texts), "Flags header rendered"
-        assert any("--table" in t for t in texts), "flag name rendered"
-        assert any("lookup table" in t for t in texts), "description rendered"
-
-    def test_help_collapses_alias_onto_canonical(self, repl_env):
-        """Alias flags render on the same line as their canonical form."""
-        # Arrange
-        engine, _, _, output = repl_env
-        from termapy.plugins import PluginInfo
-        engine.register_plugin(PluginInfo(
-            name="runner", args="<script>", help="Run a script.",
-            handler=lambda ctx, args: None,
-            flags={"--verbose": "Verbose mode.", "-v": "--verbose"},
-        ))
-
-        # Act
-        engine.dispatch("help runner")
-
-        # Assert — one Flags: row containing both names, not two separate rows.
-        texts = [t for t, _ in output]
-        combo_lines = [t for t in texts if "--verbose" in t and "-v" in t]
-        assert combo_lines, "alias listed alongside canonical on one line"
-        # Description must not appear twice (once per alias).
-        desc_count = sum(1 for t in texts if "Verbose mode." in t)
-        assert desc_count == 1, f"description printed once, got {desc_count}"
-
-    def test_help_fuzzy_finds_flag_name(self, repl_env):
-        """/help <needle> matches declared flag names."""
+    def test_search_finds_flag_name(self, repl_env):
+        """/search finds declared flag names."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -729,15 +830,14 @@ class TestHelp:
         ))
 
         # Act — needle only appears in a flag name
-        result = engine.dispatch("help nitro")
+        result = engine.dispatch("search nitro")
 
-        # Assert — boringcmd surfaces via its flag
-        assert result.success, "fuzzy match via flag name succeeds"
-        texts = [t for t, _ in output]
-        assert any("boringcmd" in t for t in texts), "command surfaced from flag"
+        # Assert
+        names = result.value.splitlines() if result.value else []
+        assert "boringcmd" in names, "command surfaced via flag name"
 
-    def test_help_fuzzy_finds_flag_description(self, repl_env):
-        """/help <needle> matches words inside a flag's description."""
+    def test_search_finds_flag_description(self, repl_env):
+        """/search finds words inside a flag's description."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -747,15 +847,14 @@ class TestHelp:
             flags={"--fuel": "Use 256-entry combustion booster."},
         ))
 
-        # Act — needle only appears in the flag description
-        result = engine.dispatch("help combustion")
+        # Act
+        result = engine.dispatch("search combustion")
 
         # Assert
-        assert result.success, "fuzzy match via flag description succeeds"
-        texts = [t for t, _ in output]
-        assert any("rocketcmd" in t for t in texts), "command surfaced from description"
+        names = result.value.splitlines() if result.value else []
+        assert "rocketcmd" in names, "command surfaced via flag description"
 
-    def test_help_search_returns_value_for_scripting(self, repl_env):
+    def test_search_returns_value_for_scripting(self, repl_env):
         """CmdResult.value is the newline-joined matching command names."""
         # Arrange
         engine, _, _, output = repl_env
@@ -766,12 +865,33 @@ class TestHelp:
         ))
 
         # Act
-        result = engine.dispatch("help.search unique-token-xyz")
+        result = engine.dispatch("search unique-token-xyz")
 
         # Assert
         actual = result.value
         expected = "alphacmd"
         assert actual == expected, f"{actual} == {expected}"
+
+    def test_search_no_metachars_uses_literal_grammar(self, repl_env):
+        """Without regex metacharacters, `foo bar` AND-matches separately,
+        not as a literal `"foo bar"` substring.
+        """
+        # Arrange — plugin has 'foo' in name and 'bar' in args but never
+        # the adjacent string "foo bar" anywhere.
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="foocmd", args="<bar>", help="Separate terms command.",
+            handler=lambda ctx, args: None,
+        ))
+
+        # Act
+        result = engine.dispatch("search foo bar")
+
+        # Assert — literal AND grammar matches; a regex for "foo bar"
+        # (literal with space) would not match across fields.
+        names = result.value.splitlines() if result.value else []
+        assert "foocmd" in names, "AND grammar matches across fields"
 
 
 # -- /show ----------------------------------------------------------------

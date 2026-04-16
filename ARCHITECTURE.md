@@ -10,17 +10,17 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (3903 lines) Textual TUI — UI, modals, app hooks
-├── cli.py               # (700 lines)  Plain-text CLI frontend — CLITerminal class
+├── app.py               # (3923 lines) Textual TUI — UI, modals, app hooks
+├── cli.py               # (698 lines)  Plain-text CLI frontend — CLITerminal class
 ├── serial_engine.py     # (379 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py       # (302 lines)  Serial I/O wrapper + SerialReader data processor
 ├── capture.py           # (336 lines)  Capture state machine — text, binary, format spec
 ├── dialogs.py           # (1721 lines) Modal screens — config editor, pickers, confirm
 ├── proto_debug.py       # (1167 lines) Interactive protocol debug screen
 ├── protocol.py          # (1479 lines) Protocol parsing, format specs, CRC, visualizers
-├── demo.py              # (1524 lines) Simulated device for --demo mode (FakeSerial)
+├── demo.py              # (1586 lines) Simulated device for --demo mode (FakeSerial)
 ├── repl.py              # (1190 lines) REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (1286 lines) Plugin system — Command, PluginContext, loading
+├── plugins.py           # (1317 lines) Plugin system — Command, PluginContext, loading
 ├── help_dynamic.py      # (245 lines)  Reusable helpers for callable long_help
 ├── config.py            # (558 lines)  Config dirs, loading, validation, migration trigger
 ├── port_control.py      # (828 lines)  Pure serial port control functions — no Textual
@@ -395,7 +395,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test coverage
 
-32 test files, 1505 tests, 67% overall coverage:
+33 test files, 1588 tests, 67% overall coverage:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |

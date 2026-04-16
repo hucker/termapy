@@ -96,6 +96,49 @@ Examples that should not:
 - Pure side-effect commands (`/cls`, `/edit`, `/cap.stop`)
 - Commands that print multiple lines (`/cfg.configs`, `/help`)
 
+## Dynamic help for runtime state
+
+If your command owns runtime state that a user should see right on its
+help page — a loaded file, an open connection, a count of cached items —
+set `long_help` to a function instead of a string. The function takes
+the `PluginContext` and returns a string. It's invoked at render time,
+so whatever it reads from `ctx.ns(...)` or `ctx.cfg` is live.
+
+```python
+def _dynamic_long_help(ctx):
+    target = ctx.ns("target_commands")
+    if target:
+        state = f"Currently loaded: {len(target)} device command(s)."
+    else:
+        state = "Currently loaded: none."
+    return f"""{state}
+
+Sends a command to the device and parses the JSON response to include
+command help. Use /include.reload to refresh."""
+
+COMMAND = Command(
+    name="include",
+    help="Include device command help from JSON response.",
+    long_help=_dynamic_long_help,   # a function, not a string
+    handler=_handler,
+)
+```
+
+When the user runs `/help include`, the DESCRIPTION section calls this
+function and the first line reflects the current state. No change to
+the rendering path, no extra registration — the `long_help` field just
+accepts either form.
+
+Two caveats:
+
+1. **Read ctx defensively.** Use `ctx.ns("x").get("k", default)`
+   rather than indexing blindly. Help may be invoked at any moment,
+   including before your plugin's state is populated.
+2. **Never raise.** The renderer catches exceptions and substitutes
+   `(dynamic help failed: <error>)` so `/help` never crashes, but a
+   noisy fallback is worse than a thoughtful default like
+   `"(not loaded)"`.
+
 ## Serial I/O pattern
 
 Most plugins follow this pattern: send a command, read the response, do something with it.

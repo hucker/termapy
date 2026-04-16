@@ -55,7 +55,18 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, ClassVar, Generator
+from typing import Any, Callable, ClassVar, Generator, Union
+
+
+# Type alias for the ``long_help`` field on Command and PluginInfo. A plugin
+# can supply either a static string or a callable that receives the live
+# PluginContext and returns a string. Callables let a command's DESCRIPTION
+# section reflect runtime state (loaded files, current connection, cached
+# counts) without having to wire up a custom render path.
+#
+# Uses the quoted string "PluginContext" because that class is defined later
+# in this same module.
+LongHelp = Union[str, Callable[["PluginContext"], str]]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +89,7 @@ from typing import Any, Callable, ClassVar, Generator
 # the need (so dispatch gates them) or not use the capability at all.
 #
 # Why a closed dataclass of booleans rather than a free-form set of strings?
-#   - Typos fail at import time (``needs=CapabilitySet(block_untill=True)``
+#   - Typos fail at import time (``needs=CapabilitySet(block_untl=True)``
 #     is an immediate error), not silently at runtime.
 #   - The fields below are the single source of truth for the vocabulary.
 #     Grep-friendly: every consumer reads ``caps.block_until`` by name.
@@ -113,7 +124,7 @@ class CapabilitySet:
         that termapy ships is guaranteed to provide (terminal output,
         serial I/O, nested dispatch, config access).  A command declares
         these by leaving them alone; they show up in ``CapabilitySet()``
-        automatically.  A hypothetical restricted environment (sandboxed
+        automatically.  A hypothetical restricted environment (sand-boxed
         runner, web preview) can flip one ``False`` and dispatch will
         gate every command that depends on it, without any command
         author needing to change declarations.
@@ -212,8 +223,7 @@ class CapabilitySet:
     def satisfied_by(self, provided: "CapabilitySet") -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
-            not getattr(self, f.name) or getattr(provided, f.name)
-            for f in fields(self)
+            not getattr(self, f.name) or getattr(provided, f.name) for f in fields(self)
         )
 
     def missing_from(self, provided: "CapabilitySet") -> list[str]:
@@ -223,7 +233,8 @@ class CapabilitySet:
         vocabulary (not alphabetical).
         """
         return [
-            f.name for f in fields(self)
+            f.name
+            for f in fields(self)
             if getattr(self, f.name) and not getattr(provided, f.name)
         ]
 
@@ -233,10 +244,12 @@ class CapabilitySet:
         Useful when deriving one environment from another, e.g. the script
         runner's capabilities are the REPL's plus ``block_until``.
         """
-        return CapabilitySet(**{
-            f.name: getattr(self, f.name) or getattr(other, f.name)
-            for f in fields(self)
-        })
+        return CapabilitySet(
+            **{
+                f.name: getattr(self, f.name) or getattr(other, f.name)
+                for f in fields(self)
+            }
+        )
 
 
 @dataclass
@@ -299,7 +312,12 @@ class Command:
             for sub_commands entries (name comes from the dict key).
         args: Argument spec for help display. ``""`` = no args,
             ``"{opt}"`` = optional, ``"<required>"`` = required.
-        long_help: Extended help shown by ``/help <cmd>``.
+        long_help: Extended help shown by ``/help <cmd>``.  May be a string
+            or a callable ``(PluginContext) -> str``.  Callables are
+            invoked at render time so the help can reflect live runtime
+            state (loaded files, current connection, etc.).  See
+            ``resolve_long_help`` and the "Dynamic help" section of
+            ``writing-plugins.md``.
         handler: The command function. Required for leaf nodes.
             Signature: ``handler(ctx: PluginContext, args: str) -> None``.
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
@@ -324,7 +342,7 @@ class Command:
     help: str
     name: str = ""
     args: str = ""
-    long_help: str = ""
+    long_help: LongHelp = ""
     handler: Callable | None = None
     sub_commands: dict[str, "Command"] | None = None
     raw_args: bool = False
@@ -409,7 +427,7 @@ class Transform:
 
     name: str
     help: str
-    repl: Callable | None = None    # (str) -> str, rewrites REPL commands
+    repl: Callable | None = None  # (str) -> str, rewrites REPL commands
     serial: Callable | None = None  # (str) -> str, rewrites device commands
 
 
@@ -581,9 +599,7 @@ class PluginConfig:
         if self._data is None:
             if self._path.exists():
                 try:
-                    self._data = json.loads(
-                        self._path.read_text(encoding="utf-8")
-                    )
+                    self._data = json.loads(self._path.read_text(encoding="utf-8"))
                 except (OSError, json.JSONDecodeError):
                     self._data = {}
             else:
@@ -600,9 +616,7 @@ class PluginConfig:
         """
         data = self._ensure_loaded()
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps(data, indent=2) + "\n", encoding="utf-8"
-        )
+        self._path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a value, returning *default* if the key is absent."""
@@ -731,7 +745,7 @@ class PluginContext:
     """
 
     # Core I/O
-    write: Callable             # write(text, color="dim") -> None
+    write: Callable  # write(text, color="dim") -> None
     write_markup: Callable = lambda text: None  # write(text) with Rich markup
     cfg: MappingProxyType | dict = field(default_factory=dict)
     config_path: str = ""
@@ -741,17 +755,21 @@ class PluginContext:
     log: Callable = lambda prefix, text: None
 
     # Serial port
-    port: Callable = lambda: None   # -> serial.Serial | None
+    port: Callable = lambda: None  # -> serial.Serial | None
     is_connected: Callable = lambda: False
     serial_write: Callable = lambda data: None
-    serial_send: Callable = lambda text: None  # send text with configured line ending + encoding
+    serial_send: Callable = (
+        lambda text: None
+    )  # send text with configured line ending + encoding
     serial_wait_for_data: Callable = lambda timeout_ms=250: False  # wait for first byte
     serial_wait_idle: Callable = lambda timeout_ms=400: None
     serial_read_raw: Callable = lambda timeout_ms=1000, frame_gap_ms=0: b""
     serial_drain: Callable = lambda: 0
-    serial_claim: Callable = lambda: None    # suppress terminal display, claim raw bytes
+    serial_claim: Callable = lambda: None  # suppress terminal display, claim raw bytes
     serial_release: Callable = lambda: None  # resume normal terminal display
-    wait_for_match: Callable = lambda predicate, timeout=5.0: None  # block until line matches
+    wait_for_match: Callable = (
+        lambda predicate, timeout=5.0: None
+    )  # block until line matches
 
     # Status bar - transient text in the bottom bar (TUI only, no-op in CLI)
     status_bar: Callable = lambda text, timeout=5.0: None
@@ -775,7 +793,9 @@ class PluginContext:
     dispatch: Callable = lambda cmd: None  # dispatch(cmd) -> None
 
     # UI
-    confirm: Callable = lambda message: False  # confirm(msg) -> bool (worker thread only)
+    confirm: Callable = (
+        lambda message: False
+    )  # confirm(msg) -> bool (worker thread only)
     notify: Callable = lambda text, **kw: None
     clear_screen: Callable = lambda: None
     save_screenshot: Callable = lambda path: None
@@ -816,7 +836,7 @@ class PluginContext:
         Namespaces are uniform mutable ``dict`` s keyed by name.  They live for
         the lifetime of the ``PluginContext`` (one app session) and are the
         supported way for both built-in and third-party plugins to keep
-        per-session state.  Prefer this over monkeypatching ``ctx`` or using
+        per-session state.  Prefer this over monkey-patching ``ctx`` or using
         module-level globals.
 
         Namespaces are not isolated -- any caller can read or write any
@@ -956,8 +976,11 @@ class PluginInfo:
         args: Argument spec for help display. ``""`` = no args,
             ``"{opt}"`` = optional, ``"<required>"`` = required.
         help: One-line description shown by ``/help``.
-        long_help: Extended help shown by ``/help <cmd>``. May span multiple
-            lines. When empty, the one-line ``help`` is shown instead.
+        long_help: Extended help shown by ``/help <cmd>``. May be a string
+            (static prose, possibly multi-line) or a callable
+            ``(PluginContext) -> str`` that returns the current text at
+            render time.  When empty/callable-returning-empty, the one-line
+            ``help`` is shown instead.  See ``resolve_long_help``.
         handler: The command function. Signature:
             ``handler(ctx: PluginContext, args: str) -> None``.
         source: Where the plugin was loaded from (``"built-in"``, ``"global"``,
@@ -975,13 +998,34 @@ class PluginInfo:
     name: str
     args: str
     help: str
-    handler: Callable   # handler(ctx: PluginContext, args: str) -> None
-    long_help: str = ""
+    handler: Callable  # handler(ctx: PluginContext, args: str) -> None
+    long_help: LongHelp = ""
     source: str = "built-in"
     children: list[str] = field(default_factory=list)
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
+
+
+def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
+    """Return ``plugin.long_help`` as a string, calling it if it's a function.
+
+    Static strings pass through untouched. Callables are invoked with the
+    live ``PluginContext`` and their return value is returned verbatim.
+
+    Any exception raised by a callable is caught and returned as a
+    fallback string so that ``/help`` rendering can never itself fail.
+    A broken help function is a bug to fix, not a condition that should
+    make ``/help`` unusable -- the fallback string puts the error right
+    where the author will notice it.
+    """
+    hp = plugin.long_help
+    if not isinstance(hp, str):
+        try:
+            hp = hp(ctx)
+        except Exception as e:
+            hp = f"(dynamic help failed: {e})"
+    return hp or ""
 
 
 @dataclass
@@ -1073,8 +1117,11 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
 
 
 def _load_plugin_file(
-    path: Path, source: str,
-) -> tuple[list[PluginInfo], list[TransformInfo], list[DirectiveInfo], list[LifecycleHook]]:
+    path: Path,
+    source: str,
+) -> tuple[
+    list[PluginInfo], list[TransformInfo], list[DirectiveInfo], list[LifecycleHook]
+]:
     """Import a single plugin file and extract commands, transforms, directives, and hooks.
 
     A valid plugin module may export a ``COMMAND`` instance (a ``Command``
@@ -1127,37 +1174,43 @@ def _load_plugin_file(
     transforms: list[TransformInfo] = []
     xform = getattr(mod, "TRANSFORM", None)
     if isinstance(xform, Transform) and xform.name:
-        transforms.append(TransformInfo(
-            name=xform.name,
-            help=xform.help,
-            repl=xform.repl,
-            serial=xform.serial,
-            source=source,
-        ))
+        transforms.append(
+            TransformInfo(
+                name=xform.name,
+                help=xform.help,
+                repl=xform.repl,
+                serial=xform.serial,
+                source=source,
+            )
+        )
 
     # Directives
     directives: list[DirectiveInfo] = []
     directive = getattr(mod, "DIRECTIVE", None)
     if isinstance(directive, Directive) and directive.name:
-        directives.append(DirectiveInfo(
-            name=directive.name,
-            help=directive.help,
-            pattern=directive.pattern,
-            handler=directive.handler,
-            source=source,
-        ))
+        directives.append(
+            DirectiveInfo(
+                name=directive.name,
+                help=directive.help,
+                pattern=directive.pattern,
+                handler=directive.handler,
+                source=source,
+            )
+        )
 
     # Lifecycle hooks -- top-level functions named in LIFECYCLE_HOOK_NAMES
     lifecycle_hooks: list[LifecycleHook] = []
     for hook_name in LIFECYCLE_HOOK_NAMES:
         handler = getattr(mod, hook_name, None)
         if callable(handler):
-            lifecycle_hooks.append(LifecycleHook(
-                name=hook_name,
-                handler=handler,
-                source=source,
-                plugin=path.stem,
-            ))
+            lifecycle_hooks.append(
+                LifecycleHook(
+                    name=hook_name,
+                    handler=handler,
+                    source=source,
+                    plugin=path.stem,
+                )
+            )
 
     return plugins, transforms, directives, lifecycle_hooks
 
@@ -1220,7 +1273,8 @@ def _flatten_command(
 
 
 def _make_interior_handler(
-    full_name: str, children: list[str],
+    full_name: str,
+    children: list[str],
 ) -> Callable:
     """Create a synthetic handler for an interior command node.
 
@@ -1234,6 +1288,7 @@ def _make_interior_handler(
     Returns:
         A handler callable with the standard (ctx, args) signature.
     """
+
     def _handler(ctx: PluginContext, args: str) -> None:
         prefix = ctx.engine.prefix
         ctx.write(f"Subcommands of {prefix}{full_name}:")
@@ -1243,4 +1298,5 @@ def _make_interior_handler(
             if child:
                 arg_str = f" {child.args}" if child.args else ""
                 ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
+
     return _handler

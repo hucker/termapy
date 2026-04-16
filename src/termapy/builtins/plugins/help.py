@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, resolve_long_help
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -271,13 +271,18 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             _write_docstring(ctx, docstring)
         else:
             ctx.write("  (no docstring)")
-    elif plugin.long_help:
-        ctx.write_markup("")
-        ctx.write_markup(_SECTION_FMT.format(text="DESCRIPTION"))
-        # ctx.write auto-indents; use write_markup with explicit indent so
-        # markup in long_help passes through.
-        for line in plugin.long_help.strip().splitlines():
-            ctx.write_markup(f"  {line}")
+    else:
+        # long_help may be a str or a callable(ctx) -> str. resolve_long_help
+        # normalizes, catching any exception from a dynamic callable so that
+        # /help rendering never itself fails.
+        lh = resolve_long_help(plugin, ctx)
+        if lh:
+            ctx.write_markup("")
+            ctx.write_markup(_SECTION_FMT.format(text="DESCRIPTION"))
+            # ctx.write auto-indents; use write_markup with explicit indent
+            # so markup in long_help passes through.
+            for line in lh.strip().splitlines():
+                ctx.write_markup(f"  {line}")
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     rows = _canonical_flags(plugin)

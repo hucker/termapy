@@ -439,6 +439,115 @@ class TestHelp:
             "DESCRIPTION skipped when long_help is empty"
         )
 
+    def test_help_callable_long_help_is_invoked(self, repl_env):
+        """A callable long_help is called at render time and its result appears."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="dyncmd", args="", help="Dynamic test.",
+            handler=lambda ctx, args: None,
+            long_help=lambda ctx: "dynamic text here",
+        ))
+
+        # Act
+        engine.dispatch("help dyncmd")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("DESCRIPTION" in t for t in texts), "DESCRIPTION header emitted"
+        assert any("dynamic text here" in t for t in texts), \
+            "callable result appears in rendered output"
+
+    def test_help_callable_long_help_receives_ctx(self, repl_env):
+        """The callable gets the live PluginContext and can read ns/cfg."""
+        # Arrange — callable that reads a namespace populated in the fixture
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def dyn(ctx):
+            items = ctx.ns("mytest")
+            return f"count={len(items)}"
+
+        engine.register_plugin(PluginInfo(
+            name="ctxcmd", args="", help="Reads ctx.ns.",
+            handler=lambda ctx, args: None,
+            long_help=dyn,
+        ))
+        # Seed the ns after registration -- the callable reads live state.
+        engine.ctx.ns("mytest").update({"a": 1, "b": 2})
+
+        # Act
+        engine.dispatch("help ctxcmd")
+
+        # Assert — the two items are reflected live.
+        texts = [t for t, _ in output]
+        assert any("count=2" in t for t in texts), \
+            "callable receives live ctx and reads ns() correctly"
+
+    def test_help_callable_long_help_exception_is_caught(self, repl_env):
+        """A raising callable yields a fallback string; /help does not crash."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+
+        def boom(ctx):
+            raise RuntimeError("boom")
+
+        engine.register_plugin(PluginInfo(
+            name="boomcmd", args="", help="Broken help.",
+            handler=lambda ctx, args: None,
+            long_help=boom,
+        ))
+
+        # Act — must not propagate
+        result = engine.dispatch("help boomcmd")
+
+        # Assert — fallback present, command reports success
+        texts = [t for t, _ in output]
+        assert result.success is True, "rendering survives exception"
+        assert any("dynamic help failed" in t for t in texts), \
+            "fallback prefix appears"
+        assert any("boom" in t for t in texts), "exception message included"
+
+    def test_help_callable_empty_result_omits_description(self, repl_env):
+        """Callable returning '' omits DESCRIPTION, matching static-empty behavior."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="silentcmd", args="", help="No dynamic text.",
+            handler=lambda ctx, args: None,
+            long_help=lambda ctx: "",
+        ))
+
+        # Act
+        engine.dispatch("help silentcmd")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert not any("DESCRIPTION" in t for t in texts), \
+            "empty callable result hides the DESCRIPTION section"
+
+    def test_search_callable_long_help_is_indexed(self, repl_env):
+        """/search invokes callable long_help so dynamic text is findable."""
+        # Arrange
+        engine, _, _, output = repl_env
+        from termapy.plugins import PluginInfo
+        engine.register_plugin(PluginInfo(
+            name="uniquecmd", args="", help="Plain help.",
+            handler=lambda ctx, args: None,
+            long_help=lambda ctx: "UNIQUEHAPAX appears only in dynamic help",
+        ))
+
+        # Act
+        result = engine.dispatch("search UNIQUEHAPAX")
+
+        # Assert — the command surfaces via its dynamic long_help text
+        names = result.value.splitlines() if result.value else []
+        assert "uniquecmd" in names, \
+            "callable long_help contributes to /search index"
+
     def test_help_renders_flags_section(self, repl_env):
         """/help <cmd> shows a FLAGS section for commands that declare flags."""
         # Arrange

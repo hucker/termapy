@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New Features
+
+- **Dynamic help** -- `Command.long_help` (and `PluginInfo.long_help`) now accepts a callable `(PluginContext) -> str` as well as a static string. Callables are invoked at render time so a command's DESCRIPTION section can reflect live runtime state (loaded files, current connection, cached counts). Existing static-string declarations are unchanged. See `writing-plugins.md` for the pattern.
+
 ## 0.58.0 (2026-04-15)
 
 ### 0.58.0 New Features

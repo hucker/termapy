@@ -21,6 +21,7 @@ from termapy.plugins import (
     DirectiveInfo,
     DirectiveResult,
     LifecycleHook,
+    LongHelp,
     PluginContext,
     PluginInfo,
     TransformInfo,
@@ -456,7 +457,7 @@ class ReplEngine:
         help_text: str,
         handler: Callable,
         source: str = "built-in",
-        long_help: str = "",
+        long_help: LongHelp = "",
         raw_args: bool = False,
         flags: dict[str, str] | None = None,
         needs: CapabilitySet | None = None,
@@ -475,6 +476,8 @@ class ReplEngine:
             handler: Callable(ctx, args) invoked when the command runs.
             source: Label for origin (default "built-in").
             long_help: Extended help for ``/help <cmd>`` (default "").
+                May be a string or a callable ``(PluginContext) -> str``
+                for dynamic DESCRIPTION rendering. See ``resolve_long_help``.
             raw_args: Skip REPL transforms for this command (default False).
             flags: First-class flag declarations (see ``Command.flags``).
             needs: Environment capabilities the handler requires

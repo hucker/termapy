@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.plugins import PluginContext, PluginInfo, TransformInfo
+from termapy.plugins import CapabilitySet, PluginContext, PluginInfo, TransformInfo
 from termapy.repl import ReplEngine, _parse_flags, _resolve_flag
 
 
@@ -978,3 +978,103 @@ class TestDispatchFlags:
         # Assert — the second handler invocation observed a clean slate.
         _, second_flags = calls[-1]
         assert second_flags == set(), "flags reset before next dispatch"
+
+
+class TestDispatchCapabilities:
+    """Dispatch-level capability gate tests."""
+
+    @pytest.fixture
+    def cap_env(self, tmp_path):
+        """Engine with a configurable context capability set."""
+        cfg = {"port": "COM4", "baud_rate": 115200}
+        config_path = tmp_path / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+
+        output = []
+        eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+        ctx = PluginContext(
+            write=lambda t, c=None: output.append((t, c)),
+            write_markup=lambda t: output.append((t, "markup")),
+            cfg=cfg,
+            config_path=str(config_path),
+        )
+        eng.set_context(ctx)
+        return eng, ctx, output
+
+    def test_no_needs_runs_anywhere(self, cap_env):
+        """A command with the default empty needs runs in a default env."""
+        # Arrange
+        eng, ctx, _ = cap_env
+        called = []
+        eng.register_plugin(PluginInfo(
+            name="plain", args="", help="h",
+            handler=lambda c, a: called.append(True),
+        ))
+
+        # Act
+        result = eng.dispatch("plain")
+
+        # Assert
+        assert result.success is True, "default needs met by default env"
+        assert called == [True], "handler invoked"
+
+    def test_missing_capability_fails_with_message(self, cap_env):
+        """Command gated when env lacks a declared capability."""
+        # Arrange
+        eng, ctx, _ = cap_env
+        ctx.capabilities = CapabilitySet()  # explicit baseline, no extras
+        called = []
+        eng.register_plugin(PluginInfo(
+            name="blocker", args="", help="h",
+            handler=lambda c, a: called.append(True),
+            needs=CapabilitySet(block_until=True),
+        ))
+
+        # Act
+        result = eng.dispatch("blocker")
+
+        # Assert
+        assert result.success is False, "capability gap fails dispatch"
+        assert "block_until" in result.error, "names the missing capability"
+        assert called == [], "handler never invoked"
+
+    def test_satisfied_capability_runs(self, cap_env):
+        """Command runs when env provides the declared capability."""
+        # Arrange
+        eng, ctx, _ = cap_env
+        ctx.capabilities = CapabilitySet(block_until=True)
+        called = []
+        eng.register_plugin(PluginInfo(
+            name="blocker", args="", help="h",
+            handler=lambda c, a: called.append(True),
+            needs=CapabilitySet(block_until=True),
+        ))
+
+        # Act
+        result = eng.dispatch("blocker")
+
+        # Assert
+        assert result.success is True, "env satisfies needs"
+        assert called == [True], "handler invoked"
+
+    def test_restricted_baseline_gates_ordinary_command(self, cap_env):
+        """Flipping a baseline capability off gates commands that didn't
+        declare anything special.
+        """
+        # Arrange — sandbox environment without serial_io.
+        eng, ctx, _ = cap_env
+        ctx.capabilities = CapabilitySet(serial_io=False)
+        called = []
+        # Ordinary command: default CapabilitySet() has serial_io=True.
+        eng.register_plugin(PluginInfo(
+            name="sender", args="", help="h",
+            handler=lambda c, a: called.append(True),
+        ))
+
+        # Act
+        result = eng.dispatch("sender")
+
+        # Assert — sandbox's baseline gap is detected.
+        assert result.success is False, "sandbox gates the command"
+        assert "serial_io" in result.error, "reports baseline gap"
+        assert called == [], "handler never invoked"

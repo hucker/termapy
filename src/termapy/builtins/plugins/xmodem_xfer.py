@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from termapy.vendor.xmodem import XMODEM
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.scripting import resolve_seq_filename
 
 if TYPE_CHECKING:
@@ -105,9 +105,6 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     if not filename:
         return CmdResult.fail(msg="Usage: /xmodem.send <file>")
 
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
-
     path = _resolve_path(filename, _get_xfer_root(ctx))
     if not path.is_file():
         return CmdResult.fail(msg=f"File not found: {path}")
@@ -154,9 +151,6 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     filename = args.strip()
     if not filename:
         return CmdResult.fail(msg="Usage: /xmodem.recv <file>")
-
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
 
     try:
         filename = resolve_seq_filename(filename, _get_xfer_root(ctx))
@@ -218,11 +212,13 @@ COMMAND = Command(
             args="<file>",
             help="Send a file via XMODEM to the device.",
             handler=_handler_send,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "recv": Command(
             args="<file>",
             help="Receive a file via XMODEM from the device.",
             handler=_handler_recv,
+            needs=CapabilitySet(serial_connected=True),
         ),
     },
 )

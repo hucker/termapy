@@ -22,7 +22,7 @@ from termapy.protocol import (
 )
 from termapy.protocol_crc import CRC_CATALOGUE, get_crc_registry
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -354,8 +354,6 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg="Usage: /proto.send [algo[_le|_be][_ascii]] " '<hex/"text"/~delay ...>'
         )
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
 
     # Check if the first word is a CRC algorithm name (with optional suffixes)
     first, _, rest = args.strip().partition(" ")
@@ -469,9 +467,6 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
     if path is None:
         return CmdResult.fail(msg=f"File not found: {filename}")
 
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
-
     try:
         text = path.read_text(encoding="utf-8")
         result = load_proto_script(text)
@@ -505,9 +500,6 @@ def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
     path = _resolve_proto_file(ctx, filename)
     if path is None:
         return CmdResult.fail(msg=f"File not found: {filename}")
-
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
 
     try:
         text = path.read_text(encoding="utf-8")
@@ -849,11 +841,13 @@ in the proto/ subfolder of your config directory.""",
             args='{algo[_le|_be][_ascii]} <hex|"text">',
             help="Send raw bytes (with optional CRC), show response.",
             handler=_cmd_send,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "run": Command(
             args="<file.pro>",
             help="Run a protocol test script.",
             handler=_cmd_run,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "list": Command(
             help="List .pro files in the proto/ directory.",
@@ -863,6 +857,7 @@ in the proto/ subfolder of your config directory.""",
             args="<file.pro>",
             help="Interactive protocol debug screen.",
             handler=_cmd_debug,
+            needs=CapabilitySet(tui_mode=True, serial_connected=True),
         ),
         "hex": Command(
             args="{on|off}",

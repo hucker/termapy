@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
@@ -27,8 +27,6 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
         timeout_ms = int(parse_duration(kw.get("timeout", "250ms")) * 1000)
     except ValueError as e:
         return CmdResult.fail(msg=f"Ping: {e}")
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
     times: list[float] = []
     for i in range(count):
         with ctx.serial_io():
@@ -79,6 +77,7 @@ COMMAND = Command(
         "  timeout=<dur>     response timeout per ping (default: 1s)"
     ),
     handler=_handler,
+    needs=CapabilitySet(serial_connected=True),
     sub_commands={
         "quiet": Command(
             "Ping without showing device response.",
@@ -93,6 +92,7 @@ COMMAND = Command(
             ),
             handler=_handler_quiet,
             args="{count=<N>} {timeout=<dur>} cmd=<command>",
+            needs=CapabilitySet(serial_connected=True),
         ),
     },
 )

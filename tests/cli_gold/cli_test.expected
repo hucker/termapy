@@ -483,7 +483,6 @@ demo> /help.plugin
   /color                    {on|off}                   Show or toggle color output.
   /delay                    <duration>                 Wait for duration with progress bar (e.g. 500ms, 1.5s).  (1)
   /demo                                                Set up and switch to the demo device config.  (1)
-  /line_no                  {on|off}                   Toggle line numbers (TUI only).
   /raw                      <text>                     Send raw text to serial (no transforms or line ending).
   /run                      {filename}                 Run a script file, or list available scripts.  (1)
   /tui                                                 Switch to TUI mode.
@@ -492,7 +491,6 @@ demo> /help.plugin
   /cap                                                 Data capture tools.  (6)
   /cfg                      {key {value}}              Show or change config values.  (12)
   /cls                                                 Clear the terminal screen.
-  /confirm                  {message}                  Show Yes/Cancel dialog; Cancel stops a running script.
   /echo                     {on | off}                 Toggle REPL command echo. Use /echo.quiet to set silently.
   /edit                     <filename>                 Open a project file in the system editor.  (6)
   /env                      {pattern}                  Manage $(env.NAME) expansion for CLI commands.  (3)
@@ -501,6 +499,7 @@ demo> /help.plugin
 (case-insensitive regex).
   /help                     {cmd}                      List REPL commands, or show help for one command.  (6)
   /include                  ... /help include          Include device command help from JSON response.  (4)
+  /line_no                  <on|off>                   Toggle line numbers on or off.
   /os                       <cmd>                      Run a shell command and show output (10s timeout). e.g. /os dir
   /ping                     ... /help ping             Send a command and measure response time.  (1)
   /port                     {name}                     Serial port tools: open, close, list, configure.  (18)
@@ -520,7 +519,11 @@ silently.
   /xfer                                                File transfer settings.  (1)
   /xmodem                                              XMODEM file transfer.  (2)
   /ymodem                                              YMODEM file transfer (batch, 1K blocks).  (2)
-  37 commands.
+
+-- Script Commands (.run files only) --
+  /confirm                  {message}                  Show Yes/Cancel dialog; Cancel stops a running script.
+  /expect                   ... /help expect           Wait for text in serial output (script-only).
+  38 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
@@ -575,13 +578,13 @@ demo> /port.dtr maybe
   Invalid DTR value: maybe (use 0/1/on/off)
 demo> /port.break -5
   Invalid duration (use milliseconds, e.g. 250)
-demo> /print === section: tui-only warnings ===
-  === section: tui-only warnings ===
+demo> /print === section: capability gates (tui_mode + screen_capture) ===
+  === section: capability gates (tui_mode + screen_capture) ===
 demo> /line_no on
-  Error: Only available in /tui mode.
+  Error: /line_no requires: tui_mode (not available in this environment)
 demo> /ss.svg
-  Error: Only available in /tui mode.
+  Error: /ss.svg requires: screen_capture (not available in this environment)
 demo> /ss.txt
-  Error: Only available in /tui mode.
+  Error: /ss.txt requires: screen_capture (not available in this environment)
   Script finished.
 Disconnected.

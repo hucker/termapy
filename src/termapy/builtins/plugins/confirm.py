@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -34,4 +34,5 @@ COMMAND = Command(
     args="{message}",
     help="Show Yes/Cancel dialog; Cancel stops a running script.",
     handler=_handler,
+    needs=CapabilitySet(block_until=True, confirm_dialog=True),
 )

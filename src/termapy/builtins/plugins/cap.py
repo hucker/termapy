@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.protocol import parse_format_spec
 from termapy.scripting import parse_duration, resolve_seq_filename
 
@@ -636,6 +636,7 @@ COMMAND = Command(
                 "  cmd=...           command to send after capture starts (must be last)"
             ),
             handler=_handler_text,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "bin": Command(
             args="<file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}",
@@ -652,6 +653,7 @@ COMMAND = Command(
                 "  cmd=...           command to send after capture starts (must be last)"
             ),
             handler=_handler_bin,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "struct": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
@@ -673,6 +675,7 @@ COMMAND = Command(
                 "See /help writing-plugins for the format spec language."
             ),
             handler=_handler_struct,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "hex": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",
@@ -693,6 +696,7 @@ COMMAND = Command(
                 "  cmd=...           command to send after capture starts (must be last)"
             ),
             handler=_handler_hex,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "poll": Command(
             args="{count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>} cmd=<commands> (must be last)",

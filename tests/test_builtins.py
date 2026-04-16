@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from termapy.plugins import EngineAPI, PluginContext
+from termapy.plugins import CapabilitySet, EngineAPI, PluginContext
 from termapy.repl import ReplEngine
 
 
@@ -44,6 +44,17 @@ def repl_env(tmp_path):
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
+        # Test fixture publishes every capability so command-by-command
+        # tests can exercise any handler.  Specific capability-gate tests
+        # use their own restricted ctx (see test_engine.TestDispatchCapabilities).
+        capabilities=CapabilitySet(
+            block_until=True,
+            confirm_dialog=True,
+            ui_notify=True,
+            status_bar=True,
+            screen_capture=True,
+            serial_connected=True,
+        ),
     )
     engine.set_context(ctx)
     # Seed the engine-reserved `flags` namespace with the defaults that

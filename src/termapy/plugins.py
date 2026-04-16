@@ -52,10 +52,191 @@ import importlib.util
 import json
 import sys
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, ClassVar, Generator
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Capability model
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Every command declares *what the environment must provide* for its handler
+# to run.  That declaration is a ``CapabilitySet`` on the ``Command`` (and
+# carried through to the registered ``PluginInfo``).  Every execution
+# environment (REPL prompt, script runner, CLI, TUI) publishes the
+# capabilities it provides on ``PluginContext.capabilities``.
+#
+# Dispatch is a simple check: if the command's ``needs`` aren't satisfied
+# by the context's ``capabilities``, the command fails with a clear message
+# naming what's missing.  No special cases; commands that can run anywhere
+# declare an empty ``needs`` (the default).
+#
+# **This is a fundamental aspect of every command.**  Handlers may not
+# silently no-op when a capability is missing -- they must either declare
+# the need (so dispatch gates them) or not use the capability at all.
+#
+# Why a closed dataclass of booleans rather than a free-form set of strings?
+#   - Typos fail at import time (``needs=CapabilitySet(block_untill=True)``
+#     is an immediate error), not silently at runtime.
+#   - The fields below are the single source of truth for the vocabulary.
+#     Grep-friendly: every consumer reads ``caps.block_until`` by name.
+#   - Extending is cheap: add a field with a default of ``False``, and
+#     every environment and command stays source-compatible.
+#
+# Add a capability by:
+#   1. Add a new field here with a ``bool = False`` default and a comment
+#      explaining *what* it means and *where* it's provided.
+#   2. The environments that provide it set the field to True when they
+#      build ``ctx.capabilities`` (typically in ``app.py`` / ``cli.py`` /
+#      the script runner in ``repl.py``).
+#   3. Commands that require it set the field in their ``Command.needs``.
+
+
+@dataclass(frozen=True)
+class CapabilitySet:
+    """Declarative set of environment capabilities.
+
+    Serves two roles with the same shape:
+
+      - ``Command.needs`` -- what a handler requires to run.
+      - ``PluginContext.capabilities`` -- what the environment provides.
+
+    A command is allowed to run when::
+
+        command.needs.satisfied_by(ctx.capabilities)
+
+    Fields come in two groups with **different defaults**:
+
+      - **Baseline** (default ``True``): things every execution environment
+        that termapy ships is guaranteed to provide (terminal output,
+        serial I/O, nested dispatch, config access).  A command declares
+        these by leaving them alone; they show up in ``CapabilitySet()``
+        automatically.  A hypothetical restricted environment (sandboxed
+        runner, web preview) can flip one ``False`` and dispatch will
+        gate every command that depends on it, without any command
+        author needing to change declarations.
+
+      - **Restrictive** (default ``False``): things only some environments
+        provide (blocking, UI dialogs, screen capture).  A command
+        declares a need by setting the field ``True``; an environment
+        advertises availability the same way.
+
+    **Adding a capability** is adding a field below with a ``# What:`` /
+    ``# Where:`` comment block.  Choose the default based on whether
+    every termapy environment can provide it or not.
+    """
+
+    # ── Baseline (default True) ──────────────────────────────────────────
+    # Every termapy environment provides these.  Listed explicitly so that
+    # (a) readers can see the full contract, and (b) a restricted
+    # environment can selectively opt out.
+
+    # What:  ``ctx.write`` / ``ctx.write_markup`` write to a visible sink
+    #        (terminal, log, or captured buffer).
+    # Where: CLI, TUI, script runner, test harness.
+    terminal_output: bool = True
+
+    # What:  ``ctx.serial_write`` / ``ctx.serial_send`` / ``ctx.serial_*``
+    #        can talk to the serial engine.  Note: being *connected* to a
+    #        port is the ``serial_connected`` capability below -- this one
+    #        only says the API is wired up.
+    # Where: CLI, TUI, script runner.
+    serial_io: bool = True
+
+    # What:  ``ctx.dispatch(cmd)`` routes a command through the full
+    #        dispatch pipeline (directives, transforms, REPL/serial).
+    # Where: Every environment; scripts nest dispatch heavily.
+    dispatch: bool = True
+
+    # What:  ``ctx.cfg``, ``ctx.config_path``, and the folder paths
+    #        (``scripts_dir``, ``proto_dir``, ...) are populated and
+    #        readable.
+    # Where: Every environment.  Tests sometimes use a synthetic config.
+    config_read: bool = True
+
+    # ── Restrictive (default False) ──────────────────────────────────────
+    # Only some environments provide these.  Commands opt in by setting
+    # ``needs=CapabilitySet(<name>=True)``; environments opt in by
+    # setting the same field in their ``ctx.capabilities``.
+
+    # What:  Handler can block the calling thread waiting for serial input
+    #        or a user response (e.g. /expect, /confirm).
+    # Where: Script runner only.  Blocking at the REPL would freeze the
+    #        TUI's event loop; blocking in the CLI event path would hang
+    #        stdin echo.  The script runner already executes on a
+    #        background worker thread that it's safe to block.
+    block_until: bool = False
+
+    # What:  ``ctx.confirm(message)`` can show a real Yes/Cancel dialog
+    #        and return the user's answer synchronously.
+    # Where: TUI + script runner.  Implies block_until (the handler stops
+    #        until the user answers).  CLI has no dialog today, though a
+    #        text-mode prompt could provide this later.
+    confirm_dialog: bool = False
+
+    # What:  ``ctx.notify(text)`` shows a transient toast-style message
+    #        that does not pollute the main output stream.
+    # Where: TUI only.
+    ui_notify: bool = False
+
+    # What:  ``ctx.status_bar(text, timeout)`` updates the bottom-of-screen
+    #        status line.  No-op elsewhere.
+    # Where: TUI only.
+    status_bar: bool = False
+
+    # What:  Can capture the rendered screen (``save_screenshot``,
+    #        ``get_screen_text``).  Requires a graphical render surface.
+    # Where: TUI only.  CLI renders to a plain terminal; there is no
+    #        serialized screen state to capture.
+    screen_capture: bool = False
+
+    # What:  Running inside the TUI (Textual) rather than the CLI.
+    #        Commands that tweak TUI-specific display settings (line
+    #        numbers, scrollback rendering, modal dialogs) declare this.
+    # Where: TUI only.  Distinct from ``screen_capture`` -- that's about
+    #        *reading* the render surface; this is about *using* TUI-only
+    #        features at runtime.
+    tui_mode: bool = False
+
+    # What:  A serial port is currently open and transmitting.
+    # Where: Dynamic -- evaluated per dispatch by checking
+    #        ``ctx.is_connected()``.  Any environment can publish this,
+    #        but only when a port is actually open.  Commands that send
+    #        bytes (/proto.send, /xmodem.send, ...) declare this need
+    #        so dispatch gives a clear "not connected" error instead of
+    #        each handler re-implementing the check.
+    serial_connected: bool = False
+
+    def satisfied_by(self, provided: "CapabilitySet") -> bool:
+        """True iff every capability set in ``self`` is also set in ``provided``."""
+        return all(
+            not getattr(self, f.name) or getattr(provided, f.name)
+            for f in fields(self)
+        )
+
+    def missing_from(self, provided: "CapabilitySet") -> list[str]:
+        """Return field names required by ``self`` that ``provided`` lacks.
+
+        Order matches declaration order above, which is a stable, reviewable
+        vocabulary (not alphabetical).
+        """
+        return [
+            f.name for f in fields(self)
+            if getattr(self, f.name) and not getattr(provided, f.name)
+        ]
+
+    def union(self, other: "CapabilitySet") -> "CapabilitySet":
+        """Return a new set that has every capability provided by either side.
+
+        Useful when deriving one environment from another, e.g. the script
+        runner's capabilities are the REPL's plus ``block_until``.
+        """
+        return CapabilitySet(**{
+            f.name: getattr(self, f.name) or getattr(other, f.name)
+            for f in fields(self)
+        })
 
 
 @dataclass
@@ -132,6 +313,12 @@ class Command:
             fail dispatch with a "did you mean" suggestion.  Commands
             with an empty ``flags`` dict do no flag parsing at all,
             preserving full back-compat.
+        needs: Environment capabilities the handler requires.  Default
+            is ``CapabilitySet()`` -- the baseline every environment
+            provides, nothing more.  Dispatch gates the handler when
+            the context lacks any declared capability, failing with a
+            clear message naming what's missing.  See ``CapabilitySet``
+            for the full vocabulary.
     """
 
     help: str
@@ -142,6 +329,7 @@ class Command:
     sub_commands: dict[str, "Command"] | None = None
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
+    needs: CapabilitySet = field(default_factory=CapabilitySet)
 
 
 @dataclass
@@ -605,6 +793,14 @@ class PluginContext:
     # namespace (echo/verbose/hex_mode toggles).
     active_flags: set[str] = field(default_factory=set)
 
+    # Capabilities this environment provides.  Dispatch compares a
+    # command's declared ``needs`` against this set before calling the
+    # handler and fails with a clear message if anything is missing.
+    # The REPL, script runner, CLI, TUI, and test harness each publish
+    # their own capabilities when the context is constructed.  See the
+    # ``CapabilitySet`` docstring for the full capability vocabulary.
+    capabilities: CapabilitySet = field(default_factory=CapabilitySet)
+
     # Namespace registry - plugin/builtin session-scoped state.
     # See ctx.ns() below for the public interface.
     _namespaces: dict[str, dict] = field(default_factory=dict)
@@ -772,6 +968,8 @@ class PluginInfo:
             are canonical flag names (e.g. ``--table``); values are
             either a description (canonical) or another flag key (alias).
             Empty dict means the command opts out of flag parsing.
+        needs: Environment capabilities the handler requires (inherited
+            from ``Command.needs``).  See ``CapabilitySet``.
     """
 
     name: str
@@ -783,6 +981,7 @@ class PluginInfo:
     children: list[str] = field(default_factory=list)
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
+    needs: CapabilitySet = field(default_factory=CapabilitySet)
 
 
 @dataclass
@@ -1014,6 +1213,7 @@ def _flatten_command(
         children=children,
         raw_args=node.raw_args,
         flags=dict(node.flags),
+        needs=node.needs,
     )
     result.insert(0, info)
     return result

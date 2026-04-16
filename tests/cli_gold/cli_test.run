@@ -174,8 +174,14 @@ $(BAUD) <- /port.baud_rate
 /port.dtr maybe
 /port.break -5
 
-# ── TUI-only commands (verify warnings) ─────────────────────────────────────
-/print === section: tui-only warnings ===
+# ── Capability gates (tui_mode + screen_capture) ────────────────────────────
+# Demo CLI lacks TUI capabilities, so commands declaring tui_mode or
+# screen_capture fail with a uniform "/cmd requires: <cap> (not available in
+# this environment)" message.  Other capability gates (serial_connected,
+# block_until) are covered by unit tests because the gold harness runs in
+# --demo mode (connected), which satisfies serial_connected, and .run files
+# satisfy block_until -- neither reaches the gate here.
+/print === section: capability gates (tui_mode + screen_capture) ===
 /line_no on
 /ss.svg
 /ss.txt

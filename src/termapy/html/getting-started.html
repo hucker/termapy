@@ -23,7 +23,7 @@
     
     
       
-        <title>Getting started - Termapy Help v0.58.0</title>
+        <title>Getting started - Termapy Help v0.59.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.58.0" class="md-header__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.59.0" class="md-header__button md-logo" aria-label="Termapy Help v0.59.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.58.0
+            Termapy Help v0.59.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.58.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.59.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.59.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.58.0
+    Termapy Help v0.59.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1126,16 +1126,19 @@ path to open it in your default application.</p>
 <li>As you type, ghost-text suggestions appear from REPL commands and device history; press <strong>Right</strong> to accept.</li>
 <li>Prefix a command with <code>/</code> to run a local REPL command instead of sending it to the device.</li>
 </ul>
-<p>Type <code>/help</code> to see all available REPL commands. <code>/help</code> is forgiving --
-partial names and keywords work too. A few useful forms:</p>
+<p>Type <code>/help</code> to see all available REPL commands. Three ways to find
+things, man-inspired:</p>
 <ul>
-<li><code>/help &lt;cmd&gt;</code>            -- full help, flags, subcommands, long help</li>
-<li><code>/help crc</code>              -- fuzzy match across names, flags, help text, args</li>
-<li><code>/help table crc</code>        -- AND: commands matching both terms</li>
-<li><code>/help crc -table</code>       -- exclude: drop results matching <code>table</code></li>
-<li><code>/help --table</code>          -- literal flag lookup (find commands that take <code>--table</code>)</li>
-<li><code>/help.search &lt;regex&gt;</code>   -- full regex search across every command</li>
-<li><code>/help.dev &lt;cmd&gt;</code>        -- show the handler's Python docstring</li>
+<li><code>/help</code>                  -- clean landscape of every command (name + one-liner).</li>
+<li><code>/help &lt;cmd&gt;</code>            -- exact match -&gt; full man-page detail (NAME, SYNOPSIS,
+  DESCRIPTION, FLAGS, REQUIRES, SUBCOMMANDS, SEE ALSO).</li>
+<li><code>/help &lt;term&gt;</code>           -- no exact match? You get a candidate list (substring
+  match on name + short help). Pick one and rerun <code>/help</code> on its full name.</li>
+<li><code>/search &lt;word&gt;</code>         -- deep search across everything (name, help, args,
+  flags, long help). Supports multi-term AND (<code>/search port baud</code>), negative
+  exclusion (<code>/search baud -break</code>), and regex (<code>/search ^proto\.</code>).</li>
+<li><code>/search --dev &lt;word&gt;</code>   -- also searches handler docstrings.</li>
+<li><code>/help.dev &lt;cmd&gt;</code>        -- developer view: shows the handler's Python docstring.</li>
 </ul>
 <hr />
 

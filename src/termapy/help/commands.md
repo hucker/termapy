@@ -4,7 +4,9 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
-| `/help [cmd]`             | List commands or show extended help for one                                 |
+| `/help [cmd]`             | List commands, or show help for one; fuzzy partial matches also work        |
+| `/help <term> [term...]`  | Multi-term substring search; prefix a term with `-` to exclude              |
+| `/help.search <pattern>`  | Full regex search across every command (name, help, args, flags, long)      |
 | `/help.target`            | Show only imported target device commands                                   |
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.plugin`            | List loaded plugins grouped by source                                       |

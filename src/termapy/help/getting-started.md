@@ -153,6 +153,15 @@ The bottom bar contains a text input for sending commands to the serial device.
 - As you type, ghost-text suggestions appear from REPL commands and device history; press **Right** to accept.
 - Prefix a command with `/` to run a local REPL command instead of sending it to the device.
 
-Type `/help` to see all available REPL commands.
+Type `/help` to see all available REPL commands. `/help` is forgiving --
+partial names and keywords work too. A few useful forms:
+
+- `/help <cmd>`            -- full help, flags, subcommands, long help
+- `/help crc`              -- fuzzy match across names, flags, help text, args
+- `/help table crc`        -- AND: commands matching both terms
+- `/help crc -table`       -- exclude: drop results matching `table`
+- `/help --table`          -- literal flag lookup (find commands that take `--table`)
+- `/help.search <regex>`   -- full regex search across every command
+- `/help.dev <cmd>`        -- show the handler's Python docstring
 
 ---

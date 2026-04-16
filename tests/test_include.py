@@ -152,6 +152,29 @@ class TestTargetCommand:
         # Assert
         assert tc.args == "", "args defaults to empty"
 
+    def test_defaults_long_help_and_flags(self) -> None:
+        """New optional fields default to empty so old-shape callers work."""
+        # Act
+        tc = TargetCommand(name="X", help="x")
+        # Assert
+        assert tc.long_help == "", "long_help defaults empty"
+        assert tc.flags == {}, "flags default to empty dict"
+
+    def test_stores_long_help_and_flags(self) -> None:
+        """Caller-supplied long_help and flags survive construction."""
+        # Arrange / Act
+        tc = TargetCommand(
+            name="AT+LED",
+            help="Control LED",
+            args="<on|off>",
+            long_help="multi-line\nprose here",
+            flags={"--blink": "blink mode", "-b": "--blink"},
+        )
+        # Assert
+        assert tc.long_help == "multi-line\nprose here", "long_help preserved"
+        assert tc.flags["--blink"] == "blink mode", "canonical flag preserved"
+        assert tc.flags["-b"] == "--blink", "alias preserved"
+
 
 # -- ReplEngine target command storage ----------------------------------------
 
@@ -232,7 +255,7 @@ class TestReadJsonParsing:
                 )
         # Assert
         assert len(commands) >= 10, "built from all entries"
-        assert commands["AT+LED"].args == "<on|off>", "args preserved"
+        assert commands["AT+LED"].args.startswith("<on|off>"), "args preserved"
 
     def test_skip_entries_without_help(self) -> None:
         """Entries missing 'help' should be skipped."""
@@ -264,6 +287,370 @@ class TestReadJsonParsing:
         data = json.loads(raw[start:])
         # Assert
         assert "AT" in data, "found JSON despite preamble"
+
+
+# -- _build_commands / _to_json_dict round-trip ------------------------------
+
+
+class TestBuildCommandsExtraFields:
+    """Coverage for the new optional long_help + flags keys in JSON."""
+
+    def test_build_reads_long_help_and_flags(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _build_commands
+        cmd_dict = {
+            "AT+LED": {
+                "help": "LED",
+                "args": "<on|off>",
+                "long_help": "Drive the LED line.",
+                "flags": {"--blink": "blink mode", "-b": "--blink"},
+            }
+        }
+
+        # Act
+        actual = _build_commands(cmd_dict)
+
+        # Assert
+        tc = actual["AT+LED"]
+        assert tc.long_help == "Drive the LED line.", "long_help read"
+        assert tc.flags == {"--blink": "blink mode", "-b": "--blink"}, \
+            "flags dict read verbatim"
+
+    def test_build_ignores_non_string_long_help(self) -> None:
+        """A device emitting a non-string long_help shouldn't break include."""
+        # Arrange
+        from termapy.builtins.plugins.include import _build_commands
+        cmd_dict = {"X": {"help": "h", "long_help": {"oops": "object"}}}
+
+        # Act
+        actual = _build_commands(cmd_dict)
+
+        # Assert
+        assert actual["X"].long_help == "", "non-string long_help dropped"
+
+    def test_build_ignores_malformed_flags(self) -> None:
+        """Non-dict or non-string values in flags are dropped, not fatal."""
+        # Arrange
+        from termapy.builtins.plugins.include import _build_commands
+        cmd_dict = {
+            "A": {"help": "h", "flags": ["not", "a", "dict"]},
+            "B": {"help": "h", "flags": {"--ok": "good", "--bad": 123}},
+        }
+
+        # Act
+        actual = _build_commands(cmd_dict)
+
+        # Assert
+        assert actual["A"].flags == {}, "non-dict flags dropped"
+        assert actual["B"].flags == {"--ok": "good"}, \
+            "only string-valued entries kept"
+
+    def test_roundtrip_preserves_full_entry(self) -> None:
+        """JSON -> TargetCommand -> JSON preserves every populated field."""
+        # Arrange
+        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        original = {
+            "X": {
+                "help": "h",
+                "args": "<a>",
+                "long_help": "body",
+                "flags": {"--verbose": "talk more"},
+            }
+        }
+
+        # Act
+        commands = _build_commands(original)
+        actual = _to_json_dict(commands)
+
+        # Assert
+        assert actual == {"commands": original}, "round-trip is byte-identical"
+
+    def test_roundtrip_old_shape_adds_no_fields(self) -> None:
+        """An entry with only help + args round-trips without spurious keys."""
+        # Arrange
+        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        original = {"AT": {"help": "Connection test", "args": ""}}
+
+        # Act
+        commands = _build_commands(original)
+        actual = _to_json_dict(commands)
+
+        # Assert -- no "long_help": "" or "flags": {} sneaking in.
+        assert actual == {"commands": original}, \
+            "old-shape JSON survives round-trip unchanged"
+
+
+# -- version comparator (_is_newer) ------------------------------------------
+
+
+class TestIsNewer:
+    """``_is_newer`` tells the fetch path whether to overwrite the cache."""
+
+    def test_new_none_is_never_newer(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _is_newer
+        # Act / Assert
+        assert _is_newer(None, "1.0.0") is False, \
+            "missing new version never wins"
+        assert _is_newer(None, None) is False, \
+            "missing on both sides is not newer"
+
+    def test_cached_none_makes_new_win(self) -> None:
+        """When the cache has no recorded version, any new version is newer."""
+        # Arrange
+        from termapy.builtins.plugins.include import _is_newer
+        # Act / Assert -- first time a device starts publishing version
+        assert _is_newer("1.0.0", None) is True, \
+            "new wins when cache has no version"
+
+    def test_semver_ordering(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _is_newer
+        # Act / Assert
+        assert _is_newer("1.4.0", "1.3.9") is True, \
+            "patch bump is newer"
+        assert _is_newer("2.0.0", "1.99.99") is True, \
+            "major bump is newer"
+        assert _is_newer("1.10.0", "1.9.0") is True, \
+            "ten > nine numerically (not lexically)"
+
+    def test_equal_is_not_newer(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _is_newer
+        # Act / Assert
+        assert _is_newer("1.4.0", "1.4.0") is False, \
+            "equal versions do not overwrite"
+
+    def test_older_is_not_newer(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _is_newer
+        # Act / Assert
+        assert _is_newer("1.0.0", "1.4.0") is False, \
+            "downgrades do not overwrite"
+
+    def test_unparseable_falls_back_to_inequality(self) -> None:
+        """Non-PEP-440 strings (e.g. git hashes) compare by equality."""
+        # Arrange
+        from termapy.builtins.plugins.include import _is_newer
+        # Act / Assert
+        assert _is_newer("a3f2c91", "b9d40aa") is True, \
+            "different hash strings treated as newer"
+        assert _is_newer("a3f2c91", "a3f2c91") is False, \
+            "identical hash strings are not newer"
+
+
+# -- version round-trip through JSON -----------------------------------------
+
+
+class TestVersionRoundTrip:
+    """The optional top-level ``version`` field survives save+load."""
+
+    def test_to_json_dict_omits_version_when_absent(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        original = {"AT": {"help": "h", "args": ""}}
+
+        # Act
+        actual = _to_json_dict(_build_commands(original))
+
+        # Assert
+        assert "version" not in actual, \
+            "no version field without explicit opt-in"
+
+    def test_to_json_dict_emits_version_when_given(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        commands = _build_commands({"AT": {"help": "h"}})
+
+        # Act
+        actual = _to_json_dict(commands, version="2.1.0")
+
+        # Assert
+        assert actual["version"] == "2.1.0", "version written at top level"
+        assert "commands" in actual, "commands still present"
+
+    def test_extract_version_handles_missing_or_malformed(self) -> None:
+        # Arrange
+        from termapy.builtins.plugins.include import _extract_version
+        # Act / Assert
+        assert _extract_version({}) is None, \
+            "absent version returns None"
+        assert _extract_version({"version": ""}) is None, \
+            "empty string version returns None"
+        assert _extract_version({"version": 42}) is None, \
+            "non-string version returns None"
+        assert _extract_version({"version": "1.0.0"}) == "1.0.0", \
+            "string version returns verbatim"
+
+
+# -- auto-include version gate -----------------------------------------------
+
+
+class TestIncludeVersionGate:
+    """End-to-end: the version field actually controls overwrites."""
+
+    def _write_cache(self, tmp_path, payload: dict) -> None:
+        """Seed .target_menu.json with the given JSON payload."""
+        cache = tmp_path / "test" / ".target_menu.json"
+        cache.write_text(json.dumps(payload), encoding="utf-8")
+
+    def _run_fetch(self, engine, device_json: dict, *, force: bool = False):
+        """Mock _read_json and call _fetch_and_include, return (result, output)."""
+        from termapy.builtins.plugins import include
+        eng, output = engine
+        original = include._read_json
+        include._read_json = lambda ctx, tms: device_json
+        try:
+            # Pretend we're connected so the gate evaluates.
+            eng.ctx.is_connected = lambda: True
+            eng.ctx.serial_io = lambda: _NullContext()
+            eng.ctx.serial_drain = lambda: 0
+            eng.ctx.serial_send = lambda text: None
+            output.clear()
+            result = include._fetch_and_include(
+                eng.ctx, "AT+HELP.JSON", 100, force=force,
+            )
+        finally:
+            include._read_json = original
+        return result, output
+
+    def test_newer_fetch_overwrites(self, engine, tmp_path) -> None:
+        # Arrange -- cache at 1.0.0 with one entry
+        eng, _ = engine
+        cfg_dir = tmp_path / "test"
+        self._write_cache(tmp_path, {
+            "version": "1.0.0",
+            "commands": {"OLD": {"help": "old"}},
+        })
+        device_json = {
+            "version": "1.1.0",
+            "commands": {"NEW": {"help": "new"}},
+        }
+
+        # Act
+        result, output = self._run_fetch(engine, device_json)
+
+        # Assert -- NEW replaces OLD, cache on disk carries the new version
+        assert result.success, "fetch succeeded"
+        target = eng.ctx.ns("target_commands")
+        assert "NEW" in target and "OLD" not in target, \
+            "newer version wins"
+        cached = json.loads(
+            (cfg_dir / ".target_menu.json").read_text(encoding="utf-8")
+        )
+        assert cached["version"] == "1.1.0", "cache updated to new version"
+
+    def test_older_fetch_keeps_cache(self, engine, tmp_path) -> None:
+        # Arrange -- cache at 1.1.0, device downgrades to 1.0.0
+        eng, _ = engine
+        cfg_dir = tmp_path / "test"
+        self._write_cache(tmp_path, {
+            "version": "1.1.0",
+            "commands": {"KEEPME": {"help": "stay"}},
+        })
+        device_json = {
+            "version": "1.0.0",
+            "commands": {"OVERWRITE": {"help": "would-be"}},
+        }
+
+        # Act
+        result, output = self._run_fetch(engine, device_json)
+
+        # Assert -- cached entry survives, disk not rewritten
+        assert result.success, "fetch still reports success"
+        target = eng.ctx.ns("target_commands")
+        assert "KEEPME" in target, "cached entry loaded"
+        assert "OVERWRITE" not in target, "older fetch did not overwrite"
+        cached = json.loads(
+            (cfg_dir / ".target_menu.json").read_text(encoding="utf-8")
+        )
+        assert cached["version"] == "1.1.0", "cache version unchanged"
+
+    def test_equal_fetch_keeps_cache(self, engine, tmp_path) -> None:
+        # Arrange -- both sides at 1.0.0
+        eng, _ = engine
+        self._write_cache(tmp_path, {
+            "version": "1.0.0",
+            "commands": {"CACHED": {"help": "c"}},
+        })
+        device_json = {
+            "version": "1.0.0",
+            "commands": {"REFRESHED": {"help": "r"}},
+        }
+
+        # Act
+        result, output = self._run_fetch(engine, device_json)
+
+        # Assert
+        assert result.success, "ok"
+        target = eng.ctx.ns("target_commands")
+        assert "CACHED" in target and "REFRESHED" not in target, \
+            "equal version keeps cache"
+
+    def test_missing_new_version_keeps_cache(self, engine, tmp_path) -> None:
+        """A device that stopped publishing a version can't overwrite a versioned cache."""
+        # Arrange
+        eng, _ = engine
+        self._write_cache(tmp_path, {
+            "version": "1.0.0",
+            "commands": {"CACHED": {"help": "c"}},
+        })
+        device_json = {
+            "commands": {"NEW": {"help": "n"}},
+        }
+
+        # Act
+        result, output = self._run_fetch(engine, device_json)
+
+        # Assert
+        assert result.success, "ok"
+        target = eng.ctx.ns("target_commands")
+        assert "CACHED" in target, "unversioned fetch can't override versioned cache"
+        assert "NEW" not in target, "unversioned fetch ignored"
+
+    def test_no_cache_first_fetch_wins(self, engine) -> None:
+        """With no cache on disk, a fresh fetch always loads regardless of version."""
+        # Arrange -- no cache written
+        eng, _ = engine
+        device_json = {"commands": {"FIRST": {"help": "f"}}}
+
+        # Act
+        result, output = self._run_fetch(engine, device_json)
+
+        # Assert
+        assert result.success, "ok"
+        assert "FIRST" in eng.ctx.ns("target_commands"), \
+            "first-time fetch always applies"
+
+    def test_reload_force_ignores_gate(self, engine, tmp_path) -> None:
+        """/include.reload passes force=True and overwrites even an older fetch."""
+        # Arrange -- cache at 1.1.0, device at 1.0.0
+        eng, _ = engine
+        self._write_cache(tmp_path, {
+            "version": "1.1.0",
+            "commands": {"CACHED": {"help": "c"}},
+        })
+        device_json = {
+            "version": "1.0.0",
+            "commands": {"FORCED": {"help": "f"}},
+        }
+
+        # Act -- force=True simulates /include.reload
+        result, output = self._run_fetch(engine, device_json, force=True)
+
+        # Assert
+        assert result.success, "ok"
+        target = eng.ctx.ns("target_commands")
+        assert "FORCED" in target, \
+            "force overrides the version gate"
+        assert "CACHED" not in target, \
+            "forced fetch replaces cache content"
+
+
+class _NullContext:
+    """Tiny stand-in for ctx.serial_io()'s context manager in tests."""
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
 
 
 # -- /help.target subcommand --------------------------------------------------
@@ -405,3 +792,197 @@ class TestCustomPrefix:
         result = eng.dispatch("ver")
         # Assert
         assert result.success, "dispatch works with custom prefix"
+
+
+# -- /help <target> man-page parity ------------------------------------------
+
+
+class TestHelpTargetManPage:
+    """/help <target> renders DESCRIPTION + FLAGS when provided."""
+
+    def _seed(self, eng, tc: TargetCommand) -> None:
+        target = eng.ctx.ns("target_commands")
+        target.clear()
+        target[tc.name] = tc
+
+    def test_renders_description_from_long_help(self, engine) -> None:
+        # Arrange
+        eng, output = engine
+        self._seed(eng, TargetCommand(
+            name="AT+INFO",
+            help="Device information",
+            long_help="Multi-line\nprose body.",
+        ))
+
+        # Act
+        output.clear()
+        eng.dispatch("help AT+INFO")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("DESCRIPTION" in t for t in texts), \
+            "DESCRIPTION section header appears"
+        assert any("Multi-line" in t for t in texts), \
+            "long_help body rendered"
+
+    def test_renders_flags_section(self, engine) -> None:
+        # Arrange
+        eng, output = engine
+        self._seed(eng, TargetCommand(
+            name="AT+LED",
+            help="Control LED",
+            args="<on|off>",
+            flags={"--blink": "blink at 2 Hz", "-b": "--blink"},
+        ))
+
+        # Act
+        output.clear()
+        eng.dispatch("help AT+LED")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("FLAGS" in t for t in texts), \
+            "FLAGS section header appears"
+        assert any("--blink" in t and "blink at 2 Hz" in t for t in texts), \
+            "canonical flag + description rendered"
+        assert any("-b" in t for t in texts), \
+            "alias collapses onto canonical line"
+
+    def test_omits_description_when_no_long_help(self, engine) -> None:
+        """An old-shape target command doesn't emit an empty DESCRIPTION section."""
+        # Arrange
+        eng, output = engine
+        self._seed(eng, TargetCommand(name="AT", help="Connection test"))
+
+        # Act
+        output.clear()
+        eng.dispatch("help AT")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert not any("DESCRIPTION" in t for t in texts), \
+            "no DESCRIPTION when long_help empty"
+        assert not any("FLAGS" in t for t in texts), \
+            "no FLAGS when flags empty"
+
+    def test_source_marker_present(self, engine) -> None:
+        """Every target-command man page carries 'source: target device'."""
+        # Arrange
+        eng, output = engine
+        self._seed(eng, TargetCommand(name="AT+X", help="x"))
+
+        # Act
+        output.clear()
+        eng.dispatch("help AT+X")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("source: target device" in t for t in texts), \
+            "source annotation rendered"
+
+    def test_case_sensitive_lookup_preserves_upper(self, engine) -> None:
+        """/help preserves argument case so AT+ commands match exactly."""
+        # Arrange
+        eng, output = engine
+        self._seed(eng, TargetCommand(
+            name="AT+INFO",
+            help="Device information",
+            long_help="DIST-INFO-MARKER",
+        ))
+
+        # Act -- typed exactly as the device emits it
+        output.clear()
+        eng.dispatch("help AT+INFO")
+
+        # Assert -- DESCRIPTION landed, no "No command matches" error
+        texts = [t for t, _ in output]
+        assert any("DIST-INFO-MARKER" in t for t in texts), \
+            "exact-case device name is found (not lowercased)"
+        assert not any("No command matches" in t for t in texts), \
+            "case-preserved input is not forwarded to candidate fallback"
+
+
+# -- /search indexes target_commands -----------------------------------------
+
+
+class TestSearchIndexesTargets:
+    """Target commands appear in /search results alongside REPL plugins."""
+
+    def test_match_in_target_long_help_found(self, engine) -> None:
+        """A hapax that only lives in a target's long_help surfaces via /search."""
+        # Arrange
+        eng, output = engine
+        eng.ctx.ns("target_commands").update({
+            "AT+WIDGET": TargetCommand(
+                name="AT+WIDGET",
+                help="widget ops",
+                long_help="Handles the TERMAPY_HAPAX calibration sequence.",
+            ),
+        })
+
+        # Act
+        result = eng.dispatch("search TERMAPY_HAPAX")
+
+        # Assert
+        names = result.value.splitlines() if result.value else []
+        assert "AT+WIDGET" in names, \
+            "target command found via long_help text"
+
+    def test_match_in_target_flag_description_found(self, engine) -> None:
+        """A term living only in a target's flag description is still findable."""
+        # Arrange
+        eng, output = engine
+        eng.ctx.ns("target_commands").update({
+            "AT+SAMPLE": TargetCommand(
+                name="AT+SAMPLE",
+                help="sample sensor",
+                flags={"--rapid": "TERMAPY_HAPAX fast polling mode"},
+            ),
+        })
+
+        # Act
+        result = eng.dispatch("search TERMAPY_HAPAX")
+
+        # Assert
+        names = result.value.splitlines() if result.value else []
+        assert "AT+SAMPLE" in names, \
+            "flag descriptions indexed for target commands"
+
+    def test_target_results_tagged(self, engine) -> None:
+        """Rendered target hits carry the (target) marker."""
+        # Arrange
+        eng, output = engine
+        eng.ctx.ns("target_commands").update({
+            "AT+MARKER": TargetCommand(
+                name="AT+MARKER",
+                help="TERMAPY_HAPAX only in target",
+            ),
+        })
+
+        # Act
+        output.clear()
+        eng.dispatch("search TERMAPY_HAPAX")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("(target)" in t for t in texts), \
+            "search output marks target-device hits"
+
+    def test_plugin_wins_on_name_collision(self, engine) -> None:
+        """When a plugin and target share a name, the plugin view is used."""
+        # Arrange
+        eng, output = engine
+        # 'help' is a real built-in plugin; try to shadow it.
+        eng.ctx.ns("target_commands").update({
+            "help": TargetCommand(name="help", help="device help (shadow)"),
+        })
+
+        # Act
+        output.clear()
+        eng.dispatch("search help")
+
+        # Assert -- rendered header should not carry (target) for 'help'
+        texts = [t for t, _ in output]
+        assert not any(
+            "help" in t and "(target)" in t for t in texts
+        ), "plugin takes precedence over target on collision"

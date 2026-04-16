@@ -1035,15 +1035,30 @@ class TargetCommand:
     These are NOT REPL commands -- they have no handler and no prefix.
     They appear in help output and suggestions only.
 
+    ``long_help`` and ``flags`` mirror the corresponding fields on
+    ``PluginInfo`` so that ``/help <target>`` and ``/search`` can give
+    device commands the same first-class treatment as built-in plugins.
+    Both are optional -- a device JSON entry that supplies only
+    ``help`` + ``args`` (the old shape) still works unchanged.
+
     Attributes:
         name: Command name as the device expects it (no / prefix).
         help: One-line description.
         args: Argument spec string (may be empty).
+        long_help: Optional extended prose rendered in the DESCRIPTION
+            section of ``/help <target>``. Plain string only -- no
+            callables -- because device-published help is data, not code.
+        flags: Optional flag map, same shape as ``Command.flags``.  Keys
+            are canonical flag names (e.g. ``--verbose``) or aliases
+            (key = alias, value = canonical name).  Rendered in the
+            FLAGS section of ``/help <target>``.
     """
 
     name: str
     help: str
     args: str = ""
+    long_help: str = ""
+    flags: dict[str, str] = field(default_factory=dict)
 
 
 def builtins_dir() -> Path:

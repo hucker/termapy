@@ -443,16 +443,62 @@ class FakeSerial:
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
     def _help_json(self) -> bytes:
-        """Return device descriptor as a JSON object."""
+        """Return device descriptor as a JSON object.
+
+        A handful of entries carry optional ``long_help`` and ``flags``
+        fields so ``/help <cmd>`` and ``/search`` render the full
+        man-page treatment for target-device commands.  Entries that
+        use only ``help`` + ``args`` still work -- parity is additive.
+        """
         import json
         descriptor = {
+            # Schema version lets /include compare against its cache and
+            # keep whichever is newer.  Bump this when the demo's command
+            # set changes in a way users should pick up automatically.
+            "version": "1.0.0",
             "commands": {
                 "AT": {"help": "Connection test", "args": ""},
                 "AT+PROD-ID": {"help": "Product identifier", "args": ""},
-                "AT+INFO": {"help": "Device information", "args": ""},
-                "AT+TEMP": {"help": "Read temperature", "args": ""},
+                "AT+INFO": {
+                    "help": "Device information",
+                    "args": "",
+                    "long_help": (
+                        "Prints a multi-line summary: product ID, firmware\n"
+                        "version, hardware revision, uptime, and the active\n"
+                        "serial-mode parameters the device is currently\n"
+                        "using.  Useful as the first command after connect\n"
+                        "to verify identity and configuration."
+                    ),
+                },
+                "AT+TEMP": {
+                    "help": "Read temperature",
+                    "args": "",
+                    "long_help": (
+                        "Returns the on-board temperature reading.  Output\n"
+                        "format: '+TEMP: <value>C'.  The raw numeric value\n"
+                        "is a float with one decimal digit.\n"
+                        "\n"
+                        "Common use: /cap.poll cmd=AT+TEMP delay=1s\n"
+                        "will log a timestamped temperature series to CSV."
+                    ),
+                },
                 "AT+RAMP": {"help": "Deterministic saw wave 0.0-1.0", "args": ""},
-                "AT+LED": {"help": "Control LED", "args": "<on|off>"},
+                "AT+LED": {
+                    "help": "Control LED",
+                    "args": "<on|off> {--blink}",
+                    "long_help": (
+                        "Drive the on-board status LED.\n"
+                        "\n"
+                        "Examples:\n"
+                        "  AT+LED on             - solid on\n"
+                        "  AT+LED off            - off\n"
+                        "  AT+LED on --blink     - blink at ~2 Hz until next off"
+                    ),
+                    "flags": {
+                        "--blink": "Blink at 2 Hz instead of solid on.",
+                        "-b": "--blink",
+                    },
+                },
                 "AT+NAME?": {"help": "Query device name", "args": ""},
                 "AT+NAME=": {"help": "Set device name", "args": "<val>"},
                 "AT+BAUD?": {"help": "Query baud rate", "args": ""},
@@ -460,7 +506,23 @@ class FakeSerial:
                 "AT+STATUS": {"help": "Device status", "args": ""},
                 "AT+RESET": {"help": "Reset device", "args": ""},
                 "AT+TEXTDUMP": {"help": "Emit text readings", "args": "<n>"},
-                "AT+BINDUMP": {"help": "Emit binary records", "args": "{type} <n>"},
+                "AT+BINDUMP": {
+                    "help": "Emit binary records",
+                    "args": "{type} <n> {--crc}",
+                    "long_help": (
+                        "Stream raw binary records from the device.  Pairs\n"
+                        "with /cap.bin for capture or /cap.struct for\n"
+                        "inline CSV decoding.\n"
+                        "\n"
+                        "Record types (type=):\n"
+                        "  sensor   - 8-byte telemetry: temp + pressure\n"
+                        "  log      - 16-byte event record\n"
+                        "  (default is 'sensor' if no type is given)"
+                    ),
+                    "flags": {
+                        "--crc": "Append a 16-bit CRC to each record.",
+                    },
+                },
                 "$GPGGA": {"help": "NMEA position fix", "args": ""},
                 "$GPRMC": {"help": "NMEA recommended nav data", "args": ""},
                 "$GPGSA": {"help": "NMEA DOP and active satellites", "args": ""},

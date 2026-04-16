@@ -34,6 +34,9 @@ dependencies = [
     "tree-sitter-json>=0.24.0; python_version >= '3.10'",
     "tree-sitter-toml>=0.6.0; python_version >= '3.10'",
     "tree-sitter-bash>=0.23.0; python_version >= '3.10'",
+    # Version comparison for /include's JSON "version" field -- lets a
+    # newer device schema overwrite an older cached one via PEP 440.
+    "packaging>=24.0",
 ]
 
 [project.optional-dependencies]

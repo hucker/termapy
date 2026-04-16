@@ -23,7 +23,7 @@
     
     
       
-        <title>Writing plugins - Termapy Help v0.58.0</title>
+        <title>Writing plugins - Termapy Help v0.59.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.58.0" class="md-header__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.59.0" class="md-header__button md-logo" aria-label="Termapy Help v0.59.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.58.0
+            Termapy Help v0.59.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.58.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.59.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.59.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.58.0
+    Termapy Help v0.59.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -713,6 +713,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dynamic-help-for-runtime-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic help for runtime state
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic help for runtime state">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reusable-helpers-termapyhelp_dynamic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusable helpers (termapy.help_dynamic)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#serial-io-pattern" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1013,6 +1041,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dynamic-help-for-runtime-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic help for runtime state
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic help for runtime state">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reusable-helpers-termapyhelp_dynamic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusable helpers (termapy.help_dynamic)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#serial-io-pattern" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1225,23 +1281,90 @@ Scripts run in quiet mode read the <code>value</code> field; without it they get
 <li>Pure side-effect commands (<code>/cls</code>, <code>/edit</code>, <code>/cap.stop</code>)</li>
 <li>Commands that print multiple lines (<code>/cfg.configs</code>, <code>/help</code>)</li>
 </ul>
+<h2 id="dynamic-help-for-runtime-state">Dynamic help for runtime state<a class="headerlink" href="#dynamic-help-for-runtime-state" title="Permanent link">&para;</a></h2>
+<p>If your command owns runtime state that a user should see right on its
+help page — a loaded file, an open connection, a count of cached items —
+set <code>long_help</code> to a function instead of a string. The function takes
+the <code>PluginContext</code> and returns a string. It's invoked at render time,
+so whatever it reads from <code>ctx.ns(...)</code> or <code>ctx.cfg</code> is live.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_dynamic_long_help</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">target</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">ns</span><span class="p">(</span><span class="s2">&quot;target_commands&quot;</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="k">if</span> <span class="n">target</span><span class="p">:</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="n">state</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Currently loaded: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">target</span><span class="p">)</span><span class="si">}</span><span class="s2"> device command(s).&quot;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;Currently loaded: none.&quot;</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span><span class="si">{</span><span class="n">state</span><span class="si">}</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s2">Sends a command to the device and parses the JSON response to include</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s2">command help. Use /include.reload to refresh.&quot;&quot;&quot;</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;include&quot;</span><span class="p">,</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Include device command help from JSON response.&quot;</span><span class="p">,</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">long_help</span><span class="o">=</span><span class="n">_dynamic_long_help</span><span class="p">,</span>   <span class="c1"># a function, not a string</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>When the user runs <code>/help include</code>, the DESCRIPTION section calls this
+function and the first line reflects the current state. No change to
+the rendering path, no extra registration — the <code>long_help</code> field just
+accepts either form.</p>
+<p>Two caveats:</p>
+<ol>
+<li><strong>Read ctx defensively.</strong> Use <code>ctx.ns("x").get("k", default)</code>
+   rather than indexing blindly. Help may be invoked at any moment,
+   including before your plugin's state is populated.</li>
+<li><strong>Never raise.</strong> The renderer catches exceptions and substitutes
+   <code>(dynamic help failed: &lt;error&gt;)</code> so <code>/help</code> never crashes, but a
+   noisy fallback is worse than a thoughtful default like
+   <code>"(not loaded)"</code>.</li>
+</ol>
+<h3 id="reusable-helpers-termapyhelp_dynamic">Reusable helpers (<code>termapy.help_dynamic</code>)<a class="headerlink" href="#reusable-helpers-termapyhelp_dynamic" title="Permanent link">&para;</a></h3>
+<p>Most dynamic help lines fall into a handful of shapes, so the built-ins
+share a small helper module. Prefer these over hand-rolling — the
+output is green-on-default and uniform across every command.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.help_dynamic</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">state_line</span><span class="p">,</span>   <span class="c1"># &quot;Current &lt;label&gt; = &lt;value&gt;&quot; in green</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">folder_line</span><span class="p">,</span>  <span class="c1"># &quot;&lt;N&gt; files in &lt;folder&gt;/&quot; in green</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">port_status</span><span class="p">,</span>  <span class="c1"># &quot;Connected: COM3 @ 115200 8N1&quot; or &quot;Not connected&quot;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">cfg_status</span><span class="p">,</span>   <span class="c1"># &quot;Active cfg = demo (2 configs available)&quot;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">ns_count</span><span class="p">,</span>     <span class="c1"># len(ctx.ns(name)), guards a missing ns</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">compose</span><span class="p">,</span>      <span class="c1"># join non-empty parts with a blank line between</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">green</span><span class="p">,</span>        <span class="c1"># wrap any text in green markup</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">_long_help</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="k">return</span> <span class="n">compose</span><span class="p">(</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">folder_line</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s2">&quot;run&quot;</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s2">&quot;script&quot;</span><span class="p">),</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>        <span class="s2">&quot;Run a .run script from the run/ folder.&quot;</span><span class="p">,</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="p">)</span>
+</span></code></pre></div>
+<p><code>compose</code> drops empty parts, so a callable that returns <code>""</code> for
+"no state yet" collapses gracefully. For a single-value command
+that needs no prose, you can pass the helper directly:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="s2">&quot;baud_rate&quot;</span><span class="p">:</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show or set baud rate.&quot;</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">long_help</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">state_line</span><span class="p">(</span><span class="s2">&quot;baud rate&quot;</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;baud_rate&quot;</span><span class="p">)),</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_baud_handler</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">),</span>
+</span></code></pre></div>
 <h2 id="serial-io-pattern">Serial I/O pattern<a class="headerlink" href="#serial-io-pattern" title="Permanent link">&para;</a></h2>
 <p>Most plugins follow this pattern: send a command, read the response, do something with it.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;Not connected.&quot;</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">)</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="k">return</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">encoding</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;encoding&quot;</span><span class="p">,</span> <span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">line_ending</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;line_ending&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\r</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial_io</span><span class="p">():</span>           <span class="c1"># suppress terminal, claim serial</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial_drain</span><span class="p">()</span>          <span class="c1"># discard stale bytes</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial_write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;YOUR_COMMAND</span><span class="si">{</span><span class="n">line_ending</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">encoding</span><span class="p">))</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="n">raw</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial_read_raw</span><span class="p">()</span> <span class="c1"># read response with timeout</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">encoding</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">&quot;replace&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;Not connected.&quot;</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="k">return</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">encoding</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;encoding&quot;</span><span class="p">,</span> <span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">line_ending</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;line_ending&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\r</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial_io</span><span class="p">():</span>           <span class="c1"># suppress terminal, claim serial</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial_drain</span><span class="p">()</span>          <span class="c1"># discard stale bytes</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial_write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;YOUR_COMMAND</span><span class="si">{</span><span class="n">line_ending</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">encoding</span><span class="p">))</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="n">raw</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial_read_raw</span><span class="p">()</span> <span class="c1"># read response with timeout</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">encoding</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">&quot;replace&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Key points:</p>
 <ul>
@@ -1400,14 +1523,14 @@ Scripts run in quiet mode read the <code>value</code> field; without it they get
 </table>
 <h2 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">&para;</a></h2>
 <p>Use <code>sub_commands</code> for related operations (e.g. <code>/tool.run</code>, <code>/tool.status</code>):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;A tool with subcommands.&quot;</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">sub_commands</span><span class="o">=</span><span class="p">{</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="s2">&quot;run&quot;</span><span class="p">:</span>    <span class="n">Command</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="s2">&quot;&lt;file&gt;&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Run.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_run</span><span class="p">),</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">Command</span><span class="p">(</span><span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show status.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_status</span><span class="p">),</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="p">},</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;A tool with subcommands.&quot;</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">sub_commands</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="s2">&quot;run&quot;</span><span class="p">:</span>    <span class="n">Command</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="s2">&quot;&lt;file&gt;&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Run.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_run</span><span class="p">),</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">Command</span><span class="p">(</span><span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show status.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_status</span><span class="p">),</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="p">},</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">)</span>
 </span></code></pre></div>
 <h2 id="example-plugins">Example plugins<a class="headerlink" href="#example-plugins" title="Permanent link">&para;</a></h2>
 <p>The demo config ships with three plugins of increasing complexity:</p>

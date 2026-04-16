@@ -562,11 +562,13 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                 line_parts = [ts.ljust(23), str(counter).rjust(7)] + [v.rjust(10) for v in values]
 
             # Write to file
-            if writer is not None:
+            if writer is not None and fh is not None:
                 writer.writerow(csv_row)
                 fh.flush()
             elif fh is not None:  # JSONL
-                row = {} if notime else {"timestamp": ts}
+                row: dict[str, object] = (
+                    {} if notime else {"timestamp": ts}
+                )
                 row["counter"] = counter
                 for k, v in zip(labels, values):
                     row[k] = v

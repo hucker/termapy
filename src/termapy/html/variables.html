@@ -19,11 +19,11 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.32">
+      <meta name="generator" content="zensical-0.0.33">
     
     
       
-        <title>Variables - Termapy Help v0.57.0</title>
+        <title>Variables - Termapy Help v0.58.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.57.0" class="md-header__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.58.0" class="md-header__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.57.0
+            Termapy Help v0.58.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.57.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.57.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.58.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.58.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.57.0
+    Termapy Help v0.58.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -500,6 +500,17 @@
     <span class="md-ellipsis">
       
         Setting variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capturing-command-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capturing command output
       
     </span>
   </a>
@@ -886,6 +897,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#capturing-command-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capturing command output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#using-variables" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -991,11 +1013,19 @@ values across commands, scripts, and config fields. Variables use
 <p>Or use the REPL command:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/var.set ADDR 01
 </span></code></pre></div>
+<h2 id="capturing-command-output">Capturing command output<a class="headerlink" href="#capturing-command-output" title="Permanent link">&para;</a></h2>
+<p>Use <code>&lt;-</code> to run a command and store its result in a variable. The
+right-hand side is executed — as a REPL command (if it starts with
+<code>/</code>) or as a device command (sent to the serial port) — and the
+response is captured.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$(BAUD) &lt;- /port.baud_rate    # captures REPL command output
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>$(TEMP) &lt;- AT+TEMP            # captures device response
+</span></code></pre></div>
 <h2 id="using-variables">Using variables<a class="headerlink" href="#using-variables" title="Permanent link">&para;</a></h2>
 <p>Variables expand anywhere: serial commands, REPL commands, scripts:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>AT+ADDR=$(ADDR)
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>/print Reading from $(ADDR)
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>/cap.text $(LABEL)_log.txt timeout=5s
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>AT+ADDR=$(ADDR)
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>/print Reading from $(ADDR)
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>/cap.text $(LABEL)_log.txt timeout=5s
 </span></code></pre></div>
 <h2 id="built-in-variables">Built-in variables<a class="headerlink" href="#built-in-variables" title="Permanent link">&para;</a></h2>
 <table>
@@ -1071,7 +1101,7 @@ Scripts button or Run menu.</p>
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
 <p>Access OS environment variables with <code>$(env.NAME)</code> syntax. This is
 especially useful in config files for values that differ per machine:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$(env.TERMAPY_PORT|COM4)&quot;</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$(env.TERMAPY_PORT|COM4)&quot;</span>
 </span></code></pre></div>
 <p>The <code>|</code> provides a fallback default. See <a href="using-git.html">Using with Git</a>
 for team workflow details.</p>
@@ -1099,8 +1129,8 @@ for team workflow details.</p>
 </table>
 <h2 id="sequence-counters">Sequence counters<a class="headerlink" href="#sequence-counters" title="Permanent link">&para;</a></h2>
 <p>Auto-incrementing counters for scripts (useful for numbered filenames):</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>/ss.svg capture_{seq1+}    # capture_1.svg, capture_2.svg, ...
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>AT+READ {seq2+}            # independent counter
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>/ss.svg capture_{seq1+}    # capture_1.svg, capture_2.svg, ...
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>AT+READ {seq2+}            # independent counter
 </span></code></pre></div>
 <p>Use <code>{seqN+}</code> to increment and substitute, <code>{seqN}</code> to substitute
 without incrementing. Counters 1--9 are available.</p>
@@ -1141,7 +1171,11 @@ without incrementing. Counters 1--9 are available.</p>
 </tr>
 <tr>
 <td><code>/var.set &lt;NAME&gt; &lt;v&gt;</code></td>
-<td>Set a variable</td>
+<td>Set a variable to a literal value</td>
+</tr>
+<tr>
+<td><code>/var.capture &lt;NAME&gt; &lt;cmd&gt;</code></td>
+<td>Run cmd and store its result as NAME</td>
 </tr>
 <tr>
 <td><code>/var.clear</code></td>
@@ -1151,10 +1185,10 @@ without incrementing. Counters 1--9 are available.</p>
 </table>
 <h2 id="escaping">Escaping<a class="headerlink" href="#escaping" title="Permanent link">&para;</a></h2>
 <p>Use <code>\$</code> to prevent expansion:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>/print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>/print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
 </span></code></pre></div>
 <p>Use <code>/raw</code> to send a line with no expansion at all:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0
 </span></code></pre></div>
 <h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
 <p>User variables persist for the session. They are cleared automatically
@@ -1255,7 +1289,7 @@ when <code>/run</code> is typed interactively. Use <code>/var.clear</code> to re
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.91a19a9e.min.js"></script>
+      <script src="./assets/javascripts/bundle.63456bd9.min.js"></script>
       
     
   </body>

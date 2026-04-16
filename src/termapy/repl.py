@@ -17,6 +17,7 @@ from types import MappingProxyType
 from typing import Callable
 
 from termapy.plugins import (
+    CapabilitySet,
     DirectiveInfo,
     DirectiveResult,
     LifecycleHook,
@@ -266,6 +267,61 @@ class ReplEngine:
             self.register_directive(directive)
         for hook in result.lifecycle_hooks:
             self.register_lifecycle_hook(hook)
+        self._register_script_commands()
+
+    def _register_script_commands(self) -> None:
+        """Register the blocking script-only commands as first-class plugins.
+
+        ``/expect`` and ``/expect.regex`` are executed by the script
+        runner (see ``_BLOCKING_COMMANDS``) and never reach normal
+        ``dispatch()`` -- their PluginInfo entries here only exist to
+        make them discoverable via ``/help``.  At the REPL prompt the
+        capability gate catches them via ``block_until`` (provided only
+        when ``in_script`` is true) and returns a clean error instead
+        of "Unknown command".
+
+        ``/confirm`` is a regular plugin (see ``confirm.py``) that
+        declares its own ``needs``; no registration here.
+        """
+        def _prompt_handler(ctx: PluginContext, args: str) -> CmdResult:
+            # Never actually runs: the capability gate catches it at the
+            # prompt (no block_until), and in a script the runner
+            # intercepts before dispatch() is reached.
+            return CmdResult.fail(
+                msg="script-only command; invoke from inside a .run file"
+            )
+
+        self.register_plugin(PluginInfo(
+            name="expect",
+            args="match=<text> {timeout=<dur>}",
+            help="Wait for text in serial output (script-only).",
+            long_help=(
+                "Block the running script until the serial device outputs\n"
+                "a line containing <text>.  Fails the script if the\n"
+                "timeout elapses first (default: engine-wide expect timeout).\n"
+                "\n"
+                "Example:\n"
+                "  AT+CONNECT\n"
+                "  /expect match=CONNECTED timeout=5s"
+            ),
+            handler=_prompt_handler,
+            needs=CapabilitySet(block_until=True),
+        ))
+        self.register_plugin(PluginInfo(
+            name="expect.regex",
+            args="match=<pattern> {timeout=<dur>}",
+            help="Wait for regex match in serial output (script-only).",
+            long_help=(
+                "Block the running script until the serial device outputs\n"
+                "a line matching <pattern>.  Pattern is a Python regex.\n"
+                "\n"
+                "Example:\n"
+                "  AT+STATUS\n"
+                "  /expect.regex match=^\\+STATUS: \\d+$ timeout=2s"
+            ),
+            handler=_prompt_handler,
+            needs=CapabilitySet(block_until=True),
+        ))
 
     # -- Expect / pattern matching ---------------------------------------------
 
@@ -403,6 +459,7 @@ class ReplEngine:
         long_help: str = "",
         raw_args: bool = False,
         flags: dict[str, str] | None = None,
+        needs: CapabilitySet | None = None,
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -420,6 +477,8 @@ class ReplEngine:
             long_help: Extended help for ``/help <cmd>`` (default "").
             raw_args: Skip REPL transforms for this command (default False).
             flags: First-class flag declarations (see ``Command.flags``).
+            needs: Environment capabilities the handler requires
+                (see ``CapabilitySet``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -441,6 +500,7 @@ class ReplEngine:
             source=source,
             raw_args=raw_args,
             flags=dict(flags) if flags else {},
+            needs=needs if needs is not None else CapabilitySet(),
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -625,6 +685,19 @@ class ReplEngine:
                 quiet = True
 
         if plugin:
+            # Capability gate: every command declares the environment
+            # capabilities its handler relies on via Command.needs.  Before
+            # doing any work, verify the current context provides them.
+            # A mismatch fails with a clear message naming what's missing,
+            # rather than letting the handler hit a no-op lambda or crash.
+            missing = plugin.needs.missing_from(self._effective_capabilities())
+            if missing:
+                result = CmdResult.fail(
+                    msg=f"/{name} requires: {', '.join(missing)} "
+                        f"(not available in this environment)"
+                )
+                self.write(result.err_msg, "red")
+                return result
             # First-class flag parsing: strip declared flags from args and
             # record them on the context for the handler to read via
             # ctx.flag(). Commands with no declared flags opt out entirely
@@ -1086,3 +1159,29 @@ class ReplEngine:
     @property
     def in_script(self) -> bool:
         return self._script_depth > 0
+
+    def _effective_capabilities(self) -> CapabilitySet:
+        """Return the context's capabilities augmented with dynamic ones.
+
+        Some capabilities don't belong on the context because they change
+        per-dispatch rather than per-environment:
+
+          - ``block_until``: true only inside a script (script runner
+            executes on a background thread where blocking is safe).
+          - ``serial_connected``: true only when a port is currently open.
+
+        Kept here as a single point of truth for "what can this command
+        do right now" so every dispatch sees a consistent effective set.
+        """
+        effective = self.ctx.capabilities
+        dynamic_fields: dict[str, bool] = {}
+        if self.in_script:
+            dynamic_fields["block_until"] = True
+        try:
+            if self.ctx.is_connected():
+                dynamic_fields["serial_connected"] = True
+        except Exception:
+            pass  # is_connected() may be a no-op lambda in tests
+        if dynamic_fields:
+            effective = effective.union(CapabilitySet(**dynamic_fields))
+        return effective

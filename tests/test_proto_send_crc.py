@@ -272,20 +272,10 @@ class TestSendCrcEdgeCases:
         actual = [t for t, _ in output if "CRC:" in t]
         assert len(actual) == 0, "no CRC info line"
 
-    def test_not_connected(self):
-        # Arrange
-        output = []
-        ctx = PluginContext(
-            write=lambda text, color=None: output.append((text, color)),
-            is_connected=lambda: False,
-        )
-
-        # Act
-        result = _cmd_send(ctx, "crc16-modbus 01 03")
-
-        # Assert
-        assert not result.success, "handler reports failure"
-        assert "Not connected" in result.error, "error mentions not connected"
+    # Note: the old test_not_connected unit test was removed when the
+    # "not connected" guard was promoted to a first-class capability
+    # (Command.needs.serial_connected).  Dispatch-level coverage for the
+    # capability gate lives in test_engine.TestDispatchCapabilities.
 
     def test_empty_args(self, send_env):
         # Arrange

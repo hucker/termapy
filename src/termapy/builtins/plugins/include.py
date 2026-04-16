@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command, TargetCommand
+from termapy.plugins import CapabilitySet, CmdResult, Command, TargetCommand
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
@@ -258,6 +258,7 @@ JSON format: {"commands": {"cmd": {"help": "...", "args": "..."}, ...}}""",
             "Re-include from device, ignoring all caches.",
             handler=_handler_reload,
             args="{timeout=<dur>} {cmd=<command>}",
+            needs=CapabilitySet(serial_connected=True),
         ),
         "dump": Command(
             "Dump included commands as JSON.",

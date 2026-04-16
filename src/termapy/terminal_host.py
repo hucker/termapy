@@ -154,9 +154,10 @@ class TerminalHost:
             set_proto_active=lambda active: setattr(
                 self.engine, "proto_active", active
             ),
-            open_proto_debug=lambda path, script: self.status(
-                "Only available in /tui mode.", "yellow"
-            ),
+            # TUI override installs a real modal launcher.  In non-TUI
+            # environments the capability gate (tui_mode) fails /proto.debug
+            # dispatch before this is called, so the no-op default is fine.
+            open_proto_debug=lambda path, script: None,
             start_capture=lambda **kw: self._start_capture(**kw),
             stop_capture=lambda: self._stop_capture(),
             connect=lambda port=None: self._connect(port),

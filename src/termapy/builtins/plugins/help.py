@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -206,6 +206,40 @@ def _fuzzy_matches(query: str, plugins: dict) -> list[tuple[str, str]]:
     return [(name, field) for _, name, field in ranked]
 
 
+# One-line "where is this available" hints for each restrictive
+# capability field.  Baseline fields (terminal_output, serial_io,
+# dispatch, config_read) are intentionally absent -- they're provided
+# by every environment and don't belong in a "Requires:" listing.
+_CAPABILITY_HINTS: dict[str, str] = {
+    "block_until": "inside .run scripts only",
+    "confirm_dialog": "TUI + script runner (needs Yes/Cancel dialog)",
+    "ui_notify": "TUI only (toast notifications)",
+    "status_bar": "TUI only (bottom status line)",
+    "screen_capture": "TUI only (save_screenshot / get_screen_text)",
+    "tui_mode": "TUI only (use /tui to switch)",
+    "serial_connected": "when a serial port is open",
+}
+
+
+def _required_capability_rows(needs) -> list[tuple[str, str]]:
+    """Return ``(name, hint)`` pairs for the restrictive capabilities a
+    command declares.  Baseline capabilities are skipped -- a command
+    that uses terminal output doesn't need a line saying so.
+    """
+    return [
+        (name, _CAPABILITY_HINTS[name])
+        for name in needs.missing_from(_BASELINE_CAPS)
+        if name in _CAPABILITY_HINTS
+    ]
+
+
+# Sentinel for the "everything-baseline" environment.  A command's
+# ``needs.missing_from(_BASELINE_CAPS)`` returns exactly its restrictive
+# requirements -- the fields it had to opt into, since every baseline
+# field is True on both sides and cancels out.
+_BASELINE_CAPS = CapabilitySet()
+
+
 def _canonical_flags(plugin) -> list[tuple[str, list[str], str]]:
     """Walk ``plugin.flags`` and return one row per canonical flag.
 
@@ -368,6 +402,18 @@ def _show_command_help(ctx: PluginContext, name: str,
                 f"    [{_OPT}]{_underline(names, positives)}[/]"
                 f" - {_underline(desc, positives)}"
             )
+    # Show required environment capabilities so users can see why a
+    # command might fail in a given context (REPL vs script, TUI vs CLI,
+    # connected vs disconnected).  Only list restrictive capabilities the
+    # command explicitly opted into -- baseline capabilities are noise.
+    required = _required_capability_rows(plugin.needs)
+    if required:
+        ctx.write_markup(f"  [{_SEP}]Requires:[/]")
+        for cap_name, hint in required:
+            ctx.write_markup(
+                f"    [{_OPT}]{_underline(cap_name, positives)}[/]"
+                f" - [{_SEP}]{hint}[/]"
+            )
     # Show subcommands if any
     if plugin.children:
         ctx.write_markup(f"  [{_SEP}]Subcommands:[/]")
@@ -418,10 +464,16 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         groups: dict[str, list] = {}
         for cmd_name, plugin in all_plugins.items():
             # Only show top-level commands (no dots = root level)
-            if "." not in cmd_name:
-                groups.setdefault(plugin.source, []).append(
-                    (cmd_name, plugin)
-                )
+            if "." in cmd_name:
+                continue
+            # Script-only commands (needs block_until) render in their own
+            # section below so users can see at a glance which commands
+            # only run inside .run files.
+            if plugin.needs.block_until:
+                continue
+            groups.setdefault(plugin.source, []).append(
+                (cmd_name, plugin)
+            )
 
         # Fixed column widths for consistent layout
         cmd_w = 25
@@ -454,17 +506,24 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                 arg_col = _pad(_color_args(d.pattern) if d.pattern else "", arg_w)
                 ctx.write_markup(f"{cmd_col} {arg_col}  {d.help}")
 
-        # Script-only blocking commands
-        ctx.write_markup("")
-        ctx.write_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
-        for name, args, desc in (
-            ("expect",       "match=<text> {timeout=<dur>}",  "Wait for text in serial output."),
-            ("expect.regex", "match=<pattern> {timeout=<dur>}", "Wait for regex match in serial output."),
-            ("confirm",      "{message}",                     "Show yes/no dialog, stop script on no."),
-        ):
-            cmd_col = _pad(f"  [{_CMD}]{prefix}{name}[/]", cmd_w + 2)
-            arg_col = _pad(_color_args(args), arg_w)
-            ctx.write_markup(f"{cmd_col} {arg_col}  {desc}")
+        # Script-only blocking commands (anything needing block_until).
+        # Pulled from the live registry so adding a new script-only
+        # command is just setting ``needs=CapabilitySet(block_until=True)``
+        # on its Command -- no second place to update.
+        script_only = [
+            (cmd_name, plugin)
+            for cmd_name, plugin in all_plugins.items()
+            if "." not in cmd_name and plugin.needs.block_until
+        ]
+        if script_only:
+            ctx.write_markup("")
+            ctx.write_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
+            for cmd_name, plugin in sorted(script_only, key=lambda x: x[0]):
+                cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
+                args_text = _truncate_args(plugin.args or "", prefix, cmd_name)
+                arg_col = _pad(_color_args(args_text), arg_w)
+                sub_count = f"  [dim]({len(plugin.children)})[/]" if plugin.children else ""
+                ctx.write_markup(f"{cmd_col} {arg_col}  {plugin.help}{sub_count}")
 
         # Scripts section
         scripts_dir = ctx.scripts_dir
@@ -584,8 +643,12 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
     }
     groups: dict[str, list] = {}
     for cmd_name, plugin in all_plugins.items():
-        if "." not in cmd_name:
-            groups.setdefault(plugin.source, []).append((cmd_name, plugin))
+        if "." in cmd_name:
+            continue
+        # Script-only (block_until) commands render in their own section.
+        if plugin.needs.block_until:
+            continue
+        groups.setdefault(plugin.source, []).append((cmd_name, plugin))
     cmd_w = 25
     arg_w = 25
     prefix = ctx.engine.prefix
@@ -605,6 +668,26 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
             sub_count = f"  [dim]({len(plugin.children)})[/]" if plugin.children else ""
             ctx.write_markup(f"{cmd_col} {arg_col}  {plugin.help}{sub_count}")
             total += 1
+
+    # Script-only commands grouped separately so users scanning for
+    # interactive commands aren't misled by entries that only work in
+    # .run files.
+    script_only = [
+        (cmd_name, plugin)
+        for cmd_name, plugin in all_plugins.items()
+        if "." not in cmd_name and plugin.needs.block_until
+    ]
+    if script_only:
+        ctx.write_markup("")
+        ctx.write_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
+        for cmd_name, plugin in sorted(script_only, key=lambda x: x[0]):
+            cmd_col = _pad(f"  [{_CMD}]{prefix}{cmd_name}[/]", cmd_w + 2)
+            args_text = _truncate_args(plugin.args or "", prefix, cmd_name)
+            arg_col = _pad(_color_args(args_text), arg_w)
+            sub_count = f"  [dim]({len(plugin.children)})[/]" if plugin.children else ""
+            ctx.write_markup(f"{cmd_col} {arg_col}  {plugin.help}{sub_count}")
+            total += 1
+
     ctx.result(f"{total} commands.")
     return CmdResult.ok()
 

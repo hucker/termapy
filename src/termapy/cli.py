@@ -22,7 +22,7 @@ from prompt_toolkit.history import FileHistory
 
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial
-from termapy.plugins import CmdResult
+from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
 from termapy.scripting import strip_ansi
 from termapy.serial_engine import SerialEngine
@@ -189,6 +189,11 @@ class CLITerminal(TerminalHost):
         self.ctx.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
         self.ctx.exit_app = lambda: None
         self.ctx.get_screen_text = lambda: ""
+        # CLI provides only the baseline; no TUI features (dialogs,
+        # screen capture, status bar, toast notifications).  block_until
+        # is added dynamically by the script runner when running a .run
+        # file in CLI mode -- see ReplEngine._effective_capabilities.
+        self.ctx.capabilities = CapabilitySet()
 
         self.repl.set_context(self.ctx)
         self._init_flags(echo=False)
@@ -301,20 +306,13 @@ class CLITerminal(TerminalHost):
             self._hook_cli_intellisense,
             source="app",
         )
-        # TUI-only stubs — warn when invoked in CLI
-        def _tui_only(ctx, args, name=""):
-            return CmdResult.fail(msg="Only available in /tui mode.")
-
-        for name, args_spec, help_text in [
-            ("line_no", "{on|off}", "Toggle line numbers (TUI only)."),
-        ]:
-            self.repl.register_hook(
-                name,
-                args_spec,
-                help_text,
-                lambda ctx, a, n=name: _tui_only(ctx, a, n),
-                source="app",
-            )
+        # Historically, CLI registered placeholder hooks for TUI-only
+        # commands (/line_no and friends) so users got a clear "Only
+        # available in /tui mode." error rather than "Unknown command".
+        # That role is now played by the capability model: TUI-only
+        # commands declare ``needs=CapabilitySet(tui_mode=True)`` and
+        # dispatch reports the missing capability uniformly.  No CLI-side
+        # stubs needed.
 
     # -- Hook handlers --------------------------------------------------------
 

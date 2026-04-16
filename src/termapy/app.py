@@ -52,7 +52,13 @@ from termapy.dialogs import (
     ScriptEditor,
     ScriptPicker,
 )
-from termapy.plugins import EngineAPI, LoadResult, PluginContext, load_plugins_from_dir
+from termapy.plugins import (
+    CapabilitySet,
+    EngineAPI,
+    LoadResult,
+    PluginContext,
+    load_plugins_from_dir,
+)
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol_viz import builtins_viz_dir, load_visualizers_from_dir
 from termapy.capture import CaptureEngine, CaptureResult
@@ -707,6 +713,16 @@ class SerialTerminal(TerminalHost, App):
         )
         ctx.get_screen_text = lambda: self._on_main(self._get_screen_text)
         ctx.exit_app = lambda: self._on_main(self.exit)
+        # TUI environment capabilities.  See CapabilitySet for the full
+        # vocabulary.  block_until is NOT set here -- it's provided
+        # dynamically by the script runner (see _effective_capabilities).
+        ctx.capabilities = CapabilitySet(
+            confirm_dialog=True,
+            ui_notify=True,
+            status_bar=True,
+            screen_capture=True,
+            tui_mode=True,
+        )
 
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg
@@ -721,6 +737,7 @@ class SerialTerminal(TerminalHost, App):
             "Save SVG screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_svg,
             source="app",
+            needs=CapabilitySet(screen_capture=True),
         )
         self.repl.register_hook(
             "ss.svg.quiet",
@@ -728,6 +745,7 @@ class SerialTerminal(TerminalHost, App):
             "Save SVG screenshot silently (no status message).",
             self._hook_ss_svg_quiet,
             source="app",
+            needs=CapabilitySet(screen_capture=True),
         )
         self.repl.register_hook(
             "ss.txt",
@@ -735,6 +753,7 @@ class SerialTerminal(TerminalHost, App):
             "Save text screenshot. Name defaults to 'screenshot'.",
             self._hook_ss_txt,
             source="app",
+            needs=CapabilitySet(screen_capture=True),
         )
         self.repl.register_hook(
             "delay",
@@ -848,6 +867,7 @@ class SerialTerminal(TerminalHost, App):
             "Toggle line numbers on or off.",
             self._hook_line_no,
             source="app",
+            needs=CapabilitySet(tui_mode=True),
         )
         # /edit — TUI overrides root (Textual modals for .run/.pro)
         # This wipes all edit.* children from the plugin, so we must

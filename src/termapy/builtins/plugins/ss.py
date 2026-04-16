@@ -1,10 +1,17 @@
-"""Built-in plugin: screenshot commands (ss.dir, ss.svg, ss.txt)."""
+"""Built-in plugin: screenshot commands (ss.dir, ss.svg, ss.txt).
+
+``ss.dir`` works anywhere (it just prints a path).  ``ss.svg`` and
+``ss.txt`` need a rendered surface, so they declare ``screen_capture``
+and rely on dispatch's capability gate to produce a clean error in
+environments that don't provide it.  The TUI installs real handlers
+via ``register_hook`` that replace the placeholders below.
+"""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -21,8 +28,13 @@ def _handler_dir(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-def _handler_not_supported(ctx: PluginContext, args: str) -> CmdResult:
-    return CmdResult.fail(msg="Only available in /tui mode.")
+def _handler_placeholder(ctx: PluginContext, args: str) -> CmdResult:
+    """Never invoked: the TUI replaces this handler via register_hook.
+
+    In non-TUI environments dispatch's capability gate fails before
+    reaching the handler because ``screen_capture`` is not provided.
+    """
+    return CmdResult.fail(msg="screenshot handler not installed")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -36,13 +48,15 @@ COMMAND = Command(
         ),
         "svg": Command(
             args="{name}",
-            help="Save SVG screenshot (TUI only).",
-            handler=_handler_not_supported,
+            help="Save an SVG screenshot of the terminal.",
+            handler=_handler_placeholder,
+            needs=CapabilitySet(screen_capture=True),
         ),
         "txt": Command(
             args="{name}",
-            help="Save text screenshot (TUI only).",
-            handler=_handler_not_supported,
+            help="Save a text screenshot of the terminal.",
+            handler=_handler_placeholder,
+            needs=CapabilitySet(screen_capture=True),
         ),
     },
 )

@@ -2,7 +2,146 @@
 
 import pytest
 
-from termapy.plugins import PluginConfig, PluginContext, PluginInfo, load_plugins_from_dir
+from termapy.plugins import (
+    CapabilitySet,
+    PluginConfig,
+    PluginContext,
+    PluginInfo,
+    load_plugins_from_dir,
+)
+
+
+class TestCapabilitySet:
+    """Algebra tests for the capability declaration dataclass."""
+
+    def test_empty_satisfies_empty(self):
+        """A command with no needs runs in any environment."""
+        # Arrange
+        needs = CapabilitySet()
+        env = CapabilitySet()
+
+        # Act
+        actual = needs.satisfied_by(env)
+
+        # Assert
+        assert actual is True, "empty needs always satisfied"
+
+    def test_needs_satisfied_when_env_provides(self):
+        """Single need met by an env that provides it."""
+        # Arrange
+        needs = CapabilitySet(block_until=True)
+        env = CapabilitySet(block_until=True, confirm_dialog=True)
+
+        # Act
+        actual = needs.satisfied_by(env)
+
+        # Assert
+        assert actual is True, "superset env satisfies needs"
+
+    def test_needs_unsatisfied_when_env_missing_it(self):
+        """Need unmet when env lacks the capability."""
+        # Arrange
+        needs = CapabilitySet(block_until=True)
+        env = CapabilitySet(ui_notify=True)
+
+        # Act
+        actual = needs.satisfied_by(env)
+
+        # Assert
+        assert actual is False, "disjoint env does not satisfy"
+
+    def test_missing_from_lists_unmet_fields(self):
+        """missing_from reports field names in declaration order."""
+        # Arrange — needs two things; env provides one of them
+        needs = CapabilitySet(block_until=True, ui_notify=True)
+        env = CapabilitySet(block_until=True)
+
+        # Act
+        actual = needs.missing_from(env)
+
+        # Assert
+        expected = ["ui_notify"]
+        assert actual == expected, f"{actual} == {expected}"
+
+    def test_missing_from_empty_when_fully_satisfied(self):
+        """missing_from returns an empty list when all needs met."""
+        # Arrange
+        needs = CapabilitySet(block_until=True)
+        env = CapabilitySet(block_until=True)
+
+        # Act
+        actual = needs.missing_from(env)
+
+        # Assert
+        expected = []
+        assert actual == expected, f"{actual} == {expected}"
+
+    def test_union_combines_both_sides(self):
+        """union() produces a set containing every field set in either input."""
+        # Arrange
+        a = CapabilitySet(block_until=True)
+        b = CapabilitySet(ui_notify=True)
+
+        # Act
+        actual = a.union(b)
+
+        # Assert
+        expected = CapabilitySet(block_until=True, ui_notify=True)
+        assert actual == expected, f"{actual} == {expected}"
+
+    def test_frozen_prevents_mutation(self):
+        """CapabilitySet is immutable so environments can't mutate each other's caps."""
+        # Arrange
+        caps = CapabilitySet(block_until=True)
+
+        # Act / Assert
+        with pytest.raises(Exception):
+            caps.block_until = False  # type: ignore[misc]
+
+    def test_typo_raises_at_construction(self):
+        """Typos in field names fail loudly at construction time."""
+        # Act / Assert — a misspelled field is not silently ignored.
+        with pytest.raises(TypeError):
+            CapabilitySet(block_untill=True)  # type: ignore[call-arg]
+
+    def test_baseline_defaults_true(self):
+        """Baseline capabilities default True so every environment has them."""
+        # Arrange
+        caps = CapabilitySet()
+
+        # Assert — the four baseline capabilities are on by default
+        assert caps.terminal_output is True, "terminal_output baseline"
+        assert caps.serial_io is True, "serial_io baseline"
+        assert caps.dispatch is True, "dispatch baseline"
+        assert caps.config_read is True, "config_read baseline"
+
+    def test_restrictive_defaults_false(self):
+        """Restrictive capabilities default False so commands opt in."""
+        # Arrange
+        caps = CapabilitySet()
+
+        # Assert — restrictive fields are off by default
+        assert caps.block_until is False, "block_until default off"
+        assert caps.confirm_dialog is False, "confirm_dialog default off"
+        assert caps.ui_notify is False, "ui_notify default off"
+        assert caps.screen_capture is False, "screen_capture default off"
+        assert caps.serial_connected is False, "serial_connected default off"
+
+    def test_restricted_env_fails_baseline_command(self):
+        """A restricted env that disables a baseline capability gates
+        commands that rely on the default ``CapabilitySet()`` (baseline True).
+        """
+        # Arrange — a hypothetical sandbox with serial_io disabled.
+        restricted = CapabilitySet(serial_io=False)
+        # A command that implicitly needs serial_io (via the baseline
+        # default True) doesn't declare it, but still has it True.
+        default_needs = CapabilitySet()
+
+        # Act
+        missing = default_needs.missing_from(restricted)
+
+        # Assert — serial_io surfaces as missing.
+        assert "serial_io" in missing, "baseline gap detected"
 
 
 @pytest.fixture

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from termapy.vendor.ymodem.Socket import ModemSocket
 from termapy.vendor.ymodem.Protocol import ProtocolType
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -30,9 +30,6 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     filenames = args.strip().split()
     if not filenames:
         return CmdResult.fail(msg="Usage: /ymodem.send <file> {file2} ...")
-
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
 
     paths: list[str] = []
     for filename in filenames:
@@ -90,9 +87,6 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     """
     target_dir = args.strip() if args.strip() else ""
 
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
-
     if target_dir:
         out_dir = _resolve_path(target_dir, _get_xfer_root(ctx))
     else:
@@ -146,11 +140,13 @@ COMMAND = Command(
             args="<file> {file2} ...",
             help="Send file(s) via YMODEM to the device.",
             handler=_handler_send,
+            needs=CapabilitySet(serial_connected=True),
         ),
         "recv": Command(
             args="{directory}",
             help="Receive file(s) via YMODEM from the device.",
             handler=_handler_recv,
+            needs=CapabilitySet(serial_connected=True),
         ),
     },
 )

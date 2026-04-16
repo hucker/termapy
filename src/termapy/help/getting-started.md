@@ -153,15 +153,18 @@ The bottom bar contains a text input for sending commands to the serial device.
 - As you type, ghost-text suggestions appear from REPL commands and device history; press **Right** to accept.
 - Prefix a command with `/` to run a local REPL command instead of sending it to the device.
 
-Type `/help` to see all available REPL commands. `/help` is forgiving --
-partial names and keywords work too. A few useful forms:
+Type `/help` to see all available REPL commands. Three ways to find
+things, man-inspired:
 
-- `/help <cmd>`            -- full help, flags, subcommands, long help
-- `/help crc`              -- fuzzy match across names, flags, help text, args
-- `/help table crc`        -- AND: commands matching both terms
-- `/help crc -table`       -- exclude: drop results matching `table`
-- `/help --table`          -- literal flag lookup (find commands that take `--table`)
-- `/help.search <regex>`   -- full regex search across every command
-- `/help.dev <cmd>`        -- show the handler's Python docstring
+- `/help`                  -- clean landscape of every command (name + one-liner).
+- `/help <cmd>`            -- exact match -> full man-page detail (NAME, SYNOPSIS,
+  DESCRIPTION, FLAGS, REQUIRES, SUBCOMMANDS, SEE ALSO).
+- `/help <term>`           -- no exact match? You get a candidate list (substring
+  match on name + short help). Pick one and rerun `/help` on its full name.
+- `/search <word>`         -- deep search across everything (name, help, args,
+  flags, long help). Supports multi-term AND (`/search port baud`), negative
+  exclusion (`/search baud -break`), and regex (`/search ^proto\.`).
+- `/search --dev <word>`   -- also searches handler docstrings.
+- `/help.dev <cmd>`        -- developer view: shows the handler's Python docstring.
 
 ---

@@ -4,13 +4,13 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
-| `/help [cmd]`             | List commands, or show help for one; fuzzy partial matches also work        |
-| `/help <term> [term...]`  | Multi-term substring search; prefix a term with `-` to exclude              |
-| `/help.search <pattern>`  | Full regex search across every command (name, help, args, flags, long)      |
+| `/help`                   | Clean landscape of every command (name + one-liner)                         |
+| `/help <term>`            | Exact match -> man-page detail; otherwise a candidate list                  |
+| `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/help.target`            | Show only imported target device commands                                   |
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.plugin`            | List loaded plugins grouped by source                                       |
-| `/help.dev <cmd>`         | Show a command handler's Python docstring                                   |
+| `/help.dev <cmd>`         | Show a command handler's Python docstring (developer view)                  |
 | `/port [name]`            | Open a port by name, or show subcommands                                    |
 | `/port.list`              | List available serial ports                                                 |
 | `/port.open {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81) |

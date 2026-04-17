@@ -1,5 +1,5 @@
 """Allow ``python -m termapy`` to launch the app."""
 
-from termapy.app import main
+from termapy.entry import main
 
 main()

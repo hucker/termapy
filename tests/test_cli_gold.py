@@ -30,7 +30,7 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> str:
             f"'--run', {str(script_path)!r}, "
             f"'--no-color', '--term-width', '120', "
             f"'--cfg-dir', {str(tmp_path)!r}]; "
-            "from termapy.app import main; main()",
+            "from termapy.entry import main; main()",
         ],
         capture_output=True,
         text=True,

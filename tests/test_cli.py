@@ -524,7 +524,7 @@ class TestInfoFlag:
         # confirm the call exits with 0 or 1 (both are valid: 0 if
         # any port is connected, 1 if none) and produces some output.
         monkeypatch.setattr("sys.argv", ["termapy", "--info"])
-        from termapy.app import main
+        from termapy.entry import main
 
         # Act
         with pytest.raises(SystemExit) as exc:
@@ -542,7 +542,7 @@ class TestInfoFlag:
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info=DEFINITELY_NOT_A_PORT_999"]
         )
-        from termapy.app import main
+        from termapy.entry import main
 
         # Act
         with pytest.raises(SystemExit) as exc:
@@ -560,7 +560,7 @@ class TestInfoFlag:
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info=COM_DOES_NOT_EXIST"]
         )
-        from termapy.app import main
+        from termapy.entry import main
 
         # Act
         with pytest.raises(SystemExit):
@@ -575,7 +575,7 @@ class TestInfoFlag:
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info", "ANOTHER_FAKE_PORT"]
         )
-        from termapy.app import main
+        from termapy.entry import main
 
         # Act
         with pytest.raises(SystemExit):
@@ -588,7 +588,7 @@ class TestInfoFlag:
     def test_info_help_text_appears(self, capsys, monkeypatch):
         # Arrange - --help output should mention the new --info flag.
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
-        from termapy.app import main
+        from termapy.entry import main
 
         # Act
         with pytest.raises(SystemExit) as exc:
@@ -600,3 +600,353 @@ class TestInfoFlag:
         expected_code = 0
         assert actual_code == expected_code, "--help exits with status 0"
         assert "--info" in out, "--info flag is documented in --help"
+
+
+# -- --ports CLI flag (one-line-per-port table) ------------------------------
+
+
+def _synthetic_facts(*entries):
+    """Build a list[ChipFacts] from (device, manufacturer, model, vid_pid, serial) tuples."""
+    from termapy.port_control import ChipFacts
+
+    out = []
+    for device, manufacturer, model, vid_pid, serial in entries:
+        out.append(ChipFacts(
+            device=device,
+            description=f"USB Serial Port ({device})",
+            manufacturer=manufacturer,
+            model=model,
+            vid_pid=vid_pid,
+            serial=serial,
+            usb_speed="USB Full-Speed (1 ms min latency)",
+        ))
+    return out
+
+
+class TestPortsFlag:
+    """Tests for --ports: print a one-line-per-port table and exit.
+
+    We monkey-patch ``port_control._gather_all_chip_facts`` so tests
+    are hardware-independent.
+    """
+
+    def test_ports_prints_header_and_one_row_per_port(self, capsys, monkeypatch):
+        # Arrange -- three synthetic ports.
+        monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
+        import termapy.port_control as pc
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
+            ("COM3", "Microsoft", "-", "04D8:9036", "020026702RYN040952"),
+            ("COM4", "FTDI", "FTDI FT230X / FT231X / FT234XD", "0403:6015", "D20JSV68A"),
+            ("COM7", "FTDI", "FTDI FT232R / FT245R", "0403:6001", "BG03U7VTA"),
+        ))
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        actual_code = exc.value.code
+        assert actual_code == 0, "--ports with ports found exits 0"
+        assert "PORT" in out and "MFG" in out and "VID:PID" in out, \
+            "header row printed"
+        assert "COM3" in out and "COM4" in out and "COM7" in out, \
+            "every port appears"
+        assert "MSFT" in out, "Microsoft manufacturer gets aliased to MSFT"
+        assert "FTDI FT232R" in out, "chip model rendered"
+
+    def test_ports_no_ports_exits_nonzero(self, capsys, monkeypatch):
+        # Arrange -- simulate no ports.
+        monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
+        import termapy.port_control as pc
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: [])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert exc.value.code == 1, "empty port list exits 1"
+        assert "(no ports found)" in out, "prints the empty marker"
+
+    def test_ports_filter_matches_one(self, capsys, monkeypatch):
+        # Arrange -- --ports=COM4 on a 3-port fixture.
+        monkeypatch.setattr("sys.argv", ["termapy", "--ports=COM4"])
+        import termapy.port_control as pc
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
+            ("COM3", "Microsoft", "-", "04D8:9036", "X1"),
+            ("COM4", "FTDI", "FTDI FT232R", "0403:6001", "X2"),
+            ("COM7", "FTDI", "FTDI FT232R", "0403:6001", "X3"),
+        ))
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert exc.value.code == 0, "filter hit exits 0"
+        assert "COM4" in out, "matched port in output"
+        # COM3 and COM7 should NOT appear as data rows.  The header
+        # text "PORT" might accidentally match so we check the row.
+        data_lines = [ln for ln in out.splitlines() if ln.startswith("COM")]
+        assert all("COM4" in ln for ln in data_lines), \
+            f"only COM4 row emitted, got: {data_lines}"
+
+    def test_ports_filter_unknown_exits_nonzero(self, capsys, monkeypatch):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--ports=NOPE999"])
+        import termapy.port_control as pc
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
+            ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "X"),
+        ))
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        err = capsys.readouterr().err
+        assert exc.value.code == 1, "no match exits 1"
+        assert "No port matching" in err, "helpful error message"
+
+    def test_ports_help_mentions_flag(self, capsys, monkeypatch):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert "--ports" in out, "--ports is in --help"
+
+
+# -- --chips CLI flag --------------------------------------------------------
+
+
+class TestChipsFlag:
+    """Tests for --chips: print the USB_SERIAL_CHIPS lookup table."""
+
+    def test_chips_unfiltered_dumps_table(self, capsys, monkeypatch):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--chips"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert exc.value.code == 0, "--chips exits 0"
+        assert "VID:PID" in out and "CHIP MODEL" in out, "header emitted"
+        assert "FT232R" in out, "at least one known chip present"
+        assert out.rstrip().splitlines()[-1].startswith("Count="), \
+            "final line is Count=<N>"
+
+    def test_chips_filter_narrows(self, capsys, monkeypatch):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--chips=ftdi"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert exc.value.code == 0, "filter exits 0"
+        data_lines = [ln for ln in out.splitlines() if ":" in ln and "FTDI" in ln]
+        assert data_lines, "FTDI rows present"
+        assert "Silicon Labs" not in out, "non-matching vendor excluded"
+
+
+# -- --watch CLI flag (tricky: loop + KeyboardInterrupt) ---------------------
+
+
+class TestWatchFlag:
+    """Tests for --watch: event-line monitor with Ctrl+C exit."""
+
+    def test_watch_exits_cleanly_on_keyboard_interrupt(
+        self, capsys, monkeypatch
+    ):
+        # Arrange -- fixture emits one snapshot, then raises.
+        monkeypatch.setattr("sys.argv", ["termapy", "--watch"])
+        import termapy.port_control as pc
+
+        snapshots = [
+            _synthetic_facts(
+                ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
+            ),
+        ]
+        call_count = [0]
+
+        def _mock_gather():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return snapshots[0]
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", _mock_gather)
+        # time.sleep must be a no-op or the test hangs.
+        monkeypatch.setattr("termapy.cli_flags.time.sleep", lambda s: None)
+
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert exc.value.code == 0, "Ctrl+C exits 0"
+        assert "monitoring 1 port" in out, "baseline banner printed"
+        # Baseline ports render as 'present' log lines, same schema.
+        assert "present" in out, "baseline emits 'present' action"
+        assert "COM3" in out, "baseline has COM3"
+
+    def test_watch_emits_add_and_remove_events(self, capsys, monkeypatch):
+        # Arrange -- scripted sequence: baseline (1 port), then second
+        # snapshot adds COM4 and removes COM3, then KeyboardInterrupt.
+        monkeypatch.setattr("sys.argv", ["termapy", "--watch"])
+        import termapy.port_control as pc
+
+        baseline = _synthetic_facts(
+            ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "ABC"),
+        )
+        changed = _synthetic_facts(
+            ("COM4", "FTDI", "FTDI FT230X", "0403:6015", "XYZ"),
+        )
+        call_count = [0]
+
+        def _mock_gather():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return baseline
+            if call_count[0] == 2:
+                return changed
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", _mock_gather)
+        monkeypatch.setattr("termapy.cli_flags.time.sleep", lambda s: None)
+
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+
+        # Assert -- added / removed actions appear on log lines.  The
+        # format is fixed-width so we search for the action verb
+        # adjacent to the device name.
+        out = capsys.readouterr().out
+        added_lines = [
+            ln for ln in out.splitlines()
+            if "added" in ln and "COM4" in ln
+        ]
+        removed_lines = [
+            ln for ln in out.splitlines()
+            if "removed" in ln and "COM3" in ln
+        ]
+        assert added_lines, f"expected an 'added COM4' line, got: {out!r}"
+        assert removed_lines, f"expected a 'removed COM3' line, got: {out!r}"
+
+    def test_watch_help_mentions_flag(self, capsys, monkeypatch):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert "--watch" in out, "--watch in --help"
+
+
+# -- Architectural guarantee: CLI flags do not import Textual ---------------
+
+
+class TestCliFreeOfTextual:
+    """Importing termapy.entry must not transitively import Textual.
+
+    Guards the performance promise: ``termapy --ports`` should pay
+    pyserial's import cost and nothing more.  Regressions here mean a
+    CLI one-shot would suddenly take 300+ms and load 40MB of Textual.
+    """
+
+    def test_entry_import_does_not_load_textual(self):
+        # Arrange -- subprocess isolates the import graph.
+        import subprocess
+        import sys as _sys
+
+        # Act
+        result = subprocess.run(
+            [_sys.executable, "-c",
+             "import termapy.entry; "
+             "import sys; "
+             "assert 'textual' not in sys.modules, "
+             "    list(m for m in sys.modules if m.startswith('textual'))"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # Assert
+        assert result.returncode == 0, (
+            f"importing termapy.entry loaded textual.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    def test_cli_flags_import_does_not_load_textual(self):
+        # Arrange
+        import subprocess
+        import sys as _sys
+
+        # Act
+        result = subprocess.run(
+            [_sys.executable, "-c",
+             "import termapy.cli_flags; "
+             "import sys; "
+             "assert 'textual' not in sys.modules"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # Assert
+        assert result.returncode == 0, (
+            f"importing termapy.cli_flags loaded textual.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    def test_port_format_import_does_not_load_textual(self):
+        # Arrange
+        import subprocess
+        import sys as _sys
+
+        # Act
+        result = subprocess.run(
+            [_sys.executable, "-c",
+             "import termapy.port_format; "
+             "import sys; "
+             "assert 'textual' not in sys.modules"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # Assert
+        assert result.returncode == 0, (
+            f"importing termapy.port_format loaded textual.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )

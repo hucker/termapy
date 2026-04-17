@@ -1,4 +1,4 @@
-"""Tests for defaults.py — validation constants, resolve_color, preview helpers."""
+"""Tests for defaults.py - validation constants, resolve_color, preview helpers."""
 
 from __future__ import annotations
 

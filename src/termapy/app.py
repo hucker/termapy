@@ -869,7 +869,7 @@ class SerialTerminal(TerminalHost, App):
             source="app",
             needs=CapabilitySet(tui_mode=True),
         )
-        # /edit — TUI overrides root (Textual modals for .run/.pro)
+        # /edit - TUI overrides root (Textual modals for .run/.pro)
         # This wipes all edit.* children from the plugin, so we must
         # re-register every subcommand the TUI wants to expose.
         self.repl.register_hook(
@@ -1444,7 +1444,7 @@ class SerialTerminal(TerminalHost, App):
         self._rebuild_suggester_commands()
 
     def _switch_to_cli(self) -> CmdResult:
-        """Switch to CLI mode — sets flag and exits TUI."""
+        """Switch to CLI mode - sets flag and exits TUI."""
         self.switch_to = "cli"
         # Stash current config path so the mode loop can pass it to CLI
         self._switch_config_path = self.config_path
@@ -2472,14 +2472,14 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _tui_hook_raw(self, text: str) -> CmdResult:
-        """Hook wrapper for /raw — sends text with no transforms."""
+        """Hook wrapper for /raw - sends text with no transforms."""
         self._send_serial_raw(text)
         return CmdResult.ok()
 
     def _dispatch_single(self, cmd: str) -> CmdResult:
         """Dispatch a single command (delegates to repl.dispatch_full).
 
-        Safe to call from any thread — output helpers (_status,
+        Safe to call from any thread - output helpers (_status,
         _write_output_markup) detect their thread internally.
         """
         return self.repl.dispatch_full(
@@ -3425,7 +3425,7 @@ def _resolve_config(name: str) -> str | None:
         if candidate.exists():
             return str(candidate)
     except SystemExit:
-        pass  # cfg_dir doesn't exist yet — skip this rule
+        pass  # cfg_dir doesn't exist yet - skip this rule
     # 4. ./termapy_cfg/<name>/<name>.cfg (cwd fallback)
     candidate = Path("termapy_cfg") / stem / f"{stem}.cfg"
     if candidate.exists():

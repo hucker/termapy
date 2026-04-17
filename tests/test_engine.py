@@ -180,7 +180,9 @@ class TestRegisterPlugin:
     def test_register_plugin(self, engine):
         # Arrange
         eng, _ = engine
-        info = PluginInfo(name="test", args="", help="Test.", handler=lambda ctx, args: None)
+        info = PluginInfo(
+            name="test", args="", help="Test.", handler=lambda ctx, args: None
+        )
 
         # Act
         eng.register_plugin(info)
@@ -207,12 +209,12 @@ class TestRegisterPlugin:
         handler = MagicMock()
 
         # Act
-        eng.register_hook("mytest", "<arg>", "Test hook.", handler)
+        eng.register_hook("my_test", "<arg>", "Test hook.", handler)
 
         # Assert
-        assert "mytest" in eng._plugins, "hook registered as plugin"
-        assert eng._plugins["mytest"].args == "<arg>", "args preserved"
-        assert eng._plugins["mytest"].source == "built-in", "default source"
+        assert "my_test" in eng._plugins, "hook registered as plugin"
+        assert eng._plugins["my_test"].args == "<arg>", "args preserved"
+        assert eng._plugins["my_test"].source == "built-in", "default source"
 
 
 # -- _apply_cfg -------------------------------------------------------------
@@ -240,7 +242,12 @@ class TestApplyCfg:
 class TestRunScript:
     def _make_engine(self, tmp_path, script_text, connected=True):
         """Create an engine with mock serial context and a script file."""
-        cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r", "encoding": "utf-8"}
+        cfg = {
+            "port": "COM4",
+            "baud_rate": 115200,
+            "line_ending": "\r",
+            "encoding": "utf-8",
+        }
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
@@ -338,7 +345,9 @@ class TestRunScript:
 
     def test_not_connected_skips_serial(self, tmp_path):
         # Arrange
-        eng, output, writes, script = self._make_engine(tmp_path, "ATZ\n", connected=False)
+        eng, output, writes, script = self._make_engine(
+            tmp_path, "ATZ\n", connected=False
+        )
 
         # Act
         eng.run_script(script)
@@ -380,9 +389,13 @@ class TestTransformChains:
         eng, _ = engine
 
         # Act
-        eng.register_transform(TransformInfo(
-            name="upper", help="test", repl=lambda s: s.upper(),
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="upper",
+                help="test",
+                repl=lambda s: s.upper(),
+            )
+        )
 
         # Assert
         assert eng.has_repl_transforms is True, "REPL transform registered"
@@ -393,10 +406,13 @@ class TestTransformChains:
         eng, _ = engine
 
         # Act
-        eng.register_transform(TransformInfo(
-            name="strip_atz", help="test",
-            serial=lambda s: s.replace("ATZ", "AT"),
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="strip_atz",
+                help="test",
+                serial=lambda s: s.replace("ATZ", "AT"),
+            )
+        )
 
         # Assert
         assert eng.has_serial_transforms is True, "serial transform registered"
@@ -405,9 +421,13 @@ class TestTransformChains:
     def test_repl_transform_applied(self, engine):
         # Arrange
         eng, _ = engine
-        eng.register_transform(TransformInfo(
-            name="upper", help="test", repl=lambda s: s.upper(),
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="upper",
+                help="test",
+                repl=lambda s: s.upper(),
+            )
+        )
 
         # Act
         actual = eng.transform_repl("hello world")
@@ -419,10 +439,13 @@ class TestTransformChains:
     def test_serial_transform_applied(self, engine):
         # Arrange
         eng, _ = engine
-        eng.register_transform(TransformInfo(
-            name="replacer", help="test",
-            serial=lambda s: s.replace("$port", "COM4"),
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="replacer",
+                help="test",
+                serial=lambda s: s.replace("$port", "COM4"),
+            )
+        )
 
         # Act
         actual = eng.transform_serial("connect $port")
@@ -434,12 +457,20 @@ class TestTransformChains:
     def test_chain_order_matches_registration(self, engine):
         # Arrange
         eng, _ = engine
-        eng.register_transform(TransformInfo(
-            name="first", help="test", repl=lambda s: s + " [A]",
-        ))
-        eng.register_transform(TransformInfo(
-            name="second", help="test", repl=lambda s: s + " [B]",
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="first",
+                help="test",
+                repl=lambda s: s + " [A]",
+            )
+        )
+        eng.register_transform(
+            TransformInfo(
+                name="second",
+                help="test",
+                repl=lambda s: s + " [B]",
+            )
+        )
 
         # Act
         actual = eng.transform_repl("cmd")
@@ -449,19 +480,22 @@ class TestTransformChains:
         assert actual == expected, "transforms applied in registration order"
 
     def test_transforms_independent(self, engine):
-        # Arrange — one transform with both repl and serial functions
+        # Arrange - one transform with both repl and serial functions
         eng, _ = engine
-        eng.register_transform(TransformInfo(
-            name="dual", help="test",
-            repl=lambda s: "REPL:" + s,
-            serial=lambda s: "SER:" + s,
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="dual",
+                help="test",
+                repl=lambda s: "REPL:" + s,
+                serial=lambda s: "SER:" + s,
+            )
+        )
 
         # Act
         actual_repl = eng.transform_repl("test")
         actual_serial = eng.transform_serial("test")
 
-        # Assert — each path applies only its own function
+        # Assert - each path applies only its own function
         assert actual_repl == "REPL:test", "repl transform applied, not serial"
         assert actual_serial == "SER:test", "serial transform applied, not repl"
 
@@ -480,11 +514,14 @@ class TestTransformChains:
     def test_both_chains_on_one_transform(self, engine):
         # Arrange
         eng, _ = engine
-        eng.register_transform(TransformInfo(
-            name="dual", help="test",
-            repl=lambda s: s.upper(),
-            serial=lambda s: s.lower(),
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="dual",
+                help="test",
+                repl=lambda s: s.upper(),
+                serial=lambda s: s.lower(),
+            )
+        )
 
         # Act
         actual_repl = eng.transform_repl("Hello")
@@ -498,9 +535,13 @@ class TestTransformChains:
         # Arrange
         eng, _ = engine
         before = len(eng._transform_infos)
-        eng.register_transform(TransformInfo(
-            name="vars", help="Expand variables.", repl=lambda s: s,
-        ))
+        eng.register_transform(
+            TransformInfo(
+                name="vars",
+                help="Expand variables.",
+                repl=lambda s: s,
+            )
+        )
 
         # Assert
         assert len(eng._transform_infos) == before + 1, "new transform added"
@@ -517,8 +558,10 @@ class TestDispatchFull:
     def dispatch_env(self, tmp_path):
         """Create an engine with capture lists for all dispatch callbacks."""
         cfg = {
-            "port": "COM4", "baud_rate": 115200,
-            "line_ending": "\r", "encoding": "utf-8",
+            "port": "COM4",
+            "baud_rate": 115200,
+            "line_ending": "\r",
+            "encoding": "utf-8",
         }
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
@@ -561,7 +604,16 @@ class TestDispatchFull:
                 is_connected=lambda: connected,
             )
 
-        return eng, output, logged, echoed, statuses, serial_writes, raw_writes, do_dispatch
+        return (
+            eng,
+            output,
+            logged,
+            echoed,
+            statuses,
+            serial_writes,
+            raw_writes,
+            do_dispatch,
+        )
 
     def test_serial_command_sent(self, dispatch_env):
         # Arrange
@@ -672,7 +724,7 @@ class TestDispatchFull:
         # Act
         do("/echo.quiet off")
 
-        # Assert — echo.quiet commands should not be echoed even with echo on
+        # Assert - echo.quiet commands should not be echoed even with echo on
         assert not any("echo.quiet" in t for t in echoed), "suppressed"
 
 
@@ -718,6 +770,7 @@ class TestWaitForMatch:
         t = threading.Thread(target=wait)
         t.start()
         import time
+
         time.sleep(0.05)  # let wait_for_match install predicate
         eng.feed_lines(["OK"])
         t.join(timeout=2.0)
@@ -888,14 +941,19 @@ class TestDispatchFlags:
         def handler(ctx, args):
             calls.append((args, set(ctx.active_flags)))
 
-        eng.register_plugin(PluginInfo(
-            name="flagtest",
-            args="<positional>",
-            help="Test flag parsing.",
-            handler=handler,
-            flags={"--table": "Use lookup table.", "--verbose": "Verbose.",
-                   "-v": "--verbose"},
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="flag_test",
+                args="<positional>",
+                help="Test flag parsing.",
+                handler=handler,
+                flags={
+                    "--table": "Use lookup table.",
+                    "--verbose": "Verbose.",
+                    "-v": "--verbose",
+                },
+            )
+        )
         return eng, ctx, calls, output
 
     def test_flag_stripped_before_handler(self, flag_env):
@@ -904,7 +962,7 @@ class TestDispatchFlags:
         eng, ctx, calls, _ = flag_env
 
         # Act
-        eng.dispatch("flagtest crc16-cms --table")
+        eng.dispatch("flag_test crc16-cms --table")
 
         # Assert
         actual_args, actual_flags = calls[0]
@@ -920,11 +978,15 @@ class TestDispatchFlags:
         def handler(ctx, args):
             observed.append(ctx.flag("--table"))
 
-        eng.register_plugin(PluginInfo(
-            name="ft2", args="", help="h",
-            handler=handler,
-            flags={"--table": "Use table."},
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="ft2",
+                args="",
+                help="h",
+                handler=handler,
+                flags={"--table": "Use table."},
+            )
+        )
 
         # Act
         eng.dispatch("ft2 --table")
@@ -941,7 +1003,7 @@ class TestDispatchFlags:
         eng, ctx, calls, _ = flag_env
 
         # Act
-        eng.dispatch("flagtest target -v")
+        eng.dispatch("flag_test target -v")
 
         # Assert
         _, actual_flags = calls[0]
@@ -953,7 +1015,7 @@ class TestDispatchFlags:
         eng, ctx, calls, output = flag_env
 
         # Act
-        result = eng.dispatch("flagtest x --talbe")
+        result = eng.dispatch("flag_test x --talbe")
 
         # Assert
         assert result.success is False, "unknown flag fails"
@@ -967,15 +1029,19 @@ class TestDispatchFlags:
         eng, ctx, calls, _ = flag_env
 
         # Act
-        eng.dispatch("flagtest x --table")
+        eng.dispatch("flag_test x --table")
         # Next call on a command with no declared flags should see empty set.
-        eng.register_plugin(PluginInfo(
-            name="noflags", args="", help="h",
-            handler=lambda c, a: calls.append((a, set(c.active_flags))),
-        ))
-        eng.dispatch("noflags")
+        eng.register_plugin(
+            PluginInfo(
+                name="no_flags",
+                args="",
+                help="h",
+                handler=lambda c, a: calls.append((a, set(c.active_flags))),
+            )
+        )
+        eng.dispatch("no_flags")
 
-        # Assert — the second handler invocation observed a clean slate.
+        # Assert - the second handler invocation observed a clean slate.
         _, second_flags = calls[-1]
         assert second_flags == set(), "flags reset before next dispatch"
 
@@ -1006,10 +1072,14 @@ class TestDispatchCapabilities:
         # Arrange
         eng, ctx, _ = cap_env
         called = []
-        eng.register_plugin(PluginInfo(
-            name="plain", args="", help="h",
-            handler=lambda c, a: called.append(True),
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="plain",
+                args="",
+                help="h",
+                handler=lambda c, a: called.append(True),
+            )
+        )
 
         # Act
         result = eng.dispatch("plain")
@@ -1024,11 +1094,15 @@ class TestDispatchCapabilities:
         eng, ctx, _ = cap_env
         ctx.capabilities = CapabilitySet()  # explicit baseline, no extras
         called = []
-        eng.register_plugin(PluginInfo(
-            name="blocker", args="", help="h",
-            handler=lambda c, a: called.append(True),
-            needs=CapabilitySet(block_until=True),
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="blocker",
+                args="",
+                help="h",
+                handler=lambda c, a: called.append(True),
+                needs=CapabilitySet(block_until=True),
+            )
+        )
 
         # Act
         result = eng.dispatch("blocker")
@@ -1044,11 +1118,15 @@ class TestDispatchCapabilities:
         eng, ctx, _ = cap_env
         ctx.capabilities = CapabilitySet(block_until=True)
         called = []
-        eng.register_plugin(PluginInfo(
-            name="blocker", args="", help="h",
-            handler=lambda c, a: called.append(True),
-            needs=CapabilitySet(block_until=True),
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="blocker",
+                args="",
+                help="h",
+                handler=lambda c, a: called.append(True),
+                needs=CapabilitySet(block_until=True),
+            )
+        )
 
         # Act
         result = eng.dispatch("blocker")
@@ -1061,20 +1139,24 @@ class TestDispatchCapabilities:
         """Flipping a baseline capability off gates commands that didn't
         declare anything special.
         """
-        # Arrange — sandbox environment without serial_io.
+        # Arrange - sandbox environment without serial_io.
         eng, ctx, _ = cap_env
         ctx.capabilities = CapabilitySet(serial_io=False)
         called = []
         # Ordinary command: default CapabilitySet() has serial_io=True.
-        eng.register_plugin(PluginInfo(
-            name="sender", args="", help="h",
-            handler=lambda c, a: called.append(True),
-        ))
+        eng.register_plugin(
+            PluginInfo(
+                name="sender",
+                args="",
+                help="h",
+                handler=lambda c, a: called.append(True),
+            )
+        )
 
         # Act
         result = eng.dispatch("sender")
 
-        # Assert — sandbox's baseline gap is detected.
+        # Assert - sandbox's baseline gap is detected.
         assert result.success is False, "sandbox gates the command"
         assert "serial_io" in result.error, "reports baseline gap"
         assert called == [], "handler never invoked"

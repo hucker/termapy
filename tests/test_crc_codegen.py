@@ -1,4 +1,4 @@
-"""Tests for CRC code generation — verify generated code computes correct CRC."""
+"""Tests for CRC code generation - verify generated code computes correct CRC."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class TestGeneratePython:
         expected = entry["check"]
         code = generate_python(name)
 
-        # Act — execute the generated function
+        # Act - execute the generated function
         ns = {}
         exec(code, ns)
         func_name = name.replace("-", "_").replace(".", "_")
@@ -50,7 +50,7 @@ class TestGeneratePython:
         expected = entry["check"]
         code = generate_python(name, table=True)
 
-        # Act — execute the generated table-driven function
+        # Act - execute the generated table-driven function
         ns = {}
         exec(code, ns)
         func_name = name.replace("-", "_").replace(".", "_")
@@ -126,7 +126,7 @@ class TestGenerators:
     @pytest.mark.parametrize("lang", ["c", "python", "rust"])
     def test_reflected_algorithm(self, lang):
         """Verify reflected algorithms (refin=True) generate code."""
-        # Act — crc16-modbus is reflected
+        # Act - crc16-modbus is reflected
         code = GENERATORS[lang]("crc16-modbus")
 
         # Assert
@@ -136,7 +136,7 @@ class TestGenerators:
     @pytest.mark.parametrize("lang", ["c", "python", "rust"])
     def test_normal_algorithm(self, lang):
         """Verify normal algorithms (refin=False) generate code."""
-        # Act — crc16-xmodem is normal
+        # Act - crc16-xmodem is normal
         code = GENERATORS[lang]("crc16-xmodem")
 
         # Assert

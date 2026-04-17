@@ -185,7 +185,7 @@ def test_v5_to_v6_renames_config_keys():
     # Act
     result = migrate_config(cfg)
 
-    # Assert — new keys present with old values
+    # Assert - new keys present with old values
     assert result["echo_input"] is True, "echo_cmd renamed"
     assert result["echo_input_fmt"] == "[purple]> {cmd}[/]", "echo_cmd_fmt renamed"
     assert result["on_connect_cmd"] == "ATZ", "auto_connect_cmd renamed"
@@ -196,7 +196,7 @@ def test_v5_to_v6_renames_config_keys():
     assert result["cmd_prefix"] == "/", "repl_prefix renamed"
     assert result["config_read_only"] is True, "read_only renamed"
 
-    # Assert — old keys removed
+    # Assert - old keys removed
     for old_key in ("echo_cmd", "echo_cmd_fmt", "auto_connect_cmd",
                     "inter_cmd_delay_ms", "show_eol", "exception_traceback",
                     "app_border_color", "repl_prefix", "read_only"):
@@ -210,7 +210,7 @@ def test_v5_to_v6_handles_missing_keys():
     cfg = {"config_version": 5, "port": "COM4"}
     result = migrate_config(cfg)
 
-    # Assert — no old or new keys introduced
+    # Assert - no old or new keys introduced
     assert "echo_cmd" not in result, "old key not introduced"
     assert "echo_input" not in result, "new key not added by migration"
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"

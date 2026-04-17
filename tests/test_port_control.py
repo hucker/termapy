@@ -1,4 +1,4 @@
-"""Tests for port_control.py — pure serial port control functions."""
+"""Tests for port_control.py - pure serial port control functions."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -103,7 +103,7 @@ class TestPortInfo:
         # Act
         msgs, effects = port_info(_cfg(), None)
 
-        # Assert — shows config values with disconnected state
+        # Assert - shows config values with disconnected state
         texts = [t for t, _ in msgs]
         assert any("disconnected" in t for t in texts), "should show disconnected state"
         assert any("115200" in t for t in texts), "should show baud rate config value"
@@ -115,7 +115,7 @@ class TestPortInfo:
         # Act
         msgs, effects = port_info(_cfg(), ser)
 
-        # Assert — shows hardware line values
+        # Assert - shows hardware line values
         texts = [t for t, _ in msgs]
         assert any("connected" in t for t in texts), "should show connected state"
         assert any("DTR" in t for t in texts), "should show DTR line"
@@ -152,7 +152,7 @@ class TestGetSetProp:
         # Act
         msgs, effects = get_set_prop(ser, _cfg(), "baud_rate", "9600")
 
-        # Assert — value changed, side effects requested
+        # Assert - value changed, side effects requested
         assert ser.baudrate == 9600, "baudrate should be updated to 9600"
         assert effects.get("update_title") is True, "should request title update"
         assert effects["cfg_update"]["baud_rate"] == 9600, "cfg_update should contain new baud_rate"
@@ -164,7 +164,7 @@ class TestGetSetProp:
         # Act
         msgs, effects = get_set_prop(ser, _cfg(), "parity", "X")
 
-        # Assert — error message, no side effects
+        # Assert - error message, no side effects
         assert any("red" == c for _, c in msgs), "should show red error message"
         assert not effects.get("cfg_update"), "should not produce cfg_update on invalid parity"
 
@@ -172,7 +172,7 @@ class TestGetSetProp:
         # Act
         msgs, effects = get_set_prop(None, _cfg(), "baud_rate", "9600")
 
-        # Assert — not connected warning
+        # Assert - not connected warning
         assert any("Not connected" in t for t, _ in msgs), "should warn not connected"
 
 

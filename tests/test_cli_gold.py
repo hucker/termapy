@@ -1,4 +1,4 @@
-"""CLI gold-standard tests — run .run scripts and compare stdout to expected output."""
+"""CLI gold-standard tests - run .run scripts and compare stdout to expected output."""
 
 from __future__ import annotations
 

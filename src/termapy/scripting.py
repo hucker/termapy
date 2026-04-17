@@ -148,7 +148,7 @@ def parse_keywords(
 
     result: dict[str, str] = {}
 
-    # Extract rest_keyword first — it consumes everything after it
+    # Extract rest_keyword first - it consumes everything after it
     if rest_keyword:
         rk_lower = rest_keyword.lower() + "="
         text_lower = text.lower()

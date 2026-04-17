@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+import re as _re
+
 from termapy.plugins import CapabilitySet, EngineAPI, PluginContext
 from termapy.repl import ReplEngine
 
@@ -99,11 +101,11 @@ class TestEcho:
         engine, _, _, output = repl_env
         assert engine.ctx.ns("flags")["echo"] is True, "starts enabled"
 
-        # Act / Assert — toggle off
+        # Act / Assert - toggle off
         engine.dispatch("echo")
         assert engine.ctx.ns("flags")["echo"] is False, "toggled off"
 
-        # Act / Assert — toggle on
+        # Act / Assert - toggle on
         engine.dispatch("echo")
         assert engine.ctx.ns("flags")["echo"] is True, "toggled back on"
 
@@ -186,8 +188,6 @@ class TestStop:
 # -- /help ----------------------------------------------------------------
 
 
-import re as _re
-
 
 def _plain(text: str) -> str:
     """Strip underline markup so substring checks are markup-insensitive."""
@@ -243,13 +243,13 @@ class TestHelp:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="fullcmd", args="<arg>", help="Short help.",
+            name="full_cmd", args="<arg>", help="Short help.",
             long_help="Line one.\nLine two.",
             handler=lambda ctx, args: None,
         ))
 
         # Act
-        engine.dispatch("help fullcmd")
+        engine.dispatch("help full_cmd")
 
         # Assert
         texts = [t for t, _ in output]
@@ -289,7 +289,7 @@ class TestHelp:
         # Act
         result = engine.dispatch("help shiny")
 
-        # Assert — both names surface as candidates, result is ok with names
+        # Assert - both names surface as candidates, result is ok with names
         texts = [_plain(t) for t, _ in output]
         assert result.success, "candidate list succeeds"
         assert any("Candidates matching" in t for t in texts), "banner shown"
@@ -315,7 +315,7 @@ class TestHelp:
         # Act
         engine.dispatch("help foo")
 
-        # Assert — man-page detail for /foo, not a candidate list
+        # Assert - man-page detail for /foo, not a candidate list
         texts = [t for t, _ in output]
         assert any("NAME" in t for t in texts), "man-page rendered"
         assert not any("Candidates matching" in t for t in texts), (
@@ -328,17 +328,17 @@ class TestHelp:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="widgetcmd", args="", help="Measures mumblefrotz devices.",
+            name="widget_cmd", args="", help="Measures mumble_fritz devices.",
             handler=lambda ctx, args: None,
         ))
 
-        # Act — term appears only in help, not in name
-        result = engine.dispatch("help mumblefrotz")
+        # Act - term appears only in help, not in name
+        result = engine.dispatch("help mumble_fritz")
 
         # Assert
         texts = [_plain(t) for t, _ in output]
         assert result.success, "help-text match succeeds"
-        assert any("widgetcmd" in t for t in texts), "found via short help"
+        assert any("widget_cmd" in t for t in texts), "found via short help"
 
     def test_help_parent_shows_subcommand_section(self, repl_env):
         """/help <parent> renders SUBCOMMANDS with name+one-liner only."""
@@ -363,7 +363,7 @@ class TestHelp:
         # Act
         engine.dispatch("help group")
 
-        # Assert — SUBCOMMANDS section present; child args are NOT rendered
+        # Assert - SUBCOMMANDS section present; child args are NOT rendered
         texts = [t for t, _ in output]
         assert any("SUBCOMMANDS" in t for t in texts), "SUBCOMMANDS section present"
         assert any("group.one" in t for t in texts), "first child listed"
@@ -391,7 +391,7 @@ class TestHelp:
         # Act
         engine.dispatch("help grp.a")
 
-        # Assert — SEE ALSO mentions siblings and parent
+        # Assert - SEE ALSO mentions siblings and parent
         texts = [t for t, _ in output]
         see_lines = [t for t in texts if "SEE ALSO" in t or "/grp" in t]
         combined = " ".join(see_lines)
@@ -406,12 +406,12 @@ class TestHelp:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="lonecmd", args="", help="Stands alone.",
+            name="lone_cmd", args="", help="Stands alone.",
             handler=lambda ctx, args: None,
         ))
 
         # Act
-        engine.dispatch("help lonecmd")
+        engine.dispatch("help lone_cmd")
 
         # Assert
         texts = [t for t, _ in output]
@@ -432,7 +432,7 @@ class TestHelp:
         # Act
         engine.dispatch("help briefcmd")
 
-        # Assert — NAME section is present; DESCRIPTION is not (no long_help)
+        # Assert - NAME section is present; DESCRIPTION is not (no long_help)
         texts = [t for t, _ in output]
         assert any("NAME" in t for t in texts), "NAME always shown"
         assert not any("DESCRIPTION" in t for t in texts), (
@@ -445,13 +445,13 @@ class TestHelp:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="dyncmd", args="", help="Dynamic test.",
+            name="dyn_cmd", args="", help="Dynamic test.",
             handler=lambda ctx, args: None,
             long_help=lambda ctx: "dynamic text here",
         ))
 
         # Act
-        engine.dispatch("help dyncmd")
+        engine.dispatch("help dyn_cmd")
 
         # Assert
         texts = [t for t, _ in output]
@@ -461,26 +461,26 @@ class TestHelp:
 
     def test_help_callable_long_help_receives_ctx(self, repl_env):
         """The callable gets the live PluginContext and can read ns/cfg."""
-        # Arrange — callable that reads a namespace populated in the fixture
+        # Arrange - callable that reads a namespace populated in the fixture
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
 
         def dyn(ctx):
-            items = ctx.ns("mytest")
+            items = ctx.ns("my_test")
             return f"count={len(items)}"
 
         engine.register_plugin(PluginInfo(
-            name="ctxcmd", args="", help="Reads ctx.ns.",
+            name="ctx_cmd", args="", help="Reads ctx.ns.",
             handler=lambda ctx, args: None,
             long_help=dyn,
         ))
         # Seed the ns after registration -- the callable reads live state.
-        engine.ctx.ns("mytest").update({"a": 1, "b": 2})
+        engine.ctx.ns("my_test").update({"a": 1, "b": 2})
 
         # Act
-        engine.dispatch("help ctxcmd")
+        engine.dispatch("help ctx_cmd")
 
-        # Assert — the two items are reflected live.
+        # Assert - the two items are reflected live.
         texts = [t for t, _ in output]
         assert any("count=2" in t for t in texts), \
             "callable receives live ctx and reads ns() correctly"
@@ -495,15 +495,15 @@ class TestHelp:
             raise RuntimeError("boom")
 
         engine.register_plugin(PluginInfo(
-            name="boomcmd", args="", help="Broken help.",
+            name="boom_cmd", args="", help="Broken help.",
             handler=lambda ctx, args: None,
             long_help=boom,
         ))
 
-        # Act — must not propagate
-        result = engine.dispatch("help boomcmd")
+        # Act - must not propagate
+        result = engine.dispatch("help boom_cmd")
 
-        # Assert — fallback present, command reports success
+        # Assert - fallback present, command reports success
         texts = [t for t, _ in output]
         assert result.success is True, "rendering survives exception"
         assert any("dynamic help failed" in t for t in texts), \
@@ -516,13 +516,13 @@ class TestHelp:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="silentcmd", args="", help="No dynamic text.",
+            name="silent_cmd", args="", help="No dynamic text.",
             handler=lambda ctx, args: None,
             long_help=lambda ctx: "",
         ))
 
         # Act
-        engine.dispatch("help silentcmd")
+        engine.dispatch("help silent_cmd")
 
         # Assert
         texts = [t for t, _ in output]
@@ -535,17 +535,17 @@ class TestHelp:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="uniquecmd", args="", help="Plain help.",
+            name="unique_cmd", args="", help="Plain help.",
             handler=lambda ctx, args: None,
-            long_help=lambda ctx: "UNIQUEHAPAX appears only in dynamic help",
+            long_help=lambda ctx: "UNIQUE_HAPAX appears only in dynamic help",
         ))
 
         # Act
-        result = engine.dispatch("search UNIQUEHAPAX")
+        result = engine.dispatch("search UNIQUE_HAPAX")
 
-        # Assert — the command surfaces via its dynamic long_help text
+        # Assert - the command surfaces via its dynamic long_help text
         names = result.value.splitlines() if result.value else []
-        assert "uniquecmd" in names, \
+        assert "unique_cmd" in names, \
             "callable long_help contributes to /search index"
 
     def test_help_cfg_shows_active_cfg_line(self, repl_env):
@@ -616,13 +616,13 @@ class TestHelp:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="flagcmd", args="<name>", help="Has flags.",
+            name="flag_cmd", args="<name>", help="Has flags.",
             handler=lambda ctx, args: None,
             flags={"--table": "Use 256-entry lookup table."},
         ))
 
         # Act
-        engine.dispatch("help flagcmd")
+        engine.dispatch("help flag_cmd")
 
         # Assert
         texts = [t for t, _ in output]
@@ -644,7 +644,7 @@ class TestHelp:
         # Act
         engine.dispatch("help runner")
 
-        # Assert — one FLAGS row containing both names, not two separate rows.
+        # Assert - one FLAGS row containing both names, not two separate rows.
         texts = [t for t, _ in output]
         combo_lines = [t for t in texts if "--verbose" in t and "-v" in t]
         assert combo_lines, "alias listed alongside canonical on one line"
@@ -675,7 +675,7 @@ class TestHelp:
         # Act
         engine.dispatch("help.dev devtest")
 
-        # Assert — docstring lines appear inside the man-page DESCRIPTION
+        # Assert - docstring lines appear inside the man-page DESCRIPTION
         texts = [t for t, _ in output]
         assert any("dev docstring" in t for t in texts), "docstring content shown"
         assert any("DESCRIPTION" in t for t in texts), "rendered inside DESCRIPTION"
@@ -795,7 +795,7 @@ class TestHelp:
         # Act
         engine.dispatch("help.dev both")
 
-        # Assert — docstring shown, long_help not shown
+        # Assert - docstring shown, long_help not shown
         texts = [t for t, _ in output]
         assert any("Handler docstring" in t for t in texts), "docstring shown"
         assert not any("This is the long help" in t for t in texts), (
@@ -817,7 +817,7 @@ class TestSearch:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="widgettimer", args="", help="Sets a widget timeout.",
+            name="widget_timer", args="", help="Sets a widget timeout.",
             handler=lambda ctx, args: None,
         ))
         engine.register_plugin(PluginInfo(
@@ -830,7 +830,7 @@ class TestSearch:
 
         # Assert
         names = result.value.splitlines() if result.value else []
-        assert "widgettimer" in names, "matching command present"
+        assert "widget_timer" in names, "matching command present"
         assert "unrelated" not in names, "non-matching command absent"
 
     def test_search_regex_anchor(self, repl_env):
@@ -847,7 +847,7 @@ class TestSearch:
             handler=lambda ctx, args: None,
         ))
 
-        # Act — anchor to names starting with "proto."
+        # Act - anchor to names starting with "proto."
         result = engine.dispatch(r"search ^proto\.")
 
         # Assert
@@ -890,20 +890,20 @@ class TestSearch:
             return None
 
         engine.register_plugin(PluginInfo(
-            name="zebracmd", args="", help="Unrelated short help.",
+            name="zebra_cmd", args="", help="Unrelated short help.",
             handler=handler_with_secret,
         ))
 
-        # Act — without --dev, docstring isn't searched
+        # Act - without --dev, docstring isn't searched
         result_plain = engine.dispatch("search zebras")
         plain_names = result_plain.value.splitlines() if result_plain.value else []
-        # Act — with --dev, docstring is searched
+        # Act - with --dev, docstring is searched
         result_dev = engine.dispatch("search --dev zebras")
         dev_names = result_dev.value.splitlines() if result_dev.value else []
 
         # Assert
-        assert "zebracmd" not in plain_names, "docstring not searched without --dev"
-        assert "zebracmd" in dev_names, "docstring searched with --dev"
+        assert "zebra_cmd" not in plain_names, "docstring not searched without --dev"
+        assert "zebra_cmd" in dev_names, "docstring searched with --dev"
 
     def test_search_matches_long_help(self, repl_env):
         """/search finds substrings in long_help (deep field /help doesn't hit)."""
@@ -913,11 +913,11 @@ class TestSearch:
         engine.register_plugin(PluginInfo(
             name="gadget", args="", help="A gadget.",
             handler=lambda ctx, args: None,
-            long_help="Pass --specialflag to enable the special mode.",
+            long_help="Pass --special_flag to enable the special mode.",
         ))
 
         # Act
-        result = engine.dispatch("search specialflag")
+        result = engine.dispatch("search special_flag")
 
         # Assert
         names = result.value.splitlines() if result.value else []
@@ -929,12 +929,12 @@ class TestSearch:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="widget", args="<unusualparam>", help="A widget.",
+            name="widget", args="<unusual_param>", help="A widget.",
             handler=lambda ctx, args: None,
         ))
 
         # Act
-        result = engine.dispatch("search unusualparam")
+        result = engine.dispatch("search unusual_param")
 
         # Assert
         names = result.value.splitlines() if result.value else []
@@ -946,15 +946,15 @@ class TestSearch:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="alphacmd", args="", help="table and crc stuff",
+            name="alpha_cmd", args="", help="table and crc stuff",
             handler=lambda ctx, args: None,
         ))
         engine.register_plugin(PluginInfo(
-            name="tableonly", args="", help="table only",
+            name="table_only", args="", help="table only",
             handler=lambda ctx, args: None,
         ))
         engine.register_plugin(PluginInfo(
-            name="crconly", args="", help="crc only",
+            name="crc_only", args="", help="crc only",
             handler=lambda ctx, args: None,
         ))
 
@@ -963,9 +963,9 @@ class TestSearch:
 
         # Assert
         names = result.value.splitlines() if result.value else []
-        assert "alphacmd" in names, "command with both terms included"
-        assert "tableonly" not in names, "single-term match excluded"
-        assert "crconly" not in names, "single-term match excluded"
+        assert "alpha_cmd" in names, "command with both terms included"
+        assert "table_only" not in names, "single-term match excluded"
+        assert "crc_only" not in names, "single-term match excluded"
 
     def test_search_negative_term_excludes(self, repl_env):
         """/search foo -bar excludes commands matching 'bar'."""
@@ -995,17 +995,17 @@ class TestSearch:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="boringcmd", args="", help="Does nothing interesting.",
+            name="boring_cmd", args="", help="Does nothing interesting.",
             handler=lambda ctx, args: None,
             flags={"--nitro": "Go faster."},
         ))
 
-        # Act — needle only appears in a flag name
+        # Act - needle only appears in a flag name
         result = engine.dispatch("search nitro")
 
         # Assert
         names = result.value.splitlines() if result.value else []
-        assert "boringcmd" in names, "command surfaced via flag name"
+        assert "boring_cmd" in names, "command surfaced via flag name"
 
     def test_search_finds_flag_description(self, repl_env):
         """/search finds words inside a flag's description."""
@@ -1013,7 +1013,7 @@ class TestSearch:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="rocketcmd", args="", help="Launch something.",
+            name="rocket_cmd", args="", help="Launch something.",
             handler=lambda ctx, args: None,
             flags={"--fuel": "Use 256-entry combustion booster."},
         ))
@@ -1023,7 +1023,7 @@ class TestSearch:
 
         # Assert
         names = result.value.splitlines() if result.value else []
-        assert "rocketcmd" in names, "command surfaced via flag description"
+        assert "rocket_cmd" in names, "command surfaced via flag description"
 
     def test_search_returns_value_for_scripting(self, repl_env):
         """CmdResult.value is the newline-joined matching command names."""
@@ -1031,7 +1031,7 @@ class TestSearch:
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="alphacmd", args="", help="zzz unique-token-xyz zzz.",
+            name="alpha_cmd", args="", help="zzz unique-token-xyz zzz.",
             handler=lambda ctx, args: None,
         ))
 
@@ -1040,29 +1040,29 @@ class TestSearch:
 
         # Assert
         actual = result.value
-        expected = "alphacmd"
+        expected = "alpha_cmd"
         assert actual == expected, f"{actual} == {expected}"
 
-    def test_search_no_metachars_uses_literal_grammar(self, repl_env):
+    def test_search_no_meta_chars_uses_literal_grammar(self, repl_env):
         """Without regex metacharacters, `foo bar` AND-matches separately,
         not as a literal `"foo bar"` substring.
         """
-        # Arrange — plugin has 'foo' in name and 'bar' in args but never
+        # Arrange - plugin has 'foo' in name and 'bar' in args but never
         # the adjacent string "foo bar" anywhere.
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
         engine.register_plugin(PluginInfo(
-            name="foocmd", args="<bar>", help="Separate terms command.",
+            name="foo_cmd", args="<bar>", help="Separate terms command.",
             handler=lambda ctx, args: None,
         ))
 
         # Act
         result = engine.dispatch("search foo bar")
 
-        # Assert — literal AND grammar matches; a regex for "foo bar"
+        # Assert - literal AND grammar matches; a regex for "foo bar"
         # (literal with space) would not match across fields.
         names = result.value.splitlines() if result.value else []
-        assert "foocmd" in names, "AND grammar matches across fields"
+        assert "foo_cmd" in names, "AND grammar matches across fields"
 
 
 # -- /show ----------------------------------------------------------------
@@ -1213,7 +1213,7 @@ class TestGrep:
     def test_grep_no_matches(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
-        engine.dispatch("grep zzzznotfound")
+        engine.dispatch("grep zzzz_not_found")
         texts = [t for t, _ in output]
         assert any("no matches" in t for t in texts), "no matches message shown"
 
@@ -1232,11 +1232,11 @@ class TestGrep:
         assert any("3 match(es)" in t for t in texts), "regex alternation works"
 
     def test_grep_skips_own_output(self, repl_env):
-        # Arrange — scrollback contains prior grep output and echoed command
+        # Arrange - scrollback contains prior grep output and echoed command
         engine, _, _, output = repl_env
         text = (
             "real error line\n"
-            "  grep: 'error' — 1 match(es)\n"
+            "  grep: 'error' - 1 match(es)\n"
             "  grep:     1 | real error line\n"
             "> /grep error"
         )
@@ -1245,7 +1245,7 @@ class TestGrep:
         # Act
         engine.dispatch("grep error")
 
-        # Assert — only the real line matches, grep noise is skipped
+        # Assert - only the real line matches, grep noise is skipped
         texts = [t for t, _ in output]
         assert any("1 match(es)" in t for t in texts), "only 1 match"
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
@@ -1259,7 +1259,7 @@ class TestGrep:
         assert "invalid pattern" in output[-1][0], "error message shown"
 
     def test_grep_max_output_default(self, repl_env):
-        # Arrange — create text with 150 matching lines, no max_grep_lines in cfg
+        # Arrange - create text with 150 matching lines, no max_grep_lines in cfg
         engine, _, _, output = repl_env
         lines = [f"match line {i}" for i in range(150)]
         self._set_screen_text(engine, "\n".join(lines))
@@ -1267,14 +1267,14 @@ class TestGrep:
         # Act
         engine.dispatch("grep match")
 
-        # Assert — default cap is 100
+        # Assert - default cap is 100
         texts = [t for t, _ in output]
         assert any("first 100 of 150" in t for t in texts)  # assert cap message
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
         assert len(grep_lines) == 100  # assert only 100 lines output
 
     def test_grep_max_output_from_config(self, repl_env):
-        # Arrange — set custom max_grep_lines
+        # Arrange - set custom max_grep_lines
         engine, cfg, _, output = repl_env
         cfg["max_grep_lines"] = 5
         lines = [f"match line {i}" for i in range(20)]
@@ -1283,7 +1283,7 @@ class TestGrep:
         # Act
         engine.dispatch("grep match")
 
-        # Assert — cap uses config value
+        # Assert - cap uses config value
         texts = [t for t, _ in output]
         assert any("first 5 of 20" in t for t in texts)  # assert config cap message
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
@@ -1360,7 +1360,7 @@ class TestEol:
 
 
 class TestCapArgParsing:
-    """Test cap.py keyword extraction — pure function, no serial needed."""
+    """Test cap.py keyword extraction - pure function, no serial needed."""
 
     def test_extract_keywords_basic(self):
         from termapy.builtins.plugins.cap import _extract_keyword_sections
@@ -1443,7 +1443,7 @@ class TestCapArgParsing:
         # Arrange
         engine, _, _, output = repl_env
 
-        # Act — should not crash
+        # Act - should not crash
         engine.dispatch("cap.stop")
 
     def test_parse_mode(self):
@@ -1584,7 +1584,7 @@ class TestConfirm:
         # Act
         engine.dispatch("confirm Are you sure?")
 
-        # Assert — no "Cancelled" message, script_stop not called
+        # Assert - no "Cancelled" message, script_stop not called
         assert not any("Cancelled" in t for t, _ in output)
 
     def test_confirm_cancel_stops_script(self, repl_env):
@@ -1635,7 +1635,7 @@ class TestCfgRead:
         # Act
         engine.dispatch("cfg")
 
-        # Assert — should list config keys
+        # Assert - should list config keys
         texts = [t for t, _ in output]
         assert any("port" in t for t in texts)  # shows port key
         assert any("baud_rate" in t or "115200" in t for t in texts)
@@ -1670,7 +1670,7 @@ class TestCfgRead:
         # Act
         engine.dispatch("cfg.info")
 
-        # Assert — should output something about the config
+        # Assert - should output something about the config
         assert len(output) > 0  # produced some output
 
     def test_cfg_dump(self, repl_env):
@@ -1680,7 +1680,7 @@ class TestCfgRead:
         # Act
         engine.dispatch("cfg.dump")
 
-        # Assert — should dump JSON
+        # Assert - should dump JSON
         texts = [t for t, _ in output]
         assert any("port" in t for t in texts)  # JSON includes port
 
@@ -1696,7 +1696,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat cmd=AT")
 
-        # Assert — error about missing count
+        # Assert - error about missing count
         actual = [t for t, _ in output]
         assert any("count is required" in t for t in actual), f"expected 'count is required' error, got: {actual}"
 
@@ -1707,7 +1707,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=3")
 
-        # Assert — error about missing cmd
+        # Assert - error about missing cmd
         actual = [t for t, _ in output]
         assert any("Usage:" in t for t in actual), f"expected 'Usage:' error, got: {actual}"
 
@@ -1718,7 +1718,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=abc cmd=AT")
 
-        # Assert — error about non-integer count
+        # Assert - error about non-integer count
         actual = [t for t, _ in output]
         assert any("integer" in t for t in actual), f"expected 'integer' error, got: {actual}"
 
@@ -1729,7 +1729,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=0 cmd=AT")
 
-        # Assert — error about count > 0
+        # Assert - error about count > 0
         actual = [t for t, _ in output]
         assert any("> 0" in t for t in actual), f"expected '> 0' error, got: {actual}"
 
@@ -1740,7 +1740,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=-1 cmd=AT")
 
-        # Assert — error about count > 0
+        # Assert - error about count > 0
         actual = [t for t, _ in output]
         assert any("> 0" in t for t in actual), f"expected '> 0' error, got: {actual}"
 
@@ -1751,7 +1751,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=1 delay=bogus cmd=AT")
 
-        # Assert — error about invalid delay
+        # Assert - error about invalid delay
         actual = [t for t, _ in output]
         assert any("duration" in t.lower() or "invalid" in t.lower() for t in actual), f"expected duration/invalid error, got: {actual}"
 
@@ -1764,7 +1764,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=3 cmd=AT+TEMP")
 
-        # Assert — command dispatched 3 times
+        # Assert - command dispatched 3 times
         assert dispatched == ["AT+TEMP", "AT+TEMP", "AT+TEMP"], f"expected 3 dispatches, got: {dispatched}"
 
     def test_sets_iteration_variable(self, repl_env):
@@ -1778,7 +1778,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=3 cmd=AT")
 
-        # Assert — variable was 1, 2, 3 during iterations
+        # Assert - variable was 1, 2, 3 during iterations
         assert seen_values == ["1", "2", "3"], f"expected iteration values ['1','2','3'], got: {seen_values}"
 
     def test_custom_variable_name(self, repl_env):
@@ -1792,7 +1792,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=2 var=I cmd=AT")
 
-        # Assert — custom variable name used
+        # Assert - custom variable name used
         assert seen_values == ["1", "2"], f"expected var=I values ['1','2'], got: {seen_values}"
 
     def test_variable_cleaned_up(self, repl_env):
@@ -1805,7 +1805,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=2 cmd=AT")
 
-        # Assert — variable removed after repeat
+        # Assert - variable removed after repeat
         assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up, but _VARS contains: {_VARS}"
 
     def test_variable_cleaned_up_on_error(self, repl_env):
@@ -1819,10 +1819,10 @@ class TestRepeat:
 
         engine.ctx.dispatch = boom
 
-        # Act — handler should not crash the engine
+        # Act - handler should not crash the engine
         engine.dispatch("repeat count=2 cmd=AT")
 
-        # Assert — variable cleaned up even on error
+        # Assert - variable cleaned up even on error
         assert "REPEAT_N" not in _VARS, f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
 
     def test_completes_silently(self, repl_env):
@@ -1833,7 +1833,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=5 cmd=AT")
 
-        # Assert — no output from repeat itself (commands produce their own output)
+        # Assert - no output from repeat itself (commands produce their own output)
         actual = [t for t, _ in output]
         assert not any("Repeated" in t for t in actual), f"repeat should complete silently, got: {actual}"
 
@@ -1856,7 +1856,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=10 cmd=AT")
 
-        # Assert — stopped after 2 iterations, not all 10
+        # Assert - stopped after 2 iterations, not all 10
         assert len(dispatched) == 2, f"expected 2 dispatches before stop, got: {len(dispatched)}"
         actual = [t for t, _ in output]
         assert any("2/10" in t for t in actual), f"expected '2/10' in stop message, got: {actual}"
@@ -1879,7 +1879,7 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=100 delay=10s cmd=AT")
 
-        # Assert — stopped during delay, not blocked for 10s * 99
+        # Assert - stopped during delay, not blocked for 10s * 99
         assert len(dispatched) == 1, f"expected 1 dispatch before stop, got: {len(dispatched)}"
         actual = [t for t, _ in output]
         assert any("1/100" in t for t in actual), f"expected '1/100' in stop message, got: {actual}"

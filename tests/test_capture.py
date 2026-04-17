@@ -1,4 +1,4 @@
-"""Tests for CaptureEngine — file capture state machine."""
+"""Tests for CaptureEngine - file capture state machine."""
 
 import struct
 from pathlib import Path
@@ -133,7 +133,7 @@ class TestTextCapture:
         # Arrange
         engine = CaptureEngine()
 
-        # Act — should not raise
+        # Act - should not raise
         engine.feed_text(["hello"])
 
     def test_feed_text_ignored_in_bin_mode(self, tmp_path):
@@ -179,7 +179,7 @@ class TestBinaryRawCapture:
         engine.feed_bytes(b"\x01\x02\x03\x04\x05")
         engine.feed_bytes(b"\x06\x07\x08\x09\x0a")
 
-        # Assert — target reached, but caller must call stop
+        # Assert - target reached, but caller must call stop
         result = engine.stop()
         actual = path.read_bytes()
         assert actual == b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a", "all bytes written"
@@ -217,7 +217,7 @@ class TestBinaryRawCapture:
         # Arrange
         engine = CaptureEngine()
 
-        # Act — should not raise
+        # Act - should not raise
         result = engine.feed_bytes(b"\x01\x02")
 
         # Assert
@@ -243,7 +243,7 @@ class TestBinaryFormatCapture:
             columns=columns, record_size=4, sep=",",
         )
 
-        # Act — two 4-byte records
+        # Act - two 4-byte records
         record1 = struct.pack(">HH", 100, 200)
         record2 = struct.pack(">HH", 300, 400)
         engine.feed_bytes(record1 + record2)
@@ -308,7 +308,7 @@ class TestHexCapture:
             path=path, file_mode="wb", mode="bin", target_bytes=3, hex_mode=True,
         )
 
-        # Act — feed hex-encoded text lines
+        # Act - feed hex-encoded text lines
         engine.feed_bytes(b"01 02 03\n")
         engine.stop()
 
@@ -324,7 +324,7 @@ class TestHexCapture:
             path=path, file_mode="wb", mode="bin", target_bytes=3, hex_mode=True,
         )
 
-        # Act — partial line, then rest
+        # Act - partial line, then rest
         engine.feed_bytes(b"01 02")
         engine.feed_bytes(b" 03\n")
         engine.stop()

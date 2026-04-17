@@ -1,4 +1,4 @@
-"""Unit tests for TerminalHost — context builders, serial I/O, hooks."""
+"""Unit tests for TerminalHost - context builders, serial I/O, hooks."""
 
 from __future__ import annotations
 
@@ -288,7 +288,7 @@ class TestSerialIO:
         # Arrange
         host.engine.serial_port = None
 
-        # Act — should not raise
+        # Act - should not raise
         host._serial_write(b"hello")
 
         # Assert
@@ -399,7 +399,7 @@ class TestApplyPortEffects:
         assert host.repl._cfg_data["baud_rate"] == 9600, "cfg updated"
 
     def test_empty_effects(self, host):
-        # Act — should not raise
+        # Act - should not raise
         host._apply_port_effects({})
 
 
@@ -480,7 +480,7 @@ class TestHookHelpOpen:
         assert "Unknown help topic" in result.error, "error mentions topic"
 
     def test_empty_topic_resolves_to_index(self, host):
-        # Arrange — patch _ensure_help_server and webbrowser.open
+        # Arrange - patch _ensure_help_server and webbrowser.open
         host._ensure_help_server = MagicMock(return_value=8080)
 
         with patch("webbrowser.open") as mock_open:
@@ -559,7 +559,7 @@ class TestHookRaw:
 
 class TestHookLogClear:
     def test_no_log_file(self, host):
-        # Arrange — config_path has no log file
+        # Arrange - config_path has no log file
 
         # Act
         result = host._hook_log_clear(None, "")

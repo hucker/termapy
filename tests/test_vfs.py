@@ -1,4 +1,4 @@
-"""Tests for FakeSerial virtual filesystem — AT+FS commands and VFS state."""
+"""Tests for FakeSerial virtual filesystem - AT+FS commands and VFS state."""
 
 from __future__ import annotations
 

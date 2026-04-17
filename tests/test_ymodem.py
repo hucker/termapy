@@ -1,4 +1,4 @@
-"""Tests for YMODEM file transfer — FakeSerial responder and ymodem library integration."""
+"""Tests for YMODEM file transfer - FakeSerial responder and ymodem library integration."""
 
 from __future__ import annotations
 
@@ -226,7 +226,7 @@ class TestFakeSerialYmodemSend:
         # ACK header
         dev.write(bytes([ACK]))
         time.sleep(0.01)
-        # Should get nothing — waiting for 'C' to start data
+        # Should get nothing - waiting for 'C' to start data
         resp = dev.read(4096)
         assert resp == b"", "waiting for C"
 
@@ -280,7 +280,7 @@ class TestFakeSerialYmodemSend:
         dev.write(bytes([ACK]))
         time.sleep(0.01)
 
-        # Verify data — canned payload is bytes(i & 0xFF for i in range(2048))
+        # Verify data - canned payload is bytes(i & 0xFF for i in range(2048))
         expected = bytes(i & 0xFF for i in range(2048))
         assert bytes(received_data) == expected, "full payload matches"
 

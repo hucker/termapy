@@ -52,7 +52,7 @@ class TestCapabilitySet:
 
     def test_missing_from_lists_unmet_fields(self):
         """missing_from reports field names in declaration order."""
-        # Arrange — needs two things; env provides one of them
+        # Arrange - needs two things; env provides one of them
         needs = CapabilitySet(block_until=True, ui_notify=True)
         env = CapabilitySet(block_until=True)
 
@@ -100,7 +100,7 @@ class TestCapabilitySet:
 
     def test_typo_raises_at_construction(self):
         """Typos in field names fail loudly at construction time."""
-        # Act / Assert — a misspelled field is not silently ignored.
+        # Act / Assert - a misspelled field is not silently ignored.
         with pytest.raises(TypeError):
             CapabilitySet(block_untl=True)  # type: ignore[call-arg]
 
@@ -109,7 +109,7 @@ class TestCapabilitySet:
         # Arrange
         caps = CapabilitySet()
 
-        # Assert — the four baseline capabilities are on by default
+        # Assert - the four baseline capabilities are on by default
         assert caps.terminal_output is True, "terminal_output baseline"
         assert caps.serial_io is True, "serial_io baseline"
         assert caps.dispatch is True, "dispatch baseline"
@@ -120,7 +120,7 @@ class TestCapabilitySet:
         # Arrange
         caps = CapabilitySet()
 
-        # Assert — restrictive fields are off by default
+        # Assert - restrictive fields are off by default
         assert caps.block_until is False, "block_until default off"
         assert caps.confirm_dialog is False, "confirm_dialog default off"
         assert caps.ui_notify is False, "ui_notify default off"
@@ -131,7 +131,7 @@ class TestCapabilitySet:
         """A restricted env that disables a baseline capability gates
         commands that rely on the default ``CapabilitySet()`` (baseline True).
         """
-        # Arrange — a hypothetical sandbox with serial_io disabled.
+        # Arrange - a hypothetical sandbox with serial_io disabled.
         restricted = CapabilitySet(serial_io=False)
         # A command that implicitly needs serial_io (via the baseline
         # default True) doesn't declare it, but still has it True.
@@ -140,7 +140,7 @@ class TestCapabilitySet:
         # Act
         missing = default_needs.missing_from(restricted)
 
-        # Assert — serial_io surfaces as missing.
+        # Assert - serial_io surfaces as missing.
         assert "serial_io" in missing, "baseline gap detected"
 
 
@@ -365,7 +365,7 @@ COMMAND = Command(
         result = load_plugins_from_dir(plugin_dir, "test")
         info = [p for p in result.plugins if p.name == "dyn"][0]
 
-        # Assert — long_help is still callable (same identity isn't possible
+        # Assert - long_help is still callable (same identity isn't possible
         # across module loads, but we can check it's callable and returns our text)
         assert callable(info.long_help), "callable survived flatten"
         assert info.long_help(None) == "live text", "callable still works"
@@ -514,7 +514,7 @@ class TestSerialIo:
 
 
 class TestNamespaces:
-    """Tests for ctx.ns() — the session-scoped namespace primitive."""
+    """Tests for ctx.ns() - the session-scoped namespace primitive."""
 
     def _ctx(self):
         return PluginContext(write=lambda t, c=None: None)
@@ -703,7 +703,7 @@ def on_app_start(ctx):
 
 
 class TestFireLifecycle:
-    """Tests for ReplEngine.fire_lifecycle — ordering, filtering, isolation."""
+    """Tests for ReplEngine.fire_lifecycle - ordering, filtering, isolation."""
 
     def _engine(self, tmp_path):
         from termapy.repl import ReplEngine
@@ -783,7 +783,7 @@ class TestFireLifecycle:
         eng = self._engine(tmp_path)
         eng._lifecycle_hooks = []
 
-        # Act + Assert — just must not raise
+        # Act + Assert - just must not raise
         eng.fire_lifecycle("on_app_stop")
 
 
@@ -802,7 +802,7 @@ class TestPluginConfig:
         cfg["key2"] = 42
         cfg.save()
 
-        # Assert — reload from disk
+        # Assert - reload from disk
         cfg2 = PluginConfig(path)
         assert cfg2["key1"] == "value1", "should persist string value"
         assert cfg2["key2"] == 42, "should persist int value"

@@ -174,7 +174,7 @@ def parse_data_segments(text: str) -> list[bytes | float]:
             pos = m.end()
             continue
 
-        # Quoted string — capture the whole token for the buffer
+        # Quoted string - capture the whole token for the buffer
         if remaining[pos] == '"':
             m = _QUOTED_STR.match(remaining, pos)
             if not m:
@@ -183,7 +183,7 @@ def parse_data_segments(text: str) -> list[bytes | float]:
             pos = m.end()
             continue
 
-        # Hex byte — capture the token for the buffer
+        # Hex byte - capture the token for the buffer
         m = _HEX_TOKEN.match(remaining, pos)
         if m:
             buf.append(remaining[pos : m.end()])

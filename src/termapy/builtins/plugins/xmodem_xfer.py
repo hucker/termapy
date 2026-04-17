@@ -25,7 +25,7 @@ class QueueByteReader:
 
     Args:
         rx_queue: The raw RX byte queue from SerialEngine.
-        cancel: Optional threading.Event — when set, getc returns None
+        cancel: Optional threading.Event - when set, getc returns None
             immediately to abort the transfer.
     """
 

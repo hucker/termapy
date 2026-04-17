@@ -4,9 +4,9 @@ Two-stage release automation. Stdlib only, no third-party deps. Fail loud, never
 
 ## Files
 
-- `release_common.py` — shared helpers (subprocess, git checks, version validation, ANSI output)
-- `release_prep.py` — cuts the release branch and prepares the commits
-- `release_publish.py` — merges to main, tags, pushes, creates the GitHub release
+- `release_common.py` - shared helpers (subprocess, git checks, version validation, ANSI output)
+- `release_prep.py` - cuts the release branch and prepares the commits
+- `release_publish.py` - merges to main, tags, pushes, creates the GitHub release
 
 ## Workflow
 
@@ -56,7 +56,7 @@ This will:
 7. Push main, tag, and release branch to origin
 8. Create the GitHub release with notes pulled from the CHANGELOG section
 
-The `--yes` flag is required. There is no interactive prompt — review the diff first, then re-run with `--yes`.
+The `--yes` flag is required. There is no interactive prompt - review the diff first, then re-run with `--yes`.
 
 ## Conventions enforced
 
@@ -76,4 +76,4 @@ git branch -D release/v<version>
 # then re-run prep
 ```
 
-If only the test step failed and the version files are already bumped correctly, you can also fix the underlying problem and finish manually — see the script source for the exact commit ordering (HTML rebuild commit must come *before* the `Release v<version>` commit, since publish validates `HEAD`'s subject).
+If only the test step failed and the version files are already bumped correctly, you can also fix the underlying problem and finish manually - see the script source for the exact commit ordering (HTML rebuild commit must come *before* the `Release v<version>` commit, since publish validates `HEAD`'s subject).

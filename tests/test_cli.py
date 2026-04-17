@@ -1,4 +1,4 @@
-"""Unit tests for CLITerminal — hooks, helpers, output, and dispatch."""
+"""Unit tests for CLITerminal - hooks, helpers, output, and dispatch."""
 
 from __future__ import annotations
 
@@ -205,7 +205,7 @@ class TestHookRaw:
 
 class TestHookRun:
     def test_run_no_script_no_dir(self, cli, tmp_path):
-        # Arrange — run/ dir exists but is empty
+        # Arrange - run/ dir exists but is empty
         # Act
         result = cli._hook_run(cli.ctx, "")
 
@@ -251,7 +251,7 @@ class TestHookLogClear:
         log_path_str = str(tmp_path / "test_cfg" / "test.log")
         Path(log_path_str).write_text("log data")
 
-        # Act — patch where cfg_log_path is imported (inside the method)
+        # Act - patch where cfg_log_path is imported (inside the method)
         with patch("termapy.config.cfg_log_path", return_value=log_path_str):
             result = cli._hook_log_clear(cli.ctx, "")
 
@@ -426,7 +426,7 @@ class TestApplyPortEffects:
         assert cli.repl._cfg_data["baud_rate"] == 9600, "config updated"
 
     def test_empty_effects(self, cli):
-        # Act / Assert — no exception on empty effects
+        # Act / Assert - no exception on empty effects
         cli._apply_port_effects({})
 
 
@@ -521,7 +521,7 @@ class TestInfoFlag:
     """
 
     def test_info_no_args_exits_cleanly(self, capsys, monkeypatch):
-        # Arrange — bare --info should query all ports.  We can't
+        # Arrange - bare --info should query all ports.  We can't
         # assume the test machine has any serial ports, so we just
         # confirm the call exits with 0 or 1 (both are valid: 0 if
         # any port is connected, 1 if none) and produces some output.
@@ -539,7 +539,7 @@ class TestInfoFlag:
         assert out, "--info produced some stdout output"
 
     def test_info_with_unknown_port_exits_nonzero(self, capsys, monkeypatch):
-        # Arrange — a port name that almost certainly doesn't exist
+        # Arrange - a port name that almost certainly doesn't exist
         # on any test runner.
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info=DEFINITELY_NOT_A_PORT_999"]
@@ -558,7 +558,7 @@ class TestInfoFlag:
         assert "No port matching" in out, "prints the not-found message"
 
     def test_info_with_equals_syntax(self, capsys, monkeypatch):
-        # Arrange — --info=NAME should parse the same as --info NAME.
+        # Arrange - --info=NAME should parse the same as --info NAME.
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info=COM_DOES_NOT_EXIST"]
         )
@@ -573,7 +573,7 @@ class TestInfoFlag:
         assert "COM_DOES_NOT_EXIST" in out, "named port appears in output"
 
     def test_info_with_space_syntax(self, capsys, monkeypatch):
-        # Arrange — --info NAME should parse the same as --info=NAME.
+        # Arrange - --info NAME should parse the same as --info=NAME.
         monkeypatch.setattr(
             "sys.argv", ["termapy", "--info", "ANOTHER_FAKE_PORT"]
         )
@@ -588,7 +588,7 @@ class TestInfoFlag:
         assert "ANOTHER_FAKE_PORT" in out, "named port appears in output"
 
     def test_info_help_text_appears(self, capsys, monkeypatch):
-        # Arrange — --help output should mention the new --info flag.
+        # Arrange - --help output should mention the new --info flag.
         monkeypatch.setattr("sys.argv", ["termapy", "--help"])
         from termapy.app import main
 

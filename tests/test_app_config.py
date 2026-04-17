@@ -732,7 +732,7 @@ class TestRunCheck:
         assert actual["status"] == "error", "parse failure"
 
     def test_does_not_modify_file(self, tmp_path):
-        # Arrange — config with old version, check should NOT migrate it
+        # Arrange - config with old version, check should NOT migrate it
         cfg = dict(DEFAULT_CFG, config_version=3)
         cfg_file = tmp_path / "old" / "old.cfg"
         cfg_file.parent.mkdir()

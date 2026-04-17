@@ -455,21 +455,21 @@ class LifecycleHook:
     """A lifecycle hook discovered on a plugin module.
 
     Plugins declare hooks by exporting top-level functions with specific
-    names.  There is no base class and no decorators — a plugin is a module
+    names.  There is no base class and no decorators - a plugin is a module
     that exports stuff, and lifecycle functions are just more stuff it can
     export.
 
     Supported hook names (see :data:`LIFECYCLE_HOOK_NAMES`):
 
-    - ``on_app_start``    — fires once after plugins are loaded and the
+    - ``on_app_start``    - fires once after plugins are loaded and the
                             context is wired, before first dispatch.
-    - ``on_app_stop``     — fires once during graceful shutdown.  Not
+    - ``on_app_stop``     - fires once during graceful shutdown.  Not
                             guaranteed on crash.
-    - ``on_connect``      — fires after the serial port is successfully opened.
-    - ``on_disconnect``   — fires before the serial port is closed (user-initiated).
-    - ``on_config_load``  — fires after switching to a new config via ``/cfg.load``.
-    - ``on_script_start`` — fires when a script begins executing.
-    - ``on_script_stop``  — fires after a script finishes, including on
+    - ``on_connect``      - fires after the serial port is successfully opened.
+    - ``on_disconnect``   - fires before the serial port is closed (user-initiated).
+    - ``on_config_load``  - fires after switching to a new config via ``/cfg.load``.
+    - ``on_script_start`` - fires when a script begins executing.
+    - ``on_script_stop``  - fires after a script finishes, including on
                             ``/stop`` or exception.  Mirrors ``on_script_start``.
 
     Attributes:
@@ -557,9 +557,9 @@ class EngineAPI:
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None
     apply_port_effects: Callable = lambda effects: None
-    rx_queue: Any = None  # queue.Queue[bytes] — raw RX for protocol handlers
-    xfer_cancel: Any = None  # threading.Event — set by Escape to cancel transfers
-    script_stop_event: Any = None  # threading.Event — set by /stop to abort scripts
+    rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
+    xfer_cancel: Any = None  # threading.Event - set by Escape to cancel transfers
+    script_stop_event: Any = None  # threading.Event - set by /stop to abort scripts
 
 
 class PluginConfig:
@@ -806,7 +806,7 @@ class PluginContext:
     # Engine internals - used by built-in commands only
     engine: EngineAPI = field(default_factory=EngineAPI)
 
-    # Per-dispatch flag set — populated by ReplEngine.dispatch from the
+    # Per-dispatch flag set - populated by ReplEngine.dispatch from the
     # invoking command's declared Command.flags before the handler runs.
     # Reset on every dispatch. Handlers read via ``ctx.flag("--name")``
     # which normalizes aliases. Distinct from the ``ns("flags")``

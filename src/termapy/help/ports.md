@@ -48,7 +48,7 @@ and so on.
 
 FTDI chips buffer incoming bytes for up to **16 ms** before pushing them
 upstream, because of a chip-level policy called the *latency timer*.
-The default value is 16 ms; the effective range is 1–255 ms.  For
+The default value is 16 ms; the effective range is 1-255 ms.  For
 interactive terminal use this is usually fine.  For anything measuring
 reaction time, round-trip latency, or real-time control, it's the
 single biggest thing you can fix.

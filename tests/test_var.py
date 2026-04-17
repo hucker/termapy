@@ -130,7 +130,7 @@ class TestExpandVars:
         # Arrange
         _VARS["PORT"] = "COM7"
 
-        # Act — var followed by text with no separator
+        # Act - var followed by text with no separator
         actual = expand_vars("port=$(PORT),baud=115200")
         expected = "port=COM7,baud=115200"
 
@@ -141,7 +141,7 @@ class TestExpandVars:
         # Arrange
         _VARS["PORT"] = "COM"
 
-        # Act — $(PORT) followed by digits: unambiguous thanks to parens
+        # Act - $(PORT) followed by digits: unambiguous thanks to parens
         actual = expand_vars("$(PORT)7")
         expected = "COM7"
 
@@ -152,7 +152,7 @@ class TestExpandVars:
         # Arrange
         _VARS["PORT"] = "COM7"
 
-        # Act — bare $PORT (no parens) is NOT expanded
+        # Act - bare $PORT (no parens) is NOT expanded
         actual = expand_vars("$PORT")
         expected = "$PORT"
 
@@ -224,7 +224,7 @@ class TestClearVars:
         assert _VARS == {}, "all variables removed"
 
     def test_clear_empty_is_ok(self):
-        # Act — no error on empty dict
+        # Act - no error on empty dict
         clear_vars()
 
         # Assert
@@ -374,21 +374,21 @@ class TestCheckBareDollar:
         # Act
         actual = check_bare_dollar("$(PORT) = COM7")
 
-        # Assert — proper syntax does not warn
+        # Assert - proper syntax does not warn
         assert actual is None
 
     def test_serial_command_no_warning(self):
         # Act
         actual = check_bare_dollar("AT+PORT=COM7")
 
-        # Assert — AT command does not warn
+        # Assert - AT command does not warn
         assert actual is None
 
     def test_plain_text_no_warning(self):
         # Act
         actual = check_bare_dollar("hello world")
 
-        # Assert — no warning
+        # Assert - no warning
         assert actual is None
 
 
@@ -402,7 +402,7 @@ class TestSessionTimeVars:
         # Act
         set_start_time_vars()
 
-        # Assert — SESSION_DATE is YYYY-MM-DD format
+        # Assert - SESSION_DATE is YYYY-MM-DD format
         assert "SESSION_DATE" in _VARS
         assert len(_VARS["SESSION_DATE"]) == 10  # YYYY-MM-DD
         assert _VARS["SESSION_DATE"][4] == "-"
@@ -411,7 +411,7 @@ class TestSessionTimeVars:
         # Act
         set_start_time_vars()
 
-        # Assert — SESSION_TIME is HH:MM:SS format
+        # Assert - SESSION_TIME is HH:MM:SS format
         assert "SESSION_TIME" in _VARS
         assert len(_VARS["SESSION_TIME"]) == 8  # HH:MM:SS
         assert _VARS["SESSION_TIME"][2] == ":"
@@ -420,7 +420,7 @@ class TestSessionTimeVars:
         # Act
         set_start_time_vars()
 
-        # Assert — SESSION_DATETIME contains both date and time
+        # Assert - SESSION_DATETIME contains both date and time
         assert "SESSION_DATETIME" in _VARS
         assert _VARS["SESSION_DATE"] in _VARS["SESSION_DATETIME"]
         assert _VARS["SESSION_TIME"] in _VARS["SESSION_DATETIME"]
@@ -433,7 +433,7 @@ class TestSessionTimeVars:
         # Act
         clear_vars()
 
-        # Assert — clear_vars removes everything including session vars
+        # Assert - clear_vars removes everything including session vars
         assert "SESSION_DATE" not in _VARS
         assert "SESSION_TIME" not in _VARS
         assert "SESSION_DATETIME" not in _VARS
@@ -445,19 +445,19 @@ class TestSessionTimeVars:
         # Act
         actual = expand_vars("Started: $(SESSION_DATETIME)")
 
-        # Assert — session vars expanded like any other variable
+        # Assert - session vars expanded like any other variable
         assert "$(SESSION_DATETIME)" not in actual
         assert _VARS["SESSION_DATETIME"] in actual
 
 
 class TestDynamicTimeVars:
-    """Tests for $(DATE), $(TIME), $(DATETIME) — dynamic (current clock)."""
+    """Tests for $(DATE), $(TIME), $(DATETIME) - dynamic (current clock)."""
 
     def test_date_expands_without_being_set(self):
-        # Act — no set_start_time_vars, $(DATE) still expands
+        # Act - no set_start_time_vars, $(DATE) still expands
         actual = expand_vars("today: $(DATE)")
 
-        # Assert — expanded to current date
+        # Assert - expanded to current date
         assert "$(DATE)" not in actual
         assert "today: " in actual
         assert len(actual) == len("today: ") + 10  # YYYY-MM-DD
@@ -466,7 +466,7 @@ class TestDynamicTimeVars:
         # Act
         actual = expand_vars("now: $(TIME)")
 
-        # Assert — expanded to current time
+        # Assert - expanded to current time
         assert "$(TIME)" not in actual
         assert actual[len("now: ") + 2] == ":"  # HH:MM:SS format
 
@@ -474,29 +474,29 @@ class TestDynamicTimeVars:
         # Act
         actual = expand_vars("ts: $(DATETIME)")
 
-        # Assert — expanded to current datetime
+        # Assert - expanded to current datetime
         assert "$(DATETIME)" not in actual
 
     def test_user_var_overrides_dynamic(self):
-        # Arrange — user sets $(DATE) explicitly
+        # Arrange - user sets $(DATE) explicitly
         _VARS["DATE"] = "custom-date"
 
         # Act
         actual = expand_vars("$(DATE)")
 
-        # Assert — user-defined value takes precedence over dynamic
+        # Assert - user-defined value takes precedence over dynamic
         assert actual == "custom-date"
 
     def test_dynamic_not_in_vars_dict(self):
-        # Assert — dynamic vars are NOT stored in _VARS
+        # Assert - dynamic vars are NOT stored in _VARS
         assert "DATE" not in _VARS
         assert "TIME" not in _VARS
         assert "DATETIME" not in _VARS
 
-        # Act — but they still expand
+        # Act - but they still expand
         actual = expand_vars("$(DATE) $(TIME) $(DATETIME)")
 
-        # Assert — all three expanded
+        # Assert - all three expanded
         assert "$(DATE)" not in actual
         assert "$(TIME)" not in actual
         assert "$(DATETIME)" not in actual
@@ -512,7 +512,7 @@ class TestDirectiveResult:
         # Act
         actual = DirectiveResult()
 
-        # Assert — defaults to no-op
+        # Assert - defaults to no-op
         assert actual.action == "none"
         assert actual.payload == ""
 
@@ -614,7 +614,7 @@ class TestRunDirectivesIsolated:
         # Act
         actual = engine.run_directives("anything")
 
-        # Assert — first directive wins
+        # Assert - first directive wins
         assert actual.payload == "first"
 
 
@@ -645,7 +645,7 @@ class TestDirectiveIntegration:
         # Arrange
         engine, _ = _make_engine(tmp_path)
 
-        # Assert — at least one directive registered
+        # Assert - at least one directive registered
         assert len(engine._directives) >= 1  # directive registered
         names = [d.name for d in engine._directives]
         assert "var_assign" in names  # var_assign specifically
@@ -658,7 +658,7 @@ class TestDirectiveIntegration:
         # Act
         actual = engine.run_directives("$(PORT) = COM7")
 
-        # Assert — rewritten to var.set command
+        # Assert - rewritten to var.set command
         assert actual.action == "rewrite"
         assert actual.payload == "var.set PORT COM7"
 
@@ -670,7 +670,7 @@ class TestDirectiveIntegration:
         # Act
         actual = engine.run_directives("AT+INFO")
 
-        # Assert — no directive matched
+        # Assert - no directive matched
         assert actual.action == "none"
 
     def test_run_directives_warns_on_bare_dollar(self, tmp_path):
@@ -681,7 +681,7 @@ class TestDirectiveIntegration:
         # Act
         actual = engine.run_directives("$PORT = COM7")
 
-        # Assert — warning with helpful message
+        # Assert - warning with helpful message
         assert actual.action == "warn"
         assert "$(PORT)" in actual.payload  # suggests correct syntax
 
@@ -693,6 +693,6 @@ class TestDirectiveIntegration:
         # Act
         actual = engine.run_directives("$(PORT) =")
 
-        # Assert — error, not sent to device
+        # Assert - error, not sent to device
         assert actual.action == "error"
         assert "requires a value" in actual.payload

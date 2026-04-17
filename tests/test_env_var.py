@@ -5,7 +5,11 @@ import os
 import pytest
 
 from termapy.builtins.plugins.env_var import (
-    _ENV, _cli_transform, _handler_list, _handler_reload, _handler_set,
+    _ENV,
+    _cli_transform,
+    _handler_list,
+    _handler_reload,
+    _handler_set,
 )
 from termapy.plugins import PluginContext
 
@@ -23,7 +27,7 @@ class TestEnvVarTransform:
         assert actual == expected, "known var expanded"
 
     def test_unknown_var_raises(self):
-        # Arrange — ensure var does not exist
+        # Arrange - ensure var does not exist
         _ENV.pop("NONEXISTENT_XYZ", None)
 
         # Act / Assert
@@ -56,11 +60,12 @@ class TestEnvVarTransform:
         # Arrange
         _ENV.pop("EMPTY_FB", None)
 
-        # Act
-        actual = _cli_transform("prefix$(env.EMPTY_FB|)suffix")
+        # Act -- underscores are literal in the input so the expected
+        # string doesn't concatenate two words that spellcheckers flag.
+        actual = _cli_transform("prefix_$(env.EMPTY_FB|)_suffix")
 
         # Assert
-        expected = "prefixsuffix"
+        expected = "prefix__suffix"
         assert actual == expected, "empty fallback produces empty string"
 
     def test_multiple_vars(self):
@@ -84,7 +89,7 @@ class TestEnvVarTransform:
         assert actual == expected, "plain string unchanged"
 
     def test_bare_dollar_env_not_expanded(self):
-        # Act — no parens, should NOT match
+        # Act - no parens, should NOT match
         _ENV["FOO"] = "bar"
         actual = _cli_transform("$env.FOO")
 
@@ -93,11 +98,11 @@ class TestEnvVarTransform:
         assert actual == expected, "bare syntax not matched"
 
     def test_env_is_snapshot(self):
-        # Arrange — inject a key only into os.environ
+        # Arrange - inject a key only into os.environ
         sentinel = "_TERMAPY_SNAPSHOT_TEST"
         os.environ[sentinel] = "live"
 
-        # Assert — _ENV was captured before the sentinel was set
+        # Assert - _ENV was captured before the sentinel was set
         assert sentinel not in _ENV, "snapshot does not see later os.environ changes"
 
         # Cleanup
@@ -199,7 +204,7 @@ class TestEnvCommands:
         ctx, output = self._ctx()
 
         # Act
-        result = _handler_list(ctx, "ZZNOEXIST_*")
+        result = _handler_list(ctx, "ZZ_NO_EXIST_*")
 
         # Assert
         assert not result.success, "handler reports failure"
@@ -225,6 +230,6 @@ class TestEnvCommands:
         # Act
         _handler_reload(ctx, "")
 
-        # Assert — SESSION_ONLY was not in os.environ, so it's gone
+        # Assert - SESSION_ONLY was not in os.environ, so it's gone
         assert "SESSION_ONLY" not in _ENV, "session var cleared by reload"
         assert any("reloaded" in t.lower() for t, _ in output), "confirmation"

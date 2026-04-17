@@ -138,7 +138,7 @@ class MapFile:
                         seen_addrs.add(addr)
                     pending_name = None
                 else:
-                    # Name only — addr on next line
+                    # Name only - addr on next line
                     pending_name = name
                     pending_section = section
                 continue

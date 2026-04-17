@@ -17,7 +17,7 @@ How pyserial vendoring works:
 
     We use sys.path.insert (not sys.modules tricks) because pyserial's
     own __init__.py does ``from serial.serialutil import *`` during
-    loading — it needs ``serial`` to be findable as a top-level package
+    loading - it needs ``serial`` to be findable as a top-level package
     from the very start of its own import.
 
 Bootstrap locations:

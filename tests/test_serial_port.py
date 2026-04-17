@@ -60,7 +60,7 @@ class TestWrite:
         # Act
         sp.write(b"AT\r")
 
-        # Assert — read back from FakeSerial's response
+        # Assert - read back from FakeSerial's response
         time.sleep(0.05)
         data = fake.read(1024)
         assert b"OK" in data, "FakeSerial responded to AT command"
@@ -145,7 +145,7 @@ class TestReadRaw:
     def test_read_raw_assembles_chunks(self, port_env):
         # Arrange
         sp, _, rx_queue, _ = port_env
-        # Put two chunks close together — should assemble into one frame
+        # Put two chunks close together - should assemble into one frame
         rx_queue.put(b"\x01\x02")
         rx_queue.put(b"\x03\x04")
 
@@ -165,7 +165,7 @@ class TestWaitForIdle:
         # Arrange
         sp, _, _, _ = port_env
 
-        # Act — should return quickly since no data is arriving
+        # Act - should return quickly since no data is arriving
         t0 = time.monotonic()
         sp.wait_for_idle(timeout_ms=100, max_wait_s=1.0)
         elapsed = time.monotonic() - t0
@@ -192,7 +192,7 @@ class TestWaitForIdle:
         sp, fake, _, _ = port_env
         fake.close()
 
-        # Act — should return immediately
+        # Act - should return immediately
         t0 = time.monotonic()
         sp.wait_for_idle(timeout_ms=100, max_wait_s=1.0)
         elapsed = time.monotonic() - t0
@@ -336,7 +336,7 @@ class TestSerialReaderEOLMarkers:
 
 class TestSerialReaderCapture:
     def test_binary_capture_consumes_data(self):
-        # Arrange — mock capture engine
+        # Arrange - mock capture engine
         class MockCapture:
             active = True
             mode = "bin"
@@ -372,7 +372,7 @@ class TestSerialReaderCapture:
         assert result.capture_target_reached is True, "capture target reached"
 
     def test_text_capture_not_consumed(self):
-        # Arrange — text mode capture doesn't intercept in reader
+        # Arrange - text mode capture doesn't intercept in reader
         class MockCapture:
             active = True
             mode = "text"

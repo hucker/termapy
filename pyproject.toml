@@ -76,6 +76,12 @@ extra-paths = ["src/termapy/vendor"]
 # extra-paths above so `import serial` resolves from our own code.
 exclude = ["src/termapy/vendor/**"]
 
+[tool.ruff]
+# Vendored pyserial uses wildcard imports, lowercase l/I/O variable
+# names, and other patterns we don't own.  Skip lint entirely; same
+# reasoning as the ty exclude above.
+exclude = ["src/termapy/vendor", "src/termapy/html"]
+
 [tool.coverage.run]
 source = ["src/termapy"]
 omit = [

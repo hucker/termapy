@@ -264,7 +264,8 @@ class TestRxObservers:
         # Arrange
         engine, _, _ = _make_engine()
         received = []
-        cb = lambda data: received.append(data)
+        def cb(data):
+            return received.append(data)
 
         # Act
         engine.add_rx_observer(cb)
@@ -276,7 +277,8 @@ class TestRxObservers:
     def test_add_duplicate_is_noop(self):
         # Arrange
         engine, _, _ = _make_engine()
-        cb = lambda data: None
+        def cb(data):
+            return None
 
         # Act
         engine.add_rx_observer(cb)
@@ -357,7 +359,8 @@ class TestTxObservers:
     def test_add_and_remove(self):
         # Arrange
         engine, _, _ = _make_engine()
-        cb = lambda data: None
+        def cb(data):
+            return None
 
         # Act
         engine.add_tx_observer(cb)
@@ -399,7 +402,8 @@ class TestTxObservers:
     def test_add_duplicate_is_noop(self):
         # Arrange
         engine, _, _ = _make_engine()
-        cb = lambda data: None
+        def cb(data):
+            return None
 
         # Act
         engine.add_tx_observer(cb)

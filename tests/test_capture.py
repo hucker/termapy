@@ -3,7 +3,6 @@
 import struct
 from pathlib import Path
 
-import pytest
 
 from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
 

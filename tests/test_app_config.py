@@ -1,7 +1,6 @@
 """Tests for app.py config utilities, custom buttons, and script editor."""
 
 import json
-from pathlib import Path
 
 import pytest
 

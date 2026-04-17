@@ -43,7 +43,6 @@ from release_common import (  # noqa: E402
     run,
     run_out,
     validate_version,
-    warn,
 )
 
 
@@ -252,7 +251,7 @@ def main() -> None:
     info("Post-release:")
     print(f"  - GitHub release: gh release view v{version} --web")
     print(f"  - PyPI: https://pypi.org/project/termapy/{version}/")
-    print(f"  - You are now on main, at the merge commit.")
+    print("  - You are now on main, at the merge commit.")
     print(f"  - The release branch {release_branch} is preserved (per project convention).")
     print()
 

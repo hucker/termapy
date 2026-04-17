@@ -1,7 +1,6 @@
 """Tests for the user-defined variables plugin (var.py)."""
 
 import json
-from pathlib import Path
 
 import pytest
 

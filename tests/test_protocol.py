@@ -5,9 +5,7 @@ import struct
 import pytest
 
 from termapy.protocol import (
-    ColumnSpec,
     FrameCollector,
-    Step,
     apply_format,
     diff_bytes,
     diff_columns,
@@ -36,7 +34,6 @@ from termapy.protocol_crc import (
     reset_crc_registry,
 )
 from termapy.protocol_viz import (
-    VisualizerInfo,
     builtins_viz_dir,
     load_visualizers_from_dir,
 )
@@ -953,8 +950,8 @@ expect: "FB8d\\r"
         fmt, parsed = load_proto_script(flat)
 
         assert fmt == "flat"
-        actual_type = type(parsed)
-        assert actual_type == tuple  # assert (settings, steps)
+        # assert (settings, steps)
+        assert isinstance(parsed, tuple), "load_proto_script returns tuple for flat format"
 
 
 # ── diff_bytes ───────────────────────────────────────────────────────────

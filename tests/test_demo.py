@@ -178,7 +178,7 @@ class TestGpsNmea:
 
     def test_gpgsv_multiple_messages(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "$GPGSV")
-        lines = [l for l in actual.strip().split("\r\n") if l.startswith("$GPGSV")]
+        lines = [line for line in actual.strip().split("\r\n") if line.startswith("$GPGSV")]
         assert len(lines) >= 2, "9 sats = at least 2 messages (4 per msg)"
         assert lines[0].startswith("$GPGSV,"), "valid GSV sentence"
 

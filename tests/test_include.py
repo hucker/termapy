@@ -664,7 +664,7 @@ class TestHelpTarget:
         # Arrange
         eng, output = engine
         # Act
-        result = eng.dispatch("help.target")
+        eng.dispatch("help.target")
         # Assert
         messages = [t for t, _ in output]
         assert any("No target" in m for m in messages), "says no commands"
@@ -679,7 +679,7 @@ class TestHelpTarget:
         })
         # Act
         output.clear()
-        result = eng.dispatch("help.target")
+        eng.dispatch("help.target")
         # Assert
         messages = " ".join(t for t, _ in output)
         assert "AT" in messages, "AT listed"
@@ -695,7 +695,7 @@ class TestHelpTarget:
         })
         # Act
         output.clear()
-        result = eng.dispatch("help.target")
+        eng.dispatch("help.target")
         # Assert
         messages = " ".join(t for t, _ in output)
         assert "on|off" in messages, "args shown"
@@ -711,7 +711,7 @@ class TestHelpTarget:
         })
         # Act
         output.clear()
-        result = eng.dispatch("help.target")
+        eng.dispatch("help.target")
         # Assert
         messages = " ".join(t for t, _ in output)
         assert "3 device commands" in messages, "count reported"

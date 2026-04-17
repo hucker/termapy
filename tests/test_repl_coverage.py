@@ -6,12 +6,11 @@ from __future__ import annotations
 import json
 import time
 from io import StringIO
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult, PluginContext
+from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult
 from termapy.repl import ReplEngine, ScriptCtx, _edit_distance, _suggest_command
 
 

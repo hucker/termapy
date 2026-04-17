@@ -193,8 +193,10 @@ class TestRegisterPlugin:
     def test_register_plugin_overrides(self, engine):
         # Arrange
         eng, _ = engine
-        h1 = lambda ctx, args: None
-        h2 = lambda ctx, args: None
+        def h1(ctx, args):
+            return None
+        def h2(ctx, args):
+            return None
         eng.register_plugin(PluginInfo(name="x", args="", help="", handler=h1))
 
         # Act
@@ -323,7 +325,7 @@ class TestRunScript:
 
     def test_invalid_delay(self, tmp_path):
         # Arrange
-        eng, output, writes, script = self._make_engine(tmp_path, "/delay badvalue\n")
+        eng, output, writes, script = self._make_engine(tmp_path, "/delay bad_value\n")
 
         # Act
         eng.run_script(script)

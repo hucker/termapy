@@ -2,7 +2,6 @@
 
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
-    MIGRATIONS,
     migrate_config,
 )
 

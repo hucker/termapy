@@ -6,7 +6,6 @@ from termapy.plugins import (
     CapabilitySet,
     PluginConfig,
     PluginContext,
-    PluginInfo,
     load_plugins_from_dir,
 )
 

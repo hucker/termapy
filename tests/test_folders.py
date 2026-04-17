@@ -1,5 +1,7 @@
 """Tests for termapy.folders -- folder/file constants."""
 
+import pytest
+
 from termapy.folders import (
     CLEARABLE,
     DUMPABLE,
@@ -19,11 +21,9 @@ from termapy.folders import (
 class TestFolderSpec:
     def test_frozen(self):
         spec = FolderSpec("test", "*.txt")
-        try:
-            spec.name = "other"
-            assert False, "should not reach here"
-        except AttributeError:
-            pass  # frozen dataclass rejects mutation
+        # frozen dataclass rejects mutation
+        with pytest.raises(AttributeError):
+            spec.name = "other"  # ty: ignore[invalid-assignment]
 
     def test_defaults(self):
         spec = FolderSpec("test", "*.txt")

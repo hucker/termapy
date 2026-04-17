@@ -420,10 +420,12 @@ class ProtoDebugScreen(ModalScreen[None]):
         if tc.index in self._results:
             if passed:
                 # passed=True is only stored alongside non-None response
-                # data (see _run_test_case:915), but ty cannot see the
-                # cross-variable invariant between passed and actual_data.
+                # data (see _run_test_case:915).  Asserting makes the
+                # cross-variable invariant explicit for the type checker
+                # and gives a clear error if the invariant ever breaks.
+                assert actual_data is not None, "passed implies response data"
                 lines.append(Text(
-                    f"  PASS ({len(actual_data)} bytes, {elapsed_ms:.0f}ms)",  # ty: ignore[invalid-argument-type]
+                    f"  PASS ({len(actual_data)} bytes, {elapsed_ms:.0f}ms)",
                     style="bold italic bright_green"))
             else:
                 lines.append(Text("  FAIL", style="bold italic red"))

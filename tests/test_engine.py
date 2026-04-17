@@ -859,11 +859,11 @@ class TestParseFlags:
         declared = {"--table": "Use lookup table."}
 
         # Act
-        _, _, err = _parse_flags("crc16-cms --talbe", declared)
+        _, _, err = _parse_flags("crc16-cms --tablet", declared)
 
         # Assert
         assert err is not None, "unknown flag should error"
-        assert "--talbe" in err, "names the bad flag"
+        assert "--tablet" in err, "names the bad flag"
         assert "--table" in err, "suggests the close match"
 
     def test_alias_resolves_to_canonical(self):
@@ -1017,11 +1017,11 @@ class TestDispatchFlags:
         eng, ctx, calls, output = flag_env
 
         # Act
-        result = eng.dispatch("flag_test x --talbe")
+        result = eng.dispatch("flag_test x --tablet")
 
         # Assert
         assert result.success is False, "unknown flag fails"
-        assert "--talbe" in result.error, "names the bad flag"
+        assert "--tablet" in result.error, "names the bad flag"
         assert "--table" in result.error, "suggests the real flag"
         assert len(calls) == 0, "handler not called"
 

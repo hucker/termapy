@@ -28,7 +28,14 @@ from typing import TYPE_CHECKING, Any
 from termapy.folders import FOLDER_PATTERNS
 
 if TYPE_CHECKING:
-    from termapy.plugins import PluginContext
+    from termapy.plugins import PluginContext  # noqa: F401 (referenced in docstrings)
+
+# Helpers in this module use ``getattr(ctx, ...)`` / try-except for every
+# field access: they're honestly polymorphic and work with real
+# PluginContext instances, test fakes, or anything with matching attrs.
+# ``_Ctx`` is an alias for that permissive contract so signatures don't
+# falsely promise they need a full PluginContext.
+_Ctx = Any
 
 
 # Rich markup color used for every dynamic state line. Kept here so every
@@ -51,7 +58,7 @@ def state_line(label: str, value: Any) -> str:
     return green(f"Current {label} = {value}")
 
 
-def compose(*parts: str) -> str:
+def compose(*parts: str | None) -> str:
     """Join non-empty parts with a blank line between each.
 
     Empty / ``None`` parts are dropped so callers can unconditionally
@@ -65,7 +72,7 @@ def compose(*parts: str) -> str:
 # Filesystem helpers -- per-config folder inspection.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def folder_dir(ctx: PluginContext, kind: str) -> Path | None:
+def folder_dir(ctx: _Ctx, kind: str) -> Path | None:
     """Return the Path for a per-config folder by ``folders.py`` name.
 
     Uses ``ctx`` accessors so the resolved dir matches whatever the
@@ -98,7 +105,7 @@ def folder_dir(ctx: PluginContext, kind: str) -> Path | None:
     return Path(cfg_path).parent / kind
 
 
-def file_count(ctx: PluginContext, kind: str, pattern: str | None = None) -> int:
+def file_count(ctx: _Ctx, kind: str, pattern: str | None = None) -> int:
     """Count files matching ``pattern`` in the per-config folder ``kind``.
 
     ``pattern`` defaults to the folder's canonical glob from ``folders.py``
@@ -116,7 +123,7 @@ def file_count(ctx: PluginContext, kind: str, pattern: str | None = None) -> int
         return 0
 
 
-def folder_line(ctx: PluginContext, kind: str, noun: str | None = None) -> str:
+def folder_line(ctx: _Ctx, kind: str, noun: str | None = None) -> str:
     """Green one-liner: ``N <noun> in <kind>/``.
 
     ``noun`` defaults to ``"file"`` / ``"files"``. The pluralization is
@@ -133,7 +140,7 @@ def folder_line(ctx: PluginContext, kind: str, noun: str | None = None) -> str:
 # Port helpers -- read live pyserial state safely.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def port_setting(ctx: PluginContext, attr: str) -> Any:
+def port_setting(ctx: _Ctx, attr: str) -> Any:
     """Return a live attribute from the pyserial port, or ``None`` if closed.
 
     ``attr`` is the pyserial attribute name (e.g. ``"baudrate"``,
@@ -153,7 +160,7 @@ def port_setting(ctx: PluginContext, attr: str) -> Any:
         return None
 
 
-def port_status(ctx: PluginContext) -> str:
+def port_status(ctx: _Ctx) -> str:
     """Green status line summarizing the current port.
 
     "Connected: COM3 @ 115200 8N1" when open, "Not connected" otherwise.
@@ -184,7 +191,7 @@ def port_status(ctx: PluginContext) -> str:
 # Config helpers -- active cfg + total count under termapy_cfg/.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def cfg_name(ctx: PluginContext) -> str:
+def cfg_name(ctx: _Ctx) -> str:
     """Return the active config's short name (the directory stem).
 
     Falls back to ``""`` if ``config_path`` isn't set. The name is the
@@ -197,7 +204,7 @@ def cfg_name(ctx: PluginContext) -> str:
     return Path(path).parent.name
 
 
-def cfg_count(ctx: PluginContext) -> int:
+def cfg_count(ctx: _Ctx) -> int:
     """Count discoverable configs under ``termapy_cfg/``.
 
     A "config" is a subdirectory of the cfg root that contains a
@@ -219,7 +226,7 @@ def cfg_count(ctx: PluginContext) -> int:
         return 0
 
 
-def cfg_status(ctx: PluginContext) -> str:
+def cfg_status(ctx: _Ctx) -> str:
     """Green status line: ``Active cfg = <name> (N config(s) available)``.
 
     Empty string when there's no active config -- ``compose`` will drop
@@ -237,7 +244,7 @@ def cfg_status(ctx: PluginContext) -> str:
 # Namespace helpers -- counts from ``ctx.ns(...)`` dicts.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def ns_count(ctx: PluginContext, name: str) -> int:
+def ns_count(ctx: _Ctx, name: str) -> int:
     """Return ``len(ctx.ns(name))``, guarding against a missing ctx.ns."""
     try:
         return len(ctx.ns(name))

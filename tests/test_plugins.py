@@ -95,13 +95,13 @@ class TestCapabilitySet:
 
         # Act / Assert
         with pytest.raises(Exception):
-            caps.block_until = False  # type: ignore[misc]
+            caps.block_until = False  # ty: ignore[invalid-assignment]
 
     def test_typo_raises_at_construction(self):
         """Typos in field names fail loudly at construction time."""
         # Act / Assert - a misspelled field is not silently ignored.
         with pytest.raises(TypeError):
-            CapabilitySet(block_untl=True)  # type: ignore[call-arg]
+            CapabilitySet(bloc_until=True)  # ty: ignore[unknown-argument]
 
     def test_baseline_defaults_true(self):
         """Baseline capabilities default True so every environment has them."""

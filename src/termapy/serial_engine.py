@@ -55,7 +55,7 @@ class SerialEngine:
         self,
         cfg: dict,
         capture: CaptureEngine,
-        open_fn: Callable[[dict], object],
+        open_fn: Callable[[dict], Any],
         log: Callable[[str, str], None] | None = None,
     ) -> None:
         self._cfg = cfg
@@ -340,7 +340,7 @@ class SerialEngine:
         """Attempt a single reconnect. Returns True on success."""
         try:
             port = self._open_fn(self._cfg)
-            port.close()  # ty:ignore[unresolved-attribute]
+            port.close()
             return True
         except Exception:
             return False

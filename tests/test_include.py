@@ -499,7 +499,7 @@ class TestIncludeVersionGate:
         from termapy.builtins.plugins import include
         eng, output = engine
         original = include._read_json
-        include._read_json = lambda ctx, tms: device_json
+        include._read_json = lambda ctx, tms: device_json  # ty: ignore[invalid-assignment]
         try:
             # Pretend we're connected so the gate evaluates.
             eng.ctx.is_connected = lambda: True
@@ -909,19 +909,19 @@ class TestSearchIndexesTargets:
     """Target commands appear in /search results alongside REPL plugins."""
 
     def test_match_in_target_long_help_found(self, engine) -> None:
-        """A hapax that only lives in a target's long_help surfaces via /search."""
+        """A probe token that only lives in a target's long_help surfaces via /search."""
         # Arrange
         eng, output = engine
         eng.ctx.ns("target_commands").update({
             "AT+WIDGET": TargetCommand(
                 name="AT+WIDGET",
                 help="widget ops",
-                long_help="Handles the TERMAPY_HAPAX calibration sequence.",
+                long_help="Handles the __search_probe__ calibration sequence.",
             ),
         })
 
         # Act
-        result = eng.dispatch("search TERMAPY_HAPAX")
+        result = eng.dispatch("search __search_probe__")
 
         # Assert
         names = result.value.splitlines() if result.value else []
@@ -936,12 +936,12 @@ class TestSearchIndexesTargets:
             "AT+SAMPLE": TargetCommand(
                 name="AT+SAMPLE",
                 help="sample sensor",
-                flags={"--rapid": "TERMAPY_HAPAX fast polling mode"},
+                flags={"--rapid": "__search_probe__ fast polling mode"},
             ),
         })
 
         # Act
-        result = eng.dispatch("search TERMAPY_HAPAX")
+        result = eng.dispatch("search __search_probe__")
 
         # Assert
         names = result.value.splitlines() if result.value else []
@@ -955,13 +955,13 @@ class TestSearchIndexesTargets:
         eng.ctx.ns("target_commands").update({
             "AT+MARKER": TargetCommand(
                 name="AT+MARKER",
-                help="TERMAPY_HAPAX only in target",
+                help="__search_probe__ only in target",
             ),
         })
 
         # Act
         output.clear()
-        eng.dispatch("search TERMAPY_HAPAX")
+        eng.dispatch("search __search_probe__")
 
         # Assert
         texts = [t for t, _ in output]

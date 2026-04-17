@@ -184,7 +184,7 @@ class TestScriptCtxRecord:
             progress=None,
             on_nest=None,
         )
-        sctx.prof_fh = buf
+        sctx.prof_fh = buf  # ty: ignore[invalid-assignment]
         sctx.step = 1
         sctx.total = 1
 
@@ -283,7 +283,7 @@ class TestDispatchSuggestion:
                           source="test")
 
         # Act
-        result = eng.dispatch("halp")
+        result = eng.dispatch("helm")
 
         # Assert
         assert result.success is False, "unknown command fails"

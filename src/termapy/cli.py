@@ -97,9 +97,14 @@ class CLITerminal(TerminalHost):
         self.prefix = cfg.get("cmd_prefix", "/")
         self._xfer_cancel = threading.Event()
 
-        # Ensure stdout handles unicode on Windows
-        if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # ty: ignore[unresolved-attribute]
+        # Ensure stdout handles unicode on Windows.  sys.stdout is typed as
+        # IO[str] (no reconfigure) but is actually TextIOWrapper at runtime.
+        # Test harnesses sometimes replace it with StringIO, so we hasattr
+        # instead of isinstance -- only real TextIOWrapper instances need
+        # the recode.
+        reconfigure = getattr(sys.stdout, "reconfigure", None)
+        if reconfigure and sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+            reconfigure(encoding="utf-8", errors="replace")
 
         # Rich console for colored output
         from rich.console import Console

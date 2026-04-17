@@ -40,7 +40,7 @@ def test_migration_chain_runs_in_order():
     orig_version = app_mod.CURRENT_CONFIG_VERSION
     orig_migrations = app_mod.MIGRATIONS.copy()
     try:
-        app_mod.CURRENT_CONFIG_VERSION = 3
+        app_mod.CURRENT_CONFIG_VERSION = 3  # ty: ignore[invalid-assignment]
         app_mod.MIGRATIONS = {1: fake_v1_to_v2, 2: fake_v2_to_v3}
 
         cfg = {"config_version": 1, "port": "COM4"}

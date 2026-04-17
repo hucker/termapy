@@ -89,7 +89,7 @@ LongHelp = Union[str, Callable[["PluginContext"], str]]
 # the need (so dispatch gates them) or not use the capability at all.
 #
 # Why a closed dataclass of booleans rather than a free-form set of strings?
-#   - Typos fail at import time (``needs=CapabilitySet(block_untl=True)``
+#   - Typos fail at import time (``needs=CapabilitySet(bloc_until=True)``
 #     is an immediate error), not silently at runtime.
 #   - The fields below are the single source of truth for the vocabulary.
 #     Grep-friendly: every consumer reads ``caps.block_until`` by name.

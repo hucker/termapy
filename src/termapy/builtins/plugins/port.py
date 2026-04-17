@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy import port_control
+from termapy import port_control, usb_serial_chips
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.plugins import CmdResult, Command
 
@@ -63,11 +63,15 @@ def _handler_open(ctx: PluginContext, args: str) -> CmdResult:
         ctx.engine.apply_port_effects({"cfg_update": {"baud_rate": baud}})
     if mode is not None:
         parity, byte_size, stop_bits = mode
-        ctx.engine.apply_port_effects({"cfg_update": {
-            "parity": parity,
-            "byte_size": byte_size,
-            "stop_bits": stop_bits,
-        }})
+        ctx.engine.apply_port_effects(
+            {
+                "cfg_update": {
+                    "parity": parity,
+                    "byte_size": byte_size,
+                    "stop_bits": stop_bits,
+                }
+            }
+        )
     ctx.engine.connect(port)
     return CmdResult.ok()
 
@@ -123,12 +127,58 @@ def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
+def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
+    """Dump the USB-serial chip lookup table.
+
+    Prints one row per known (VID:PID, chip model, speed, max_baud).
+    An optional filter argument narrows the output to rows whose chip
+    model contains the filter substring (case-insensitive).  Typical
+    use: ``/port.chip.list ftdi``, ``/port.chip.list high``.
+
+    ``CmdResult.value`` is ``"Count=<N>"`` where ``<N>`` is the number
+    of chips matching the filter (or the total when unfiltered), so a
+    script can capture the match count with
+    ``$(COUNT) <- /port.chip.list ftdi``.
+    """
+    needle = args.strip().lower()
+    rows: list[tuple[int, int, usb_serial_chips.ChipInfo]] = []
+    for (vid, pid), info in usb_serial_chips.USB_SERIAL_CHIPS.items():
+        if needle and needle not in info.model.lower():
+            continue
+        rows.append((vid, pid, info))
+    rows.sort(key=lambda row: (row[0], row[1]))
+
+    if not rows:
+        ctx.write(f"No chips match '{args.strip()}'.", "yellow")
+        return CmdResult.ok(value="Count=0")
+
+    # Compute column widths from actual data so nothing truncates.
+    model_w = max(len(info.model) for _, _, info in rows)
+    baud_w = max(len(f"{info.max_baud:,}") for _, _, info in rows)
+
+    header = (
+        f"{'VID:PID':9}  {'CHIP MODEL':{model_w}}  "
+        f"{'SPEED':5}  {'MAX BAUD':>{baud_w}}"
+    )
+    ctx.write(header)
+    ctx.write("-" * len(header))
+    for vid, pid, info in rows:
+        ctx.write(
+            f"{vid:04X}:{pid:04X}  {info.model:{model_w}}  "
+            f"{info.speed:5}  {info.max_baud:>{baud_w},}"
+        )
+    count_line = f"Count={len(rows)}"
+    ctx.write(count_line, "dim")
+    return CmdResult.ok(value=count_line)
+
+
 def _make_chip_field_handler(field: str):
     """Build a handler for /port.chip.<field>.
 
     The handler takes an optional port name (or ``*`` for all ports).
     With no argument it queries the current port from cfg["port"].
     """
+
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         current = ctx.cfg.get("port", "") or ""
         connected = current if ctx.is_connected() else ""
@@ -195,6 +245,7 @@ def _make_signal_handler(signal: str):
 # Single-value subcommands just print "Current <label> = <value>" using the
 # config dict as the source of truth. Config holds the mode even when no
 # port is open, so these still show something useful while disconnected.
+
 
 def _cfg_value_long_help(key: str, label: str):
     """Build a callable that renders a state_line for a single cfg key."""
@@ -390,6 +441,22 @@ COMMAND = Command(
             help="Identify USB-serial chip(s) and report USB speed class.",
             handler=_handler_chip,
             sub_commands={
+                "list": Command(
+                    args="{filter}",
+                    help="Dump the USB-serial chip lookup table.",
+                    long_help=(
+                        "Show every chip termapy recognizes.  With a filter\n"
+                        "argument, only chips whose model name contains the\n"
+                        "filter substring (case-insensitive) are listed.\n"
+                        "\n"
+                        "Examples:\n"
+                        "  /port.chip.list           -- every chip\n"
+                        "  /port.chip.list ftdi      -- FTDI chips only\n"
+                        "  /port.chip.list arduino   -- Arduino boards only\n"
+                        "  /port.chip.list high      -- high-speed chips"
+                    ),
+                    handler=_handler_chip_list,
+                ),
                 "device": Command(
                     args="{name|*}",
                     help="Show port device name.",

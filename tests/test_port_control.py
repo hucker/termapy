@@ -592,3 +592,5 @@ class TestSetMode:
         # Assert
         text = msgs[0][0]
         assert "Mode -> 9600 8O1.5" in text, "summary should show baud and frame"
+
+

@@ -19,7 +19,13 @@ from typing import Any, Mapping
 
 import re
 
-from termapy.defaults import VALID_BYTE_SIZES, VALID_FLOW_CONTROLS, VALID_PARITIES, VALID_STOP_BITS
+from termapy import usb_serial_chips
+from termapy.defaults import (
+    VALID_BYTE_SIZES,
+    VALID_FLOW_CONTROLS,
+    VALID_PARITIES,
+    VALID_STOP_BITS,
+)
 
 # Type alias for message lists: (text, color_or_None)
 Msg = tuple[str, str | None]
@@ -64,7 +70,9 @@ def parse_mode(mode: str) -> tuple[str, int, float] | None:
     return parity, byte_size, stop_bits
 
 
-def parse_open_args(args: str) -> tuple[str | None, int | None, tuple[str, int, float] | None, str | None]:
+def parse_open_args(
+    args: str,
+) -> tuple[str | None, int | None, tuple[str, int, float] | None, str | None]:
     """Parse /port.open arguments: {name} {baud} {mode}.
 
     Each part is optional and position-independent (except port name must
@@ -135,9 +143,9 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
                 return _result([_msg(f"Duplicate baud rate: {token}", "red")])
             baud = int(token)
             continue
-        return _result([_msg(
-            f"Invalid mode argument: {token} (use e.g. 9600 N81)", "red"
-        )])
+        return _result(
+            [_msg(f"Invalid mode argument: {token} (use e.g. 9600 N81)", "red")]
+        )
 
     if baud is None and mode is None:
         return _result([_msg("Nothing to set.", "yellow")])
@@ -172,49 +180,6 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     except (ValueError, OSError) as e:
         return _result([_msg(f"Mode error: {e}", "red")])
     return _result(msgs, update_title=True, cfg_update=cfg_update)
-
-# USB-serial chip identification by (vendor_id, product_id).
-# Tuple is (chip_model_name, usb_speed_class, max_baud).
-#   usb_speed: "full" (12 Mbit/s, 1 ms minimum latency) or
-#              "high" (480 Mbit/s, 125 us minimum latency).
-#              Full-speed chips cannot reach sub-millisecond round-trip
-#              latency regardless of host or driver tuning.
-#   max_baud:  highest baud rate the chip supports per its datasheet.
-# Source: chip datasheets and FTDI/Silicon Labs/WCH product pages.
-USB_SERIAL_CHIPS: dict[tuple[int, int], tuple[str, str, int]] = {
-    # FTDI - Future Technology Devices International (vid 0x0403)
-    (0x0403, 0x6001): ("FTDI FT232R / FT245R", "full", 3_000_000),
-    (0x0403, 0x6010): ("FTDI FT2232C/D/H", "high", 12_000_000),
-    (0x0403, 0x6011): ("FTDI FT4232H", "high", 12_000_000),
-    (0x0403, 0x6014): ("FTDI FT232H", "high", 12_000_000),
-    (0x0403, 0x6015): ("FTDI FT230X / FT231X / FT234XD", "full", 3_000_000),
-    (0x0403, 0x6040): ("FTDI FT4233HP", "high", 12_000_000),
-    (0x0403, 0x6041): ("FTDI FT4232HP", "high", 12_000_000),
-    (0x0403, 0x6042): ("FTDI FT2232HP", "high", 12_000_000),
-    (0x0403, 0x6043): ("FTDI FT232HP", "high", 12_000_000),
-    # Silicon Labs (vid 0x10C4)
-    (0x10C4, 0xEA60): ("Silicon Labs CP2102 / CP2102N", "full", 921_600),
-    (0x10C4, 0xEA70): ("Silicon Labs CP2105", "full", 921_600),
-    (0x10C4, 0xEA71): ("Silicon Labs CP2108", "full", 921_600),
-    (0x10C4, 0xEA80): ("Silicon Labs CP2110", "full", 1_000_000),
-    # WCH (vid 0x1A86) - cheap chips on most $5 dev boards
-    (0x1A86, 0x7522): ("WCH CH340", "full", 2_000_000),
-    (0x1A86, 0x7523): ("WCH CH340", "full", 2_000_000),
-    (0x1A86, 0x5523): ("WCH CH341", "full", 2_000_000),
-    (0x1A86, 0x55D3): ("WCH CH343", "full", 6_000_000),
-    (0x1A86, 0x55D4): ("WCH CH9102", "full", 4_000_000),
-    # Prolific (vid 0x067B) - older USB-serial chips
-    (0x067B, 0x2303): ("Prolific PL2303", "full", 1_500_000),
-    (0x067B, 0x23A3): ("Prolific PL2303GC", "full", 12_000_000),
-    (0x067B, 0x23B3): ("Prolific PL2303GL", "full", 12_000_000),
-    # Native USB CDC from microcontroller vendors (common)
-    (0x2341, 0x0043): ("Arduino Uno (ATmega16U2 native USB)", "full", 2_000_000),
-    (0x2341, 0x8036): ("Arduino Leonardo (ATmega32U4 native USB)", "full", 2_000_000),
-    (0x16C0, 0x0483): ("Teensy 2.x (ATmega32U4 native USB)", "full", 2_000_000),
-    (0x16C0, 0x0489): ("Teensy 3.x / 4.x (ARM native USB)", "high", 12_000_000),
-    (0x239A, 0x800B): ("Adafruit Metro M4 / Feather M4", "full", 2_000_000),
-    (0x2E8A, 0x000A): ("Raspberry Pi RP2040 (Pico) native USB", "full", 2_000_000),
-}
 
 
 def _msg(text: str, color: str | None = None) -> Msg:
@@ -263,22 +228,22 @@ CHIP_FIELDS: tuple[str, ...] = (
 # Field labels for the multi-line dump.  Width-padded to 14 characters
 # so values line up.
 CHIP_FIELD_LABELS: dict[str, str] = {
-    "device":        "Device",
-    "description":   "Description",
-    "manufacturer":  "Manufacturer",
-    "product":       "Product",
-    "serial":        "Serial",
-    "location":      "Location",
-    "interface":     "Interface",
-    "vid_pid":       "VID:PID",
-    "model":         "Model",
-    "usb_speed":     "USB speed",
-    "negotiated":    "Negotiated",
-    "driver":        "Driver",
+    "device": "Device",
+    "description": "Description",
+    "manufacturer": "Manufacturer",
+    "product": "Product",
+    "serial": "Serial",
+    "location": "Location",
+    "interface": "Interface",
+    "vid_pid": "VID:PID",
+    "model": "Model",
+    "usb_speed": "USB speed",
+    "negotiated": "Negotiated",
+    "driver": "Driver",
     "latency_timer": "Latency timer",
-    "max_baud":      "Max baud",
-    "permissions":   "Permissions",
-    "in_use":        "In use",
+    "max_baud": "Max baud",
+    "permissions": "Permissions",
+    "in_use": "In use",
 }
 
 
@@ -438,17 +403,16 @@ def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
     )
     if p.vid is not None and p.pid is not None:
         facts.vid_pid = f"{p.vid:04X}:{p.pid:04X}"
-        chip = USB_SERIAL_CHIPS.get((p.vid, p.pid))
+        chip = usb_serial_chips.chip(p.vid, p.pid)
         if chip:
-            chip_name, speed, max_baud = chip
-            facts.model = chip_name
-            if speed == "full":
+            facts.model = chip.model
+            if chip.speed == "full":
                 facts.usb_speed = "USB Full-Speed (1 ms min latency)"
                 facts._usb_speed_color = "yellow"
             else:
                 facts.usb_speed = "USB High-Speed (125 us min latency)"
                 facts._usb_speed_color = "green"
-            facts.max_baud = f"{max_baud:,} baud"
+            facts.max_baud = f"{chip.max_baud:,} baud"
         else:
             facts.model = "unknown"
             facts.usb_speed = "unknown (chip not in lookup table)"
@@ -515,6 +479,20 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
             msgs.append(_msg(line, "red"))
         else:
             msgs.append(_msg(line))
+
+    # Nudge: when we see a real USB device whose VID:PID isn't in the
+    # chip table, invite the user to report it so the table can grow.
+    if (
+        facts.model == "unknown"
+        and facts.vid_pid
+        and facts.vid_pid != "not a USB device"
+    ):
+        msgs.append(_msg(
+            f"  (chip {facts.vid_pid} not in termapy's lookup table -- "
+            f"please report at https://github.com/hucker/termapy/issues "
+            f"so we can add it)",
+            "dim",
+        ))
     return msgs
 
 
@@ -555,7 +533,9 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
     return _result(_format_facts_full(facts))
 
 
-def chip_field(field: str, arg: str, current_port: str, connected_port: str = "") -> Result:
+def chip_field(
+    field: str, arg: str, current_port: str, connected_port: str = ""
+) -> Result:
     """Show a single field's value for one or more ports.
 
     Args:
@@ -621,8 +601,10 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     msgs: list[Msg] = [
         _msg(f"  Port:         {cfg.get('port', '?')}  ({state})"),
         _msg(f"  Baud rate:    {cfg.get('baud_rate', '?')}"),
-        _msg(f"  Frame:        {cfg.get('byte_size', 8)}"
-             f"{cfg.get('parity', 'N')}{sb_str}"),
+        _msg(
+            f"  Frame:        {cfg.get('byte_size', 8)}"
+            f"{cfg.get('parity', 'N')}{sb_str}"
+        ),
         _msg(f"  Flow control: {cfg.get('flow_control', 'none')}"),
         _msg(f"  Encoding:     {cfg.get('encoding', 'utf-8')}"),
     ]
@@ -653,9 +635,7 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
                 if field_name == "usb_speed" and facts._usb_speed_color:
                     msgs.append(_msg(line, facts._usb_speed_color))
                 elif field_name == "latency_timer" and value != "1 ms":
-                    msgs.append(
-                        _msg(line + "  (set to 1 for low latency)", "yellow")
-                    )
+                    msgs.append(_msg(line + "  (set to 1 for low latency)", "yellow"))
                 else:
                     msgs.append(_msg(line))
 
@@ -670,7 +650,9 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     return _result(msgs)
 
 
-def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -> Result:
+def get_set_prop(
+    ser: Any | None, cfg: Mapping[str, Any], key: str, args: str
+) -> Result:
     """Get or set a serial port property.
 
     Args:
@@ -726,12 +708,17 @@ def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     if ser is None:
         return _result([_msg("Not connected.", "yellow")])
     if val not in VALID_FLOW_CONTROLS:
-        return _result([_msg(
-            f"Invalid flow control: {val} (use none/rtscts/xonxoff/manual)", "red"
-        )])
+        return _result(
+            [
+                _msg(
+                    f"Invalid flow control: {val} (use none/rtscts/xonxoff/manual)",
+                    "red",
+                )
+            ]
+        )
     try:
-        ser.rtscts = (val == "rtscts")
-        ser.xonxoff = (val == "xonxoff")
+        ser.rtscts = val == "rtscts"
+        ser.xonxoff = val == "xonxoff"
         return _result(
             [_msg(f"Flow control -> {val}")],
             update_title=True,
@@ -820,7 +807,9 @@ def send_break(ser: Any | None, args: str) -> Result:
             if duration <= 0:
                 raise ValueError
         except ValueError:
-            return _result([_msg("Invalid duration (use milliseconds, e.g. 250)", "red")])
+            return _result(
+                [_msg("Invalid duration (use milliseconds, e.g. 250)", "red")]
+            )
     try:
         ser.send_break(duration=duration)
         return _result([_msg(f"Break sent ({int(duration * 1000)}ms)")])

@@ -158,8 +158,13 @@ _WATCH_INTERVAL_S = 0.5
 # across the whole run (a log shouldn't re-layout mid-stream).  Real
 # data that exceeds these widths overflows the column rather than
 # forcing every prior row to be re-rendered.
+#
+# Column 1 is a single-char event marker: ``+`` added, ``-`` removed,
+# ``~`` changed, blank for baseline and open/close transitions.  The
+# state column (``open``/``closed``) carries the open/close signal on
+# its own line -- no verb needed.
 _WATCH_WIDTHS = {
-    "action":      7,   # removed, present, changed, opened, closed, added
+    "marker":      1,   # '+' / '-' / '~' / ' '
     "port":        6,   # COMxxx
     "state":       6,   # closed / open (matches pyserial's is_open)
     "mfg":         9,   # Microchip, Espressif, Parallels, SparkFun, ...
@@ -175,22 +180,22 @@ def run_watch(args: argparse.Namespace) -> None:
     """Monitor serial ports and print changes as log lines.  Ctrl+C to exit.
 
     Output is a uniform log: every line begins with ``[HH:MM:SS]`` and
-    a one-word action, followed by the same column schema as the
-    picker (port, state, mfg, description, chip, speed, vid_pid, sn).
-    The only exception is ``removed`` events, which carry only time,
-    action, and port -- the rest of the row is unknown at removal.
+    a one-char event marker, followed by the picker column schema
+    (port, state, mfg, description, chip, speed, vid_pid, sn).
 
-    Actions::
+    Event markers::
 
-        present  -- port seen at startup baseline
-        added    -- port appeared (new plug-in)
-        removed  -- port disappeared (unplug)
-        opened   -- some process opened the port
-        closed   -- the holding process released the port
-        changed  -- serial number or VID:PID of an existing port changed
+        ' '  baseline snapshot or open/close transition (state column
+             carries the change)
+        '+'  port appeared (new plug-in); followed on the next line by
+             a blank-marker state row showing the details
+        '-'  port disappeared (unplug); sparse line -- no state row
+             follows because the port's data is gone
+        '~'  serial number or VID:PID changed on an existing port;
+             full state row on the same line
 
     Returns via ``sys.exit(0)`` on KeyboardInterrupt so the process
-    ends cleanly without a traceback.  Output width is ~150 cols and
+    ends cleanly without a traceback.  Output width is ~140 cols and
     does not fit to the terminal; pipe to a file or use ``less -S``
     on narrow terminals.
     """
@@ -202,7 +207,7 @@ def run_watch(args: argparse.Namespace) -> None:
         f"[{banner_ts}] monitoring {len(initial)} port(s); Ctrl+C to exit"
     )
     for device in sorted(initial):
-        print(_format_event("present", initial[device]))
+        print(_format_state_line(" ", initial[device]))
 
     previous = initial
     try:
@@ -218,12 +223,12 @@ def run_watch(args: argparse.Namespace) -> None:
         sys.exit(0)
 
 
-def _format_event(action: str, facts) -> str:
-    """Format one ``[time] action ...`` log line for a known port.
+def _format_state_line(marker: str, facts) -> str:
+    """Format a full ``[time] <marker> <port> <state> <chip data...>`` line.
 
-    Uses ``_WATCH_WIDTHS`` so every column has a fixed position across
-    the whole run.  Caller is responsible for passing the right action
-    verb for the event; the data fields are read from ``facts``.
+    Used for baseline rows, open/close transitions, post-``+`` detail
+    rows, and ``~`` change rows.  ``marker`` should be a single char:
+    ``' '`` (no event), ``'+'``, ``'-'``, or ``'~'``.
     """
     from termapy.usb_mfg import mfg as _mfg_alias
 
@@ -242,7 +247,7 @@ def _format_event(action: str, facts) -> str:
     w = _WATCH_WIDTHS
     return (
         f"[{ts}] "
-        f"{action:<{w['action']}}  "
+        f"{marker:<{w['marker']}}  "
         f"{device:<{w['port']}}  "
         f"{state:<{w['state']}}  "
         f"{mfg:<{w['mfg']}}  "
@@ -254,11 +259,15 @@ def _format_event(action: str, facts) -> str:
     )
 
 
-def _format_removed(device: str) -> str:
-    """Format a ``[time] removed <port>`` log line (short form)."""
+def _format_marker_line(marker: str, device: str) -> str:
+    """Format a sparse ``[time] <marker>  <port>`` line.
+
+    Used for ``-`` removals and the first line of a two-line ``+``
+    sequence.  Only the timestamp, marker, and port name are known.
+    """
     ts = datetime.now().strftime("%H:%M:%S")
     w = _WATCH_WIDTHS
-    return f"[{ts}] {'removed':<{w['action']}}  {device}"
+    return f"[{ts}] {marker:<{w['marker']}}  {device:<{w['port']}}"
 
 
 def _state_of(facts) -> str:
@@ -282,35 +291,35 @@ def _speed_of(facts) -> str:
 
 
 def _emit_diff(previous: dict, current: dict) -> None:
-    """Print one log line per change between two snapshots.
+    """Print log lines for changes between two snapshots.
 
-    Detects four kinds of change:
-      - Port added (present in current, not in previous) -- ``added``.
-      - Port removed (present in previous, not in current) -- ``removed``.
-      - In-use changed ("yes" <-> "no" for the same port) --
-        ``in-use`` / ``free``.
-      - Serial-number or VID:PID changed (rare; happens when a chip is
-        re-EEPROM'd while plugged in) -- ``changed``.
+    Emits four kinds of event:
+      - Port added (present in current, not in previous): two lines --
+        a sparse ``+`` marker line, then a blank-marker state row.
+      - Port removed (present in previous, not in current): one sparse
+        ``-`` marker line (no state row -- port data is gone).
+      - Open/close transition (``is_open`` flipped): one blank-marker
+        state row; the state column shows the new value.
+      - Serial-number or VID:PID changed (rare; chip re-EEPROM'd while
+        plugged in): one ``~`` state row with the new data.
     """
     for device, facts in sorted(current.items()):
         if device not in previous:
-            print(_format_event("added", facts))
+            print(_format_marker_line("+", device))
+            print(_format_state_line(" ", facts))
 
     for device in sorted(previous):
         if device not in current:
-            print(_format_removed(device))
+            print(_format_marker_line("-", device))
 
     for device in sorted(set(previous) & set(current)):
         old, new = previous[device], current[device]
-        old_state = _state_of(old)
-        new_state = _state_of(new)
-        if old_state != new_state:
-            action = "in-use" if new_state == "in-use" else "free"
-            print(_format_event(action, new))
+        if _state_of(old) != _state_of(new):
+            print(_format_state_line(" ", new))
         if (old.serial or "") != (new.serial or "") or (
             (old.vid_pid or "") != (new.vid_pid or "")
         ):
-            print(_format_event("changed", new))
+            print(_format_state_line("~", new))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -809,9 +809,9 @@ class TestWatchFlag:
         out = capsys.readouterr().out
         assert exc.value.code == 0, "Ctrl+C exits 0"
         assert "monitoring 1 port" in out, "baseline banner printed"
-        # Baseline ports render as 'present' log lines, same schema.
-        assert "present" in out, "baseline emits 'present' action"
+        # Baseline rows have a blank event marker and the full state row.
         assert "COM3" in out, "baseline has COM3"
+        assert "closed" in out, "baseline emits state column"
 
     def test_watch_emits_add_and_remove_events(self, capsys, monkeypatch):
         # Arrange -- scripted sequence: baseline (1 port), then second
@@ -844,20 +844,20 @@ class TestWatchFlag:
         with pytest.raises(SystemExit):
             main()
 
-        # Assert -- added / removed actions appear on log lines.  The
-        # format is fixed-width so we search for the action verb
-        # adjacent to the device name.
+        # Assert -- '+' marker line for COM4 add, '-' marker line for
+        # COM3 remove.  The marker is the first non-timestamp char
+        # on the line.
         out = capsys.readouterr().out
-        added_lines = [
+        added_marker = [
             ln for ln in out.splitlines()
-            if "added" in ln and "COM4" in ln
+            if "] +" in ln and "COM4" in ln
         ]
-        removed_lines = [
+        removed_marker = [
             ln for ln in out.splitlines()
-            if "removed" in ln and "COM3" in ln
+            if "] -" in ln and "COM3" in ln
         ]
-        assert added_lines, f"expected an 'added COM4' line, got: {out!r}"
-        assert removed_lines, f"expected a 'removed COM3' line, got: {out!r}"
+        assert added_marker, f"expected a '+ COM4' marker line, got: {out!r}"
+        assert removed_marker, f"expected a '- COM3' marker line, got: {out!r}"
 
     def test_watch_help_mentions_flag(self, capsys, monkeypatch):
         # Arrange

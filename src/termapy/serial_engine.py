@@ -123,7 +123,7 @@ class SerialEngine:
     def add_rx_observer(self, cb: Callable[[bytes], None]) -> None:
         """Register a callback that receives every raw RX byte chunk.
 
-        Observers see data alongside the normal pipeline — they cannot
+        Observers see data alongside the normal pipeline - they cannot
         modify or block it.  Callbacks fire on the reader background
         thread; keep them fast or offload to a queue.
 
@@ -147,7 +147,7 @@ class SerialEngine:
     def add_tx_observer(self, cb: Callable[[bytes], None]) -> None:
         """Register a callback that receives every TX byte chunk.
 
-        Observers see data alongside the normal write path — they cannot
+        Observers see data alongside the normal write path - they cannot
         modify or block it.  Callbacks fire on the calling thread.
 
         Args:
@@ -351,7 +351,7 @@ class SerialEngine:
         interval: float = 2.5,
         on_status: Callable[[str], None] | None = None,
     ) -> bool:
-        """Blocking reconnect loop — call from a background thread.
+        """Blocking reconnect loop - call from a background thread.
 
         Retries ``try_reconnect()`` every *interval* seconds until success
         or ``stop_event`` is set.  Calls *on_status* with a spinner label

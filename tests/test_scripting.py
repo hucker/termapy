@@ -1,4 +1,4 @@
-"""Tests for termapy.scripting — pure functions, no serial or Textual needed."""
+"""Tests for termapy.scripting - pure functions, no serial or Textual needed."""
 
 import json
 import re
@@ -199,7 +199,7 @@ class TestResolveSeqFilename:
         resolve_seq_filename("data_$(n000).txt", tmp_path)
         resolve_seq_filename("data_$(n000).txt", tmp_path)
 
-        # Act — read counter file directly
+        # Act - read counter file directly
         seq_path = tmp_path / ".cap_seq"
         counters = json.loads(seq_path.read_text(encoding="utf-8"))
 
@@ -207,7 +207,7 @@ class TestResolveSeqFilename:
         assert counters["data_$(n000).txt"] == 1, "last used = 1"
 
     def test_rollover(self, tmp_path):
-        # Arrange — set counter to max
+        # Arrange - set counter to max
         seq_path = tmp_path / ".cap_seq"
         seq_path.write_text(
             json.dumps({"data_$(n0).txt": 9}), encoding="utf-8"
@@ -440,7 +440,7 @@ class TestParseBool:
         # Act
         actual = parse_bool(val)
 
-        # Assert — value should be recognized despite surrounding whitespace
+        # Assert - value should be recognized despite surrounding whitespace
         assert actual is not None, f"expected bool for {val!r}, got None"
 
     @pytest.mark.parametrize("val", ["", "maybe", "2", "high", "low", "enable", "x"])

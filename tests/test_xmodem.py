@@ -1,4 +1,4 @@
-"""Tests for XMODEM file transfer — QueueByteReader, FakeSerial responder, and protocol integration."""
+"""Tests for XMODEM file transfer - QueueByteReader, FakeSerial responder, and protocol integration."""
 
 from __future__ import annotations
 
@@ -259,7 +259,7 @@ class TestFakeSerialXmodemSend:
         time.sleep(0.01)
         dev.read(4096)  # consume OK
 
-        # Act — send NAK to start
+        # Act - send NAK to start
         dev.write(bytes([0x15]))
         time.sleep(0.01)
         block = dev.read(4096)
@@ -277,7 +277,7 @@ class TestFakeSerialXmodemSend:
         time.sleep(0.01)
         dev.read(4096)
 
-        # Act — send 'C' for CRC mode
+        # Act - send 'C' for CRC mode
         dev.write(b"C")
         time.sleep(0.01)
         block = dev.read(4096)
@@ -288,7 +288,7 @@ class TestFakeSerialXmodemSend:
 
     def test_send_full_transfer_checksum(self, dev: FakeSerial) -> None:
         """Complete checksum-mode transfer of config.dat (1 block, padded)."""
-        # Arrange — config.dat is 64 bytes = 1 block padded to 128
+        # Arrange - config.dat is 64 bytes = 1 block padded to 128
         dev.write(b"AT+XMODEM=SEND config.dat\r")
         time.sleep(0.01)
         dev.read(4096)
@@ -308,7 +308,7 @@ class TestFakeSerialXmodemSend:
         eot = dev.read(4096)
         assert eot == bytes([0x04]), "EOT"
 
-        # Assert — first 64 bytes match config.dat, rest is 0x1A padding
+        # Assert - first 64 bytes match config.dat, rest is 0x1A padding
         assert data1[:64] == bytes(range(64)), "config.dat content"
         assert all(b == 0x1A for b in data1[64:]), "XMODEM padding"
 
@@ -319,7 +319,7 @@ class TestFakeSerialXmodemSend:
         time.sleep(0.01)
         dev.read(4096)
 
-        # Block 1 — CRC mode
+        # Block 1 - CRC mode
         dev.write(b"C")
         time.sleep(0.01)
         block1 = dev.read(4096)
@@ -335,7 +335,7 @@ class TestFakeSerialXmodemSend:
         eot = dev.read(4096)
         assert eot == bytes([0x04]), "EOT"
 
-        # Assert — first 64 bytes match config.dat
+        # Assert - first 64 bytes match config.dat
         assert data1[:64] == bytes(range(64)), "config.dat content"
 
 
@@ -369,7 +369,7 @@ class TestXmodemLibraryIntegration:
         """
         dev.write(f"AT+XMODEM={mode}\r".encode())
         time.sleep(0.01)
-        # Read everything — OK text + possible protocol byte
+        # Read everything - OK text + possible protocol byte
         resp = dev.read(4096)
         # Strip the OK text, put back any trailing protocol bytes
         ok_text = b"OK\r\n"
@@ -395,7 +395,7 @@ class TestXmodemLibraryIntegration:
         assert ok is True, "transfer succeeded"
         received = dev.vfs["upload.bin"]
         assert received[:len(test_data)] == test_data, "data matches"
-        # Padding is 0x1A (SUB) — XMODEM has no size metadata
+        # Padding is 0x1A (SUB) - XMODEM has no size metadata
         padding = received[len(test_data):]
         assert all(b == 0x1A for b in padding), "correct padding"
 

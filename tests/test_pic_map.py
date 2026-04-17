@@ -183,7 +183,7 @@ class TestMapFileParse:
         # Act
         mf = MapFile.from_text(SAMPLE_MAP)
 
-        # Assert — .vectors and bare .text (no symbol name) should be skipped
+        # Assert - .vectors and bare .text (no symbol name) should be skipped
         names = [s.name for s in mf.symbols]
         assert "vectors" not in names, "should skip .vectors (no dotted symbol)"
 
@@ -208,7 +208,7 @@ class TestMapFileParse:
         # Act
         mf = MapFile.from_text(SAMPLE_MAP)
 
-        # Assert — detailed section should override truncated summary names
+        # Assert - detailed section should override truncated summary names
         names = [s.name for s in mf.symbols]
         assert "u8PicAdcInternal_ReadBlockingAvg" in names, (
             "should use full name from detailed section"
@@ -271,7 +271,7 @@ class TestMapFileLookup:
         # Arrange
         mf = MapFile.from_text(SAMPLE_MAP)
 
-        # Act — address inside main (0x10FFA + 0x10)
+        # Act - address inside main (0x10FFA + 0x10)
         sym = mf.lookup(0x1100A)
 
         # Assert
@@ -289,7 +289,7 @@ class TestMapFileLookup:
         assert sym is None, "address before first symbol should return None"
 
     def test_miss_between_symbols(self):
-        # Arrange — build a map with a gap
+        # Arrange - build a map with a gap
         mf = MapFile(
             [Symbol("a", 0x100, 0x10, "text"), Symbol("b", 0x200, 0x10, "text")]
         )

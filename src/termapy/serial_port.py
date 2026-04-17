@@ -118,7 +118,7 @@ class SerialPort:
         """Wait until at least one byte arrives, or timeout expires.
 
         Checks the rx_queue (not the raw port) because the background
-        reader thread drains in_waiting continuously — by the time we
+        reader thread drains in_waiting continuously - by the time we
         check, the bytes are already in the queue.
 
         Args:

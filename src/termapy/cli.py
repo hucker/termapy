@@ -615,8 +615,8 @@ class CLITerminal(TerminalHost):
 
     def _run_interactive(self) -> None:
         """Run the interactive input loop."""
-        # prompt_toolkit shows REPL commands — no need to echo those.
-        # Serial echo is off — we sync manually with wait_for_idle after dispatch.
+        # prompt_toolkit shows REPL commands - no need to echo those.
+        # Serial echo is off - we sync manually with wait_for_idle after dispatch.
         self.ctx.ns("flags")["echo"] = False
         self.cfg["echo_input"] = False
         self._session = self._build_session()

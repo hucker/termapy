@@ -129,9 +129,9 @@ tracks the last-used number across sessions, with rollover.
 
 | Pattern     | Range   |
 |-------------|---------|
-| `$(n0)`     | 0–9     |
-| `$(n00)`    | 00–99   |
-| `$(n000)`   | 000–999 |
+| `$(n0)`     | 0-9     |
+| `$(n00)`    | 00-99   |
+| `$(n000)`   | 000-999 |
 
 ```text
 /cap.text log_$(n000).txt timeout=3s cmd=AT+INFO

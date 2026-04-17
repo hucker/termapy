@@ -212,8 +212,8 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
     # README uses two places for the count: the <details> summary and the
     # body line right below it.
     text = re.sub(
-        r"<strong>Test coverage</strong> — \d+ tests, \d+% overall",
-        f"<strong>Test coverage</strong> — {test_count} tests, 67% overall",
+        r"<strong>Test coverage</strong> - \d+ tests, \d+% overall",
+        f"<strong>Test coverage</strong> - {test_count} tests, 67% overall",
         text,
         count=1,
     )

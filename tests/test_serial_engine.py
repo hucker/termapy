@@ -1,4 +1,4 @@
-"""Tests for SerialEngine — connection lifecycle and reader loop."""
+"""Tests for SerialEngine - connection lifecycle and reader loop."""
 
 import threading
 import time
@@ -87,7 +87,7 @@ class TestConnect:
         # Arrange
         engine, _, _ = _make_engine()
 
-        # Act — should not raise
+        # Act - should not raise
         engine.disconnect()
 
         # Assert
@@ -152,7 +152,7 @@ class TestReadLoop:
         def run():
             engine.read_loop(on_lines=lines_received.extend)
 
-        # Act — run reader in a thread, stop after brief delay
+        # Act - run reader in a thread, stop after brief delay
         t = threading.Thread(target=run, daemon=True)
         t.start()
         time.sleep(0.3)
@@ -183,7 +183,7 @@ class TestReadLoop:
         assert engine.reader_stopped.is_set(), "flag set"
 
     def test_read_loop_calls_on_error(self):
-        # Arrange — port that raises on read
+        # Arrange - port that raises on read
         errors = []
 
         class BadPort:
@@ -218,7 +218,7 @@ class TestReadLoop:
         # Arrange
         engine, _, _ = _make_engine()
 
-        # Act — should return immediately
+        # Act - should return immediately
         engine.read_loop()
 
         # Assert
@@ -270,7 +270,7 @@ class TestRxObservers:
         engine.add_rx_observer(cb)
         engine.remove_rx_observer(cb)
 
-        # Assert — no error, observer list empty
+        # Assert - no error, observer list empty
         assert cb not in engine._rx_observers, "observer should be removed"
 
     def test_add_duplicate_is_noop(self):
@@ -289,7 +289,7 @@ class TestRxObservers:
         # Arrange
         engine, _, _ = _make_engine()
 
-        # Act / Assert — should not raise
+        # Act / Assert - should not raise
         engine.remove_rx_observer(lambda data: None)
 
     def test_observer_receives_rx_data(self):
@@ -303,7 +303,7 @@ class TestRxObservers:
         engine.port_obj.write(b"AT\r")
         time.sleep(0.05)
 
-        # Act — run the reader briefly
+        # Act - run the reader briefly
         t = threading.Thread(
             target=lambda: engine.read_loop(on_lines=lambda lines: None),
             daemon=True,
@@ -344,7 +344,7 @@ class TestRxObservers:
         engine.stop_event.set()
         t.join(timeout=2)
 
-        # Assert — second observer should still receive data
+        # Assert - second observer should still receive data
         assert len(received) > 0, "second observer should work despite first raising"
         engine.disconnect()
 
@@ -442,7 +442,7 @@ class TestHardwareSignals:
         engine, _, _ = _make_engine()
         engine.connect()
 
-        # Act / Assert — should not raise
+        # Act / Assert - should not raise
         engine.send_break()
         engine.disconnect()
 
@@ -501,7 +501,7 @@ class TestReconnectLoop:
         engine, _, _ = _make_engine()
         statuses = []
 
-        # Act — FakeSerial always succeeds, so first try should work
+        # Act - FakeSerial always succeeds, so first try should work
         def run():
             return engine.reconnect_loop(on_status=statuses.append)
 
@@ -514,7 +514,7 @@ class TestReconnectLoop:
         assert all("Connecting" in s for s in statuses), "status should show connecting"
 
     def test_reconnect_loop_cancelled(self):
-        # Arrange — use a port that always fails
+        # Arrange - use a port that always fails
         capture = CaptureEngine()
         engine = SerialEngine(
             cfg={"port": "BAD"},
@@ -522,7 +522,7 @@ class TestReconnectLoop:
             open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
         )
 
-        # Act — cancel after brief delay
+        # Act - cancel after brief delay
         def run():
             return engine.reconnect_loop(interval=0.5)
 

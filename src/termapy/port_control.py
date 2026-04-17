@@ -386,7 +386,7 @@ def _check_in_use(device: str, connected_port: str = "") -> str:
     """Return 'yes', 'yes (this session)', or 'no'.
 
     If *device* matches *connected_port*, the port is known to be open
-    by this termapy session — return immediately without probing.  This
+    by this termapy session - return immediately without probing.  This
     avoids the Windows issue where a process can re-open its own COM
     port, which would falsely report "no".
 

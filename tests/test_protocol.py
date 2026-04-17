@@ -1,4 +1,4 @@
-"""Tests for termapy.protocol — hex utilities, framing, matching, script parsing."""
+"""Tests for termapy.protocol - hex utilities, framing, matching, script parsing."""
 
 import struct
 
@@ -130,14 +130,14 @@ class TestParseDataSegments:
         # Act
         actual = parse_data_segments("01 02 03")
 
-        # Assert — single bytes segment, no delays
+        # Assert - single bytes segment, no delays
         assert actual == [b"\x01\x02\x03"], "no-delay input should be single segment"
 
     def test_delay_between_data(self):
         # Act
         actual = parse_data_segments('00 ~25ms "foo"')
 
-        # Assert — three segments: data, delay, data
+        # Assert - three segments: data, delay, data
         assert len(actual) == 3, "should produce 3 segments"
         assert actual[0] == b"\x00", "first segment should be data"
         assert actual[1] == pytest.approx(0.025), "delay should be 25ms"
@@ -147,7 +147,7 @@ class TestParseDataSegments:
         # Act
         actual = parse_data_segments("~100ms 01")
 
-        # Assert — delay first, then data
+        # Assert - delay first, then data
         assert len(actual) == 2, "should produce 2 segments"
         assert actual[0] == pytest.approx(0.1), "leading delay should be 100ms"
         assert actual[1] == b"\x01", "second segment should be data"
@@ -156,7 +156,7 @@ class TestParseDataSegments:
         # Act
         actual = parse_data_segments("01 ~50ms")
 
-        # Assert — data then delay
+        # Assert - data then delay
         assert len(actual) == 2, "should produce 2 segments"
         assert actual[0] == b"\x01", "first segment should be data"
         assert actual[1] == pytest.approx(0.05), "trailing delay should be 50ms"
@@ -165,7 +165,7 @@ class TestParseDataSegments:
         # Act
         actual = parse_data_segments("~1us 01")
 
-        # Assert — microsecond delay
+        # Assert - microsecond delay
         assert len(actual) == 2, "should produce 2 segments"
         assert actual[0] == pytest.approx(0.000001), "microsecond delay value"
         assert actual[1] == b"\x01", "second segment should be data"
@@ -174,7 +174,7 @@ class TestParseDataSegments:
         # Act
         actual = parse_data_segments("01 ~10ms 02 ~20ms 03")
 
-        # Assert — five segments alternating data and delays
+        # Assert - five segments alternating data and delays
         assert len(actual) == 5, "should produce 5 segments"
         assert actual[0] == b"\x01", "segment 0 should be data"
         assert actual[1] == pytest.approx(0.01), "first delay should be 10ms"
@@ -330,7 +330,7 @@ class TestFrameCollector:
         fc = FrameCollector(timeout_ms=50)
         # Assign
         fc.feed(b"\x01\x02", now=0.0)
-        # Second feed after timeout gap — triggers emit of first frame
+        # Second feed after timeout gap - triggers emit of first frame
         frame1 = fc.feed(b"\x03\x04", now=0.100)
         frame2 = fc.flush(now=0.200)
         # Assert
@@ -1137,7 +1137,7 @@ class TestCrcPlugins:
         assert algos == {}
 
 
-# ── Generic CRC engine — reveng catalogue check values ─────────────────
+# ── Generic CRC engine - reveng catalogue check values ─────────────────
 
 
 # Canonical names only (exclude aliases which are duplicate entries)
@@ -1433,7 +1433,7 @@ class TestApplyFormat:
 
     def test_bit_field_multi_byte_value(self):
         """Multi-byte bit field extracts value from bit range."""
-        # Arrange — bytes 1-2 = 0x0180 (big-endian), bits 7-9
+        # Arrange - bytes 1-2 = 0x0180 (big-endian), bits 7-9
         # 0x0180 = 0000_0001_1000_0000, bits 7-9 = 011 = 3
         cols = parse_format_spec("Mode:B1-2.7-9")
         data = b"\x01\x80"
@@ -1448,7 +1448,7 @@ class TestApplyFormat:
 
     def test_bit_field_multi_byte_all_ones(self):
         """Multi-byte bit field with all bits set in range."""
-        # Arrange — 0xFFFF, bits 4-7 = 1111 = 15
+        # Arrange - 0xFFFF, bits 4-7 = 1111 = 15
         cols = parse_format_spec("Nibble:B1-2.4-7")
         data = b"\xFF\xFF"
 

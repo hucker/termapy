@@ -322,7 +322,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         self._check_json()
 
     def _check_json(self) -> None:
-        """Live JSON syntax check — show/hide error as user types."""
+        """Live JSON syntax check - show/hide error as user types."""
         from textual.widgets import Static
         text = self.query_one("#config-editor", TextArea).text
         err = self.query_one("#config-error", Static)
@@ -497,7 +497,7 @@ class MarkdownViewer(ModalScreen[None]):
 
 
 class QuickSetup(ModalScreen[tuple | None]):
-    """Quick setup dialog — name, port, baud rate in one screen.
+    """Quick setup dialog - name, port, baud rate in one screen.
 
     Returns (name, port, baud_rate) tuple or None on cancel.
     Used for first-run and New Config flows.

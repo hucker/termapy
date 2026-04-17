@@ -1,4 +1,4 @@
-"""Tests for FakeSerial demo device — ASCII, GPS/NMEA, Modbus RTU, and config setup."""
+"""Tests for FakeSerial demo device - ASCII, GPS/NMEA, Modbus RTU, and config setup."""
 
 import struct
 import time
@@ -260,7 +260,7 @@ class TestModbus:
         dev.write(request)
         time.sleep(0.01)
         response = dev.read(4096)
-        # Assert — write single register echoes the request
+        # Assert - write single register echoes the request
         assert len(response) == len(request), "same length as request"
         # Verify the payload matches (excluding CRC)
         assert response[0] == 1, "slave id"
@@ -271,26 +271,26 @@ class TestModbus:
         assert val == 0x1234, "value echoed"
 
     def test_modbus_bad_crc(self, dev: FakeSerial) -> None:
-        # Assign — valid frame but corrupt the CRC
+        # Assign - valid frame but corrupt the CRC
         request = self._build_read_request(slave_id=1, start_reg=0, num_regs=1)
         bad_request = request[:-2] + b"\xFF\xFF"
         # Act
         dev.write(bad_request)
         time.sleep(0.01)
         response = dev.read(4096)
-        # Assert — exception response
+        # Assert - exception response
         assert len(response) == 5, "slave + func|0x80 + exception + crc(2)"
         assert response[1] == (0x03 | 0x80), "error flag set on func code"
 
     def test_modbus_unknown_function(self, dev: FakeSerial) -> None:
-        # Assign — function code 0x10 not supported
+        # Assign - function code 0x10 not supported
         payload = struct.pack(">BB", 1, 0x10) + b"\x00\x00"
         request = _modbus_add_crc(payload)
         # Act
         dev.write(request)
         time.sleep(0.01)
         response = dev.read(4096)
-        # Assert — exception response with illegal function code
+        # Assert - exception response with illegal function code
         assert response[1] == (0x10 | 0x80), "error flag on original func"
         assert response[2] == 0x01, "illegal function exception"
 

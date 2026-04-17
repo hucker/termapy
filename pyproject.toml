@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     # Core TUI framework (without [syntax] extra to avoid installing 16 tree-sitter
-    # grammars — we only need json, toml, bash for our editors, listed below)
+    # grammars - we only need json, toml, bash for our editors, listed below)
     "textual>=0.80",
     # pyserial is vendored in src/termapy/vendor/serial/ (see vendor/LICENSES.md)
     "prompt-toolkit>=3.0",

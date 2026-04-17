@@ -248,7 +248,7 @@ class TestSendCrcEdgeCases:
         assert "No data" in result.error, "error mentions no data"
 
     def test_no_algo_sends_raw(self, send_env):
-        # Arrange — first word is NOT a CRC algo, so plain send
+        # Arrange - first word is NOT a CRC algo, so plain send
         ctx, output, tx_bytes = send_env
         args = "01 03 00 00 00 01"
 
@@ -294,7 +294,7 @@ class TestSendCrcAlgorithms:
     """Verify CRC-append works with different algorithm widths."""
 
     def test_crc8(self, send_env):
-        # Arrange — use a CRC-8 algorithm
+        # Arrange - use a CRC-8 algorithm
         ctx, output, tx_bytes = send_env
         registry = get_crc_registry()
         # Find a crc8 algo
@@ -315,7 +315,7 @@ class TestSendCrcAlgorithms:
         assert actual == data + bytes([expected_crc]), "1-byte CRC appended"
 
     def test_crc32(self, send_env):
-        # Arrange — use a CRC-32 algorithm
+        # Arrange - use a CRC-32 algorithm
         ctx, output, tx_bytes = send_env
         registry = get_crc_registry()
         crc32_name = next(

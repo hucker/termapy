@@ -164,7 +164,7 @@ class TestReadFrame:
     def test_timeout_returns_empty(self) -> None:
         # Arrange
         dev = FakeSerial()
-        # Don't send anything — no response expected
+        # Don't send anything - no response expected
 
         # Act
         frame = _read_frame(dev, frame_gap_ms=50, timeout_ms=100)
@@ -316,7 +316,7 @@ expect = '"WRONG\\r\\n"'
 
     def test_flat_format_rejected(self, demo_cfg: dict,
                                   tmp_path: Path) -> None:
-        # Arrange — flat format .pro file (no [[test]] sections)
+        # Arrange - flat format .pro file (no [[test]] sections)
         flat_pro = tmp_path / "flat.pro"
         flat_pro.write_text("@timeout 1000ms\nlabel: test\nsend: 01 02\nexpect: 01 02\n")
 

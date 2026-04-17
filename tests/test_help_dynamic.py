@@ -113,7 +113,7 @@ class TestFolderHelpers:
         assert actual == cfg_dir_ / "run", "run/ maps to ctx.scripts_dir"
 
     def test_folder_dir_falls_back_to_config_path_for_viz(self, tmp_path):
-        # Arrange — viz has no direct ctx attribute; derive from config_path
+        # Arrange - viz has no direct ctx attribute; derive from config_path
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
 
         # Act
@@ -123,7 +123,7 @@ class TestFolderHelpers:
         assert actual == cfg_dir_ / "viz", "viz/ derived from config_path"
 
     def test_folder_dir_returns_none_when_ctx_has_nothing(self):
-        # Arrange — empty ctx, no config_path, no scripts_dir
+        # Arrange - empty ctx, no config_path, no scripts_dir
         ctx = SimpleNamespace(config_path="")
 
         # Act
@@ -133,7 +133,7 @@ class TestFolderHelpers:
         assert actual is None, "no state, no dir"
 
     def test_file_count_uses_folder_pattern(self, tmp_path):
-        # Arrange — create 3 .run files + 1 non-matching file
+        # Arrange - create 3 .run files + 1 non-matching file
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
         for i in range(3):
             (cfg_dir_ / "run" / f"s{i}.run").write_text("x", encoding="utf-8")
@@ -142,13 +142,13 @@ class TestFolderHelpers:
         # Act
         actual = file_count(ctx, "run")
 
-        # Assert — FOLDER_PATTERNS["run"] is "*.run"
+        # Assert - FOLDER_PATTERNS["run"] is "*.run"
         expected = 3
         assert actual == expected, "file_count respects *.run glob"
         assert FOLDER_PATTERNS["run"] == "*.run", "run pattern sanity check"
 
     def test_file_count_zero_when_folder_missing(self, tmp_path):
-        # Arrange — no folder at all
+        # Arrange - no folder at all
         ctx = SimpleNamespace(config_path=str(tmp_path / "missing" / "x.cfg"))
 
         # Act
@@ -158,19 +158,19 @@ class TestFolderHelpers:
         assert actual == 0, "missing folder yields zero, not error"
 
     def test_folder_line_pluralizes(self, tmp_path):
-        # Arrange — 0, 1, 2 files -> "files", "file", "files"
+        # Arrange - 0, 1, 2 files -> "files", "file", "files"
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
 
-        # Act / Assert — zero
+        # Act / Assert - zero
         actual_zero = folder_line(ctx, "run")
         assert actual_zero == "[green]0 files in run/[/]", "zero plural"
 
-        # Act / Assert — one
+        # Act / Assert - one
         (cfg_dir_ / "run" / "a.run").write_text("x", encoding="utf-8")
         actual_one = folder_line(ctx, "run")
         assert actual_one == "[green]1 file in run/[/]", "singular"
 
-        # Act / Assert — two
+        # Act / Assert - two
         (cfg_dir_ / "run" / "b.run").write_text("x", encoding="utf-8")
         actual_two = folder_line(ctx, "run")
         assert actual_two == "[green]2 files in run/[/]", "plural"
@@ -201,7 +201,7 @@ class TestPortHelpers:
         assert actual is None, "no port => None, no exception"
 
     def test_port_setting_reads_live_attr(self, tmp_path):
-        # Arrange — fake port object with baudrate
+        # Arrange - fake port object with baudrate
         fake = SimpleNamespace(baudrate=9600, bytesize=8)
         ctx, _ = _fake_ctx(tmp_path, port=fake)
 
@@ -236,7 +236,7 @@ class TestPortHelpers:
         assert actual == expected, "open port summary shape"
 
     def test_port_status_degrades_if_is_connected_raises(self, tmp_path):
-        # Arrange — is_connected raising should not crash the helper
+        # Arrange - is_connected raising should not crash the helper
         ctx, _ = _fake_ctx(tmp_path)
         ctx.is_connected = lambda: (_ for _ in ()).throw(RuntimeError("x"))
 
@@ -271,7 +271,7 @@ class TestCfgHelpers:
         assert actual == "", "empty path -> empty name"
 
     def test_cfg_count_only_counts_dirs_with_matching_cfg(self, tmp_path):
-        # Arrange — one valid config + one stray directory without cfg
+        # Arrange - one valid config + one stray directory without cfg
         ctx, cfg_dir_ = _fake_ctx(tmp_path, cfg_name="demo")
         stray = cfg_dir_.parent / "stray"
         stray.mkdir()
@@ -284,7 +284,7 @@ class TestCfgHelpers:
         assert actual == 1, "only dirs containing <name>.cfg count"
 
     def test_cfg_count_multiple(self, tmp_path):
-        # Arrange — two configs side by side
+        # Arrange - two configs side by side
         ctx, cfg_dir_ = _fake_ctx(tmp_path, cfg_name="demo")
         other = cfg_dir_.parent / "other"
         other.mkdir()
@@ -297,7 +297,7 @@ class TestCfgHelpers:
         assert actual == 2, "multiple siblings counted"
 
     def test_cfg_status_singular_and_plural(self, tmp_path):
-        # Arrange — singular
+        # Arrange - singular
         ctx, _ = _fake_ctx(tmp_path, cfg_name="demo")
 
         # Act

@@ -5,7 +5,7 @@ hook-handler logic that both the Textual TUI (``app.py``) and the
 headless CLI (``cli.py``) need.  Subclasses provide output, threading,
 and UI-specific hooks.
 
-No Textual or Rich imports — those stay in the subclasses.
+No Textual or Rich imports - those stay in the subclasses.
 """
 
 from __future__ import annotations
@@ -31,12 +31,12 @@ class TerminalHost:
     Subclasses must override the methods marked *override required* below
     and set the following attributes before calling any base methods:
 
-    * ``cfg``          – config dict
-    * ``config_path``  – path to the config file
-    * ``engine``       – ``SerialEngine`` instance
-    * ``repl``         – ``ReplEngine`` instance
-    * ``capture``      – ``CaptureEngine`` instance
-    * ``ctx``          – ``PluginContext`` (set by subclass ``_setup_context``)
+    * ``cfg``          - config dict
+    * ``config_path``  - path to the config file
+    * ``engine``       - ``SerialEngine`` instance
+    * ``repl``         - ``ReplEngine`` instance
+    * ``capture``      - ``CaptureEngine`` instance
+    * ``ctx``          - ``PluginContext`` (set by subclass ``_setup_context``)
     """
 
     _HISTORY_LIMIT: int = 30
@@ -205,7 +205,7 @@ class TerminalHost:
             # Shared UI
             open_file=lambda path: open_with_system(str(path)),
         )
-        # Serial port helpers — shared by TUI and CLI
+        # Serial port helpers - shared by TUI and CLI
         ctx.port = lambda: self.engine.port_obj if self.engine.is_connected else None
         ctx.serial_read_raw = self._serial_read_raw
         ctx.serial_drain = self._drain_rx_queue

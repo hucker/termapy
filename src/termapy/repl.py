@@ -66,7 +66,7 @@ def _parse_flags(
 
     Args:
         args: Raw argument string after the command name.
-        declared: ``Command.flags`` — maps flag names to descriptions
+        declared: ``Command.flags`` - maps flag names to descriptions
             (canonical) or to another flag name (alias).
 
     Returns:
@@ -219,7 +219,7 @@ class ReplEngine:
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
-        # Expect watcher — predicate set by wait_for_match(), checked by feed_lines()
+        # Expect watcher - predicate set by wait_for_match(), checked by feed_lines()
         self._expect_predicate: Callable[[str], bool] | None = None
         self._expect_event = Event()
         self._expect_matched_line: str = ""
@@ -334,13 +334,13 @@ class ReplEngine:
         """Block until a serial line matches predicate or timeout expires.
 
         Must be called from a background thread. Serial data continues
-        to display normally — feed_lines() checks the predicate as lines
+        to display normally - feed_lines() checks the predicate as lines
         arrive.
 
         Race-condition safety: the predicate is installed BEFORE scanning
         the recent-lines buffer. This eliminates the gap where a line
         could arrive after the buffer check but before the predicate is
-        active — feed_lines() would catch it in that window.
+        active - feed_lines() would catch it in that window.
 
         Args:
             predicate: Callable that takes a stripped line and returns True
@@ -382,7 +382,7 @@ class ReplEngine:
 
         for line in lines:
             clean = strip_ansi(line)
-            # Always buffer — wait_for_match() scans this retroactively
+            # Always buffer - wait_for_match() scans this retroactively
             self._recent_lines.append(clean)
             # Live match if a predicate is active
             predicate = self._expect_predicate
@@ -879,7 +879,7 @@ class ReplEngine:
     # -- Script blocking command handlers ----------------------------------------
 
     def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /delay in scripts — sleep on background thread."""
+        """Handle /delay in scripts - sleep on background thread."""
         expanded = self._expand_template(args.strip())
         try:
             seconds = parse_duration(expanded)
@@ -894,7 +894,7 @@ class ReplEngine:
         return CmdResult.ok()
 
     def _script_confirm(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /confirm in scripts — show dialog, block on background thread."""
+        """Handle /confirm in scripts - show dialog, block on background thread."""
         message = args.strip() or "Continue?"
         if not self.ctx.confirm(message):
             sctx.w("Script cancelled by user.")
@@ -902,7 +902,7 @@ class ReplEngine:
         return CmdResult.ok()
 
     def _script_run(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /run and /run.profile in scripts — nested execution.
+        """Handle /run and /run.profile in scripts - nested execution.
 
         Flags on /run are declared on the registered hook (see
         app.py/cli.py), but scripts bypass dispatch() and call us
@@ -932,7 +932,7 @@ class ReplEngine:
         return result
 
     def _script_expect(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /expect and /expect.regex in scripts — wait for serial pattern."""
+        """Handle /expect and /expect.regex in scripts - wait for serial pattern."""
         use_regex = name == "expect.regex"
         kw = parse_keywords(args, {"timeout", "quiet", "match"}, rest_keyword="match")
         pattern = kw.get("match", "").strip()
@@ -964,7 +964,7 @@ class ReplEngine:
             sctx.w(f'Expect "{pattern}" matched', "green")
         return CmdResult.ok()
 
-    # Blocking commands — must run on the script's background thread because
+    # Blocking commands - must run on the script's background thread because
     # they block (sleep, wait for serial, show dialog). Regular commands are
     # dispatched to the main thread via call_from_thread.
     _BLOCKING_COMMANDS: dict[str, Callable] = {
@@ -978,7 +978,7 @@ class ReplEngine:
     }
 
     def _run_line(self, stripped: str, sctx: ScriptCtx) -> CmdResult:
-        """Execute one script line — blocking command or normal dispatch."""
+        """Execute one script line - blocking command or normal dispatch."""
         if stripped.startswith(sctx.prefix):
             cmd = stripped[len(sctx.prefix) :].strip()
             name, _, args = cmd.partition(" ")
@@ -1024,7 +1024,7 @@ class ReplEngine:
 
     @contextmanager
     def _script_session(self, path, w, dispatch, profile, verbose, progress, on_nest):
-        """Context manager for script lifecycle — setup, yield, teardown."""
+        """Context manager for script lifecycle - setup, yield, teardown."""
         sctx = ScriptCtx(
             w=w,
             dispatch_fn=dispatch,

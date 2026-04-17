@@ -5,7 +5,7 @@ Pure functions, no dependencies beyond protocol_crc.
 """
 
 # Allowing this makes code lineup nicely
-# ruff: noqa: F541  — f-strings without placeholders used for code alignment
+# ruff: noqa: F541  - f-strings without placeholders used for code alignment
 
 
 from __future__ import annotations

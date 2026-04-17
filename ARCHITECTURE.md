@@ -10,22 +10,22 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (3923 lines) Textual TUI — UI, modals, app hooks
-├── cli.py               # (698 lines)  Plain-text CLI frontend — CLITerminal class
+├── app.py               # (3923 lines) Textual TUI - UI, modals, app hooks
+├── cli.py               # (698 lines)  Plain-text CLI frontend - CLITerminal class
 ├── serial_engine.py     # (379 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py       # (302 lines)  Serial I/O wrapper + SerialReader data processor
-├── capture.py           # (336 lines)  Capture state machine — text, binary, format spec
-├── dialogs.py           # (1721 lines) Modal screens — config editor, pickers, confirm
+├── capture.py           # (336 lines)  Capture state machine - text, binary, format spec
+├── dialogs.py           # (1721 lines) Modal screens - config editor, pickers, confirm
 ├── proto_debug.py       # (1167 lines) Interactive protocol debug screen
 ├── protocol.py          # (1479 lines) Protocol parsing, format specs, CRC, visualizers
 ├── demo.py              # (1586 lines) Simulated device for --demo mode (FakeSerial)
-├── repl.py              # (1190 lines) REPL engine — dispatch, scripting, transforms
-├── plugins.py           # (1317 lines) Plugin system — Command, PluginContext, loading
+├── repl.py              # (1190 lines) REPL engine - dispatch, scripting, transforms
+├── plugins.py           # (1317 lines) Plugin system - Command, PluginContext, loading
 ├── help_dynamic.py      # (245 lines)  Reusable helpers for callable long_help
 ├── config.py            # (558 lines)  Config dirs, loading, validation, migration trigger
-├── port_control.py      # (828 lines)  Pure serial port control functions — no Textual
+├── port_control.py      # (828 lines)  Pure serial port control functions - no Textual
 ├── proto_runner.py      # (283 lines)  Protocol test script runner
-├── scripting.py         # (238 lines)  Pure functions — templates, duration parsing, ANSI
+├── scripting.py         # (238 lines)  Pure functions - templates, duration parsing, ANSI
 ├── migration.py         # (167 lines)  Config schema migration chain (v1->v8)
 ├── defaults.py          # (420 lines)  DEFAULT_CFG, templates
 ├── help/                #              Markdown help pages (source for MkDocs)
@@ -73,49 +73,49 @@ Every handler receives a `PluginContext`, the stable API boundary between plugin
 ```text
 Output:          ctx.write(), ctx.write_markup(), ctx.notify()
 Config:          ctx.cfg, ctx.config_path
-Serial port:     ctx.port() — raw pyserial object (or None)
+Serial port:     ctx.port() - raw pyserial object (or None)
                  ctx.is_connected()
 Serial I/O:     ctx.serial_write(), ctx.serial_read_raw(), ctx.serial_drain()
                  ctx.serial_wait_idle(), ctx.serial_io() (context manager)
 Filesystem:      ctx.ss_dir, ctx.scripts_dir, ctx.proto_dir, ctx.cap_dir
 Interaction:     ctx.confirm(), ctx.clear_screen(), ctx.open_file()
-Dispatch:        ctx.dispatch() — route a command through the full pipeline
-Namespaces:     ctx.ns(name) — session-scoped state (see below)
-Engine:          ctx.engine — internal/unstable API for built-ins
+Dispatch:        ctx.dispatch() - route a command through the full pipeline
+Namespaces:     ctx.ns(name) - session-scoped state (see below)
+Engine:          ctx.engine - internal/unstable API for built-ins
 ```
 
 External plugins use `PluginContext` only. `EngineAPI` is internal and may change.
 
 #### Namespaces (`ctx.ns()`)
 
-`ctx.ns(name)` returns a session-scoped dict, created lazily on first access, shared across every call with the same name for the lifetime of the `PluginContext`. It is the supported way for both built-in and third-party plugins to keep per-session state — a sanctioned alternative to monkeypatching `ctx` or using module-level globals.
+`ctx.ns(name)` returns a session-scoped dict, created lazily on first access, shared across every call with the same name for the lifetime of the `PluginContext`. It is the supported way for both built-in and third-party plugins to keep per-session state - a sanctioned alternative to monkeypatching `ctx` or using module-level globals.
 
-Namespaces are plain mutable `dict`s. They are not persisted (use `ctx.cfg` for that) and not isolated — any caller can read any namespace. The name is a collision-avoidance convention, not access control, which lets cooperating plugins share state on purpose (a "stats" plugin can walk every namespace and surface counters without the producers knowing it exists).
+Namespaces are plain mutable `dict`s. They are not persisted (use `ctx.cfg` for that) and not isolated - any caller can read any namespace. The name is a collision-avoidance convention, not access control, which lets cooperating plugins share state on purpose (a "stats" plugin can walk every namespace and surface counters without the producers knowing it exists).
 
 Built-ins use namespaces as worked examples of the pattern:
 
 ```text
-ctx.ns("seq")              — sequence counters, mutated by {seqN+} template expansion
-ctx.ns("target_commands")  — device commands imported via /include
-ctx.ns("flags")            — engine-owned toggles: echo, verbose, hex_mode
+ctx.ns("seq")              - sequence counters, mutated by {seqN+} template expansion
+ctx.ns("target_commands")  - device commands imported via /include
+ctx.ns("flags")            - engine-owned toggles: echo, verbose, hex_mode
 ```
 
 The `flags` namespace is engine-reserved. Third-party plugins should use their own namespace name (conventionally the plugin name, e.g. `ctx.ns("myplugin")`). The engine's flag defaults are set once at context construction in `_build_context`; read sites access them with bare key lookups, so a missing key is a construction bug, not silent drift.
 
-Contrast with `ctx.engine`: `EngineAPI` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction — `engine` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
+Contrast with `ctx.engine`: `EngineAPI` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction - `engine` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
 
 #### Lifecycle hooks
 
-Plugins that need setup, teardown, or per-script reset can export top-level lifecycle functions. There is no `Plugin` base class and no decorators — a plugin is a module that exports stuff, and lifecycle functions are just more stuff it can export.
+Plugins that need setup, teardown, or per-script reset can export top-level lifecycle functions. There is no `Plugin` base class and no decorators - a plugin is a module that exports stuff, and lifecycle functions are just more stuff it can export.
 
 ```text
-on_app_start(ctx)     — once after plugins load and ctx is wired, before first dispatch
-on_app_stop(ctx)      — once during graceful shutdown (not guaranteed on crash)
-on_script_start(ctx)  — when the outermost script begins (nested /run does NOT fire)
-on_script_stop(ctx)   — when the outermost script ends, including on /stop or error
+on_app_start(ctx)     - once after plugins load and ctx is wired, before first dispatch
+on_app_stop(ctx)      - once during graceful shutdown (not guaranteed on crash)
+on_script_start(ctx)  - when the outermost script begins (nested /run does NOT fire)
+on_script_stop(ctx)   - when the outermost script ends, including on /stop or error
 ```
 
-Script hooks fire only at the top level — nested `/run` inside a running script does not re-fire `on_script_start`. A plugin that clears state in `on_script_start` will not have its state wiped by inner scripts. Plugins that need per-file nesting can track depth themselves via `ctx.engine.in_script()`.
+Script hooks fire only at the top level - nested `/run` inside a running script does not re-fire `on_script_start`. A plugin that clears state in `on_script_start` will not have its state wiped by inner scripts. Plugins that need per-file nesting can track depth themselves via `ctx.engine.in_script()`.
 
 Hooks are stored in a flat list in load order (`ReplEngine._lifecycle_hooks`). `fire_lifecycle(name)` filters by name and calls matching handlers in registration order, catching exceptions per-hook so one bad plugin can't prevent later hooks from running. Errors surface through `ctx.status()`.
 
@@ -124,10 +124,10 @@ Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` 
 ### Loading order (later overrides earlier)
 
 ```text
-1. builtins/plugins/         — 22 built-in commands (shipped with termapy)
-2. termapy_cfg/plugins/      — user plugins (all configs on this machine)
-3. termapy_cfg/<name>/plugins/ — per-config plugins (one config only)
-4. App hooks (app.py/cli.py) — commands needing frontend access (ss, run, delay, etc.)
+1. builtins/plugins/         - 22 built-in commands (shipped with termapy)
+2. termapy_cfg/plugins/      - user plugins (all configs on this machine)
+3. termapy_cfg/<name>/plugins/ - per-config plugins (one config only)
+4. App hooks (app.py/cli.py) - commands needing frontend access (ss, run, delay, etc.)
 ```
 
 A user plugin with the same name as a built-in replaces it. App hooks override everything; they need direct access to frontend-specific features (Textual widgets in TUI, readline in CLI).
@@ -177,13 +177,13 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 
 "Must be at end of file" means after all handler functions it references.
 
-There is deliberately no `Plugin` base class. A plugin is a module that exports stuff; the loader finds what's there. This keeps the mental model one sentence long and avoids the inheritance, decorator, and metaclass traps that creep into most plugin systems. If a plugin needs internal organization, it can use a class *inside* the module — the module boundary is the plugin boundary.
+There is deliberately no `Plugin` base class. A plugin is a module that exports stuff; the loader finds what's there. This keeps the mental model one sentence long and avoids the inheritance, decorator, and metaclass traps that creep into most plugin systems. If a plugin needs internal organization, it can use a class *inside* the module - the module boundary is the plugin boundary.
 
 ## Layer diagram
 
 ```text
 ┌──────────────────────────────────────────────────┐
-│  app.py — Textual App                            │
+│  app.py - Textual App                            │
 │  ┌─────────────┐ ┌──────────┐ ┌──────────────┐   │
 │  │ Title Bar   │ │ RichLog  │ │ Bottom Bar   │   │
 │  │ (?,#,Cfg,   │ │ (serial  │ │ (Input, SS,  │   │
@@ -191,64 +191,64 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 │  │  Status)    │ │          │ │  Proto,Exit) │   │
 │  └─────────────┘ └──────────┘ └──────────────┘   │
 │  ┌──────────────────────────────────────────┐    │
-│  │ dialogs.py — Modal Screens               │    │
+│  │ dialogs.py - Modal Screens               │    │
 │  │ ConfigPicker, ConfigEditor, PortPicker,  │    │
 │  │ ScriptPicker, NamePicker, ConfirmDialog  │    │
 │  └──────────────────────────────────────────┘    │
 │  ┌──────────────────────────────────────────┐    │
-│  │ proto_debug.py — Proto Debug Screen      │    │
+│  │ proto_debug.py - Proto Debug Screen      │    │
 │  │ Interactive send/expect with visualizers │    │
 │  └──────────────────────────────────────────┘    │
 │  ┌──────────────────────────────────────────┐    │
-│  │ App Hooks — commands needing Textual     │    │
+│  │ App Hooks - commands needing Textual     │    │
 │  │ ss, run, delay, cfg.load, edit, help.open│    │
 │  └──────────────────────────────────────────┘    │
 ├──────────────────────────────────────────────────┤
-│  serial_engine.py — SerialEngine                 │
+│  serial_engine.py - SerialEngine                 │
 │  • Owns SerialPort, SerialReader, CaptureEngine  │
 │  • connect() / disconnect() / read_loop()        │
-│  • Callback-driven — no Textual dependency       │
+│  • Callback-driven - no Textual dependency       │
 ├──────────────────────────────────────────────────┤
-│  serial_port.py — SerialPort + SerialReader      │
+│  serial_port.py - SerialPort + SerialReader      │
 │  • SerialPort: write, read_raw, drain, idle wait │
 │  • SerialReader: bytes → lines, EOL, ANSI, clear │
 │  • Works with real serial.Serial or FakeSerial   │
 ├──────────────────────────────────────────────────┤
-│  capture.py — CaptureEngine                      │
+│  capture.py - CaptureEngine                      │
 │  • start/stop/feed_bytes/feed_text/get_progress  │
 │  • Format spec decoding, CSV writing, echo       │
-│  • No Textual dependency — fully testable        │
+│  • No Textual dependency - fully testable        │
 ├──────────────────────────────────────────────────┤
-│  repl.py — ReplEngine                            │
-│  • dispatch_full() — full command routing        │
-│  • dispatch() — REPL command → plugin handler    │
+│  repl.py - ReplEngine                            │
+│  • dispatch_full() - full command routing        │
+│  • dispatch() - REPL command → plugin handler    │
 │  • Script runner with nested /run support        │
-│  • fire_lifecycle() — run on_*_start/stop hooks  │
+│  • fire_lifecycle() - run on_*_start/stop hooks  │
 ├──────────────────────────────────────────────────┤
-│  plugins.py — Plugin System                      │
-│  • Command — declares name, args, handler, subs  │
-│  • Transform — post-routing text rewriters       │
-│  • Directive / DirectiveResult — pre-routing     │
-│  • LifecycleHook — on_app/script_start/stop      │
-│  • PluginContext — stable API for all plugins    │
-│  • ctx.ns(name) — session-scoped state dicts     │
-│  • PluginInfo — flattened metadata + handler     │
-│  • EngineAPI — Textual/threading/serial handles  │
-│  • load_plugins_from_dir() — file discovery      │
+│  plugins.py - Plugin System                      │
+│  • Command - declares name, args, handler, subs  │
+│  • Transform - post-routing text rewriters       │
+│  • Directive / DirectiveResult - pre-routing     │
+│  • LifecycleHook - on_app/script_start/stop      │
+│  • PluginContext - stable API for all plugins    │
+│  • ctx.ns(name) - session-scoped state dicts     │
+│  • PluginInfo - flattened metadata + handler     │
+│  • EngineAPI - Textual/threading/serial handles  │
+│  • load_plugins_from_dir() - file discovery      │
 ├──────────────────────────────────────────────────┤
-│  protocol.py — Protocol Engine                   │
+│  protocol.py - Protocol Engine                   │
 │  • Format spec language (H, U, I, S, F, B, CRC)  │
-│  • ProtoScript / TestCase — test data model      │
+│  • ProtoScript / TestCase - test data model      │
 │  • 62 CRC algorithms + plugin CRC loading        │
 │  • Visualizer loading and column rendering       │
-│  • diff_bytes() / diff_columns() — comparison    │
+│  • diff_bytes() / diff_columns() - comparison    │
 ├──────────────────────────────────────────────────┤
-│  config.py         — dirs, loading, validation   │
-│  defaults.py       — DEFAULT_CFG, templates      │
-│  migration.py      — schema migration v1→v8      │
-│  scripting.py      — pure functions, no state    │
-│  demo.py           — simulated device for --demo │
-│  proto_runner.py   — protocol test execution     │
+│  config.py         - dirs, loading, validation   │
+│  defaults.py       - DEFAULT_CFG, templates      │
+│  migration.py      - schema migration v1→v8      │
+│  scripting.py      - pure functions, no state    │
+│  demo.py           - simulated device for --demo │
+│  proto_runner.py   - protocol test execution     │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -345,7 +345,7 @@ termapy_cfg/
 
 ```text
 ┌─────────────────────┐
-│ Main thread         │  Textual event loop — all UI updates
+│ Main thread         │  Textual event loop - all UI updates
 │ (async)             │  dispatch, modals, button handlers,
 │                     │  Message handlers (ScriptStarted, etc.)
 ├─────────────────────┤

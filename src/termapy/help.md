@@ -11,20 +11,20 @@ termapy --cfg-dir /path/to/cfgs  # use a custom config directory
 termapy --check my_device.cfg    # validate config (no UI)
 ```
 
-**Config file argument** — pass the path to a JSON config file directly.
+**Config file argument** - pass the path to a JSON config file directly.
 If the file doesn't exist, termapy creates it with default settings.
 
-**--cfg-dir** — override the config directory location. By default,
+**--cfg-dir** - override the config directory location. By default,
 termapy stores everything in a `termapy_cfg/` folder in the current
 working directory. Use this flag to point to a different location,
 for example a shared network folder or a project-specific directory.
 
-**--check** — validate a config file and print JSON results to stdout
+**--check** - validate a config file and print JSON results to stdout
 without launching the UI. Checks baud rate, parity, data bits, stop bits,
-flow control, encoding, and flags unknown keys. Read-only — never modifies
+flow control, encoding, and flags unknown keys. Read-only - never modifies
 the file.
 
-**No arguments** — termapy looks in `termapy_cfg/` for config files:
+**No arguments** - termapy looks in `termapy_cfg/` for config files:
 
 - If one config exists, it loads automatically.
 - If multiple configs exist, a picker dialog appears.
@@ -51,12 +51,12 @@ termapy_cfg/
 
 The title bar buttons (left to right):
 
-- **?** — opens this help guide.
-- **#** — toggle line numbers on new output lines (button turns green when active).
-- **Cfg** — opens the config picker (New / Edit / Load / Cancel).
-- **Title** — shows the config name (or custom title). Click to open the config picker.
-- **Port** — shows the port name and baud rate. Click to pick a different serial port.
-- **Status** — shows connection status: green **Connected** or red **Disconnected**. Click to toggle the connection.
+- **?** - opens this help guide.
+- **#** - toggle line numbers on new output lines (button turns green when active).
+- **Cfg** - opens the config picker (New / Edit / Load / Cancel).
+- **Title** - shows the config name (or custom title). Click to open the config picker.
+- **Port** - shows the port name and baud rate. Click to pick a different serial port.
+- **Status** - shows connection status: green **Connected** or red **Disconnected**. Click to toggle the connection.
 
 The title bar color can be set per config with `border_color` to visually distinguish multiple sessions.
 
@@ -73,7 +73,7 @@ The bottom bar contains a text input for sending commands to the serial device.
 - Type a command and press **Enter** to send it over serial.
 - **Up/Down** arrows cycle through previous commands (last 30 are kept per config).
 - **Escape** clears the input and exits history browsing.
-- As you type, ghost-text suggestions appear from REPL commands and device history — press **Right** to accept.
+- As you type, ghost-text suggestions appear from REPL commands and device history - press **Right** to accept.
 - Prefix a command with `/` to run a local REPL command instead of sending it to the device.
 
 Type `/help` to see all available REPL commands.
@@ -282,16 +282,16 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 Click the **Cfg** button in the title bar, click the config name, or use the
 command palette to open the config picker. The picker has four actions:
 
-- **New** — create a new config from defaults (prompts for a name, then opens the editor)
-- **Edit** — open the highlighted config in the JSON editor
-- **Load** — switch to the highlighted config
-- **Cancel** — close the picker
+- **New** - create a new config from defaults (prompts for a name, then opens the editor)
+- **Edit** - open the highlighted config in the JSON editor
+- **Load** - switch to the highlighted config
+- **Cancel** - close the picker
 
 The JSON editor provides:
 
-- **Save** — write changes to the current config file
-- **Save As** — save as a new config (creates a new subfolder)
-- **Cancel** — discard changes
+- **Save** - write changes to the current config file
+- **Save As** - save as a new config (creates a new subfolder)
+- **Cancel** - discard changes
 
 Invalid JSON is caught before saving, with the error shown inline.
 
@@ -299,7 +299,7 @@ Invalid JSON is caught before saving, with the error shown inline.
 
 Add custom buttons to the toolbar by configuring `custom_buttons`
 in your JSON config. Each button can send serial commands, run REPL commands,
-or execute scripts. The default config includes 4 disabled placeholders —
+or execute scripts. The default config includes 4 disabled placeholders -
 enable them and fill in the fields, or add more entries.
 
 Each button object has these fields:
@@ -326,10 +326,10 @@ system buttons (Log, SS, Scripts, Exit), with a small gap separating them.
 Click the **Scripts** button or use `/run <filename>` to work with scripts.
 The script picker has four actions:
 
-- **New** — create a new script (opens the editor with a template)
-- **Edit** — open the highlighted script in the editor
-- **Run** — execute the highlighted script
-- **Cancel** — close the picker
+- **New** - create a new script (opens the editor with a template)
+- **Edit** - open the highlighted script in the editor
+- **Run** - execute the highlighted script
+- **Cancel** - close the picker
 
 The script editor provides syntax highlighting (bash-style) for comments
 and a name field. Scripts are saved with a `.run` extension in the per-config
@@ -339,7 +339,7 @@ Script files support:
 
 - Serial commands (sent to the device)
 - `/` prefixed REPL commands (delays, screenshots, print, etc.)
-- Nested `/run` calls (up to 5 levels deep — scripts can call other scripts)
+- Nested `/run` calls (up to 5 levels deep - scripts can call other scripts)
 - Comments (lines starting with `#`)
 - Blank lines (ignored)
 - Sequence counters with `{+counter}` for auto-incrementing values
@@ -389,16 +389,16 @@ Run with `/proto.run example.pro`. Each step reports PASS/FAIL.
 
 **Script directives:**
 
-- `@timeout <duration>` — default expect timeout (default 1000ms)
-- `@frame_gap <duration>` — silence gap to detect frame end (default 50ms)
-- `@strip_ansi` — strip ANSI escape sequences from responses before matching
-- `label: <text>` — name for the next step
-- `send: <hex or "text">` — transmit raw bytes (no line ending appended)
-- `expect: <pattern>` — wait for response and match (`**` = any byte)
-- `timeout: <duration>` — per-step timeout override
-- `delay: <duration>` — fixed sleep
-- `flush: <duration>` — wait for serial silence (resets on each byte), then discard received bytes
-- `cmd: <text>` — send a plain text command with config line ending (like typing in terminal)
+- `@timeout <duration>` - default expect timeout (default 1000ms)
+- `@frame_gap <duration>` - silence gap to detect frame end (default 50ms)
+- `@strip_ansi` - strip ANSI escape sequences from responses before matching
+- `label: <text>` - name for the next step
+- `send: <hex or "text">` - transmit raw bytes (no line ending appended)
+- `expect: <pattern>` - wait for response and match (`**` = any byte)
+- `timeout: <duration>` - per-step timeout override
+- `delay: <duration>` - fixed sleep
+- `flush: <duration>` - wait for serial silence (resets on each byte), then discard received bytes
+- `cmd: <text>` - send a plain text command with config line ending (like typing in terminal)
 
 ### Hex Display Mode
 
@@ -502,7 +502,7 @@ Use `fmt=` with the protocol format spec language to define the record structure
 `/cap.struct` reads raw bytes; `/cap.hex` reads hex-encoded text lines.
 
 - `records=N`: number of records (record size derived from format spec)
-- `bytes=N`: alternative — total byte count (must be multiple of record size)
+- `bytes=N`: alternative - total byte count (must be multiple of record size)
 - `sep=comma|tab|space`: column separator (default comma)
 - `echo=on|off`: print formatted values to terminal (default off)
 - `mode=new|append`: file mode (default new)
@@ -525,9 +525,9 @@ tracks the last-used number across sessions, with rollover.
 
 | Pattern   | Range   |
 | --------- | ------- |
-| `$(n0)`   | 0–9     |
-| `$(n00)`  | 00–99   |
-| `$(n000)` | 000–999 |
+| `$(n0)`   | 0-9     |
+| `$(n00)`  | 00-99   |
+| `$(n000)` | 000-999 |
 
 ``` text
 /cap.text log_$(n000).txt timeout=3s cmd=AT+INFO
@@ -569,7 +569,7 @@ The demo config includes example scripts and protocol tests:
 
 - **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`
 - **Proto:** `at_test.pro` (AT command tests), `bitfield_inline.pro`, `modbus_inline.pro` (Modbus RTU tests)
-- **Plugin:** `probe.py` — demo plugin showing serial I/O (drain → write → read → parse). Try `/probe` to run a device survey, or `/help.dev probe` to see the annotated source as a plugin-writing guide.
+- **Plugin:** `probe.py` - demo plugin showing serial I/O (drain → write → read → parse). Try `/probe` to run a device survey, or `/help.dev probe` to see the annotated source as a plugin-writing guide.
 
 The simulated device also responds to binary Modbus RTU frames (function codes 0x03 read registers, 0x06 write register) for proto debug testing.
 

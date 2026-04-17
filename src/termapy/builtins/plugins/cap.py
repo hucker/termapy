@@ -388,7 +388,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             "{timeout=<dur>} {overwrite} cmd=<commands> (must be last)"
         )
 
-    # Commands — newline-separated
+    # Commands - newline-separated
     cmds = [c.strip() for c in sections["cmd"].replace("\\n", "\n").split("\n") if c.strip()]
     if not cmds:
         return CmdResult.fail(msg="cmd= must have at least one command")

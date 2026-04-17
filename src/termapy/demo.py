@@ -268,7 +268,7 @@ class FakeSerial:
     _STX = 0x02  # Start of 1024-byte block (YMODEM)
     _CAN = 0x18  # Cancel
 
-    # Default virtual filesystem — pre-loaded demo files
+    # Default virtual filesystem - pre-loaded demo files
     _DEFAULT_VFS: dict[str, bytes] = {
         "device_log.txt": b"2025-01-15 08:00:01 INFO  Boot OK\r\n2025-01-15 08:00:02 INFO  Sensor init\r\n2025-01-15 08:00:03 WARN  Battery 3.1V\r\n2025-01-15 08:00:04 INFO  Ready\r\n",
         "config.dat": bytes(range(64)),
@@ -903,7 +903,7 @@ class FakeSerial:
             upper: Uppercased command string.
 
         Returns:
-            Response bytes — OK + initial protocol byte, or error.
+            Response bytes - OK + initial protocol byte, or error.
         """
         if "=" not in upper:
             return b"ERROR: Usage: AT+XMODEM=SEND {file} or AT+XMODEM=RECV {file}\r\n"
@@ -960,7 +960,7 @@ class FakeSerial:
         if not buf:
             return
 
-        # EOT = end of transmission — store received data in VFS
+        # EOT = end of transmission - store received data in VFS
         if buf[0] == self._EOT:
             del buf[0]
             self._output_buf.extend(bytes([self._ACK]))
@@ -1055,7 +1055,7 @@ class FakeSerial:
         chunk = self._xmodem_send_data[offset:offset + 128]
 
         if not chunk:
-            # No more data — send EOT
+            # No more data - send EOT
             self._output_buf.extend(bytes([self._EOT]))
             self._xmodem_state = None
             return
@@ -1201,7 +1201,7 @@ class FakeSerial:
         if self._ymodem_phase == "header" or self._ymodem_phase == "batch_end":
             # Block 0: filename\0filesize\0 (or empty = batch end)
             if data[0] == 0x00:
-                # Empty filename = end of batch — store received file in VFS
+                # Empty filename = end of batch - store received file in VFS
                 if self._ymodem_recv_name and self._ymodem_recv_buf:
                     if self._ymodem_recv_size > 0:
                         actual = bytes(self._ymodem_recv_buf[:self._ymodem_recv_size])

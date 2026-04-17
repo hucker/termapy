@@ -72,7 +72,7 @@ def update_doc_configs() -> list[str]:
 
         result = _extract_json(lines, tag_line)
         if result is None:
-            print(f"  WARN: {file_path.name}:{tag_line + 1} — no JSON block found after tag")
+            print(f"  WARN: {file_path.name}:{tag_line + 1} - no JSON block found after tag")
             continue
 
         example_cfg, start, end = result
@@ -123,7 +123,7 @@ def update_doc_configs() -> list[str]:
             changes.append(f"removed {sorted(unknown)}")
         if version_stale:
             changes.append(f"version {example_cfg.get('config_version')} -> {CURRENT_CONFIG_VERSION}")
-        desc = f"{file_path.name}:{tag_line + 1} — {', '.join(changes)}"
+        desc = f"{file_path.name}:{tag_line + 1} - {', '.join(changes)}"
         print(f"  FIXED {desc}")
         updated.append(desc)
 

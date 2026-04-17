@@ -99,7 +99,7 @@ Examples that should not:
 ## Dynamic help for runtime state
 
 If your command owns runtime state that a user should see right on its
-help page — a loaded file, an open connection, a count of cached items —
+help page - a loaded file, an open connection, a count of cached items -
 set `long_help` to a function instead of a string. The function takes
 the `PluginContext` and returns a string. It's invoked at render time,
 so whatever it reads from `ctx.ns(...)` or `ctx.cfg` is live.
@@ -126,7 +126,7 @@ COMMAND = Command(
 
 When the user runs `/help include`, the DESCRIPTION section calls this
 function and the first line reflects the current state. No change to
-the rendering path, no extra registration — the `long_help` field just
+the rendering path, no extra registration - the `long_help` field just
 accepts either form.
 
 Two caveats:
@@ -142,7 +142,7 @@ Two caveats:
 ### Reusable helpers (`termapy.help_dynamic`)
 
 Most dynamic help lines fall into a handful of shapes, so the built-ins
-share a small helper module. Prefer these over hand-rolling — the
+share a small helper module. Prefer these over hand-rolling - the
 output is green-on-default and uniform across every command.
 
 ```python

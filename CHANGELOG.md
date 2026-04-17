@@ -126,12 +126,12 @@ Type-check cleanup release.  Brings `uvx ty check src/termapy/` from 370 diagnos
 
 ## 0.54.0 (2026-04-08)
 
-Plugin API release. Two new primitives let plugins own their own session state and lifecycle, and five built-ins (seq, target_commands, echo, hex_mode, verbose) migrate onto them as worked examples. `EngineAPI` is now a legible escape hatch containing only Textual/threading/serial handles — anything that could live in a plain dict has been moved out.
+Plugin API release. Two new primitives let plugins own their own session state and lifecycle, and five built-ins (seq, target_commands, echo, hex_mode, verbose) migrate onto them as worked examples. `EngineAPI` is now a legible escape hatch containing only Textual/threading/serial handles - anything that could live in a plain dict has been moved out.
 
 ### 0.54.0 New Features
 
 - **`ctx.ns(name)` namespace primitive** -- plugins get a sanctioned, session-scoped `dict` for their state instead of monkeypatching `ctx` or using module globals. Lazy creation on first access, same dict returned on every call with the same name, flat visibility (any plugin can read any namespace) so cooperating plugins can share state on purpose. See `ARCHITECTURE.md` for the full pattern.
-- **Plugin lifecycle hooks** -- plugins can now declare `on_app_start`, `on_app_stop`, `on_script_start`, and `on_script_stop` as top-level functions in their module. The loader discovers them alongside `COMMAND`/`TRANSFORM`/`DIRECTIVE`. Exceptions are caught per-hook so one bad plugin cannot block others. Script hooks fire only at the outermost script boundary; nested `/run` does not re-fire. No base class, no decorators — a plugin is still a module that exports stuff.
+- **Plugin lifecycle hooks** -- plugins can now declare `on_app_start`, `on_app_stop`, `on_script_start`, and `on_script_stop` as top-level functions in their module. The loader discovers them alongside `COMMAND`/`TRANSFORM`/`DIRECTIVE`. Exceptions are caught per-hook so one bad plugin cannot block others. Script hooks fire only at the outermost script boundary; nested `/run` does not re-fire. No base class, no decorators - a plugin is still a module that exports stuff.
 - **`flags` namespace** -- engine-reserved namespace holding `echo`, `verbose`, and `hex_mode`. Defaults are seeded once in `_build_context` and read sites use bare key access, so a missing key is a construction bug not silent drift. Third-party plugins should use their own namespace name to avoid collision.
 
 ### 0.54.0 Improvements

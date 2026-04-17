@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 # Repo root is the parent of scripts/
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -38,7 +39,7 @@ def warn(msg: str) -> None:
     print(f"{YELLOW}!! {RESET} {msg}")
 
 
-def die(msg: str, code: int = 1) -> None:
+def die(msg: str, code: int = 1) -> NoReturn:
     print(f"{RED}FAIL{RESET} {msg}", file=sys.stderr)
     sys.exit(code)
 

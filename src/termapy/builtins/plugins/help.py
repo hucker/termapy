@@ -410,7 +410,6 @@ def _show_command_help(ctx: PluginContext, name: str,
     ``dev_mode`` routes exact matches to the developer docstring view
     instead of the normal DESCRIPTION.
     """
-    prefix = ctx.engine.prefix
     plugins = ctx.engine.plugins
 
     # 1. Exact match wins.

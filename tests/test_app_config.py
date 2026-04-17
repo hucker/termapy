@@ -1,7 +1,6 @@
 """Tests for app.py config utilities, custom buttons, and script editor."""
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -94,26 +93,39 @@ class TestCfgHelpers:
 # -- DEFAULT_CFG structure --------------------------------------------------
 
 
+def _custom_buttons() -> list[dict]:
+    """Return the custom_buttons list with a narrowed type for ty.
+
+    DEFAULT_CFG is a mixed-value-type dict literal (int, str, bool, list),
+    so subscripting returns a union and ty can't prove it's a list.  This
+    helper asserts the type once and hands back a plain list[dict] so the
+    tests below read naturally without scattering isinstance narrows.
+    """
+    buttons = DEFAULT_CFG["custom_buttons"]
+    assert isinstance(buttons, list), "custom_buttons is a list"
+    return buttons
+
+
 class TestDefaultCfg:
     def test_has_custom_buttons(self):
         assert "custom_buttons" in DEFAULT_CFG, "key exists"
-        assert isinstance(DEFAULT_CFG["custom_buttons"], list), "is a list"
-        assert len(DEFAULT_CFG["custom_buttons"]) >= 4, "at least 4 button placeholders"
+        buttons = _custom_buttons()
+        assert len(buttons) >= 4, "at least 4 button placeholders"
 
     def test_custom_buttons_info_enabled(self):
         """First default button is the Info button (enabled)."""
-        info_btn = DEFAULT_CFG["custom_buttons"][0]
+        info_btn = _custom_buttons()[0]
         assert info_btn["enabled"] is True, "Info button enabled"
         assert info_btn["name"] == "Info", "named Info"
         assert info_btn["command"] == "/cfg.info", "runs /cfg.info"
 
     def test_custom_buttons_placeholders_disabled(self):
         """Remaining default buttons are disabled placeholders."""
-        for btn in DEFAULT_CFG["custom_buttons"][1:]:
+        for btn in _custom_buttons()[1:]:
             assert btn["enabled"] is False, "placeholder disabled"
 
     def test_custom_buttons_have_required_fields(self):
-        for btn in DEFAULT_CFG["custom_buttons"]:
+        for btn in _custom_buttons():
             assert "enabled" in btn, "enabled field present"
             assert "name" in btn, "name field present"
             assert "command" in btn, "command field present"

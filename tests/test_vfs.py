@@ -98,8 +98,8 @@ class TestFsList:
     def test_list_sorted(self, dev: FakeSerial) -> None:
         """AT+FS.LIST returns files in sorted order."""
         actual = _send_cmd(dev, "AT+FS.LIST")
-        lines = [l.strip() for l in actual.strip().split("\r\n") if l.strip()]
-        names = [l.split()[0] for l in lines]
+        lines = [line.strip() for line in actual.strip().split("\r\n") if line.strip()]
+        names = [line.split()[0] for line in lines]
         assert names == sorted(names), "alphabetical order"
 
 

@@ -3,7 +3,6 @@
 import struct
 from pathlib import Path
 
-import pytest
 
 from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
 
@@ -127,6 +126,7 @@ class TestTextCapture:
         # Assert
         actual = path.read_text()
         assert actual == "hello\nworld\n", "lines written with newlines"
+        assert isinstance(result, CaptureResult), "stop returns a result"
         assert result.byte_count == 12, "5+1+5+1 = 12"
 
     def test_feed_text_ignored_when_inactive(self, tmp_path):
@@ -147,6 +147,7 @@ class TestTextCapture:
         result = engine.stop()
 
         # Assert
+        assert isinstance(result, CaptureResult), "stop returns a result"
         assert result.byte_count == 0, "text not fed to bin capture"
 
     def test_append_mode(self, tmp_path):
@@ -183,6 +184,7 @@ class TestBinaryRawCapture:
         result = engine.stop()
         actual = path.read_bytes()
         assert actual == b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a", "all bytes written"
+        assert isinstance(result, CaptureResult), "stop returns a result"
         assert result.byte_count == 10, "byte count matches"
 
     def test_feed_bytes_returns_true_at_target(self, tmp_path):

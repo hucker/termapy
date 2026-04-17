@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
 
 from termapy.port_control import (
     PORT_PROPS,
@@ -11,7 +10,6 @@ from termapy.port_control import (
     get_set_flow,
     get_set_hw_line,
     get_set_prop,
-    list_ports,
     parse_bool_value,
     parse_mode,
     parse_open_args,

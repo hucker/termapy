@@ -12,7 +12,7 @@ from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Checkbox, Input, OptionList, TextArea
+from textual.widgets import Button, Input, OptionList, TextArea
 from textual.widgets.option_list import Option
 
 from termapy.config import (

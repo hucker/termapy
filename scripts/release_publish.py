@@ -43,7 +43,6 @@ from release_common import (  # noqa: E402
     run,
     run_out,
     validate_version,
-    warn,
 )
 
 
@@ -192,10 +191,10 @@ def build_and_publish_pypi(version: str) -> None:
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
     info(f"Building v{version} for PyPI...")
-    run(["uv", "build"], cwd=str(REPO_ROOT))
+    run(["uv", "build"], cwd=REPO_ROOT)
     ok("built sdist and wheel")
     info("Publishing to PyPI...")
-    run(["uv", "publish", "--token", token], cwd=str(REPO_ROOT))
+    run(["uv", "publish", "--token", token], cwd=REPO_ROOT)
     ok(f"v{version} published to PyPI")
 
 
@@ -252,7 +251,7 @@ def main() -> None:
     info("Post-release:")
     print(f"  - GitHub release: gh release view v{version} --web")
     print(f"  - PyPI: https://pypi.org/project/termapy/{version}/")
-    print(f"  - You are now on main, at the merge commit.")
+    print("  - You are now on main, at the merge commit.")
     print(f"  - The release branch {release_branch} is preserved (per project convention).")
     print()
 

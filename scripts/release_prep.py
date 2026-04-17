@@ -466,10 +466,10 @@ def main() -> None:
     ok(f"Release v{version} prepped on branch release/v{version}")
     print()
     info("Next steps:")
-    print(f"  1. Review the diff:        git log -p main..HEAD")
-    print(f"  2. Edit CHANGELOG.md       (the stub has TODO markers)")
-    print(f"  3. Amend if you edit it:   git add CHANGELOG.md && git commit --amend --no-edit")
-    print(f"  4. Publish:                python scripts/release_publish.py --yes")
+    print("  1. Review the diff:        git log -p main..HEAD")
+    print("  2. Edit CHANGELOG.md       (the stub has TODO markers)")
+    print("  3. Amend if you edit it:   git add CHANGELOG.md && git commit --amend --no-edit")
+    print("  4. Publish:                python scripts/release_publish.py --yes")
     print()
 
 

@@ -397,7 +397,7 @@ class TestMapFileSearch:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Act
-        matches = mf.search("zzz_nonexistent_zzz")
+        matches = mf.search("__does_not_exist__")
 
         # Assert
         assert matches == [], "should return empty list for no match"

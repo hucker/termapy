@@ -21,9 +21,10 @@ class TestGeneratePython:
         entry = CRC_CATALOGUE[name]
         expected = entry["check"]
         code = generate_python(name)
+        assert code is not None, f"generate_python returned code for {name}"
 
         # Act - execute the generated function
-        ns = {}
+        ns: dict = {}
         exec(code, ns)
         func_name = name.replace("-", "_").replace(".", "_")
         actual = ns[func_name](CHECK_DATA)
@@ -40,6 +41,7 @@ class TestGeneratePython:
         code = generate_python("crc16-modbus")
 
         # Assert
+        assert code is not None, "generator returned code"
         assert '"""' in code, "has docstring"
         assert "crc16-modbus" in code, "names the algorithm"
 
@@ -49,9 +51,10 @@ class TestGeneratePython:
         entry = CRC_CATALOGUE[name]
         expected = entry["check"]
         code = generate_python(name, table=True)
+        assert code is not None, f"generate_python(table=True) returned code for {name}"
 
         # Act - execute the generated table-driven function
-        ns = {}
+        ns: dict = {}
         exec(code, ns)
         func_name = name.replace("-", "_").replace(".", "_")
         actual = ns[func_name](CHECK_DATA)
@@ -66,6 +69,7 @@ class TestGenerateC:
         code = generate_c("crc16-modbus")
 
         # Assert
+        assert code is not None, "generator returned code"
         assert "uint16_t" in code, "correct type"
         assert "crc16_modbus" in code, "function name"
         assert "0x4B37" in code, "check value in comment"
@@ -79,6 +83,7 @@ class TestGenerateC:
         code = generate_c("crc8")
 
         # Assert
+        assert code is not None, "generator returned code"
         assert "uint8_t" in code, "CRC-8 should use uint8_t"
 
     def test_crc32_uses_uint32(self):
@@ -86,6 +91,7 @@ class TestGenerateC:
         code = generate_c("crc32")
 
         # Assert
+        assert code is not None, "generator returned code"
         assert "uint32_t" in code, "CRC-32 should use uint32_t"
 
 
@@ -95,6 +101,7 @@ class TestGenerateRust:
         code = generate_rust("crc16-modbus")
 
         # Assert
+        assert code is not None, "generator returned code"
         assert "fn crc16_modbus" in code, "function name"
         assert "u16" in code, "correct type"
         assert "0x4B37" in code, "check value"
@@ -108,6 +115,7 @@ class TestGenerateRust:
         code = generate_rust("crc8")
 
         # Assert
+        assert code is not None, "generator returned code"
         assert "u8" in code, "CRC-8 should use u8"
 
     def test_crc32_uses_u32(self):
@@ -115,6 +123,7 @@ class TestGenerateRust:
         code = generate_rust("crc32")
 
         # Assert
+        assert code is not None, "generator returned code"
         assert "u32" in code, "CRC-32 should use u32"
 
 

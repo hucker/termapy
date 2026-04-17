@@ -38,6 +38,7 @@ class TestResolveConfigExactFile:
         actual = _resolve_config(str(cfg.relative_to(tmp_path)))
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg.resolve(), "relative path resolves to same file"
 
     def test_cfg_extension_explicit(self, tmp_path, monkeypatch):
@@ -87,6 +88,7 @@ class TestResolveConfigDirectory:
         actual = _resolve_config("termapy_cfg/demo")
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg.resolve(), "nested relative directory resolves to cfg"
 
 
@@ -104,6 +106,7 @@ class TestResolveConfigCfgDir:
         actual = _resolve_config("demo")
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg.resolve(), "bare name found in cfg_dir"
 
     def test_bare_name_with_cfg_extension(self, tmp_path, monkeypatch):
@@ -117,6 +120,7 @@ class TestResolveConfigCfgDir:
         actual = _resolve_config("demo.cfg")
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg.resolve(), "name.cfg stem found in cfg_dir"
 
 
@@ -135,6 +139,7 @@ class TestResolveConfigCwdFallback:
         actual = _resolve_config("demo")
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg.resolve(), "falls back to cwd/termapy_cfg"
 
 
@@ -153,6 +158,7 @@ class TestResolveConfigAppendCfg:
         actual = _resolve_config("my_device")
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg.resolve(), "appends .cfg to bare name"
 
     def test_no_double_cfg_extension(self, tmp_path, monkeypatch):
@@ -227,6 +233,7 @@ class TestResolveConfigPriority:
         actual = _resolve_config("demo")
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == exact.resolve(), "rule 1 (exact file) wins over rule 3 (cfg_dir)"
 
     def test_cfg_dir_beats_cwd_fallback(self, tmp_path, monkeypatch):
@@ -242,4 +249,5 @@ class TestResolveConfigPriority:
         actual = _resolve_config("demo")
 
         # Assert
+        assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg_a.resolve(), "rule 3 (cfg_dir) wins over rule 4 (cwd/termapy_cfg)"

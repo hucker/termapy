@@ -31,7 +31,8 @@ Help-system release.  Every built-in command's `/help` page now opens with a one
 - **First-class flags** -- plugin commands now declare their flags on a `Command(flags={...})` dict. The dispatcher parses and strips declared flags before the handler runs; handlers read them via `ctx.flag("--name")`. Benefits you will notice:
   - Flags appear under their own **Flags:** section in `/help <cmd>` output
   - `/help table` finds `--table` directly
-  - Typos like `--talbe` get a `did you mean --table?` suggestion instead of being silently ignored
+  - Typos like `--tablet` get a `did you mean --table?` suggestion instead of being silently ignored
+
   - Short aliases work uniformly: `/run foo.run -v` and `/run foo.run --verbose` both set the same flag
 - **`/cap.poll`** -- new command for polling one or more device commands on a schedule, streaming the responses to a CSV or JSONL file. Supports `count=`, `delay=`, `file=`, `labels=`, `regex=` extraction, and `--overwrite` / `--notime` flags.
 - **Network serial ports** -- pyserial URL-style ports (`loop://`, `socket://<host>:<port>`, `rfc2217://...`) are now accepted wherever a port name would go.

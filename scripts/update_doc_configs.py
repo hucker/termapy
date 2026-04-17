@@ -15,7 +15,6 @@ after adding a new config key.
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 

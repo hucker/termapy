@@ -473,7 +473,7 @@ class TestCapture:
 class TestHookHelpOpen:
     def test_unknown_topic(self, host):
         # Act
-        result = host._hook_help_open(None, "nonexistent_topic_xyz")
+        result = host._hook_help_open(None, "__does_not_exist__")
 
         # Assert
         assert result.success is False, "fails for unknown topic"

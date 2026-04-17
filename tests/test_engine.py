@@ -193,8 +193,10 @@ class TestRegisterPlugin:
     def test_register_plugin_overrides(self, engine):
         # Arrange
         eng, _ = engine
-        h1 = lambda ctx, args: None
-        h2 = lambda ctx, args: None
+        def h1(ctx, args):
+            return None
+        def h2(ctx, args):
+            return None
         eng.register_plugin(PluginInfo(name="x", args="", help="", handler=h1))
 
         # Act
@@ -323,7 +325,7 @@ class TestRunScript:
 
     def test_invalid_delay(self, tmp_path):
         # Arrange
-        eng, output, writes, script = self._make_engine(tmp_path, "/delay badvalue\n")
+        eng, output, writes, script = self._make_engine(tmp_path, "/delay bad_value\n")
 
         # Act
         eng.run_script(script)
@@ -857,11 +859,11 @@ class TestParseFlags:
         declared = {"--table": "Use lookup table."}
 
         # Act
-        _, _, err = _parse_flags("crc16-cms --talbe", declared)
+        _, _, err = _parse_flags("crc16-cms --tablet", declared)
 
         # Assert
         assert err is not None, "unknown flag should error"
-        assert "--talbe" in err, "names the bad flag"
+        assert "--tablet" in err, "names the bad flag"
         assert "--table" in err, "suggests the close match"
 
     def test_alias_resolves_to_canonical(self):
@@ -1015,11 +1017,11 @@ class TestDispatchFlags:
         eng, ctx, calls, output = flag_env
 
         # Act
-        result = eng.dispatch("flag_test x --talbe")
+        result = eng.dispatch("flag_test x --tablet")
 
         # Assert
         assert result.success is False, "unknown flag fails"
-        assert "--talbe" in result.error, "names the bad flag"
+        assert "--tablet" in result.error, "names the bad flag"
         assert "--table" in result.error, "suggests the real flag"
         assert len(calls) == 0, "handler not called"
 

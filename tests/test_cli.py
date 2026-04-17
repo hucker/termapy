@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import json
-import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from termapy.cli import CLITerminal
-from termapy.plugins import CmdResult
 
 
 # -- Fixtures ----------------------------------------------------------------

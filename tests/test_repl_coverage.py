@@ -6,12 +6,11 @@ from __future__ import annotations
 import json
 import time
 from io import StringIO
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult, PluginContext
+from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult
 from termapy.repl import ReplEngine, ScriptCtx, _edit_distance, _suggest_command
 
 
@@ -185,7 +184,7 @@ class TestScriptCtxRecord:
             progress=None,
             on_nest=None,
         )
-        sctx.prof_fh = buf
+        sctx.prof_fh = buf  # ty: ignore[invalid-assignment]
         sctx.step = 1
         sctx.total = 1
 
@@ -284,7 +283,7 @@ class TestDispatchSuggestion:
                           source="test")
 
         # Act
-        result = eng.dispatch("halp")
+        result = eng.dispatch("helm")
 
         # Assert
         assert result.success is False, "unknown command fails"

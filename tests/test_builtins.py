@@ -265,7 +265,7 @@ class TestHelp:
         engine, _, _, output = repl_env
 
         # Act
-        result = engine.dispatch("help xyzzyghhh")
+        result = engine.dispatch("help __does_not_exist__")
 
         # Assert
         assert result.success is False, "zero-hit miss hard-fails"
@@ -537,11 +537,11 @@ class TestHelp:
         engine.register_plugin(PluginInfo(
             name="unique_cmd", args="", help="Plain help.",
             handler=lambda ctx, args: None,
-            long_help=lambda ctx: "UNIQUE_HAPAX appears only in dynamic help",
+            long_help=lambda ctx: "__search_probe__ appears only in dynamic help",
         ))
 
         # Act
-        result = engine.dispatch("search UNIQUE_HAPAX")
+        result = engine.dispatch("search __search_probe__")
 
         # Assert - the command surfaces via its dynamic long_help text
         names = result.value.splitlines() if result.value else []

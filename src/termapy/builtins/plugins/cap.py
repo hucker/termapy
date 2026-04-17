@@ -508,8 +508,8 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
     if not notime:
         header_cols.append(("timestamp", 23, "ljust"))
     header_cols.append(("counter", 7, "rjust"))
-    for l in labels:
-        header_cols.append((l, 10, "rjust"))
+    for label in labels:
+        header_cols.append((label, 10, "rjust"))
 
     # Open file if requested
     fh = None

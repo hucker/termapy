@@ -86,14 +86,14 @@ class TestMarkup:
 
     def test_compose_drops_empty_parts(self):
         # Act
-        actual = compose("one", "", None, "two")  # type: ignore[arg-type]
+        actual = compose("one", "", None, "two")
 
         # Assert
         assert actual == "one\n\ntwo", "compose joins non-empty with blank line"
 
     def test_compose_all_empty_returns_empty(self):
         # Act
-        actual = compose("", "", None)  # type: ignore[arg-type]
+        actual = compose("", "", None)
 
         # Assert
         assert actual == "", "compose of nothing is empty"

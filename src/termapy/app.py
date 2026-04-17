@@ -54,7 +54,6 @@ from termapy.dialogs import (
 )
 from termapy.plugins import (
     CapabilitySet,
-    EngineAPI,
     LoadResult,
     PluginContext,
     load_plugins_from_dir,

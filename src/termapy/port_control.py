@@ -217,6 +217,71 @@ USB_SERIAL_CHIPS: dict[tuple[int, int], tuple[str, str, int]] = {
 }
 
 
+# Display-only short aliases for the USB manufacturer string.  The raw
+# descriptor varies between driver versions and OSes ("Silicon Labs"
+# vs "Silicon Laboratories", "Microsoft" vs "Microsoft Corporation");
+# one short prefix per reported root name catches every variant via
+# case-insensitive ``startswith``.  Unknown values pass through
+# unchanged for the caller to truncate as needed.
+#
+# This is **display-only**.  ``ChipFacts.manufacturer`` stores the raw
+# string and ``/port.chip.manufacturer`` returns it unchanged, so every
+# script / test comparison works against the original reported value.
+#
+# Design rule: do not merge distinct brand identities.  If the chip
+# reports ``Cypress``, show ``Cypress`` (not ``Infineon``); if it says
+# ``Atmel``, show ``Atmel`` (not ``Microchip``).  Respecting what the
+# hardware actually reports is more useful than deduplicating
+# corporate history.
+MANUFACTURER_ALIASES: tuple[tuple[str, str], ...] = (
+    ("ftdi",                  "FTDI"),
+    ("future technology",     "FTDI"),
+    ("microsoft",             "MSFT"),
+    ("silicon lab",           "SiLabs"),
+    ("prolific",              "Prolific"),
+    ("wch",                   "WCH"),
+    ("qinheng",               "WCH"),
+    ("arduino",               "Arduino"),
+    ("stmicro",               "STM"),
+    ("atmel",                 "Atmel"),
+    ("microchip",             "Microchip"),
+    ("nxp",                   "NXP"),
+    ("nordic",                "Nordic"),
+    ("espressif",             "Espressif"),
+    ("raspberry pi",          "RaspPi"),
+    ("teensy",                "Teensy"),
+    ("pjrc",                  "Teensy"),
+    ("cypress",               "Cypress"),
+    ("infineon",              "Infineon"),
+    ("texas instruments",     "TI"),
+    ("segger",                "Segger"),
+    ("vmware",                "VMware"),
+    ("parallels",             "Parallels"),
+    # Windows native / built-in COM ports report this literal string.
+    ("(standard port types)", ""),
+)
+
+
+def canonical_manufacturer(raw: str | None) -> str:
+    """Return a short display alias for a USB manufacturer descriptor.
+
+    Case-insensitive ``startswith`` against ``MANUFACTURER_ALIASES``
+    entries, in order.  Unknown values pass through unchanged so the
+    caller can decide whether to truncate.  ``None`` / empty returns
+    ``""``.
+
+    Never modifies ``ChipFacts.manufacturer`` or any API return value;
+    this is display-only.
+    """
+    if not raw:
+        return ""
+    needle = raw.strip().lower()
+    for prefix, alias in MANUFACTURER_ALIASES:
+        if needle.startswith(prefix):
+            return alias
+    return raw
+
+
 def _msg(text: str, color: str | None = None) -> Msg:
     return (text, color)
 

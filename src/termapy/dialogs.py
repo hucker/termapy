@@ -1489,7 +1489,11 @@ class WelcomeDialog(ModalScreen[None]):
 
 # Column order for the port table, left-to-right.  Defined in one place
 # so width computation, header rendering, and row formatting all
-# iterate in the same order.
+# iterate in the same order.  The ``sn`` column is included here but is
+# *conditionally* shown by ``_active_port_columns`` below -- it only
+# appears when at least one listed port reports a USB serial number,
+# since most built-in/stock serial ports have none and would show an
+# all-dashes column that wastes horizontal space.
 _PORT_COLUMNS: tuple[str, ...] = (
     "port",
     "manufacturer",
@@ -1497,20 +1501,46 @@ _PORT_COLUMNS: tuple[str, ...] = (
     "chip",
     "speed",
     "vid_pid",
+    "sn",
 )
 
-# Header labels shown in the table header row.
+# Header labels shown in the table header row.  MANUFACTURER is
+# abbreviated to MFG so the column stays compact (most vendor strings
+# are shorter than the full header label was anyway -- FTDI, Microsoft,
+# Silabs); full value is still available via /port.chip.manufacturer.
 _PORT_COLUMN_HEADERS: dict[str, str] = {
     "port": "PORT",
-    "manufacturer": "MANUFACTURER",
+    "manufacturer": "MFG",
     "description": "DESCRIPTION",
     "chip": "CHIP",
     "speed": "SPEED",
     "vid_pid": "VID:PID",
+    "sn": "SN",
 }
 
 # Column separator between adjacent fields.
 _PORT_COL_SEP = "  "
+
+
+# Columns dropped first when the row won't fit the usable width, in
+# priority order (most-expendable first).  port / description / mfg
+# are never dropped: port is required to pick a row, description is
+# the primary identifier, and mfg is already very short.
+_DROP_ORDER: tuple[str, ...] = ("speed", "chip", "vid_pid", "sn")
+
+
+def _active_port_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
+    """Drop purely-blank optional columns from the display list.
+
+    Today only ``sn`` is optional: if every port reports ``"-"`` for
+    serial number (common on built-in COM1/stock adapters), we hide
+    the column entirely so the row stays readable.  Other columns
+    like chip/speed/vid_pid can also be ``"-"`` for non-USB ports but
+    are informative enough to always show.
+    """
+    if rows and all(row["sn"] == "-" for _, row in rows):
+        return tuple(c for c in _PORT_COLUMNS if c != "sn")
+    return _PORT_COLUMNS
 
 
 def _gather_port_row(p, port_control) -> tuple[str, dict]:
@@ -1531,9 +1561,14 @@ def _gather_port_row(p, port_control) -> tuple[str, dict]:
     if not description:
         description = "Serial port"
 
-    # Chip name, speed class, vid_pid, and manufacturer from the
-    # chip_facts lookup.  Speed goes in its own column so the chip
-    # name stays clean (no trailing speed suffix).
+    # Chip name, speed class, vid_pid, manufacturer, and USB serial
+    # number from the chip_facts lookup.  Speed goes in its own column
+    # so the chip name stays clean (no trailing speed suffix).  The
+    # manufacturer is canonicalized to a short display alias
+    # (FTDI / MSFT / SiLabs / ...) so a 9-ish-char column fits every
+    # common vendor without truncation.  Raw string is preserved in
+    # ChipFacts.manufacturer and returned verbatim by
+    # /port.chip.manufacturer.
     facts = port_control.gather_chip_facts(p.device)
     if facts is not None:
         chip = (
@@ -1548,12 +1583,17 @@ def _gather_port_row(p, port_control) -> tuple[str, dict]:
             elif "High-Speed" in facts.usb_speed:
                 speed = "High-Speed"
         vid_pid = facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else "-"
-        manufacturer = facts.manufacturer or "-"
+        manufacturer = port_control.canonical_manufacturer(facts.manufacturer) or "-"
+        sn = facts.serial or "-"
     else:
         chip = "-"
         speed = "-"
         vid_pid = "-"
-        manufacturer = (p.manufacturer or "-")
+        manufacturer = (
+            port_control.canonical_manufacturer(getattr(p, "manufacturer", None))
+            or "-"
+        )
+        sn = (p.serial_number or "-") if hasattr(p, "serial_number") else "-"
 
     return port, {
         "port": port,
@@ -1562,91 +1602,139 @@ def _gather_port_row(p, port_control) -> tuple[str, dict]:
         "chip": chip,
         "speed": speed,
         "vid_pid": vid_pid,
+        "sn": sn,
     }
 
 
 def _compute_port_column_widths(
-    rows: list[tuple[str, dict]], row_width: int
-) -> dict:
-    """Compute the width of each column from the actual row data.
+    rows: list[tuple[str, dict]],
+    row_width: int,
+    columns: tuple[str, ...] = _PORT_COLUMNS,
+) -> tuple[dict, tuple[str, ...]]:
+    """Compute the width of each column and the set that survives.
 
-    Columns start at their natural (data-driven) widths, then if the
-    total row width would exceed ``row_width`` the flexible columns
-    (description first, then chip) are shrunk to fit.  PORT, VID:PID,
-    and MANUFACTURER are never truncated; users need port and vid:pid
-    in full and the manufacturer is usually short (FTDI, Microsoft).
+    Fit strategy, in order:
 
-    Returns a dict mapping column name to integer width.
+    1. Start at natural (data-driven) widths.
+    2. If still over budget, **drop entire columns** from the display
+       in the priority order given by ``_DROP_ORDER`` (speed, chip,
+       vid_pid, sn).  Dropping a column is preferred to compressing
+       one because a sparse but complete row reads better than a
+       truncated dense one.
+    3. If still over budget with every droppable column gone, fall
+       back to shrinking the description and chip columns (chip only
+       if it survived step 2).
+    4. If still over after both floors are hit, the dialog is too
+       narrow for the data; accept the overrun rather than truncating
+       port / description / mfg.
+
+    Returns ``(widths, surviving_columns)``.  Callers thread the
+    surviving-column tuple through the header / row formatters so
+    dropped columns disappear from both the header and the data rows.
     """
-    # Natural width: max of data entries and the header label.
-    widths = {
-        col: max(
-            len(_PORT_COLUMN_HEADERS[col]),
-            max((len(row[col]) for _, row in rows), default=0),
-        )
-        for col in _PORT_COLUMNS
-    }
+    def _natural_widths(cols: tuple[str, ...]) -> dict:
+        return {
+            col: max(
+                len(_PORT_COLUMN_HEADERS[col]),
+                max((len(row[col]) for _, row in rows), default=0),
+            )
+            for col in cols
+        }
 
-    sep_total = len(_PORT_COL_SEP) * (len(_PORT_COLUMNS) - 1)
-    total = sum(widths.values()) + sep_total
+    def _total(cols: tuple[str, ...], widths: dict) -> int:
+        sep_total = len(_PORT_COL_SEP) * (len(cols) - 1)
+        return sum(widths[c] for c in cols) + sep_total
 
+    survivors = list(columns)
+    widths = _natural_widths(columns)
+
+    # Step 2: drop columns one at a time until we fit.
+    for victim in _DROP_ORDER:
+        if _total(tuple(survivors), widths) <= row_width:
+            break
+        if victim in survivors:
+            survivors.remove(victim)
+
+    surviving = tuple(survivors)
+    widths = {c: widths[c] for c in surviving}
+
+    total = _total(surviving, widths)
     if total <= row_width:
-        return widths
+        return widths, surviving
 
-    # Over budget: shrink description first, then chip.  Each shrink
-    # step takes characters off the column until we fit or hit minimum
-    # widths.
+    # Step 3: shrink description (always present), then chip if still there.
     min_desc = 10
     min_chip = 10
     over = total - row_width
 
-    # Shrink description first.
     shrink = min(over, widths["description"] - min_desc)
     if shrink > 0:
         widths["description"] -= shrink
         over -= shrink
 
-    # Then shrink chip if still over.
-    if over > 0:
+    if over > 0 and "chip" in widths:
         shrink = min(over, widths["chip"] - min_chip)
         if shrink > 0:
             widths["chip"] -= shrink
             over -= shrink
 
-    # If still over after both flexible columns hit their floors, the
-    # dialog isn't wide enough for the data.  Accept the overrun rather
-    # than truncating port / vid_pid / manufacturer.
-    return widths
+    return widths, surviving
 
 
-def _format_port_header(widths: dict) -> tuple[str, str]:
+def _format_port_header(
+    widths: dict,
+    columns: tuple[str, ...] = _PORT_COLUMNS,
+) -> tuple[str, str]:
     """Return (header_line, separator_line) for the port table header."""
     header = _PORT_COL_SEP.join(
-        _PORT_COLUMN_HEADERS[col].ljust(widths[col]) for col in _PORT_COLUMNS
+        _PORT_COLUMN_HEADERS[col].ljust(widths[col]) for col in columns
     )
     separator = _PORT_COL_SEP.join(
-        "-" * widths[col] for col in _PORT_COLUMNS
+        "-" * widths[col] for col in columns
     )
     return header, separator
 
 
-def _format_port_row(row: dict, widths: dict) -> str:
+def _format_port_row(
+    row: dict,
+    widths: dict,
+    columns: tuple[str, ...] = _PORT_COLUMNS,
+) -> str:
     """Format one port row as a single line aligned to the given widths.
 
     Fields longer than their column width are truncated with a
     three-dot ellipsis (``...``) at the end.  ASCII dots are used
     instead of the Unicode ellipsis character so the table renders
     correctly on terminals with limited Unicode support.
+
+    The ``sn`` column truncates from the **left** instead of the right
+    (``...DEADBEEF`` rather than ``02002670R...``) because the random
+    portion of a USB serial number is usually at the tail.  Vendor
+    prefixes at the head of the string are the least useful part to
+    preserve when we have to cut.  The full value is always available
+    via ``/port.chip.serial``.
     """
-    def _fit(value: str, width: int) -> str:
+    def _fit_head(value: str, width: int) -> str:
+        """Keep the head; cut the tail (...suffix)."""
         if len(value) <= width:
             return value.ljust(width)
         if width <= 3:
             return "..."[:width].ljust(width)
         return (value[: width - 3] + "...").ljust(width)
 
+    def _fit_tail(value: str, width: int) -> str:
+        """Keep the tail; cut the head (...prefix).  Used for ``sn``."""
+        if len(value) <= width:
+            return value.ljust(width)
+        if width <= 3:
+            return "..."[:width].ljust(width)
+        return ("..." + value[-(width - 3):]).ljust(width)
+
+    def _fit(col: str, value: str, width: int) -> str:
+        return _fit_tail(value, width) if col == "sn" else _fit_head(value, width)
+
     return _PORT_COL_SEP.join(
-        _fit(row[col], widths[col]) for col in _PORT_COLUMNS
+        _fit(col, row[col], widths[col]) for col in columns
     )
 
 
@@ -1665,12 +1753,13 @@ def _populate_port_option_list(
         ol.add_option(Option("(no ports found)", disabled=True))
         return
     rows = [_gather_port_row(p, port_control) for p in ports]
-    widths = _compute_port_column_widths(rows, row_width)
-    header, separator = _format_port_header(widths)
+    columns = _active_port_columns(rows)
+    widths, columns = _compute_port_column_widths(rows, row_width, columns)
+    header, separator = _format_port_header(widths, columns)
     ol.add_option(Option(header, disabled=True))
     ol.add_option(Option(separator, disabled=True))
     for port_id, row_data in rows:
-        ol.add_option(Option(_format_port_row(row_data, widths), id=port_id))
+        ol.add_option(Option(_format_port_row(row_data, widths, columns), id=port_id))
 
 
 class PortPicker(ModalScreen[str | None]):

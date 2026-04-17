@@ -5,8 +5,10 @@ from unittest.mock import MagicMock
 
 
 from termapy.port_control import (
+    MANUFACTURER_ALIASES,
     PORT_PROPS,
     SERIAL_KEYS,
+    canonical_manufacturer,
     get_set_flow,
     get_set_hw_line,
     get_set_prop,
@@ -592,3 +594,92 @@ class TestSetMode:
         # Assert
         text = msgs[0][0]
         assert "Mode -> 9600 8O1.5" in text, "summary should show baud and frame"
+
+
+class TestCanonicalManufacturer:
+    """Display-only short-alias lookup for USB manufacturer strings.
+
+    The raw descriptor varies between driver versions and OSes; the
+    canonicalizer folds all the variants to a compact label suitable
+    for a narrow column.  These tests guard both the folding rules
+    and the "unknown passes through" contract.
+    """
+
+    def test_empty_returns_empty(self):
+        # Act / Assert
+        assert canonical_manufacturer("") == "", "empty string returns empty"
+        assert canonical_manufacturer(None) == "", "None returns empty"
+
+    def test_case_insensitive(self):
+        # Act / Assert -- same alias regardless of case
+        assert canonical_manufacturer("FTDI") == "FTDI", "upper case"
+        assert canonical_manufacturer("ftdi") == "FTDI", "lower case"
+        assert canonical_manufacturer("Ftdi") == "FTDI", "mixed case"
+
+    def test_ftdi_variants(self):
+        # Act / Assert -- the long descriptor also maps to FTDI
+        actual = canonical_manufacturer("Future Technology Devices International")
+        assert actual == "FTDI", "FTDI long form collapses"
+
+    def test_microsoft_variants(self):
+        # Act / Assert -- short and long forms both become MSFT
+        assert canonical_manufacturer("Microsoft") == "MSFT", "Microsoft short"
+        assert canonical_manufacturer("Microsoft Corporation") == "MSFT", \
+            "Microsoft long"
+
+    def test_silabs_variants(self):
+        # Act / Assert -- both the short and long forms collapse
+        assert canonical_manufacturer("Silicon Labs") == "SiLabs", "short form"
+        assert canonical_manufacturer("Silicon Laboratories") == "SiLabs", \
+            "long form"
+
+    def test_wch_variants(self):
+        # Act / Assert -- two distinct reported strings, same alias
+        assert canonical_manufacturer("WCH.CN") == "WCH", "WCH short"
+        assert canonical_manufacturer("QinHeng Electronics") == "WCH", \
+            "QinHeng becomes WCH"
+
+    def test_distinct_brands_not_merged(self):
+        """Cypress and Infineon are the same company but report separately.
+
+        Guards against a well-meaning refactor that would collapse them
+        into a single alias.  If the chip self-identifies as Cypress,
+        the user sees Cypress.
+        """
+        # Act / Assert
+        assert canonical_manufacturer("Cypress") == "Cypress", \
+            "Cypress stays Cypress"
+        assert canonical_manufacturer("Infineon") == "Infineon", \
+            "Infineon stays Infineon"
+        # Same rule for Atmel vs Microchip
+        assert canonical_manufacturer("Atmel") == "Atmel", "Atmel stays Atmel"
+        assert canonical_manufacturer("Microchip Technology") == "Microchip", \
+            "Microchip stays Microchip"
+
+    def test_unknown_passes_through(self):
+        # Act / Assert -- unrecognized vendors are returned verbatim
+        assert canonical_manufacturer("Acme Corp") == "Acme Corp", \
+            "unknown vendor unchanged"
+
+    def test_whitespace_stripped(self):
+        # Act / Assert -- leading/trailing whitespace doesn't break match
+        assert canonical_manufacturer("  FTDI  ") == "FTDI", \
+            "whitespace tolerated"
+
+    def test_windows_standard_port_types_empty(self):
+        """Windows built-in COM ports get blanked (not interesting)."""
+        # Act / Assert
+        assert canonical_manufacturer("(Standard port types)") == "", \
+            "Windows generic reports as empty"
+
+    def test_every_alias_is_short(self):
+        """All canonical aliases fit in a ~9-char column.
+
+        Guards the display contract.  If a future alias addition
+        exceeds this width, the port-picker column will truncate
+        (which defeats the point of the canonicalization).
+        """
+        # Act / Assert
+        long_aliases = [a for _, a in MANUFACTURER_ALIASES if len(a) > 9]
+        assert long_aliases == [], \
+            f"all aliases must be <= 9 chars; too long: {long_aliases}"

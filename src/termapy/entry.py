@@ -172,11 +172,10 @@ def main() -> None:
             args.run = args.config
             args.config = None
             if not args.cli:
-                # TUI mode: infer config, don't auto-run.  _infer_config_from_run_file
-                # is stdlib-only and lives in app.py; import lazily to avoid
-                # pulling Textual when it's not needed yet.
-                from termapy.app import _infer_config_from_run_file
-                inferred = _infer_config_from_run_file(args.run)
+                # TUI mode: infer config, don't auto-run.  Lives in the
+                # Textual-free config_resolve module.
+                from termapy.config_resolve import infer_config_from_run_file
+                inferred = infer_config_from_run_file(args.run)
                 if inferred:
                     args.config = inferred
                     args.run = None
@@ -187,8 +186,8 @@ def main() -> None:
                     )
                     sys.exit(1)
         elif ext == ".pro" and not args.proto:
-            from termapy.app import _infer_config_from_run_file
-            inferred = _infer_config_from_run_file(args.config)
+            from termapy.config_resolve import infer_config_from_run_file
+            inferred = infer_config_from_run_file(args.config)
             if inferred:
                 args.proto = args.config
                 args.config = inferred
@@ -225,13 +224,9 @@ def main() -> None:
     # Mode switching loop -- CLI or TUI.  Both paths pull from
     # termapy.app which imports Textual; this is where Textual
     # finally loads in the import graph.
-    from termapy.app import (
-        _find_config,
-        _resolve_config,
-        _run_cli_mode,
-        _run_tui_mode,
-    )
+    from termapy.app import _run_cli_mode, _run_tui_mode
     from termapy.config import load_config
+    from termapy.config_resolve import find_config, resolve_config
 
     # CLI flag from command line overrides config.  Otherwise check
     # default_ui.
@@ -243,11 +238,11 @@ def main() -> None:
             if args.demo:
                 pass  # demo defaults to tui
             elif args.config:
-                _peek_path = _resolve_config(args.config)
+                _peek_path = resolve_config(args.config)
                 if _peek_path:
                     _peek_cfg = load_config(_peek_path)
             else:
-                _peek_path, _ = _find_config()
+                _peek_path, _ = find_config()
                 if _peek_path:
                     _peek_cfg = load_config(_peek_path)
         except Exception:

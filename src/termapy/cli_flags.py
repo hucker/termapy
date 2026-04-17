@@ -38,33 +38,6 @@ if TYPE_CHECKING:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Config-finding helper (shared by --check)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _find_config() -> tuple[str | None, bool]:
-    """Find config in termapy_cfg/<name>/<name>.cfg. Returns (path, show_picker).
-
-    - 1 cfg file: (path, False) -- auto-load
-    - 0 cfg files: (None, False) -- show name picker for new config
-    - 2+ cfg files: (None, True) -- show file picker
-
-    Duplicated from app.py to keep this module Textual-free; the two
-    copies are identical.
-    """
-    from termapy.config import cfg_dir, migrate_json_to_cfg
-
-    d = cfg_dir()
-    migrate_json_to_cfg(d)
-    json_files = sorted(d.glob("*/*.cfg"))
-    if len(json_files) == 1:
-        return str(json_files[0]), False
-    if len(json_files) > 1:
-        return None, True
-    return None, False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # --info: the existing verbose per-port dump
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -383,13 +356,14 @@ def run_check(args: argparse.Namespace) -> None:
     Read-only -- does not migrate or write to disk.
     """
     from termapy.config import validate_config
+    from termapy.config_resolve import find_config
     from termapy.defaults import DEFAULT_CFG
 
     # Resolve config
     if args.config:
         config_path = args.config
     else:
-        found, _ = _find_config()
+        found, _ = find_config()
         if not found:
             print(
                 "termapy: no config found. Use --cfg-dir or specify a config.",

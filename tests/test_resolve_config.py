@@ -1,10 +1,10 @@
-"""Tests for _resolve_config - command-line config resolution chain."""
+"""Tests for resolve_config - command-line config resolution chain."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from termapy.app import _resolve_config
+from termapy.config_resolve import resolve_config as _resolve_config
 
 
 def _make_cfg(base: Path, name: str) -> Path:

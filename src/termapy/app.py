@@ -21,7 +21,6 @@ from termapy.config import (
     CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
-    migrate_json_to_cfg,
     cfg_log_path,
     cfg_path_for_name,
     cfg_plugins_dir,
@@ -32,6 +31,15 @@ from termapy.config import (
     open_with_system,
     setup_demo_config,
     validate_config,
+)
+# Config-path resolution lives in termapy.config_resolve (Textual-free).
+# Re-exported under the original underscored names so existing
+# `from termapy.app import _find_config` callers keep working while
+# entry.py / cli_flags.py can import from config_resolve directly.
+from termapy.config_resolve import (
+    find_config as _find_config,
+    infer_config_from_run_file as _infer_config_from_run_file,
+    resolve_config as _resolve_config,
 )
 from rich.text import Text
 from textual import on, work
@@ -3311,23 +3319,6 @@ class SerialTerminal(TerminalHost, App):
             self.post_message(self.ScriptFinished(self.repl._script_stack[:]))
 
 
-def _find_config() -> tuple[str | None, bool]:
-    """Find config in termapy_cfg/<name>/<name>.cfg. Returns (path, show_picker).
-
-    - 1 cfg file: (path, False) - auto-load
-    - 0 cfg files: (None, False) - show name picker for new config
-    - 2+ cfg files: (None, True) - show file picker
-    """
-    d = cfg_dir()
-    migrate_json_to_cfg(d)
-    json_files = sorted(d.glob("*/*.cfg"))
-    if len(json_files) == 1:
-        return str(json_files[0]), False
-    if len(json_files) > 1:
-        return None, True
-    return None, False
-
-
 def _reset_terminal() -> None:
     """Reset terminal to normal mode after TUI exit.
 
@@ -3349,67 +3340,6 @@ def _reset_terminal() -> None:
         subprocess.run(["stty", "sane"], timeout=1, capture_output=True)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
-
-
-def _resolve_config(name: str) -> str | None:
-    """Resolve a config name, path, or directory to a .cfg file.
-
-    Resolution chain (first match wins):
-    1. Exact file - path exists and is a file
-    2. Directory - look for <dirname>.cfg inside
-    3. cfg_dir/<name>/<name>.cfg - bare name via configured cfg dir
-    4. ./termapy_cfg/<name>/<name>.cfg - bare name via cwd
-    5. <name>.cfg appended - in case extension was omitted
-    6. None - not found
-
-    Args:
-        name: User-provided config name, path, or directory.
-
-    Returns:
-        Resolved path string, or None if not found.
-    """
-    p = Path(name)
-    # 1. Exact file
-    if p.is_file():
-        return str(p)
-    # 2. Directory - look for <dirname>.cfg inside
-    if p.is_dir():
-        candidate = p / f"{p.name}.cfg"
-        if candidate.exists():
-            return str(candidate)
-    # 3. cfg_dir/<name>/<name>.cfg (configured cfg dir)
-    stem = p.stem
-    try:
-        candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
-        if candidate.exists():
-            return str(candidate)
-    except SystemExit:
-        pass  # cfg_dir doesn't exist yet - skip this rule
-    # 4. ./termapy_cfg/<name>/<name>.cfg (cwd fallback)
-    candidate = Path("termapy_cfg") / stem / f"{stem}.cfg"
-    if candidate.exists():
-        return str(candidate)
-    # 5. Append .cfg
-    if not name.endswith(".cfg"):
-        candidate = Path(f"{name}.cfg")
-        if candidate.exists():
-            return str(candidate)
-    return None
-
-
-def _infer_config_from_run_file(run_path: str) -> str | None:
-    """Infer config path from a .run script path.
-
-    If the script is at termapy_cfg/<name>/scripts/foo.run,
-    the config is termapy_cfg/<name>/<name>.cfg.
-    """
-    p = Path(run_path).resolve()
-    # Walk up looking for a .cfg file in a parent
-    for parent in p.parents:
-        cfgs = list(parent.glob("*.cfg"))
-        if cfgs and parent.name != "termapy_cfg":
-            return str(cfgs[0])
-    return None
 
 
 def _run_cli_mode(args) -> str | None:

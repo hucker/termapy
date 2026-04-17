@@ -7,7 +7,6 @@ Runs well in most terminals (Windows Terminal, iTerm2, etc).
 VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
-import argparse
 import json
 import sys
 import threading
@@ -22,7 +21,6 @@ from termapy.config import (
     CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
-    migrate_json_to_cfg,
     cfg_log_path,
     cfg_path_for_name,
     cfg_plugins_dir,
@@ -33,6 +31,15 @@ from termapy.config import (
     open_with_system,
     setup_demo_config,
     validate_config,
+)
+# Config-path resolution lives in termapy.config_resolve (Textual-free).
+# Re-exported under the original underscored names so existing
+# `from termapy.app import _find_config` callers keep working while
+# entry.py / cli_flags.py can import from config_resolve directly.
+from termapy.config_resolve import (
+    find_config as _find_config,
+    infer_config_from_run_file as _infer_config_from_run_file,
+    resolve_config as _resolve_config,
 )
 from rich.text import Text
 from textual import on, work
@@ -3312,23 +3319,6 @@ class SerialTerminal(TerminalHost, App):
             self.post_message(self.ScriptFinished(self.repl._script_stack[:]))
 
 
-def _find_config() -> tuple[str | None, bool]:
-    """Find config in termapy_cfg/<name>/<name>.cfg. Returns (path, show_picker).
-
-    - 1 cfg file: (path, False) - auto-load
-    - 0 cfg files: (None, False) - show name picker for new config
-    - 2+ cfg files: (None, True) - show file picker
-    """
-    d = cfg_dir()
-    migrate_json_to_cfg(d)
-    json_files = sorted(d.glob("*/*.cfg"))
-    if len(json_files) == 1:
-        return str(json_files[0]), False
-    if len(json_files) > 1:
-        return None, True
-    return None, False
-
-
 def _reset_terminal() -> None:
     """Reset terminal to normal mode after TUI exit.
 
@@ -3350,106 +3340,6 @@ def _reset_terminal() -> None:
         subprocess.run(["stty", "sane"], timeout=1, capture_output=True)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
-
-
-def _run_check(args) -> None:
-    """Validate config and print JSON result to stdout (no TUI).
-
-    Read-only - does not migrate or write to disk.
-    """
-    # Resolve config
-    if args.config:
-        config_path = args.config
-    else:
-        found, _ = _find_config()
-        if not found:
-            print(
-                "termapy: no config found. Use --cfg-dir or specify a config.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        config_path = found
-
-    try:
-        with open(config_path) as f:
-            cfg = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        result = {"status": "error", "message": str(e)}
-        print(json.dumps(result, indent=2))
-        sys.exit(1)
-
-    # Backfill defaults in memory only (no disk write, no migration)
-    for key, val in DEFAULT_CFG.items():
-        if key not in cfg:
-            cfg[key] = val
-
-    warnings = validate_config(cfg)
-    if warnings:
-        result = {"status": "warn", "warnings": warnings}
-    else:
-        result = {"status": "ok"}
-    print(json.dumps(result, indent=2))
-
-
-def _resolve_config(name: str) -> str | None:
-    """Resolve a config name, path, or directory to a .cfg file.
-
-    Resolution chain (first match wins):
-    1. Exact file - path exists and is a file
-    2. Directory - look for <dirname>.cfg inside
-    3. cfg_dir/<name>/<name>.cfg - bare name via configured cfg dir
-    4. ./termapy_cfg/<name>/<name>.cfg - bare name via cwd
-    5. <name>.cfg appended - in case extension was omitted
-    6. None - not found
-
-    Args:
-        name: User-provided config name, path, or directory.
-
-    Returns:
-        Resolved path string, or None if not found.
-    """
-    p = Path(name)
-    # 1. Exact file
-    if p.is_file():
-        return str(p)
-    # 2. Directory - look for <dirname>.cfg inside
-    if p.is_dir():
-        candidate = p / f"{p.name}.cfg"
-        if candidate.exists():
-            return str(candidate)
-    # 3. cfg_dir/<name>/<name>.cfg (configured cfg dir)
-    stem = p.stem
-    try:
-        candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
-        if candidate.exists():
-            return str(candidate)
-    except SystemExit:
-        pass  # cfg_dir doesn't exist yet - skip this rule
-    # 4. ./termapy_cfg/<name>/<name>.cfg (cwd fallback)
-    candidate = Path("termapy_cfg") / stem / f"{stem}.cfg"
-    if candidate.exists():
-        return str(candidate)
-    # 5. Append .cfg
-    if not name.endswith(".cfg"):
-        candidate = Path(f"{name}.cfg")
-        if candidate.exists():
-            return str(candidate)
-    return None
-
-
-def _infer_config_from_run_file(run_path: str) -> str | None:
-    """Infer config path from a .run script path.
-
-    If the script is at termapy_cfg/<name>/scripts/foo.run,
-    the config is termapy_cfg/<name>/<name>.cfg.
-    """
-    p = Path(run_path).resolve()
-    # Walk up looking for a .cfg file in a parent
-    for parent in p.parents:
-        cfgs = list(parent.glob("*.cfg"))
-        if cfgs and parent.name != "termapy_cfg":
-            return str(cfgs[0])
-    return None
 
 
 def _run_cli_mode(args) -> str | None:
@@ -3585,219 +3475,6 @@ def _run_proto_headless(args) -> None:
     sys.exit(0 if failed == 0 else 1)
 
 
-def _run_info(args) -> None:
-    """Print serial port chip info to stdout and exit.
-
-    Implements the --info CLI flag.  Calls port_control.chip_info()
-    directly with no termapy infrastructure setup -- the underlying
-    function uses pyserial's comports() and works without any config
-    or open Serial object.
-
-    Color hints from the internal Result are dropped because stdout
-    output is intended for piping to grep/awk/jq, not for terminal
-    rendering.  Run termapy interactively and use /port.chip if you
-    want colored output.
-
-    Exits with status 0 if at least one port matched and was printed,
-    or 1 if the named port wasn't found, no ports are connected, or
-    any other error condition was reported.
-    """
-    from termapy import port_control
-
-    msgs, _ = port_control.chip_info(args.info, current_port="")
-    error = False
-    for text, color in msgs:
-        print(text)
-        if color in ("red", "yellow") and (
-            "No port" in text
-            or "No current port" in text
-            or "No serial ports" in text
-        ):
-            error = True
-    sys.exit(1 if error else 0)
-
-
-def main():
-    import termapy.config as _cfg_mod
-
-    from importlib.metadata import version as _get_version
-
-    try:
-        _version = _get_version("termapy")
-    except Exception:
-        _version = "unknown"
-
-    parser = argparse.ArgumentParser(
-        description="TUI serial terminal with ANSI color support"
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"termapy {_version}",
-    )
-    parser.add_argument(
-        "config",
-        nargs="?",
-        default=None,
-        help="Path to config file (auto-detects single .cfg in termapy_cfg/)",
-    )
-    parser.add_argument(
-        "--cfg-dir",
-        default=None,
-        help="Config directory (default: ./termapy_cfg if present, else OS config dir)",
-    )
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Start with simulated demo device (no hardware needed)",
-    )
-    parser.add_argument(
-        "--proto",
-        default=None,
-        metavar="NAME",
-        help="Run a .pro test script headlessly and write JSON results (no TUI)",
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Validate config and print JSON result to stdout (no TUI)",
-    )
-    parser.add_argument(
-        "--cli",
-        action="store_true",
-        help="Run in CLI mode (plain text terminal, no TUI)",
-    )
-    parser.add_argument(
-        "--run",
-        default=None,
-        metavar="SCRIPT",
-        help="Run a .run script and exit (CLI mode, implies --cli)",
-    )
-    parser.add_argument(
-        "--web",
-        action="store_true",
-        help="Serve the TUI in a web browser via textual-serve",
-    )
-    parser.add_argument(
-        "--web-port",
-        type=int,
-        default=8000,
-        help="Port for web server (default: 8000)",
-    )
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="Strip ANSI color codes from output (CLI mode)",
-    )
-    parser.add_argument(
-        "--term-width",
-        type=int,
-        default=None,
-        help="Override terminal width for CLI mode (default: auto-detect)",
-    )
-    parser.add_argument(
-        "--info",
-        nargs="?",
-        const="*",
-        default=None,
-        metavar="PORT",
-        help="Show serial port chip info and exit. Optional PORT name "
-             "(e.g. COM3, /dev/ttyUSB0); omit for all connected ports.",
-    )
-    args = parser.parse_args()
-
-    if args.cfg_dir:
-        _cfg_mod.CFG_DIR = args.cfg_dir
-
-    # Normalize positional arg by extension - infer intent
-    if args.config:
-        ext = Path(args.config).suffix.lower()
-        if ext == ".run" and not args.run:
-            # .run file: infer config from location
-            args.run = args.config
-            args.config = None
-            if not args.cli:
-                # TUI mode: infer config, don't auto-run
-                inferred = _infer_config_from_run_file(args.run)
-                if inferred:
-                    args.config = inferred
-                    args.run = None  # don't auto-run in TUI
-                else:
-                    print(
-                        f"termapy: cannot infer config from {Path(args.run).resolve()}",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-        elif ext == ".pro" and not args.proto:
-            # .pro file: infer config from location
-            inferred = _infer_config_from_run_file(args.config)
-            if inferred:
-                args.proto = args.config
-                args.config = inferred
-            else:
-                print(
-                    f"termapy: cannot infer config from {Path(args.config).resolve()}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-
-    if args.check:
-        _run_check(args)
-        return
-
-    if args.proto is not None:
-        _run_proto_headless(args)
-        return
-
-    if args.info is not None:
-        _run_info(args)
-        return
-
-    if args.web:
-        _run_web_mode(args)
-        return
-
-    if args.run:
-        args.cli = True  # --run implies --cli
-    # -- Mode switching loop ---------------------------------------------------
-    # CLI flag from command line overrides config. Otherwise check default_ui.
-    if args.cli:
-        mode = "cli"
-    else:
-        # Peek at config for default_ui (if we can resolve it)
-        _peek_cfg = None
-        try:
-            if args.demo:
-                pass  # demo defaults to tui
-            elif args.config:
-                _peek_path = _resolve_config(args.config)
-                if _peek_path:
-                    _peek_cfg = load_config(_peek_path)
-            else:
-                _peek_path, _ = _find_config()
-                if _peek_path:
-                    _peek_cfg = load_config(_peek_path)
-        except Exception:
-            pass
-        mode = (_peek_cfg or {}).get("default_ui", "tui")
-        if mode not in ("cli", "tui"):
-            mode = "tui"
-    while mode:
-        if mode == "cli":
-            result = _run_cli_mode(args)
-        elif mode == "tui":
-            result = _run_tui_mode(args)
-        else:
-            break
-        if result is None:
-            break
-        # Carry the current config into the next mode
-        mode = result
-        args.cli = mode == "cli"
-        args.run = None  # don't re-run a script on switch
-        args.demo = False  # don't re-setup demo on switch
-
-
 def _run_web_mode(args) -> None:
     """Serve the TUI in a web browser via textual-serve."""
     try:
@@ -3919,4 +3596,6 @@ def _run_tui_mode(args) -> str | None:
 
 
 if __name__ == "__main__":
+    from termapy.entry import main
+
     main()

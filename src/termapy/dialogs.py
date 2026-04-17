@@ -22,6 +22,7 @@ from termapy.config import (
     open_with_system,
 )
 from termapy.defaults import PROTO_TEMPLATE, SCRIPT_TEMPLATE
+from termapy.usb_mfg import mfg as _mfg_alias
 
 # Shared CSS for modal dialog buttons
 _MODAL_BTN_CSS = """
@@ -1583,16 +1584,13 @@ def _gather_port_row(p, port_control) -> tuple[str, dict]:
             elif "High-Speed" in facts.usb_speed:
                 speed = "High-Speed"
         vid_pid = facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else "-"
-        manufacturer = port_control.canonical_manufacturer(facts.manufacturer) or "-"
+        manufacturer = _mfg_alias(facts.manufacturer) or "-"
         sn = facts.serial or "-"
     else:
         chip = "-"
         speed = "-"
         vid_pid = "-"
-        manufacturer = (
-            port_control.canonical_manufacturer(getattr(p, "manufacturer", None))
-            or "-"
-        )
+        manufacturer = _mfg_alias(getattr(p, "manufacturer", None)) or "-"
         sn = (p.serial_number or "-") if hasattr(p, "serial_number") else "-"
 
     return port, {

@@ -1883,3 +1883,75 @@ class TestRepeat:
         assert len(dispatched) == 1, f"expected 1 dispatch before stop, got: {len(dispatched)}"
         actual = [t for t, _ in output]
         assert any("1/100" in t for t in actual), f"expected '1/100' in stop message, got: {actual}"
+
+
+# -- /port.chip.list ---------------------------------------------------------
+
+
+class TestPortChipList:
+    """/port.chip.list dumps the USB-serial chip lookup table."""
+
+    def test_unfiltered_lists_many_chips(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        result = engine.dispatch("port.chip.list")
+
+        # Assert -- dumps a header, divider, at least a handful of rows.
+        assert result.success, "list succeeds with no filter"
+        texts = [t for t, _ in output]
+        assert any("VID:PID" in t for t in texts), "header row printed"
+        # Spot-check one well-known chip makes it into the dump.
+        assert any("FT232R" in t for t in texts), "FTDI FT232R present"
+        # Return value is "Count=<N>" for script capture.
+        assert result.value.startswith("Count="), \
+            f"value should be 'Count=<N>', got: {result.value!r}"
+        count = int(result.value.split("=")[1])
+        assert count > 20, f"expected many chip rows, got Count={count}"
+
+    def test_filter_narrows_output(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        result = engine.dispatch("port.chip.list ftdi")
+
+        # Assert -- only FTDI rows printed, Count reflects the match size.
+        assert result.success, "filtered list succeeds"
+        texts = [t for t, _ in output]
+        chip_rows = [t for t in texts if ":" in t and "FTDI" in t]
+        assert chip_rows, "at least one FTDI row rendered"
+        # There are ~10 FTDI chips in the table.
+        count = int(result.value.split("=")[1])
+        assert 5 <= count <= 25, \
+            f"expected roughly a dozen FTDI rows, got Count={count}"
+
+    def test_filter_is_case_insensitive(self, repl_env):
+        # Arrange
+        engine, *_ = repl_env
+
+        # Act -- uppercase filter should still match "SparkFun" in the table
+        result = engine.dispatch("port.chip.list SPARK")
+
+        # Assert
+        assert result.success, "case-insensitive filter works"
+        count = int(result.value.split("=")[1])
+        assert count > 0, "entries found despite uppercase filter"
+
+    def test_no_matches_prints_yellow_warning(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act -- a filter that matches nothing in the table
+        result = engine.dispatch("port.chip.list __does_not_exist__")
+
+        # Assert
+        assert result.success, "no-match still returns ok"
+        assert result.value == "Count=0", \
+            f"Count=0 on no matches, got: {result.value!r}"
+        texts_and_colors = [(t, c) for t, c in output]
+        assert any(
+            "No chips match" in t and c == "yellow"
+            for t, c in texts_and_colors
+        ), "no-match warning rendered in yellow"

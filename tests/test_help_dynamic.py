@@ -15,6 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from termapy.folders import FOLDER_PATTERNS
 from termapy.help_dynamic import (
     cfg_count,
@@ -235,16 +237,16 @@ class TestPortHelpers:
         expected = "[green]Connected: COM3 @ 115200 8N1[/]"
         assert actual == expected, "open port summary shape"
 
-    def test_port_status_degrades_if_is_connected_raises(self, tmp_path):
-        # Arrange - is_connected raising should not crash the helper
+    def test_port_status_propagates_is_connected_errors(self, tmp_path):
+        # Arrange - a buggy is_connected that raises should surface,
+        # not be swallowed into a misleading "Not connected" string.
+        # Hiding bugs is the anti-pattern we're trying to avoid.
         ctx, _ = _fake_ctx(tmp_path)
-        ctx.is_connected = lambda: (_ for _ in ()).throw(RuntimeError("x"))
+        ctx.is_connected = lambda: (_ for _ in ()).throw(RuntimeError("bad"))
 
-        # Act
-        actual = port_status(ctx)
-
-        # Assert
-        assert actual == "[green]Not connected[/]", "exception -> safe default"
+        # Act / Assert
+        with pytest.raises(RuntimeError, match="bad"):
+            port_status(ctx)
 
 
 class TestCfgHelpers:
@@ -329,15 +331,15 @@ class TestNsCount:
         # Assert
         assert actual == 2, "returns length of namespace dict"
 
-    def test_ns_count_zero_when_ns_raises(self):
-        # Arrange
+    def test_ns_count_propagates_ns_errors(self):
+        # Arrange - a buggy ns() should surface the exception, not get
+        # silently coerced to 0.  ns_count only guards MISSING ns
+        # (getattr returns None), not PRESENT-but-broken ns.
         def _bad(name):
             raise RuntimeError("bad ctx")
 
         ctx = SimpleNamespace(ns=_bad)
 
-        # Act
-        actual = ns_count(ctx, "whatever")
-
-        # Assert
-        assert actual == 0, "bad ns -> zero, no exception"
+        # Act / Assert
+        with pytest.raises(RuntimeError, match="bad ctx"):
+            ns_count(ctx, "whatever")

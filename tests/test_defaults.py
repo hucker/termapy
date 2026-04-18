@@ -98,14 +98,16 @@ class TestListPorts:
         # Assert
         assert "no ports found" in actual, "reports empty"
 
-    def test_exception_handling(self):
-        # Arrange
-        with patch("serial.tools.list_ports.comports", side_effect=Exception("fail")):
+    def test_oserror_fallback(self):
+        # Arrange -- OSError (udev / IOKit / WMI hiccup) degrades to a
+        # friendly fallback string.  Any OTHER exception would propagate
+        # so we'd see the traceback and fix whatever's actually broken.
+        with patch("serial.tools.list_ports.comports", side_effect=OSError("no udev")):
             # Act
             actual = _list_ports()
 
         # Assert
-        assert "cannot list" in actual, "graceful fallback"
+        assert "cannot list" in actual, "graceful fallback on environmental failure"
 
 
 # -- resolve_color -----------------------------------------------------------

@@ -23,6 +23,7 @@ from textual.widgets import (
 )
 
 from termapy.config import cfg_data_dir, open_with_system
+from termapy.plugins import BoundaryException
 from termapy.proto_runner import _build_test_result, expand_result_template
 from termapy.protocol import (
     DIFF_STYLES,
@@ -1125,7 +1126,10 @@ class ProtoDebugScreen(ModalScreen[None]):
         except RuntimeError:
             # call_from_thread fails during app shutdown - ignore
             pass
-        except Exception as e:
+        except BoundaryException as e:
+            # Test runner executes user .pro scripts -- any underlying
+            # command handler or protocol step can raise anything.
+            # Report in the test log and let the finally clean up.
             self._log(f"Test runner error: {e}")
         finally:
             self._ctx.engine.set_proto_active(False)
@@ -1164,6 +1168,10 @@ class ProtoDebugScreen(ModalScreen[None]):
         except RuntimeError:
             # call_from_thread fails during app shutdown - exit silently
             self._ctx.engine.set_proto_active(False)
-        except Exception as e:
+        except BoundaryException as e:
+            # Setup/teardown commands from the .pro script go through
+            # the same user-code path as the main test runner; a broken
+            # step reports to the log and the proto-active flag is
+            # cleared so the session can continue.
             self._ctx.engine.set_proto_active(False)
             self._log(f"Command runner error: {e}")

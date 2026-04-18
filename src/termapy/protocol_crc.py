@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from termapy.plugins import BoundaryException
+
 
 # ---------------------------------------------------------------------------
 # Generic CRC engine - Rocksoft/Williams parameterization
@@ -250,7 +252,11 @@ def load_crc_plugins(
                     algorithms[name] = CrcAlgorithm(
                         name=name, width=width, compute=compute_fn
                     )
-            except Exception as e:
+            # Plugin file: third-party code being imported; its
+            # top-level can raise anything (import errors, syntax,
+            # missing CRC_ALGORITHM).  Report to stderr and keep
+            # loading the rest.
+            except BoundaryException as e:
                 print(
                     f"termapy: failed to load CRC plugin {py_file.name}: {e}",
                     file=sys.stderr,

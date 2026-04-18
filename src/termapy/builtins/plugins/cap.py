@@ -267,10 +267,12 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
 
-    # Parse format spec
+    # Parse format spec.  parse_format_spec raises ValueError on
+    # malformed user input (missing parens, unknown column type,
+    # unterminated string, etc.) -- that's the expected user error.
     try:
         columns = parse_format_spec(fmt_spec)
-    except Exception as e:
+    except ValueError as e:
         return CmdResult.fail(msg=f"Invalid format spec: {e}")
 
     max_idx = 0

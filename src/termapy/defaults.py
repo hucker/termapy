@@ -98,12 +98,15 @@ DEFAULT_CFG = {
 
 def _list_ports() -> str:
     """Dynamic: list available serial ports."""
+    # OSError covers OS-level enumeration failures (udev / IOKit / WMI);
+    # ImportError covers a pyserial install without list_ports support
+    # on this platform.
     try:
         from serial.tools.list_ports import comports
 
         ports = sorted(p.device for p in comports())
         return "Available: " + (", ".join(ports) if ports else "(no ports found)")
-    except Exception:
+    except (OSError, ImportError):
         return "(cannot list ports)"
 
 
@@ -173,11 +176,12 @@ def resolve_color(color: str) -> str:
                 # Map to Rich-style name: dark_orange -> dark_orange3
                 rich_name = f"{prefix}_{base}"
                 try:
-                    from rich.color import Color
+                    from rich.color import Color, ColorParseError
                     Color.parse(rich_name)
                     return rich_name
-                except Exception:
-                    # Fall back to the base hex
+                except ColorParseError:
+                    # Rich doesn't know this prefixed name -- fall back
+                    # to the base hex from the alias table.
                     return COLOR_ALIASES[base]
     return color
 
@@ -188,8 +192,10 @@ def _preview_color(raw_val: str) -> str:
     if not color:
         return ""
     resolved = resolve_color(color)
+    # Color.parse raises ColorParseError on unknown names.  Anything
+    # else from the Rich call is a bug we want to see.
     try:
-        from rich.color import Color
+        from rich.color import Color, ColorParseError
         parsed = Color.parse(resolved)
         # Get truecolor hex for reliable rendering
         triplet = parsed.get_truecolor()
@@ -197,7 +203,7 @@ def _preview_color(raw_val: str) -> str:
         if resolved != color:
             return f"[green]Color: {color} -> {hex_color}[/]"
         return f"[green]Color: {hex_color}[/]"
-    except Exception:
+    except ColorParseError:
         return f"[bold red]????[/] unknown color: {color}"
 
 
@@ -206,11 +212,9 @@ def _preview_markup(raw_val: str) -> str:
     fmt = raw_val.strip().strip('"').strip()
     if not fmt:
         return ""
-    try:
-        preview = fmt.replace("{cmd}", "AT+INFO")
-        return f"Preview: {preview}"
-    except Exception:
-        return ""
+    # str.replace() can't raise on str input; no try/except needed.
+    preview = fmt.replace("{cmd}", "AT+INFO")
+    return f"Preview: {preview}"
 
 
 # (description, valid_values_or_callable, optional_preview_callable)

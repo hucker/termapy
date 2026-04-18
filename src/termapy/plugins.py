@@ -298,6 +298,25 @@ class CmdResult:
         return f"{self.err_prefix} {self.error}"
 
 
+# Alias for ``Exception``, used at call sites where we deliberately
+# invoke code we don't own -- plugin handlers, lifecycle hooks, script
+# bodies, RX/TX observers, dynamic ``long_help`` callables, and plugin
+# module loads.  Catching broadly is the right call at a trust
+# boundary: the callee can raise anything, and we need to report the
+# failure without letting one misbehaving plugin crash the host.
+#
+# Rules for using this alias:
+#   - every site MUST report the exception somewhere the user or
+#     plugin author will see it (log, CmdResult.fail, status line);
+#     never a silent ``pass``.
+#   - use ONLY at a trust boundary.  For code we own (our own
+#     functions, stdlib calls, well-known libraries) narrow the
+#     except to the specific exception types that can realistically
+#     raise.  ``BoundaryException`` exists to flag that THIS broad
+#     catch has been reviewed for intent.
+BoundaryException = Exception
+
+
 @dataclass
 class Command:
     """Plugin command declaration.
@@ -1021,9 +1040,12 @@ def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
     """
     hp = plugin.long_help
     if not isinstance(hp, str):
+        # Plugin-supplied callable: boundary catch so a broken help
+        # function doesn't take down /help.  The message is shown in
+        # the /help body where the author will notice.
         try:
             hp = hp(ctx)
-        except Exception as e:
+        except BoundaryException as e:
             hp = f"(dynamic help failed: {e})"
     return hp or ""
 
@@ -1126,7 +1148,10 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
                 result.lifecycle_hooks.extend(hooks)
             if not infos and not xforms and not dirs and not hooks:
                 result.skipped.append(py_file.name)
-        except Exception as e:
+        # Plugin file being loaded is third-party code; its top-level
+        # can raise anything (import errors, syntax, config reads).
+        # Record the failure for reporting and keep loading the rest.
+        except BoundaryException as e:
             result.errors.append(f"{py_file.name}: {e}")
     return result
 

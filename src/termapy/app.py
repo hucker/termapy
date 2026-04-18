@@ -58,6 +58,7 @@ from termapy.dialogs import (
     QuickSetup,
     ScriptEditor,
     ScriptPicker,
+    UpdateAvailableDialog,
 )
 from termapy.plugins import (
     CapabilitySet,
@@ -540,6 +541,12 @@ class SerialTerminal(TerminalHost, App):
             proto_btn = Button("Proto", id="btn-proto")
             proto_btn.tooltip = "Protocol test scripts."
             yield proto_btn
+            # Hidden at startup; _check_for_updates() unhides this if
+            # a newer termapy version is out on PyPI.
+            update_btn = Button("Update", id="btn-update", variant="warning")
+            update_btn.tooltip = "A newer version of termapy is available."
+            update_btn.display = False
+            yield update_btn
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
             center.tooltip = (
@@ -668,6 +675,66 @@ class SerialTerminal(TerminalHost, App):
         self._load_plugins()
         self._run_startup()
         self.repl.fire_lifecycle("on_app_start")
+        self._check_for_updates()
+
+    @work(thread=True)
+    def _check_for_updates(self) -> None:
+        """Background thread: check PyPI for a newer termapy release.
+
+        Silent on any failure, rate-limited to once per 7 days.  If a
+        newer version is out, unhides the ``Update`` button in the
+        title bar.  Clicking that button opens ``UpdateAvailableDialog``
+        which shows the two version numbers and offers an Info button
+        linking to the installation help page.
+
+        The title-bar button is an ambient, non-intrusive signal: it
+        survives screen-clears and auto-run scripts, never steals
+        focus, and disappears once the user has upgraded (next launch
+        sees the same version on PyPI and does not unhide).
+        """
+        try:
+            from importlib.metadata import version as _get_version
+
+            from termapy.update_check import check
+
+            current = _get_version("termapy")
+            latest = check(current_version=current)
+        except Exception:
+            return  # any failure -> silent, no user-visible artifact
+
+        if not latest:
+            return
+
+        # Stash the version pair so the click handler can pass them
+        # to the modal without re-running the check.
+        self._pending_update = (current, latest)
+        try:
+            self.call_from_thread(self._reveal_update_button)
+        except RuntimeError:
+            pass  # app shutting down
+
+    def _reveal_update_button(self) -> None:
+        """Main-thread helper: unhide the title-bar Update button."""
+        try:
+            self.query_one("#btn-update", Button).display = True
+        except Exception:
+            pass  # button gone (shutdown) or not yet composed
+
+    def _btn_update(self) -> None:
+        """Show the UpdateAvailableDialog; open install docs on Info."""
+        pending = getattr(self, "_pending_update", None)
+        if not pending:
+            return
+        current, latest = pending
+
+        def _on_result(action: str | None) -> None:
+            if action == "info":
+                self._hook_help_open(None, "installation")
+
+        self.push_screen(
+            UpdateAvailableDialog(current, latest),
+            callback=_on_result,  # ty: ignore[no-matching-overload]
+        )
 
     def _setup_vars(self) -> None:
         """Set launch/context variables for plugin use."""
@@ -1920,6 +1987,7 @@ class SerialTerminal(TerminalHost, App):
         "btn-scripts": "_btn_scripts",  # script picker
         "btn-proto": "_btn_proto",  # protocol test picker
         "btn-cfg": "_btn_cfg",  # config picker
+        "btn-update": "_btn_update",  # update-available dialog
         # Overlays
         "cap-stop": "_cap_stop",  # stop capture
         "script-stop": "_btn_script_stop",  # stop running script

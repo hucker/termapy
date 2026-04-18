@@ -1,0 +1,257 @@
+"""Tests for update_check.check and its bail-out paths.
+
+The core invariant: any failure path returns None silently.  No
+exception, no stdout noise, no user-visible artifact other than the
+potentially-updated state file.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+
+from termapy import update_check
+
+
+# -- Fixtures ----------------------------------------------------------------
+
+
+@pytest.fixture
+def pin_state_dir(monkeypatch, tmp_path):
+    """Redirect app_state_dir to tmp_path for the duration of the test."""
+    monkeypatch.setenv("TERMAPY_STATE_DIR", str(tmp_path))
+    return tmp_path
+
+
+@pytest.fixture
+def freeze_time(monkeypatch):
+    """Freeze update_check._now() to a settable datetime."""
+    holder = {"now": datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)}
+    monkeypatch.setattr(update_check, "_now", lambda: holder["now"])
+    return holder
+
+
+@pytest.fixture
+def mock_pypi(monkeypatch):
+    """Pin update_check._fetch_pypi_latest to a settable return value."""
+    holder = {"result": None}
+    monkeypatch.setattr(
+        update_check,
+        "_fetch_pypi_latest",
+        lambda: holder["result"],
+    )
+    return holder
+
+
+@pytest.fixture(autouse=True)
+def pin_check_interval(monkeypatch):
+    """Tests assume the 7-day check interval regardless of any dev
+    override of the constant.  Applied automatically."""
+    monkeypatch.setattr(update_check, "_CHECK_INTERVAL_DAYS", 7)
+
+
+def _write_state(tmp_path: Path, state: dict) -> None:
+    (tmp_path / "update_check.json").write_text(json.dumps(state))
+
+
+def _read_state(tmp_path: Path) -> dict:
+    path = tmp_path / "update_check.json"
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text())
+
+
+# -- Happy path --------------------------------------------------------------
+
+
+class TestHappyPath:
+    def test_first_check_new_version_returns_version(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - no prior state, PyPI reports a newer release.
+        mock_pypi["result"] = "0.61.0"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        expected = "0.61.0"
+        assert actual == expected, "new version returned for the banner"
+        state = _read_state(pin_state_dir)
+        assert "last_checked" in state, "last-check timestamp saved"
+
+
+# -- 7-day check interval ----------------------------------------------------
+
+
+class TestCheckInterval:
+    def test_recent_check_skips_fetch(
+        self, pin_state_dir, freeze_time, mock_pypi, monkeypatch
+    ):
+        # Arrange - last check was 1 day ago; fetch must not be called.
+        now = freeze_time["now"]
+        _write_state(
+            pin_state_dir,
+            {"last_checked": (now - timedelta(days=1)).isoformat()},
+        )
+        fetch_called = [False]
+
+        def _fail_if_fetched():
+            fetch_called[0] = True
+            return "0.61.0"
+
+        monkeypatch.setattr(update_check, "_fetch_pypi_latest", _fail_if_fetched)
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual is None, "returns None when inside 7-day window"
+        assert fetch_called[0] is False, "skips network when inside window"
+
+    def test_old_check_triggers_fetch(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - last check was 10 days ago; due for new check.
+        now = freeze_time["now"]
+        _write_state(
+            pin_state_dir,
+            {"last_checked": (now - timedelta(days=10)).isoformat()},
+        )
+        mock_pypi["result"] = "0.61.0"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual == "0.61.0", "fetches and returns after 7-day window"
+
+    def test_exactly_7_days_is_due(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - last check exactly 7 days ago is due (>=).
+        now = freeze_time["now"]
+        _write_state(
+            pin_state_dir,
+            {"last_checked": (now - timedelta(days=7)).isoformat()},
+        )
+        mock_pypi["result"] = "0.61.0"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual == "0.61.0", "7 days exact is eligible"
+
+
+# -- Version comparison ------------------------------------------------------
+
+
+class TestVersionCompare:
+    def test_same_version_returns_none(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - PyPI reports the same version we're running.
+        mock_pypi["result"] = "0.60.0"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual is None, "no banner when versions match"
+
+    def test_older_version_returns_none(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - user is ahead of PyPI (dev install).
+        mock_pypi["result"] = "0.59.0"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual is None, "no banner when PyPI is older"
+
+    def test_invalid_version_string_returns_none(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - PyPI returns garbage in the version field.
+        mock_pypi["result"] = "not-a-version"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual is None, "unparseable version -> silent None"
+
+
+# -- Fetch failure -----------------------------------------------------------
+
+
+class TestFetchFailure:
+    def test_pypi_unreachable_returns_none(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - _fetch_pypi_latest returns None on any network issue.
+        mock_pypi["result"] = None
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual is None, "network failure is silent"
+        state = _read_state(pin_state_dir)
+        assert "last_checked" in state, \
+            "records attempt timestamp so we don't hammer on flaky net"
+
+
+# -- State file corruption ---------------------------------------------------
+
+
+class TestStateCorruption:
+    def test_malformed_json_treated_as_empty(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - write junk bytes where JSON should be.
+        (pin_state_dir / "update_check.json").write_text("{not valid json")
+        mock_pypi["result"] = "0.61.0"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert - corrupt state treated as "never checked", so we notify.
+        assert actual == "0.61.0", "corrupt state is tolerated, not fatal"
+
+    def test_missing_state_dir_still_works(
+        self, monkeypatch, tmp_path, freeze_time, mock_pypi
+    ):
+        # Arrange - point to a dir that doesn't exist yet.
+        monkeypatch.setenv("TERMAPY_STATE_DIR", str(tmp_path / "does_not_exist"))
+        mock_pypi["result"] = "0.61.0"
+
+        # Act
+        actual = update_check.check(current_version="0.60.0")
+
+        # Assert
+        assert actual == "0.61.0", "missing dir auto-created"
+
+
+# -- The 'never raises' guarantee --------------------------------------------
+
+
+class TestNeverRaises:
+    def test_arbitrary_exception_in_fetch_is_swallowed(
+        self, pin_state_dir, freeze_time, monkeypatch
+    ):
+        # Arrange - make _fetch_pypi_latest raise something unexpected.
+        def _explode():
+            raise RuntimeError("totally unexpected")
+
+        monkeypatch.setattr(update_check, "_fetch_pypi_latest", _explode)
+
+        # Act / Assert - must not raise
+        actual = update_check.check(current_version="0.60.0")
+        assert actual is None, "unexpected exception swallowed, returns None"

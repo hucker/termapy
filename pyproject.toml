@@ -65,6 +65,9 @@ Issues = "https://github.com/hucker/termapy/issues"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=termapy --cov-report=term-missing"
+markers = [
+    "flaky: timing-sensitive test that sleeps to poll thread state; may be fragile on slow CI or under heavy load",
+]
 
 [tool.ty.environment]
 # Vendored pyserial lives here. ty needs to see it as a search root so

@@ -138,6 +138,7 @@ class TestProperties:
 
 
 class TestReadLoop:
+    @pytest.mark.flaky
     def test_read_loop_receives_lines(self):
         # Arrange
         engine, _, _ = _make_engine()
@@ -163,6 +164,7 @@ class TestReadLoop:
         assert len(lines_received) > 0, "got some output"
         assert any("OK" in line for line in lines_received), "AT should produce OK"
 
+    @pytest.mark.flaky
     def test_read_loop_stops_on_event(self):
         # Arrange
         engine, _, _ = _make_engine()
@@ -294,6 +296,7 @@ class TestRxObservers:
         # Act / Assert - should not raise
         engine.remove_rx_observer(lambda data: None)
 
+    @pytest.mark.flaky
     def test_observer_receives_rx_data(self):
         # Arrange
         engine, _, _ = _make_engine()
@@ -320,6 +323,7 @@ class TestRxObservers:
         assert all(isinstance(d, bytes) for d in received), "data should be bytes"
         engine.disconnect()
 
+    @pytest.mark.flaky
     def test_exception_in_observer_does_not_block_others(self):
         # Arrange
         engine, _, _ = _make_engine()
@@ -517,6 +521,7 @@ class TestReconnectLoop:
         assert len(statuses) > 0, "should have received status updates"
         assert all("Connecting" in s for s in statuses), "status should show connecting"
 
+    @pytest.mark.flaky
     def test_reconnect_loop_cancelled(self):
         # Arrange - use a port that always fails
         capture = CaptureEngine()

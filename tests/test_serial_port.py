@@ -53,6 +53,7 @@ class TestProperties:
 
 
 class TestWrite:
+    @pytest.mark.flaky
     def test_write_sends_data(self, port_env):
         # Arrange
         sp, fake, _, _ = port_env

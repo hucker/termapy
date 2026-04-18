@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from termapy.cli import CLITerminal
+from termapy.defaults import DEFAULT_CFG
 
 
 # -- Fixtures ----------------------------------------------------------------
@@ -16,24 +17,21 @@ from termapy.cli import CLITerminal
 
 @pytest.fixture
 def cli(tmp_path):
-    """Create a CLITerminal with dummy config and mocked serial engine."""
-    cfg = {"port": "COM99", "baud_rate": 115200, "line_ending": "\r"}
+    """Create a CLITerminal wired to the DEMO simulator.
+
+    Uses a real SerialEngine with port="DEMO" so FakeSerial stands in
+    for real hardware.  Tests that need a disconnected state can set
+    ``cli.engine._is_connected = False`` (or call ``cli._disconnect()``).
+    Tests that need a connected state can call ``cli._connect()``.
+    """
+    cfg = dict(DEFAULT_CFG, port="DEMO", baud_rate=115200, line_ending="\r")
     config_path = tmp_path / "test_cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
     for sub in ("plugin", "ss", "run", "proto", "cap", "prof"):
         (config_path.parent / sub).mkdir(exist_ok=True)
 
-    with patch("termapy.cli.SerialEngine") as mock_engine_cls:
-        mock_engine = MagicMock()
-        mock_engine.is_connected = False
-        mock_engine.serial_port = None
-        mock_engine.port_obj = None
-        mock_engine.last_error = ""
-        mock_engine_cls.return_value = mock_engine
-        terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=80)
-
-    return terminal
+    return CLITerminal(cfg, str(config_path), no_color=True, term_width=80)
 
 
 # -- Output methods ----------------------------------------------------------
@@ -166,9 +164,7 @@ class TestHookColor:
 
 class TestHookRaw:
     def test_raw_not_connected(self, cli):
-        # Arrange
-        cli.engine.is_connected = False
-
+        # Arrange -- fixture is disconnected by default.
         # Act
         result = cli._hook_raw(cli.ctx, "hello")
 
@@ -176,8 +172,8 @@ class TestHookRaw:
         assert not result.success, "fails when disconnected"
 
     def test_raw_no_args(self, cli):
-        # Arrange
-        cli.engine.is_connected = True
+        # Arrange -- connect to DEMO so the "no args" branch is reached.
+        cli._connect()
 
         # Act
         result = cli._hook_raw(cli.ctx, "")
@@ -186,16 +182,21 @@ class TestHookRaw:
         assert not result.success, "fails with no text"
 
     def test_raw_sends_data(self, cli):
-        # Arrange
-        cli.engine.is_connected = True
-        cli.engine.serial_port = MagicMock()
+        # Arrange -- real connect to DEMO.  FakeSerial records bytes
+        # in ``_input_buf`` once ``_process_input`` consumes them, so
+        # we send something DEMO will NOT auto-consume by picking a
+        # no-line-ending AT prefix and inspecting the buffer.
+        cli._connect()
 
         # Act
         result = cli._hook_raw(cli.ctx, "AT")
 
-        # Assert
+        # Assert -- FakeSerial processes input when a line ending is
+        # seen; /raw sends no line ending, so the bytes sit in the
+        # input buffer where we can verify them.
         assert result.success, "command succeeds"
-        cli.engine.serial_port.write.assert_called_once_with(b"AT")  # bytes sent
+        actual = bytes(cli.engine.port_obj._input_buf)
+        assert actual == b"AT", f"bytes sent verbatim, got {actual!r}"
 
 
 # -- Hook: run ---------------------------------------------------------------
@@ -263,8 +264,9 @@ class TestHookLogClear:
 
 class TestConnect:
     def test_connect_already_connected(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = True
+        # Arrange -- connect once for real, then try again.
+        cli._connect()
+        capsys.readouterr()  # drain the first-connect banner
 
         # Act
         cli._connect()
@@ -274,24 +276,21 @@ class TestConnect:
         assert "Already connected" in actual, "warns already connected"
 
     def test_connect_success(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-        cli.engine.connect.return_value = True
-        cli.engine.port_obj = MagicMock()
-
-        # Act
-        with patch("termapy.config.connection_string", return_value="COM99 115200"):
-            with patch("termapy.config.hardware_signals", return_value=""):
-                cli._connect()
+        # Act -- real DEMO connect, no mocks.
+        cli._connect()
 
         # Assert
         actual = capsys.readouterr().out
         assert "Connected" in actual, "reports connection"
+        assert cli.engine.is_connected, "engine reports connected state"
 
     def test_connect_failure(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-        cli.engine.connect.return_value = False
+        # Arrange -- switch the port to DEMO_FAIL, the reserved name
+        # open_serial() treats as a simulated open failure.  Exercises
+        # the real connect-failure path without needing broken hardware
+        # or a mocked open_fn.
+        cli.cfg["port"] = "DEMO_FAIL"
+        cli.repl._cfg_data["port"] = "DEMO_FAIL"
 
         # Act
         cli._connect()
@@ -299,25 +298,19 @@ class TestConnect:
         # Assert
         actual = capsys.readouterr().out
         assert "Cannot open" in actual, "reports failure"
+        assert not cli.engine.is_connected, "engine remains disconnected"
 
     def test_connect_with_port(self, cli):
-        # Arrange
-        cli.engine.is_connected = False
-        cli.engine.connect.return_value = True
-        cli.engine.port_obj = MagicMock()
-
-        # Act
-        with patch("termapy.config.connection_string", return_value="COM5 115200"):
-            with patch("termapy.config.hardware_signals", return_value=""):
-                cli._connect(port="COM5")
+        # Act -- override with another port name (still DEMO) so the
+        # cfg-update branch runs.
+        cli._connect(port="DEMO")
 
         # Assert
-        assert cli.cfg["port"] == "COM5", "port updated in config"
+        assert cli.cfg["port"] == "DEMO", "port updated in config"
+        assert cli.engine.is_connected, "engine connected after override"
 
     def test_disconnect_not_connected(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-
+        # Arrange -- fixture is disconnected by default.
         # Act
         cli._disconnect()
 
@@ -326,14 +319,15 @@ class TestConnect:
         assert "Not connected" in actual, "warns not connected"
 
     def test_disconnect_success(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = True
+        # Arrange -- real connect, then real disconnect.
+        cli._connect()
+        capsys.readouterr()  # drain connect banner
 
         # Act
         cli._disconnect()
 
         # Assert
-        cli.engine.disconnect.assert_called_once()  # engine disconnect called
+        assert not cli.engine.is_connected, "engine reports disconnected"
         actual = capsys.readouterr().out
         assert "Disconnected" in actual, "reports disconnection"
 
@@ -343,9 +337,7 @@ class TestConnect:
 
 class TestSerialWriteRaw:
     def test_not_connected(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-
+        # Arrange -- fixture is disconnected by default.
         # Act
         cli._serial_write_raw("AT")
 
@@ -353,17 +345,28 @@ class TestSerialWriteRaw:
         actual = capsys.readouterr().out
         assert "Not connected" in actual, "warns not connected"
 
-    def test_sends_with_line_ending(self, cli):
-        # Arrange
-        cli.engine.is_connected = True
-        cli.engine.serial_port = MagicMock()
+    def test_sends_with_line_ending(self, cli, capsys):
+        # Arrange -- real DEMO connect; DEMO responds to AT<CRLF> with
+        # OK<CRLF>.  Seeing "OK" in stdout proves that (a) the bytes
+        # were sent, (b) DEMO recognised them as a complete AT command,
+        # which means the line ending was applied correctly.
+        cli._connect()
         cli.cfg["line_ending"] = "\r\n"
 
         # Act
         cli._serial_write_raw("AT")
 
-        # Assert
-        cli.engine.serial_port.write.assert_called_once_with(b"AT\r\n")  # appends line ending
+        # Assert -- reader thread drains DEMO's response into stdout.
+        # Poll briefly since the background reader runs on its own
+        # thread.
+        import time
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            actual = capsys.readouterr().out
+            if "OK" in actual:
+                return
+            time.sleep(0.02)
+        pytest.fail(f"expected OK in stdout, got {actual!r}")
 
 
 # -- Capture helpers ---------------------------------------------------------

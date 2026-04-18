@@ -34,7 +34,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
-    "Show or toggle verbose status output. Use /verbose.quiet to set silently.",
+    "Show or toggle verbose status output. Use {prefix}verbose.quiet to set silently.",
     name="verbose",
     args="{on|off}",
     handler=_handler,

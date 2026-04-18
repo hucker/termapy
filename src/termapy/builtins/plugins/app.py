@@ -120,12 +120,12 @@ def _handler_config_edit(ctx: PluginContext, args: str) -> CmdResult:
 _APP_LONG_HELP = """\
 Inspect app-wide state and config.
 
-  /app.explore          open the app folder in the file manager
-  /app.state            print state.json path
-  /app.state.dump       print state.json contents
-  /app.config           print config.json path
-  /app.config.dump      print config.json contents
-  /app.config.edit      open config.json in the system editor
+  {prefix}app.explore          open the app folder in the file manager
+  {prefix}app.state            print state.json path
+  {prefix}app.state.dump       print state.json contents
+  {prefix}app.config           print config.json path
+  {prefix}app.config.dump      print config.json contents
+  {prefix}app.config.edit      open config.json in the system editor
 
 state.json is app-written (PyPI update-check timestamps, caches).
 config.json is reserved for user-editable global preferences; no
@@ -147,7 +147,7 @@ COMMAND = Command(
             help="Print state.json path.",
             long_help=(
                 "Bare: print the path.\n"
-                "  /app.state.dump      print state.json contents"
+                "  {prefix}app.state.dump      print state.json contents"
             ),
             handler=_handler_state,
             sub_commands={
@@ -161,8 +161,8 @@ COMMAND = Command(
             help="Print config.json path.",
             long_help=(
                 "Bare: print the path.\n"
-                "  /app.config.dump     print config.json contents\n"
-                "  /app.config.edit     open config.json in the system editor"
+                "  {prefix}app.config.dump     print config.json contents\n"
+                "  {prefix}app.config.edit     open config.json in the system editor"
             ),
             handler=_handler_config,
             sub_commands={

@@ -446,15 +446,15 @@ def _build_folder_subs() -> dict[str, Command]:
 
 _CFG_PROSE = """\
 Three modes:
-  /cfg              - show all config key/value pairs
-  /cfg baud_rate    - show current value of 'baud_rate'
-  /cfg baud_rate 115200 - change with confirmation dialog
+  {prefix}cfg              - show all config key/value pairs
+  {prefix}cfg baud_rate    - show current value of 'baud_rate'
+  {prefix}cfg baud_rate 115200 - change with confirmation dialog
 
 Type is auto-detected from the existing value (int, float,
 bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
 Changes are saved to the JSON config file.
 
-Use /cfg.auto to set values without confirmation (for scripts)."""
+Use {prefix}cfg.auto to set values without confirmation (for scripts)."""
 
 
 def _cfg_long_help(ctx: PluginContext) -> str:

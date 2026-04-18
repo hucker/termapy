@@ -606,7 +606,7 @@ def _crc_help(ctx: PluginContext, args: str) -> CmdResult:
     """
     name = args.strip().lower()
     if not name:
-        return CmdResult.fail(msg="Usage: /proto.crc.help <name>")
+        return CmdResult.fail(msg="Usage: {prefix}proto.crc.help <name>")
 
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
@@ -617,7 +617,7 @@ def _crc_help(ctx: PluginContext, args: str) -> CmdResult:
             ctx.write(f"  {name} (plugin, {alg.width * 8}-bit)")
             ctx.write("  No catalogue parameters - loaded from plugin file.")
             return CmdResult.ok()
-        ctx.write("Use '/proto.crc.list' to see available algorithms.")
+        ctx.write("Use '{prefix}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     w = entry["width"]
@@ -683,7 +683,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     registry = get_crc_registry()
     alg = registry.get(name)
     if alg is None:
-        ctx.write("Use '/proto.crc.list' to see available algorithms.")
+        ctx.write("Use '{prefix}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     # No data provided - use the standard check string "123456789"
@@ -798,7 +798,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     code = gen(name, table=use_table)
     if code is None:
         ctx.write(
-            f"Unknown algorithm: {name}. Use /proto.crc.list to see available.", "red"
+            f"Unknown algorithm: {name}. Use {prefix}proto.crc.list to see available.", "red"
         )
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
@@ -827,10 +827,10 @@ Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
   /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
 
 CRC tools:
-  /proto.crc.list              - list all 62 algorithms
-  /proto.crc.list *modbus*     - filter by glob pattern
-  /proto.crc.help crc16-modbus - show parameters for Modbus CRC
-  /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
+  {prefix}proto.crc.list              - list all 62 algorithms
+  {prefix}proto.crc.list *modbus*     - filter by glob pattern
+  {prefix}proto.crc.help crc16-modbus - show parameters for Modbus CRC
+  {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
 
 Script files (.pro) support TOML format with [[test]] sections
 or flat format with send:/expect: directives. Scripts are found
@@ -895,7 +895,7 @@ COMMAND = Command(
                     help="Show algorithm parameters and description.",
                     long_help=(
                         "Shows the polynomial, init, reflection, xor-out, and check\n"
-                        "value for one CRC algorithm. Use /proto.crc.list to see\n"
+                        "value for one CRC algorithm. Use {prefix}proto.crc.list to see\n"
                         "every available name."
                     ),
                     handler=_crc_help,
@@ -904,11 +904,11 @@ COMMAND = Command(
                     args="<name> {data}",
                     help="Compute CRC over hex bytes, text, or file.",
                     long_help=(
-                        "Computes a CRC over the supplied data. Use /proto.crc.list\n"
+                        "Computes a CRC over the supplied data. Use {prefix}proto.crc.list\n"
                         "to see every available algorithm name.\n"
                         "\n"
                         "Example:\n"
-                        "  /proto.crc.calc crc16-modbus 01 03 00 00 00 01"
+                        "  {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01"
                     ),
                     handler=_crc_calc,
                 ),
@@ -918,12 +918,12 @@ COMMAND = Command(
                     help="Generate C source code for a CRC algorithm.",
                     long_help=(
                         "Prints a self-contained C implementation for the named\n"
-                        "CRC. Use /proto.crc.list to see every available algorithm\n"
-                        "name, or /proto.crc.help <name> for its parameters.\n"
+                        "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
+                        "name, or {prefix}proto.crc.help <name> for its parameters.\n"
                         "\n"
                         "Example:\n"
-                        "  /proto.crc.c crc16-modbus\n"
-                        "  /proto.crc.c crc32 --table"
+                        "  {prefix}proto.crc.c crc16-modbus\n"
+                        "  {prefix}proto.crc.c crc32 --table"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
                 ),
@@ -933,12 +933,12 @@ COMMAND = Command(
                     help="Generate Python source code for a CRC algorithm.",
                     long_help=(
                         "Prints a self-contained Python implementation for the named\n"
-                        "CRC. Use /proto.crc.list to see every available algorithm\n"
-                        "name, or /proto.crc.help <name> for its parameters.\n"
+                        "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
+                        "name, or {prefix}proto.crc.help <name> for its parameters.\n"
                         "\n"
                         "Example:\n"
-                        "  /proto.crc.python crc16-modbus\n"
-                        "  /proto.crc.python crc32 --table"
+                        "  {prefix}proto.crc.python crc16-modbus\n"
+                        "  {prefix}proto.crc.python crc32 --table"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "python"),
                 ),
@@ -948,12 +948,12 @@ COMMAND = Command(
                     help="Generate Rust source code for a CRC algorithm.",
                     long_help=(
                         "Prints a self-contained Rust implementation for the named\n"
-                        "CRC. Use /proto.crc.list to see every available algorithm\n"
-                        "name, or /proto.crc.help <name> for its parameters.\n"
+                        "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
+                        "name, or {prefix}proto.crc.help <name> for its parameters.\n"
                         "\n"
                         "Example:\n"
-                        "  /proto.crc.rust crc16-modbus\n"
-                        "  /proto.crc.rust crc32 --table"
+                        "  {prefix}proto.crc.rust crc16-modbus\n"
+                        "  {prefix}proto.crc.rust crc32 --table"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
                 ),

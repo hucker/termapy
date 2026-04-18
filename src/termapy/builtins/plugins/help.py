@@ -7,7 +7,13 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command, resolve_long_help
+from termapy.plugins import (
+    CapabilitySet,
+    CmdResult,
+    Command,
+    interpolate_help,
+    resolve_long_help,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -160,20 +166,25 @@ def _required_capability_rows(needs) -> list[tuple[str, str]]:
 # ── Forgiving /help search ───────────────────────────────────────────────────
 
 
-def _find_candidates(term: str, plugins: dict) -> list[str]:
+def _find_candidates(term: str, plugins: dict, prefix: str) -> list[str]:
     """Return command names whose name or short help contains every word of ``term``.
 
     Substring match, case-insensitive. Multi-word queries AND-match across
     name+help. This is the ``/help`` lookup's forgiving layer -- narrower than
     ``/search`` (which hits args/long_help/flags too). Returns command names
     sorted alphabetically.
+
+    ``prefix`` is the live REPL prefix, used to interpolate each plugin's
+    short help before matching so a search for ``!cfg`` finds entries whose
+    help says ``{prefix}cfg``.
     """
     words = [w.lower() for w in term.split() if w]
     if not words:
         return []
     hits: list[str] = []
     for name, plugin in plugins.items():
-        haystack = f"{name} {plugin.help}".lower()
+        help_text = interpolate_help(plugin.help, prefix)
+        haystack = f"{name} {help_text}".lower()
         if all(w in haystack for w in words):
             hits.append(name)
     return sorted(hits)
@@ -210,12 +221,13 @@ def _landscape_row(prefix: str, name: str, plugin, cmd_w: int,
     "here's why this matched" affordance and does not belong on the
     no-args landscape or exact-match man page.
     """
+    help_text = interpolate_help(plugin.help, prefix)
     if needles:
         name_rendered = _underline(name, needles)
-        help_rendered = _underline(plugin.help, needles)
+        help_rendered = _underline(help_text, needles)
     else:
         name_rendered = name
-        help_rendered = plugin.help
+        help_rendered = help_text
     cmd_col = _pad(f"  [{_CMD}]{prefix}{name_rendered}[/]", cmd_w + 2)
     return f"{cmd_col}  {help_rendered}"
 
@@ -252,7 +264,8 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
 
     # NAME ────────────────────────────────────────────────────────────────────
     ctx.write_markup(_SECTION_FMT.format(text="NAME"))
-    ctx.write_markup(f"  [{_CMD}]{prefix}{name}[/] - {plugin.help}")
+    help_line = interpolate_help(plugin.help, prefix)
+    ctx.write_markup(f"  [{_CMD}]{prefix}{name}[/] - {help_line}")
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     if plugin.args:
@@ -426,15 +439,16 @@ def _show_command_help(ctx: PluginContext, name: str,
 
     # 3. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
-    candidates = _find_candidates(name, plugins)
+    candidates = _find_candidates(name, plugins, ctx.engine.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
         return CmdResult.ok(value="\n".join(candidates))
 
     # 4. No hits anywhere -- hint at the deeper tool.
+    p = ctx.engine.prefix
     return CmdResult.fail(
         msg=f"No command matches '{name}'. "
-            f"Try /search {name} for a deeper search."
+            f"Try {p}search {name} for a deeper search."
     )
 
 
@@ -538,8 +552,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # Footer: teach the two other modes. Single dim line, always emitted.
     ctx.write_markup("")
     ctx.write_markup(
-        f"[{_SEP}]Use /help <term> to find a command, "
-        f"/search <word> for a deep search.[/]"
+        f"[{_SEP}]Use {prefix}help <term> to find a command, "
+        f"{prefix}search <word> for a deep search.[/]"
     )
     return CmdResult.ok()
 

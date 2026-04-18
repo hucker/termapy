@@ -2,6 +2,8 @@
 
 Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead of being sent to the serial device.
 
+> **NOTE:** If the device you are communicating with uses `/` commands that conflict with termapy's, you can change the prefix by setting `cmd_prefix` in your config (e.g. `cmd_prefix: "!"`). With `!` as the prefix, `!help` runs the local help command and `/foo` gets sent verbatim to the device.
+
 | Command                   | Description                                                                 |
 | ------------------------- | --------------------------------------------------------------------------- |
 | `/help`                   | Clean landscape of every command (name + one-liner)                         |

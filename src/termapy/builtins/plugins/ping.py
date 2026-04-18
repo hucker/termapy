@@ -82,7 +82,7 @@ COMMAND = Command(
         "quiet": Command(
             "Ping without showing device response.",
             long_help=(
-                "Same as /ping but suppresses the device response text;\n"
+                "Same as {prefix}ping but suppresses the device response text;\n"
                 "only the timing summary is printed.\n"
                 "\n"
                 "Parameters:\n"

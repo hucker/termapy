@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from termapy import port_control, usb_serial_chips
 from termapy.help_dynamic import compose, green, port_status, state_line
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CmdResult, Command, interpolate_help
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -41,9 +41,9 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         for child_name in sorted(info.children):
             child = plugins.get(child_name)
             if child:
-                child_name.split(".")[-1]
                 arg_str = f" {child.args}" if child.args else ""
-                ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
+                help_text = interpolate_help(child.help, prefix)
+                ctx.write(f"  {prefix}{child_name}{arg_str} - {help_text}")
     return CmdResult.ok()
 
 
@@ -262,7 +262,7 @@ def _port_root_long_help(ctx: PluginContext) -> str:
         port_status(ctx),
         "Open, close, list, or configure the serial port.\n"
         "Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),\n"
-        "USB chip identification (/port.chip.*), and the four mode\n"
+        "USB chip identification ({prefix}port.chip.*), and the four mode\n"
         "settings baud_rate, byte_size, parity, stop_bits.",
     )
 
@@ -274,7 +274,7 @@ def _port_info_long_help(ctx: PluginContext) -> str:
         "and live hardware signal lines (DTR/RTS/CTS/DSR/RI/CD). Works\n"
         "only on the currently-connected port because the live signals\n"
         "come from an open Serial object. For chip info on another\n"
-        "port, use /port.chip which has a compatible argument shape.",
+        "port, use {prefix}port.chip which has a compatible argument shape.",
     )
 
 
@@ -285,10 +285,10 @@ def _port_mode_long_help(ctx: PluginContext) -> str:
     baud = ctx.cfg.get("baud_rate", "?")
     return compose(
         green(f"Current mode = {baud} {par}{byte}{stop}"),
-        "Combined form for baud + mode triple. Accepts '/port.mode\n"
+        "Combined form for baud + mode triple. Accepts '{prefix}port.mode\n"
         "115200 N81' or a subset. Individual subcommands\n"
-        "(/port.baud_rate, /port.byte_size, /port.parity,\n"
-        "/port.stop_bits) exist too.",
+        "({prefix}port.baud_rate, {prefix}port.byte_size, {prefix}port.parity,\n"
+        "{prefix}port.stop_bits) exist too.",
     )
 
 
@@ -348,12 +348,12 @@ COMMAND = Command(
         ),
         "open": Command(
             args="{name} {baud} {mode}",
-            help="Connect to the serial port (e.g. /port.open COM3 9600 N81).",
+            help="Connect to the serial port (e.g. {prefix}port.open COM3 9600 N81).",
             handler=_handler_open,
         ),
         "mode": Command(
             args="{baud} {mode}",
-            help="Show or set serial mode (e.g. /port.mode 9600 N81).",
+            help="Show or set serial mode (e.g. {prefix}port.mode 9600 N81).",
             long_help=_port_mode_long_help,
             handler=_handler_mode,
         ),
@@ -448,10 +448,10 @@ COMMAND = Command(
                         "filter substring (case-insensitive) are listed.\n"
                         "\n"
                         "Examples:\n"
-                        "  /port.chip.list           -- every chip\n"
-                        "  /port.chip.list ftdi      -- FTDI chips only\n"
-                        "  /port.chip.list arduino   -- Arduino boards only\n"
-                        "  /port.chip.list high      -- high-speed chips"
+                        "  {prefix}port.chip.list           -- every chip\n"
+                        "  {prefix}port.chip.list ftdi      -- FTDI chips only\n"
+                        "  {prefix}port.chip.list arduino   -- Arduino boards only\n"
+                        "  {prefix}port.chip.list high      -- high-speed chips"
                     ),
                     handler=_handler_chip_list,
                 ),

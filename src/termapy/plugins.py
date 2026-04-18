@@ -1028,11 +1028,33 @@ class PluginInfo:
     needs: CapabilitySet = field(default_factory=CapabilitySet)
 
 
-def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
-    """Return ``plugin.long_help`` as a string, calling it if it's a function.
+def interpolate_help(text: str, prefix: str) -> str:
+    """Substitute ``{prefix}`` in a help string with the live REPL prefix.
 
-    Static strings pass through untouched. Callables are invoked with the
-    live ``PluginContext`` and their return value is returned verbatim.
+    Plugin authors write cross-references to other commands like
+    ``"See {prefix}cfg.auto"`` instead of a hardcoded ``"See /cfg.auto"``
+    so the rendered output honours a user's ``cmd_prefix`` override.
+    Called by every help-rendering path (both short ``help=`` and
+    long ``long_help=``) so the substitution is uniform.
+
+    ``prefix`` is a plain string (usually ``ctx.engine.prefix`` at the
+    call site) rather than a ``PluginContext``, because several help
+    renderers already have the prefix in hand and don't need to thread
+    ctx through just to reach it.
+
+    Safe on empty / None input: returns ``""`` / ``None`` unchanged.
+    """
+    if not text:
+        return text
+    return text.replace("{prefix}", prefix)
+
+
+def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
+    """Return ``plugin.long_help`` as a prefix-interpolated string.
+
+    Static strings pass through with ``{prefix}`` substituted.  Callables
+    are invoked with the live ``PluginContext`` and their return value
+    gets the same substitution.
 
     Any exception raised by a callable is caught and returned as a
     fallback string so that ``/help`` rendering can never itself fail.
@@ -1049,7 +1071,7 @@ def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
             hp = hp(ctx)
         except BoundaryException as e:
             hp = f"(dynamic help failed: {e})"
-    return hp or ""
+    return interpolate_help(hp or "", ctx.engine.prefix)
 
 
 @dataclass
@@ -1339,6 +1361,7 @@ def _make_interior_handler(
             child = plugins.get(child_name)
             if child:
                 arg_str = f" {child.args}" if child.args else ""
-                ctx.write(f"  {prefix}{child_name}{arg_str} - {child.help}")
+                help_text = interpolate_help(child.help, prefix)
+                ctx.write(f"  {prefix}{child_name}{arg_str} - {help_text}")
 
     return _handler

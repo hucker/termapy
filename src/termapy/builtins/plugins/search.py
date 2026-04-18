@@ -15,7 +15,12 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command, resolve_long_help
+from termapy.plugins import (
+    CmdResult,
+    Command,
+    interpolate_help,
+    resolve_long_help,
+)
 
 # Reuse only the thin rendering helpers from the help plugin. Everything
 # search-specific (grammar, field extraction, highlighter) lives below.
@@ -234,12 +239,13 @@ def _render_hit(ctx: PluginContext, prefix: str, name: str, plugin,
     marker so device commands are visually distinguishable from plugins.
     """
     args_colored = _color_args(plugin.args) if plugin.args else ""
+    help_text = interpolate_help(plugin.help, prefix)
     if underlines:
         header_name = _underline(name, underlines)
-        header_help = _underline(plugin.help, underlines)
+        header_help = _underline(help_text, underlines)
     else:
         header_name = name
-        header_help = plugin.help
+        header_help = help_text
     arg_str = f" {args_colored}" if args_colored else ""
     shown_prefix = "" if is_target else prefix
     target_tag = f"  [{_SEP}](target)[/]" if is_target else ""

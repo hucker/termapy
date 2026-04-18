@@ -368,21 +368,21 @@ def _var_state_line(ctx: PluginContext) -> str:
 _VAR_PROSE = """\
 User-defined variables use $(NAME) syntax (case-sensitive).
 
-Setting variables (no / prefix needed):
+Setting variables (no {prefix} prefix needed):
   $(PORT) = COM7                - store literal value
-  $(BAUD) <- /port.baud_rate    - capture REPL command output
+  $(BAUD) <- {prefix}port.baud_rate    - capture REPL command output
   $(TEMP) <- AT+TEMP            - capture device response
 
 Using variables in commands:
-  /print $(PORT)
+  {prefix}print $(PORT)
   AT+PORT=$(PORT)
 
 Commands:
-  /var                   - list all variables
-  /var PORT              - show one variable (bare name or $(PORT))
-  /var.set PORT val      - set a variable (literal string)
-  /var.capture NAME cmd  - run cmd and store its result as NAME
-  /var.clear             - clear all variables
+  {prefix}var                   - list all variables
+  {prefix}var PORT              - show one variable (bare name or $(PORT))
+  {prefix}var.set PORT val      - set a variable (literal string)
+  {prefix}var.capture NAME cmd  - run cmd and store its result as NAME
+  {prefix}var.clear             - clear all variables
 
 Dynamic variables (current clock at point of use):
   $(DATE)              - current date (YYYY-MM-DD)
@@ -418,12 +418,12 @@ Config variables (resolved paths from current config):
 
 Escaping (when your data contains literal $):
   \\$(PORT)           - literal $(PORT) (not expanded)
-  /raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
+  {prefix}raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
 
 Scope: variables persist for the session. They are cleared
 automatically when a script is launched from the Scripts button
-or the Run menu, but NOT when /run is typed interactively.
-Use /var.clear to reset manually."""
+or the Run menu, but NOT when {prefix}run is typed interactively.
+Use {prefix}var.clear to reset manually."""
 
 
 def _var_long_help(ctx: PluginContext) -> str:

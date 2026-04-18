@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import open_with_system
+from termapy.defaults import cmd_prefix
 from termapy.plugins import CmdResult, EngineAPI, PluginContext
 from termapy.serial_port import eol_label
 
@@ -145,7 +146,7 @@ class TerminalHost:
         from termapy.repl import ReplEngine
 
         return EngineAPI(
-            prefix=self.cfg.get("cmd_prefix", "/"),
+            prefix=cmd_prefix(self.cfg),
             plugins=self.repl._plugins,
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),

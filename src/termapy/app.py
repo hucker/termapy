@@ -34,6 +34,7 @@ from termapy.config import (
     setup_demo_config,
     validate_config,
 )
+
 # Config-path resolution lives in termapy.config_resolve (Textual-free).
 # Re-exported under the original underscored names so existing
 # `from termapy.app import _find_config` callers keep working while
@@ -47,7 +48,7 @@ from rich.text import Text
 from textual import on, work
 
 from termapy import port_control
-from termapy.defaults import DEFAULT_CFG
+from termapy.defaults import DEFAULT_CFG, DEFAULT_CMD_PREFIX, cmd_prefix
 from termapy.folders import FOLDER_PATTERNS
 from termapy.dialogs import (
     CfgConfirm,
@@ -117,7 +118,10 @@ class CommandSuggester(Suggester):
         self._suggestions: list[str] = []
 
     def update(
-        self, commands: list[str], history: list[str], prefix: str = "/"
+        self,
+        commands: list[str],
+        history: list[str],
+        prefix: str = DEFAULT_CMD_PREFIX,
     ) -> None:
         """Rebuild suggestions: REPL commands + non-REPL history (deduped)."""
         device_cmds = [h for h in history if not h.startswith(prefix)]
@@ -362,7 +366,7 @@ class SerialTerminal(TerminalHost, App):
             cfg,
             config_path,
             write=self._status,
-            prefix=cfg.get("cmd_prefix", "/"),
+            prefix=cmd_prefix(cfg),
         )
         self.history: list[str] = self._load_history()
         self._history_idx: int = -1  # -1 = not browsing history
@@ -524,7 +528,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _rebuild_suggester_commands(self) -> None:
         """Rebuild the cached command list (call on plugin/config/file changes)."""
-        prefix = self.cfg.get("cmd_prefix", "/")
+        prefix = cmd_prefix(self.cfg)
         commands: list[str] = []
         for name, plugin in self.repl._plugins.items():
             commands.append(f"{prefix}{name}")
@@ -539,7 +543,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _update_suggester(self) -> None:
         """Update suggestions with current history (no filesystem scan)."""
-        prefix = self.cfg.get("cmd_prefix", "/")
+        prefix = cmd_prefix(self.cfg)
         self._suggester.update(self._cached_commands, self.history, prefix)
 
     def compose(self) -> ComposeResult:
@@ -597,7 +601,7 @@ class SerialTerminal(TerminalHost, App):
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
-                prefix = self.cfg.get("cmd_prefix", "/")
+                prefix = cmd_prefix(self.cfg)
                 cmd_btn = Button(prefix, id="btn-cmds")
                 cmd_btn.tooltip = f"Show REPL {prefix} commands."
                 yield cmd_btn
@@ -1321,9 +1325,7 @@ class SerialTerminal(TerminalHost, App):
                 label.add_class("visible")
                 if self._status_bar_timer is not None:
                     self._status_bar_timer.stop()
-                self._status_bar_timer = self.set_timer(
-                    timeout, self._clear_status_bar
-                )
+                self._status_bar_timer = self.set_timer(timeout, self._clear_status_bar)
             else:
                 self._clear_status_bar()
         except SHUTDOWN_RACE:
@@ -1386,7 +1388,9 @@ class SerialTerminal(TerminalHost, App):
                 result[0] = confirmed
                 event.set()
 
-            self.push_screen(ConfirmDialog(message), callback=_on_result)  # ty: ignore[no-matching-overload]
+            self.push_screen(
+                ConfirmDialog(message), callback=_on_result
+            )  # ty: ignore[no-matching-overload]
 
         try:
             self.call_from_thread(_show)
@@ -1441,7 +1445,7 @@ class SerialTerminal(TerminalHost, App):
             self._update_title()
             try:
                 inp = self.query_one("#cmd", Input)
-                prefix = self.cfg.get("cmd_prefix", "/")
+                prefix = cmd_prefix(self.cfg)
                 inp.placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
             except SHUTDOWN_RACE:
                 pass  # widgets gone during shutdown
@@ -1736,7 +1740,7 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy.config import connection_string
 
-        return connection_string(self.cfg, 'short')
+        return connection_string(self.cfg, "short")
 
     @staticmethod
     def _format_title_tooltip(
@@ -1821,8 +1825,7 @@ class SerialTerminal(TerminalHost, App):
         sb = self.cfg.get("stop_bits", 1)
         sb_str = str(int(sb)) if sb == int(sb) else str(sb)
         frame = (
-            f"{self.cfg.get('byte_size', 8)}"
-            f"{self.cfg.get('parity', 'N')}{sb_str}"
+            f"{self.cfg.get('byte_size', 8)}" f"{self.cfg.get('parity', 'N')}{sb_str}"
         )
         cfg_pairs: list[tuple[str, object]] = [
             ("config_path", self.config_path or "(none)"),
@@ -1839,9 +1842,7 @@ class SerialTerminal(TerminalHost, App):
             ("show_timestamps", bool(self.cfg.get("show_timestamps"))),
             ("os_cmd_enabled", bool(self.cfg.get("os_cmd_enabled"))),
         ]
-        center.tooltip = self._format_title_tooltip(
-            cfg_title, cfg_pairs, "edit config"
-        )
+        center.tooltip = self._format_title_tooltip(cfg_title, cfg_pairs, "edit config")
 
         # Port button (left) tooltip + label
         try:
@@ -1897,9 +1898,7 @@ class SerialTerminal(TerminalHost, App):
                 pairs.append((field_name, value))
         else:
             pairs.append(("status", "no USB chip info available"))
-        return self._format_title_tooltip(
-            port_name, pairs, "select serial port"
-        )
+        return self._format_title_tooltip(port_name, pairs, "select serial port")
 
     def _set_conn_status(self, text: str, style: str = "") -> None:
         try:
@@ -2539,7 +2538,7 @@ class SerialTerminal(TerminalHost, App):
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:
         """Color input red when typing a REPL command."""
-        prefix = self.cfg.get("cmd_prefix", "/")
+        prefix = cmd_prefix(self.cfg)
         if event.value.startswith(prefix):
             event.input.add_class("repl-mode")
             event.input.remove_class("var-mode")
@@ -2687,7 +2686,7 @@ class SerialTerminal(TerminalHost, App):
         """
         popup = self.query_one("#history-popup", OptionList)
         popup.clear_options()
-        prefix = self.cfg.get("cmd_prefix", "/")
+        prefix = cmd_prefix(self.cfg)
         skip_linux_only = sys.platform != "linux"
 
         def _add_row(cmd_text: str, help_text: str, option_id: str) -> None:
@@ -2764,11 +2763,11 @@ class SerialTerminal(TerminalHost, App):
             self.set_timer(0.1, getattr(self, method_name))
         elif opt_id.startswith("run:"):
             name = opt_id.split(":")[1]
-            prefix = self.cfg.get("cmd_prefix", "/")
+            prefix = cmd_prefix(self.cfg)
             self._dispatch_on_thread(f"{prefix}{name}")
         elif opt_id.startswith("repl:"):
             name = opt_id.split(":")[1]
-            prefix = self.cfg.get("cmd_prefix", "/")
+            prefix = cmd_prefix(self.cfg)
             inp = self.query_one("#cmd", Input)
             inp.value = f"{prefix}{name} "
             inp.action_end()
@@ -2874,7 +2873,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _sync_cmd_prefix(self) -> None:
         """Update the command prefix button and input placeholder."""
-        prefix = self.cfg.get("cmd_prefix", "/")
+        prefix = cmd_prefix(self.cfg)
         try:
             self.query_one("#btn-cmds", Button).label = prefix
             self.query_one(
@@ -3109,11 +3108,11 @@ class SerialTerminal(TerminalHost, App):
         action = result[0]
         if action == "run":
             filename = Path(result[1]).name
-            prefix = self.cfg.get("cmd_prefix", "/")
+            prefix = cmd_prefix(self.cfg)
             self._dispatch_on_thread(f"{prefix}proto.run {filename}")
         elif action == "debug":
             filename = Path(result[1]).name
-            prefix = self.cfg.get("cmd_prefix", "/")
+            prefix = cmd_prefix(self.cfg)
             self._dispatch_on_thread(f"{prefix}proto.debug {filename}")
         elif action == "new":
             self.push_screen(
@@ -3286,7 +3285,7 @@ class SerialTerminal(TerminalHost, App):
         if not line:
             ctx.write("Usage: /run.profile.cmd <command>", "red")
             return CmdResult.fail(msg="Usage: /run.profile.cmd <command>")
-        prefix = self.cfg.get("cmd_prefix", "/")
+        prefix = cmd_prefix(self.cfg)
         if not line.startswith(prefix) and "." in line.split()[0]:
             line = prefix + line
         ts = str(int(_time.time() * 1000))
@@ -3406,7 +3405,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _hook_proto_load(self, ctx, args: str) -> CmdResult:
         """Run a protocol test script (delegates to /proto.run)."""
-        prefix = self.cfg.get("cmd_prefix", "/")
+        prefix = cmd_prefix(self.cfg)
         self._dispatch_single(f"{prefix}proto.run {args}")
         return CmdResult.ok()
 

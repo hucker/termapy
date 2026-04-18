@@ -57,6 +57,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, ClassVar, Generator, Union
 
+from termapy.defaults import DEFAULT_CMD_PREFIX
+
 
 # Type alias for the ``long_help`` field on Command and PluginInfo. A plugin
 # can supply either a static string or a callable that receives the live
@@ -560,7 +562,7 @@ class EngineAPI:
     should not use this; it is unstable and may change between versions.
     """
 
-    prefix: str = "/"
+    prefix: str = DEFAULT_CMD_PREFIX
     plugins: dict = field(default_factory=dict)
     in_script: Callable = lambda: False
     script_stop: Callable = lambda: None

@@ -6,6 +6,7 @@ import re
 
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cmd_prefix
 from termapy.plugins import CmdResult, Command
 from termapy.scripting import ANSI_RE as _ANSI_RE
 
@@ -32,7 +33,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     except re.error as e:
         return CmdResult.fail(msg=f"  grep: invalid pattern: {e}")
     max_matches = ctx.cfg.get("max_grep_lines", 100)
-    prefix = ctx.cfg.get("cmd_prefix", "/")
+    prefix = cmd_prefix(ctx.cfg)
     grep_cmd = f"{prefix}grep"
     text = ctx.get_screen_text()
     if not text:

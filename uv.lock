@@ -861,10 +861,10 @@ requires-dist = [
     { name = "pygments", specifier = ">=2.20.0" },
     { name = "textual", specifier = ">=0.80" },
     { name = "textual-serve", marker = "extra == 'web'", specifier = ">=1.1" },
-    { name = "tree-sitter", marker = "python_full_version >= '3.10'", specifier = ">=0.25.0" },
-    { name = "tree-sitter-bash", marker = "python_full_version >= '3.10'", specifier = ">=0.23.0" },
-    { name = "tree-sitter-json", marker = "python_full_version >= '3.10'", specifier = ">=0.24.0" },
-    { name = "tree-sitter-toml", marker = "python_full_version >= '3.10'", specifier = ">=0.6.0" },
+    { name = "tree-sitter", marker = "python_full_version >= '3.10'", specifier = ">=0.25.0,<0.26" },
+    { name = "tree-sitter-bash", marker = "python_full_version >= '3.10'", specifier = ">=0.23.0,<0.26" },
+    { name = "tree-sitter-json", marker = "python_full_version >= '3.10'", specifier = ">=0.24.0,<0.25" },
+    { name = "tree-sitter-toml", marker = "python_full_version >= '3.10'", specifier = ">=0.6.0,<0.8" },
 ]
 provides-extras = ["web"]
 

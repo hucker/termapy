@@ -8,6 +8,7 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
 import json
+import re
 import sys
 import threading
 import time
@@ -2567,13 +2568,57 @@ class SerialTerminal(TerminalHost, App):
             eol_label=eol_label,
         )
 
+    # Column at which the "# help text" comment starts in the /
+    # popup.  Short command+args lines are left-padded to this
+    # column; longer lines break the comment onto a new continuation
+    # line indented to the same column.  Tuned so the three or four
+    # most common commands fit on one line without wrap.
+    _CMDS_HELP_COL = 50
+
+    # Regex matching help strings that flag a command as Linux-only
+    # (e.g. "Linux only", "Linux + FTDI only", "only on linux").
+    # Case-insensitive.  Used to hide those commands from the /
+    # popup on non-Linux platforms.
+    _LINUX_ONLY_RE = re.compile(r"linux[^.\n]*only|only[^.\n]*linux", re.IGNORECASE)
+
     def _show_commands(self) -> None:
-        """Show the REPL command picker with smart arg handling."""
+        """Show the REPL command picker with smart arg handling.
+
+        Hides Linux-only commands on non-Linux platforms (detected by
+        scanning each plugin's help text for "linux ... only").
+        Right-pads the command+args portion so the "# help text"
+        comment starts at a consistent column; if the prefix is too
+        long to fit, the comment wraps to a new continuation line
+        indented to the same column.
+        """
         popup = self.query_one("#history-popup", OptionList)
         popup.clear_options()
         prefix = self.cfg.get("cmd_prefix", "/")
+        skip_linux_only = sys.platform != "linux"
+
+        def _add_row(cmd_text: str, help_text: str, option_id: str) -> None:
+            """Build a Text row with the help column aligned to _CMDS_HELP_COL.
+
+            If ``cmd_text`` is shorter than the target column, pad
+            with spaces.  If it's longer, break and indent the
+            help text on the next line so the comment column
+            stays aligned.
+            """
+            label = Text(cmd_text)
+            pad = self._CMDS_HELP_COL - len(cmd_text)
+            if pad > 0:
+                label.append(" " * pad)
+                label.append(f"# {help_text}", style="dim")
+            else:
+                label.append("\n")
+                label.append(" " * self._CMDS_HELP_COL)
+                label.append(f"# {help_text}", style="dim")
+            popup.add_option(Option(label, id=option_id))
+
         groups: dict[str, list] = {}
         for name, plugin in self.repl._plugins.items():
+            if skip_linux_only and self._LINUX_ONLY_RE.search(plugin.help or ""):
+                continue
             groups.setdefault(plugin.source, []).append((name, plugin))
         for source, plugins in groups.items():
             popup.add_option(Option(f"── {source} ──", disabled=True))
@@ -2581,13 +2626,13 @@ class SerialTerminal(TerminalHost, App):
                 has_required = "<" in plugin.args if plugin.args else False
                 has_optional = "{" in plugin.args if plugin.args else False
                 if not plugin.args or (has_optional and not has_required):
-                    label = Text(f"{prefix}{name}")
-                    label.append(f"  # {plugin.help}", style="dim")
-                    popup.add_option(Option(label, id=f"run:{name}"))
+                    _add_row(f"{prefix}{name}", plugin.help, f"run:{name}")
                 if plugin.args:
-                    label = Text(f"{prefix}{name} {plugin.args}")
-                    label.append(f"  # {plugin.help}", style="dim")
-                    popup.add_option(Option(label, id=f"repl:{name}"))
+                    _add_row(
+                        f"{prefix}{name} {plugin.args}",
+                        plugin.help,
+                        f"repl:{name}",
+                    )
         popup.add_class("visible")
         popup.focus()
         popup.highlighted = 1 if popup.option_count > 1 else 0

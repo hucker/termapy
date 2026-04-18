@@ -67,6 +67,7 @@ Here is an example config for a device called `iot_device`:
     "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
     "log_file": "",
     "show_traceback": false,
+    "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
     "show_timestamps": false,
     "show_line_endings": false,

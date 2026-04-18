@@ -132,6 +132,7 @@ demo> /cfg.dump
     "hex_mode": false,
     "file_xfer_root": "",
     "show_traceback": true,
+    "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
     "max_grep_lines": 100,
     "custom_buttons": [

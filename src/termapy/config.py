@@ -402,6 +402,15 @@ def _type_name(t: type | tuple[type, ...]) -> str:
     return t.__name__
 
 
+# Exception types ``load_config`` can realistically raise.  Callers
+# use this as the ``except`` target so a single narrowing rule covers
+# every file-load site: OSError (missing file / permission denied /
+# disappeared mid-read) and ValueError (JSONDecodeError is a subclass;
+# also raised for invalid values caught during migration).  Anything
+# else from ``load_config`` is a bug worth propagating.
+CONFIG_LOAD_ERRORS: tuple[type[BaseException], ...] = (OSError, ValueError)
+
+
 def load_config(path: str) -> dict:
     """Load and validate JSON config, applying defaults for missing fields.
 

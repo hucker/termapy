@@ -8,9 +8,11 @@ import json
 import re
 from pathlib import Path
 
+from rich.errors import MarkupError
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, OptionList, TextArea
 from textual.widgets.option_list import Option
@@ -194,6 +196,12 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
                 error = f"[red]must be one of: {opts}[/]"
         elif key == "port":
+            # comports() can fail with OSError on permission/driver
+            # issues (Linux udev, macOS IOKit, Windows WMI) and with
+            # ImportError if pyserial's list_ports backend isn't
+            # available on this platform.  Both are environmental;
+            # degrade to the neutral display.  Anything else is a
+            # bug and should surface.
             try:
                 from serial.tools.list_ports import comports
                 available = {p.device for p in comports()}
@@ -204,7 +212,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 if available:
                     return f"[yellow]{key} = {val}[/]", f"[yellow]port not found (available: {', '.join(sorted(available))})[/]"
                 return f"[dim]{key} = {val}[/]", ""
-            except Exception:
+            except (OSError, ImportError):
                 return f"[dim]{key} = {val}[/]", ""
         elif key == "baud_rate":
             try:
@@ -213,12 +221,17 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     error = "[red]must be a positive integer[/]"
                 elif v not in self._STANDARD_BAUDS:
                     custom = False
+                    # The user is typing in the editor -- the JSON is
+                    # routinely invalid between edits.  Treat any parse
+                    # failure as "custom_baud unknown" without spamming;
+                    # NoMatches covers the editor widget being gone
+                    # during teardown.
                     try:
                         editor_cfg = json.loads(
                             self.query_one("#config-editor", TextArea).text
                         )
                         custom = editor_cfg.get("custom_baud", False)
-                    except Exception:
+                    except (json.JSONDecodeError, ValueError, NoMatches):
                         pass
                     if custom and v >= 300:
                         return f"[green]{key} = {val}[/] [dim](custom)[/]", ""
@@ -297,15 +310,19 @@ class ConfigEditor(ModalScreen[tuple | None]):
         if error:
             lines.append(error)
         elif preview_fn:
-            try:
-                preview = preview_fn(raw_val)
-                if preview:
-                    lines.append(preview)
-            except Exception:
-                pass
+            # preview_fn is one of our own preview callables from the
+            # config-schema entries.  If it raises that's a bug in our
+            # code; let it propagate so we fix it.
+            preview = preview_fn(raw_val)
+            if preview:
+                lines.append(preview)
+        # Rich raises MarkupError on malformed markup (mismatched tags,
+        # unknown styles).  NoMatches covers the widget being gone.
+        # Fall back to a safe rebuild that avoids whatever line was
+        # bad in the first place.
         try:
             help_widget.update("\n".join(lines))
-        except Exception:
+        except (MarkupError, NoMatches):
             lines_safe = [f"[dim]Line {row + 1}: {desc}[/]"]
             if valid:
                 lines_safe.append(f"Valid: [dim italic]{valid}[/]")

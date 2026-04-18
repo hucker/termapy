@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from termapy.plugins import BoundaryException
+
 
 @dataclass
 class VisualizerInfo:
@@ -75,11 +77,14 @@ def load_visualizers_from_dir(
     for py_file in sorted(folder.glob("*.py")):
         if py_file.name.startswith("_"):
             continue
+        # Plugin file: third-party code being imported; its top-level
+        # can raise anything (import errors, syntax, missing
+        # required names).  Report to stderr and keep scanning.
         try:
             info = _load_visualizer_file(py_file, source)
             if info:
                 visualizers.append(info)
-        except Exception as e:
+        except BoundaryException as e:
             print(
                 f"termapy: failed to load visualizer {py_file.name}: {e}",
                 file=sys.stderr,

@@ -30,11 +30,13 @@ from termapy.folders import FOLDER_PATTERNS
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext  # noqa: F401 (referenced in docstrings)
 
-# Helpers in this module use ``getattr(ctx, ...)`` / try-except for every
-# field access: they're honestly polymorphic and work with real
-# PluginContext instances, test fakes, or anything with matching attrs.
-# ``_Ctx`` is an alias for that permissive contract so signatures don't
-# falsely promise they need a full PluginContext.
+# Helpers in this module are intentionally duck-typed: they work with
+# real PluginContext instances, test fakes, or anything that exposes
+# the same attribute names.  To stay permissive we reach for attributes
+# via ``getattr(ctx, name, default)`` rather than ``try/except Exception``
+# -- the getattr form is just as forgiving about missing attrs, and
+# lets any real bug inside a callable propagate with a useful traceback
+# instead of silently degrading.
 _Ctx = Any
 
 
@@ -144,20 +146,16 @@ def port_setting(ctx: _Ctx, attr: str) -> Any:
     """Return a live attribute from the pyserial port, or ``None`` if closed.
 
     ``attr`` is the pyserial attribute name (e.g. ``"baudrate"``,
-    ``"bytesize"``, ``"parity"``, ``"stopbits"``). Any access error
-    (port closed, pyserial raises) degrades to ``None`` so the caller
-    can branch with a simple ``if``.
+    ``"bytesize"``, ``"parity"``, ``"stopbits"``).  Returns ``None``
+    when ``ctx`` doesn't expose ``port`` or the port isn't open.
     """
-    try:
-        p = ctx.port()
-    except Exception:
+    port_fn = getattr(ctx, "port", None)
+    if port_fn is None:
         return None
+    p = port_fn()
     if p is None:
         return None
-    try:
-        return getattr(p, attr, None)
-    except Exception:
-        return None
+    return getattr(p, attr, None)
 
 
 def port_status(ctx: _Ctx) -> str:
@@ -167,16 +165,11 @@ def port_status(ctx: _Ctx) -> str:
     Intended as the top-of-DESCRIPTION line for ``/port`` and any
     subcommand whose value only has meaning while connected.
     """
-    try:
-        if not ctx.is_connected():
-            return green("Not connected")
-    except Exception:
+    is_connected = getattr(ctx, "is_connected", None)
+    if is_connected is None or not is_connected():
         return green("Not connected")
-    p = None
-    try:
-        p = ctx.port()
-    except Exception:
-        pass
+    port_fn = getattr(ctx, "port", None)
+    p = port_fn() if port_fn else None
     if p is None:
         return green("Not connected")
     name = getattr(p, "port", "?") or "?"
@@ -245,8 +238,6 @@ def cfg_status(ctx: _Ctx) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def ns_count(ctx: _Ctx, name: str) -> int:
-    """Return ``len(ctx.ns(name))``, guarding against a missing ctx.ns."""
-    try:
-        return len(ctx.ns(name))
-    except Exception:
-        return 0
+    """Return ``len(ctx.ns(name))``, or 0 when ``ctx`` has no ``ns``."""
+    ns_fn = getattr(ctx, "ns", None)
+    return len(ns_fn(name)) if ns_fn else 0

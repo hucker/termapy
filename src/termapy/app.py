@@ -19,6 +19,7 @@ from threading import Event
 
 import serial
 from termapy.config import (
+    CONFIG_LOAD_ERRORS,
     CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
@@ -62,6 +63,7 @@ from termapy.dialogs import (
     UpdateAvailableDialog,
 )
 from termapy.plugins import (
+    BoundaryException,
     CapabilitySet,
     LoadResult,
     PluginContext,
@@ -546,11 +548,17 @@ class SerialTerminal(TerminalHost, App):
         with Horizontal(id="title-bar"):
             from textual.widgets import Static
 
-            from importlib.metadata import version as _get_version
+            from importlib.metadata import (
+                PackageNotFoundError,
+                version as _get_version,
+            )
 
+            # PackageNotFoundError fires when termapy is running from
+            # a git clone without `pip install .` (dev setup).  Other
+            # exceptions here would be bugs worth seeing.
             try:
                 ver = _get_version("termapy")
-            except Exception:
+            except PackageNotFoundError:
                 ver = "?"
             help_btn = Button("?", id="btn-help")
             help_btn.tooltip = f"Termapy v{ver} -- Show help guide."
@@ -715,15 +723,20 @@ class SerialTerminal(TerminalHost, App):
         focus, and disappears once the user has upgraded (next launch
         sees the same version on PyPI and does not unhide).
         """
+        # Narrow catch: PackageNotFoundError covers running from a
+        # git clone without an install.  update_check.check() honours
+        # its own "never raises to the user" contract internally, so
+        # we trust it not to leak other exceptions here.
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as _get_version
+
+        from termapy.update_check import check
+
         try:
-            from importlib.metadata import version as _get_version
-
-            from termapy.update_check import check
-
             current = _get_version("termapy")
-            latest = check(current_version=current)
-        except Exception:
-            return  # any failure -> silent, no user-visible artifact
+        except PackageNotFoundError:
+            return  # no installed metadata -> nothing to compare against
+        latest = check(current_version=current)
 
         if not latest:
             return
@@ -1416,6 +1429,12 @@ class SerialTerminal(TerminalHost, App):
 
     def _on_disconnected(self) -> None:
         """TUI post-disconnect: notify, update status, title, placeholder, buttons."""
+        # Event-handler safety net: a bug in any of the UI-update
+        # helpers below could otherwise propagate into Textual and
+        # crash the app.  _report_exception formats type, message,
+        # and source location in a user-visible red status line --
+        # nothing is hidden, the failure is shown; bare catch is
+        # appropriate at the top of an event handler.
         try:
             self.notify("Disconnected", severity="warning", timeout=0.75)
             self._set_conn_status("Disconnected")
@@ -1427,7 +1446,7 @@ class SerialTerminal(TerminalHost, App):
             except SHUTDOWN_RACE:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- reported via _report_exception
             self._report_exception(e)
 
     def _sync_hw_visibility(self) -> None:
@@ -1595,7 +1614,7 @@ class SerialTerminal(TerminalHost, App):
             self.call_from_thread(self._status, msg, "green")
         except RuntimeError:
             pass  # call_from_thread fails during app shutdown
-        except Exception as e:
+        except CONFIG_LOAD_ERRORS as e:
             self.call_from_thread(
                 self._status,
                 f"Failed to load demo config: {e}",
@@ -1625,11 +1644,14 @@ class SerialTerminal(TerminalHost, App):
     def _check_port_and_switch(self, cfg: dict, path: str) -> None:
         """If the configured port doesn't exist, prompt with PortPicker."""
         port = cfg.get("port", "")
+        # comports() failures are environmental: OSError on udev / IOKit
+        # / WMI hiccups, ImportError on platforms without list_ports.
+        # Treat either as "no ports visible" and fall through.
         try:
             from serial.tools.list_ports import comports
 
             available = {p.device for p in comports()}
-        except Exception:
+        except (OSError, ImportError):
             available = set()
 
         if port and (port in available or port.upper() == "DEMO"):
@@ -1661,7 +1683,7 @@ class SerialTerminal(TerminalHost, App):
         if action == "load":
             try:
                 cfg = load_config(result[1])
-            except Exception as e:
+            except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
             self._check_port_and_switch(cfg, result[1])
@@ -1670,7 +1692,7 @@ class SerialTerminal(TerminalHost, App):
         elif action == "edit":
             try:
                 cfg = load_config(result[1])
-            except Exception as e:
+            except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
             self.push_screen(
@@ -1946,7 +1968,7 @@ class SerialTerminal(TerminalHost, App):
         if self.config_path:
             try:
                 cfg = load_config(self.config_path)
-            except Exception as e:
+            except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
             self.push_screen(
@@ -3375,7 +3397,7 @@ class SerialTerminal(TerminalHost, App):
             from termapy.config import load_config
 
             cfg = load_config(str(path))
-        except Exception as e:
+        except CONFIG_LOAD_ERRORS as e:
             self.repl.write(f"Failed to load config: {e}", "red")
             return CmdResult.fail(msg=f"Failed to load config: {e}")
         self._on_main(self._switch_config, cfg, str(path))
@@ -3582,7 +3604,7 @@ def _run_cli_mode(args) -> str | None:
 
     try:
         cfg = load_config(config_path)
-    except Exception as e:
+    except CONFIG_LOAD_ERRORS as e:
         print(f"termapy: failed to load config: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -3619,7 +3641,7 @@ def _run_proto_headless(args) -> None:
 
     try:
         cfg = load_config(config_path)
-    except Exception as e:
+    except CONFIG_LOAD_ERRORS as e:
         print(f"termapy: failed to load config: {e}", file=sys.stderr)
         sys.exit(2)
 
@@ -3642,12 +3664,16 @@ def _run_proto_headless(args) -> None:
 
     # Run tests
     template = cfg.get("proto_results_template", "{name}_results.json")
+    # run_proto_tests executes user-supplied .pro content, which drives
+    # arbitrary command handlers and serial I/O; ValueError comes from
+    # the parser specifically, everything else from the test session
+    # is a trust-boundary catch.
     try:
         results = run_proto_tests(pro_path, cfg, template=template)
     except ValueError as e:
         print(f"termapy: {e}", file=sys.stderr)
         sys.exit(2)
-    except Exception as e:
+    except BoundaryException as e:
         print(f"termapy: test error: {e}", file=sys.stderr)
         sys.exit(2)
 
@@ -3706,7 +3732,7 @@ def _run_tui_mode(args) -> str | None:
         config_path = setup_demo_config(cfg_dir(), force=True)
         try:
             cfg = load_config(str(config_path))
-        except Exception as e:
+        except CONFIG_LOAD_ERRORS as e:
             print(f"termapy: failed to load demo config: {e}", file=sys.stderr)
             sys.exit(1)
         app = SerialTerminal(cfg, config_path=str(config_path))
@@ -3730,7 +3756,7 @@ def _run_tui_mode(args) -> str | None:
             sys.exit(1)
         try:
             cfg = load_config(config_path)
-        except Exception as e:
+        except CONFIG_LOAD_ERRORS as e:
             print(
                 f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
             )
@@ -3747,7 +3773,7 @@ def _run_tui_mode(args) -> str | None:
     if config_path:
         try:
             cfg = load_config(config_path)
-        except Exception as e:
+        except CONFIG_LOAD_ERRORS as e:
             print(
                 f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
             )
@@ -3772,7 +3798,7 @@ def _run_tui_mode(args) -> str | None:
         config_path = str(setup_demo_config(cfg_dir(), force=True))
         try:
             cfg = load_config(config_path)
-        except Exception as e:
+        except CONFIG_LOAD_ERRORS as e:
             print(f"termapy: failed to load demo config: {e}", file=sys.stderr)
             sys.exit(1)
         app = SerialTerminal(cfg, config_path=config_path, first_run=True)

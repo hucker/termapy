@@ -464,7 +464,10 @@ class CLITerminal(TerminalHost):
                 msg += " (config reset)"
             self.status(msg, "green")
             return CmdResult.ok()
-        except Exception as e:
+        except (OSError, ValueError) as e:
+            # OSError: write/copy of the demo config failed on disk.
+            # ValueError: json.JSONDecodeError (ValueError subclass) on
+            # a corrupt demo template.  Both are user-actionable.
             return CmdResult.fail(msg=f"Demo setup failed: {e}")
 
 

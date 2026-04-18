@@ -21,13 +21,17 @@ def _show_file(ctx: PluginContext, path: Path) -> None:
     if not path.exists():
         ctx.write(f"File not found: {path}", "red")
         return
+    # OSError covers file-locked / permission-denied / disappeared
+    # between the exists() check and here; UnicodeDecodeError means
+    # the user pointed /show at a binary file.  Both are user-facing
+    # conditions worth a friendly message.  Anything else is a bug.
     try:
         text = path.read_text(encoding="utf-8")
         ctx.write(f"--- {path} ---")
         for line in text.splitlines():
             ctx.write(line)
         ctx.write("--- end ---")
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         ctx.write(f"Error reading {path}: {e}", "red")
 
 

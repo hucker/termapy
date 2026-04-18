@@ -17,6 +17,7 @@ from types import MappingProxyType
 from typing import Callable
 
 from termapy.plugins import (
+    BoundaryException,
     CapabilitySet,
     DirectiveInfo,
     DirectiveResult,
@@ -430,9 +431,13 @@ class ReplEngine:
         for hook in self._lifecycle_hooks:
             if hook.name != name:
                 continue
+            # Plugin hook handlers are third-party code and can raise
+            # anything.  BoundaryException signals the reviewed broad
+            # catch; the error goes to status so a broken plugin can't
+            # take down the whole lifecycle pass.
             try:
                 hook.handler(self.ctx)
-            except Exception as e:
+            except BoundaryException as e:
                 self.ctx.status(
                     f"Lifecycle hook {hook.plugin}:{name} failed: {e}"
                 )
@@ -728,7 +733,10 @@ class ReplEngine:
                 if result is None:
                     result = CmdResult.ok()
                 result.elapsed_s = time.perf_counter() - t0
-            except Exception as e:
+            # Plugin handlers are third-party code and can raise
+            # anything.  BoundaryException signals the reviewed broad
+            # catch; the failure ships back in a CmdResult.
+            except BoundaryException as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
             finally:
                 # Release the per-dispatch flag set so the next command
@@ -1016,9 +1024,13 @@ class ReplEngine:
         result.elapsed_s = elapsed
         # Wait for device response after serial commands
         if not stripped.startswith(sctx.prefix):
+            # serial_wait_idle may be a no-op lambda in tests or raise
+            # if the port disappeared mid-script.  Fall back to a small
+            # sleep so script pacing still works.
+            import serial as _serial
             try:
                 self.ctx.serial_wait_idle()
-            except Exception:
+            except (_serial.SerialException, OSError, AttributeError):
                 time.sleep(0.1)
         return result
 
@@ -1059,9 +1071,14 @@ class ReplEngine:
             sctx.prof_fh.write("Duration (sec),Command\n")
             w(f"── profile: {path.name} -> {sctx.prof_name} ──")
         sctx.script_t0 = time.perf_counter()
+        # Scripts execute arbitrary user commands; any command handler
+        # or plugin invoked from the script can raise anything.
+        # BoundaryException signals the reviewed broad catch so one
+        # bad line reports an error and the script session ends
+        # cleanly instead of crashing the REPL.
         try:
             yield sctx
-        except Exception as e:
+        except BoundaryException as e:
             w(f"Script error: {e}", "red")
         finally:
             self._script_depth -= 1
@@ -1180,11 +1197,12 @@ class ReplEngine:
         dynamic_fields: dict[str, bool] = {}
         if self.in_script:
             dynamic_fields["block_until"] = True
-        try:
-            if self.ctx.is_connected():
-                dynamic_fields["serial_connected"] = True
-        except Exception:
-            pass  # is_connected() may be a no-op lambda in tests
+        # ctx.is_connected may be absent on a minimal test fake.
+        # getattr with a default is forgiving without hiding bugs in
+        # a real is_connected() implementation.
+        is_connected = getattr(self.ctx, "is_connected", None)
+        if is_connected is not None and is_connected():
+            dynamic_fields["serial_connected"] = True
         if dynamic_fields:
             effective = effective.union(CapabilitySet(**dynamic_fields))
         return effective

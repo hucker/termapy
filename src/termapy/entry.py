@@ -27,9 +27,12 @@ from pathlib import Path
 
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser.  No side effects; pure construction."""
+    from importlib.metadata import PackageNotFoundError
     try:
         _version = _get_version("termapy")
-    except Exception:
+    except PackageNotFoundError:
+        # Running from a git clone without `pip install .` -- version
+        # metadata isn't available.  Anything else is a real bug.
         _version = "unknown"
 
     parser = argparse.ArgumentParser(
@@ -234,6 +237,10 @@ def main() -> None:
         mode = "cli"
     else:
         _peek_cfg = None
+        # Best-effort peek at the config to choose initial UI mode.
+        # Any failure falls through to the default TUI -- the user will
+        # see the real error (and full traceback) when the actual TUI
+        # load tries the same config right after this.
         try:
             if args.demo:
                 pass  # demo defaults to tui
@@ -245,7 +252,9 @@ def main() -> None:
                 _peek_path, _ = find_config()
                 if _peek_path:
                     _peek_cfg = load_config(_peek_path)
-        except Exception:
+        except (OSError, ValueError):
+            # OSError: config file missing / permission denied.
+            # ValueError: json.JSONDecodeError is a ValueError subclass.
             pass
         mode = (_peek_cfg or {}).get("default_ui", "tui")
         if mode not in ("cli", "tui"):

@@ -15,6 +15,7 @@ from threading import Event
 from typing import Any, Callable
 
 from termapy.capture import CaptureEngine
+from termapy.plugins import BoundaryException
 from termapy.serial_port import SerialPort, SerialReader
 
 
@@ -263,11 +264,17 @@ class SerialEngine:
             pass
 
     def notify_tx(self, data: bytes) -> None:
-        """Fire TX observers. Called by the app/cli write path."""
+        """Fire TX observers. Called by the app/cli write path.
+
+        Observers are registered by plugins / callers and can raise
+        anything -- BoundaryException signals the reviewed broad
+        catch so one bad observer can't break the others or fail
+        the write.
+        """
         for obs in self._tx_observers:
             try:
                 obs(data)
-            except Exception:
+            except BoundaryException:
                 pass
 
     def connect(self) -> bool:
@@ -278,10 +285,16 @@ class SerialEngine:
         """
         if self.is_connected:
             return True
+        import serial as _serial
+        # pyserial open() can raise SerialException (typical: port in
+        # use, port missing), OSError (permissions, device vanished),
+        # or ValueError (bad baud / unsupported parameter combo).
+        # _classify_serial_error normalises each into a friendly
+        # message for the user.
         try:
             self._port_obj = self._open_fn(self._cfg)
             self.last_error = ""
-        except Exception as e:
+        except (_serial.SerialException, OSError, ValueError) as e:
             self.last_error = _classify_serial_error(e, self._cfg.get("port", ""))
             return False
 
@@ -303,12 +316,15 @@ class SerialEngine:
 
     def disconnect(self) -> None:
         """Signal the reader to stop, wait, and close the port."""
+        import serial as _serial
         self._stop_event.set()
         self._reader_stopped.wait(timeout=0.3)
         if self._port_obj:
+            # Close can raise if the device already vanished; nothing
+            # to recover from during disconnect, just drop the handle.
             try:
                 self._port_obj.close()
-            except Exception:
+            except (OSError, _serial.SerialException):
                 pass
         self._port_obj = None
         self._serial_port = None
@@ -341,14 +357,18 @@ class SerialEngine:
             self._reader_stopped.set()
             return
 
+        import serial as _serial
         try:
             while not self._stop_event.is_set():
                 if not getattr(port, "is_open", False):
                     break
+                # pyserial's read path raises SerialException on a lost
+                # device and OSError on underlying fd failure; either
+                # signals an effective disconnect.
                 try:
                     waiting = getattr(port, "in_waiting", 0) or 1
                     data = port.read(min(waiting, 4096))
-                except (OSError, Exception) as exc:
+                except (OSError, _serial.SerialException) as exc:
                     detail = f"{exc.__class__.__name__}: {exc}"
                     if on_error:
                         on_error(detail)
@@ -359,9 +379,13 @@ class SerialEngine:
                 if data:
                     self._rx_queue.put(data)
                     for obs in self._rx_observers:
+                        # RX observers are third-party callbacks;
+                        # BoundaryException signals the reviewed broad
+                        # catch so one misbehaving observer can't
+                        # break the others or stop the reader loop.
                         try:
                             obs(data)
-                        except Exception:
+                        except BoundaryException:
                             pass
 
                 result = reader.process(data)
@@ -379,7 +403,7 @@ class SerialEngine:
             if self._port_obj:
                 try:
                     self._port_obj.close()
-                except Exception:
+                except (OSError, _serial.SerialException):
                     pass
                 self._port_obj = None
                 self._serial_port = None
@@ -432,12 +456,18 @@ class SerialEngine:
     # -- Reconnection ----------------------------------------------------------
 
     def try_reconnect(self) -> bool:
-        """Attempt a single reconnect. Returns True on success."""
+        """Attempt a single reconnect. Returns True on success.
+
+        Same failure modes as ``connect`` -- SerialException when the
+        port is still missing / in use, OSError for permissions,
+        ValueError for an unsupported parameter combo.
+        """
+        import serial as _serial
         try:
             port = self._open_fn(self._cfg)
             port.close()
             return True
-        except Exception:
+        except (_serial.SerialException, OSError, ValueError):
             return False
 
     def reconnect_loop(

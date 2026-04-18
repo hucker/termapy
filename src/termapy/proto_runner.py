@@ -31,10 +31,10 @@ def _bytes_to_hex(data: bytes) -> str:
 
 def _bytes_to_text(data: bytes) -> str:
     """Format bytes as a repr-style text string with escape sequences."""
-    try:
-        text = data.decode("utf-8", errors="replace")
-    except Exception:
-        return _bytes_to_hex(data)
+    # ``errors="replace"`` guarantees decode never raises -- no
+    # try/except needed.  If ``data`` isn't bytes-like the caller has
+    # a bug and should see the TypeError.
+    text = data.decode("utf-8", errors="replace")
     return repr(text)[1:-1]  # strip surrounding quotes
 
 
@@ -244,9 +244,13 @@ def run_proto_tests(
         _run_setup_cmds(ser, script.teardown, cfg, frame_gap)
 
     finally:
+        # Cleanup close: the only realistic failures are SerialException
+        # (device vanished) or OSError; nothing actionable at this
+        # point, drop the handle either way.
+        import serial as _serial
         try:
             ser.close()
-        except Exception:
+        except (OSError, _serial.SerialException):
             pass
 
     total_elapsed = (time.monotonic() - t_start) * 1000

@@ -321,13 +321,11 @@ def _port_hw_line_long_help(line: str, direction: str):
     """Build long_help for dtr/rts (set) or cts/dsr/ri/cd (read-only)."""
 
     def _long(ctx: PluginContext) -> str:
-        value = "?"
-        try:
-            p = ctx.port()
-            if p is not None:
-                value = getattr(p, line, "?")
-        except Exception:
-            value = "?"
+        # ctx.port is a callable returning a port-or-None, and
+        # getattr(..., default) can't raise -- there's no real failure
+        # mode here to catch.  A simple None-check suffices.
+        p = ctx.port()
+        value = getattr(p, line, "?") if p is not None else "?"
         if value is None:
             value = "?"
         return state_line(f"{line.upper()} ({direction})", value)

@@ -11,10 +11,14 @@ if TYPE_CHECKING:
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    from importlib.metadata import version
+    # PackageNotFoundError fires when termapy is being run from a
+    # git clone without `pip install .` -- common during development.
+    # That's the only exception this path can legitimately raise;
+    # anything else is a bug worth surfacing.
+    from importlib.metadata import PackageNotFoundError, version
     try:
         ver = version("termapy")
-    except Exception:
+    except PackageNotFoundError:
         ver = "unknown"
     ver_str = f"termapy v{ver}"
     ctx.result(ver_str)

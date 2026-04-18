@@ -22,7 +22,11 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
 )
-from termapy.migration import CURRENT_CONFIG_VERSION, migrate_config
+from termapy.migration import (
+    CURRENT_CONFIG_VERSION,
+    DEPRECATED_CFG,
+    migrate_config,
+)
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
 
@@ -276,7 +280,9 @@ def validate_config(cfg: dict) -> list[str]:
     """Validate config values and return a list of warning strings.
 
     Checks serial port settings, encoding, and numeric constraints.
-    Unknown keys (not in DEFAULT_CFG) are flagged as potential typos.
+    Keys not in ``DEFAULT_CFG`` are flagged: if they appear in
+    ``DEPRECATED_CFG`` they're called out as deprecated with the
+    rename-or-removal history; otherwise flagged as a potential typo.
     Non-standard baud rates produce a warning but are not rejected.
 
     Args:
@@ -294,9 +300,14 @@ def validate_config(cfg: dict) -> list[str]:
             f"config_version: {ver} (current is {CURRENT_CONFIG_VERSION})"
         )
 
-    # Unknown keys (skip internal keys starting with _)
+    # Unknown / deprecated keys (skip internal keys starting with _)
     for key in cfg:
-        if not key.startswith("_") and key not in DEFAULT_CFG:
+        if key.startswith("_") or key in DEFAULT_CFG:
+            continue
+        hint = DEPRECATED_CFG.get(key)
+        if hint:
+            warnings.append(f"deprecated key: '{key}' ({hint})")
+        else:
             warnings.append(f"unknown key: '{key}' (typo?)")
 
     # Type + value checks for serial settings

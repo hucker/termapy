@@ -14,6 +14,50 @@ from typing import Callable
 
 CURRENT_CONFIG_VERSION = 12
 
+# Keys that used to be valid config fields but have been removed or
+# renamed by a migration.  Maps deprecated key -> a short message
+# explaining what happened.  ``validate_config`` uses this to give a
+# helpful warning ("deprecated: X was renamed to Y in v6") instead
+# of the generic "unknown key (typo?)" when a user's config carries
+# a stale field.
+#
+# In normal flow a deprecated key is cleaned up by the migration
+# chain on first load.  This dict catches the edge cases: hand-edited
+# configs that re-add an old key, configs with a version-mismatch
+# that somehow bypassed migrations, or users inspecting a very old
+# file with ``--check``.
+#
+# Keep sorted by the migration that retired the key so the schema
+# history reads chronologically.
+DEPRECATED_CFG: dict[str, str] = {
+    # v1 -> v2: rename
+    "add_date_to_cmd": "renamed to show_timestamps in v2",
+    # v3 -> v4: renames
+    "baudrate": "renamed to baud_rate in v4",
+    "bytesize": "renamed to byte_size in v4",
+    "stopbits": "renamed to stop_bits in v4",
+    "autoconnect": "renamed to auto_connect in v4",
+    "autoreconnect": "renamed to auto_reconnect in v4",
+    "autoconnect_cmd": "renamed to auto_connect_cmd in v4",
+    "pick": "renamed to pick_port in v4",
+    # v3 -> v4: removal
+    "command_history_items": "removed in v4 (no replacement)",
+    # v4 -> v5: removal
+    "pick_port": "removed in v5 (use $(env.NAME) config expansion)",
+    # v5 -> v6: renames
+    "echo_cmd": "renamed to echo_input in v6",
+    "echo_cmd_fmt": "renamed to echo_input_fmt in v6",
+    "auto_connect_cmd": "renamed to on_connect_cmd in v6",
+    "inter_cmd_delay_ms": "renamed to cmd_delay_ms in v6",
+    "show_eol": "renamed to show_line_endings in v6",
+    "exception_traceback": "renamed to show_traceback in v6",
+    "app_border_color": "renamed to border_color in v6",
+    "repl_prefix": "renamed to cmd_prefix in v6",
+    "read_only": "renamed to config_read_only in v6",
+    # v7 -> v8: removal
+    "cap_endian": "removed in v8 (endianness now lives in the format spec)",
+}
+
 # Migration functions: {from_version: callable(cfg) -> cfg}
 MIGRATIONS: dict[int, Callable] = {}
 

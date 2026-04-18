@@ -28,6 +28,7 @@ remember to propagate the exit.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -78,10 +79,25 @@ def run_info(args: argparse.Namespace) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-# Generous budget so CLI output doesn't truncate for real data.  The
-# drop-cascade in compute_widths still applies if the natural total
-# exceeds this, but that's very unlikely with typical USB-serial rows.
-_PORTS_ROW_WIDTH = 200
+# Fallback row width when stdout isn't a TTY (piped to a file or
+# through grep).  The drop-cascade in port_format shouldn't kick in
+# for piped output -- scripts expect all columns -- so we give it
+# enough budget that natural widths always win.
+_PORTS_PIPED_ROW_WIDTH = 200
+
+
+def _ports_row_width() -> int:
+    """Return the row budget for the --ports table.
+
+    Uses the real terminal width when stdout is a TTY so the
+    drop-cascade can hide less-important columns (speed, chip,
+    vid_pid, in that priority order) when the user's terminal is
+    narrower than the natural row width.  Falls back to a wide
+    budget when output is piped -- scripts expect every column.
+    """
+    if sys.stdout.isatty():
+        return shutil.get_terminal_size((80, 24)).columns
+    return _PORTS_PIPED_ROW_WIDTH
 
 
 def run_ports(args: argparse.Namespace) -> None:
@@ -91,6 +107,10 @@ def run_ports(args: argparse.Namespace) -> None:
     is given bare), lists every port.  Otherwise filters to the one
     matching device name.  Output matches the picker table (PORT /
     MFG / DESCRIPTION / CHIP / SPEED / VID:PID / SN).
+
+    Row width adapts to the real terminal when run interactively so
+    low-priority columns drop before the row wraps.  When piped, a
+    wide budget is used so scripts see every column.
 
     Exits 0 if at least one row was shown, 1 if nothing matched.
     """
@@ -108,7 +128,7 @@ def run_ports(args: argparse.Namespace) -> None:
     else:
         facts_list = all_facts
 
-    lines = format_table(facts_list, _PORTS_ROW_WIDTH)
+    lines = format_table(facts_list, _ports_row_width())
     for line in lines:
         print(line)
 

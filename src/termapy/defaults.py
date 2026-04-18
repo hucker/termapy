@@ -68,7 +68,8 @@ DEFAULT_CFG = {
     "log_file": "",
     # Diagnostics
     "show_traceback": False,
-    # Proto test results
+    # Proto
+    "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
     # Display
     "show_timestamps": False,

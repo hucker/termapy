@@ -494,6 +494,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "echo_input_fmt": "[purple]> {cmd}[/]",
     "log_file": "",
     "show_traceback": false,
+    "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
     "show_timestamps": false,
     "show_line_endings": false,

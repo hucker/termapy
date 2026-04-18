@@ -8,6 +8,8 @@ a background thread.
 from __future__ import annotations
 
 import queue
+import subprocess
+import sys
 import time
 from threading import Event
 from typing import Any, Callable
@@ -16,23 +18,116 @@ from termapy.capture import CaptureEngine
 from termapy.serial_port import SerialPort, SerialReader
 
 
-def _classify_serial_error(exc: Exception) -> str:
-    """Turn a serial open exception into a user-friendly message."""
+def _find_port_holder(port_name: str) -> str | None:
+    """Return the process holding ``port_name``, or None if unavailable.
+
+    Uses ``lsof`` on Linux and macOS to identify which process owns
+    the serial device file.  Windows has no stock equivalent -- it
+    would require Sysinternals ``handle.exe`` or a WMI probe -- so
+    this returns None on Windows and the caller prints the generic
+    "port may be in use" message without holder detail.
+
+    Everything failure-related (``lsof`` missing, timeout, port path
+    not found, parse error) collapses to None: a best-effort hint,
+    never a second error stacked on the first.
+
+    Returns a string like ``"arduino (PID 1234)"`` when a holder
+    is found.
+    """
+    if sys.platform == "win32":
+        return None
+    # lsof wants an absolute device path.  Users typically type the
+    # bare name (ttyUSB0, cu.usbserial-XXXX); normalize to /dev/...
+    path = port_name if port_name.startswith("/") else f"/dev/{port_name}"
+    try:
+        result = subprocess.run(
+            ["lsof", "-F", "pc", path],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    # lsof -F output: one tag-prefixed field per line.  We asked for
+    # "pc" so we get p<pid> and c<command> lines; take the first pair.
+    pid = None
+    command = None
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        tag, value = line[0], line[1:]
+        if tag == "p" and pid is None:
+            pid = value
+        elif tag == "c" and command is None:
+            command = value
+        if pid and command:
+            break
+    if pid and command:
+        return f"{command} (PID {pid})"
+    return None
+
+
+def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
+    """Turn a serial open exception into a user-friendly message.
+
+    If a ``port_name`` is provided and the error looks like "port in
+    use" (PermissionError / EACCES), also try to identify the holder
+    process on Linux/macOS.  The holder lookup is best-effort and
+    silent on failure.
+
+    Pyserial on Windows wraps the OS error's *repr* into its own
+    SerialException message instead of chaining the exception via
+    ``raise ... from ...``, so ``exc.__cause__`` is None and we have
+    to fall back to substring matching on the message itself to
+    recognise PermissionError / FileNotFoundError cases.
+    """
     msg = str(exc)
     cause = exc.__cause__ or exc.__context__
-    if isinstance(cause, PermissionError):
-        return "Permission denied -- port may be in use by another application"
-    if isinstance(cause, FileNotFoundError):
+
+    def _in_use() -> str:
+        base = "Permission denied -- port may be in use by another application"
+        holder = _find_port_holder(port_name) if port_name else None
+        return f"{base}: held by {holder}" if holder else base
+
+    def _not_found() -> str:
         return "Port not found -- check the port name with /port.list"
+
+    # Preferred path: chained exception exposes the underlying cause.
+    if isinstance(cause, PermissionError):
+        return _in_use()
+    if isinstance(cause, FileNotFoundError):
+        return _not_found()
     if isinstance(cause, OSError):
         code = getattr(cause, "errno", None)
         if code == 2:
-            return "Port not found -- check the port name with /port.list"
+            return _not_found()
         if code == 13:
-            return "Permission denied -- port may be in use by another application"
+            return _in_use()
         return f"{cause}"
-    # Fall back to the original message, stripped of Python class noise
-    if "could not open port" in msg.lower():
+
+    # Pyserial / Windows path: cause is None, diagnosis is in the string.
+    # Matches both the exception class name (pyserial's repr-based wrap)
+    # and common OS phrasings.
+    lowered = msg.lower()
+    if (
+        "permissionerror" in lowered
+        or "access is denied" in lowered
+        or "resource busy" in lowered
+        or "device or resource busy" in lowered
+    ):
+        return _in_use()
+    if (
+        "filenotfounderror" in lowered
+        or "no such file" in lowered
+        or "cannot find the file" in lowered
+    ):
+        return _not_found()
+
+    # Fall back to the original message, stripped of Python class noise.
+    if "could not open port" in lowered:
         return msg.split(":", 1)[-1].strip() if ":" in msg else msg
     return msg
 
@@ -187,7 +282,7 @@ class SerialEngine:
             self._port_obj = self._open_fn(self._cfg)
             self.last_error = ""
         except Exception as e:
-            self.last_error = _classify_serial_error(e)
+            self.last_error = _classify_serial_error(e, self._cfg.get("port", ""))
             return False
 
         self._serial_port = SerialPort(

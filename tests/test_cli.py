@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from termapy.cli import CLITerminal
+from termapy.defaults import DEFAULT_CFG
 
 
 # -- Fixtures ----------------------------------------------------------------
@@ -16,24 +17,21 @@ from termapy.cli import CLITerminal
 
 @pytest.fixture
 def cli(tmp_path):
-    """Create a CLITerminal with dummy config and mocked serial engine."""
-    cfg = {"port": "COM99", "baud_rate": 115200, "line_ending": "\r"}
+    """Create a CLITerminal wired to the DEMO simulator.
+
+    Uses a real SerialEngine with port="DEMO" so FakeSerial stands in
+    for real hardware.  Tests that need a disconnected state can set
+    ``cli.engine._is_connected = False`` (or call ``cli._disconnect()``).
+    Tests that need a connected state can call ``cli._connect()``.
+    """
+    cfg = dict(DEFAULT_CFG, port="DEMO", baud_rate=115200, line_ending="\r")
     config_path = tmp_path / "test_cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
     for sub in ("plugin", "ss", "run", "proto", "cap", "prof"):
         (config_path.parent / sub).mkdir(exist_ok=True)
 
-    with patch("termapy.cli.SerialEngine") as mock_engine_cls:
-        mock_engine = MagicMock()
-        mock_engine.is_connected = False
-        mock_engine.serial_port = None
-        mock_engine.port_obj = None
-        mock_engine.last_error = ""
-        mock_engine_cls.return_value = mock_engine
-        terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=80)
-
-    return terminal
+    return CLITerminal(cfg, str(config_path), no_color=True, term_width=80)
 
 
 # -- Output methods ----------------------------------------------------------
@@ -166,9 +164,7 @@ class TestHookColor:
 
 class TestHookRaw:
     def test_raw_not_connected(self, cli):
-        # Arrange
-        cli.engine.is_connected = False
-
+        # Arrange -- fixture is disconnected by default.
         # Act
         result = cli._hook_raw(cli.ctx, "hello")
 
@@ -176,8 +172,8 @@ class TestHookRaw:
         assert not result.success, "fails when disconnected"
 
     def test_raw_no_args(self, cli):
-        # Arrange
-        cli.engine.is_connected = True
+        # Arrange -- connect to DEMO so the "no args" branch is reached.
+        cli._connect()
 
         # Act
         result = cli._hook_raw(cli.ctx, "")
@@ -186,16 +182,21 @@ class TestHookRaw:
         assert not result.success, "fails with no text"
 
     def test_raw_sends_data(self, cli):
-        # Arrange
-        cli.engine.is_connected = True
-        cli.engine.serial_port = MagicMock()
+        # Arrange -- real connect to DEMO.  FakeSerial records bytes
+        # in ``_input_buf`` once ``_process_input`` consumes them, so
+        # we send something DEMO will NOT auto-consume by picking a
+        # no-line-ending AT prefix and inspecting the buffer.
+        cli._connect()
 
         # Act
         result = cli._hook_raw(cli.ctx, "AT")
 
-        # Assert
+        # Assert -- FakeSerial processes input when a line ending is
+        # seen; /raw sends no line ending, so the bytes sit in the
+        # input buffer where we can verify them.
         assert result.success, "command succeeds"
-        cli.engine.serial_port.write.assert_called_once_with(b"AT")  # bytes sent
+        actual = bytes(cli.engine.port_obj._input_buf)
+        assert actual == b"AT", f"bytes sent verbatim, got {actual!r}"
 
 
 # -- Hook: run ---------------------------------------------------------------
@@ -244,18 +245,22 @@ class TestHookLogClear:
         # Assert
         assert not result.success, "no log file to delete"
 
-    def test_delete_log(self, cli, tmp_path):
-        # Arrange
-        log_path_str = str(tmp_path / "test_cfg" / "test.log")
-        Path(log_path_str).write_text("log data")
+    def test_delete_log(self, cli):
+        # Arrange -- write the log file at the path the real
+        # cfg_log_path() would compute, so the test exercises the
+        # real resolution logic instead of a patched return value.
+        from termapy.config import cfg_log_path
 
-        # Act - patch where cfg_log_path is imported (inside the method)
-        with patch("termapy.config.cfg_log_path", return_value=log_path_str):
-            result = cli._hook_log_clear(cli.ctx, "")
+        log_path = Path(cfg_log_path(cli.config_path))
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("log data")
+
+        # Act
+        result = cli._hook_log_clear(cli.ctx, "")
 
         # Assert
         assert result.success, "deletion succeeds"
-        assert not Path(log_path_str).exists(), "file removed"
+        assert not log_path.exists(), "file removed"
 
 
 # -- Connect / Disconnect ---------------------------------------------------
@@ -263,8 +268,9 @@ class TestHookLogClear:
 
 class TestConnect:
     def test_connect_already_connected(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = True
+        # Arrange -- connect once for real, then try again.
+        cli._connect()
+        capsys.readouterr()  # drain the first-connect banner
 
         # Act
         cli._connect()
@@ -274,24 +280,21 @@ class TestConnect:
         assert "Already connected" in actual, "warns already connected"
 
     def test_connect_success(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-        cli.engine.connect.return_value = True
-        cli.engine.port_obj = MagicMock()
-
-        # Act
-        with patch("termapy.config.connection_string", return_value="COM99 115200"):
-            with patch("termapy.config.hardware_signals", return_value=""):
-                cli._connect()
+        # Act -- real DEMO connect, no mocks.
+        cli._connect()
 
         # Assert
         actual = capsys.readouterr().out
         assert "Connected" in actual, "reports connection"
+        assert cli.engine.is_connected, "engine reports connected state"
 
     def test_connect_failure(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-        cli.engine.connect.return_value = False
+        # Arrange -- switch the port to DEMO_FAIL, the reserved name
+        # open_serial() treats as a simulated open failure.  Exercises
+        # the real connect-failure path without needing broken hardware
+        # or a mocked open_fn.
+        cli.cfg["port"] = "DEMO_FAIL"
+        cli.repl._cfg_data["port"] = "DEMO_FAIL"
 
         # Act
         cli._connect()
@@ -299,25 +302,19 @@ class TestConnect:
         # Assert
         actual = capsys.readouterr().out
         assert "Cannot open" in actual, "reports failure"
+        assert not cli.engine.is_connected, "engine remains disconnected"
 
     def test_connect_with_port(self, cli):
-        # Arrange
-        cli.engine.is_connected = False
-        cli.engine.connect.return_value = True
-        cli.engine.port_obj = MagicMock()
-
-        # Act
-        with patch("termapy.config.connection_string", return_value="COM5 115200"):
-            with patch("termapy.config.hardware_signals", return_value=""):
-                cli._connect(port="COM5")
+        # Act -- override with another port name (still DEMO) so the
+        # cfg-update branch runs.
+        cli._connect(port="DEMO")
 
         # Assert
-        assert cli.cfg["port"] == "COM5", "port updated in config"
+        assert cli.cfg["port"] == "DEMO", "port updated in config"
+        assert cli.engine.is_connected, "engine connected after override"
 
     def test_disconnect_not_connected(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-
+        # Arrange -- fixture is disconnected by default.
         # Act
         cli._disconnect()
 
@@ -326,14 +323,15 @@ class TestConnect:
         assert "Not connected" in actual, "warns not connected"
 
     def test_disconnect_success(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = True
+        # Arrange -- real connect, then real disconnect.
+        cli._connect()
+        capsys.readouterr()  # drain connect banner
 
         # Act
         cli._disconnect()
 
         # Assert
-        cli.engine.disconnect.assert_called_once()  # engine disconnect called
+        assert not cli.engine.is_connected, "engine reports disconnected"
         actual = capsys.readouterr().out
         assert "Disconnected" in actual, "reports disconnection"
 
@@ -343,9 +341,7 @@ class TestConnect:
 
 class TestSerialWriteRaw:
     def test_not_connected(self, cli, capsys):
-        # Arrange
-        cli.engine.is_connected = False
-
+        # Arrange -- fixture is disconnected by default.
         # Act
         cli._serial_write_raw("AT")
 
@@ -353,58 +349,84 @@ class TestSerialWriteRaw:
         actual = capsys.readouterr().out
         assert "Not connected" in actual, "warns not connected"
 
-    def test_sends_with_line_ending(self, cli):
-        # Arrange
-        cli.engine.is_connected = True
-        cli.engine.serial_port = MagicMock()
+    def test_sends_with_line_ending(self, cli, capsys):
+        # Arrange -- real DEMO connect; DEMO responds to AT<CRLF> with
+        # OK<CRLF>.  Seeing "OK" in stdout proves that (a) the bytes
+        # were sent, (b) DEMO recognised them as a complete AT command,
+        # which means the line ending was applied correctly.
+        cli._connect()
         cli.cfg["line_ending"] = "\r\n"
 
         # Act
         cli._serial_write_raw("AT")
 
-        # Assert
-        cli.engine.serial_port.write.assert_called_once_with(b"AT\r\n")  # appends line ending
+        # Assert -- reader thread drains DEMO's response into stdout.
+        # Poll briefly since the background reader runs on its own
+        # thread.
+        import time
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            actual = capsys.readouterr().out
+            if "OK" in actual:
+                return
+            time.sleep(0.02)
+        pytest.fail(f"expected OK in stdout, got {actual!r}")
 
 
 # -- Capture helpers ---------------------------------------------------------
 
 
 class TestCapture:
-    def test_start_capture_already_active(self, cli, capsys):
-        # Arrange
-        cli.capture = MagicMock()
-        cli.capture.active = True
+    def test_start_capture_already_active(self, cli, tmp_path):
+        # Arrange -- start a real capture against tmp_path, then try
+        # to start a second one.  The second call must be rejected.
+        first = tmp_path / "first.txt"
+        started = cli._start_capture(
+            path=first, file_mode="w", mode="text", duration=1.0
+        )
+        assert started is True, "first capture starts cleanly"
 
-        # Act
-        actual = cli._start_capture(mode="text", path="/tmp/cap.txt")
+        # Act -- try to start another while the first is still active.
+        second = tmp_path / "second.txt"
+        actual = cli._start_capture(
+            path=second, file_mode="w", mode="text", duration=1.0
+        )
 
         # Assert
         assert actual is False, "returns False when already active"
+        cli._stop_capture()
 
-    def test_start_capture_success(self, cli, capsys):
+    def test_start_capture_success(self, cli, tmp_path):
         # Arrange
-        cli.capture = MagicMock()
-        cli.capture.active = False
-        cli.capture.start.return_value = True
+        cap_path = tmp_path / "cap.txt"
 
         # Act
-        actual = cli._start_capture(mode="text", path="/tmp/cap.txt")
+        actual = cli._start_capture(
+            path=cap_path, file_mode="w", mode="text", duration=1.0
+        )
 
-        # Assert
+        # Assert -- real file was created, real engine reports active.
         assert actual is True, "returns True on success"
+        assert cli.capture.active, "engine reports active capture"
+        assert cap_path.exists(), "capture file created on disk"
+        cli._stop_capture()
 
-    def test_stop_capture(self, cli, capsys):
-        # Arrange
-        mock_result = MagicMock()
-        mock_result.path = "/tmp/cap.txt"
-        mock_result.size_label = "1.2 KB"
-        cli.capture = MagicMock()
-        cli.capture.stop.return_value = mock_result
+    def test_stop_capture(self, cli, tmp_path, capsys):
+        # Arrange -- real text capture of three bytes.
+        cap_path = tmp_path / "cap.txt"
+        cli._start_capture(
+            path=cap_path, file_mode="w", mode="text", duration=1.0
+        )
+        cli.capture.feed_text(["abc"])
+        capsys.readouterr()  # drain "Capture started" status
 
         # Act
         cli._stop_capture()
 
-        # Assert
+        # Assert -- real engine closed, file has expected contents,
+        # user-facing status line announces completion.
+        assert not cli.capture.active, "engine reports inactive after stop"
+        assert cap_path.read_text() == "abc\n", "captured line written"
         actual = capsys.readouterr().out
         assert "Capture complete" in actual, "reports completion"
 
@@ -626,19 +648,16 @@ def _synthetic_facts(*entries):
 class TestPortsFlag:
     """Tests for --ports: print a one-line-per-port table and exit.
 
-    We monkey-patch ``port_control._gather_all_chip_facts`` so tests
-    are hardware-independent.
+    Uses the ``TERMAPY_DEMO_FLEET`` env var -- a production hook that
+    makes ``_gather_all_chip_facts()`` return a fixed synthetic fleet
+    (COM3 FTDI, COM4 Silicon Labs, COM7 Microsoft).  Users can set the
+    same var to demo the CLI without real hardware.
     """
 
     def test_ports_prints_header_and_one_row_per_port(self, capsys, monkeypatch):
-        # Arrange -- three synthetic ports.
+        # Arrange -- DEMO_FLEET gives a deterministic 3-port roster.
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
-            ("COM3", "Microsoft", "-", "04D8:9036", "020026702RYN040952"),
-            ("COM4", "FTDI", "FTDI FT230X / FT231X / FT234XD", "0403:6015", "D20JSV68A"),
-            ("COM7", "FTDI", "FTDI FT232R / FT245R", "0403:6001", "BG03U7VTA"),
-        ))
         from termapy.entry import main
 
         # Act
@@ -652,12 +671,15 @@ class TestPortsFlag:
         assert "PORT" in out and "MFG" in out and "VID:PID" in out, \
             "header row printed"
         assert "COM3" in out and "COM4" in out and "COM7" in out, \
-            "every port appears"
+            "every demo-fleet port appears"
         assert "MSFT" in out, "Microsoft manufacturer gets aliased to MSFT"
         assert "FTDI FT232R" in out, "chip model rendered"
 
     def test_ports_no_ports_exits_nonzero(self, capsys, monkeypatch):
-        # Arrange -- simulate no ports.
+        # Arrange -- simulate no ports by returning an empty list
+        # from the underlying gather.  The DEMO_FLEET hook doesn't
+        # cover this case (it unconditionally returns 3 ports), so
+        # we still monkeypatch for this one.
         monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
         import termapy.port_control as pc
         monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: [])
@@ -673,14 +695,9 @@ class TestPortsFlag:
         assert "(no ports found)" in out, "prints the empty marker"
 
     def test_ports_filter_matches_one(self, capsys, monkeypatch):
-        # Arrange -- --ports=COM4 on a 3-port fixture.
+        # Arrange -- --ports=COM4 on the DEMO_FLEET 3-port roster.
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports=COM4"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
-            ("COM3", "Microsoft", "-", "04D8:9036", "X1"),
-            ("COM4", "FTDI", "FTDI FT232R", "0403:6001", "X2"),
-            ("COM7", "FTDI", "FTDI FT232R", "0403:6001", "X3"),
-        ))
         from termapy.entry import main
 
         # Act
@@ -698,12 +715,9 @@ class TestPortsFlag:
             f"only COM4 row emitted, got: {data_lines}"
 
     def test_ports_filter_unknown_exits_nonzero(self, capsys, monkeypatch):
-        # Arrange
+        # Arrange -- DEMO_FLEET ports exist but NOPE999 doesn't match.
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports=NOPE999"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
-            ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "X"),
-        ))
         from termapy.entry import main
 
         # Act

@@ -435,6 +435,9 @@ def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
 def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | None:
     """Look up the named port and return all known facts about it.
 
+    Honors ``TERMAPY_DEMO_FLEET``: when set, searches the synthetic
+    fleet instead of real enumeration.  See ``_build_demo_fleet``.
+
     Args:
         port_name: Exact device name (e.g. ``COM3`` or ``/dev/ttyUSB0``).
         connected_port: The port termapy currently has open, if any.
@@ -442,6 +445,11 @@ def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | N
     Returns:
         ChipFacts on success, or None if no connected port matches.
     """
+    if os.environ.get(_DEMO_FLEET_ENV):
+        for facts in _build_demo_fleet():
+            if facts.device == port_name:
+                return facts
+        return None
     from serial.tools.list_ports import comports
 
     for p in comports():
@@ -450,8 +458,61 @@ def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | N
     return None
 
 
+# ─ Demo fleet ─────────────────────────────────────────────────────────────
+# When TERMAPY_DEMO_FLEET is set, _gather_all_chip_facts() returns these
+# synthetic ports instead of calling comports().  Useful for screenshots,
+# docs, hardware-free demos, and cross-platform tests.  Sibling hooks:
+# cfg["port"] = "DEMO" (fake open) and "DEMO_FAIL" (raise on open).
+_DEMO_FLEET_ENV = "TERMAPY_DEMO_FLEET"
+
+
+def _build_demo_fleet() -> list[ChipFacts]:
+    """Return a fixed three-port synthetic fleet."""
+    return [
+        ChipFacts(
+            device="COM3",
+            description="USB Serial Port (COM3)",
+            manufacturer="FTDI",
+            product="FT232R USB UART",
+            serial="A1B2C3D4",
+            vid_pid="0403:6001",
+            model="FTDI FT232R / FT245R",
+            usb_speed="USB Full-Speed (1 ms min latency)",
+            max_baud="3,000,000 baud",
+        ),
+        ChipFacts(
+            device="COM4",
+            description="USB Serial Port (COM4)",
+            manufacturer="Silicon Labs",
+            product="CP2102 USB to UART Bridge Controller",
+            serial="0001",
+            vid_pid="10C4:EA60",
+            model="Silicon Labs CP2102",
+            usb_speed="USB Full-Speed (1 ms min latency)",
+            max_baud="1,000,000 baud",
+        ),
+        ChipFacts(
+            device="COM7",
+            description="USB Serial Port (COM7)",
+            manufacturer="Microsoft",
+            product="USB Serial Device",
+            serial="020026702RYN040952",
+            vid_pid="04D8:9036",
+            model="-",
+            usb_speed="USB Full-Speed (1 ms min latency)",
+        ),
+    ]
+
+
 def _gather_all_chip_facts(connected_port: str = "") -> list[ChipFacts]:
-    """Return ChipFacts for every connected port, sorted by device name."""
+    """Return ChipFacts for every connected port, sorted by device name.
+
+    Honors the ``TERMAPY_DEMO_FLEET`` env var: when set to any non-empty
+    value, returns a fixed synthetic fleet instead of enumerating real
+    ports.  See ``_build_demo_fleet`` for the roster.
+    """
+    if os.environ.get(_DEMO_FLEET_ENV):
+        return _build_demo_fleet()
     from serial.tools.list_ports import comports
 
     return [

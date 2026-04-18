@@ -502,7 +502,9 @@ def open_serial(cfg: dict) -> Any:
     """Open serial port from config dict.
 
     If port is ``"DEMO"``, returns a ``FakeSerial`` simulated device
-    instead of a real serial connection.
+    instead of a real serial connection.  If port is ``"DEMO_FAIL"``,
+    raises ``OSError`` -- a test hook for exercising the open-failure
+    path without needing a broken real port.
 
     Args:
         cfg: Config dict with serial settings.
@@ -510,10 +512,13 @@ def open_serial(cfg: dict) -> Any:
     Returns:
         A serial port object (real or simulated).
     """
-    if cfg["port"].upper() == "DEMO":
+    name = cfg["port"].upper()
+    if name == "DEMO":
         from termapy.demo import FakeSerial
 
         return FakeSerial(baudrate=cfg["baud_rate"])
+    if name == "DEMO_FAIL":
+        raise OSError("DEMO_FAIL: simulated open failure")
 
     fc = cfg.get("flow_control", "none")
     # serial_for_url handles both plain ports ("COM3", "/dev/ttyUSB0")

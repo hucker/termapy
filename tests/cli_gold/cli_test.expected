@@ -529,6 +529,7 @@ demo> /help.plugin
   /tui                  Switch to TUI mode.
 
 -- Application Plugins --
+  /app                  App-wide state and config.
   /cap                  Data capture tools.
   /cfg                  Show or change config values.
   /cls                  Clear the terminal screen.
@@ -562,7 +563,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm              Show Yes/Cancel dialog; Cancel stops a running script.
   /expect               Wait for text in serial output (script-only).
-  39 commands.
+  40 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

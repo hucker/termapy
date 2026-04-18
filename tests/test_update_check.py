@@ -54,14 +54,19 @@ def pin_check_interval(monkeypatch):
 
 
 def _write_state(tmp_path: Path, state: dict) -> None:
-    (tmp_path / "update_check.json").write_text(json.dumps(state))
+    """Seed state.json with only the update_check slice populated."""
+    (tmp_path / "state.json").write_text(
+        json.dumps({"update_check": state})
+    )
 
 
 def _read_state(tmp_path: Path) -> dict:
-    path = tmp_path / "update_check.json"
+    """Return the update_check slice of state.json (empty if missing)."""
+    path = tmp_path / "state.json"
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    whole = json.loads(path.read_text())
+    return whole.get("update_check") or {}
 
 
 # -- Happy path --------------------------------------------------------------
@@ -216,7 +221,7 @@ class TestStateCorruption:
         self, pin_state_dir, freeze_time, mock_pypi
     ):
         # Arrange - write junk bytes where JSON should be.
-        (pin_state_dir / "update_check.json").write_text("{not valid json")
+        (pin_state_dir / "state.json").write_text("{not valid json")
         mock_pypi["result"] = "0.61.0"
 
         # Act

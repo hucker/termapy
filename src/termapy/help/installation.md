@@ -1,73 +1,54 @@
 # Installation
 
-## Install
+Two commands for each package manager: one to install, one to upgrade.
+We strongly recommend [uv](https://docs.astral.sh/uv/); pip works but
+installs into whichever Python interpreter you run it with.
 
-```sh
-pip install termapy
-```
+⚠️ **Exit any running termapy before upgrading.**  The running program
+holds its own binary open, so the package manager can't replace the
+files cleanly.  On Windows the upgrade will fail outright with a
+file-in-use error.  On macOS and Linux the upgrade command will
+usually succeed, but you'll keep running the old code in the live
+process until you exit and relaunch -- confusing if you're expecting
+a fix or feature from the new release.  Close every termapy window,
+run the upgrade command, then relaunch.
 
-Or with [uv](https://docs.astral.sh/uv/):
+## uv (recommended)
+
+Install:
 
 ```sh
 uv tool install termapy
 ```
 
-## Run the demo
-
-No hardware needed:
+Upgrade:
 
 ```sh
-termapy --demo
+uv tool upgrade termapy
 ```
 
-![Termapy TUI](img/doc_01_main_tui.svg)
+## pip
 
-Type commands. The device responds. That's it.
-
-Try `AT+INFO`, `AT+TEMP`, or `/help`. Hover over any button for a tooltip.
-Click **?** for the full help guide.
-
-## Connect your device
-
-Click **Cfg** in the toolbar, then **New**. Pick your port and baud rate.
-Click **Connect**.
-
-![New Config dialog](img/new_cfg.png)
-
-You're connected. Type commands and see responses.
-
-## When you need more
-
-- [Getting Started](getting-started.md): config files, CLI mode, folder layout
-- [Demo Mode](demo.md): all demo device commands
-- [Serial Tools](serial-tools.md): hex send, CRC, protocol testing
-- [Scripting](scripting.md): automate command sequences
-- [Writing Plugins](writing-plugins.md): extend with Python
-
-## Web mode (experimental, optional)
-
-There is an experimental browser-based mode that requires an additional install:
+Install:
 
 ```sh
-pip install termapy[web]
-termapy --web --demo
+pip install termapy
 ```
 
-Or with uv:
+Upgrade:
 
 ```sh
-uv tool install termapy[web]
-termapy --web --demo
+pip install --upgrade termapy
 ```
-
-Opens on `http://localhost:8000`. Use `--web-port` to change the port.
-
-This is not the primary way to use termapy -- the TUI and CLI modes are the
-intended interfaces. Web mode has limitations: `/tui` and `/cli` mode switching
-are not available, and `/help.open` may not work in the browser.
 
 ## Uninstall
 
 ```sh
 uv tool uninstall termapy
+```
+
+Or, if installed with pip:
+
+```sh
+pip uninstall termapy
 ```

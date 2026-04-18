@@ -87,6 +87,21 @@ from textual.widgets.option_list import Option
 from textual.suggester import Suggester
 
 
+# Exceptions we expect to see when an event-loop callback, timer tick,
+# or reader-thread post-back fires during app teardown.  NoMatches
+# comes from ``query_one`` when the widget tree is being unmounted;
+# RuntimeError comes from ``call_from_thread`` when the event loop is
+# shutting down.  Using this tuple as the ``except`` target narrows
+# what we silence: real bugs (ValueError, TypeError, AttributeError,
+# anything unexpected) still propagate and get reported.
+#
+# See the shutdown-widget-guards commit for why swallowing these
+# specific types is necessary.  Anything else caught here would be
+# hiding a real bug -- that's the whole point of keeping the tuple
+# narrow.
+SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
+
+
 class CommandSuggester(Suggester):
     """Type-ahead from REPL commands + device command history.
 
@@ -725,7 +740,7 @@ class SerialTerminal(TerminalHost, App):
         """Main-thread helper: unhide the title-bar Update button."""
         try:
             self.query_one("#btn-update", Button).display = True
-        except Exception:
+        except SHUTDOWN_RACE:
             pass  # button gone (shutdown) or not yet composed
 
     def _btn_update(self) -> None:
@@ -1265,7 +1280,7 @@ class SerialTerminal(TerminalHost, App):
             self.query_one("#output", RichLog).write(
                 Text(text, style=f"bold italic {color}")
             )
-        except Exception:
+        except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_line("#", text)
 
@@ -1298,7 +1313,7 @@ class SerialTerminal(TerminalHost, App):
                 )
             else:
                 self._clear_status_bar()
-        except Exception:
+        except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
 
     def _clear_status_bar(self) -> None:
@@ -1308,8 +1323,8 @@ class SerialTerminal(TerminalHost, App):
             label.update("")
             label.remove_class("visible")
             self._status_bar_timer = None
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # timer fired after widgets unmounted
 
     def _log_line(self, prefix: str, text: str) -> None:
         """Write a prefixed line to the log file.
@@ -1409,7 +1424,7 @@ class SerialTerminal(TerminalHost, App):
                 inp = self.query_one("#cmd", Input)
                 prefix = self.cfg.get("cmd_prefix", "/")
                 inp.placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
-            except Exception:
+            except SHUTDOWN_RACE:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
         except Exception as e:
@@ -1772,7 +1787,7 @@ class SerialTerminal(TerminalHost, App):
             return
         try:
             center = self.query_one("#title-center", Button)
-        except NoMatches:
+        except SHUTDOWN_RACE:
             return
         title = self.cfg.get("title", "") or self.config_path
         center.label = Text(title)
@@ -1811,7 +1826,7 @@ class SerialTerminal(TerminalHost, App):
             port_btn = self.query_one("#title-left", Button)
             port_btn.label = self._port_info_str()
             port_btn.tooltip = self._port_button_tooltip()
-        except NoMatches:
+        except SHUTDOWN_RACE:
             pass
 
         # Connection status button (right) tooltip
@@ -1877,7 +1892,7 @@ class SerialTerminal(TerminalHost, App):
             self.query_one("#title-left", Button).styles.background = color
             self.query_one("#title-center", Button).styles.background = color
             self._update_conn_tooltip(widget)
-        except Exception:
+        except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
 
     def _update_conn_tooltip(self, widget: Button | None = None) -> None:
@@ -1902,8 +1917,8 @@ class SerialTerminal(TerminalHost, App):
                 ("auto_reconnect", bool(self.cfg.get("auto_reconnect"))),
             ]
             widget.tooltip = self._format_title_tooltip(title, pairs, action)
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # title widgets unmounted during teardown / reload
 
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
@@ -2181,7 +2196,7 @@ class SerialTerminal(TerminalHost, App):
     def _palette_clear(self) -> None:
         try:
             self.query_one("#output", RichLog).clear()
-        except NoMatches:
+        except SHUTDOWN_RACE:
             pass
 
     def _palette_ss_svg(self) -> None:
@@ -2295,7 +2310,7 @@ class SerialTerminal(TerminalHost, App):
             return
         try:
             self.query_one("#output", RichLog).clear()
-        except NoMatches:
+        except SHUTDOWN_RACE:
             return
         self._line_counter = 0
 
@@ -2304,7 +2319,7 @@ class SerialTerminal(TerminalHost, App):
             return ""
         try:
             log = self.query_one("#output", RichLog)
-        except NoMatches:
+        except SHUTDOWN_RACE:
             return ""
         return "\n".join(strip.text for strip in log.lines)
 
@@ -2406,8 +2421,8 @@ class SerialTerminal(TerminalHost, App):
             inp = self.query_one("#cmd", Input)
             inp.disabled = True
             inp.focus()
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # capture started before mount or during teardown
 
     def _cap_update_progress(self) -> None:
         """Update the capture progress label."""
@@ -2416,8 +2431,8 @@ class SerialTerminal(TerminalHost, App):
             return
         try:
             label = self.query_one("#cap-label", Static)
-        except Exception:
-            return
+        except SHUTDOWN_RACE:
+            return  # overlay torn down; next timer tick will be a no-op
         if prog.mode == "text":
             label.update(
                 f" Capturing -> {prog.path_name}  [{prog.pct}%]  "
@@ -2445,8 +2460,8 @@ class SerialTerminal(TerminalHost, App):
             inp = self.query_one("#cmd", Input)
             inp.disabled = False
             inp.focus()
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # overlay gone or main widgets unmounted
 
     def _write_batch(self, lines: list[str]) -> None:
         """Write a batch of lines to the output log and optional log file.
@@ -2467,7 +2482,7 @@ class SerialTerminal(TerminalHost, App):
             return
         try:
             log = self.query_one("#output", RichLog)
-        except NoMatches:
+        except SHUTDOWN_RACE:
             return  # widgets torn down between flag check and query
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
@@ -2801,7 +2816,7 @@ class SerialTerminal(TerminalHost, App):
     def action_clear_log(self) -> None:
         try:
             self.query_one("#output", RichLog).clear()
-        except NoMatches:
+        except SHUTDOWN_RACE:
             pass
 
     def action_screenshot(
@@ -2843,8 +2858,8 @@ class SerialTerminal(TerminalHost, App):
             self.query_one(
                 "#cmd", Input
             ).placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # prefix changed before mount or during teardown
         self.repl.ctx.engine.prefix = prefix
 
     def _sync_all_buttons(self) -> None:
@@ -3411,8 +3426,8 @@ class SerialTerminal(TerminalHost, App):
                 bar.query_one("#script-stop").display = True
                 label_w.update(text)
             self._script_last_label = text
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # overlay / input gone during teardown
 
     def on_serial_terminal_script_progress(self, event: ScriptProgress) -> None:
         """Update the script overlay label with step count."""
@@ -3425,8 +3440,8 @@ class SerialTerminal(TerminalHost, App):
                 self.query_one("#script-stop").display = True
                 label_w.update(text)
                 self._script_last_label = text
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # event posted after widget tree teardown
 
     def on_serial_terminal_script_finished(self, event: ScriptFinished) -> None:
         """Update or teardown script overlay when a script finishes."""
@@ -3451,8 +3466,8 @@ class SerialTerminal(TerminalHost, App):
                 inp.disabled = False
                 inp.focus()
                 self._engine.proto_active = False
-        except Exception:
-            pass
+        except SHUTDOWN_RACE:
+            pass  # event posted after widget tree teardown
 
     @work(thread=True)
     def _run_script(

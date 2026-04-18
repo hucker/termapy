@@ -604,9 +604,10 @@ def _crc_help(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Algorithm name (e.g. ``"crc16-modbus"``).
     """
+    p = ctx.engine.prefix
     name = args.strip().lower()
     if not name:
-        return CmdResult.fail(msg="Usage: {prefix}proto.crc.help <name>")
+        return CmdResult.fail(msg=f"Usage: {p}proto.crc.help <name>")
 
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
@@ -617,7 +618,7 @@ def _crc_help(ctx: PluginContext, args: str) -> CmdResult:
             ctx.write(f"  {name} (plugin, {alg.width * 8}-bit)")
             ctx.write("  No catalogue parameters - loaded from plugin file.")
             return CmdResult.ok()
-        ctx.write("Use '{prefix}proto.crc.list' to see available algorithms.")
+        ctx.write(f"Use '{p}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     w = entry["width"]
@@ -683,7 +684,8 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     registry = get_crc_registry()
     alg = registry.get(name)
     if alg is None:
-        ctx.write("Use '{prefix}proto.crc.list' to see available algorithms.")
+        p = ctx.engine.prefix
+        ctx.write(f"Use '{p}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     # No data provided - use the standard check string "123456789"
@@ -797,8 +799,9 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 
     code = gen(name, table=use_table)
     if code is None:
+        p = ctx.engine.prefix
         ctx.write(
-            f"Unknown algorithm: {name}. Use {prefix}proto.crc.list to see available.", "red"
+            f"Unknown algorithm: {name}. Use {p}proto.crc.list to see available.", "red"
         )
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 

@@ -773,7 +773,7 @@ class SerialTerminal(TerminalHost, App):
 
         self.push_screen(
             UpdateAvailableDialog(current, latest),
-            callback=_on_result,  # ty: ignore[no-matching-overload]
+            callback=_on_result,
         )
 
     def _setup_vars(self) -> None:

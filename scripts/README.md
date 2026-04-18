@@ -77,3 +77,21 @@ git branch -D release/v<version>
 ```
 
 If only the test step failed and the version files are already bumped correctly, you can also fix the underlying problem and finish manually - see the script source for the exact commit ordering (HTML rebuild commit must come *before* the `Release v<version>` commit, since publish validates `HEAD`'s subject).
+
+## Other scripts
+
+Helpers that aren't part of the release pipeline but live here
+because they share the stdlib-only / fail-loud convention.
+
+- `update_doc_configs.py` - regenerate tagged JSON config blocks
+  in `README.md` and `help/config.md` so every example matches the
+  current `DEFAULT_CFG`.  Run after adding or renaming a config
+  key; `test_help_images.py` will point you at it on failure.
+
+- `check_dep_updates.py` - query PyPI for the latest release of
+  every direct dependency and flag which ones have moved past
+  our upper bound.  Run before a release (or whenever you want)
+  to see if `tree-sitter`, `textual`, etc. have new minors
+  worth testing.  Output is a sorted table with `BUMP AVAILABLE`
+  rows at the top.  Not wired into `release_prep.py` because
+  release prep should stay hermetic (no network).

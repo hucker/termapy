@@ -23,7 +23,7 @@
     
     
       
-        <title>Writing plugins - Termapy Help v0.59.0</title>
+        <title>Writing plugins - Termapy Help v0.60.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.59.0" class="md-header__button md-logo" aria-label="Termapy Help v0.59.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.60.0" class="md-header__button md-logo" aria-label="Termapy Help v0.60.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.59.0
+            Termapy Help v0.60.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.59.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.59.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.60.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.60.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.59.0
+    Termapy Help v0.60.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -335,6 +335,33 @@
     
   
     Serial Ports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command-Line Flags
   
 
     
@@ -1283,7 +1310,7 @@ Scripts run in quiet mode read the <code>value</code> field; without it they get
 </ul>
 <h2 id="dynamic-help-for-runtime-state">Dynamic help for runtime state<a class="headerlink" href="#dynamic-help-for-runtime-state" title="Permanent link">&para;</a></h2>
 <p>If your command owns runtime state that a user should see right on its
-help page — a loaded file, an open connection, a count of cached items —
+help page - a loaded file, an open connection, a count of cached items -
 set <code>long_help</code> to a function instead of a string. The function takes
 the <code>PluginContext</code> and returns a string. It's invoked at render time,
 so whatever it reads from <code>ctx.ns(...)</code> or <code>ctx.cfg</code> is live.</p>
@@ -1307,7 +1334,7 @@ so whatever it reads from <code>ctx.ns(...)</code> or <code>ctx.cfg</code> is li
 </span></code></pre></div>
 <p>When the user runs <code>/help include</code>, the DESCRIPTION section calls this
 function and the first line reflects the current state. No change to
-the rendering path, no extra registration — the <code>long_help</code> field just
+the rendering path, no extra registration - the <code>long_help</code> field just
 accepts either form.</p>
 <p>Two caveats:</p>
 <ol>
@@ -1321,7 +1348,7 @@ accepts either form.</p>
 </ol>
 <h3 id="reusable-helpers-termapyhelp_dynamic">Reusable helpers (<code>termapy.help_dynamic</code>)<a class="headerlink" href="#reusable-helpers-termapyhelp_dynamic" title="Permanent link">&para;</a></h3>
 <p>Most dynamic help lines fall into a handful of shapes, so the built-ins
-share a small helper module. Prefer these over hand-rolling — the
+share a small helper module. Prefer these over hand-rolling - the
 output is green-on-default and uniform across every command.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.help_dynamic</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">state_line</span><span class="p">,</span>   <span class="c1"># &quot;Current &lt;label&gt; = &lt;value&gt;&quot; in green</span>

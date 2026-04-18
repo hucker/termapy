@@ -22,6 +22,7 @@ from prompt_toolkit.history import FileHistory
 
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial
+from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
 from termapy.scripting import strip_ansi
@@ -94,7 +95,7 @@ class CLITerminal(TerminalHost):
         self.no_color = no_color
         self.run_script = run_script
         self.term_width = term_width
-        self.prefix = cfg.get("cmd_prefix", "/")
+        self.prefix = cmd_prefix(cfg)
         self._xfer_cancel = threading.Event()
 
         # Ensure stdout handles unicode on Windows.  sys.stdout is typed as

@@ -30,6 +30,13 @@ VALID_PARITIES = {"N", "E", "O", "M", "S"}
 VALID_STOP_BITS = {1, 1.5, 2}
 VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
 
+# Single source of truth for the REPL command prefix default.  Used
+# in DEFAULT_CFG, the ``cmd_prefix(cfg)`` helper, and as the default
+# for ``prefix`` parameters on ReplEngine / CommandSuggester /
+# EngineAPI / _suggest_command so a change here propagates
+# everywhere without a textual search for literal "/".
+DEFAULT_CMD_PREFIX = "/"
+
 DEFAULT_CFG = {
     "config_version": CURRENT_CONFIG_VERSION,
     # App
@@ -37,7 +44,7 @@ DEFAULT_CFG = {
     "border_color": "",
     "max_lines": 10000,
     "default_ui": "tui",
-    "cmd_prefix": "/",
+    "cmd_prefix": DEFAULT_CMD_PREFIX,
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": False,
     "cli_intellisense": True,
@@ -92,6 +99,18 @@ DEFAULT_CFG = {
         {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
     ],
 }
+
+
+def cmd_prefix(cfg: dict) -> str:
+    """Return ``cfg["cmd_prefix"]`` with the project default as fallback.
+
+    Replaces the repeated ``cfg.get("cmd_prefix", "/")`` idiom scattered
+    across 15+ call sites.  Both this helper and ``DEFAULT_CMD_PREFIX``
+    resolve from the same constant, so the literal ``"/"`` lives in
+    exactly one place.
+    """
+    return cfg.get("cmd_prefix", DEFAULT_CMD_PREFIX)
+
 
 # ── Config field help (description, valid values or callable) ──────────────────
 
@@ -171,12 +190,13 @@ def resolve_color(color: str) -> str:
     # Handle light/dark prefix with base color alias
     for prefix in ("light", "dark"):
         if c.startswith(prefix):
-            base = c[len(prefix):].strip("_").strip()
+            base = c[len(prefix) :].strip("_").strip()
             if base in COLOR_ALIASES:
                 # Map to Rich-style name: dark_orange -> dark_orange3
                 rich_name = f"{prefix}_{base}"
                 try:
                     from rich.color import Color, ColorParseError
+
                     Color.parse(rich_name)
                     return rich_name
                 except ColorParseError:
@@ -192,10 +212,9 @@ def _preview_color(raw_val: str) -> str:
     if not color:
         return ""
     resolved = resolve_color(color)
-    # Color.parse raises ColorParseError on unknown names.  Anything
-    # else from the Rich call is a bug we want to see.
     try:
-        from rich.color import Color, ColorParseError
+        from rich.color import Color
+
         parsed = Color.parse(resolved)
         # Get truecolor hex for reliable rendering
         triplet = parsed.get_truecolor()
@@ -203,7 +222,7 @@ def _preview_color(raw_val: str) -> str:
         if resolved != color:
             return f"[green]Color: {color} -> {hex_color}[/]"
         return f"[green]Color: {hex_color}[/]"
-    except ColorParseError:
+    except Exception:
         return f"[bold red]????[/] unknown color: {color}"
 
 
@@ -212,9 +231,11 @@ def _preview_markup(raw_val: str) -> str:
     fmt = raw_val.strip().strip('"').strip()
     if not fmt:
         return ""
-    # str.replace() can't raise on str input; no try/except needed.
-    preview = fmt.replace("{cmd}", "AT+INFO")
-    return f"Preview: {preview}"
+    try:
+        preview = fmt.replace("{cmd}", "AT+INFO")
+        return f"Preview: {preview}"
+    except Exception:
+        return ""
 
 
 # (description, valid_values_or_callable, optional_preview_callable)

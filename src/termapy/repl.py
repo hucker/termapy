@@ -16,9 +16,12 @@ from threading import Event
 from types import MappingProxyType
 from typing import Callable
 
+from termapy.defaults import DEFAULT_CMD_PREFIX
+from termapy.folders import CAP, PROF, PROTO, RUN, SS
 from termapy.plugins import (
     BoundaryException,
     CapabilitySet,
+    CmdResult,
     DirectiveInfo,
     DirectiveResult,
     LifecycleHook,
@@ -29,8 +32,6 @@ from termapy.plugins import (
     builtins_dir,
     load_plugins_from_dir,
 )
-from termapy.folders import CAP, PROF, PROTO, RUN, SS
-from termapy.plugins import CmdResult
 from termapy.scripting import expand_template, parse_duration, parse_keywords
 
 
@@ -52,7 +53,8 @@ def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
 
 
 def _parse_flags(
-    args: str, declared: dict[str, str],
+    args: str,
+    declared: dict[str, str],
 ) -> tuple[str, set[str], str | None]:
     """Strip declared flags from ``args`` and return the normalized result.
 
@@ -108,14 +110,16 @@ def _parse_flags(
 def _closest_flag(needle: str, candidates: list[str]) -> str | None:
     """Return the nearest declared flag by edit distance, or None."""
     best: tuple[int, str] | None = None
-    for cand in candidates:
-        d = _edit_distance(needle, cand)
+    for candidate in candidates:
+        d = _edit_distance(needle, candidate)
         if d <= 2 and (best is None or d < best[0]):
-            best = (d, cand)
+            best = (d, candidate)
     return best[1] if best else None
 
 
-def _suggest_command(name: str, plugins: dict, prefix: str = "/") -> str | None:
+def _suggest_command(
+    name: str, plugins: dict, prefix: str = DEFAULT_CMD_PREFIX
+) -> str | None:
     """Find close command names using edit distance (max 2, top 3)."""
     candidates = []
     for cmd in plugins:
@@ -200,7 +204,11 @@ class ReplEngine:
     """Plugin-based REPL command engine."""
 
     def __init__(
-        self, cfg: dict, config_path: str, write: Callable, prefix: str = "/"
+        self,
+        cfg: dict,
+        config_path: str,
+        write: Callable,
+        prefix: str = DEFAULT_CMD_PREFIX,
     ) -> None:
         """Initialize the REPL engine with config and plugin loading.
 
@@ -285,6 +293,7 @@ class ReplEngine:
         ``/confirm`` is a regular plugin (see ``confirm.py``) that
         declares its own ``needs``; no registration here.
         """
+
         def _prompt_handler(ctx: PluginContext, args: str) -> CmdResult:
             # Never actually runs: the capability gate catches it at the
             # prompt (no block_until), and in a script the runner
@@ -293,37 +302,41 @@ class ReplEngine:
                 msg="script-only command; invoke from inside a .run file"
             )
 
-        self.register_plugin(PluginInfo(
-            name="expect",
-            args="match=<text> {timeout=<dur>}",
-            help="Wait for text in serial output (script-only).",
-            long_help=(
-                "Block the running script until the serial device outputs\n"
-                "a line containing <text>.  Fails the script if the\n"
-                "timeout elapses first (default: engine-wide expect timeout).\n"
-                "\n"
-                "Example:\n"
-                "  AT+CONNECT\n"
-                "  /expect match=CONNECTED timeout=5s"
-            ),
-            handler=_prompt_handler,
-            needs=CapabilitySet(block_until=True),
-        ))
-        self.register_plugin(PluginInfo(
-            name="expect.regex",
-            args="match=<pattern> {timeout=<dur>}",
-            help="Wait for regex match in serial output (script-only).",
-            long_help=(
-                "Block the running script until the serial device outputs\n"
-                "a line matching <pattern>.  Pattern is a Python regex.\n"
-                "\n"
-                "Example:\n"
-                "  AT+STATUS\n"
-                "  /expect.regex match=^\\+STATUS: \\d+$ timeout=2s"
-            ),
-            handler=_prompt_handler,
-            needs=CapabilitySet(block_until=True),
-        ))
+        self.register_plugin(
+            PluginInfo(
+                name="expect",
+                args="match=<text> {timeout=<dur>}",
+                help="Wait for text in serial output (script-only).",
+                long_help=(
+                    "Block the running script until the serial device outputs\n"
+                    "a line containing <text>.  Fails the script if the\n"
+                    "timeout elapses first (default: engine-wide expect timeout).\n"
+                    "\n"
+                    "Example:\n"
+                    "  AT+CONNECT\n"
+                    "  /expect match=CONNECTED timeout=5s"
+                ),
+                handler=_prompt_handler,
+                needs=CapabilitySet(block_until=True),
+            )
+        )
+        self.register_plugin(
+            PluginInfo(
+                name="expect.regex",
+                args="match=<pattern> {timeout=<dur>}",
+                help="Wait for regex match in serial output (script-only).",
+                long_help=(
+                    "Block the running script until the serial device outputs\n"
+                    "a line matching <pattern>.  Pattern is a Python regex.\n"
+                    "\n"
+                    "Example:\n"
+                    "  AT+STATUS\n"
+                    "  /expect.regex match=^\\+STATUS: \\d+$ timeout=2s"
+                ),
+                handler=_prompt_handler,
+                needs=CapabilitySet(block_until=True),
+            )
+        )
 
     # -- Expect / pattern matching ---------------------------------------------
 
@@ -438,9 +451,7 @@ class ReplEngine:
             try:
                 hook.handler(self.ctx)
             except BoundaryException as e:
-                self.ctx.status(
-                    f"Lifecycle hook {hook.plugin}:{name} failed: {e}"
-                )
+                self.ctx.status(f"Lifecycle hook {hook.plugin}:{name} failed: {e}")
 
     def run_directives(self, line: str) -> DirectiveResult:
         """Run all directives in load order against a raw input line.
@@ -702,7 +713,7 @@ class ReplEngine:
             if missing:
                 result = CmdResult.fail(
                     msg=f"/{name} requires: {', '.join(missing)} "
-                        f"(not available in this environment)"
+                    f"(not available in this environment)"
                 )
                 self.write(result.err_msg, "red")
                 return result
@@ -772,6 +783,7 @@ class ReplEngine:
         """
         if isinstance(existing, bool):
             from termapy.scripting import parse_bool
+
             result = parse_bool(value_str)
             if result is None:
                 raise ValueError(f"Expected bool, got '{value_str}'")
@@ -1028,6 +1040,7 @@ class ReplEngine:
             # if the port disappeared mid-script.  Fall back to a small
             # sleep so script pacing still works.
             import serial as _serial
+
             try:
                 self.ctx.serial_wait_idle()
             except (_serial.SerialException, OSError, AttributeError):

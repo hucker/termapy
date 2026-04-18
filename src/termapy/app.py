@@ -1081,13 +1081,13 @@ class SerialTerminal(TerminalHost, App):
         """Load global and per-config external plugins."""
         self._load_and_report(
             load_plugins_from_dir(global_plugins_dir(), "global"),
+            source="global",
         )
         if self.config_path:
+            cfg_name = Path(self.config_path).stem
             self._load_and_report(
-                load_plugins_from_dir(
-                    cfg_plugins_dir(self.config_path),
-                    Path(self.config_path).stem,
-                ),
+                load_plugins_from_dir(cfg_plugins_dir(self.config_path), cfg_name),
+                source=cfg_name,
             )
         self._rebuild_suggester_commands()
 
@@ -1462,14 +1462,24 @@ class SerialTerminal(TerminalHost, App):
         if was_connected or cfg.get("auto_connect"):
             self._connect()
 
-    def _load_and_report(self, result: LoadResult) -> None:
+    def _load_and_report(self, result: LoadResult, source: str = "") -> None:
         """Register loaded plugins/transforms and report status to the terminal.
 
         Shows loaded plugin names, warnings for skipped files (no COMMAND
         or TRANSFORM), and errors for files that raised exceptions.
 
+        The status message includes the source directory (e.g. "from
+        global" or "from <config-name>") so it's clear when config-folder
+        plugins are running -- a user opening an unfamiliar config
+        folder should be able to notice "3 plugins loaded from <cfg>"
+        at a glance and review them before trusting the session.
+
         Args:
             result: LoadResult from load_plugins_from_dir.
+            source: Label for where these came from (``"global"`` or a
+                config name).  Falls back to the source stored on the
+                first plugin info if empty; if still empty, the
+                ``"from ..."`` suffix is omitted.
         """
         loaded = []
         for info in result.plugins:
@@ -1484,8 +1494,11 @@ class SerialTerminal(TerminalHost, App):
         for hook in result.lifecycle_hooks:
             self.repl.register_lifecycle_hook(hook)
         if loaded:
+            if not source and result.plugins:
+                source = result.plugins[0].source
+            where = f" from {source}" if source else ""
             self.repl.ctx.status(
-                f"Loaded {len(loaded)} plugin(s): " + ", ".join(loaded),
+                f"Loaded {len(loaded)} plugin(s){where}: " + ", ".join(loaded),
             )
         for name in result.skipped:
             self._status(
@@ -1517,11 +1530,10 @@ class SerialTerminal(TerminalHost, App):
             self.repl.ctx.status(
                 f"Unloaded {len(to_remove)} plugin(s): " + ", ".join(to_remove),
             )
+        cfg_name = Path(config_path).stem
         self._load_and_report(
-            load_plugins_from_dir(
-                cfg_plugins_dir(config_path),
-                Path(config_path).stem,
-            ),
+            load_plugins_from_dir(cfg_plugins_dir(config_path), cfg_name),
+            source=cfg_name,
         )
         self._rebuild_suggester_commands()
 

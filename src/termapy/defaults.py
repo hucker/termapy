@@ -3,6 +3,8 @@
 Pure data - no logic, no I/O, no dependencies beyond migration version.
 """
 
+from collections.abc import Mapping
+
 from termapy.migration import CURRENT_CONFIG_VERSION
 
 # ── Validation constants ────────────────────────────────────────────────────────
@@ -101,7 +103,7 @@ DEFAULT_CFG = {
 }
 
 
-def cmd_prefix(cfg: dict) -> str:
+def cmd_prefix(cfg: Mapping) -> str:
     """Return ``cfg["cmd_prefix"]`` with the project default as fallback.
 
     Replaces the repeated ``cfg.get("cmd_prefix", "/")`` idiom scattered

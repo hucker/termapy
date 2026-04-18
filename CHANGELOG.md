@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.60.0 (2026-04-17)
+
+Command-line release.  Termapy now has a set of one-shot shell flags --
+`--ports`, `--watch`, `--info`, `--chips`, `--check` -- that skip the TUI
+entirely and print plain text to stdout, so you can answer "what's plugged
+in?" from a shell or script without waiting on Textual.  The flags pay
+only pyserial's import cost and start fast.
+
+### 0.60.0 New Features
+
+- **`termapy --ports`** -- one-line-per-port table matching the in-app
+  port picker.  Filter to a single port with `--ports=COM4`.  Row width
+  adapts to the terminal so narrow windows drop low-priority columns
+  (speed / chip / vid_pid) before wrapping.  Physical ports only --
+  pyserial URL handlers remain a config-side concern.
+- **`termapy --watch`** -- live log of port events; start watching,
+  plug the cable in, see which COM number it got.  One-character
+  event markers (`+` plug, `-` unplug, `~` chip re-EEPROM, blank for
+  baseline and open/close transitions) make plug events punch out
+  of the stream visually.  `Ctrl+C` to exit.
+- **`termapy --info`** -- full per-port chip dump (same data as
+  `/port.chip`), identifies chip model, USB speed class, serial
+  number, and VID:PID.  Unknown chips print the VID:PID so you can
+  identify them manually and nudge you to file an issue so the
+  lookup table can grow.
+- **`termapy --chips`** -- dump the USB-serial chip lookup table;
+  `--chips=ftdi` filters to substring matches.
+- **`termapy --check`** -- validate your config and print a JSON
+  status line without launching the TUI.
+- **USB manufacturer / serial-number columns in the picker** --
+  the port picker and `/port.chip.list` now show USB serial numbers
+  and an aliased manufacturer column (FTDI / MSFT / SiLabs) for
+  faster disambiguation between identical cables.
+
+### 0.60.0 Improvements
+
+- **Command-Line Flags help page** -- a new page in the docs
+  walks through `--ports`, `--watch`, and `--info` with real
+  captures and an annotated marker-column legend.
+- **Faster CLI startup** -- the entry point and all print-and-exit
+  flags have been split into Textual-free modules, so `termapy --ports`
+  no longer pays the ~300 ms / 40 MB cost of importing Textual.
+  `python -m termapy --help` now answers in stdlib+pyserial time.
+- **Cleaner config-path resolution** -- `find_config`, `resolve_config`,
+  and `infer_config_from_run_file` moved to their own Textual-free
+  module, eliminating a previously-duplicated copy in the CLI.
+
 ## 0.59.0 (2026-04-16)
 
 Help-system release.  Every built-in command's `/help` page now opens with a one-line live status, device commands brought in by `/include` become first-class citizens in both `/help` and `/search`, and the device JSON schema picks up an optional version field so firmware updates automatically refresh the cache.

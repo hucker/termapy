@@ -81,6 +81,7 @@ from textual.message import Message
 from textual.timer import Timer
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
 from textual.widgets.option_list import Option
 from textual.suggester import Suggester
@@ -372,6 +373,12 @@ class SerialTerminal(TerminalHost, App):
         self._cap_timer: "Timer | None" = None
         self._cap_progress_timer: "Timer | None" = None
         self._reconnecting = False
+        # Set by _btn_exit / on_unmount before we start tearing the UI
+        # down, so reader-thread callbacks that are still in flight
+        # (already queued via call_from_thread) no-op instead of
+        # touching widgets that are being unmounted.  Defense in depth;
+        # the query_one sites still have try/except guards.
+        self._shutting_down = False
 
     @property
     def cfg(self):
@@ -1114,6 +1121,7 @@ class SerialTerminal(TerminalHost, App):
         self.query_one("#cmd", Input).focus()
 
     def on_unmount(self) -> None:
+        self._shutting_down = True
         self.repl.fire_lifecycle("on_app_stop")
         self._save_history()
         self._disconnect()
@@ -1744,8 +1752,17 @@ class SerialTerminal(TerminalHost, App):
         return str(value)
 
     def _update_title(self) -> None:
+        # Called from lifecycle hooks (on_mount, _on_connected,
+        # _on_config_result) and config switches.  During teardown or
+        # before initial mount the title-bar widgets aren't available;
+        # bail quietly instead of raising NoMatches into the caller.
+        if self._shutting_down:
+            return
+        try:
+            center = self.query_one("#title-center", Button)
+        except NoMatches:
+            return
         title = self.cfg.get("title", "") or self.config_path
-        center = self.query_one("#title-center", Button)
         center.label = Text(title)
 
         # Cfg button (center) tooltip
@@ -1778,9 +1795,12 @@ class SerialTerminal(TerminalHost, App):
         )
 
         # Port button (left) tooltip + label
-        port_btn = self.query_one("#title-left", Button)
-        port_btn.label = self._port_info_str()
-        port_btn.tooltip = self._port_button_tooltip()
+        try:
+            port_btn = self.query_one("#title-left", Button)
+            port_btn.label = self._port_info_str()
+            port_btn.tooltip = self._port_button_tooltip()
+        except NoMatches:
+            pass
 
         # Connection status button (right) tooltip
         self._update_conn_tooltip()
@@ -1966,6 +1986,7 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _btn_exit(self) -> None:
+        self._shutting_down = True
         self._disconnect()
         self.exit()
 
@@ -2146,7 +2167,10 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _palette_clear(self) -> None:
-        self.query_one("#output", RichLog).clear()
+        try:
+            self.query_one("#output", RichLog).clear()
+        except NoMatches:
+            pass
 
     def _palette_ss_svg(self) -> None:
         self.repl.dispatch("ss.svg")
@@ -2255,11 +2279,21 @@ class SerialTerminal(TerminalHost, App):
             pass  # call_from_thread fails during app shutdown
 
     def _clear_output(self) -> None:
-        self.query_one("#output", RichLog).clear()
+        if self._shutting_down:
+            return
+        try:
+            self.query_one("#output", RichLog).clear()
+        except NoMatches:
+            return
         self._line_counter = 0
 
     def _get_screen_text(self) -> str:
-        log = self.query_one("#output", RichLog)
+        if self._shutting_down:
+            return ""
+        try:
+            log = self.query_one("#output", RichLog)
+        except NoMatches:
+            return ""
         return "\n".join(strip.text for strip in log.lines)
 
     # ── File capture engine ──────────────────────────────────────────────────
@@ -2408,10 +2442,21 @@ class SerialTerminal(TerminalHost, App):
         Combines screen output and file logging in a single call to
         minimize ``call_from_thread`` round-trips from the serial reader.
 
+        Short-circuits during shutdown: reader callbacks can still be
+        queued on the event loop when Textual starts tearing down
+        widgets.  Skip both the RichLog write and the log-file write
+        once ``_shutting_down`` is set so we don't touch a vanished
+        widget tree.
+
         Args:
             lines: Decoded text lines to display and log.
         """
-        log = self.query_one("#output", RichLog)
+        if self._shutting_down:
+            return
+        try:
+            log = self.query_one("#output", RichLog)
+        except NoMatches:
+            return  # widgets torn down between flag check and query
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
         hex_mode = self.repl.ctx.ns("flags")["hex_mode"]
@@ -2742,7 +2787,10 @@ class SerialTerminal(TerminalHost, App):
         self.repl._script_stop.set()
 
     def action_clear_log(self) -> None:
-        self.query_one("#output", RichLog).clear()
+        try:
+            self.query_one("#output", RichLog).clear()
+        except NoMatches:
+            pass
 
     def action_screenshot(
         self, filename: str | None = None, path: str | None = None

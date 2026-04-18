@@ -30,49 +30,43 @@ import json
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
 
-from termapy.app_dirs import app_state_dir
+from termapy.app_dirs import load_app_state, save_app_state
 
 # Tunables -- module-level so tests can patch them cleanly.
 _PYPI_JSON_URL = "https://pypi.org/pypi/termapy/json"
 _HTTP_TIMEOUT_S = 2.0
 _CHECK_INTERVAL_DAYS = 7
-_STATE_FILE_NAME = "update_check.json"
 
-
-def _state_path() -> Path:
-    """Return the path to the update-check state JSON."""
-    return app_state_dir() / _STATE_FILE_NAME
+# Subkey under which this feature stores its slice of state.json.
+# Other features get their own subkeys; the file is a shared dict
+# keyed by feature name so we don't scatter N small JSON files.
+_STATE_KEY = "update_check"
 
 
 def _load_state() -> dict:
-    """Load state JSON or return ``{}`` on any error.
+    """Load this feature's slice of the shared app state file.
 
-    Missing file, malformed JSON, permissions error -- all return
-    an empty dict so the caller treats this as "never checked."
+    Returns the ``update_check`` subkey of ``state.json``, or an
+    empty dict if the file / subkey is missing or unreadable.
     """
-    try:
-        with _state_path().open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError, ValueError):
-        return {}
+    whole = load_app_state()
+    slice_ = whole.get(_STATE_KEY)
+    return slice_ if isinstance(slice_, dict) else {}
 
 
-def _save_state(state: dict) -> None:
-    """Write state JSON, swallowing any error.
+def _save_state(slice_: dict) -> None:
+    """Persist this feature's slice back into the shared app state file.
 
-    A failed save just means we'll re-check sooner than planned --
-    not a reason to bother the user.
+    Reads the full ``state.json``, replaces the ``update_check``
+    subkey, writes the whole thing back.  Other features' subkeys
+    are preserved.
     """
-    try:
-        with _state_path().open("w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
-    except OSError:
-        pass
+    whole = load_app_state()
+    whole[_STATE_KEY] = slice_
+    save_app_state(whole)
 
 
 def _now() -> datetime:

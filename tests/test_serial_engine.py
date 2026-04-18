@@ -543,3 +543,241 @@ class TestReconnectLoop:
 
         # Assert
         assert not t.is_alive(), "thread should have exited"
+
+
+# -- Error classification & port-holder lookup ---------------------------------
+
+
+class TestClassifySerialError:
+    """_classify_serial_error maps raw exceptions to friendly messages,
+    and on Unix tries to name the process holding the port."""
+
+    def test_permission_error_without_port_name(self):
+        # Arrange
+        from termapy.serial_engine import _classify_serial_error
+        inner = PermissionError("Access is denied")
+        outer = Exception("open failed")
+        outer.__cause__ = inner
+
+        # Act
+        actual = _classify_serial_error(outer)
+
+        # Assert -- no port name passed, no holder lookup performed
+        assert "Permission denied" in actual, "friendly permission message"
+        assert "held by" not in actual, "no holder appended when port_name empty"
+
+    def test_file_not_found_returns_helpful_message(self):
+        # Arrange
+        from termapy.serial_engine import _classify_serial_error
+        inner = FileNotFoundError("no such device")
+        outer = Exception("open failed")
+        outer.__cause__ = inner
+
+        # Act
+        actual = _classify_serial_error(outer)
+
+        # Assert
+        assert "Port not found" in actual, "friendly not-found message"
+        assert "/port.list" in actual, "points user at the discovery command"
+
+    def test_oserror_errno_13_treated_as_permission(self, monkeypatch):
+        # Arrange -- errno 13 is EACCES on POSIX
+        from termapy.serial_engine import _classify_serial_error
+        inner = OSError(13, "Permission denied")
+        outer = Exception("open failed")
+        outer.__cause__ = inner
+        # No holder lookup (port_name empty) so sys.platform doesn't matter.
+
+        # Act
+        actual = _classify_serial_error(outer, port_name="")
+
+        # Assert
+        assert "Permission denied" in actual, "classified as in-use"
+
+    def test_oserror_errno_2_treated_as_not_found(self):
+        # Arrange -- errno 2 is ENOENT
+        from termapy.serial_engine import _classify_serial_error
+        inner = OSError(2, "No such file")
+        outer = Exception("open failed")
+        outer.__cause__ = inner
+
+        # Act
+        actual = _classify_serial_error(outer)
+
+        # Assert
+        assert "Port not found" in actual, "classified as missing"
+
+    def test_permission_error_with_holder_is_appended(self, monkeypatch):
+        # Arrange -- stub out the holder lookup to return a known value.
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se, "_find_port_holder", lambda _p: "arduino (PID 1234)")
+        inner = PermissionError("Access is denied")
+        outer = Exception("open failed")
+        outer.__cause__ = inner
+
+        # Act
+        actual = se._classify_serial_error(outer, port_name="ttyUSB0")
+
+        # Assert
+        assert "Permission denied" in actual, "still has the base message"
+        assert "held by arduino (PID 1234)" in actual, "holder appended"
+
+    def test_permission_error_holder_lookup_returns_none(self, monkeypatch):
+        # Arrange -- holder lookup fails silently (Windows, or lsof missing)
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se, "_find_port_holder", lambda _p: None)
+        inner = PermissionError("Access is denied")
+        outer = Exception("open failed")
+        outer.__cause__ = inner
+
+        # Act
+        actual = se._classify_serial_error(outer, port_name="ttyUSB0")
+
+        # Assert
+        assert "Permission denied" in actual, "base message intact"
+        assert "held by" not in actual, "no holder clause when lookup returned None"
+
+    def test_pyserial_windows_permission_via_message(self):
+        # Arrange -- mimic the exact shape pyserial raises on Windows when
+        # another app holds the port: SerialException with the OSError
+        # stringified into the message and no __cause__ chaining.
+        from termapy.serial_engine import _classify_serial_error
+        exc = Exception(
+            "could not open port 'COM4': "
+            "PermissionError(13, 'Access is denied.', None, 5)"
+        )
+        # cause deliberately None -- this is the bug we're guarding against.
+        assert exc.__cause__ is None, "pyserial doesn't chain; the test knows that"
+
+        # Act
+        actual = _classify_serial_error(exc, port_name="COM4")
+
+        # Assert
+        assert "Permission denied -- port may be in use" in actual, \
+            f"classified via string match, got {actual!r}"
+        assert "PermissionError" not in actual, \
+            "raw exception-class text is not shown to the user"
+
+    def test_pyserial_windows_file_not_found_via_message(self):
+        # Arrange -- same pattern for a missing port.
+        from termapy.serial_engine import _classify_serial_error
+        exc = Exception(
+            "could not open port 'COM99': "
+            "FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)"
+        )
+
+        # Act
+        actual = _classify_serial_error(exc, port_name="COM99")
+
+        # Assert
+        assert "Port not found" in actual, f"classified as missing, got {actual!r}"
+
+
+class TestFindPortHolder:
+    """_find_port_holder uses lsof on Unix; silent None on Windows
+    or any failure."""
+
+    def test_windows_returns_none(self, monkeypatch):
+        # Arrange
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se.sys, "platform", "win32")
+
+        # Act
+        actual = se._find_port_holder("COM7")
+
+        # Assert
+        assert actual is None, "no holder lookup on Windows"
+
+    def test_lsof_missing_returns_none(self, monkeypatch):
+        # Arrange -- simulate lsof not installed on PATH.
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se.sys, "platform", "linux")
+
+        def _raise_filenotfound(*args, **kwargs):
+            raise FileNotFoundError("lsof")
+
+        monkeypatch.setattr(se.subprocess, "run", _raise_filenotfound)
+
+        # Act
+        actual = se._find_port_holder("ttyUSB0")
+
+        # Assert
+        assert actual is None, "missing lsof doesn't raise, just bails silently"
+
+    def test_lsof_timeout_returns_none(self, monkeypatch):
+        # Arrange
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se.sys, "platform", "linux")
+
+        def _raise_timeout(*args, **kwargs):
+            raise se.subprocess.TimeoutExpired(cmd="lsof", timeout=2.0)
+
+        monkeypatch.setattr(se.subprocess, "run", _raise_timeout)
+
+        # Act
+        actual = se._find_port_holder("ttyUSB0")
+
+        # Assert
+        assert actual is None, "timeout bails silently"
+
+    def test_lsof_success_parses_pid_and_command(self, monkeypatch):
+        # Arrange -- simulate lsof -F pc output format.
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se.sys, "platform", "linux")
+
+        class _Result:
+            returncode = 0
+            stdout = "p1234\ncarduino-ide\n"
+
+        monkeypatch.setattr(se.subprocess, "run", lambda *a, **kw: _Result())
+
+        # Act
+        actual = se._find_port_holder("ttyUSB0")
+
+        # Assert
+        expected = "arduino-ide (PID 1234)"
+        assert actual == expected, f"parsed as command + PID, got {actual!r}"
+
+    def test_lsof_success_with_nothing_holding(self, monkeypatch):
+        # Arrange -- lsof exit=0 but no output means nothing has the port.
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se.sys, "platform", "linux")
+
+        class _Result:
+            returncode = 0
+            stdout = ""
+
+        monkeypatch.setattr(se.subprocess, "run", lambda *a, **kw: _Result())
+
+        # Act
+        actual = se._find_port_holder("ttyUSB0")
+
+        # Assert
+        assert actual is None, "empty output -> no holder identified"
+
+    def test_lsof_absolute_path_passed_through(self, monkeypatch):
+        # Arrange -- user-supplied port already looks absolute; don't
+        # prepend /dev/ again.
+        import termapy.serial_engine as se
+        monkeypatch.setattr(se.sys, "platform", "linux")
+
+        captured = {}
+
+        class _Result:
+            returncode = 1
+            stdout = ""
+
+        def _fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return _Result()
+
+        monkeypatch.setattr(se.subprocess, "run", _fake_run)
+
+        # Act
+        se._find_port_holder("/dev/tty.usbserial-XYZ")
+
+        # Assert -- argv[-1] is the path lsof queried.
+        actual_path = captured["cmd"][-1]
+        expected_path = "/dev/tty.usbserial-XYZ"
+        assert actual_path == expected_path, \
+            "absolute path passed through untouched"

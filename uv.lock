@@ -829,7 +829,7 @@ wheels = [
 
 [[package]]
 name = "termapy"
-version = "0.60.0"
+version = "0.61.0"
 source = { editable = "." }
 dependencies = [
     { name = "packaging" },

@@ -23,7 +23,7 @@
     
     
       
-        <title>Command-line flags - Termapy Help v0.60.0</title>
+        <title>Command-line flags - Termapy Help v0.61.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.60.0" class="md-header__button md-logo" aria-label="Termapy Help v0.60.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.61.0" class="md-header__button md-logo" aria-label="Termapy Help v0.61.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.60.0
+            Termapy Help v0.61.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.60.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.60.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.61.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.61.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.60.0
+    Termapy Help v0.61.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -480,6 +480,17 @@
     <span class="md-ellipsis">
       
         Other flags worth knowing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#try-without-hardware-termapy_demo_fleet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try without hardware: TERMAPY_DEMO_FLEET
       
     </span>
   </a>
@@ -957,6 +968,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#try-without-hardware-termapy_demo_fleet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try without hardware: TERMAPY_DEMO_FLEET
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1152,6 +1174,19 @@ found or no ports are connected.</p>
 </tbody>
 </table>
 <p><code>termapy --help</code> has the full list.</p>
+<h2 id="try-without-hardware-termapy_demo_fleet">Try without hardware: <code>TERMAPY_DEMO_FLEET</code><a class="headerlink" href="#try-without-hardware-termapy_demo_fleet" title="Permanent link">&para;</a></h2>
+<p>Want to see what <code>--ports</code>, <code>--watch</code>, or <code>--info</code> look like without any
+USB-serial adapters plugged in?  Set <code>TERMAPY_DEMO_FLEET=1</code> and termapy
+will enumerate a fixed three-port synthetic fleet (FTDI FT232R on COM3,
+Silicon Labs CP2102 on COM4, Microsoft USB Serial on COM7) instead of
+calling the OS.</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--ports<span class="w">    </span><span class="c1"># fake three-port table</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--info<span class="o">=</span>COM4<span class="w">  </span><span class="c1"># fake CP2102 info dump</span>
+</span></code></pre></div>
+<p>Useful for docs, screenshots, trying the tool before you own hardware,
+and cross-platform bug reports.  This is a sibling to the <code>DEMO</code> port
+(which fakes an <em>open</em> serial connection) and <code>DEMO_FAIL</code> (which makes
+opens deterministically fail).</p>
 
 
 

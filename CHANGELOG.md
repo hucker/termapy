@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.61.0 (2026-04-18)
+
+Quality-of-life release.  Termapy now tells you when a new version is
+available on PyPI, consolidates its own app-level state (update checks,
+recent configs, window geometry) into a single `state.json` that you
+can inspect with the new `/app` command, names the process holding a
+locked port on Unix, and makes the command palette a little smarter on
+non-Linux platforms.  Under the hood, the `cmd_prefix` override is now
+fully plumbed so users with a non-`/` prefix see it everywhere in help
+output.
+
+### 0.61.0 New Features
+
+- **PyPI update check + Update title-bar button** -- termapy quietly
+  checks PyPI on startup (no network call blocks the UI) and, when a
+  newer release is available, lights up an `Update` button in the
+  title bar.  Clicking it jumps straight to the installation docs so
+  you can see how to upgrade for your install method.  The check runs
+  at most once a day and is fully opt-out via `update_check: false`.
+- **`/app` command + `state.json`** -- app-wide state (last-seen
+  version, recent configs, update-check timestamp, window geometry,
+  custom buttons) now lives in a single `state.json` under the
+  user-level app directory instead of scattered files.  The new
+  `/app` REPL command lets you query or edit any field interactively:
+  `/app`, `/app recent`, `/app.set custom_button_4 "/port.info"`, etc.
+- **Friendlier "port in use" errors** -- when the OS refuses to open
+  a port because another process has it, termapy now reports which
+  process on Linux / macOS (via `lsof`).  Instead of a bare
+  `PermissionError`, you get `Cannot open /dev/ttyUSB0: permission
+  denied (held by arduino, PID 12847)`.
+- **Smarter `/` palette** -- the command palette hides Linux-only
+  commands (`/port.latency_timer`, `/port.permissions`) on macOS and
+  Windows so they don't clutter the view with never-applicable rows.
+  Help text is column-aligned at position 50 for a tidier two-column
+  look at wider terminal widths.
+- **Plugin-source labels in startup status** -- the green startup
+  banner now annotates each plugin with its origin (`builtin`,
+  `global`, `config`) so you can see at a glance where a custom
+  command came from when a config pulls plugins from multiple
+  sources.
+- **`TERMAPY_DEMO_FLEET` environment variable** -- set this and
+  `--ports`, `--watch`, `--info`, and `/port.list` enumerate a
+  fixed three-port synthetic fleet (FTDI FT232R on COM3, Silicon
+  Labs CP2102 on COM4, Microsoft USB Serial on COM7) instead of
+  real hardware.  Handy for docs, screenshots, bug reports, or
+  trying the tool before you own an adapter.  Sibling to the
+  existing `port: DEMO` (fake open) config value.
+
+### 0.61.0 Improvements
+
+- **`cmd_prefix` override is now complete** -- users with a non-`/`
+  prefix in their config (`cmd_prefix: "!"`) previously saw stray
+  `/` literals in help output, search hits, subcommand listings,
+  and CRC error messages.  Every help-rendering site now runs the
+  live prefix through the same interpolation helper, and the plugin
+  source strings use a `{prefix}` sentinel that's substituted at
+  render time.  A new end-to-end test proves dispatch + output
+  both honor the override.
+- **Friendlier CRC error messages** -- `/proto.crc.c`,
+  `/proto.crc.python`, `/proto.crc.rust`, `/proto.crc.calc`, and
+  `/proto.crc.help` now fail gracefully and point you at
+  `/proto.crc.list` when you pass an unknown algorithm name
+  (previously some paths crashed or leaked the `{prefix}`
+  placeholder to the screen).
+- **`proto_frame_gap_ms` now has a default** -- previously a fresh
+  config was missing this key and `/proto.send` would complain;
+  it now defaults to 50 ms so the first thing you try works.
+- **Better shutdown hygiene** -- race conditions between the reader
+  thread firing a final callback and the Textual widget tree
+  tearing down are now caught by a dedicated `SHUTDOWN_RACE` tuple
+  instead of a broad `except Exception`; and `open` /
+  `xdg-open` child processes are reaped by a daemon thread so they
+  don't leak zombies when you close help or a capture file from
+  the TUI.
+- **Deprecated vs. mistyped config keys** -- the config validator
+  now distinguishes keys that *used to be real* (deprecated --
+  silently dropped with a yellow hint) from keys that are likely
+  typos (flagged in red with a did-you-mean suggestion).
+- **Release-tooling improvements** -- the release script now
+  asserts HTML help freshness after rebuild so stale `*.html` can't
+  slip into a tag, and a new `scripts/check_dep_updates.py` surfaces
+  outdated dependencies for pre-release review.
+
 ## 0.60.0 (2026-04-17)
 
 Command-line release.  Termapy now has a set of one-shot shell flags --

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:zensical.org)",
-      "Bash(uvx zensical:*)"
+      "Bash(uvx zensical:*)",
+      "Read(//c/Users/chu ck/src/repo/termapy/src/termapy/**)",
+      "Bash(python -m termapy --help)"
     ]
   }
 }

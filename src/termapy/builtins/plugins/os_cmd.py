@@ -46,7 +46,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     name="os",
     args="<cmd>",
-    help="Run a shell command and show output (10s timeout). e.g. /os dir",
+    help="Run a shell command and show output (10s timeout). e.g. {prefix}os dir",
     long_help="""\
 Runs a shell command via the system shell and displays its output.
 Stdout is shown in white, stderr in red.

@@ -266,7 +266,7 @@ class CLITerminal(TerminalHost):
         self.repl.register_hook(
             "clr",
             "",
-            "Clear the terminal screen (alias for /cls).",
+            "Clear the terminal screen (alias for {prefix}cls).",
             lambda ctx, args: (ctx.clear_screen(), CmdResult.ok())[-1],
             source="app",
         )

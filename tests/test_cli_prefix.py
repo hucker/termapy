@@ -24,8 +24,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 from termapy.defaults import DEFAULT_CFG
 
 
@@ -225,20 +223,6 @@ class TestPrefixOutputFlowThrough:
                 f"using the live prefix.  stdout: {actual!r}"
             )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known issue: several plugins' long_help strings embed "
-            "literal '/cmd' references instead of interpolating the "
-            "live prefix.  cfg.py's prose says 'Use /cfg.auto ...' "
-            "which ships '/cfg.auto' to users running with a non-'/' "
-            "prefix.  Fix by threading the prefix through long_help "
-            "rendering (either make long_help callables receive the "
-            "prefix or post-process the rendered string).  When the "
-            "bug is fixed, this test will XPASS and this xfail can "
-            "be removed."
-        ),
-    )
     def test_help_detail_cross_references_use_live_prefix(self, tmp_path):
         # Arrange -- drill into a single command's help.  The help
         # text (right column / long_help) commonly cross-references
@@ -262,17 +246,6 @@ class TestPrefixOutputFlowThrough:
             f"plugin help text should use the live prefix.  stdout: {actual!r}"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Same root cause as test_help_detail_cross_references: "
-            "/search prints each hit's long_help excerpt, and those "
-            "long_help strings embed literal '/cmd' references "
-            "(e.g. /app.config.dump in app.py, /print $(PORT) in "
-            "var.py).  Fix by rendering long_help through the live "
-            "prefix.  When fixed, this XPASSes."
-        ),
-    )
     def test_search_results_use_live_prefix(self, tmp_path):
         # Arrange -- `!search` finds commands matching a query and
         # prints them.  Results should read `!cmd`, not `/cmd`.

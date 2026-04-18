@@ -636,7 +636,7 @@ def _cap_long_help_with_prose(prose: str):
 
 _CAP_TEXT_PROSE = (
     "Passively captures all text arriving from the device for a\n"
-    "fixed duration.  Use /cap.stop to end early.\n"
+    "fixed duration.  Use {prefix}cap.stop to end early.\n"
     "\n"
     "Parameters:\n"
     "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
@@ -672,17 +672,17 @@ _CAP_STRUCT_PROSE = (
     "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
     "  cmd=...           command to send after capture starts (must be last)\n"
     "\n"
-    "See /help writing-plugins for the format spec language."
+    "See {prefix}help writing-plugins for the format spec language."
 )
 
 _CAP_HEX_PROSE = (
-    "Like /cap.struct but reads hex-encoded text lines (e.g. '01 02 FF AB')\n"
+    "Like {prefix}cap.struct but reads hex-encoded text lines (e.g. '01 02 FF AB')\n"
     "instead of raw binary bytes.  Hex is converted to binary, then decoded\n"
     "with the same format spec pipeline.\n"
     "\n"
     "Parameters:\n"
     "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
-    "  fmt=<spec>        REQUIRED format spec (same as /cap.struct)\n"
+    "  fmt=<spec>        REQUIRED format spec (same as {prefix}cap.struct)\n"
     "  records=<N>       REQUIRED record count\n"
     "  mode=new|append   file mode (default: new)\n"
     "  sep=comma|tab|space  column separator (default: comma)\n"
@@ -696,7 +696,7 @@ _CAP_POLL_PROSE = (
     "response as a row.  With `file=`, also writes to CSV or JSONL.\n"
     "\n"
     "cmd= is newline-separated for multiple columns:\n"
-    "  /cap.poll cmd=AT+BAT\\nAT+TEMP\n"
+    "  {prefix}cap.poll cmd=AT+BAT\\nAT+TEMP\n"
     "\n"
     "Parameters:\n"
     "  cmd=<commands>    REQUIRED, must be last.  \\n-separated list.\n"

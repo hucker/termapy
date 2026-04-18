@@ -39,6 +39,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     name="echo",
     args="{on | off}",
-    help="Toggle REPL command echo. Use /echo.quiet to set silently.",
+    help="Toggle REPL command echo. Use {prefix}echo.quiet to set silently.",
     handler=_handler,
 )

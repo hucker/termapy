@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -453,17 +454,39 @@ def load_config(path: str) -> dict:
 
 
 def open_with_system(path: str) -> None:
-    """Open a file or folder with the system default application."""
+    """Open a file or folder with the system default application.
+
+    Platforms:
+
+    - Windows: ``os.startfile`` dispatches the shell verb and returns
+      immediately; the OS owns the child lifecycle, nothing to reap.
+    - macOS / Linux: spawn a daemon thread that ``subprocess.run``'s
+      the launcher (``open`` / ``xdg-open``).  The thread blocks on
+      the short-lived launcher (usually < 100 ms) and then dies,
+      which also reaps the child so it doesn't sit in the process
+      table as a zombie.  Using ``run`` directly on the main thread
+      would freeze the TUI while ``xdg-open`` resolves the default
+      application; using a bare ``Popen`` without ``wait`` accumulates
+      zombies over a long session.  The thread is ``daemon=True`` so
+      an orphan launcher never keeps termapy alive.
+    """
     import subprocess
 
     if sys.platform == "win32":
         import os
 
         os.startfile(path)
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", path])
-    else:
-        subprocess.Popen(["xdg-open", path])
+        return
+
+    cmd = ["open", path] if sys.platform == "darwin" else ["xdg-open", path]
+
+    def _launch_and_reap() -> None:
+        try:
+            subprocess.run(cmd, check=False, timeout=60.0)
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass  # launcher hung or missing -- best effort
+
+    threading.Thread(target=_launch_and_reap, daemon=True).start()
 
 
 def open_serial(cfg: dict) -> Any:

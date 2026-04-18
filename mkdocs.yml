@@ -21,6 +21,7 @@ nav:
   - Getting Started: getting-started.md
   - Configuration: config.md
   - Serial Ports: ports.md
+  - Command-Line Flags: cli.md
   - Custom Buttons: custom-buttons.md
   - Toolbar & Shortcuts: toolbar.md
   - REPL Commands: commands.md

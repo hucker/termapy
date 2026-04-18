@@ -337,6 +337,43 @@ def run_zensical_build() -> None:
     info("Building HTML help with zensical...")
     run(["uvx", "zensical", "build"])
     ok("HTML help built")
+    _assert_html_is_fresh()
+
+
+def _assert_html_is_fresh() -> None:
+    """Verify every help/*.md has a matching html/*.html at least as new.
+
+    Catches the case where zensical exits 0 but fails to regenerate
+    one or more pages -- without this check, that would silently ship
+    a stale HTML doc in the wheel.  Run immediately after
+    ``run_zensical_build`` so any failure aborts before we commit the
+    rebuild.
+    """
+    help_dir = REPO_ROOT / "src" / "termapy" / "help"
+    html_dir = REPO_ROOT / "src" / "termapy" / "html"
+
+    md_files = sorted(help_dir.glob("*.md"))
+    if not md_files:
+        die(f"no markdown sources found in {help_dir}")
+
+    missing: list[str] = []
+    stale: list[str] = []
+    for md in md_files:
+        html = html_dir / f"{md.stem}.html"
+        if not html.exists():
+            missing.append(md.name)
+            continue
+        if html.stat().st_mtime < md.stat().st_mtime:
+            stale.append(md.name)
+
+    if missing or stale:
+        parts: list[str] = []
+        if missing:
+            parts.append(f"no .html counterpart: {', '.join(missing)}")
+        if stale:
+            parts.append(f".html older than .md: {', '.join(stale)}")
+        die("HTML help is out of sync after zensical build -- " + "; ".join(parts))
+    ok(f"HTML help freshness verified ({len(md_files)} pages)")
 
 
 # ── git operations ───────────────────────────────────────────────────────────

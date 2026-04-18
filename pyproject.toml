@@ -37,6 +37,9 @@ dependencies = [
     # Version comparison for /include's JSON "version" field -- lets a
     # newer device schema overwrite an older cached one via PEP 440.
     "packaging>=24.0",
+    # Cross-platform user state / config directory resolution (replaces
+    # per-OS hand-rolled APPDATA / XDG handling for app-level state).
+    "platformdirs>=4.0",
 ]
 
 [project.optional-dependencies]

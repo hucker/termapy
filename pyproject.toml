@@ -29,11 +29,15 @@ dependencies = [
     # pyserial is vendored in src/termapy/vendor/serial/ (see vendor/LICENSES.md)
     "prompt-toolkit>=3.0",
     "pygments>=2.20.0",
-    # Syntax highlighting for TextArea editors (config=json, proto=toml, scripts=bash)
-    "tree-sitter>=0.25.0; python_version >= '3.10'",
-    "tree-sitter-json>=0.24.0; python_version >= '3.10'",
-    "tree-sitter-toml>=0.6.0; python_version >= '3.10'",
-    "tree-sitter-bash>=0.23.0; python_version >= '3.10'",
+    # Syntax highlighting for TextArea editors (config=json, proto=toml,
+    # scripts=bash).  Upper bounds capped to the next-minor of the
+    # currently-tested release; pre-1.0 tree-sitter libraries routinely
+    # break their API between minor versions.  Bump the caps manually
+    # after smoke-testing a new release locally.
+    "tree-sitter>=0.25.0,<0.26; python_version >= '3.10'",
+    "tree-sitter-json>=0.24.0,<0.25; python_version >= '3.10'",
+    "tree-sitter-toml>=0.6.0,<0.8; python_version >= '3.10'",
+    "tree-sitter-bash>=0.23.0,<0.26; python_version >= '3.10'",
     # Version comparison for /include's JSON "version" field -- lets a
     # newer device schema overwrite an older cached one via PEP 440.
     "packaging>=24.0",

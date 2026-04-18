@@ -614,8 +614,8 @@ class TestValidateConfig:
         assert "max_lines" in actual[0], "identifies the field"
 
     def test_unknown_key_flagged(self):
-        # Arrange
-        cfg = dict(DEFAULT_CFG, baudrate=9600)  # typo: should be baud_rate
+        # Arrange -- a key that never existed, not a deprecated one.
+        cfg = dict(DEFAULT_CFG, not_a_real_key=9600)
 
         # Act
         actual = validate_config(cfg)
@@ -623,7 +623,35 @@ class TestValidateConfig:
         # Assert
         assert len(actual) == 1, "exactly one warning"
         assert "unknown key" in actual[0], "clear message"
-        assert "baudrate" in actual[0], "shows the bad key"
+        assert "not_a_real_key" in actual[0], "shows the bad key"
+
+    def test_deprecated_renamed_key_flagged_with_hint(self):
+        # Arrange -- 'baudrate' was renamed to 'baud_rate' in v4.
+        cfg = dict(DEFAULT_CFG, baudrate=9600)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert -- user gets told it's deprecated *and* what it was
+        # renamed to, instead of the generic "typo?" message.
+        assert len(actual) == 1, "exactly one warning"
+        assert "deprecated key" in actual[0], "flagged as deprecated"
+        assert "baudrate" in actual[0], "shows the stale key"
+        assert "baud_rate" in actual[0], "names the replacement"
+        assert "v4" in actual[0], "cites the version that retired it"
+
+    def test_deprecated_removed_key_flagged_with_hint(self):
+        # Arrange -- 'cap_endian' was removed outright in v8.
+        cfg = dict(DEFAULT_CFG, cap_endian="little")
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, "exactly one warning"
+        assert "deprecated key" in actual[0], "flagged as deprecated"
+        assert "cap_endian" in actual[0], "shows the stale key"
+        assert "removed in v8" in actual[0], "explains what happened"
 
     def test_internal_keys_ignored(self):
         # Arrange

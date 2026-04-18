@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -245,18 +245,22 @@ class TestHookLogClear:
         # Assert
         assert not result.success, "no log file to delete"
 
-    def test_delete_log(self, cli, tmp_path):
-        # Arrange
-        log_path_str = str(tmp_path / "test_cfg" / "test.log")
-        Path(log_path_str).write_text("log data")
+    def test_delete_log(self, cli):
+        # Arrange -- write the log file at the path the real
+        # cfg_log_path() would compute, so the test exercises the
+        # real resolution logic instead of a patched return value.
+        from termapy.config import cfg_log_path
 
-        # Act - patch where cfg_log_path is imported (inside the method)
-        with patch("termapy.config.cfg_log_path", return_value=log_path_str):
-            result = cli._hook_log_clear(cli.ctx, "")
+        log_path = Path(cfg_log_path(cli.config_path))
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("log data")
+
+        # Act
+        result = cli._hook_log_clear(cli.ctx, "")
 
         # Assert
         assert result.success, "deletion succeeds"
-        assert not Path(log_path_str).exists(), "file removed"
+        assert not log_path.exists(), "file removed"
 
 
 # -- Connect / Disconnect ---------------------------------------------------
@@ -373,41 +377,56 @@ class TestSerialWriteRaw:
 
 
 class TestCapture:
-    def test_start_capture_already_active(self, cli, capsys):
-        # Arrange
-        cli.capture = MagicMock()
-        cli.capture.active = True
+    def test_start_capture_already_active(self, cli, tmp_path):
+        # Arrange -- start a real capture against tmp_path, then try
+        # to start a second one.  The second call must be rejected.
+        first = tmp_path / "first.txt"
+        started = cli._start_capture(
+            path=first, file_mode="w", mode="text", duration=1.0
+        )
+        assert started is True, "first capture starts cleanly"
 
-        # Act
-        actual = cli._start_capture(mode="text", path="/tmp/cap.txt")
+        # Act -- try to start another while the first is still active.
+        second = tmp_path / "second.txt"
+        actual = cli._start_capture(
+            path=second, file_mode="w", mode="text", duration=1.0
+        )
 
         # Assert
         assert actual is False, "returns False when already active"
+        cli._stop_capture()
 
-    def test_start_capture_success(self, cli, capsys):
+    def test_start_capture_success(self, cli, tmp_path):
         # Arrange
-        cli.capture = MagicMock()
-        cli.capture.active = False
-        cli.capture.start.return_value = True
+        cap_path = tmp_path / "cap.txt"
 
         # Act
-        actual = cli._start_capture(mode="text", path="/tmp/cap.txt")
+        actual = cli._start_capture(
+            path=cap_path, file_mode="w", mode="text", duration=1.0
+        )
 
-        # Assert
+        # Assert -- real file was created, real engine reports active.
         assert actual is True, "returns True on success"
+        assert cli.capture.active, "engine reports active capture"
+        assert cap_path.exists(), "capture file created on disk"
+        cli._stop_capture()
 
-    def test_stop_capture(self, cli, capsys):
-        # Arrange
-        mock_result = MagicMock()
-        mock_result.path = "/tmp/cap.txt"
-        mock_result.size_label = "1.2 KB"
-        cli.capture = MagicMock()
-        cli.capture.stop.return_value = mock_result
+    def test_stop_capture(self, cli, tmp_path, capsys):
+        # Arrange -- real text capture of three bytes.
+        cap_path = tmp_path / "cap.txt"
+        cli._start_capture(
+            path=cap_path, file_mode="w", mode="text", duration=1.0
+        )
+        cli.capture.feed_text(["abc"])
+        capsys.readouterr()  # drain "Capture started" status
 
         # Act
         cli._stop_capture()
 
-        # Assert
+        # Assert -- real engine closed, file has expected contents,
+        # user-facing status line announces completion.
+        assert not cli.capture.active, "engine reports inactive after stop"
+        assert cap_path.read_text() == "abc\n", "captured line written"
         actual = capsys.readouterr().out
         assert "Capture complete" in actual, "reports completion"
 
@@ -629,19 +648,16 @@ def _synthetic_facts(*entries):
 class TestPortsFlag:
     """Tests for --ports: print a one-line-per-port table and exit.
 
-    We monkey-patch ``port_control._gather_all_chip_facts`` so tests
-    are hardware-independent.
+    Uses the ``TERMAPY_DEMO_FLEET`` env var -- a production hook that
+    makes ``_gather_all_chip_facts()`` return a fixed synthetic fleet
+    (COM3 FTDI, COM4 Silicon Labs, COM7 Microsoft).  Users can set the
+    same var to demo the CLI without real hardware.
     """
 
     def test_ports_prints_header_and_one_row_per_port(self, capsys, monkeypatch):
-        # Arrange -- three synthetic ports.
+        # Arrange -- DEMO_FLEET gives a deterministic 3-port roster.
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
-            ("COM3", "Microsoft", "-", "04D8:9036", "020026702RYN040952"),
-            ("COM4", "FTDI", "FTDI FT230X / FT231X / FT234XD", "0403:6015", "D20JSV68A"),
-            ("COM7", "FTDI", "FTDI FT232R / FT245R", "0403:6001", "BG03U7VTA"),
-        ))
         from termapy.entry import main
 
         # Act
@@ -655,12 +671,15 @@ class TestPortsFlag:
         assert "PORT" in out and "MFG" in out and "VID:PID" in out, \
             "header row printed"
         assert "COM3" in out and "COM4" in out and "COM7" in out, \
-            "every port appears"
+            "every demo-fleet port appears"
         assert "MSFT" in out, "Microsoft manufacturer gets aliased to MSFT"
         assert "FTDI FT232R" in out, "chip model rendered"
 
     def test_ports_no_ports_exits_nonzero(self, capsys, monkeypatch):
-        # Arrange -- simulate no ports.
+        # Arrange -- simulate no ports by returning an empty list
+        # from the underlying gather.  The DEMO_FLEET hook doesn't
+        # cover this case (it unconditionally returns 3 ports), so
+        # we still monkeypatch for this one.
         monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
         import termapy.port_control as pc
         monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: [])
@@ -676,14 +695,9 @@ class TestPortsFlag:
         assert "(no ports found)" in out, "prints the empty marker"
 
     def test_ports_filter_matches_one(self, capsys, monkeypatch):
-        # Arrange -- --ports=COM4 on a 3-port fixture.
+        # Arrange -- --ports=COM4 on the DEMO_FLEET 3-port roster.
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports=COM4"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
-            ("COM3", "Microsoft", "-", "04D8:9036", "X1"),
-            ("COM4", "FTDI", "FTDI FT232R", "0403:6001", "X2"),
-            ("COM7", "FTDI", "FTDI FT232R", "0403:6001", "X3"),
-        ))
         from termapy.entry import main
 
         # Act
@@ -701,12 +715,9 @@ class TestPortsFlag:
             f"only COM4 row emitted, got: {data_lines}"
 
     def test_ports_filter_unknown_exits_nonzero(self, capsys, monkeypatch):
-        # Arrange
+        # Arrange -- DEMO_FLEET ports exist but NOPE999 doesn't match.
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         monkeypatch.setattr("sys.argv", ["termapy", "--ports=NOPE999"])
-        import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: _synthetic_facts(
-            ("COM3", "FTDI", "FTDI FT232R", "0403:6001", "X"),
-        ))
         from termapy.entry import main
 
         # Act

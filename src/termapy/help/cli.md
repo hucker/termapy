@@ -172,3 +172,21 @@ found or no ports are connected.
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
 
 `termapy --help` has the full list.
+
+## Try without hardware: `TERMAPY_DEMO_FLEET`
+
+Want to see what `--ports`, `--watch`, or `--info` look like without any
+USB-serial adapters plugged in?  Set `TERMAPY_DEMO_FLEET=1` and termapy
+will enumerate a fixed three-port synthetic fleet (FTDI FT232R on COM3,
+Silicon Labs CP2102 on COM4, Microsoft USB Serial on COM7) instead of
+calling the OS.
+
+```sh
+TERMAPY_DEMO_FLEET=1 termapy --ports    # fake three-port table
+TERMAPY_DEMO_FLEET=1 termapy --info=COM4  # fake CP2102 info dump
+```
+
+Useful for docs, screenshots, trying the tool before you own hardware,
+and cross-platform bug reports.  This is a sibling to the `DEMO` port
+(which fakes an *open* serial connection) and `DEMO_FAIL` (which makes
+opens deterministically fail).

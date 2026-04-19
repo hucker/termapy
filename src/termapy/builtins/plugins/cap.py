@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.protocol import parse_format_spec
@@ -768,5 +769,6 @@ COMMAND = Command(
             help="Stop an active capture.",
             handler=_handler_stop,
         ),
+        **build_folder_subcommands("cap"),
     },
 )

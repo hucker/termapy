@@ -84,10 +84,10 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=str(new_val))
 
 
-# ── /cfg.configs handler ──────────────────────────────────────────────────────
+# ── /cfg.list handler ─────────────────────────────────────────────────────────
 
 
-def _handler_configs(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List all config files in the config directory.
 
     Args:
@@ -316,161 +316,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-# ── Per-folder subcommand factories ──────────────────────────────────────────
-
-
-def _make_folder_handler(folder: str, pattern: str):
-    """Create a handler that lists files in a single folder."""
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        if not ctx.config_path:
-            return CmdResult.fail(msg="No config loaded.")
-        data_dir = Path(ctx.config_path).parent
-        files = _names(data_dir / folder, pattern)
-        if not files:
-            ctx.output(f"  {folder}/ (empty)")
-            return CmdResult.ok()
-        ctx.write(f"  {folder}/")
-        for fname in files:
-            ctx.write(f"    {fname}")
-        return CmdResult.ok()
-
-    return handler
-
-
-def _make_explore_handler(folder: str):
-    """Create a handler that opens a folder in the system file explorer."""
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        if not ctx.config_path:
-            return CmdResult.fail(msg="No config loaded.")
-        path = Path(ctx.config_path).parent / folder
-        open_with_system(str(path))
-        return CmdResult.ok()
-
-    return handler
-
-
-def _make_clear_handler(folder: str, pattern: str):
-    """Create a handler that deletes all files in a folder."""
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        if not ctx.config_path:
-            return CmdResult.fail(msg="No config loaded.")
-        data_dir = Path(ctx.config_path).parent / folder
-        if pattern == "*":
-            files = [f for f in data_dir.glob(pattern) if f.is_file()]
-        else:
-            files = list(data_dir.glob(pattern))
-        if not files:
-            ctx.output(f"  {folder}/ is already empty.")
-            return CmdResult.ok()
-        for f in files:
-            f.unlink()
-        ctx.write(f"  Deleted {len(files)} file(s) from {folder}/.")
-        return CmdResult.ok()
-
-    return handler
-
-
-def _make_show_handler(folder: str, pattern: str):
-    """Create a handler that opens the newest file in system viewer."""
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        if not ctx.config_path:
-            return CmdResult.fail(msg="No config loaded.")
-        data_dir = Path(ctx.config_path).parent / folder
-        if not data_dir.exists():
-            ctx.output(f"  {folder}/ is empty.")
-            return CmdResult.ok()
-        if pattern == "*":
-            files = [f for f in data_dir.glob(pattern) if f.is_file()]
-        else:
-            files = list(data_dir.glob(pattern))
-        if not files:
-            ctx.output(f"  {folder}/ is empty.")
-            return CmdResult.ok()
-        newest = max(files, key=lambda f: f.stat().st_mtime)
-        ctx.write(f"Opening {newest.name}")
-        open_with_system(str(newest))
-        return CmdResult.ok()
-
-    return handler
-
-
-def _make_dump_handler(folder: str, pattern: str):
-    """Create a handler that prints the newest (or named) file to the terminal."""
-
-    def handler(ctx: PluginContext, args: str) -> CmdResult:
-        if not ctx.config_path:
-            return CmdResult.fail(msg="No config loaded.")
-        data_dir = Path(ctx.config_path).parent / folder
-        name = args.strip()
-        if name:
-            # Named file
-            path = data_dir / name
-            if not path.exists():
-                return CmdResult.fail(msg=f"File not found: {name}")
-        else:
-            # Newest file
-            if not data_dir.exists():
-                ctx.output(f"  {folder}/ is empty.")
-                return CmdResult.ok()
-            if pattern == "*":
-                files = [f for f in data_dir.glob(pattern) if f.is_file()]
-            else:
-                files = list(data_dir.glob(pattern))
-            if not files:
-                ctx.output(f"  {folder}/ is empty.")
-                return CmdResult.ok()
-            path = max(files, key=lambda f: f.stat().st_mtime)
-        try:
-            for line in path.read_text(encoding="utf-8").splitlines():
-                ctx.output(line)
-        except OSError as e:
-            return CmdResult.fail(msg=f"Read error: {e}")
-        return CmdResult.ok()
-
-    return handler
-
-
-# ── Build per-folder subcommand dicts ────────────────────────────────────────
-
-
-def _build_folder_subs() -> dict[str, Command]:
-    """Build top-level subcommands for each folder in FOLDERS."""
-    subs = {}
-    for spec in FOLDERS:
-        nested: dict[str, Command] = {
-            "explore": Command(
-                help=f"Open {spec.name}/ in file explorer.",
-                handler=_make_explore_handler(spec.name),
-            ),
-        }
-        if spec.showable:
-            nested["show"] = Command(
-                help=f"Open newest file in {spec.name}/.",
-                handler=_make_show_handler(spec.name, spec.pattern),
-            )
-        if spec.dumpable:
-            nested["dump"] = Command(
-                args="{filename}",
-                help=f"Print newest (or named) file from {spec.name}/ to terminal.",
-                handler=_make_dump_handler(spec.name, spec.pattern),
-            )
-        if spec.clearable:
-            nested["clear"] = Command(
-                help=f"Delete all files in {spec.name}/.",
-                handler=_make_clear_handler(spec.name, spec.pattern),
-            )
-        subs[spec.name] = Command(
-            help=f"List files in {spec.name}/ folder.",
-            handler=_make_folder_handler(spec.name, spec.pattern),
-            sub_commands=nested,
-        )
-    return subs
-
-
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
 _CFG_PROSE = """\
@@ -504,9 +349,9 @@ COMMAND = Command(
             help="Set immediately (no confirmation).",
             handler=_handler_auto,
         ),
-        "configs": Command(
+        "list": Command(
             help="List all config files.",
-            handler=_handler_configs,
+            handler=_handler_list,
         ),
         "load": Command(
             args="<name>",
@@ -530,6 +375,5 @@ COMMAND = Command(
                 CmdResult.ok(),
             )[-1],
         ),
-        **_build_folder_subs(),
     },
 )

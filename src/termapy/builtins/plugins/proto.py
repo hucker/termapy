@@ -22,6 +22,7 @@ from termapy.protocol import (
 )
 from termapy.protocol_crc import CRC_CATALOGUE, get_crc_registry
 
+from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
@@ -757,26 +758,6 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=crc_hex)
 
 
-def _cmd_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List .pro files in the proto/ directory.
-
-    Args:
-        ctx: Plugin context for proto_dir and output.
-        args: Unused.
-    """
-    d = ctx.proto_dir
-    if not d.exists():
-        ctx.output("  (no proto/ directory)")
-        return CmdResult.ok()
-    files = sorted(d.glob("*.pro"))
-    if not files:
-        ctx.output("  (no .pro files)")
-        return CmdResult.ok()
-    for f in files:
-        ctx.write(f"  {f.name}")
-    return CmdResult.ok()
-
-
 def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """Generate CRC source code in the specified language.
 
@@ -867,11 +848,6 @@ COMMAND = Command(
             long_help=_proto_folder_line,
             handler=_cmd_run,
             needs=CapabilitySet(serial_connected=True),
-        ),
-        "list": Command(
-            help="List .pro files in the proto/ directory.",
-            long_help=_proto_folder_line,
-            handler=_cmd_list,
         ),
         "debug": Command(
             args="<file.pro>",
@@ -966,5 +942,6 @@ COMMAND = Command(
             help="Show current protocol state.",
             handler=_cmd_status,
         ),
+        **build_folder_subcommands("proto"),
     },
 )

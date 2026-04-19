@@ -69,8 +69,8 @@ $(BAUD) <- /port.baud_rate
 
 # ── REPL: config folder listings ────────────────────────────────────────────
 /print === section: config folders ===
-/cfg.run
-/cfg.proto
+/run.list
+/proto.list
 
 # ── REPL: port control - read all properties ────────────────────────────────
 /print === section: port read ===
@@ -141,6 +141,10 @@ $(BAUD) <- /port.baud_rate
 /help proto.crc
 /help var
 /help cap
+/help ss
+/help proto
+/help plugin
+/help run
 /print === section: help.run ===
 /help.run
 /print === section: help.plugin ===

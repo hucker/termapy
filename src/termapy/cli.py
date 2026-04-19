@@ -484,38 +484,85 @@ class CLITerminal(TerminalHost):
             )
         return result
 
+    def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
+        """Disconnect, load the cfg at the given path, and reconnect.
+
+        Shared machinery for both ``/demo`` and the ``/cfg.load``
+        subcommand.  The caller is responsible for resolving a
+        user-facing name into a concrete path (and for any cfg-creation
+        side effects like ``setup_demo_config``).
+
+        Returns ``CmdResult.ok(value=path)`` on success.  Any OSError
+        or JSON decode error becomes ``CmdResult.fail(msg=...)`` so
+        the caller can surface the failure through its frontend
+        without unwinding the exception.
+        """
+        from termapy.config import load_config
+
+        try:
+            cfg = load_config(config_path)
+        except (OSError, ValueError) as e:
+            return CmdResult.fail(msg=f"Cannot load config: {e}")
+
+        if self.engine.is_connected:
+            self.repl.fire_lifecycle("on_disconnect")
+            self.engine.disconnect()
+        self.repl.replace_cfg(cfg, config_path)
+        self.config_path = config_path
+        self.cfg = cfg
+        self._setup_context()
+        self.repl.fire_lifecycle("on_config_load")
+        # auto_connect lives in the newly-loaded cfg -- if the user's
+        # saved config wants the port opened on start, honour it here.
+        if cfg.get("auto_connect") and self.engine.connect():
+            self.repl.fire_lifecycle("on_connect")
+            self._start_reader()
+        return CmdResult.ok(value=config_path)
+
+    def _load_config(self, name: str) -> CmdResult:
+        """Resolve a user-supplied config name and switch to it.
+
+        Accepts a bare name ("myproj"), a relative path
+        ("termapy_cfg/myproj"), or an absolute path.  Uses the same
+        resolution chain as the ``[config]`` positional CLI argument
+        so "what works on the command line works in the REPL."
+
+        Returns ``CmdResult.fail`` when the name can't be resolved,
+        when the file can't be read, or when JSON parsing fails.
+        """
+        from termapy.config_resolve import resolve_config
+
+        path = resolve_config(name)
+        if path is None:
+            return CmdResult.fail(
+                msg=f"No config matching {name!r}. "
+                f"Try {self.prefix}cfg.configs to list available."
+            )
+        result = self._switch_to_cfg_path(path)
+        if result.success:
+            self.status(f"Loaded config: {Path(path).stem}", "green")
+        return result
+
     def _hook_demo(self, ctx, args: str):
         """Set up and switch to demo device config."""
-        from termapy.config import cfg_dir, load_config, setup_demo_config
+        from termapy.config import cfg_dir, setup_demo_config
 
         force = "--force" in args.lower()
         try:
             ctx.status("Setting up demo files...")
-            config_path = setup_demo_config(cfg_dir(), force=force)
-            ctx.status("Loading demo config...")
-            cfg = load_config(str(config_path))
-            # Disconnect current, switch config, reconnect
-            if self.engine.is_connected:
-                self.repl.fire_lifecycle("on_disconnect")
-                self.engine.disconnect()
-            self.repl.replace_cfg(cfg, str(config_path))
-            self.config_path = str(config_path)
-            self.cfg = cfg
-            self._setup_context()
-            self.repl.fire_lifecycle("on_config_load")
-            if self.engine.connect():
-                self.repl.fire_lifecycle("on_connect")
-                self._start_reader()
-            msg = "Switched to demo device"
-            if force:
-                msg += " (config reset)"
-            self.status(msg, "green")
-            return CmdResult.ok()
-        except (OSError, ValueError) as e:
-            # OSError: write/copy of the demo config failed on disk.
-            # ValueError: json.JSONDecodeError (ValueError subclass) on
-            # a corrupt demo template.  Both are user-actionable.
+            config_path = str(setup_demo_config(cfg_dir(), force=force))
+        except OSError as e:
             return CmdResult.fail(msg=f"Demo setup failed: {e}")
+
+        ctx.status("Loading demo config...")
+        result = self._switch_to_cfg_path(config_path)
+        if not result.success:
+            return result
+        msg = "Switched to demo device"
+        if force:
+            msg += " (config reset)"
+        self.status(msg, "green")
+        return result
 
 
     # -- Progress bar (CLI-specific: blocking sleep with bar) -----------------

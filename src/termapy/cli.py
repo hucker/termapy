@@ -89,12 +89,28 @@ class CLITerminal(TerminalHost):
         no_color: bool = False,
         run_script: str | None = None,
         term_width: int | None = None,
+        zero_config: bool = False,
     ) -> None:
+        """Create a CLI terminal frontend.
+
+        Args:
+            cfg: Config dict (owned by the engine).
+            config_path: Path to the JSON config file, or ``""`` for
+                zero-config mode (no config file, in-memory defaults).
+            no_color: Strip Rich color markup.
+            run_script: Optional .run path; if given, runs script and exits.
+            term_width: Optional terminal width override.
+            zero_config: True when the app started without a config file.
+                Triggers the welcome banner + port list on ``run()`` and
+                skips the automatic initial connect so the user can pick
+                a port interactively.
+        """
         self.cfg = cfg
         self.config_path = config_path
         self.no_color = no_color
         self.run_script = run_script
         self.term_width = term_width
+        self.zero_config = zero_config
         self.prefix = cmd_prefix(cfg)
         self._xfer_cancel = threading.Event()
 
@@ -674,8 +690,18 @@ class CLITerminal(TerminalHost):
         """
         self.switch_to: str | None = None
         self.repl.fire_lifecycle("on_app_start")
-        if not self._connect():
-            sys.exit(1)
+
+        # Zero-config mode: show a welcome banner with available ports,
+        # skip the initial connect (no port selected yet), and let the
+        # user type /port.open <name> to pick one.  Every other path --
+        # a real config file, --demo, --run with an inferred config --
+        # has a non-empty cfg["port"] by contract, so the else branch
+        # here just connects as before.
+        if self.zero_config:
+            self._show_zero_config_welcome()
+        else:
+            if not self._connect():
+                sys.exit(1)
 
         # Show hint before on_connect_cmd so it appears first
         if not self.run_script:
@@ -705,3 +731,66 @@ class CLITerminal(TerminalHost):
             self._run_interactive()
         self.repl.fire_lifecycle("on_app_stop")
         return self.switch_to
+
+    def _show_zero_config_welcome(self) -> None:
+        """Print the zero-config welcome banner + port list + hint.
+
+        Called from ``run()`` when ``zero_config`` is set.  Lists the
+        currently-available serial ports (via ``port_control.list_ports``)
+        and shows the user what ``/port.open`` invocation would use them
+        with the built-in defaults (115200 N81 cr noecho).  The user then
+        types the actual ``/port.open`` to connect.
+        """
+        from termapy import port_control
+
+        self.write("Welcome to termapy.  No config found.", "cyan")
+        self.write("")
+        self.write("Available ports:", "bold")
+        msgs, _ = port_control.list_ports()
+        for text, color in msgs:
+            self.write(text, color or "")
+        self.write("")
+        self.write("Defaults: 115200 N81 cr noecho", "dim")
+        self.write("")
+        first_port = self._first_available_port()
+        if first_port:
+            self.write(
+                f"Try:  {self.prefix}port.open {first_port}",
+                "green",
+            )
+            self.write(
+                f"Or:   {self.prefix}port.open {first_port} 9600 N81 crlf echo",
+                "dim",
+            )
+        else:
+            self.write(
+                f"Try:  {self.prefix}port.open DEMO    "
+                "-- no hardware ports; use the built-in simulator",
+                "green",
+            )
+        self.write(
+            f"      {self.prefix}port.list          -- re-list ports",
+            "dim",
+        )
+        self.write(
+            f"      {self.prefix}port.chip *        -- richer port info",
+            "dim",
+        )
+        self.write(
+            f"      {self.prefix}help               -- all commands",
+            "dim",
+        )
+        self.write("")
+
+    def _first_available_port(self) -> str:
+        """Return the first device name from ``comports()``, or ``""``.
+
+        Used only for the zero-config welcome banner's "Try:" hint.
+        """
+        try:
+            from serial.tools.list_ports import comports
+
+            ports = sorted(comports(), key=lambda p: p.device)
+            return ports[0].device if ports else ""
+        except Exception:
+            return ""

@@ -3601,11 +3601,27 @@ def _run_cli_mode(args) -> str | None:
     else:
         path, _ = _find_config()
         if not path:
-            print(
-                "termapy: no config found. Use --demo or specify a config.",
-                file=sys.stderr,
+            # Zero-config CLI: no config file anywhere.  Start the REPL
+            # with an in-memory DEFAULT_CFG and let the user pick a port
+            # interactively via /port.open.  This replaces the previous
+            # "no config found -- exit" behaviour for interactive use.
+            # --run without an inferrable config still errors (handled
+            # above), since scripting without a config is ambiguous.
+            from termapy.defaults import DEFAULT_CFG
+
+            cfg = dict(DEFAULT_CFG)
+            cli = CLITerminal(
+                cfg,
+                config_path="",
+                no_color=args.no_color,
+                run_script=run_script,
+                term_width=getattr(args, "term_width", None),
+                zero_config=True,
             )
-            sys.exit(1)
+            result = cli.run()
+            if result:
+                args.config = cli.config_path
+            return result
         config_path = path
 
     try:

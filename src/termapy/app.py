@@ -786,7 +786,8 @@ class SerialTerminal(TerminalHost, App):
 
         set_launch_var("FRONT_END", "textual")
         set_context_var(
-            "CFG", lambda: Path(self.config_path).stem if self.config_path else "none"
+            "CFG",
+            lambda: Path(self.config_path).stem if self.config_path else "termapy",
         )
         register_cfg_vars(
             get_config_path=lambda: self.config_path,

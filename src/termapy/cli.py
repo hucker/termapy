@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import shutil
 import sys
 import threading
 import time
@@ -19,6 +20,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.patch_stdout import patch_stdout
 
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial
@@ -28,6 +30,33 @@ from termapy.repl import ReplEngine
 from termapy.scripting import strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
+
+
+def _menu_rows_for_terminal() -> int:
+    """Scale the completion-dropdown row reservation to terminal height.
+
+    Prompt-toolkit reserves rows below the prompt for the completion
+    dropdown, which appears as a visible empty band when idle.  Tall
+    terminals can afford a generous dropdown; very short ones should
+    give up intellisense entirely before the band eats half the
+    screen.
+
+      - height >= 40 rows  -> 8 rows  (the prompt-toolkit default)
+      - height >= 10 rows  -> 4 rows  (still scannable, smaller gap)
+      - height < 10 rows   -> 0 rows  (no dropdown, no gap)
+
+    Read once at PromptSession construction; prompt-toolkit caches the
+    value internally.
+    """
+    try:
+        lines = shutil.get_terminal_size().lines
+    except (OSError, ValueError):
+        return 4
+    if lines >= 40:
+        return 8
+    if lines >= 10:
+        return 4
+    return 0
 
 
 class _TermapyCompleter(Completer):
@@ -152,7 +181,8 @@ class CLITerminal(TerminalHost):
 
         set_launch_var("FRONT_END", "cli")
         set_context_var(
-            "CFG", lambda: Path(self.config_path).stem if self.config_path else "none"
+            "CFG",
+            lambda: Path(self.config_path).stem if self.config_path else "termapy",
         )
         register_cfg_vars(
             get_config_path=lambda: self.config_path,
@@ -571,6 +601,15 @@ class CLITerminal(TerminalHost):
             history=FileHistory(self._history_path()),
             completer=_TermapyCompleter(self.repl, self.prefix, self.config_path),
             auto_suggest=AutoSuggestFromHistory(),
+            # Prompt-toolkit reserves space below the prompt for the
+            # completion dropdown, which renders as a visible empty
+            # band when nothing's being typed.  Scale the reservation
+            # to the terminal height so tall windows get a roomy
+            # dropdown and short windows aren't dominated by dead
+            # space (or give up intellisense entirely when there's
+            # simply no room).  Read once at startup -- prompt_toolkit
+            # captures this value at PromptSession construction.
+            reserve_space_for_menu=_menu_rows_for_terminal(),
         )
 
     # -- Reader thread --------------------------------------------------------
@@ -622,13 +661,31 @@ class CLITerminal(TerminalHost):
         self.write("Disconnected.", "red")
 
     def _run_interactive(self) -> None:
-        """Run the interactive input loop."""
+        """Run the interactive input loop.
+
+        Wraps the prompt loop in ``patch_stdout()`` so that output
+        written by the background reader thread (via Rich's
+        ``console.print`` -> stdout) is buffered by prompt_toolkit and
+        inserted *above* the active prompt line instead of colliding
+        with it.  Without this, a long device response (~40 lines of
+        help text) races with prompt_toolkit's redraw and leaves the
+        prompt overlaid mid-stream.
+
+        ``raw=True`` passes ANSI escape codes through untouched so
+        Rich's colour markup renders correctly.  ``patch_stdout``
+        replaces ``sys.stdout`` (and ``sys.stderr``) with a proxy that
+        captures writes from any thread and schedules them into
+        prompt_toolkit's layout.
+        """
         # prompt_toolkit shows REPL commands - no need to echo those.
-        # Serial echo is off - we sync manually with wait_for_idle after dispatch.
+        # patch_stdout handles the main/reader-thread output ordering
+        # structurally, so no wait_for_idle dance is needed between
+        # prompts.
         self.ctx.ns("flags")["echo"] = False
         self.cfg["echo_input"] = False
         self._session = self._build_session()
-        try:
+
+        def _loop() -> None:
             while True:
                 try:
                     from termapy.builtins.plugins.var import expand_vars
@@ -652,11 +709,26 @@ class CLITerminal(TerminalHost):
                     break
 
                 self._dispatch(line)
-                # Wait for device response to finish printing before
-                # prompt_toolkit draws the next prompt.
-                if self.engine.is_connected and self.engine.serial_port:
-                    self.engine.serial_port.wait_for_idle()
 
+        # patch_stdout requires an actual TTY (it needs console
+        # dimensions and cursor ops).  Only wrap the loop when a
+        # prompt_toolkit session was built -- that condition already
+        # mirrors "stdout is a TTY and cli_intellisense is on".  For
+        # pipe / captured-stdout invocations (tests, --run piped
+        # output, etc.) fall back to the plain loop.
+        try:
+            if self._session is not None:
+                # raw=True passes ANSI escape codes through so Rich's
+                # colour markup renders correctly in reader-thread
+                # output.  Without raw=True, prompt_toolkit line-buffers
+                # and renders the ESC byte as literal "?".  The menu
+                # reservation that used to leave a blank band below
+                # the prompt is disabled via reserve_space_for_menu=0
+                # in _build_session.
+                with patch_stdout(raw=True):
+                    _loop()
+            else:
+                _loop()
         except KeyboardInterrupt:
             self._raw("\nInterrupted")
         finally:

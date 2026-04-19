@@ -552,43 +552,26 @@ class CLITerminal(TerminalHost):
 
         Returns None when stdout is not a terminal, or when
         ``cli_intellisense`` is disabled in the config.
+
+        Deliberately does NOT use ``bottom_toolbar``: prompt_toolkit
+        reserves a full-width row for the toolbar whenever the kwarg
+        is set, and that row renders as a visible white band even when
+        the callback returns an empty string.  Worse, it scrolls with
+        the rest of the prompt-rendered region and leaves artefacts in
+        the scrollback.  Tab-completion via the completer+dropdown is
+        the feature users actually want; the toolbar was redundant
+        visual chrome.
         """
         if not sys.stdout.isatty():
             return None
         if not self.cfg.get("cli_intellisense", True):
             return None
 
-        repl = self.repl
-        prefix = self.prefix
-
-        def _toolbar():
-            """Show help for the command currently being typed."""
-            buf = session.default_buffer
-            text = buf.text.strip()
-            if not text.startswith(prefix):
-                return ""
-            after = text[len(prefix):]
-            cmd_part = after.split()[0] if after else ""
-            if not cmd_part:
-                return ""
-            # Try exact match first, then progressively shorter dot-prefixes
-            # so "/cfg.show" matches "cfg" if "cfg.show" doesn't exist
-            parts = cmd_part.split(".")
-            for i in range(len(parts), 0, -1):
-                candidate = ".".join(parts[:i])
-                plugin = repl._plugins.get(candidate)
-                if plugin:
-                    args = f" {plugin.args}" if plugin.args else ""
-                    return f" {prefix}{plugin.name}{args} -- {plugin.help}"
-            return ""
-
-        session = PromptSession(
+        return PromptSession(
             history=FileHistory(self._history_path()),
             completer=_TermapyCompleter(self.repl, self.prefix, self.config_path),
             auto_suggest=AutoSuggestFromHistory(),
-            bottom_toolbar=_toolbar,
         )
-        return session
 
     # -- Reader thread --------------------------------------------------------
 

@@ -70,43 +70,118 @@ def parse_mode(mode: str) -> tuple[str, int, float] | None:
     return parity, byte_size, stop_bits
 
 
+#: Line-ending tokens accepted by /port.open.  Values are the literal
+#: strings stored in cfg["line_ending"].
+_LINE_ENDING_TOKENS: dict[str, str] = {
+    "cr": "\r",
+    "lf": "\n",
+    "crlf": "\r\n",
+}
+
+
 def parse_open_args(
     args: str,
-) -> tuple[str | None, int | None, tuple[str, int, float] | None, str | None]:
-    """Parse /port.open arguments: {name} {baud} {mode}.
+) -> tuple[
+    str | None,
+    int | None,
+    tuple[str, int, float] | None,
+    str | None,
+    bool | None,
+    str | None,
+]:
+    """Parse /port.open arguments.
 
-    Each part is optional and position-independent (except port name must
-    not be purely numeric and must not match the mode pattern).
+    Syntax: ``{name} {baud} {mode} {line_ending} {echo}``.  The port
+    name, if supplied, MUST be the first token -- everything else is
+    order-independent.  All fields are optional; unspecified values
+    fall back to the current cfg values at the call site.
+
+    Token classification (after the first token):
+
+    * ``cr`` / ``lf`` / ``crlf`` -- line ending
+    * ``echo`` / ``noecho`` -- echo_input toggle
+    * ``N81`` / ``E71`` / etc. -- serial mode (parse_mode)
+    * purely numeric -- baud rate
+    * anything else is an error (would previously have been interpreted
+      as a second port name)
 
     Args:
         args: Raw argument string from the REPL.
 
     Returns:
-        Tuple of (port_name, baud_rate, mode_tuple, error_message).
-        error_message is non-None only when a token cannot be classified.
+        Tuple of ``(port_name, baud_rate, mode_tuple, line_ending,
+        echo, error_message)``.  ``line_ending`` is the literal
+        ``"\\r"`` / ``"\\n"`` / ``"\\r\\n"`` (or None).  ``echo`` is
+        True / False / None.  ``error_message`` is non-None only when
+        a token cannot be classified.
     """
     port: str | None = None
     baud: int | None = None
     mode: tuple[str, int, float] | None = None
+    line_ending: str | None = None
+    echo: bool | None = None
+    first = True
+
+    def _err(msg: str) -> tuple[
+        None, None, None, None, None, str
+    ]:
+        return (None, None, None, None, None, msg)
+
     for token in args.split():
-        # Try mode first (e.g. N81)
+        # Port name is always first, or not supplied at all.  We decide
+        # on the first token: if it classifies as one of the later
+        # fields, there's no port; otherwise it's the port name.
+        if first:
+            first = False
+            # Peek each classifier before falling through to "port".
+            parsed_mode = parse_mode(token)
+            lower = token.lower()
+            if (
+                parsed_mode is None
+                and not token.isdigit()
+                and lower not in _LINE_ENDING_TOKENS
+                and lower not in ("echo", "noecho")
+            ):
+                port = token
+                continue
+            # Fall through: first token is not a port, classify it
+            # normally below.
+
+        lower = token.lower()
+        if lower in _LINE_ENDING_TOKENS:
+            if line_ending is not None:
+                return _err(f"Duplicate line ending: {token}")
+            line_ending = _LINE_ENDING_TOKENS[lower]
+            continue
+        if lower == "echo":
+            if echo is not None:
+                return _err(f"Duplicate echo token: {token}")
+            echo = True
+            continue
+        if lower == "noecho":
+            if echo is not None:
+                return _err(f"Duplicate echo token: {token}")
+            echo = False
+            continue
         parsed = parse_mode(token)
         if parsed:
             if mode is not None:
-                return None, None, None, f"Duplicate mode: {token}"
+                return _err(f"Duplicate mode: {token}")
             mode = parsed
             continue
-        # Try baud rate (purely numeric)
         if token.isdigit():
             if baud is not None:
-                return None, None, None, f"Duplicate baud rate: {token}"
+                return _err(f"Duplicate baud rate: {token}")
             baud = int(token)
             continue
-        # Must be port name
-        if port is not None:
-            return None, None, None, f"Unexpected argument: {token}"
-        port = token
-    return port, baud, mode, None
+        # Reached only when a later token looks like a port name but
+        # port-first is required, so this is an error.
+        return _err(
+            f"Unexpected argument: {token!r}. "
+            f"Port name must come first; other tokens are "
+            f"baud / mode / cr|lf|crlf / echo|noecho."
+        )
+    return port, baud, mode, line_ending, echo, None
 
 
 def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:

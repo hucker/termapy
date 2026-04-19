@@ -53,12 +53,13 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_open(ctx: PluginContext, args: str) -> CmdResult:
-    port, baud, mode, err = port_control.parse_open_args(args)
+    port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
     if err:
         ctx.write(err, "red")
         return CmdResult.fail(msg=err)
-    # Apply baud/mode to config before connecting so the port opens
-    # with the right settings.
+    # Apply all optional settings to config before connecting so the
+    # port opens with the requested settings.  Each branch is a no-op
+    # when the user didn't supply that field.
     if baud is not None:
         ctx.engine.apply_port_effects({"cfg_update": {"baud_rate": baud}})
     if mode is not None:
@@ -71,6 +72,14 @@ def _handler_open(ctx: PluginContext, args: str) -> CmdResult:
                     "stop_bits": stop_bits,
                 }
             }
+        )
+    if line_ending is not None:
+        ctx.engine.apply_port_effects(
+            {"cfg_update": {"line_ending": line_ending}}
+        )
+    if echo is not None:
+        ctx.engine.apply_port_effects(
+            {"cfg_update": {"echo_input": echo}}
         )
     ctx.engine.connect(port)
     return CmdResult.ok()
@@ -349,6 +358,33 @@ COMMAND = Command(
         "open": Command(
             args="{name} {baud} {mode}",
             help="Connect to the serial port (e.g. {prefix}port.open COM3 9600 N81).",
+            long_help=(
+                "Open the serial port, optionally setting any of baud rate, "
+                "serial frame mode, line ending, or echo in the same stroke.\n"
+                "\n"
+                "Syntax: {prefix}port.open [name] [baud] [mode] [cr|lf|crlf] [echo|noecho]\n"
+                "\n"
+                "  name         Port device or USB serial number. MUST be the\n"
+                "               first token. Falls back to cfg[\"port\"] if\n"
+                "               omitted.\n"
+                "  baud         Baud rate (e.g. 9600, 115200).\n"
+                "  mode         Frame: parity + data bits + stop bits (e.g.\n"
+                "               N81, E72, O81.5). Parity letters: N/E/O/M/S.\n"
+                "  cr|lf|crlf   Line ending appended to text writes. Stored\n"
+                "               as cfg[\"line_ending\"].\n"
+                "  echo|noecho  Toggle cfg[\"echo_input\"].\n"
+                "\n"
+                "Examples:\n"
+                "  {prefix}port.open                         - open with current cfg\n"
+                "  {prefix}port.open COM3                    - open COM3, keep rest\n"
+                "  {prefix}port.open COM3 9600 N81           - port + baud + mode\n"
+                "  {prefix}port.open COM3 9600 N81 crlf echo - the full monty\n"
+                "  {prefix}port.open COM3 echo crlf 9600 N81 - same (order-independent)\n"
+                "\n"
+                "None of these mutations are written to disk -- they live for\n"
+                "the session only. Edit the config file (via {prefix}cfg or\n"
+                "directly) to persist."
+            ),
             handler=_handler_open,
         ),
         "mode": Command(

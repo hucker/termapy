@@ -1,5 +1,17 @@
 name: Publish to PyPI
 
+# Safety-net publisher.  release_publish.py publishes to PyPI from the
+# developer machine, then calls `gh release create` which fires the
+# release:published event that triggers this workflow.  Both try to
+# upload the same artefact; whichever loses the race hits PyPI's
+# "file already exists" 400 and the workflow shows red even though
+# the package did land.
+#
+# `uv publish --check-url` checks the PyPI index first and exits 0 if
+# the file is already there, so this workflow is now a no-op on a
+# normal release and a real backstop if the local publish ever fails
+# (network hiccup between `git push` and `uv publish`, etc).
+
 on:
   release:
     types: [published]
@@ -13,6 +25,6 @@ jobs:
       - name: Build package
         run: uv build
       - name: Publish to PyPI
-        run: uv publish
+        run: uv publish --check-url https://pypi.org/simple/termapy/
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}

@@ -25,6 +25,59 @@ if TYPE_CHECKING:
     from termapy.serial_engine import SerialEngine
 
 
+def _format_resolved_line(spec: str, actual: str) -> str:
+    """Build the 'Resolved X -> Y' status line shown on connect.
+
+    Called only when ``spec != actual`` -- i.e. the config's port spec
+    translated to a different device name.  Consults
+    ``resolve_port_trace`` to say which candidate in a fallback chain
+    won, so "Resolved A1B2C3D4|COM3 -> COM4" tells the user exactly
+    which lookup path got them here.
+    """
+    from termapy.port_control import (
+        MATCH_LITERAL,
+        MATCH_RESERVED,
+        MATCH_SERIAL,
+        MATCH_URL,
+        resolve_port_trace,
+    )
+
+    reasons = {
+        MATCH_LITERAL: "literal",
+        MATCH_SERIAL: "serial number",
+        MATCH_RESERVED: "reserved",
+        MATCH_URL: "URL",
+    }
+    # Find which candidate in the chain was the first to resolve.  If
+    # none reports a match reason, we still show the spec -> actual
+    # translation but without a reason (edge case: would only happen
+    # if an unusual pyserial URL resolved implicitly).
+    trace = resolve_port_trace(spec)
+    winning_candidate = None
+    winning_reason = None
+    for candidate, reason in trace:
+        if reason is not None and reason != "ambiguous":
+            winning_candidate = candidate
+            winning_reason = reason
+            break
+
+    if winning_reason is not None and winning_reason in reasons:
+        reason_label = reasons[winning_reason]
+    elif winning_reason is not None:
+        reason_label = winning_reason
+    else:
+        reason_label = "match"
+
+    if "|" in spec and winning_candidate is not None:
+        return (
+            f"Resolved {spec} -> {actual} "
+            f"({reason_label} matched {winning_candidate})"
+        )
+    if winning_reason is not None:
+        return f"Resolved {spec} -> {actual} ({reason_label} match)"
+    return f"Resolved {spec} -> {actual}"
+
+
 class TerminalHost:
     """Base class shared by TUI and CLI terminal frontends.
 
@@ -102,7 +155,16 @@ class TerminalHost:
             return False
         from termapy.config import connection_string, hardware_signals
 
-        conn = connection_string(self.cfg)
+        # If the config spec resolved to a different device (e.g. a USB
+        # serial number lookup or a pipe fallback chain), tell the user
+        # which candidate won so "why am I on COM4 when my config says
+        # A1B2C3D4" never becomes a support question.
+        spec = self.cfg.get("port", "")
+        actual = getattr(self.engine.port_obj, "port", spec) or spec
+        if spec != actual:
+            self.write(_format_resolved_line(spec, actual), "green")
+
+        conn = connection_string(self.cfg, actual_port=actual)
         hw = hardware_signals(self.engine.port_obj)
         full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
         self.write(full, "green")

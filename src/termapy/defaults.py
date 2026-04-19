@@ -244,7 +244,9 @@ def _preview_markup(raw_val: str) -> str:
 CFG_HELP: dict[str, tuple] = {
     # Serial
     "port": (
-        "Serial port name. Use $(env.NAME|fallback) for portability.",
+        "Port spec: device name (COM4), USB serial number (A1B2C3D4), "
+        "fallback chain (A1B2C3D4|COM3), reserved name (DEMO), or URL. "
+        "Use $(env.NAME)|fallback for portability.",
         _list_ports,
     ),
     "baud_rate": (

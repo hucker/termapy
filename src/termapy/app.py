@@ -1737,10 +1737,17 @@ class SerialTerminal(TerminalHost, App):
         badly with Rich markup parsing -- the closing ``]`` was consumed
         as a malformed markup tag terminator.  The bare label is cleaner
         and fits the title-bar button without escaping concerns.
+
+        When connected, shows the actual device name rather than the
+        config spec, so a user running with ``"port": "A1B2C3D4|COM3"``
+        sees ``COM4 115200 8N1`` in the title, not the raw spec.
         """
         from termapy.config import connection_string
 
-        return connection_string(self.cfg, "short")
+        actual = ""
+        if self.engine.is_connected and self.engine.port_obj is not None:
+            actual = getattr(self.engine.port_obj, "port", "") or ""
+        return connection_string(self.cfg, "short", actual_port=actual)
 
     @staticmethod
     def _format_title_tooltip(

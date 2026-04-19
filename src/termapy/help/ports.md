@@ -136,6 +136,97 @@ sudo usermod -aG dialout $USER
 `/port.chip.permissions` reports `ok` or `denied` for each port so you
 can tell ahead of time whether you'll be able to open it.
 
+## When your COM number keeps changing
+
+Windows usually remembers each USB-serial cable by its serial number
+and sticks it on the same COM port every time -- but this falls
+apart for cheap CH340 / PL-2303 / generic CP2102 clones that don't
+have a real serial number burned in. Those get keyed by hub port
+path instead, and the COM number moves every time you plug into a
+different port, unplug another cable, or reboot.
+
+On macOS and Linux the story is worse: `/dev/cu.usbserial-*` and
+`/dev/ttyUSB*` paths change routinely.
+
+**The fix: identify the cable by its USB serial number, not by its
+device name.** Termapy supports this in the `port` config field:
+
+```json
+"port": "A1B2C3D4"
+```
+
+Find the serial number with `termapy --ports` (it's the rightmost
+column) or `/port.chip`.  At connect time, termapy scans every
+connected serial port and opens the one whose SN matches.  Stable
+across replugs, stable across machines, stable across reboots.
+
+### Fallback chain
+
+A `|`-separated spec tries each candidate in order; first to resolve
+wins:
+
+```json
+"port": "A1B2C3D4|COM3"
+```
+
+Means *"prefer serial number A1B2C3D4; if it's not plugged in, fall
+back to literal COM3."*  Useful when you have a preferred cable at
+your desk but want the config to still find **something** when
+you're travelling with a different one.
+
+Works for chips without serial numbers too -- just make sure the
+first candidate that *will* match your primary setup comes first:
+
+```json
+"port": "COM3|COM4|/dev/ttyUSB0"
+```
+
+### Composes with environment variables
+
+The env-expansion syntax (`$(env.NAME|fallback)`) and the
+port-resolution fallback (`|`) layer cleanly:
+
+```json
+"port": "$(env.DEVICE_SN)|COM3"
+```
+
+`DEVICE_SN` gets expanded first (yielding e.g. `A1B2C3D4`), then the
+result is passed to port resolution which handles the pipe.  Each
+developer on the team can export their cable's SN in their shell
+profile; the committed config file has a sane literal fallback so a
+fresh clone Just Works on *someone's* machine.
+
+### Ambiguity is a hard error
+
+If you ask for serial number `0001` (common on cheap clones) and
+termapy sees two connected devices both claiming that SN, it refuses
+to open and tells you which devices collided. Disambiguate with a
+COM name or a fallback chain -- never silently pick a guess.
+
+### When resolution happens, termapy tells you
+
+After a successful connect using a non-literal spec, termapy prints
+one extra line to the screen:
+
+```text
+Resolved A1B2C3D4|COM3 -> COM4 (serial number matched A1B2C3D4)
+Connected: COM4 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
+```
+
+No surprise: you see the spec you wrote and the device you got.
+`/port.info` adds a `[resolved from <spec>]` annotation on the
+`Port:` line for the same reason.  The title bar stays the way it
+always has: the actual device name, never the SN -- users think in
+COM numbers.
+
+### What doesn't change
+
+- `"port": "COM3"` still works.  Literal port names are unchanged.
+- `/port COM7` from the REPL still works and now accepts SNs too.
+- `/port <X>` only mutates the session; it never writes to disk.
+  Persisting a new SN means editing the config file (through the
+  `/cfg` dialog or directly), same as any other config value.
+
 ## Advanced: URL-style ports
 
 Termapy supports every port format pyserial accepts, including:

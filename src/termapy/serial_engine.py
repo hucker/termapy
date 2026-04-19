@@ -79,6 +79,12 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
     process on Linux/macOS.  The holder lookup is best-effort and
     silent on failure.
 
+    For "port not found" errors with a multi-candidate spec (pipe
+    fallback chain), also walks ``resolve_port_trace()`` to show
+    which candidates failed and what IS currently connected, since
+    the whole point of the fallback chain is that exactly one of the
+    candidates was supposed to work.
+
     Pyserial on Windows wraps the OS error's *repr* into its own
     SerialException message instead of chaining the exception via
     ``raise ... from ...``, so ``exc.__cause__`` is None and we have
@@ -88,13 +94,50 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
     msg = str(exc)
     cause = exc.__cause__ or exc.__context__
 
+    # Also check the top-level exception type.  A bare FileNotFoundError
+    # or PermissionError (no chained cause) would otherwise only get
+    # matched by substring, which misses some platform-dependent
+    # phrasings.
+    if cause is None:
+        if isinstance(exc, PermissionError):
+            cause = exc
+        elif isinstance(exc, FileNotFoundError):
+            cause = exc
+
     def _in_use() -> str:
         base = "Permission denied -- port may be in use by another application"
         holder = _find_port_holder(port_name) if port_name else None
         return f"{base}: held by {holder}" if holder else base
 
     def _not_found() -> str:
-        return "Port not found -- check the port name with /port.list"
+        base = "Port not found -- check the port name with /port.list"
+        if not port_name or "|" not in port_name:
+            return base
+        # Multi-candidate spec: walk the trace and list what's plugged
+        # in so the user can see which candidate SHOULD have matched.
+        from termapy.port_control import (
+            _gather_all_chip_facts,
+            resolve_port_trace,
+        )
+        trace = resolve_port_trace(port_name)
+        lines = [f"Cannot open {port_name!r}. Tried each candidate:"]
+        for candidate, reason in trace:
+            if reason is None:
+                lines.append(f"  {candidate}: not found")
+            elif reason == "ambiguous":
+                lines.append(f"  {candidate}: ambiguous (multiple SN matches)")
+            else:
+                lines.append(f"  {candidate}: matched via {reason}")
+        facts = _gather_all_chip_facts()
+        if facts:
+            conn = ", ".join(
+                f"{f.device} ({f.manufacturer or '?'}, SN {f.serial or 'n/a'})"
+                for f in facts
+            )
+            lines.append(f"Currently connected: {conn}")
+        else:
+            lines.append("No serial ports currently connected.")
+        return " | ".join(lines)
 
     # Preferred path: chained exception exposes the underlying cause.
     if isinstance(cause, PermissionError):
@@ -286,14 +329,25 @@ class SerialEngine:
         if self.is_connected:
             return True
         import serial as _serial
+        from termapy.port_control import AmbiguousSerialNumberError
         # pyserial open() can raise SerialException (typical: port in
         # use, port missing), OSError (permissions, device vanished),
         # or ValueError (bad baud / unsupported parameter combo).
+        # AmbiguousSerialNumberError comes from resolve_port() when a
+        # user's SN spec matches 2+ connected devices.
         # _classify_serial_error normalises each into a friendly
         # message for the user.
         try:
             self._port_obj = self._open_fn(self._cfg)
             self.last_error = ""
+        except AmbiguousSerialNumberError as e:
+            matches = ", ".join(e.matches)
+            self.last_error = (
+                f"serial number {e.sn!r} matches {len(e.matches)} devices "
+                f"({matches}) -- disambiguate with a COM name or use a "
+                f"fallback chain like {e.sn!r}|<COM-name>"
+            )
+            return False
         except (_serial.SerialException, OSError, ValueError) as e:
             self.last_error = _classify_serial_error(e, self._cfg.get("port", ""))
             return False

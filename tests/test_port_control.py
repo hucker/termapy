@@ -412,17 +412,19 @@ class TestParseOpenArgs:
 
     def test_port_only(self):
         # Act
-        port, baud, mode, err = parse_open_args("COM3")
+        port, baud, mode, le, echo, err = parse_open_args("COM3")
 
         # Assert
         assert port == "COM3", "should extract port name"
         assert baud is None, "baud should be None"
         assert mode is None, "mode should be None"
+        assert le is None, "line_ending should be None"
+        assert echo is None, "echo should be None"
         assert err is None, "no error expected"
 
     def test_port_and_baud(self):
         # Act
-        port, baud, mode, err = parse_open_args("COM3 9600")
+        port, baud, mode, le, echo, err = parse_open_args("COM3 9600")
 
         # Assert
         assert port == "COM3", "should extract port name"
@@ -432,7 +434,7 @@ class TestParseOpenArgs:
 
     def test_port_baud_mode(self):
         # Act
-        port, baud, mode, err = parse_open_args("COM3 9600 N81")
+        port, baud, mode, le, echo, err = parse_open_args("COM3 9600 N81")
 
         # Assert
         assert port == "COM3", "should extract port name"
@@ -442,7 +444,7 @@ class TestParseOpenArgs:
 
     def test_port_and_mode_no_baud(self):
         # Act
-        port, baud, mode, err = parse_open_args("COM3 N81")
+        port, baud, mode, le, echo, err = parse_open_args("COM3 N81")
 
         # Assert
         assert port == "COM3", "should extract port name"
@@ -452,17 +454,21 @@ class TestParseOpenArgs:
 
     def test_empty(self):
         # Act
-        port, baud, mode, err = parse_open_args("")
+        port, baud, mode, le, echo, err = parse_open_args("")
 
         # Assert
         assert port is None, "port should be None"
         assert baud is None, "baud should be None"
         assert mode is None, "mode should be None"
+        assert le is None, "line_ending should be None"
+        assert echo is None, "echo should be None"
         assert err is None, "no error for empty args"
 
     def test_linux_port(self):
         # Act
-        port, baud, mode, err = parse_open_args("/dev/ttyUSB0 115200 E71")
+        port, baud, mode, le, echo, err = parse_open_args(
+            "/dev/ttyUSB0 115200 E71"
+        )
 
         # Assert
         assert port == "/dev/ttyUSB0", "should handle Linux device paths"
@@ -472,7 +478,7 @@ class TestParseOpenArgs:
 
     def test_duplicate_baud_error(self):
         # Act
-        _, _, _, err = parse_open_args("COM3 9600 115200")
+        _, _, _, _, _, err = parse_open_args("COM3 9600 115200")
 
         # Assert
         assert err is not None, "should error on duplicate baud rate"
@@ -480,19 +486,133 @@ class TestParseOpenArgs:
 
     def test_duplicate_mode_error(self):
         # Act
-        _, _, _, err = parse_open_args("COM3 N81 E71")
+        _, _, _, _, _, err = parse_open_args("COM3 N81 E71")
 
         # Assert
         assert err is not None, "should error on duplicate mode"
         assert "Duplicate mode" in err, "error should mention duplicate mode"
 
     def test_duplicate_port_error(self):
-        # Act
-        _, _, _, err = parse_open_args("COM3 COM4")
+        # Act -- COM4 is not a line-ending / echo / mode / baud token,
+        # and it isn't first, so the port-first enforcement rejects it
+        # as "unexpected".
+        _, _, _, _, _, err = parse_open_args("COM3 COM4")
 
         # Assert
         assert err is not None, "should error on duplicate port name"
         assert "Unexpected" in err, "error should mention unexpected argument"
+
+    # -- Line ending tokens ------------------------------------------------
+
+    def test_line_ending_cr(self):
+        # Act
+        port, baud, mode, le, echo, err = parse_open_args("COM3 cr")
+
+        # Assert
+        assert le == "\r", "cr -> carriage return"
+        assert err is None, "no error"
+
+    def test_line_ending_lf(self):
+        # Act
+        _, _, _, le, _, err = parse_open_args("COM3 lf")
+
+        # Assert
+        assert le == "\n", "lf -> newline"
+        assert err is None, "no error"
+
+    def test_line_ending_crlf(self):
+        # Act
+        _, _, _, le, _, err = parse_open_args("COM3 crlf")
+
+        # Assert
+        assert le == "\r\n", "crlf -> carriage return + newline"
+        assert err is None, "no error"
+
+    def test_line_ending_case_insensitive(self):
+        # Act -- uppercase/mixed should also match.
+        _, _, _, le, _, err = parse_open_args("COM3 CRLF")
+
+        # Assert
+        assert le == "\r\n", "line ending match is case-insensitive"
+        assert err is None, "no error"
+
+    def test_duplicate_line_ending(self):
+        # Act
+        _, _, _, _, _, err = parse_open_args("COM3 cr lf")
+
+        # Assert
+        assert err is not None, "two line endings should error"
+        assert "Duplicate line ending" in err, (
+            f"error names the duplicate; got {err!r}"
+        )
+
+    # -- Echo tokens -------------------------------------------------------
+
+    def test_echo_on(self):
+        # Act
+        _, _, _, _, echo, err = parse_open_args("COM3 echo")
+
+        # Assert
+        assert echo is True, "echo token -> True"
+        assert err is None, "no error"
+
+    def test_noecho(self):
+        # Act
+        _, _, _, _, echo, err = parse_open_args("COM3 noecho")
+
+        # Assert
+        assert echo is False, "noecho token -> False"
+        assert err is None, "no error"
+
+    def test_duplicate_echo(self):
+        # Act
+        _, _, _, _, _, err = parse_open_args("COM3 echo noecho")
+
+        # Assert
+        assert err is not None, "two echo tokens should error"
+        assert "Duplicate echo" in err, (
+            f"error names the duplicate; got {err!r}"
+        )
+
+    # -- Order-independence after port-first -------------------------------
+
+    def test_all_fields_any_order_after_port(self):
+        # Act -- the user's example from the feature ask.
+        port, baud, mode, le, echo, err = parse_open_args(
+            "COM3 echo crlf 9600 N81"
+        )
+
+        # Assert
+        assert port == "COM3", "port stays first"
+        assert baud == 9600, "baud found"
+        assert mode == ("N", 8, 1.0), "mode found"
+        assert le == "\r\n", "line ending found"
+        assert echo is True, "echo found"
+        assert err is None, "no error"
+
+    def test_no_port_still_accepts_other_fields(self):
+        # Act -- user just wants to change baud + echo in-session.
+        port, baud, mode, le, echo, err = parse_open_args("9600 echo")
+
+        # Assert
+        assert port is None, "no port provided"
+        assert baud == 9600, "baud parsed"
+        assert echo is True, "echo parsed"
+        assert err is None, "no error"
+
+    # -- Port-first enforcement -------------------------------------------
+
+    def test_port_must_be_first(self):
+        # Act -- putting a port-name-looking token after a classifier
+        # should be rejected.  Previously (position-independent) this
+        # would have been accepted as "port=COM3 with echo first".
+        _, _, _, _, _, err = parse_open_args("echo COM3")
+
+        # Assert
+        assert err is not None, (
+            "port-name-looking token after other fields must error"
+        )
+        assert "Unexpected" in err, f"error phrasing; got {err!r}"
 
 
 # ── set_mode ────────────────────────────────────────────────────────────────

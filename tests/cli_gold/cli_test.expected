@@ -170,7 +170,7 @@ demo> /cfg.dump
 }
 demo> /print === section: config folders ===
   === section: config folders ===
-demo> /cfg.run
+demo> /run.list
     run/
       at_demo.run
       doc_screenshots.run
@@ -180,7 +180,7 @@ demo> /cfg.run
       status_check.run
       var_demo.run
       welcome.run
-demo> /cfg.proto
+demo> /proto.list
     proto/
       at_test.pro
       bitfield_inline.pro
@@ -391,18 +391,11 @@ DESCRIPTION
 
 SUBCOMMANDS
   /cfg.auto       Set immediately (no confirmation).
-  /cfg.cap        List files in cap/ folder.
-  /cfg.configs    List all config files.
   /cfg.dump       Print current config as JSON to the terminal.
   /cfg.explore    Open config directory in file explorer.
   /cfg.info       Show project summary.
+  /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (CLI mode).
-  /cfg.plugin     List files in plugin/ folder.
-  /cfg.prof       List files in prof/ folder.
-  /cfg.proto      List files in proto/ folder.
-  /cfg.run        List files in run/ folder.
-  /cfg.ss         List files in ss/ folder.
-  /cfg.viz        List files in viz/ folder.
 demo> /help proto.crc
 NAME
   /proto.crc - Browse and compute CRC algorithms.
@@ -416,7 +409,8 @@ SUBCOMMANDS
   /proto.crc.rust      Generate Rust source code for a CRC algorithm.
 
 SEE ALSO
-  /proto.debug, /proto.hex, /proto.list, /proto.run, /proto.send, /proto.status, /proto
+  /proto.debug, /proto.dump, /proto.explore, /proto.hex, /proto.list, /proto.run, /proto.send, /proto.show,
+/proto.status, /proto
 demo> /help var
 NAME
   /var - List user variables, or show one by name.
@@ -498,12 +492,100 @@ DESCRIPTION
   0 files in cap/
 
 SUBCOMMANDS
-  /cap.bin       Capture raw binary bytes.
-  /cap.hex       Capture hex text lines, decode with format spec to CSV.
-  /cap.poll      Poll commands on a schedule, display (and optionally save) results.
-  /cap.stop      Stop an active capture.
-  /cap.struct    Capture raw bytes, decode with format spec to CSV.
-  /cap.text      Capture serial text to a file for a timed duration.
+  /cap.bin        Capture raw binary bytes.
+  /cap.clear      Delete all files in cap/.
+  /cap.dump       Print the newest (or named) file from cap/ to the terminal.
+  /cap.explore    Open cap/ in the system file explorer.
+  /cap.hex        Capture hex text lines, decode with format spec to CSV.
+  /cap.list       List files in cap/.
+  /cap.poll       Poll commands on a schedule, display (and optionally save) results.
+  /cap.show       Open the newest file in cap/ with the system viewer.
+  /cap.stop       Stop an active capture.
+  /cap.struct     Capture raw bytes, decode with format spec to CSV.
+  /cap.text       Capture serial text to a file for a timed duration.
+demo> /help ss
+NAME
+  /ss - Screenshot tools: save SVG/text, manage folder.
+
+DESCRIPTION
+  0 screenshots in ss/
+
+SUBCOMMANDS
+  /ss.clear      Delete all files in ss/.
+  /ss.explore    Open ss/ in the system file explorer.
+  /ss.list       List files in ss/.
+  /ss.show       Open the newest file in ss/ with the system viewer.
+  /ss.svg        Save an SVG screenshot of the terminal.
+  /ss.txt        Save a text screenshot of the terminal.
+demo> /help proto
+NAME
+  /proto - Binary protocol tools: send, run, debug, hex, crc, status.
+
+DESCRIPTION
+  3 scripts in proto/
+
+  Send examples:
+    /proto.send 01 02 03         - send three hex bytes
+    /proto.send "AT\r"           - send text with carriage return
+    /proto.send 0x01 "hello" 0D  - mix hex and text
+    /proto.send 00 ~25ms "AT\r"  - wake byte, 25ms pause, then command
+    /proto.send ~500us 01 02     - 500us delay before data
+
+  Inline delays use ~duration syntax (us, ms, s). Delays under
+  1ms use spin-wait for precision. Delays >= 1ms use OS sleep.
+
+  Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
+    /proto.send crc16-modbus 01 03 00 00 00 0A            - append LE CRC (default)
+    /proto.send crc16-modbus_be 01 03 00 00 00 0A         - append BE CRC
+    /proto.send crc16-modbus_ascii "READ 0000"             - append CRC as hex text
+    /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
+
+  CRC tools:
+    /proto.crc.list              - list all 62 algorithms
+    /proto.crc.list *modbus*     - filter by glob pattern
+    /proto.crc.help crc16-modbus - show parameters for Modbus CRC
+    /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
+
+  Script files (.pro) support TOML format with [] sections
+  or flat format with send:/expect: directives. Scripts are found
+  in the proto/ subfolder of your config directory.
+
+SUBCOMMANDS
+  /proto.crc        Browse and compute CRC algorithms.
+  /proto.debug      Interactive protocol debug screen.
+  /proto.dump       Print the newest (or named) file from proto/ to the terminal.
+  /proto.explore    Open proto/ in the system file explorer.
+  /proto.hex        Toggle hex display mode.
+  /proto.list       List files in proto/.
+  /proto.run        Run a protocol test script.
+  /proto.send       Send raw bytes (with optional CRC), show response.
+  /proto.show       Open the newest file in proto/ with the system viewer.
+  /proto.status     Show current protocol state.
+demo> /help plugin
+NAME
+  /plugin - Plugin-folder tools: list, explore, show, dump.
+
+SUBCOMMANDS
+  /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
+  /plugin.explore    Open plugin/ in the system file explorer.
+  /plugin.list       List files in plugin/.
+  /plugin.show       Open the newest file in plugin/ with the system viewer.
+demo> /help run
+NAME
+  /run - Run a script file, or list available scripts.
+
+SYNOPSIS
+  /run {filename}
+
+FLAGS
+  --verbose, -v - Show each command and its result as the script runs.
+
+SUBCOMMANDS
+  /run.dump       Print the newest (or named) file from run/ to the terminal.
+  /run.explore    Open run/ in the system file explorer.
+  /run.list       List files in run/.
+  /run.profile    Run a script with per-command timing.
+  /run.show       Open the newest file in run/ with the system viewer.
 demo> /print === section: help.run ===
   === section: help.run ===
 demo> /help.run
@@ -545,6 +627,7 @@ demo> /help.plugin
   /line_no              Toggle line numbers on or off.
   /os                   Run a shell command and show output (10s timeout). e.g. /os dir
   /ping                 Send a command and measure response time.
+  /plugin               Plugin-folder tools: list, explore, show, dump.
   /port                 Serial port tools: open, close, list, configure.
   /print                Print a message to the terminal.
   /proto                Binary protocol tools: send, run, debug, hex, crc, status.
@@ -553,7 +636,7 @@ demo> /help.plugin
   /seq                  Show sequence counters.
   /show                 Show a file.
   /show_line_endings    Toggle visible \r \n markers in serial output for line-ending troubleshooting.
-  /ss                   Screenshot tools: save SVG/text, show folder.
+  /ss                   Screenshot tools: save SVG/text, manage folder.
   /stop                 Abort a running script.
   /var                  List user variables, or show one by name.
   /ver                  Show termapy version.
@@ -565,7 +648,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm              Show Yes/Cancel dialog; Cancel stops a running script.
   /expect               Wait for text in serial output (script-only).
-  40 commands.
+  41 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

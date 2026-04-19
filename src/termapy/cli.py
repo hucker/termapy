@@ -295,6 +295,25 @@ class CLITerminal(TerminalHost):
                 "-v": "--verbose",
             },
         )
+        # /run is a hook (not a plugin) because it needs CLI-specific
+        # script-running machinery; register the standard folder
+        # subcommands (list/explore/show/dump) as sibling hooks so
+        # every folder-owning command gets the same shape regardless
+        # of whether its root is a plugin or a hook.
+        from termapy.folder_ops import build_folder_subcommands
+
+        for sub_name, sub_cmd in build_folder_subcommands("run").items():
+            # build_folder_subcommands always populates handler; guard
+            # anyway so ty doesn't complain about the Optional type.
+            if sub_cmd.handler is None:
+                continue
+            self.repl.register_hook(
+                f"run.{sub_name}",
+                sub_cmd.args,
+                sub_cmd.help,
+                sub_cmd.handler,
+                source="app",
+            )
         self.repl.register_hook(
             "demo",
             "",

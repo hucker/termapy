@@ -318,6 +318,24 @@ def validate_config(cfg: dict) -> list[str]:
         else:
             warnings.append(f"unknown key: '{key}' (typo?)")
 
+    # port must be a non-empty string.  A valid port is a literal
+    # device name ("COM3", "/dev/ttyUSB0"), a USB serial number, a
+    # reserved name ("DEMO", "DEMO_FAIL"), a pipe-separated fallback
+    # chain of those, or a pyserial URL -- anything except empty.
+    # The zero-config CLI synthesizes an in-memory cfg with port="" to
+    # bootstrap a REPL with no config file, but that path never hits
+    # validate_config (no load_config, no --check).  Any config
+    # actually persisted to disk gets a warning here.
+    p = cfg.get("port")
+    if p is not None:
+        if not isinstance(p, str):
+            warnings.append(f"port: expected str, got {type(p).__name__}")
+        elif p == "":
+            warnings.append(
+                "port: must not be empty "
+                "(use a device name, USB serial number, or 'DEMO')"
+            )
+
     # Type + value checks for serial settings
     _check_set(cfg, "byte_size", int, VALID_BYTE_SIZES, warnings)
     _check_set(cfg, "parity", str, VALID_PARITIES, warnings)

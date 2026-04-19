@@ -382,7 +382,13 @@ class TerminalHost:
             self._disconnect()
         self._connect()
         if self.engine.is_connected:
-            self.status(f"Port changed to {port} (session)", "green")
+            # Show the actual opened device, not the raw spec the user
+            # typed.  A user who typed a USB serial number like
+            # D20JSV68A needs to see "Port changed to COM4", not
+            # "Port changed to D20JSV68A" -- that's the whole point
+            # of surfacing the resolved device in the connect banner.
+            actual = getattr(self.engine.port_obj, "port", port) or port
+            self.status(f"Port changed to {actual} (session)", "green")
 
     # -- Capture helpers ------------------------------------------------------
 

@@ -151,6 +151,47 @@ class TestCliResolvedFromBanner:
         )
 
 
+class TestPortCommandStatusMessage:
+    """`/port <arg>` status must name the resolved device, not the spec.
+
+    Regression: a user typing /port <SN> saw "Resolved <SN> -> COM4"
+    (correct) immediately followed by "Port changed to <SN> (session)"
+    (wrong -- should also say COM4).  Two inconsistent messages for
+    the same event.
+    """
+
+    def test_port_command_status_uses_resolved_device(self, tmp_path):
+        # Arrange -- /port <something>|DEMO forces the fallback chain
+        # to resolve to DEMO.  The status line after reconnect should
+        # name DEMO, not the spec.
+        result = _run_cli(
+            tmp_path,
+            cfg_overrides={"port": "DEMO"},
+            script_lines=[
+                "/port.close",
+                "/port FAKE_SN|DEMO",
+                "/echo done",
+            ],
+        )
+
+        # Assert
+        assert result.returncode == 0, f"stderr: {result.stderr!r}"
+        changed_lines = [
+            ln for ln in result.stdout.splitlines()
+            if "Port changed to" in ln
+        ]
+        assert changed_lines, (
+            f"expected a 'Port changed to' line; stdout: {result.stdout!r}"
+        )
+        line = changed_lines[0]
+        assert "DEMO" in line, (
+            f"status should name the actual device; got {line!r}"
+        )
+        assert "FAKE_SN|DEMO" not in line, (
+            f"status must not contain the raw spec; got {line!r}"
+        )
+
+
 class TestPortCommandDoesNotWriteDisk:
     """`/port <arg>` mutates memory only; the on-disk cfg is untouched.
 

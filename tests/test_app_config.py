@@ -20,6 +20,16 @@ from termapy.config import (
 )
 
 
+# DEFAULT_CFG has an empty ``port`` field because the zero-config CLI
+# needs somewhere to synthesize its in-memory cfg from, but any cfg
+# actually validated or loaded from disk must name a port.  Tests that
+# build minimal cfgs with ``dict(_DEFAULTS_WITH_PORT, ...)`` inherit a
+# valid DEMO port so the one-warning-at-a-time assertions below aren't
+# clouded by an incidental empty-port warning.  Callers that want to
+# test the port field specifically override it in the usual way.
+_DEFAULTS_WITH_PORT = dict(DEFAULT_CFG, port="DEMO")
+
+
 # -- cfg_data_dir: subdirectory creation ------------------------------------
 
 
@@ -423,14 +433,14 @@ class TestMigrateJsonToCfg:
 class TestValidateConfig:
     def test_default_cfg_passes(self):
         # Act
-        actual = validate_config(dict(DEFAULT_CFG))
+        actual = validate_config(dict(_DEFAULTS_WITH_PORT))
 
         # Assert
         assert actual == [], "no warnings for defaults"
 
     def test_invalid_byte_size(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, byte_size=9)
+        cfg = dict(_DEFAULTS_WITH_PORT, byte_size=9)
 
         # Act
         actual = validate_config(cfg)
@@ -442,7 +452,7 @@ class TestValidateConfig:
 
     def test_invalid_parity(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, parity="X")
+        cfg = dict(_DEFAULTS_WITH_PORT, parity="X")
 
         # Act
         actual = validate_config(cfg)
@@ -453,7 +463,7 @@ class TestValidateConfig:
 
     def test_invalid_stop_bits(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, stop_bits=3)
+        cfg = dict(_DEFAULTS_WITH_PORT, stop_bits=3)
 
         # Act
         actual = validate_config(cfg)
@@ -464,7 +474,7 @@ class TestValidateConfig:
 
     def test_invalid_flow_control(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, flow_control="bad")
+        cfg = dict(_DEFAULTS_WITH_PORT, flow_control="bad")
 
         # Act
         actual = validate_config(cfg)
@@ -475,7 +485,7 @@ class TestValidateConfig:
 
     def test_nonstandard_baud_rate_warns(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=250000)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=250000)
 
         # Act
         actual = validate_config(cfg)
@@ -487,7 +497,7 @@ class TestValidateConfig:
 
     def test_custom_baud_accepts_nonstandard(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=625000, custom_baud=True)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=625000, custom_baud=True)
 
         # Act
         actual = validate_config(cfg)
@@ -497,7 +507,7 @@ class TestValidateConfig:
 
     def test_custom_baud_rejects_below_300(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=150, custom_baud=True)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=150, custom_baud=True)
 
         # Act
         actual = validate_config(cfg)
@@ -508,7 +518,7 @@ class TestValidateConfig:
 
     def test_custom_baud_accepts_300(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=300, custom_baud=True)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=300, custom_baud=True)
 
         # Act
         actual = validate_config(cfg)
@@ -518,7 +528,7 @@ class TestValidateConfig:
 
     def test_custom_baud_false_still_warns(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=625000, custom_baud=False)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=625000, custom_baud=False)
 
         # Act
         actual = validate_config(cfg)
@@ -529,7 +539,7 @@ class TestValidateConfig:
 
     def test_custom_baud_wrong_type(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, custom_baud="yes")
+        cfg = dict(_DEFAULTS_WITH_PORT, custom_baud="yes")
 
         # Act
         actual = validate_config(cfg)
@@ -540,7 +550,7 @@ class TestValidateConfig:
 
     def test_standard_baud_rate_ok(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=9600)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=9600)
 
         # Act
         actual = validate_config(cfg)
@@ -550,7 +560,7 @@ class TestValidateConfig:
 
     def test_negative_baud_rate(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=-1)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=-1)
 
         # Act
         actual = validate_config(cfg)
@@ -561,7 +571,7 @@ class TestValidateConfig:
 
     def test_baud_rate_wrong_type(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate="fast")
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate="fast")
 
         # Act
         actual = validate_config(cfg)
@@ -572,7 +582,7 @@ class TestValidateConfig:
 
     def test_invalid_encoding(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, encoding="not-a-codec")
+        cfg = dict(_DEFAULTS_WITH_PORT, encoding="not-a-codec")
 
         # Act
         actual = validate_config(cfg)
@@ -583,7 +593,7 @@ class TestValidateConfig:
 
     def test_valid_encoding(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, encoding="ascii")
+        cfg = dict(_DEFAULTS_WITH_PORT, encoding="ascii")
 
         # Act
         actual = validate_config(cfg)
@@ -593,7 +603,7 @@ class TestValidateConfig:
 
     def test_negative_cmd_delay_ms(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, cmd_delay_ms=-10)
+        cfg = dict(_DEFAULTS_WITH_PORT, cmd_delay_ms=-10)
 
         # Act
         actual = validate_config(cfg)
@@ -604,7 +614,7 @@ class TestValidateConfig:
 
     def test_zero_max_lines(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, max_lines=0)
+        cfg = dict(_DEFAULTS_WITH_PORT, max_lines=0)
 
         # Act
         actual = validate_config(cfg)
@@ -615,7 +625,7 @@ class TestValidateConfig:
 
     def test_unknown_key_flagged(self):
         # Arrange -- a key that never existed, not a deprecated one.
-        cfg = dict(DEFAULT_CFG, not_a_real_key=9600)
+        cfg = dict(_DEFAULTS_WITH_PORT, not_a_real_key=9600)
 
         # Act
         actual = validate_config(cfg)
@@ -627,7 +637,7 @@ class TestValidateConfig:
 
     def test_deprecated_renamed_key_flagged_with_hint(self):
         # Arrange -- 'baudrate' was renamed to 'baud_rate' in v4.
-        cfg = dict(DEFAULT_CFG, baudrate=9600)
+        cfg = dict(_DEFAULTS_WITH_PORT, baudrate=9600)
 
         # Act
         actual = validate_config(cfg)
@@ -642,7 +652,7 @@ class TestValidateConfig:
 
     def test_deprecated_removed_key_flagged_with_hint(self):
         # Arrange -- 'cap_endian' was removed outright in v8.
-        cfg = dict(DEFAULT_CFG, cap_endian="little")
+        cfg = dict(_DEFAULTS_WITH_PORT, cap_endian="little")
 
         # Act
         actual = validate_config(cfg)
@@ -655,7 +665,7 @@ class TestValidateConfig:
 
     def test_internal_keys_ignored(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, _migrated_from=5, _config_warnings=[])
+        cfg = dict(_DEFAULTS_WITH_PORT, _migrated_from=5, _config_warnings=[])
 
         # Act
         actual = validate_config(cfg)
@@ -665,7 +675,7 @@ class TestValidateConfig:
 
     def test_multiple_errors(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, byte_size=99, parity="Z", baud_rate=-1)
+        cfg = dict(_DEFAULTS_WITH_PORT, byte_size=99, parity="Z", baud_rate=-1)
 
         # Act
         actual = validate_config(cfg)
@@ -675,7 +685,7 @@ class TestValidateConfig:
 
     def test_old_config_version_warns(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, config_version=3)
+        cfg = dict(_DEFAULTS_WITH_PORT, config_version=3)
 
         # Act
         actual = validate_config(cfg)
@@ -687,13 +697,44 @@ class TestValidateConfig:
 
     def test_current_config_version_ok(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG)  # uses CURRENT_CONFIG_VERSION
+        cfg = dict(_DEFAULTS_WITH_PORT)  # uses CURRENT_CONFIG_VERSION
 
         # Act
         actual = validate_config(cfg)
 
         # Assert
         assert actual == [], "no warnings"
+
+    def test_empty_port_warns(self):
+        # Arrange -- the bare DEFAULT_CFG (without the _DEFAULTS_WITH_PORT
+        # override) has port="".  A config actually persisted to disk
+        # with an empty port is invalid -- the user needs to name a
+        # device, USB serial number, or reserved token.
+        cfg = dict(DEFAULT_CFG)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, f"exactly one warning, got {actual}"
+        assert "port" in actual[0], f"identifies the field; got {actual[0]!r}"
+        assert "empty" in actual[0], (
+            f"describes the problem; got {actual[0]!r}"
+        )
+
+    def test_port_wrong_type_warns(self):
+        # Arrange -- port must be a string.
+        cfg = dict(_DEFAULTS_WITH_PORT, port=1234)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, f"exactly one warning, got {actual}"
+        assert "port" in actual[0], f"identifies the field; got {actual[0]!r}"
+        assert "str" in actual[0] or "int" in actual[0], (
+            f"describes the type mismatch; got {actual[0]!r}"
+        )
 
 
 # -- load_config: malformed JSON handling -------------------------------------
@@ -731,7 +772,7 @@ class TestRunCheck:
         # Arrange
         cfg_file = tmp_path / "ok" / "ok.cfg"
         cfg_file.parent.mkdir()
-        cfg_file.write_text(json.dumps(dict(DEFAULT_CFG)))
+        cfg_file.write_text(json.dumps(dict(_DEFAULTS_WITH_PORT)))
 
         # Act
         code, stdout = self._run(str(cfg_file))
@@ -743,7 +784,7 @@ class TestRunCheck:
 
     def test_invalid_baud_warns(self, tmp_path):
         # Arrange
-        cfg = dict(DEFAULT_CFG, baud_rate=999)
+        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=999)
         cfg_file = tmp_path / "bad" / "bad.cfg"
         cfg_file.parent.mkdir()
         cfg_file.write_text(json.dumps(cfg))
@@ -773,7 +814,7 @@ class TestRunCheck:
 
     def test_does_not_modify_file(self, tmp_path):
         # Arrange - config with old version, check should NOT migrate it
-        cfg = dict(DEFAULT_CFG, config_version=3)
+        cfg = dict(_DEFAULTS_WITH_PORT, config_version=3)
         cfg_file = tmp_path / "old" / "old.cfg"
         cfg_file.parent.mkdir()
         original = json.dumps(cfg)
@@ -793,7 +834,7 @@ class TestRunCheck:
 class TestOpenSerialUrl:
     def test_demo_port_returns_fake(self):
         # Arrange
-        cfg = dict(DEFAULT_CFG, port="DEMO")
+        cfg = dict(_DEFAULTS_WITH_PORT, port="DEMO")
 
         # Act
         ser = open_serial(cfg)
@@ -804,7 +845,7 @@ class TestOpenSerialUrl:
     def test_loopback_url_works(self):
         """loop:// URL round-trips bytes through pyserial's loopback handler."""
         # Arrange
-        cfg = dict(DEFAULT_CFG, port="loop://", baud_rate=115200)
+        cfg = dict(_DEFAULTS_WITH_PORT, port="loop://", baud_rate=115200)
 
         # Act
         ser = open_serial(cfg)

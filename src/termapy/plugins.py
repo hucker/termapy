@@ -578,6 +578,11 @@ class EngineAPI:
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None
     apply_port_effects: Callable = lambda effects: None
+    # Load a named config file, disconnecting + reconnecting as needed.
+    # Name is resolved via config_resolve.resolve_config, so a bare
+    # "myproj" or a full path both work.  Returns a ``CmdResult`` so
+    # the caller can surface success/failure via their frontend.
+    load_config: Callable = lambda name: None
     rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
     xfer_cancel: Any = None  # threading.Event - set by Escape to cancel transfers
     script_stop_event: Any = None  # threading.Event - set by /stop to abort scripts

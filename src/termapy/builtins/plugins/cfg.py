@@ -105,6 +105,35 @@ def _handler_configs(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
+# ── /cfg.load handler ──────────────────────────────────────────────────────
+
+
+def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
+    """Load a different config in the current session.
+
+    Accepts a bare config name (``myproj``), a relative path, or an
+    absolute path -- same resolution as the ``[config]`` positional
+    command-line argument.  Disconnects any currently-open port,
+    replaces the in-memory config, and reconnects if the new cfg has
+    ``auto_connect: true``.
+
+    Most useful in ``--cli`` zero-config mode to jump into a real
+    project without restarting termapy.  The TUI has the port picker
+    and Cfg dialog for the same job and does not support this
+    subcommand.
+
+    Args:
+        ctx: Plugin context (uses ``ctx.engine.load_config``).
+        args: The config name / path to load.
+    """
+    name = args.strip()
+    if not name:
+        return CmdResult.fail(
+            msg=f"Usage: {ctx.engine.prefix}cfg.load <name>"
+        )
+    return ctx.engine.load_config(name)
+
+
 # ── /cfg.explore handler ──────────────────────────────────────────────────────
 
 
@@ -478,6 +507,11 @@ COMMAND = Command(
         "configs": Command(
             help="List all config files.",
             handler=_handler_configs,
+        ),
+        "load": Command(
+            args="<name>",
+            help="Load a different config in this session (CLI mode).",
+            handler=_handler_load,
         ),
         "info": Command(
             args="",

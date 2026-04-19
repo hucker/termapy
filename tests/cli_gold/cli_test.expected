@@ -396,6 +396,7 @@ SUBCOMMANDS
   /cfg.dump       Print current config as JSON to the terminal.
   /cfg.explore    Open config directory in file explorer.
   /cfg.info       Show project summary.
+  /cfg.load       Load a different config in this session (CLI mode).
   /cfg.plugin     List files in plugin/ folder.
   /cfg.prof       List files in prof/ folder.
   /cfg.proto      List files in proto/ folder.

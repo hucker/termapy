@@ -227,6 +227,7 @@ class TerminalHost:
             disconnect=lambda: self._disconnect(),
             update_port=lambda name: self._update_port(name),
             apply_port_effects=lambda effects: self._apply_port_effects(effects),
+            load_config=lambda name: self._load_config(name),
             rx_queue=self.engine.rx_queue,
             xfer_cancel=getattr(self, "_xfer_cancel", None),
             script_stop_event=self.repl._script_stop,
@@ -389,6 +390,21 @@ class TerminalHost:
             # of surfacing the resolved device in the connect banner.
             actual = getattr(self.engine.port_obj, "port", port) or port
             self.status(f"Port changed to {actual} (session)", "green")
+
+    # -- Config switching -----------------------------------------------------
+
+    def _load_config(self, name: str) -> CmdResult:
+        """Resolve a config name and switch to it (frontend override point).
+
+        The default implementation returns a failure so frontends that
+        don't implement in-session config switching (currently the
+        TUI, which has dialog-based switching) surface a clear
+        "not supported here" message rather than silently doing
+        nothing.  The CLI overrides this with a working implementation.
+        """
+        return CmdResult.fail(
+            msg="Config switching is not available in this frontend."
+        )
 
     # -- Capture helpers ------------------------------------------------------
 

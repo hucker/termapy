@@ -594,3 +594,217 @@ class TestSetMode:
         assert "Mode -> 9600 8O1.5" in text, "summary should show baud and frame"
 
 
+# -- Port spec resolution ---------------------------------------------------
+
+
+import pytest  # noqa: E402
+
+from termapy.port_control import (  # noqa: E402
+    AmbiguousSerialNumberError,
+    ChipFacts,
+    MATCH_LITERAL,
+    MATCH_RESERVED,
+    MATCH_SERIAL,
+    MATCH_URL,
+    resolve_port,
+    resolve_port_trace,
+)
+
+
+class TestResolvePort:
+    """resolve_port() translates a port spec into a concrete device name.
+
+    These tests use the DEMO_FLEET env-var hook to install a
+    deterministic three-port fleet (FTDI COM3 SN A1B2C3D4, Silicon
+    Labs COM4 SN 0001, Microsoft COM7 SN 020026702RYN040952).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _use_demo_fleet(self, monkeypatch):
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+    def test_literal_device_name_unchanged(self):
+        # Act
+        actual = resolve_port("COM3")
+
+        # Assert
+        assert actual == "COM3", "literal device match returns that device"
+
+    def test_serial_number_resolves_to_device(self):
+        # Act
+        actual = resolve_port("A1B2C3D4")
+
+        # Assert
+        expected = "COM3"
+        assert actual == expected, \
+            f"SN A1B2C3D4 should resolve to {expected}, got {actual}"
+
+    def test_serial_number_case_insensitive(self):
+        # Act
+        actual = resolve_port("a1b2c3d4")
+
+        # Assert
+        expected = "COM3"
+        assert actual == expected, \
+            f"SN match must be case-insensitive; got {actual}"
+
+    def test_pipe_fallback_first_candidate_wins(self):
+        # Act -- SN resolves, COM7 fallback never tried
+        actual = resolve_port("A1B2C3D4|COM7")
+
+        # Assert -- note fleet has COM7 so COM7 would also resolve;
+        # test still proves order by checking we got the SN match, not COM7
+        expected = "COM3"
+        assert actual == expected, \
+            f"first resolving candidate wins; got {actual}"
+
+    def test_pipe_fallback_second_wins_when_first_missing(self):
+        # Act
+        actual = resolve_port("BOGUS_NO_MATCH|COM4")
+
+        # Assert
+        expected = "COM4"
+        assert actual == expected, \
+            f"literal fallback wins when SN not found; got {actual}"
+
+    def test_reserved_demo_passes_through(self):
+        # Act -- DEMO bypasses enumeration even when DEMO_FLEET is set
+        actual = resolve_port("DEMO")
+
+        # Assert
+        assert actual == "DEMO", "DEMO is a reserved name"
+
+    def test_reserved_demo_fail_passes_through(self):
+        # Act
+        actual = resolve_port("DEMO_FAIL")
+
+        # Assert
+        assert actual == "DEMO_FAIL", "DEMO_FAIL is a reserved name"
+
+    def test_pyserial_url_passes_through(self):
+        # Act
+        actual = resolve_port("rfc2217://host:2217")
+
+        # Assert
+        assert actual == "rfc2217://host:2217", "URLs are passed through"
+
+    def test_all_candidates_missing_returns_last(self):
+        # Act
+        actual = resolve_port("NOPE1|NOPE2|NOPE3")
+
+        # Assert -- last candidate is what ``open_serial()`` will show
+        # in its "Cannot open <X>" error, which is what the user most
+        # explicitly asked for.
+        expected = "NOPE3"
+        assert actual == expected, \
+            f"last candidate returned on total miss; got {actual}"
+
+    def test_ambiguous_sn_raises(self, monkeypatch):
+        # Arrange -- monkeypatch _gather_all_chip_facts with a fleet
+        # containing two devices sharing the same SN "0001" (a common
+        # burn-in on cheap CP2102 / CH340 clones).
+        import termapy.port_control as pc
+
+        def _ambiguous_fleet(connected_port: str = ""):
+            return [
+                ChipFacts(
+                    device="COM3", manufacturer="CH340", serial="0001",
+                    vid_pid="1A86:7523",
+                ),
+                ChipFacts(
+                    device="COM7", manufacturer="CH340", serial="0001",
+                    vid_pid="1A86:7523",
+                ),
+            ]
+
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", _ambiguous_fleet)
+
+        # Act + Assert
+        with pytest.raises(AmbiguousSerialNumberError) as exc:
+            resolve_port("0001")
+        assert exc.value.matches == ["COM3", "COM7"], \
+            "both colliding devices named in exception"
+        assert "0001" in str(exc.value), "SN named in exception message"
+        assert "COM3" in str(exc.value) and "COM7" in str(exc.value), \
+            "both devices mentioned in exception message"
+
+
+class TestResolvePortTrace:
+    """resolve_port_trace() builds a per-candidate diagnostic trace."""
+
+    @pytest.fixture(autouse=True)
+    def _use_demo_fleet(self, monkeypatch):
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+    def test_single_candidate_literal_match(self):
+        # Act
+        actual = resolve_port_trace("COM3")
+
+        # Assert
+        expected = [("COM3", MATCH_LITERAL)]
+        assert actual == expected, f"got {actual}"
+
+    def test_single_candidate_sn_match(self):
+        # Act
+        actual = resolve_port_trace("A1B2C3D4")
+
+        # Assert
+        expected = [("A1B2C3D4", MATCH_SERIAL)]
+        assert actual == expected, f"got {actual}"
+
+    def test_single_candidate_reserved(self):
+        # Act
+        actual = resolve_port_trace("DEMO")
+
+        # Assert
+        expected = [("DEMO", MATCH_RESERVED)]
+        assert actual == expected, f"got {actual}"
+
+    def test_single_candidate_url(self):
+        # Act
+        actual = resolve_port_trace("rfc2217://host:2217")
+
+        # Assert
+        expected = [("rfc2217://host:2217", MATCH_URL)]
+        assert actual == expected, f"got {actual}"
+
+    def test_fallback_chain_with_first_miss(self):
+        # Act
+        actual = resolve_port_trace("BOGUS|COM4")
+
+        # Assert -- None marks the miss so the caller can say
+        # "BOGUS: not found" in the error message.
+        expected = [("BOGUS", None), ("COM4", MATCH_LITERAL)]
+        assert actual == expected, f"got {actual}"
+
+    def test_fallback_chain_all_miss(self):
+        # Act
+        actual = resolve_port_trace("NOPE1|NOPE2")
+
+        # Assert
+        expected = [("NOPE1", None), ("NOPE2", None)]
+        assert actual == expected, f"got {actual}"
+
+    def test_ambiguous_sn_reported_not_raised(self, monkeypatch):
+        # Arrange -- same duplicate-SN fleet as the raises test.
+        # trace()'s contract is to NEVER raise, so the caller can build
+        # one coherent error message even when one of multiple
+        # candidates is ambiguous.
+        import termapy.port_control as pc
+
+        def _ambiguous_fleet(connected_port: str = ""):
+            return [
+                ChipFacts(device="COM3", serial="0001"),
+                ChipFacts(device="COM7", serial="0001"),
+            ]
+
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", _ambiguous_fleet)
+
+        # Act
+        actual = resolve_port_trace("0001|COM7")
+
+        # Assert -- ambiguous first, then literal fallback.
+        expected = [("0001", "ambiguous"), ("COM7", MATCH_LITERAL)]
+        assert actual == expected, f"got {actual}"
+
+

@@ -98,7 +98,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
 | Field                    | Default               | Description                                                                                 |
 | ------------------------ | --------------------- | ------------------------------------------------------------------------------------------- |
-| `port`                   | `""`                  | Serial port name (e.g. COM4, /dev/ttyUSB0) -- auto-detected when only one port is available |
+| `port`                   | `""`                  | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
 | `baud_rate`              | `115200`              | Serial baud rate -- non-standard rates require `custom_baud`                                |
 | `custom_baud`            | `false`               | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates              |
 | `byte_size`              | `8`                   | Data bits per byte (5, 6, 7, or 8)                                                          |

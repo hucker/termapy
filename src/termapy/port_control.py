@@ -521,6 +521,148 @@ def _gather_all_chip_facts(connected_port: str = "") -> list[ChipFacts]:
     ]
 
 
+# ─ Port spec resolution ───────────────────────────────────────────────────
+# A `port` spec can be a single value or a '|'-separated fallback chain.
+# Each candidate is tried in order; first to resolve wins.  Candidates can
+# be literal device names ("COM3", "/dev/ttyUSB0"), USB serial numbers
+# (stable across replugs), reserved names ("DEMO", "DEMO_FAIL"), or
+# pyserial URLs ("rfc2217://host:2217").  See help/ports.md for the
+# user-facing docs.
+
+
+class AmbiguousSerialNumberError(Exception):
+    """A serial-number candidate matched more than one connected device.
+
+    Cheap USB-serial clones (CH340, some PL-2303, generic CP2102 knockoffs)
+    often burn a non-unique serial number like ``"0001"`` or leave it
+    empty.  Silently picking one of the matches would defeat the point of
+    serial-number-based resolution, which is stable unambiguous
+    identification.  Resolve this by disambiguating with the literal COM
+    name or by using a fallback chain: ``"0001|COM3"``.
+    """
+
+    def __init__(self, sn: str, matches: list[str]) -> None:
+        self.sn = sn
+        self.matches = matches
+        super().__init__(
+            f"serial number {sn!r} matches {len(matches)} connected "
+            f"devices: {', '.join(matches)}"
+        )
+
+
+#: Reserved port names that bypass enumeration.
+_RESERVED_PORTS = frozenset({"DEMO", "DEMO_FAIL"})
+
+#: Match-reason strings returned by ``resolve_port_trace``.
+MATCH_LITERAL = "literal"
+MATCH_SERIAL = "serial_number"
+MATCH_RESERVED = "reserved"
+MATCH_URL = "url"
+
+
+def _match_candidate(
+    candidate: str, facts: list[ChipFacts]
+) -> tuple[str, str] | None:
+    """Try to resolve a single candidate against a port list.
+
+    Returns ``(resolved_device, match_reason)`` on success or ``None`` if
+    the candidate matches nothing.  Raises ``AmbiguousSerialNumberError``
+    if the candidate matches two or more ports by serial number.
+    """
+    if not candidate:
+        return None
+    if candidate.upper() in _RESERVED_PORTS:
+        return (candidate, MATCH_RESERVED)
+    if "://" in candidate:
+        return (candidate, MATCH_URL)
+    # Exact device-name match wins before SN lookup so a user who types
+    # a literal COM name always gets exactly that port.
+    for f in facts:
+        if f.device == candidate and f.device is not None:
+            return (f.device, MATCH_LITERAL)
+    # Case-insensitive SN match.  Burn-ins are sometimes uppercase on
+    # Windows and mixed case on other platforms, so normalize both sides.
+    # Filter out any facts with a None device so the matches list is a
+    # clean list[str] for the ambiguity-error constructor.
+    needle = candidate.lower()
+    sn_matches: list[str] = [
+        f.device for f in facts
+        if f.device is not None
+        and f.serial is not None
+        and f.serial.lower() == needle
+    ]
+    if len(sn_matches) == 1:
+        return (sn_matches[0], MATCH_SERIAL)
+    if len(sn_matches) > 1:
+        raise AmbiguousSerialNumberError(candidate, sn_matches)
+    return None
+
+
+def resolve_port(spec: str, connected_port: str = "") -> str:
+    """Resolve a port spec string to an actual device name.
+
+    The spec is a ``|``-separated list of candidates; each candidate is
+    tried in order and the first to resolve wins.  If nothing resolves,
+    the *last* candidate is returned verbatim so the downstream
+    ``open_serial()`` failure message refers to the user's intended spec.
+
+    Honors ``TERMAPY_DEMO_FLEET`` automatically because
+    ``_gather_all_chip_facts()`` does.
+
+    Args:
+        spec: The raw ``cfg["port"]`` value, post-env-expansion.
+        connected_port: The currently-connected port (used for the
+            ``in_use`` annotation inside ``ChipFacts``; not consulted by
+            resolution itself).
+
+    Returns:
+        A device name suitable for opening (e.g. ``"COM3"``,
+        ``"/dev/ttyUSB0"``), a reserved name (``"DEMO"``,
+        ``"DEMO_FAIL"``), or a pyserial URL.
+
+    Raises:
+        AmbiguousSerialNumberError: when a candidate SN matches two or
+            more connected devices.  The caller is expected to surface
+            this as a user-facing error rather than silently picking one.
+    """
+    facts = _gather_all_chip_facts(connected_port)
+    candidates = spec.split("|")
+    for candidate in candidates:
+        result = _match_candidate(candidate, facts)
+        if result is not None:
+            return result[0]
+    # No candidate resolved.  Return the last one so open_serial's error
+    # message names what the user most explicitly asked for.
+    return candidates[-1]
+
+
+def resolve_port_trace(
+    spec: str, connected_port: str = ""
+) -> list[tuple[str, str | None]]:
+    """Return per-candidate resolution results for error reporting.
+
+    For each ``|``-separated candidate, returns ``(candidate,
+    match_reason)`` where ``match_reason`` is one of ``"literal"``,
+    ``"serial_number"``, ``"reserved"``, ``"url"``, ``"ambiguous"``, or
+    ``None`` (no match).
+
+    Unlike ``resolve_port``, this function never raises on ambiguity --
+    ambiguous candidates are reported as ``"ambiguous"`` so the caller
+    can build a single message that describes every candidate in one
+    go.
+    """
+    facts = _gather_all_chip_facts(connected_port)
+    trace: list[tuple[str, str | None]] = []
+    for candidate in spec.split("|"):
+        try:
+            result = _match_candidate(candidate, facts)
+        except AmbiguousSerialNumberError:
+            trace.append((candidate, "ambiguous"))
+            continue
+        trace.append((candidate, result[1] if result else None))
+    return trace
+
+
 def _format_facts_full(facts: ChipFacts) -> list[Msg]:
     """Format a single ChipFacts as a multi-line dump."""
     msgs: list[Msg] = [_msg(f"{facts.device}", "green")]
@@ -659,8 +801,29 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     state = "connected" if connected else "disconnected"
     sb = cfg.get("stop_bits", 1)
     sb_str = str(int(sb)) if sb == int(sb) else str(sb)
+
+    # Determine the actual device name and whether it differs from the
+    # configured spec.  When connected, trust what the Serial object
+    # actually opened.  When disconnected, best-effort resolve the spec
+    # so the chip section below still finds the right device.
+    spec = cfg.get("port", "") or ""
+    if ser is not None:
+        actual = getattr(ser, "port", spec) or spec
+    else:
+        try:
+            actual = resolve_port(spec)
+        except AmbiguousSerialNumberError:
+            actual = spec  # stay honest; chip section will skip
+
+    if spec and spec != actual:
+        # Use parens instead of square brackets -- Rich treats square
+        # brackets as markup and would silently eat "[resolved from X]".
+        port_line = f"  Port:         {actual}  ({state})  (resolved from {spec})"
+    else:
+        port_line = f"  Port:         {actual or '?'}  ({state})"
+
     msgs: list[Msg] = [
-        _msg(f"  Port:         {cfg.get('port', '?')}  ({state})"),
+        _msg(port_line),
         _msg(f"  Baud rate:    {cfg.get('baud_rate', '?')}"),
         _msg(
             f"  Frame:        {cfg.get('byte_size', 8)}"
@@ -679,10 +842,14 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     # is already shown at the top of this report as "Port:").  Skipped
     # silently if the port name doesn't match any enumerable device
     # (e.g. FakeSerial / DEMO, unplugged cable, non-USB port).
-    port_name = cfg.get("port", "")
-    connected = port_name if ser is not None else ""
+    #
+    # Uses the RESOLVED device name rather than the raw spec, so a
+    # spec like "A1B2C3D4|COM3" still finds the chip info for the
+    # device actually opened.
+    port_name = actual
+    connected_port = port_name if ser is not None else ""
     if port_name:
-        facts = gather_chip_facts(port_name, connected)
+        facts = gather_chip_facts(port_name, connected_port)
         if facts is not None:
             msgs.append(_msg(""))
             for field_name in CHIP_FIELDS:

@@ -148,18 +148,25 @@ def cfg_path_for_name(name: str) -> Path:
     return cfg_dir() / name / f"{name}.cfg"
 
 
-def connection_string(cfg: dict, level: str = "medium") -> str:
+def connection_string(
+    cfg: dict, level: str = "medium", actual_port: str = ""
+) -> str:
     """Format connection info from config at different detail levels.
 
     Args:
         cfg: Config dict with serial parameters.
         level: "short" (port baud 8N1), "medium" (+ flow control if non-default),
             or "full" (+ encoding and line ending).
+        actual_port: If non-empty, shown in place of ``cfg["port"]``.
+            Callers that know the resolved device (via ``port_obj.port``
+            after connect) pass it here so the displayed port is the
+            real device name, not the possibly-cryptic spec (SN, pipe
+            fallback chain, etc).
 
     Returns:
         Formatted connection string.
     """
-    port = cfg.get("port", "?")
+    port = actual_port or cfg.get("port", "?")
     baud = cfg.get("baud_rate", "?")
     bits = cfg.get("byte_size", 8)
     parity = cfg.get("parity", "N")
@@ -501,18 +508,35 @@ def open_with_system(path: str) -> None:
 def open_serial(cfg: dict) -> Any:
     """Open serial port from config dict.
 
-    If port is ``"DEMO"``, returns a ``FakeSerial`` simulated device
-    instead of a real serial connection.  If port is ``"DEMO_FAIL"``,
-    raises ``OSError`` -- a test hook for exercising the open-failure
-    path without needing a broken real port.
+    ``cfg["port"]`` may be a plain device name (``"COM3"``,
+    ``"/dev/ttyUSB0"``), a USB serial number, a ``|``-separated fallback
+    chain (``"A1B2C3D4|COM3"``), a reserved name (``"DEMO"``,
+    ``"DEMO_FAIL"``), or a pyserial URL.  Resolution to a concrete
+    device happens here via ``resolve_port()``; see that function's
+    docstring and ``help/ports.md`` for the full grammar.
+
+    If the resolved name is ``"DEMO"``, returns a ``FakeSerial``
+    simulated device instead of a real serial connection.  If the
+    resolved name is ``"DEMO_FAIL"``, raises ``OSError`` -- a test
+    hook for exercising the open-failure path without needing a broken
+    real port.
 
     Args:
         cfg: Config dict with serial settings.
 
     Returns:
         A serial port object (real or simulated).
+
+    Raises:
+        AmbiguousSerialNumberError: when ``cfg["port"]`` is a spec
+            whose serial-number candidate matches two or more connected
+            devices.  Surfaces through to the connect failure path so
+            the user sees which devices collided.
     """
-    name = cfg["port"].upper()
+    from termapy.port_control import resolve_port
+
+    resolved = resolve_port(cfg["port"])
+    name = resolved.upper()
     if name == "DEMO":
         from termapy.demo import FakeSerial
 
@@ -524,7 +548,7 @@ def open_serial(cfg: dict) -> Any:
     # serial_for_url handles both plain ports ("COM3", "/dev/ttyUSB0")
     # and URLs ("rfc2217://host:port", "socket://host:port", "loop://").
     return serial.serial_for_url(
-        cfg["port"],
+        resolved,
         baudrate=cfg["baud_rate"],
         bytesize=cfg["byte_size"],
         parity=cfg["parity"],

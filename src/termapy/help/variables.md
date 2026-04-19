@@ -74,8 +74,37 @@ especially useful in config files for values that differ per machine:
 "port": "$(env.TERMAPY_PORT|COM4)"
 ```
 
-The `|` provides a fallback default. See [Using with Git](using-git.md)
-for team workflow details.
+The `|` inside the `$(env.NAME|...)` provides a fallback **when the
+env variable is unset**.
+
+### Env expansion composes with port-resolution fallback
+
+For the `port` field specifically there is a second, independent `|`
+that lives at the port-resolution layer: termapy splits the `port`
+value on `|` at open time and tries each candidate (device name or
+USB serial number) in order. These layers compose cleanly -- env
+expansion runs first, then port resolution:
+
+```json
+"port": "$(env.DEVICE_SN)|COM3"
+```
+
+- `$(env.DEVICE_SN)` expands to the env value (or stays as the
+  placeholder if unset).
+- The resulting string is fed to port resolution, which tries the
+  SN first and `COM3` if it doesn't match.
+
+Both forms are valid and do slightly different things:
+
+- `"port": "$(env.DEVICE_SN|COM4)"` -- env-layer fallback. If
+  `DEVICE_SN` is unset, the value is literally `COM4`.
+- `"port": "$(env.DEVICE_SN)|COM3"` -- port-resolution fallback. The
+  env value (whatever it is, even a wrong SN) is tried first, then
+  `COM3` if resolution fails. The idiomatic form for port specs.
+
+See [ports.md](ports.md#stable-port-specs) for the full port-spec
+grammar, and [Using with Git](using-git.md) for team workflow
+details.
 
 | Command              | Description                              |
 | -------------------- | ---------------------------------------- |

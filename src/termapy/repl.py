@@ -165,6 +165,7 @@ class ScriptCtx:
     verbose: bool
     progress: Callable | None
     on_nest: Callable | None
+    delay_progress: Callable | None = None
     lines: list = field(default_factory=list)
     step: int = 0
     total: int = 0
@@ -899,14 +900,34 @@ class ReplEngine:
     # -- Script blocking command handlers ----------------------------------------
 
     def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
-        """Handle /delay in scripts - sleep on background thread."""
+        """Handle /delay in scripts - sleep on background thread.
+
+        For ``/delay`` (not ``.quiet``) with ``sctx.delay_progress``
+        registered, ticks every 0.25s and posts a rendered bar string
+        so the TUI overlay can animate.  For short delays (<1s) or
+        the quiet variant, falls back to a single blocking wait.
+        """
         expanded = self._expand_template(args.strip())
         try:
             seconds = parse_duration(expanded)
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
-        time.perf_counter()
-        self._script_stop.wait(timeout=seconds)
+        cb = sctx.delay_progress if name == "delay" else None
+        if cb is None or seconds < 1:
+            self._script_stop.wait(timeout=seconds)
+        else:
+            from termapy.scripting import render_progress_bar
+
+            t0 = time.perf_counter()
+            while True:
+                elapsed = time.perf_counter() - t0
+                if elapsed >= seconds:
+                    break
+                if self._script_stop.is_set():
+                    break
+                cb(render_progress_bar(elapsed, seconds), False)
+                self._script_stop.wait(timeout=0.25)
+            cb("", True)
         if self._script_stop.is_set():
             return CmdResult.fail(msg="Script stopped.")
         if not sctx.profile and name == "delay":
@@ -948,6 +969,7 @@ class ReplEngine:
                 progress=sctx.progress,
                 on_nest=sctx.on_nest,
                 verbose=sctx.verbose,
+                delay_progress=sctx.delay_progress,
             )
         return result
 
@@ -1048,7 +1070,9 @@ class ReplEngine:
         return result
 
     @contextmanager
-    def _script_session(self, path, w, dispatch, profile, verbose, progress, on_nest):
+    def _script_session(
+        self, path, w, dispatch, profile, verbose, progress, on_nest, delay_progress
+    ):
         """Context manager for script lifecycle - setup, yield, teardown."""
         sctx = ScriptCtx(
             w=w,
@@ -1058,6 +1082,7 @@ class ReplEngine:
             verbose=verbose,
             progress=progress,
             on_nest=on_nest,
+            delay_progress=delay_progress,
         )
         try:
             all_lines = path.read_text(encoding="utf-8").splitlines()
@@ -1113,6 +1138,7 @@ class ReplEngine:
         progress: Callable[[int, int], None] | None = None,
         on_nest: Callable[[], None] | None = None,
         verbose: bool = False,
+        delay_progress: Callable[[str, bool], None] | None = None,
     ) -> None:
         """Execute a script file line by line (call from a background thread).
 
@@ -1124,10 +1150,13 @@ class ReplEngine:
             progress: Callback for progress updates (step, total).
             on_nest: Callback when a nested script starts.
             verbose: Show per-command timing output.
+            delay_progress: Callback for ``/delay`` progress updates
+                ``(bar_text, done)``.  ``done=True`` fires once on the
+                final tick so the UI can restore state.
         """
         w = write or self.write
         with self._script_session(
-            path, w, dispatch, profile, verbose, progress, on_nest
+            path, w, dispatch, profile, verbose, progress, on_nest, delay_progress
         ) as sctx:
             for step, raw_line in enumerate(sctx.lines, 1):
                 if self._script_stop.is_set():

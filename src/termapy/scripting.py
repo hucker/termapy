@@ -114,6 +114,46 @@ def parse_duration(text: str) -> float:
     return value / 1000.0 if unit == "ms" else value
 
 
+# ── Progress bar rendering ────────────────────────────────────────────────────
+
+_PROGRESS_SUB_UNICODE = " \u2591\u2592\u2593\u2588"  # ░▒▓█
+_PROGRESS_SUB_ASCII = " .-=#"
+
+
+def render_progress_bar(
+    elapsed: float,
+    total: float,
+    width: int = 30,
+    ascii_only: bool = False,
+) -> str:
+    """Render a progress bar string with sub-character resolution.
+
+    Returns ``[bar] Ns/Ms`` -- e.g. ``[███░░░░░] 3s/10s``.  Sub-step
+    characters mean 1s-of-elapsed maps to a partial cell so short
+    delays look like they're moving.  The bar never reports 100%
+    before ``elapsed >= total`` (caller should special-case the
+    finished state).
+
+    Both ``_hook_delay`` (interactive, TUI) and the script-path
+    ``_script_delay`` (also TUI) share this helper so the two render
+    sites stay byte-identical.
+    """
+    sub = _PROGRESS_SUB_ASCII if ascii_only else _PROGRESS_SUB_UNICODE
+    sub_n = len(sub) - 1
+    sub_steps = width * sub_n
+    full_ch = sub[-1]
+    if total <= 0:
+        return f"[{full_ch * width}] 0s/0s"
+    frac = min(max(elapsed / total, 0.0), 1.0)
+    pos = min(frac * sub_steps, sub_steps - 1)
+    full = int(pos // sub_n)
+    partial = int(pos % sub_n)
+    bar = full_ch * full
+    if full < width:
+        bar += sub[partial] + " " * (width - full - 1)
+    return f"[{bar}] {int(elapsed)}s/{int(total)}s"
+
+
 # ── Keyword argument parsing ──────────────────────────────────────────────────
 
 _KW_NORMALIZE_RE = re.compile(r"(\w+)\s*=\s*")

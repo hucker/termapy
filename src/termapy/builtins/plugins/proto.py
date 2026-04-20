@@ -791,6 +791,242 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     return CmdResult.ok()
 
 
+def _parse_find_args(text: str) -> dict[str, str]:
+    """Parse /proto.crc.find arguments.
+
+    ``bin=`` and ``asc=`` each consume everything after them to end of
+    line (a captured packet may contain spaces and can't be split by
+    whitespace).  ``width=`` and ``endian=`` are single-token filters
+    and must come before the bin/asc argument.
+
+    Returns a dict with keys ``mode`` ("bin" or "asc"), ``payload``
+    (the captured packet string), and optionally ``width`` / ``endian``.
+    Returns empty dict if neither bin= nor asc= is present.
+    """
+    result: dict[str, str] = {}
+    stripped = text.strip()
+    for key in ("bin", "asc"):
+        marker = key + "="
+        idx = stripped.find(marker)
+        if idx != -1 and (idx == 0 or stripped[idx - 1].isspace()):
+            result["mode"] = key
+            result["payload"] = stripped[idx + len(marker):].strip()
+            stripped = stripped[:idx].strip()
+            break
+    for tok in stripped.split():
+        if tok.startswith("width="):
+            result["width"] = tok[len("width="):]
+        elif tok.startswith("endian="):
+            result["endian"] = tok[len("endian="):]
+    return result
+
+
+def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
+    """Identify the CRC algorithm used in a captured packet.
+
+    Given the full packet as ``bin=<hex>`` or ``asc=<text>``, slices
+    trailing bytes (bin) or trailing hex-ASCII chars (asc) as the
+    candidate CRC field and runs every catalogue algorithm against
+    every plausible (width, endian) layout.  Reports the matches.
+    """
+    p = ctx.engine.prefix
+    usage = (
+        f"Usage: {p}proto.crc.find [width=8|16|32] [endian=be|le] "
+        "bin=<hex> | asc=<text>"
+    )
+    kw = _parse_find_args(args)
+    if "mode" not in kw:
+        return CmdResult.fail(msg=usage)
+
+    try:
+        width_filter = int(kw["width"]) if "width" in kw else None
+    except ValueError:
+        return CmdResult.fail(msg="Invalid width: must be 8, 16, or 32")
+    if width_filter is not None and width_filter not in (8, 16, 32):
+        return CmdResult.fail(msg="Invalid width: must be 8, 16, or 32")
+
+    endian_filter = kw.get("endian", "").lower()
+    if endian_filter and endian_filter not in ("be", "le"):
+        return CmdResult.fail(msg="Invalid endian: must be be or le")
+
+    byte_widths = (width_filter // 8,) if width_filter else (1, 2, 4)
+    endians = (endian_filter,) if endian_filter else ("be", "le")
+
+    if kw["mode"] == "bin":
+        tokens = kw["payload"].split()
+        try:
+            packet = bytes(int(t, 16) for t in tokens)
+        except ValueError:
+            return CmdResult.fail(msg="Invalid hex bytes in bin=")
+        return _render_find_matches(
+            ctx, _find_in_binary(packet, byte_widths, endians)
+        )
+
+    text = kw["payload"]
+    if not text:
+        return CmdResult.fail(msg="Empty asc= payload")
+    return _render_find_matches(ctx, _find_in_ascii(text, byte_widths))
+
+
+def _find_in_binary(
+    packet: bytes, byte_widths: tuple[int, ...], endians: tuple[str, ...]
+) -> list[tuple[str, int, str, int, int]]:
+    """Search for matching CRC algorithms in a binary packet.
+
+    Each match is ``(algo_name, width_bytes, endian, data_len, expected)``.
+    """
+    registry = get_crc_registry()
+    matches: list[tuple[str, int, str, int, int]] = []
+    for w in byte_widths:
+        if len(packet) <= w:
+            continue
+        data = packet[:-w]
+        crc_bytes = packet[-w:]
+        candidates: list[tuple[str, int]] = []
+        if w == 1:
+            candidates.append(("-", crc_bytes[0]))
+        else:
+            for e in endians:
+                order = "big" if e == "be" else "little"
+                candidates.append((e, int.from_bytes(crc_bytes, order)))
+        for name, algo in registry.items():
+            if algo.width != w:
+                continue
+            computed = algo.compute(data)
+            for endian, expected in candidates:
+                if computed == expected:
+                    matches.append((name, w, endian, len(data), expected))
+    return matches
+
+
+def _find_in_ascii(
+    text: str, byte_widths: tuple[int, ...]
+) -> list[tuple[str, int, str, int, int]]:
+    """Search for matching CRC algorithms in an ASCII packet.
+
+    Assumes the CRC field is the trailing N hex characters (where
+    N = 2 * width_bytes).  No endian variation -- hex-ASCII encoding
+    is unambiguous at the integer level.
+    """
+    registry = get_crc_registry()
+    matches: list[tuple[str, int, str, int, int]] = []
+    for w in byte_widths:
+        hex_len = w * 2
+        if len(text) <= hex_len:
+            continue
+        tail = text[-hex_len:]
+        try:
+            expected = int(tail, 16)
+        except ValueError:
+            continue  # trailing chars aren't hex; this width isn't a candidate
+        data = text[:-hex_len].encode("utf-8")
+        for name, algo in registry.items():
+            if algo.width != w:
+                continue
+            if algo.compute(data) == expected:
+                matches.append((name, w, "-", len(data), expected))
+    return matches
+
+
+def _dedupe_catalogue_aliases(
+    matches: list[tuple[str, int, str, int, int]],
+) -> list[tuple[str, int, str, int, int, list[str]]]:
+    """Collapse matches that share identical catalogue parameters.
+
+    crc16-modbus and crc16m (for example) are catalogue aliases for
+    the same algorithm -- same poly/init/refin/refout/xorout/width.
+    Reporting both as separate matches is noise.  Group them by the
+    parameter tuple, keep the shortest name as canonical, list the
+    rest as ``aliases``.
+
+    Names not in ``CRC_CATALOGUE`` (e.g. plugins like ``sum8``)
+    stand alone -- their ``compute`` is opaque so we can't compare
+    parameters.
+    """
+    groups: dict[tuple, list[tuple[str, int, str, int, int]]] = {}
+    for m in matches:
+        name = m[0]
+        entry = CRC_CATALOGUE.get(name)
+        if entry is None:
+            key = ("plugin", name, m[1], m[2])  # one group per plugin name
+        else:
+            key = (
+                entry["width"],
+                entry["poly"],
+                entry["init"],
+                entry["refin"],
+                entry["refout"],
+                entry["xorout"],
+                m[2],  # endian -- different endians are legitimately different matches
+                m[3],  # data_len
+            )
+        groups.setdefault(key, []).append(m)
+
+    collapsed: list[tuple[str, int, str, int, int, list[str]]] = []
+    for group in groups.values():
+        # Prefer the longer, more descriptive name as canonical
+        # (crc16-modbus > crc16m) -- matches what users expect to see.
+        names = sorted({g[0] for g in group}, key=lambda n: (-len(n), n))
+        canonical = names[0]
+        aliases = names[1:]
+        # pick one representative tuple for the other fields
+        rep = next(g for g in group if g[0] == canonical)
+        collapsed.append((canonical, rep[1], rep[2], rep[3], rep[4], aliases))
+    return collapsed
+
+
+def _render_find_matches(
+    ctx: PluginContext,
+    matches: list[tuple[str, int, str, int, int]],
+) -> CmdResult:
+    """Render the find results to the terminal."""
+    if not matches:
+        ctx.write("  No matches found.", "red")
+        ctx.write("  Packet may use a non-standard algorithm, a CRC field")
+        ctx.write("  that is not trailing, or be too short to identify.")
+        return CmdResult.ok()
+    collapsed = _dedupe_catalogue_aliases(matches)
+    if len(collapsed) == 1:
+        ctx.write("  1 match:", "green")
+    else:
+        ctx.write(f"  {len(collapsed)} matches:", "yellow")
+    p = ctx.engine.prefix
+    for name, w, endian, data_len, expected, aliases in collapsed:
+        hex_w = w * 2
+        width_bits = w * 8
+        endian_str = "" if endian == "-" else f"  endian={endian}"
+        alias_str = f"  (aka {', '.join(aliases)})" if aliases else ""
+        ctx.write_markup(
+            f"  [cyan]{name}[/]{alias_str}  "
+            f"width={width_bits}  field=last{w}  "
+            f"expected=0x{expected:0{hex_w}X}{endian_str}  "
+            f"data={data_len} bytes"
+        )
+    if len(collapsed) == 1:
+        name = collapsed[0][0]
+        ctx.write("")
+        ctx.write(
+            f"  Generate source: {p}proto.crc.c {name}  "
+            f"(or .python / .rust)",
+            "dim",
+        )
+    if len(collapsed) > 1:
+        ctx.write("")
+        ctx.write(
+            "  Multiple matches usually means the packet is too short to",
+            "dim",
+        )
+        ctx.write(
+            "  disambiguate.  Capture a second packet with a different CRC",
+            "dim",
+        )
+        ctx.write(
+            "  and intersect the match sets to narrow down.",
+            "dim",
+        )
+    return CmdResult.ok(value=collapsed[0][0] if len(collapsed) == 1 else "")
+
+
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
 _PROTO_PROSE = """\
@@ -863,6 +1099,15 @@ COMMAND = Command(
         ),
         "crc": Command(
             help="Browse and compute CRC algorithms.",
+            long_help=(
+                "All 64 named CRC algorithms come from the reveng CRC\n"
+                "catalogue maintained by Greg Cook since 1999:\n"
+                "  https://reveng.sourceforge.io/crc-catalogue/all.htm\n"
+                "\n"
+                "Every algorithm is verified against its catalogue check\n"
+                "value (the CRC of the ASCII string '123456789') on every\n"
+                "test run.  See ACKNOWLEDGMENTS.md for full attribution."
+            ),
             sub_commands={
                 "list": Command(
                     args="{pattern}",
@@ -878,6 +1123,27 @@ COMMAND = Command(
                         "every available name."
                     ),
                     handler=_crc_info,
+                ),
+                "find": Command(
+                    args="[width=8|16|32] [endian=be|le] bin=<hex> | asc=<text>",
+                    help="Identify the CRC algorithm used in a captured packet.",
+                    long_help=(
+                        "Given the full packet, tries every catalogue algorithm\n"
+                        "against each plausible trailing-CRC layout and reports\n"
+                        "the match(es).\n"
+                        "\n"
+                        "bin=<hex>  - hex bytes, last 1/2/4 bytes = CRC field\n"
+                        "asc=<text> - ASCII, last 2/4/8 chars = hex-encoded CRC\n"
+                        "\n"
+                        "Optional filters:\n"
+                        "  width=8|16|32  restrict CRC width\n"
+                        "  endian=be|le   restrict byte order (bin= only)\n"
+                        "\n"
+                        "Examples:\n"
+                        "  {prefix}proto.crc.find bin=01 03 00 00 00 0A C5 CD\n"
+                        "  {prefix}proto.crc.find asc=123456789 width=16\n"
+                    ),
+                    handler=_crc_find,
                 ),
                 "calc": Command(
                     args="<name> {data}",

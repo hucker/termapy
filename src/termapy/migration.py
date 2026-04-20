@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 13
+CURRENT_CONFIG_VERSION = 14
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -56,6 +56,8 @@ DEPRECATED_CFG: dict[str, str] = {
     "read_only": "renamed to config_read_only in v6",
     # v7 -> v8: removal
     "cap_endian": "removed in v8 (endianness now lives in the format spec)",
+    # v13 -> v14: rename (IntelliSense is a Microsoft trademark)
+    "cli_intellisense": "renamed to cli_completion in v14",
 }
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
@@ -198,6 +200,21 @@ def _migrate_v12_to_v13(cfg: dict) -> dict:
 
 
 MIGRATIONS[12] = _migrate_v12_to_v13
+
+
+def _migrate_v13_to_v14(cfg: dict) -> dict:
+    """Rename cli_intellisense -> cli_completion.
+
+    IntelliSense is a Microsoft trademark; the feature is more
+    accurately named ``cli_completion`` anyway (tab completion +
+    auto-suggest + help toolbar).
+    """
+    if "cli_intellisense" in cfg:
+        cfg["cli_completion"] = cfg.pop("cli_intellisense")
+    return cfg
+
+
+MIGRATIONS[13] = _migrate_v13_to_v14
 
 
 def migrate_config(cfg: dict) -> dict:

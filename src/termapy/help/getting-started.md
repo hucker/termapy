@@ -63,24 +63,23 @@ stdin and writes to stdout. Useful for headless environments, SSH sessions,
 piping output, or when you prefer a minimal interface. Start with
 `termapy --cli` or set `"default_ui": "cli"` in your config.
 
-### CLI intellisense
+### CLI completion
 
-CLI mode includes built-in intellisense powered by prompt\_toolkit:
+CLI mode includes built-in completion powered by prompt\_toolkit:
 
 - **Tab completion** -- press Tab to complete REPL commands, subcommands, and device commands
 - **Auto-suggest** -- recent history appears as grey text as you type; press Right arrow to accept
-- **Help toolbar** -- a bottom bar shows the help string for the command you are typing
 
-![CLI intellisense](img/cli_intellisense.png)
+![CLI completion](img/cli_completion.png)
 
-Toggle intellisense during a session with `/cli.intellisense on|off`, or
+Toggle completion during a session with `/cli.completion on|off`, or
 disable it in your config:
 
 ```json
-"cli_intellisense": false
+"cli_completion": false
 ```
 
-When output is piped to a file, intellisense is automatically disabled
+When output is piped to a file, completion is automatically disabled
 to keep the output clean.
 
 ### Switching modes
@@ -166,5 +165,21 @@ things, man-inspired:
   exclusion (`/search baud -break`), and regex (`/search ^proto\.`).
 - `/search --dev <word>`   -- also searches handler docstrings.
 - `/help.dev <cmd>`        -- developer view: shows the handler's Python docstring.
+
+## Note for VS Code users: selecting text in the terminal
+
+The TUI captures mouse events so plain click-and-drag selection inside
+the VS Code integrated terminal doesn't behave normally while termapy
+has focus.  What works:
+
+1. Hold **Alt+Shift** and drag to select.
+2. While still holding the left mouse button, **right-click** to copy
+   the selection.
+
+This is general Textual-TUI behaviour, not a termapy bug.  Native
+terminals (Windows Terminal, iTerm2, most Linux terminals) usually
+accept plain **Shift+click** to bypass the TUI's mouse capture.  For
+anything longer, `Ctrl+S` saves an SVG screenshot and `Ctrl+T` a text
+screenshot -- often more useful than a selection.
 
 ---

@@ -110,6 +110,24 @@ See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against Rea
 | Escape  | Clear input / exit history browsing |
 | Right   | Accept type-ahead suggestion        |
 
+### Note for VS Code users: selecting text in the integrated terminal
+
+The TUI captures mouse events so the usual click-and-drag selection
+in the VS Code integrated terminal doesn't behave the normal way
+while termapy has focus.  The trick that works:
+
+1. Hold **Alt+Shift** and drag to select.
+2. While still holding the left mouse button, **right-click** to copy the
+   selection.
+
+This is a general mouse-capturing-TUI behaviour, not a termapy bug --
+any Textual-based app has the same quirk inside VS Code's terminal.
+Native terminals (Windows Terminal, iTerm2, most Linux terminals)
+typically let you bypass it with plain **Shift+click**.  See the
+[Textual docs on mouse support](https://textual.textualize.io/) for
+the background, and screenshot via Ctrl+S (SVG) or Ctrl+T (text) when
+selection is more trouble than it's worth.
+
 ### Title bar
 
 | Button | Action                                                              |
@@ -206,6 +224,7 @@ The most common ones:
 | `/proto.crc.list {pat}`             | List available CRC algorithms (optional glob filter)                            |
 | `/proto.crc.info <name>`            | Show CRC algorithm parameters and description                                   |
 | `/proto.crc.calc <n> {d}`           | Compute CRC over hex bytes, text, or file; omit data to verify check string     |
+| `/proto.crc.find <pkt>`             | Identify CRC algorithm from a captured packet (bin= hex or asc= text)           |
 | `/proto.status`                     | Show current protocol mode state                                                |
 | `/var {name}`                       | List user variables, or show one by name                                        |
 | `/var.set <NAME> <value>`           | Set a user variable                                                             |
@@ -464,7 +483,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 13,
+    "config_version": 14,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -472,7 +491,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": false,
-    "cli_intellisense": true,
+    "cli_completion": true,
     "config_read_only": false,
     "os_cmd_enabled": false,
     "device_json_cmd": "",
@@ -778,7 +797,7 @@ Summary: 4/4 PASS (4 tests)
 
 ### CRC algorithms
 
-Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) is built in: 62 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
+Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md)) is built in: 64 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
 
 </details>
 
@@ -1109,6 +1128,7 @@ From the REPL:
 - `/proto.crc.list` - show all 62 algorithms
 - `/proto.crc.info crc16-modbus` - show parameters
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
+- `/proto.crc.find bin=01 03 00 00 00 0A C5 CD` - identify the algorithm from a captured packet
 
 </details>
 

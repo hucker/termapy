@@ -187,6 +187,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/proto.crc.list {pat}`        | List CRC algorithms (optional glob filter, e.g. `*modbus*`)                 |
 | `/proto.crc.info <name>`       | Show CRC algorithm parameters, description, and format spec usage           |
 | `/proto.crc.calc <n> {d}`      | Compute CRC over hex bytes, text, or file; omit data to verify check string |
+| `/proto.crc.find <pkt>`        | Identify CRC algorithm from a captured packet (bin= hex or asc= text)       |
 | `/proto.status`                | Show current protocol mode state                                            |
 | `/var {name}`                  | List user variables, or show one by name                                    |
 | `/var.set <NAME> <value>`      | Set a user variable                                                         |
@@ -444,7 +445,7 @@ endianness (`U3-4` = big-endian, `U4-3` = little-endian). Use `H7-*` for
 variable-length fields. Bit fields: `B1.3` (single bit), `B1-2.7-9` (multi-byte
 bit range, LSB-0).
 
-62 named CRC algorithms are built in (from the reveng catalogue): `crc16-modbus`,
+64 named CRC algorithms are built in (from the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) maintained by Greg Cook): `crc16-modbus`,
 `crc16-xmodem`, `crc16-ccitt-false`, `crc8`, `crc32`, `crc32-iscsi`, and many more.
 Use `/proto.crc.list` to browse all algorithms with descriptions, `/proto.crc.info`
 to see parameters, and `/proto.crc.calc` to compute CRCs interactively. `calc`

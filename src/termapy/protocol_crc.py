@@ -1,7 +1,10 @@
 """CRC engine, catalogue, and plugin loading.
 
-Generic Rocksoft/Williams CRC computation with 62+ named algorithms from
-the reveng catalogue. Supports user-defined CRC plugins via .py files.
+Generic Rocksoft/Williams CRC computation with 60+ named algorithms
+from the reveng CRC catalogue (maintained by Greg Cook at
+https://reveng.sourceforge.io/crc-catalogue/all.htm -- see
+ACKNOWLEDGMENTS.md for full attribution).  Supports user-defined CRC
+plugins via .py files.
 
 Pure functions and classes with no Textual or pyserial dependencies.
 """
@@ -92,9 +95,12 @@ def _generic_crc(
 
 
 # ---------------------------------------------------------------------------
-# CRC catalogue - named algorithms from the reveng catalogue
+# CRC catalogue - named algorithms from the reveng CRC catalogue
 # ---------------------------------------------------------------------------
+# Maintained by Greg Cook since 1999.
 # Source: https://reveng.sourceforge.io/crc-catalogue/all.htm
+# See ACKNOWLEDGMENTS.md in the project root for full attribution.
+#
 # Each entry: width, poly (normal form), init, refin, refout, xorout, check.
 # check = CRC of b"123456789" - used as test vectors.
 

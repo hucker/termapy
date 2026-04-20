@@ -76,6 +76,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
 | `/proto.crc.info <name>`  | Show CRC algorithm parameters and description                               |
 | `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, text, or file                                   |
+| `/proto.crc.find <pkt>`   | Identify the CRC algorithm from a captured packet (bin= or asc=)            |
 | `/proto.status`           | Show current protocol mode state                                            |
 | `/var {name}`             | List user variables, or show one by name                                    |
 | `/var.set <NAME> <value>` | Set a user variable                                                         |

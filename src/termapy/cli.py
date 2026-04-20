@@ -38,7 +38,7 @@ def _menu_rows_for_terminal() -> int:
     Prompt-toolkit reserves rows below the prompt for the completion
     dropdown, which appears as a visible empty band when idle.  Tall
     terminals can afford a generous dropdown; very short ones should
-    give up intellisense entirely before the band eats half the
+    give up completion entirely before the band eats half the
     screen.
 
       - height >= 40 rows  -> 8 rows  (the prompt-toolkit default)
@@ -371,10 +371,10 @@ class CLITerminal(TerminalHost):
             source="app",
         )
         self.repl.register_hook(
-            "cli.intellisense",
+            "cli.completion",
             "{on|off}",
             "Show or toggle CLI tab completion, auto-suggest, and help toolbar.",
-            self._hook_cli_intellisense,
+            self._hook_cli_completion,
             source="app",
         )
         # Historically, CLI registered placeholder hooks for TUI-only
@@ -387,22 +387,22 @@ class CLITerminal(TerminalHost):
 
     # -- Hook handlers --------------------------------------------------------
 
-    def _hook_cli_intellisense(self, ctx, args: str):
-        """Show or toggle CLI intellisense (completion, suggest, toolbar)."""
+    def _hook_cli_completion(self, ctx, args: str):
+        """Show or toggle CLI completion (tab completion, auto-suggest, toolbar)."""
         from termapy.scripting import parse_bool
 
         val = parse_bool(args)
         if val is True:
-            self.cfg["cli_intellisense"] = True
+            self.cfg["cli_completion"] = True
             self._session = self._build_session()
-            self.status("CLI intellisense enabled.", "green")
+            self.status("CLI completion enabled.", "green")
         elif val is False:
-            self.cfg["cli_intellisense"] = False
+            self.cfg["cli_completion"] = False
             self._session = None
-            self.status("CLI intellisense disabled.")
+            self.status("CLI completion disabled.")
         else:
-            state = "on" if self.cfg.get("cli_intellisense", True) else "off"
-            self.status(f"CLI intellisense: {state}")
+            state = "on" if self.cfg.get("cli_completion", True) else "off"
+            self.status(f"CLI completion: {state}")
         return CmdResult.ok()
 
     def _hook_delay(self, ctx, args: str):
@@ -647,7 +647,7 @@ class CLITerminal(TerminalHost):
         """Create a prompt_toolkit session with history and tab completion.
 
         Returns None when stdout is not a terminal, or when
-        ``cli_intellisense`` is disabled in the config.
+        ``cli_completion`` is disabled in the config.
 
         Deliberately does NOT use ``bottom_toolbar``: prompt_toolkit
         reserves a full-width row for the toolbar whenever the kwarg
@@ -660,7 +660,7 @@ class CLITerminal(TerminalHost):
         """
         if not sys.stdout.isatty():
             return None
-        if not self.cfg.get("cli_intellisense", True):
+        if not self.cfg.get("cli_completion", True):
             return None
 
         return PromptSession(
@@ -672,7 +672,7 @@ class CLITerminal(TerminalHost):
             # band when nothing's being typed.  Scale the reservation
             # to the terminal height so tall windows get a roomy
             # dropdown and short windows aren't dominated by dead
-            # space (or give up intellisense entirely when there's
+            # space (or give up completion entirely when there's
             # simply no room).  Read once at startup -- prompt_toolkit
             # captures this value at PromptSession construction.
             reserve_space_for_menu=_menu_rows_for_terminal(),
@@ -779,7 +779,7 @@ class CLITerminal(TerminalHost):
         # patch_stdout requires an actual TTY (it needs console
         # dimensions and cursor ops).  Only wrap the loop when a
         # prompt_toolkit session was built -- that condition already
-        # mirrors "stdout is a TTY and cli_intellisense is on".  For
+        # mirrors "stdout is a TTY and cli_completion is on".  For
         # pipe / captured-stdout invocations (tests, --run piped
         # output, etc.) fall back to the plain loop.
         try:

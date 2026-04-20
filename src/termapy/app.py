@@ -604,7 +604,17 @@ class SerialTerminal(TerminalHost, App):
                 proto_btn.tooltip = "Protocol test scripts."
                 yield proto_btn
             help_btn = Button("Help", id="btn-help")
-            help_btn.tooltip = f"Termapy v{ver} -- Show help guide."
+            help_btn.tooltip = (
+                f"Termapy v{ver} -- Show help guide.\n"
+                "\n"
+                "Built on open source:\n"
+                "  pyserial - serial I/O\n"
+                "  Textual / Rich - TUI + output (Will McGugan)\n"
+                "  prompt_toolkit - CLI (Jonathan Slenders)\n"
+                "  reveng CRC catalogue - Greg Cook\n"
+                "    https://reveng.sourceforge.io\n"
+                "See ACKNOWLEDGMENTS.md for full attribution."
+            )
             yield help_btn
             # Hidden at startup; _check_for_updates() unhides this if
             # a newer termapy version is out on PyPI.

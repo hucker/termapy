@@ -97,7 +97,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 13,
+    "config_version": 14,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -105,7 +105,7 @@ demo> /cfg.dump
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": false,
-    "cli_intellisense": true,
+    "cli_completion": true,
     "config_read_only": false,
     "os_cmd_enabled": false,
     "device_json_cmd": "AT+HELP.JSON",
@@ -403,9 +403,19 @@ demo> /help proto.crc
 NAME
   /proto.crc - Browse and compute CRC algorithms.
 
+DESCRIPTION
+  All 64 named CRC algorithms come from the reveng CRC
+  catalogue maintained by Greg Cook since 1999:
+    https://reveng.sourceforge.io/crc-catalogue/all.htm
+
+  Every algorithm is verified against its catalogue check
+  value (the CRC of the ASCII string '123456789') on every
+  test run.  See ACKNOWLEDGMENTS.md for full attribution.
+
 SUBCOMMANDS
   /proto.crc.c         Generate C source code for a CRC algorithm.
   /proto.crc.calc      Compute CRC over hex bytes, text, or file.
+  /proto.crc.find      Identify the CRC algorithm used in a captured packet.
   /proto.crc.info      Show algorithm parameters and description.
   /proto.crc.list      List algorithms (optional glob filter).
   /proto.crc.python    Generate Python source code for a CRC algorithm.

@@ -31,13 +31,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     try:
         rx = re.compile(pattern, re.IGNORECASE)
     except re.error as e:
-        return CmdResult.fail(msg=f"  grep: invalid pattern: {e}")
+        return CmdResult.fail(msg=f"Invalid pattern: {e}")
     max_matches = ctx.cfg.get("max_grep_lines", 100)
     prefix = cmd_prefix(ctx.cfg)
     grep_cmd = f"{prefix}grep"
     text = ctx.get_screen_text()
     if not text:
-        return CmdResult.fail(msg="grep: not available (no scrollback in CLI mode)")
+        return CmdResult.fail(msg="Grep not available: no scrollback in CLI mode")
     lines = text.splitlines()
 
     def _is_grep_noise(line: str) -> bool:

@@ -1256,7 +1256,7 @@ class TestGrep:
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep [invalid")
         assert output[-1][1] == "red", "error shown in red"
-        assert "invalid pattern" in output[-1][0], "error message shown"
+        assert "Invalid pattern" in output[-1][0], "error message shown"
 
     def test_grep_max_output_default(self, repl_env):
         # Arrange - create text with 150 matching lines, no max_grep_lines in cfg
@@ -1698,7 +1698,7 @@ class TestRepeat:
 
         # Assert - error about missing count
         actual = [t for t, _ in output]
-        assert any("count is required" in t for t in actual), f"expected 'count is required' error, got: {actual}"
+        assert any("Count is required" in t for t in actual), f"expected 'Count is required' error, got: {actual}"
 
     def test_missing_cmd(self, repl_env):
         # Arrange

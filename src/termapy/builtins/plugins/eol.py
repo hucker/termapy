@@ -43,7 +43,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="show_line_endings",
-    args="{on | off}",
+    args="{on|off}",
     help="Toggle visible \\r \\n markers in serial output for line-ending troubleshooting.",
     handler=_handler,
 )

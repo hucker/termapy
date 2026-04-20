@@ -204,7 +204,7 @@ The most common ones:
 | `/proto.load <file>`                | Run a protocol test script (same as /proto.run)                                 |
 | `/proto.hex [on \| off]`            | Toggle hex display mode for serial I/O                                          |
 | `/proto.crc.list {pat}`             | List available CRC algorithms (optional glob filter)                            |
-| `/proto.crc.help <name>`            | Show CRC algorithm parameters and description                                   |
+| `/proto.crc.info <name>`            | Show CRC algorithm parameters and description                                   |
 | `/proto.crc.calc <n> {d}`           | Compute CRC over hex bytes, text, or file; omit data to verify check string     |
 | `/proto.status`                     | Show current protocol mode state                                                |
 | `/var {name}`                       | List user variables, or show one by name                                        |
@@ -772,7 +772,7 @@ Summary: 4/4 PASS (4 tests)
 
 ### CRC algorithms
 
-Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) is built in: 62 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.help <name>`, compute with `/proto.crc.calc`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
+Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) is built in: 62 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
 
 </details>
 
@@ -1101,7 +1101,7 @@ In format specs, CRC columns verify data integrity automatically:
 From the REPL:
 
 - `/proto.crc.list` - show all 62 algorithms
-- `/proto.crc.help crc16-modbus` - show parameters
+- `/proto.crc.info crc16-modbus` - show parameters
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
 
 </details>

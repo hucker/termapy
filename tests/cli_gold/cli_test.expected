@@ -298,7 +298,7 @@ demo> /seq
   No counters set.
 demo> /print === section: proto crc ===
   === section: proto crc ===
-demo> /proto.crc.help crc16-modbus
+demo> /proto.crc.info crc16-modbus
     crc16-modbus
     Modbus RTU serial protocol
     Width:   16 bits (2 bytes)
@@ -333,7 +333,7 @@ NAME
   /echo - Toggle REPL command echo. Use /echo.quiet to set silently.
 
 SYNOPSIS
-  /echo {on | off}
+  /echo {on|off}
 demo> /help port
 NAME
   /port - Serial port tools: open, close, list, configure.
@@ -403,7 +403,7 @@ NAME
 SUBCOMMANDS
   /proto.crc.c         Generate C source code for a CRC algorithm.
   /proto.crc.calc      Compute CRC over hex bytes, text, or file.
-  /proto.crc.help      Show algorithm parameters and description.
+  /proto.crc.info      Show algorithm parameters and description.
   /proto.crc.list      List algorithms (optional glob filter).
   /proto.crc.python    Generate Python source code for a CRC algorithm.
   /proto.crc.rust      Generate Rust source code for a CRC algorithm.
@@ -435,6 +435,7 @@ DESCRIPTION
   Commands:
     /var                   - list all variables
     /var PORT              - show one variable (bare name or $(PORT))
+    /var.list              - list all variables (alias of bare /var)
     /var.set PORT val      - set a variable (literal string)
     /var.capture NAME cmd  - run cmd and store its result as NAME
     /var.clear             - clear all variables
@@ -483,6 +484,7 @@ DESCRIPTION
 SUBCOMMANDS
   /var.capture    Capture command output into a user variable.
   /var.clear      Clear all user variables.
+  /var.list       List user variables, or show one by name.
   /var.set        Set a user variable to a literal value.
 demo> /help cap
 NAME
@@ -543,7 +545,7 @@ DESCRIPTION
   CRC tools:
     /proto.crc.list              - list all 62 algorithms
     /proto.crc.list *modbus*     - filter by glob pattern
-    /proto.crc.help crc16-modbus - show parameters for Modbus CRC
+    /proto.crc.info crc16-modbus - show parameters for Modbus CRC
     /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
 
   Script files (.pro) support TOML format with [] sections
@@ -674,11 +676,11 @@ demo> /print iteration $(I)
 demo> /print iteration $(I)
   iteration 3
 demo> /repeat cmd=AT
-  Error: count is required
+  Error: Count is required
 demo> /repeat count=0 cmd=AT
-  Error: count must be > 0: 0
+  Error: Count must be > 0: 0
 demo> /repeat count=abc cmd=AT
-  Error: count must be an integer: abc
+  Error: Count must be an integer: abc
 demo> /print === section: env vars ===
   === section: env vars ===
 demo> /env.set TEST_VAR hello_world

@@ -402,7 +402,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError:
         return CmdResult.fail(msg=f"Invalid count: {sections['count']!r}")
     if count <= 0:
-        return CmdResult.fail(msg="count must be positive")
+        return CmdResult.fail(msg="Count must be positive")
 
     # Delay (default 1s; 0 means "as fast as possible")
     delay_raw = sections.get("delay", "1s").strip()
@@ -412,15 +412,15 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         try:
             delay_s = parse_duration(delay_raw)
         except ValueError as e:
-            return CmdResult.fail(msg=f"delay: {e}")
+            return CmdResult.fail(msg=f"Invalid delay: {e}")
     if delay_s < 0:
-        return CmdResult.fail(msg="delay must be non-negative")
+        return CmdResult.fail(msg="Delay must be non-negative")
 
     # Timeout (default 1s)
     try:
         timeout_ms = int(parse_duration(sections.get("timeout", "1s")) * 1000)
     except ValueError as e:
-        return CmdResult.fail(msg=f"timeout: {e}")
+        return CmdResult.fail(msg=f"Invalid timeout: {e}")
 
     # Format
     fmt = sections.get("fmt", "csv").lower()

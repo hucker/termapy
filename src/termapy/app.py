@@ -164,6 +164,19 @@ class SerialTerminal(TerminalHost, App):
             super().__init__()
             self.stack = stack
 
+    class DelayProgress(Message):
+        """Posted every 0.25s during a script-path /delay.
+
+        ``bar`` is the pre-rendered "[bar] Ns/Ms" string; ``done=True``
+        fires exactly once on the final tick so the handler can
+        restore the script-label to its pre-delay text.
+        """
+
+        def __init__(self, bar: str, done: bool) -> None:
+            super().__init__()
+            self.bar = bar
+            self.done = done
+
     TITLE = "termapy"
 
     CSS = """
@@ -3022,10 +3035,61 @@ class SerialTerminal(TerminalHost, App):
         except ValueError as e:
             self._status(str(e), "red")
             return CmdResult.fail(msg=str(e))
-        self._on_main(
-            self.set_timer, seconds, lambda: self._status(f"Delay {args} done.")
-        )
+        if seconds < 1:
+            time.sleep(seconds)
+            self._on_main(self._status, f"Delay {args} done.")
+            return CmdResult.ok()
+        self._run_progress_bar(seconds, args.strip())
         return CmdResult.ok()
+
+    def _set_progress_label(self, text: str) -> None:
+        """Write progress text to the bottom-bar status label (main thread).
+
+        Empty text hides the label.  Same mechanism used by the capture
+        progress overlay -- Input.placeholder doesn't reliably re-render
+        from background threads, the status label does.
+        """
+        try:
+            label = self.query_one("#status-bar", Label)
+            label.update(text)
+            if text:
+                label.add_class("visible")
+            else:
+                label.remove_class("visible")
+        except SHUTDOWN_RACE:
+            pass
+
+    def _run_progress_bar(self, seconds: float, label: str) -> None:
+        """Block on the caller's thread while animating a progress bar in
+        the bottom-bar status label.  Same rendering as the CLI and
+        script-path delays -- shares ``render_progress_bar`` in
+        scripting.py.
+
+        Escape (action_stop_script) sets ``repl._script_stop`` and ends
+        the wait early.  Caller must be on a background thread; label
+        writes hop to the main thread via ``_on_main``.
+        """
+        from termapy.scripting import render_progress_bar
+
+        t0 = time.perf_counter()
+        cancelled = False
+        while True:
+            elapsed = time.perf_counter() - t0
+            if elapsed >= seconds:
+                break
+            if self.repl._script_stop.is_set():
+                cancelled = True
+                break
+            self._on_main(
+                self._set_progress_label,
+                render_progress_bar(elapsed, seconds),
+            )
+            time.sleep(0.25)
+        self._on_main(self._set_progress_label, "")
+        if cancelled:
+            self._on_main(self._status, f"Delay {label} cancelled.", "red")
+        else:
+            self._on_main(self._status, f"Delay {label} done.")
 
     def _hook_delay_quiet(self, ctx, args: str) -> CmdResult:
         """Wait silently - non-blocking timer, no output."""
@@ -3490,6 +3554,21 @@ class SerialTerminal(TerminalHost, App):
         except SHUTDOWN_RACE:
             pass  # event posted after widget tree teardown
 
+    def on_serial_terminal_delay_progress(self, event: DelayProgress) -> None:
+        """Append a delay-progress bar to the script-overlay label.
+
+        Ticks arrive every 0.25s; ``event.done`` fires once on the last
+        tick so the label can be restored to its pre-delay text.
+        """
+        try:
+            label_w = self.query_one("#script-label", Static)
+            if event.done:
+                label_w.update(self._script_last_label)
+            else:
+                label_w.update(f"{self._script_last_label}  {event.bar}")
+        except SHUTDOWN_RACE:
+            pass  # event posted after overlay torn down
+
     def on_serial_terminal_script_finished(self, event: ScriptFinished) -> None:
         """Update or teardown script overlay when a script finishes."""
         try:
@@ -3538,6 +3617,9 @@ class SerialTerminal(TerminalHost, App):
         def _on_nest() -> None:
             self.post_message(self.ScriptStarted(self.repl._script_stack[:]))
 
+        def _delay_progress(bar: str, done: bool) -> None:
+            self.post_message(self.DelayProgress(bar, done))
+
         try:
             self.repl.run_script(
                 path,
@@ -3547,6 +3629,7 @@ class SerialTerminal(TerminalHost, App):
                 verbose=verbose,
                 progress=_progress,
                 on_nest=_on_nest,
+                delay_progress=_delay_progress,
             )
         except RuntimeError:
             pass

@@ -82,7 +82,14 @@ Toggle hex display for all serial I/O with `/proto.hex on` / `/proto.hex off`.
 
 ## CRC algorithms
 
-62 named CRC algorithms are built in covering CRC-8, CRC-16, and CRC-32
+Every named CRC algorithm in termapy comes from the [reveng CRC
+catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm)
+maintained by **Greg Cook**.  That catalogue documents the polynomial,
+init, reflection, and xor-out parameters for every standardized CRC
+in practical use, and our test suite verifies each one against its
+published `check` value on every commit.
+
+64 algorithms are built in covering CRC-8, CRC-16, and CRC-32
 families (Modbus, XMODEM, CCITT, USB, and more).
 
 REPL commands:
@@ -91,6 +98,50 @@ REPL commands:
 - `/proto.crc.list *modbus*` - filter by pattern
 - `/proto.crc.info crc16-modbus` - show algorithm parameters
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
+- `/proto.crc.find bin=01 03 00 00 00 0A C5 CD` - identify the algorithm used in a captured packet
+
+### Identifying a CRC from a captured packet
+
+`/proto.crc.find` takes the full packet you captured and figures out
+which catalogue algorithm produced its CRC.  Two input forms:
+
+- `bin=<hex bytes>` -- raw binary packet.  The last 1 / 2 / 4 bytes
+  are tried as the CRC field; both big- and little-endian are
+  attempted.
+- `asc=<text>` -- ASCII packet with a trailing hex-encoded CRC
+  (common in NMEA-style protocols).  The last 2 / 4 / 8 characters
+  are parsed as hex.
+
+Every match reports the algorithm name, field width, byte order,
+expected value, and the length of the preceding data.  Catalogue
+aliases (e.g. `crc16-modbus` / `crc16m`) are collapsed into a single
+line.  When exactly one algorithm matches, the output also includes
+the command to generate standalone source code.
+
+```text
+> /proto.crc.find bin=31 32 33 34 35 36 37 38 39 37 4B
+  1 match:
+  crc16-modbus  (aka crc16m)  width=16  field=last2  expected=0x4B37  endian=le  data=9 bytes
+
+  Generate source: /proto.crc.c crc16-modbus  (or .python / .rust)
+```
+
+Limits:
+
+- The search only covers the built-in catalogue (CRC-8, CRC-16,
+  CRC-32 standard algorithms from the reveng catalogue).  A truly
+  custom CRC with non-standard poly / init / refin / refout / xorout
+  will not match -- the parameter space is ~10^15 for 16-bit, so
+  brute-force is not tractable.  For custom CRCs, Greg Cook's
+  [reveng project](https://reveng.sourceforge.io) implements an
+  algebraic recovery approach that needs only a handful of matched
+  sample packets; it's the established tool for that job.
+- The tool assumes the CRC field is at the end of the packet.
+  Protocols with the CRC in the middle or as a non-contiguous
+  checksum require a different approach.
+- Multiple matches usually mean the packet is too short to
+  disambiguate.  Capture a second packet with a different CRC and
+  run find again; the intersection narrows the candidates.
 
 Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.
 

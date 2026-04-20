@@ -69,14 +69,14 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
                 for k in sorted(matches):
                     ctx.write(f"  {k}={matches[k]}")
             else:
-                return CmdResult.fail(msg=f"  No variables matching {pattern}")
+                return CmdResult.fail(msg=f"No variables matching: {pattern}")
             return CmdResult.ok()
         val = _ENV.get(pattern)
         if val is not None:
             ctx.write(f"  {pattern}={val}")
             return CmdResult.ok(value=val)
         else:
-            return CmdResult.fail(msg=f"  {pattern} - not set")
+            return CmdResult.fail(msg=f"Environment variable not set: {pattern}")
     ctx.write(f"Environment snapshot ({len(_ENV)} vars):")
     for k in sorted(_ENV):
         ctx.write(f"  {k}={_ENV[k]}")

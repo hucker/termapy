@@ -128,7 +128,7 @@ $(BAUD) <- /port.baud_rate
 
 # ── REPL: protocol CRC tools ────────────────────────────────────────────────
 /print === section: proto crc ===
-/proto.crc.help crc16-modbus
+/proto.crc.info crc16-modbus
 /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
 /proto.crc.calc crc8-maxim 48 65 6C 6C 6F
 /proto.crc.calc crc32 01 02 03 04

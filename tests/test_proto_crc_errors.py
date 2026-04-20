@@ -115,19 +115,19 @@ class TestCrcCodegenUnknownAlgorithm:
             "/proto.crc.calc leaked the literal {prefix} placeholder"
         )
 
-    def test_crc_help_unknown_name_fails_gracefully(self, tmp_path):
+    def test_crc_info_unknown_name_fails_gracefully(self, tmp_path):
         # Act
-        result = _run_cli(tmp_path, ["/proto.crc.help crcDOES_NOT_EXIST"])
+        result = _run_cli(tmp_path, ["/proto.crc.info crcDOES_NOT_EXIST"])
 
         # Assert
         assert result.returncode == 0, (
-            f"/proto.crc.help must exit 0, got {result.returncode}. "
+            f"/proto.crc.info must exit 0, got {result.returncode}. "
             f"stderr: {result.stderr!r}"
         )
         assert "/proto.crc.list" in result.stdout, (
-            f"/proto.crc.help should point the user at /proto.crc.list. "
+            f"/proto.crc.info should point the user at /proto.crc.list. "
             f"stdout: {result.stdout!r}"
         )
         assert "{prefix}" not in result.stdout, (
-            "/proto.crc.help leaked the literal {prefix} placeholder"
+            "/proto.crc.info leaked the literal {prefix} placeholder"
         )

@@ -314,7 +314,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
             quiet_cmd += " " + parts_cmd[1]
         result = ctx.dispatch(quiet_cmd)
         if not result.success:
-            return CmdResult.fail(msg=result.error or f"command failed: {cmd}")
+            return CmdResult.fail(msg=result.error or f"Command failed: {cmd}")
         value = result.value
     else:
         # Device command: send to serial and capture response
@@ -326,7 +326,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
             ctx.serial_send(cmd)
             response = ctx.serial_read_raw(timeout_ms=1000)
         if not response:
-            return CmdResult.fail(msg=f"no response from device: {cmd}")
+            return CmdResult.fail(msg=f"No response from device: {cmd}")
         value = response.decode(encoding, errors="replace").strip()
     _VARS[name] = value
     ctx.write_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
@@ -380,6 +380,7 @@ Using variables in commands:
 Commands:
   {prefix}var                   - list all variables
   {prefix}var PORT              - show one variable (bare name or $(PORT))
+  {prefix}var.list              - list all variables (alias of bare {prefix}var)
   {prefix}var.set PORT val      - set a variable (literal string)
   {prefix}var.capture NAME cmd  - run cmd and store its result as NAME
   {prefix}var.clear             - clear all variables
@@ -439,6 +440,13 @@ COMMAND = Command(
     handler=_handler_list,
     raw_args=True,
     sub_commands={
+        "list": Command(
+            args="{name}",
+            help="List user variables, or show one by name.",
+            long_help=_var_state_line,
+            handler=_handler_list,
+            raw_args=True,
+        ),
         "set": Command(
             args="<NAME> <value>",
             help="Set a user variable to a literal value.",

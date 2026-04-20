@@ -74,7 +74,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
 | `/proto.hex [on\|off]`    | Toggle hex display mode for serial I/O                                      |
 | `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
-| `/proto.crc.help <name>`  | Show CRC algorithm parameters and description                               |
+| `/proto.crc.info <name>`  | Show CRC algorithm parameters and description                               |
 | `/proto.crc.calc <n> {d}` | Compute CRC over hex bytes, text, or file                                   |
 | `/proto.status`           | Show current protocol mode state                                            |
 | `/var {name}`             | List user variables, or show one by name                                    |

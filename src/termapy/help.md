@@ -185,7 +185,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/proto.debug <file>`          | Open interactive protocol debug screen for a .pro script                    |
 | `/proto.hex [on\|off]`         | Toggle hex display mode for serial I/O                                      |
 | `/proto.crc.list {pat}`        | List CRC algorithms (optional glob filter, e.g. `*modbus*`)                 |
-| `/proto.crc.help <name>`       | Show CRC algorithm parameters, description, and format spec usage           |
+| `/proto.crc.info <name>`       | Show CRC algorithm parameters, description, and format spec usage           |
 | `/proto.crc.calc <n> {d}`      | Compute CRC over hex bytes, text, or file; omit data to verify check string |
 | `/proto.status`                | Show current protocol mode state                                            |
 | `/var {name}`                  | List user variables, or show one by name                                    |
@@ -446,7 +446,7 @@ bit range, LSB-0).
 
 62 named CRC algorithms are built in (from the reveng catalogue): `crc16-modbus`,
 `crc16-xmodem`, `crc16-ccitt-false`, `crc8`, `crc32`, `crc32-iscsi`, and many more.
-Use `/proto.crc.list` to browse all algorithms with descriptions, `/proto.crc.help`
+Use `/proto.crc.list` to browse all algorithms with descriptions, `/proto.crc.info`
 to see parameters, and `/proto.crc.calc` to compute CRCs interactively. `calc`
 auto-detects hex bytes vs plain text, accepts a file path to CRC file contents,
 and with no data runs the standard check string "123456789" with pass/fail verification.

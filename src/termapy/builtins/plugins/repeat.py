@@ -50,13 +50,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     count_str = kw.get("count", "")
     if not count_str:
-        return CmdResult.fail(msg="count is required")
+        return CmdResult.fail(msg="Count is required")
     try:
         count = int(count_str)
     except ValueError:
-        return CmdResult.fail(msg=f"count must be an integer: {count_str}")
+        return CmdResult.fail(msg=f"Count must be an integer: {count_str}")
     if count < 1:
-        return CmdResult.fail(msg=f"count must be > 0: {count}")
+        return CmdResult.fail(msg=f"Count must be > 0: {count}")
 
     delay_s = 0.0
     if "delay" in kw:

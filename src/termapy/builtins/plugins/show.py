@@ -57,7 +57,7 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
         args: Unused.
     """
     if not ctx.config_path:
-        return CmdResult.fail(msg="No config file loaded.")
+        return CmdResult.fail(msg="No config loaded.")
     _show_file(ctx, Path(ctx.config_path))
     return CmdResult.ok()
 

@@ -89,7 +89,7 @@ REPL commands:
 
 - `/proto.crc.list` - show all 62 algorithms
 - `/proto.crc.list *modbus*` - filter by pattern
-- `/proto.crc.help crc16-modbus` - show algorithm parameters
+- `/proto.crc.info crc16-modbus` - show algorithm parameters
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
 
 Aliases: `crc16m` = `crc16-modbus`, `crc16x` = `crc16-xmodem`.

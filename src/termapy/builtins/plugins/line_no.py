@@ -29,7 +29,7 @@ def _handler_placeholder(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="line_no",
-    args="<on|off>",
+    args="{on|off}",
     help="Toggle line numbers on or off.",
     handler=_handler_placeholder,
     needs=CapabilitySet(tui_mode=True),

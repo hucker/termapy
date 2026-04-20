@@ -598,7 +598,7 @@ def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-def _crc_help(ctx: PluginContext, args: str) -> CmdResult:
+def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show detailed parameters for a named CRC algorithm.
 
     Args:
@@ -608,7 +608,7 @@ def _crc_help(ctx: PluginContext, args: str) -> CmdResult:
     p = ctx.engine.prefix
     name = args.strip().lower()
     if not name:
-        return CmdResult.fail(msg=f"Usage: {p}proto.crc.help <name>")
+        return CmdResult.fail(msg=f"Usage: {p}proto.crc.info <name>")
 
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
@@ -813,7 +813,7 @@ Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
 CRC tools:
   {prefix}proto.crc.list              - list all 62 algorithms
   {prefix}proto.crc.list *modbus*     - filter by glob pattern
-  {prefix}proto.crc.help crc16-modbus - show parameters for Modbus CRC
+  {prefix}proto.crc.info crc16-modbus - show parameters for Modbus CRC
   {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
 
 Script files (.pro) support TOML format with [[test]] sections
@@ -869,7 +869,7 @@ COMMAND = Command(
                     help="List algorithms (optional glob filter).",
                     handler=_crc_list,
                 ),
-                "help": Command(
+                "info": Command(
                     args="<name>",
                     help="Show algorithm parameters and description.",
                     long_help=(
@@ -877,7 +877,7 @@ COMMAND = Command(
                         "value for one CRC algorithm. Use {prefix}proto.crc.list to see\n"
                         "every available name."
                     ),
-                    handler=_crc_help,
+                    handler=_crc_info,
                 ),
                 "calc": Command(
                     args="<name> {data}",
@@ -898,7 +898,7 @@ COMMAND = Command(
                     long_help=(
                         "Prints a self-contained C implementation for the named\n"
                         "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
-                        "name, or {prefix}proto.crc.help <name> for its parameters.\n"
+                        "name, or {prefix}proto.crc.info <name> for its parameters.\n"
                         "\n"
                         "Example:\n"
                         "  {prefix}proto.crc.c crc16-modbus\n"
@@ -913,7 +913,7 @@ COMMAND = Command(
                     long_help=(
                         "Prints a self-contained Python implementation for the named\n"
                         "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
-                        "name, or {prefix}proto.crc.help <name> for its parameters.\n"
+                        "name, or {prefix}proto.crc.info <name> for its parameters.\n"
                         "\n"
                         "Example:\n"
                         "  {prefix}proto.crc.python crc16-modbus\n"
@@ -928,7 +928,7 @@ COMMAND = Command(
                     long_help=(
                         "Prints a self-contained Rust implementation for the named\n"
                         "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
-                        "name, or {prefix}proto.crc.help <name> for its parameters.\n"
+                        "name, or {prefix}proto.crc.info <name> for its parameters.\n"
                         "\n"
                         "Example:\n"
                         "  {prefix}proto.crc.rust crc16-modbus\n"

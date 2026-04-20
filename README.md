@@ -464,7 +464,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 12,
+    "config_version": 13,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -502,6 +502,9 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "hex_mode": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
+    "cfg_enabled": true,
+    "run_enabled": true,
+    "proto_enabled": true,
     "custom_buttons": []
 }
 ```
@@ -538,6 +541,9 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `cmd_prefix`         | `"/"`                  | Prefix for local REPL commands (e.g. `/help`, `/cls`)                                                    |
 | `config_read_only`   | `false`                | Disable the Edit button in config/script/proto pickers (`/cfg` still changes in-memory values)           |
 | `os_cmd_enabled`     | `false`                | Enable the `/os` REPL command to run shell commands                                                      |
+| `cfg_enabled`        | `true`                 | Show the Cfg button in the title bar                                                                     |
+| `run_enabled`        | `true`                 | Show the Run button in the title bar                                                                     |
+| `proto_enabled`      | `true`                 | Show the Proto button in the title bar                                                                   |
 | `show_traceback`     | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`     | `[]`                   | Array of custom button objects (see Custom Buttons above)                                                |
 

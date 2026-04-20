@@ -185,12 +185,13 @@ class SerialTerminal(TerminalHost, App):
         padding: 0 1;
     }
     #btn-help {
-        margin-left: 0;
-        width: 3;
-        min-width: 3;
-        text-align: center;
-        padding: 0;
         background: $primary;
+    }
+    #title-bar #btn-exit {
+        background: crimson;
+    }
+    #title-bar > Button:first-of-type {
+        margin-left: 0;
     }
     #btn-cmds {
         width: auto;
@@ -564,18 +565,34 @@ class SerialTerminal(TerminalHost, App):
                 ver = _get_version("termapy")
             except PackageNotFoundError:
                 ver = "?"
-            help_btn = Button("?", id="btn-help")
+            # Windows puts the close "X" top-right (Windows convention);
+            # mac/linux put it top-left (macOS convention, standard on
+            # Linux too).  Same button, same id/handler -- only position
+            # differs.
+            exit_on_right = sys.platform == "win32"
+
+            def _make_exit_btn() -> Button:
+                b = Button(" X ", id="btn-exit", variant="error")
+                b.tooltip = "Close connection and exit (Ctrl+C)."
+                return b
+
+            if not exit_on_right:
+                yield _make_exit_btn()
+            if self.cfg.get("cfg_enabled", True):
+                cfg_btn = Button("Cfg", id="btn-cfg")
+                cfg_btn.tooltip = "New / Edit / Load config."
+                yield cfg_btn
+            if self.cfg.get("run_enabled", True):
+                run_btn = Button("Run", id="btn-scripts")
+                run_btn.tooltip = "Run a script."
+                yield run_btn
+            if self.cfg.get("proto_enabled", True):
+                proto_btn = Button("Proto", id="btn-proto")
+                proto_btn.tooltip = "Protocol test scripts."
+                yield proto_btn
+            help_btn = Button("Help", id="btn-help")
             help_btn.tooltip = f"Termapy v{ver} -- Show help guide."
             yield help_btn
-            cfg_btn = Button("Cfg", id="btn-cfg")
-            cfg_btn.tooltip = "New / Edit / Load config."
-            yield cfg_btn
-            run_btn = Button("Run", id="btn-scripts")
-            run_btn.tooltip = "Run a script."
-            yield run_btn
-            proto_btn = Button("Proto", id="btn-proto")
-            proto_btn.tooltip = "Protocol test scripts."
-            yield proto_btn
             # Hidden at startup; _check_for_updates() unhides this if
             # a newer termapy version is out on PyPI.
             update_btn = Button("Update", id="btn-update", variant="warning")
@@ -594,6 +611,8 @@ class SerialTerminal(TerminalHost, App):
             yield left
             right = Button("Disconnected", id="title-right")
             yield right
+            if exit_on_right:
+                yield _make_exit_btn()
         max_lines = self.cfg.get("max_lines", 10000)
         yield RichLog(
             highlight=False, markup=True, wrap=True, id="output", max_lines=max_lines
@@ -654,7 +673,6 @@ class SerialTerminal(TerminalHost, App):
                 yield log_btn
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder.")
                 yield _btn("Cap", "btn-cap-dir", "Open captures folder.")
-                yield _btn("Exit", "btn-exit", "Close connection and exit (Ctrl+C).")
 
     def _show_config_info(self, path: str) -> None:
         """Print config dir, file, and log file paths (verbose only)."""

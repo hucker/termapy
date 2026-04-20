@@ -88,6 +88,10 @@ DEFAULT_CFG = {
     "max_grep_lines": 100,
     # File transfer
     "file_xfer_root": "",
+    # Title-bar buttons
+    "cfg_enabled": True,
+    "run_enabled": True,
+    "proto_enabled": True,
     # Custom buttons
     "custom_buttons": [
         {
@@ -375,6 +379,19 @@ CFG_HELP: dict[str, tuple] = {
     "device_json_cmd": (
         "Command sent by /include to fetch device command help JSON.",
         "Device command returning JSON. Empty = must specify cmd= arg.",
+    ),
+    # Title-bar buttons
+    "cfg_enabled": (
+        "Show the Cfg button in the title bar.",
+        "Valid: true, false.",
+    ),
+    "run_enabled": (
+        "Show the Run button in the title bar.",
+        "Valid: true, false.",
+    ),
+    "proto_enabled": (
+        "Show the Proto button in the title bar.",
+        "Valid: true, false.",
     ),
     # Custom buttons (nested keys)
     "enabled": ("Whether this button is visible in the toolbar.", "Valid: true, false"),

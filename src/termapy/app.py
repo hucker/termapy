@@ -2726,6 +2726,11 @@ class SerialTerminal(TerminalHost, App):
     def _show_commands(self) -> None:
         """Show the REPL command picker with smart arg handling.
 
+        Filters to commands whose name contains the substring currently
+        in the ``#cmd`` input (case-insensitive).  Any leading prefix
+        character in the input is stripped first, so typing ``/po`` and
+        ``po`` behave identically.  Empty input shows everything.
+
         Hides Linux-only commands on non-Linux platforms (detected by
         scanning each plugin's help text for "linux ... only").
         Right-pads the command+args portion so the "# help text"
@@ -2737,6 +2742,16 @@ class SerialTerminal(TerminalHost, App):
         popup.clear_options()
         prefix = cmd_prefix(self.cfg)
         skip_linux_only = sys.platform != "linux"
+
+        # Build the filter from the current input.  Users can have the
+        # prefix typed (``/po``) or not (``po``) -- strip once so the
+        # match is on the command name only.
+        raw = self.query_one("#cmd", Input).value.strip()
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+        # If the user typed args (``/port open COM3``), only match on
+        # the first token -- the name portion.
+        filter_term = raw.split(None, 1)[0].lower() if raw else ""
 
         def _add_row(cmd_text: str, help_text: str, option_id: str) -> None:
             """Build a Text row with the help column aligned to _CMDS_HELP_COL.
@@ -2761,7 +2776,16 @@ class SerialTerminal(TerminalHost, App):
         for name, plugin in self.repl._plugins.items():
             if skip_linux_only and self._LINUX_ONLY_RE.search(plugin.help or ""):
                 continue
+            if filter_term and filter_term not in name.lower():
+                continue
             groups.setdefault(plugin.source, []).append((name, plugin))
+        if not groups and filter_term:
+            popup.add_option(
+                Option(
+                    Text(f"  (no commands match '{filter_term}')", style="dim"),
+                    disabled=True,
+                )
+            )
         for source, plugins in groups.items():
             popup.add_option(Option(f"── {source} ──", disabled=True))
             for name, plugin in sorted(plugins, key=lambda p: p[0]):

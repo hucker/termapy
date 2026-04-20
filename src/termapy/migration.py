@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 12
+CURRENT_CONFIG_VERSION = 13
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -187,6 +187,17 @@ def _migrate_v11_to_v12(cfg: dict) -> dict:
 
 
 MIGRATIONS[11] = _migrate_v11_to_v12
+
+
+def _migrate_v12_to_v13(cfg: dict) -> dict:
+    """Add title-bar button visibility toggles (default all True)."""
+    cfg.setdefault("cfg_enabled", True)
+    cfg.setdefault("run_enabled", True)
+    cfg.setdefault("proto_enabled", True)
+    return cfg
+
+
+MIGRATIONS[12] = _migrate_v12_to_v13
 
 
 def migrate_config(cfg: dict) -> dict:

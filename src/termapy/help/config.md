@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 12,
+    "config_version": 13,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -75,6 +75,9 @@ Here is an example config for a device called `iot_device`:
     "hex_mode": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
+    "cfg_enabled": true,
+    "run_enabled": true,
+    "proto_enabled": true,
     "custom_buttons": [
         {
             "enabled": true,
@@ -133,6 +136,9 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `cli_intellisense`       | `true`                | Enable CLI tab completion, auto-suggest, and help toolbar                                   |
 | `config_read_only`       | `false`               | Disable Edit button in pickers (`/cfg` still changes in-memory values)                      |
 | `os_cmd_enabled`         | `false`               | Allow `/os` to run shell commands                                                           |
+| `cfg_enabled`            | `true`                | Show the Cfg button in the title bar                                                        |
+| `run_enabled`            | `true`                | Show the Run button in the title bar                                                        |
+| `proto_enabled`          | `true`                | Show the Proto button in the title bar                                                      |
 | `show_traceback`         | `false`               | Show full stack trace on serial errors                                                      |
 | `custom_buttons`         | `[]`                  | Custom button objects (see [Custom Buttons](custom-buttons.md))                             |
 

@@ -214,6 +214,7 @@ class TerminalHost:
             script_stop=lambda: self.repl._script_stop.set(),
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
+            dispatch=self.repl.dispatch,
             set_proto_active=lambda active: setattr(
                 self.engine, "proto_active", active
             ),
@@ -445,11 +446,20 @@ class TerminalHost:
 
         Returns the port number.  The server runs as a daemon thread and
         stops automatically when the process exits.
+
+        After spawning the thread, this method blocks briefly on a
+        localhost GET so the accept loop is definitely running before
+        the browser is handed the URL.  Without the warm-up, the
+        browser's request could land while ``serve_forever`` hasn't
+        yet started -- the connection would sit in the TCP backlog
+        until a page reload (F5) kicked the request through.
         """
         if self._help_server_port:
             return self._help_server_port
         from http.server import HTTPServer, SimpleHTTPRequestHandler
         from importlib.resources import files as pkg_files
+        import urllib.error
+        import urllib.request
 
         html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
 
@@ -461,10 +471,22 @@ class TerminalHost:
                 pass
 
         server = HTTPServer(("127.0.0.1", 0), _QuietHandler)
-        self._help_server_port = server.server_address[1]
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
-        return self._help_server_port
+        # Warm-up GET: returns when the server has actually serviced one
+        # request, confirming the accept loop is live.  URLError / OSError
+        # ignored because the subsequent ``webbrowser.open`` will surface
+        # any real failure to the user directly.
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/", timeout=2
+            ):
+                pass
+        except (urllib.error.URLError, OSError):
+            pass
+        self._help_server_port = port
+        return port
 
     def _hook_help_open(self, ctx, args: str) -> CmdResult:
         """Open a help topic in the local docs server."""

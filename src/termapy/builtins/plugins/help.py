@@ -183,6 +183,8 @@ def _find_candidates(term: str, plugins: dict, prefix: str) -> list[str]:
         return []
     hits: list[str] = []
     for name, plugin in plugins.items():
+        if getattr(plugin, "hidden", False):
+            continue
         help_text = interpolate_help(plugin.help, prefix)
         haystack = f"{name} {help_text}".lower()
         if all(w in haystack for w in words):
@@ -497,6 +499,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             continue
         if plugin.needs.block_until:
             continue
+        if getattr(plugin, "hidden", False):
+            continue
         groups.setdefault(plugin.source, []).append((cmd_name, plugin))
 
     # Unified column width across every section of the landscape so all
@@ -504,7 +508,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     script_only = [
         (cmd_name, plugin)
         for cmd_name, plugin in all_plugins.items()
-        if "." not in cmd_name and plugin.needs.block_until
+        if "." not in cmd_name
+        and plugin.needs.block_until
+        and not getattr(plugin, "hidden", False)
     ]
     directives = ctx.engine.directives or []
     all_names = (
@@ -663,11 +669,15 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
             continue
         if plugin.needs.block_until:
             continue
+        if getattr(plugin, "hidden", False):
+            continue
         groups.setdefault(plugin.source, []).append((cmd_name, plugin))
     script_only = [
         (cmd_name, plugin)
         for cmd_name, plugin in all_plugins.items()
-        if "." not in cmd_name and plugin.needs.block_until
+        if "." not in cmd_name
+        and plugin.needs.block_until
+        and not getattr(plugin, "hidden", False)
     ]
     all_names = (
         [n for names in groups.values() for n, _ in names]

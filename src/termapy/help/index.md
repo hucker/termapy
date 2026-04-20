@@ -23,3 +23,4 @@ Select a topic:
 - [Device help](device-help.md): integrate your device's commands into termapy
 - [Using with git](using-git.md): version control, team workflow, env vars
 - [On AI assistance](on-ai-assistance.md): how termapy was built with Claude, and what testing has to do with it
+- [Acknowledgments](acknowledgments.md): the open-source projects and authors termapy depends on

@@ -138,6 +138,44 @@ class CommandSuggester(Suggester):
 from termapy.scripting import ANSI_RE  # noqa: E402 - used for log stripping
 
 
+def _build_help_tooltip(ver: str):
+    """Build the Help-button tooltip as a Rich renderable.
+
+    Lays the attribution block out as a three-column ``Table.grid``
+    (name / role / author) with a color per column so the tooltip
+    stays scannable instead of running the author names into the
+    role text.
+    """
+    from rich.console import Group
+    from rich.table import Table
+    from rich.text import Text
+
+    # reveng's project URL sits on a second line inside the "role"
+    # column so it aligns under "CRC algorithms" rather than spawning
+    # a free-floating line below the grid.  Rich Table renders ``\n``
+    # inside a cell as multi-line; column widths still line up.
+    reveng_role = Text("CRC algorithms\n", style="white")
+    reveng_role.append("reveng.sourceforge.io", style="dim")
+
+    grid = Table.grid(padding=(0, 2))
+    grid.add_column(style="cyan")
+    grid.add_column(style="white")
+    grid.add_column(style="green")
+    grid.add_row("pyserial",         "serial I/O",   "Chris Liechti")
+    grid.add_row("Textual / Rich",   "TUI + output", "Will McGugan")
+    grid.add_row("prompt_toolkit",   "CLI",          "Jonathan Slenders")
+    grid.add_row("reveng catalogue", reveng_role,    "Greg Cook")
+
+    return Group(
+        Text.from_markup(f"[bold]Termapy v{ver}[/]  [dim]Show help guide.[/]"),
+        Text(""),
+        Text.from_markup("[bold]Built on open source:[/]"),
+        grid,
+        Text(""),
+        Text.from_markup("Type [bold cyan]/credits[/] for full attribution."),
+    )
+
+
 class SerialTerminal(TerminalHost, App):
     """Textual app: scrolling output + local input line."""
 
@@ -604,17 +642,7 @@ class SerialTerminal(TerminalHost, App):
                 proto_btn.tooltip = "Protocol test scripts."
                 yield proto_btn
             help_btn = Button("Help", id="btn-help")
-            help_btn.tooltip = (
-                f"Termapy v{ver} -- Show help guide.\n"
-                "\n"
-                "Built on open source:\n"
-                "  pyserial - serial I/O\n"
-                "  Textual / Rich - TUI + output (Will McGugan)\n"
-                "  prompt_toolkit - CLI (Jonathan Slenders)\n"
-                "  reveng CRC catalogue - Greg Cook\n"
-                "    https://reveng.sourceforge.io\n"
-                "See ACKNOWLEDGMENTS.md for full attribution."
-            )
+            help_btn.tooltip = _build_help_tooltip(ver)
             yield help_btn
             # Hidden at startup; _check_for_updates() unhides this if
             # a newer termapy version is out on PyPI.
@@ -988,6 +1016,19 @@ class SerialTerminal(TerminalHost, App):
             self._hook_run_list,
             source="app",
         )
+        # /run.legacy -- shared handler in termapy.run_legacy; registered
+        # here after /run's tree-override wipe so it sticks.
+        from termapy import run_legacy
+
+        self.repl.register_hook(
+            "run.legacy",
+            run_legacy.ARGS,
+            run_legacy.HELP,
+            run_legacy.HANDLER,
+            source="app",
+            long_help=run_legacy.LONG_HELP,
+            flags=run_legacy.FLAGS,
+        )
         self.repl.register_hook(
             "demo",
             "",
@@ -1017,9 +1058,9 @@ class SerialTerminal(TerminalHost, App):
             source="app",
         )
         self.repl.register_hook(
-            "line_no",
-            "<on|off>",
-            "Toggle line numbers on or off.",
+            "term.line_no",
+            "{on|off}",
+            "Toggle line numbers in serial output (TUI only).",
             self._hook_line_no,
             source="app",
             needs=CapabilitySet(tui_mode=True),
@@ -2774,6 +2815,8 @@ class SerialTerminal(TerminalHost, App):
 
         groups: dict[str, list] = {}
         for name, plugin in self.repl._plugins.items():
+            if getattr(plugin, "hidden", False):
+                continue
             if skip_linux_only and self._LINUX_ONLY_RE.search(plugin.help or ""):
                 continue
             if filter_term and filter_term not in name.lower():

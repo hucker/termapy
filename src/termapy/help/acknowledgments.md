@@ -57,7 +57,45 @@ by **Jonathan Slenders**.  Every long-running command in CLI mode
 renders correctly above the prompt because prompt_toolkit handles
 that for us.
 
-## Others
+## Other runtime dependencies
+
+Termapy would not exist without a long tail of packages from PyPI.
+Each one below is a direct runtime dependency declared in
+``pyproject.toml``:
+
+- [**pygments**](https://pygments.org/) -- syntax highlighting for
+  the in-app TextArea editors (config JSON, proto TOML, script
+  bash).  Started by **Georg Brandl** and now maintained by the
+  Pygments team.
+- [**tree-sitter**](https://tree-sitter.github.io/) + the JSON /
+  TOML / bash grammars -- incremental parsers powering the same
+  editors.  Tree-sitter itself was started by **Max Brunsfeld** at
+  GitHub; the grammar packages are community-maintained.
+- [**packaging**](https://packaging.pypa.io/) -- PEP 440 version
+  comparison used by ``/include`` for device command help JSON
+  versioning.  Maintained by the Python Packaging Authority (PyPA).
+- [**platformdirs**](https://github.com/platformdirs/platformdirs)
+  -- cross-platform user state / config directory resolution
+  (community fork of the original ``appdirs`` by ActiveState).
+
+## Vendored code
+
+Three packages are vendored under ``src/termapy/vendor/`` rather
+than being runtime dependencies -- see
+[vendor/LICENSES.md](src/termapy/vendor/LICENSES.md) for versions
+and licenses:
+
+- **pyserial** -- vendored because upstream hasn't cut a release
+  since November 2020 and we need fixes that only exist in the
+  tip.  Chris Liechti (above).
+- **xmodem** by **Wijnand Modderman**, **Jeff Quast**, and **Andrew
+  Leech** -- the classic XMODEM / XMODEM-CRC / XMODEM-1K protocol
+  implementation.
+- **ymodem** by **alexwoo** -- the companion YMODEM batch
+  implementation (``ordered-set`` dependency replaced with built-in
+  ``set()``).
+
+## Docs and demo
 
 - [**zensical**](https://github.com/hucker/zensical) generates the
   HTML help site from the same Markdown files shipped with the app.

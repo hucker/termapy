@@ -156,7 +156,7 @@ The most common ones:
 | `/ss.svg [name]`                   | Save SVG screenshot                                    |
 | `/cls`                             | Clear the terminal                                     |
 | `/run <filename>`                  | Run a script file                                      |
-| `/echo [on \| off]`                | Toggle command echo                                    |
+| `/term.echo [on \| off]`           | Toggle command echo                                    |
 | `/grep <pattern>`                  | Search scrollback                                      |
 | `/exit`                            | Exit termapy                                           |
 
@@ -205,13 +205,21 @@ The most common ones:
 | `/print.r <text>`                   | Print Rich markup text (e.g. `[bold red]Warning![/]`)                           |
 | `/show <name>`                      | Show a file                                                                     |
 | `/show.cfg`                         | Show the current config file                                                    |
-| `/echo [on \| off]`                 | Toggle REPL command echo                                                        |
-| `/echo.quiet <on \| off>`           | Set echo on/off silently (for scripts and on_connect_cmd)                       |
+| `/term`                             | Terminal display / session toggles (echo, line_no, timestamps, ...)             |
+| `/term.info`                        | Snapshot the state of every `/term.*` toggle                                    |
+| `/term.echo [on \| off]`            | Toggle REPL command echo                                                        |
+| `/term.echo.quiet <on \| off>`      | Set echo on/off silently (for scripts and on_connect_cmd)                       |
+| `/term.line_no [on \| off]`         | Toggle line numbers in serial output (TUI only)                                 |
+| `/term.line_endings [on \| off]`    | Toggle visible `\r` `\n` markers for line-ending troubleshooting                |
+| `/term.verbose [on \| off]`         | Toggle verbose status output                                                    |
+| `/term.timestamps [on \| off]`      | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                        |
+| `/term.hex [on \| off]`             | Toggle hex display of incoming bytes                                            |
+| `/term.encoding {name}`             | Show or set byte-decoding encoding (utf-8, latin-1, ...)                        |
+| `/term.send_bare_enter [on \| off]` | Send line ending on empty Enter                                                 |
 | `/edit <file>`                      | Edit a project file (`run/`/`proto/` path)                                      |
 | `/edit.cfg`                         | Edit the current config file                                                    |
 | `/edit.log`                         | Open the session log in the system viewer                                       |
 | `/edit.info`                        | Open the info report in the system viewer                                       |
-| `/show_line_endings [on \| off]`    | Toggle visible `\r` `\n` markers for line-ending troubleshooting                |
 | `/os <cmd>`                         | Run a shell command (10s timeout, requires `os_cmd_enabled`)                    |
 | `/grep <pattern>`                   | Search scrollback for regex matches (case-insensitive, skips own output)        |
 | `/cfg.info {--display}`             | Show project summary; `--display` opens full report in system viewer            |
@@ -797,7 +805,7 @@ Summary: 4/4 PASS (4 tests)
 
 ### CRC algorithms
 
-Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md)) is built in: 64 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
+Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in: 64 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
 
 </details>
 

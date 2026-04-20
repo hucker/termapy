@@ -3,7 +3,7 @@
 Generic Rocksoft/Williams CRC computation with 60+ named algorithms
 from the reveng CRC catalogue (maintained by Greg Cook at
 https://reveng.sourceforge.io/crc-catalogue/all.htm -- see
-ACKNOWLEDGMENTS.md for full attribution).  Supports user-defined CRC
+help/acknowledgments.md for full attribution).  Supports user-defined CRC
 plugins via .py files.
 
 Pure functions and classes with no Textual or pyserial dependencies.
@@ -99,7 +99,7 @@ def _generic_crc(
 # ---------------------------------------------------------------------------
 # Maintained by Greg Cook since 1999.
 # Source: https://reveng.sourceforge.io/crc-catalogue/all.htm
-# See ACKNOWLEDGMENTS.md in the project root for full attribution.
+# See help/acknowledgments.md (or /credits in-app) for full attribution.
 #
 # Each entry: width, poly (normal form), init, refin, refout, xorout, check.
 # check = CRC of b"123456789" - used as test vectors.

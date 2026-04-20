@@ -23,7 +23,7 @@
     
     
       
-        <title>Variables - Termapy Help v0.61.0</title>
+        <title>Variables - Termapy Help v0.62.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.61.0" class="md-header__button md-logo" aria-label="Termapy Help v0.61.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.62.0" class="md-header__button md-logo" aria-label="Termapy Help v0.62.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.61.0
+            Termapy Help v0.62.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.61.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.61.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.62.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.62.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.61.0
+    Termapy Help v0.62.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -575,6 +575,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#env-expansion-composes-with-port-resolution-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Env expansion composes with port-resolution fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -965,6 +982,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#env-expansion-composes-with-port-resolution-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Env expansion composes with port-resolution fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1130,8 +1164,33 @@ Scripts button or Run menu.</p>
 especially useful in config files for values that differ per machine:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$(env.TERMAPY_PORT|COM4)&quot;</span>
 </span></code></pre></div>
-<p>The <code>|</code> provides a fallback default. See <a href="using-git.html">Using with Git</a>
-for team workflow details.</p>
+<p>The <code>|</code> inside the <code>$(env.NAME|...)</code> provides a fallback <strong>when the
+env variable is unset</strong>.</p>
+<h3 id="env-expansion-composes-with-port-resolution-fallback">Env expansion composes with port-resolution fallback<a class="headerlink" href="#env-expansion-composes-with-port-resolution-fallback" title="Permanent link">&para;</a></h3>
+<p>For the <code>port</code> field specifically there is a second, independent <code>|</code>
+that lives at the port-resolution layer: termapy splits the <code>port</code>
+value on <code>|</code> at open time and tries each candidate (device name or
+USB serial number) in order. These layers compose cleanly -- env
+expansion runs first, then port resolution:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$(env.DEVICE_SN)|COM3&quot;</span>
+</span></code></pre></div>
+<ul>
+<li><code>$(env.DEVICE_SN)</code> expands to the env value (or stays as the
+  placeholder if unset).</li>
+<li>The resulting string is fed to port resolution, which tries the
+  SN first and <code>COM3</code> if it doesn't match.</li>
+</ul>
+<p>Both forms are valid and do slightly different things:</p>
+<ul>
+<li><code>"port": "$(env.DEVICE_SN|COM4)"</code> -- env-layer fallback. If
+  <code>DEVICE_SN</code> is unset, the value is literally <code>COM4</code>.</li>
+<li><code>"port": "$(env.DEVICE_SN)|COM3"</code> -- port-resolution fallback. The
+  env value (whatever it is, even a wrong SN) is tried first, then
+  <code>COM3</code> if resolution fails. The idiomatic form for port specs.</li>
+</ul>
+<p>See <a href="ports.html#stable-port-specs">ports.md</a> for the full port-spec
+grammar, and <a href="using-git.html">Using with Git</a> for team workflow
+details.</p>
 <table>
 <thead>
 <tr>
@@ -1156,8 +1215,8 @@ for team workflow details.</p>
 </table>
 <h2 id="sequence-counters">Sequence counters<a class="headerlink" href="#sequence-counters" title="Permanent link">&para;</a></h2>
 <p>Auto-incrementing counters for scripts (useful for numbered filenames):</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>/ss.svg capture_{seq1+}    # capture_1.svg, capture_2.svg, ...
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>AT+READ {seq2+}            # independent counter
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>/ss.svg capture_{seq1+}    # capture_1.svg, capture_2.svg, ...
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>AT+READ {seq2+}            # independent counter
 </span></code></pre></div>
 <p>Use <code>{seqN+}</code> to increment and substitute, <code>{seqN}</code> to substitute
 without incrementing. Counters 1--9 are available.</p>
@@ -1212,10 +1271,10 @@ without incrementing. Counters 1--9 are available.</p>
 </table>
 <h2 id="escaping">Escaping<a class="headerlink" href="#escaping" title="Permanent link">&para;</a></h2>
 <p>Use <code>\$</code> to prevent expansion:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>/print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>/print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
 </span></code></pre></div>
 <p>Use <code>/raw</code> to send a line with no expansion at all:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0
 </span></code></pre></div>
 <h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
 <p>User variables persist for the session. They are cleared automatically

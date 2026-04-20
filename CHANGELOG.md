@@ -1,5 +1,123 @@
 # Changelog
 
+## 0.62.0 (2026-04-19)
+
+CLI-mode release.  Termapy's ``--cli`` frontend gained a lot of
+polish: it now runs without a config file, knows how to switch
+configs in a live session, keeps long device responses from
+colliding with the next prompt, and got one bug fix that was
+actively breaking ``help``-style commands on firmware.  The
+``cfg["port"]`` field learned to take USB serial numbers with
+pipe-separated fallback chains, and every folder-owning command now
+exposes the same ``list / explore / show / dump / clear`` subcommand
+family.
+
+### 0.62.0 New Features
+
+- **USB serial numbers in the port field** -- ``cfg["port"]`` now
+  accepts a USB serial number (``"A1B2C3D4"``) in addition to a
+  device name, with a ``|``-separated fallback chain:
+
+      "port": "A1B2C3D4|COM3"
+
+  *"Prefer serial number A1B2C3D4; if it's not connected, fall back
+  to COM3."*  Stable across replugs, stable across machines, stable
+  across reboots.  Resolution happens at every connect, so
+  unplug/replug events automatically find the device's new COM
+  number when the SN survives.  Composes cleanly with environment
+  expansion: ``"$(env.DEVICE_SN)|COM3"`` works.  Ambiguous serial
+  numbers (two devices sharing ``"0001"`` from cheap CH340 clones)
+  are a hard error naming both colliding devices, not a silent
+  guess.
+
+- **Zero-config ``--cli`` mode** -- ``termapy --cli`` with no config
+  file used to print ``"no config found"`` and exit.  Now it shows
+  a welcome banner listing available ports, names the built-in
+  defaults (115200 N81 cr noecho), and hints at ``/port.open
+  <name>``.  You can talk to a serial device without ever writing a
+  ``.cfg`` file.
+
+- **``/cfg.load <name>``** -- switch configs inside a live CLI
+  session.  Pairs with zero-config mode: ``termapy --cli`` ->
+  ``/cfg.load myproj`` -> you're in the project.  No more exiting
+  and re-running to change configs.
+
+- **``/port.open`` line-ending + echo tokens** --
+  ``/port.open COM4 9600 N81 crlf echo`` sets baud + frame mode +
+  line ending + echo in one command.  New tokens: ``cr`` / ``lf`` /
+  ``crlf`` for line ending, ``echo`` / ``noecho`` for echo.  Port
+  name must come first; everything else is order-independent.
+
+- **Uniform folder subcommand family** -- every folder-owning
+  command (``/ss``, ``/run``, ``/proto``, ``/cap``, ``/cfg``,
+  ``/plugin``, ``/app``) now exposes the same shape:
+
+      /<folder>.list       list files
+      /<folder>.explore    open folder in file manager
+      /<folder>.show       open newest file in system viewer
+      /<folder>.dump       print newest (or named) file to terminal
+      /<folder>.clear      delete all files (only on ss, cap, prof)
+
+  Which of show/dump/clear is exposed follows the folder's nature:
+  user-authored folders (run/, proto/, plugin/) don't get a
+  ``.clear``; machine-generated folders (ss/, cap/, prof/) do.  No
+  more guessing whether it's ``.configs`` or ``.dir`` or ``.list``.
+
+### 0.62.0 Improvements
+
+- **Long device responses no longer chop the next prompt** -- a
+  device streaming 40+ lines of ``help`` output in ``--cli`` mode
+  used to race with prompt_toolkit's prompt redraw and leave the
+  prompt overlaid mid-stream.  The interactive loop now runs under
+  prompt_toolkit's ``patch_stdout`` so reader-thread output gets
+  buffered and inserted above the active prompt instead of
+  colliding with it.  The TUI was never affected (it has a
+  separate input widget); only ``--cli`` had this bug.
+
+- **``/port <SN>`` status line names the actual device** -- when
+  you typed ``/port A1B2C3D4``, the status said ``Port changed to
+  A1B2C3D4 (session)`` even though you were actually on COM4.
+  Now says ``Port changed to COM4 (session)``, matching the
+  already-correct connect banner.
+
+- **``termapy>`` prompt in zero-config** -- previously the CLI
+  prompt read ``none>`` when no config was loaded (the ``$(CFG)``
+  variable fell back to the literal ``"none"``).  The zero-config
+  fallback is now ``"termapy"``, so you see ``termapy>`` instead.
+
+- **Bottom toolbar removed** -- prompt_toolkit was reserving a
+  full-width row below the prompt for a help tooltip that never
+  populated.  The completion dropdown (still there, via Tab) is
+  scaled to terminal height: 8 rows of dropdown on a 40+-line
+  terminal, 4 rows on smaller, 0 (no dropdown) below 10 rows.
+
+- **Empty ``"port": ""`` in configs now warns** -- a valid port is
+  any of: literal device name, USB serial number, reserved name
+  (``"DEMO"``, ``"DEMO_FAIL"``), or pyserial URL.  Empty string is
+  invalid and now produces a validation warning on config load.
+  The zero-config CLI path is the only legitimate place ``port=""``
+  appears; it synthesizes in memory and never persists.
+
+- **CI publish workflow handles PyPI double-upload** --
+  ``release_publish.py`` publishes to PyPI from the dev machine,
+  then GitHub's ``release:published`` event triggers the Actions
+  workflow which tries to upload again.  Previously the second
+  upload failed with "file already exists" and the workflow showed
+  red on every release.  Now uses ``uv publish --check-url`` which
+  detects the already-published file and exits 0.
+
+### Breaking changes
+
+- ``/cfg.configs`` renamed to ``/cfg.list``.
+- ``/ss.dir`` removed; use ``/ss.list`` (which actually lists files,
+  not just the folder path).
+- The ``/cfg.<folder>`` listing subtree is gone --
+  ``/cfg.run``, ``/cfg.ss``, ``/cfg.proto``, ``/cfg.cap``,
+  ``/cfg.prof``, ``/cfg.plugin``, ``/cfg.viz`` and their
+  ``.dump/.show/.explore/.clear`` children.  Use top-level
+  ``/run.list``, ``/ss.list``, ``/proto.list``, ``/cap.list``,
+  ``/plugin.list``, etc. instead.
+
 ## 0.61.0 (2026-04-18)
 
 Quality-of-life release.  Termapy now tells you when a new version is

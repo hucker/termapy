@@ -167,11 +167,18 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/print.r <text>`              | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `/show <name>`                 | Show a file                                                                 |
 | `/show.cfg`                    | Show the current config file                                                |
-| `/echo [on\|off]`              | Toggle command echo                                                         |
-| `/echo.quiet <on\|off>`        | Set echo on/off silently (for scripts and on_connect_cmd)                   |
+| `/term`                        | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
+| `/term.info`                   | Snapshot the state of every `/term.*` toggle                                |
+| `/term.echo [on\|off]`         | Toggle command echo                                                         |
+| `/term.line_no [on\|off]`      | Toggle line numbers in serial output (TUI only)                             |
+| `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
+| `/term.verbose [on\|off]`      | Toggle verbose status output                                                |
+| `/term.timestamps [on\|off]`   | Toggle `[HH:MM:SS.mmm]` timestamp prefix on each line                       |
+| `/term.hex [on\|off]`          | Toggle hex display of incoming bytes                                        |
+| `/term.encoding {name}`        | Show or set byte-decoding encoding (utf-8, latin-1, ascii, cp437)           |
+| `/term.send_bare_enter [on\|off]` | Send line ending on empty Enter                                          |
 | `/os <cmd>`                    | Run a shell command (requires `os_cmd_enabled`)                             |
 | `/grep <pattern>`              | Search scrollback for regex matches (case-insensitive, skips own output)    |
-| `/show_line_endings {on\|off}` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
 | `/edit <file>`                 | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.cfg`                    | Edit the current config file                                                |
 | `/edit.log`                    | Open the session log in the system viewer                                   |

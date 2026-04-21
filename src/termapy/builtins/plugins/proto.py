@@ -1106,7 +1106,7 @@ COMMAND = Command(
                 "\n"
                 "Every algorithm is verified against its catalogue check\n"
                 "value (the CRC of the ASCII string '123456789') on every\n"
-                "test run.  See ACKNOWLEDGMENTS.md for full attribution."
+                "test run.  See {prefix}credits for full attribution."
             ),
             sub_commands={
                 "list": Command(

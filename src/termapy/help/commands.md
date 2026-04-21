@@ -52,11 +52,18 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `/show <name>`            | Show a file                                                                 |
 | `/show.cfg`               | Show the current config file                                                |
-| `/echo [on\|off]`         | Toggle command echo                                                         |
-| `/echo.quiet <on\|off>`   | Set echo on/off silently (for scripts and on_connect_cmd)                   |
+| `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
+| `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
+| `/term.echo [on\|off]`    | Toggle command echo                                                         |
+| `/term.line_no [on\|off]` | Toggle line numbers in serial output (TUI only)                             |
+| `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output                      |
+| `/term.verbose [on\|off]` | Toggle verbose status output                                                |
+| `/term.timestamps [on\|off]` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
+| `/term.hex [on\|off]`     | Toggle hex display of incoming bytes                                        |
+| `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
+| `/term.send_bare_enter [on\|off]` | Send line ending on empty Enter                                     |
 | `/os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive)                      |
-| `/show_line_endings {on\|off}` | Toggle visible `\r` `\n` markers in serial output                      |
 | `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.run {file}`        | Edit a .run script, or list available scripts if no name given              |
 | `/edit.proto {file}`      | Edit a .pro file, or list available files if no name given                  |

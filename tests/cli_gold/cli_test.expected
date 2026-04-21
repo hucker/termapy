@@ -32,6 +32,7 @@ OK
 demo> AT+LED off
 OK
   === section: print and echo ===
+    Note: /echo is legacy; use /term.echo.
   off
   echo is off - this should appear
   on
@@ -280,6 +281,7 @@ demo> /port
 demo> /print === section: line endings ===
   === section: line endings ===
 demo> /show_line_endings on
+    Note: /show_line_endings is legacy; use /term.line_endings.
   show_line_endings = True  (session)
   on
 demo> /show_line_endings off
@@ -410,7 +412,7 @@ DESCRIPTION
 
   Every algorithm is verified against its catalogue check
   value (the CRC of the ASCII string '123456789') on every
-  test run.  See ACKNOWLEDGMENTS.md for full attribution.
+  test run.  See /credits for full attribution.
 
 SUBCOMMANDS
   /proto.crc.c         Generate C source code for a CRC algorithm.
@@ -598,6 +600,7 @@ FLAGS
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
   /run.explore    Open run/ in the system file explorer.
+  /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       List files in run/.
   /run.profile    Run a script with per-command timing.
   /run.show       Open the newest file in run/ with the system viewer.
@@ -618,52 +621,50 @@ demo> /print === section: help.plugin ===
   === section: help.plugin ===
 demo> /help.plugin
 -- Application --
-  /cli                  Already in CLI mode.
-  /clr                  Clear the terminal screen (alias for /cls).
-  /color                Show or toggle color output.
-  /delay                Wait for duration with progress bar (e.g. 500ms, 1.5s).
-  /demo                 Set up and switch to the demo device config.
-  /raw                  Send raw text to serial (no transforms or line ending).
-  /run                  Run a script file, or list available scripts.
-  /tui                  Switch to TUI mode.
+  /cli        Already in CLI mode.
+  /clr        Clear the terminal screen (alias for /cls).
+  /color      Show or toggle color output.
+  /delay      Wait for duration with progress bar (e.g. 500ms, 1.5s).
+  /demo       Set up and switch to the demo device config.
+  /raw        Send raw text to serial (no transforms or line ending).
+  /run        Run a script file, or list available scripts.
+  /tui        Switch to TUI mode.
 
 -- Application Plugins --
-  /app                  App-wide state and config.
-  /cap                  Data capture tools.
-  /cfg                  Show or change config values.
-  /cls                  Clear the terminal screen.
-  /echo                 Toggle REPL command echo. Use /echo.quiet to set silently.
-  /edit                 Open a project file in the system editor.
-  /env                  Manage $(env.NAME) expansion for CLI commands.
-  /exit                 Exit termapy.
-  /grep                 Search the scrollback for lines matching a pattern (case-insensitive regex).
-  /help                 Show the command landscape or look up a specific command.
-  /include              Include device command help from JSON response.
-  /line_no              Toggle line numbers on or off.
-  /os                   Run a shell command and show output (10s timeout). e.g. /os dir
-  /ping                 Send a command and measure response time.
-  /plugin               Plugin-folder tools: list, explore, show, dump.
-  /port                 Serial port tools: open, close, list, configure.
-  /print                Print a message to the terminal.
-  /proto                Binary protocol tools: send, run, debug, hex, crc, status.
-  /repeat               Repeat a command N times with optional delay (escape to cancel).
-  /search               Deep-search every command's metadata (name, help, args, flags, long help).
-  /seq                  Show sequence counters.
-  /show                 Show a file.
-  /show_line_endings    Toggle visible \r \n markers in serial output for line-ending troubleshooting.
-  /ss                   Screenshot tools: save SVG/text, manage folder.
-  /stop                 Abort a running script.
-  /var                  List user variables, or show one by name.
-  /ver                  Show termapy version.
-  /verbose              Show or toggle verbose status output. Use /verbose.quiet to set silently.
-  /xfer                 File transfer settings.
-  /xmodem               XMODEM file transfer.
-  /ymodem               YMODEM file transfer (batch, 1K blocks).
+  /app        App-wide state and config.
+  /cap        Data capture tools.
+  /cfg        Show or change config values.
+  /cls        Clear the terminal screen.
+  /credits    Show acknowledgments / third-party attributions.
+  /edit       Open a project file in the system editor.
+  /env        Manage $(env.NAME) expansion for CLI commands.
+  /exit       Exit termapy.
+  /grep       Search the scrollback for lines matching a pattern (case-insensitive regex).
+  /help       Show the command landscape or look up a specific command.
+  /include    Include device command help from JSON response.
+  /os         Run a shell command and show output (10s timeout). e.g. /os dir
+  /ping       Send a command and measure response time.
+  /plugin     Plugin-folder tools: list, explore, show, dump.
+  /port       Serial port tools: open, close, list, configure.
+  /print      Print a message to the terminal.
+  /proto      Binary protocol tools: send, run, debug, hex, crc, status.
+  /repeat     Repeat a command N times with optional delay (escape to cancel).
+  /search     Deep-search every command's metadata (name, help, args, flags, long help).
+  /seq        Show sequence counters.
+  /show       Show a file.
+  /ss         Screenshot tools: save SVG/text, manage folder.
+  /stop       Abort a running script.
+  /term       Terminal display / session toggles (echo, line_no, timestamps, ...).
+  /var        List user variables, or show one by name.
+  /ver        Show termapy version.
+  /xfer       File transfer settings.
+  /xmodem     XMODEM file transfer.
+  /ymodem     YMODEM file transfer (batch, 1K blocks).
 
 -- Script Commands (.run files only) --
-  /confirm              Show Yes/Cancel dialog; Cancel stops a running script.
-  /expect               Wait for text in serial output (script-only).
-  41 commands.
+  /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
+  /expect     Wait for text in serial output (script-only).
+  39 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
@@ -721,7 +722,8 @@ demo> /port.break -5
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===
 demo> /line_no on
-  Error: /line_no requires: tui_mode (not available in this environment)
+    Note: /line_no is legacy; use /term.line_no.
+  Error: /term.line_no requires: tui_mode (not available in this environment)
 demo> /ss.svg
   Error: /ss.svg requires: screen_capture (not available in this environment)
 demo> /ss.txt

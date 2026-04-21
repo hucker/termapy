@@ -36,6 +36,7 @@ def repl_env(tmp_path):
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
         coerce_type=ReplEngine._coerce_type,
+        dispatch=engine.dispatch,
     )
     def write_markup(text):
         output.append((text, "markup"))
@@ -57,6 +58,10 @@ def repl_env(tmp_path):
             screen_capture=True,
             serial_connected=True,
         ),
+        # Wire ctx.dispatch so handlers that forward to other commands
+        # (legacy aliases like /echo -> /term.echo) actually reach the
+        # target handler instead of hitting the default no-op lambda.
+        dispatch=engine.dispatch,
     )
     engine.set_context(ctx)
     # Seed the engine-reserved `flags` namespace with the defaults that

@@ -314,6 +314,18 @@ class CLITerminal(TerminalHost):
                 sub_cmd.handler,
                 source="app",
             )
+        # /run.legacy -- re-install after the /run tree-override wipe.
+        from termapy import run_legacy
+
+        self.repl.register_hook(
+            "run.legacy",
+            run_legacy.ARGS,
+            run_legacy.HELP,
+            run_legacy.HANDLER,
+            source="app",
+            long_help=run_legacy.LONG_HELP,
+            flags=run_legacy.FLAGS,
+        )
         self.repl.register_hook(
             "demo",
             "",

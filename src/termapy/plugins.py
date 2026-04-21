@@ -358,6 +358,13 @@ class Command:
             the context lacks any declared capability, failing with a
             clear message naming what's missing.  See ``CapabilitySet``
             for the full vocabulary.
+        hidden: When True, this command is omitted from ``/help``
+            listings, the ``/`` popup, ``/search`` results, and other
+            discovery surfaces.  Still dispatches normally -- so legacy
+            aliases (``/echo`` -> ``/term.echo``) can forward silently
+            without polluting the user's sense of the "real" command
+            surface.  ``/help <name>`` with an exact hidden name still
+            shows the help.
     """
 
     help: str
@@ -369,6 +376,7 @@ class Command:
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
+    hidden: bool = False
 
 
 @dataclass
@@ -566,6 +574,13 @@ class EngineAPI:
     plugins: dict = field(default_factory=dict)
     in_script: Callable = lambda: False
     script_stop: Callable = lambda: None
+    # Internal dispatch: run a REPL command through the plugin pipeline
+    # (capability gates, flag parsing, etc.) without the serial-output
+    # sugar that ``ctx.dispatch`` adds via dispatch_full.  Used by legacy
+    # forwarders (/echo -> /term.echo) where going back out to
+    # dispatch_full would misinterpret the un-prefixed target as a
+    # serial command.
+    dispatch: Callable = lambda _line: None
     save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
     apply_cfg: Callable = lambda key, val: None
     coerce_type: Callable = lambda val, existing: val
@@ -1031,6 +1046,7 @@ class PluginInfo:
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
+    hidden: bool = False
 
 
 def interpolate_help(text: str, prefix: str) -> str:
@@ -1336,6 +1352,7 @@ def _flatten_command(
         raw_args=node.raw_args,
         flags=dict(node.flags),
         needs=node.needs,
+        hidden=node.hidden,
     )
     result.insert(0, info)
     return result

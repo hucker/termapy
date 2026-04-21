@@ -165,6 +165,8 @@ def _fuzzy_matches(query: str, plugins: dict, include_dev: bool = False,
     fields = _tier_fields(include_dev)
     ranked: list[tuple[int, str, str]] = []
     for name, plugin in plugins.items():
+        if getattr(plugin, "hidden", False):
+            continue
         tier, field = _best_tier(positives[0], name, plugin, fields, ctx)
         if tier is None:
             continue

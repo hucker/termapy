@@ -31,10 +31,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Optional ``"key"`` or ``"key value"`` string.
     """
     parts = args.strip().split(None, 1)
-    # /cfg - show all
+    # Bare /cfg -- TUI opens the Cfg picker dialog (matches the
+    # title-bar button); CLI shows /help cfg.  Use /cfg.dump to print
+    # the loaded config as JSON.
     if not parts:
-        ctx.write(json.dumps(dict(ctx.cfg), indent=4))
-        return CmdResult.ok()
+        if ctx.engine.open_picker is not None:
+            return ctx.engine.open_picker("cfg")
+        return _handler_help(ctx, args)
     key = parts[0]
     if key not in ctx.cfg:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
@@ -151,6 +154,33 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
+def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
+    """Open the current config file in the system viewer.
+
+    Mirrors ``/edit.cfg``; named ``cfg.show`` for symmetry with the
+    folder ``.show`` family on /run, /proto, /ss, etc.
+    """
+    if not ctx.config_path:
+        return CmdResult.fail(msg="No config loaded.")
+    ctx.open_file(Path(ctx.config_path))
+    return CmdResult.ok()
+
+
+def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
+    """Same as ``/help cfg``, plus an AVAILABLE CONFIGS file list."""
+    from termapy.builtins.plugins.help import (
+        _show_command_help,
+        append_files_section,
+    )
+
+    result = _show_command_help(ctx, "cfg")
+    files = sorted(
+        f"{f.parent.name}/{f.name}" for f in cfg_dir().glob("*/*.cfg")
+    )
+    append_files_section(ctx, "AVAILABLE CONFIGS", files)
+    return result
+
+
 # ── Tree-building helpers (shared by info and folder listings) ────────────────
 
 
@@ -168,6 +198,12 @@ def _build_tree(
 ) -> tuple[str, str]:
     """Build plain and Rich-colored directory trees.
 
+    The colored tree is for the terminal output and contains names
+    only.  The plain tree is for the markdown report and appends
+    size / created / modified columns to each file line; folders
+    appear bare.  Columns are space-padded so they align in a
+    monospace ``text`` code-fence.
+
     Args:
         config_path: Path to the config file.
         sections: List of (name, file_list) tuples.
@@ -176,18 +212,13 @@ def _build_tree(
     Returns:
         Tuple of (colored tree for terminal, plain tree for markdown).
     """
-    Path(config_path).stem
+    from termapy.tree_render import FileTree
+
     abs_root = Path(config_path).parent.resolve().as_posix() + "/"
-
-    _DIR = "cyan"
-    _TREE = "dim"
-    _FILE = "blue"
-
-    plain_lines: list[str] = [abs_root]
-    color_lines: list[str] = [f"[{_DIR}]{abs_root}[/]"]
-
     data_dir = Path(config_path).parent
 
+    # Filter to entries that exist on disk; bare files that don't
+    # exist are skipped so the tree never claims a missing artifact.
     entries: list[tuple[str, list[str]]] = []
     for name, files in sections:
         if name.endswith("/"):
@@ -195,36 +226,47 @@ def _build_tree(
         elif (data_dir / name).exists():
             entries.append((name, []))
 
-    for i, (name, files) in enumerate(entries):
-        is_last_entry = i == len(entries) - 1
-        connector = "└── " if is_last_entry else "├── "
-        child_prefix = "    " if is_last_entry else "│   "
-
+    # Pad all file names to the longest one (across both top-level and
+    # nested files, plus any global plugins) so the metadata columns
+    # line up in the monospace markdown fence.
+    name_width = 0
+    for name, files in entries:
         if not name.endswith("/"):
-            plain_lines.append(f"{connector}{name}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{name}[/]")
-        elif files:
-            plain_lines.append(f"{connector}{name}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
-            for j, fname in enumerate(files):
-                child_conn = "└── " if j == len(files) - 1 else "├── "
-                plain_lines.append(f"{child_prefix}{child_conn}{fname}")
-                color_lines.append(
-                    f"[{_TREE}]{child_prefix}{child_conn}[/][{_FILE}]{fname}[/]"
-                )
+            name_width = max(name_width, len(name))
         else:
-            plain_lines.append(f"{connector}{name}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_DIR}]{name}[/]")
+            for fname in files:
+                name_width = max(name_width, len(fname))
+    for fname in global_names or []:
+        name_width = max(name_width, len(fname))
+
+    color_lines = [f"[cyan]{abs_root}[/]"] + FileTree(
+        entries, base_dir=data_dir, color=True,
+    ).render()
+    plain_lines = [abs_root] + FileTree(
+        entries,
+        base_dir=data_dir,
+        file_dates=True,
+        color=False,
+        name_width=name_width,
+    ).render()
 
     if global_names:
+        global_sections = [(fname, []) for fname in global_names]
+        color_lines.append("")
+        color_lines.append("[cyan]plugin/ (global)[/]")
+        color_lines.extend(FileTree(
+            global_sections, base_dir=global_plugins_dir(), color=True,
+        ).render())
+
         plain_lines.append("")
         plain_lines.append("plugin/ (global)")
-        color_lines.append("")
-        color_lines.append(f"[{_DIR}]plugin/ (global)[/]")
-        for i, fname in enumerate(global_names):
-            connector = "└── " if i == len(global_names) - 1 else "├── "
-            plain_lines.append(f"{connector}{fname}")
-            color_lines.append(f"[{_TREE}]{connector}[/][{_FILE}]{fname}[/]")
+        plain_lines.extend(FileTree(
+            global_sections,
+            base_dir=global_plugins_dir(),
+            file_dates=True,
+            color=False,
+            name_width=name_width,
+        ).render())
 
     return "\n".join(color_lines), "\n".join(plain_lines)
 
@@ -320,14 +362,15 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 _CFG_PROSE = """\
 Three modes:
-  {prefix}cfg              - show all config key/value pairs
-  {prefix}cfg baud_rate    - show current value of 'baud_rate'
+  {prefix}cfg                  - TUI: open Cfg picker.  CLI: show this help.
+  {prefix}cfg baud_rate        - show current value of 'baud_rate'
   {prefix}cfg baud_rate 115200 - change with confirmation dialog
 
 Type is auto-detected from the existing value (int, float,
 bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
 Changes are saved to the JSON config file.
 
+Use {prefix}cfg.dump to print every key/value pair as JSON.
 Use {prefix}cfg.auto to set values without confirmation (for scripts)."""
 
 
@@ -374,6 +417,14 @@ COMMAND = Command(
                 ctx.output(json.dumps(dict(ctx.cfg), indent=4)),
                 CmdResult.ok(),
             )[-1],
+        ),
+        "show": Command(
+            help="Open the current config file in the system viewer.",
+            handler=_handler_show,
+        ),
+        "help": Command(
+            help="Show /cfg help.",
+            handler=_handler_help,
         ),
     },
 )

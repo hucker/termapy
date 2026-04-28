@@ -110,23 +110,9 @@ See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against Rea
 | Escape  | Clear input / exit history browsing |
 | Right   | Accept type-ahead suggestion        |
 
-### Note for VS Code users: selecting text in the integrated terminal
-
-The TUI captures mouse events so the usual click-and-drag selection
-in the VS Code integrated terminal doesn't behave the normal way
-while termapy has focus.  The trick that works:
-
-1. Hold **Alt+Shift** and drag to select.
-2. While still holding the left mouse button, **right-click** to copy the
-   selection.
-
-This is a general mouse-capturing-TUI behaviour, not a termapy bug --
-any Textual-based app has the same quirk inside VS Code's terminal.
-Native terminals (Windows Terminal, iTerm2, most Linux terminals)
-typically let you bypass it with plain **Shift+click**.  See the
-[Textual docs on mouse support](https://textual.textualize.io/) for
-the background, and screenshot via Ctrl+S (SVG) or Ctrl+T (text) when
-selection is more trouble than it's worth.
+See [Environment and compatibility](src/termapy/help/environment.md)
+for OS / terminal quirks (VS Code integrated terminal key capture,
+macOS Option-as-Meta, KVM cross-platform keyboards, etc.).
 
 ### Title bar
 
@@ -152,10 +138,10 @@ The most common ones:
 | `/port.list`                       | List available serial ports                            |
 | `/port.open {name} {baud} {mode}`  | Connect with optional baud rate and mode (e.g. N81)    |
 | `/port.info`                       | Show port status and parameters                        |
-| `/cfg [key [value]]`               | Show or change in-memory config                        |
+| `/cfg [key [value]]`               | Open Cfg picker (bare TUI), or get/set values          |
 | `/ss.svg [name]`                   | Save SVG screenshot                                    |
 | `/cls`                             | Clear the terminal                                     |
-| `/run <filename>`                  | Run a script file                                      |
+| `/run {filename}`                  | Open Run picker (bare TUI), or run a named script      |
 | `/term.echo [on \| off]`           | Toggle command echo                                    |
 | `/grep <pattern>`                  | Search scrollback                                      |
 | `/exit`                            | Exit termapy                                           |
@@ -167,7 +153,8 @@ The most common ones:
 | ----------------------------------- | ------------------------------------------------------------------------------- |
 | `/help [cmd]`                       | List commands or show extended help for one                                     |
 | `/help.dev <cmd>`                   | Show a command handler's Python docstring                                       |
-| `/port [name]`                      | Open a port by name, or show subcommands                                        |
+| `/port {name}`                      | Open Port picker (bare TUI), list subcommands (bare CLI), or open by name       |
+| `/port.help`                        | Same as `/help port`                                                            |
 | `/port.list`                        | List available serial ports                                                     |
 | `/port.open {name} {baud} {mode}`   | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81)             |
 | `/port.mode {baud} {mode}`          | Show or set serial mode (e.g. /port.mode 9600 N81)                              |
@@ -185,17 +172,20 @@ The most common ones:
 | `/port.ri`                          | Show RI state (read-only)                                                       |
 | `/port.cd`                          | Show CD state (read-only)                                                       |
 | `/port.break {ms}`                  | Send break signal (default 250ms)                                               |
-| `/cfg [key [value]]`                | Show config, show a key, or change in-memory value (with confirmation)          |
+| `/cfg [key [value]]`                | Open Cfg picker (bare TUI), dump JSON (bare CLI), or get/set with args          |
 | `/cfg.auto <key> <value>`           | Set an in-memory config key immediately (no confirmation)                       |
 | `/cfg.configs`                      | List all config files                                                           |
 | `/cfg.load <name>`                  | Switch to a different config by name                                            |
+| `/cfg.show`                         | Open the current config file in the system viewer                               |
+| `/cfg.help`                         | Same as `/help cfg`                                                             |
 | `/ss.svg [name]`                    | Save SVG screenshot                                                             |
 | `/ss.txt [name]`                    | Save text screenshot                                                            |
 | `/ss.dir`                           | Show the screenshot folder                                                      |
 | `/cls`                              | Clear the terminal screen                                                       |
-| `/run <filename> {-v}`              | Run a script file (-v/--verbose for per-line timing); nests up to 5 levels deep |
+| `/run {filename} {-v}`              | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep       |
 | `/run.list`                         | List .run files in the run/ directory                                           |
 | `/run.load <filename>`              | Run a script file (same as /run)                                                |
+| `/run.help`                         | Same as `/help run`                                                             |
 | `/delay <duration>`                 | Wait for a duration (e.g. `500ms`, `1.5s`)                                      |
 | `/confirm {message}`                | Show Yes/Cancel dialog; Cancel stops a running script (see `at_demo.run`)       |
 | `/stop`                             | Abort a running script                                                          |
@@ -224,6 +214,8 @@ The most common ones:
 | `/grep <pattern>`                   | Search scrollback for regex matches (case-insensitive, skips own output)        |
 | `/cfg.info {--display}`             | Show project summary; `--display` opens full report in system viewer            |
 | `/cfg.files`                        | Show project directory tree                                                     |
+| `/proto`                            | Open Proto picker (bare TUI) or show long-help (bare CLI)                       |
+| `/proto.help`                       | Same as `/help proto`                                                           |
 | `/proto.send <hex>`                 | Send raw hex bytes and/or quoted text, display response as hex (see below)      |
 | `/proto.run <file>`                 | Run a binary protocol test script (.pro) with pass/fail                         |
 | `/proto.list`                       | List .pro files in the proto/ directory                                         |

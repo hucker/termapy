@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from termapy import port_control, usb_serial_chips
 from termapy.help_dynamic import compose, green, port_status, state_line
-from termapy.plugins import CmdResult, Command, interpolate_help
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -32,19 +32,18 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     if name:
         ctx.engine.update_port(name)
         return CmdResult.ok()
-    # No args - list subcommands
-    prefix = ctx.engine.prefix
-    plugins = ctx.engine.plugins
-    info = plugins.get("port")
-    if info and info.children:
-        ctx.write(f"Subcommands of {prefix}port:")
-        for child_name in sorted(info.children):
-            child = plugins.get(child_name)
-            if child:
-                arg_str = f" {child.args}" if child.args else ""
-                help_text = interpolate_help(child.help, prefix)
-                ctx.write(f"  {prefix}{child_name}{arg_str} - {help_text}")
-    return CmdResult.ok()
+    # Bare /port -- TUI opens the port picker (matches clicking the
+    # left title-bar button); CLI shows /help port.
+    if ctx.engine.open_picker is not None:
+        return ctx.engine.open_picker("port")
+    return _handler_help(ctx, args)
+
+
+def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
+    """Same as /help port."""
+    from termapy.builtins.plugins.help import _show_command_help
+
+    return _show_command_help(ctx, "port")
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
@@ -354,6 +353,10 @@ COMMAND = Command(
         "list": Command(
             help="List available serial ports.",
             handler=_handler_list,
+        ),
+        "help": Command(
+            help="Show /port help.",
+            handler=_handler_help,
         ),
         "open": Command(
             args="{name} {baud} {mode}",

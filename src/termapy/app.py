@@ -9,6 +9,7 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 
 import json
 import re
+import os
 import sys
 import threading
 import time
@@ -138,6 +139,41 @@ class CommandSuggester(Suggester):
 from termapy.scripting import ANSI_RE  # noqa: E402 - used for log stripping
 
 
+# Single source of truth for top-row hotkeys.
+# Maps button id -> (key spec, action name, footer label).
+# The key spec may list multiple keys comma-separated (Textual's Binding
+# splits on comma); the first entry is the canonical key shown in
+# tooltips.  Ctrl+Shift+N aliases exist because VS Code's integrated
+# terminal captures bare F-keys (F1=palette, F3=Find Next, etc.) and
+# Alt+F-keys / Alt+digits are unreliable (window-manager menu mnemonics,
+# editor-tab switching).  Ctrl+Shift+digit survives via xterm.js's
+# modifyOtherKeys/csi-u handling.
+# Consumed by SerialTerminal.BINDINGS (via comprehension) and by
+# _hotkey_label() to annotate tooltips, so the keys are defined exactly
+# once and the binding and the tooltip can never drift apart.
+_HOTKEYS: dict[str, tuple[str, str, str]] = {
+    "btn-help":     ("f1,ctrl+shift+1",   "btn_help",        "Help"),
+    "btn-cfg":      ("f2,ctrl+shift+2",   "btn_cfg",         "Cfg"),
+    "btn-scripts":  ("f3,ctrl+shift+3",   "btn_run",         "Run"),
+    "btn-proto":    ("f4,ctrl+shift+4",   "btn_proto",       "Proto"),
+    "title-center": ("f10,ctrl+shift+5",  "btn_open_config", "Open Config"),
+}
+
+
+def _hotkey_label(btn_id: str) -> str:
+    """Return display label like 'F1' for a button, or '' if unbound.
+
+    When the key spec lists multiple keys (e.g. ``"f1,shift+f1"``), the
+    first one is shown -- the rest are silent fallbacks for hosts that
+    capture the primary key.
+    """
+    entry = _HOTKEYS.get(btn_id)
+    if not entry:
+        return ""
+    primary = entry[0].split(",", 1)[0]
+    return primary.upper()
+
+
 def _build_help_tooltip(ver: str):
     """Build the Help-button tooltip as a Rich renderable.
 
@@ -150,6 +186,9 @@ def _build_help_tooltip(ver: str):
     from rich.table import Table
     from rich.text import Text
 
+    hint = _hotkey_label("btn-help")
+    hint_str = f" ({hint})" if hint else ""
+
     # reveng's project URL sits on a second line inside the "role"
     # column so it aligns under "CRC algorithms" rather than spawning
     # a free-floating line below the grid.  Rich Table renders ``\n``
@@ -161,13 +200,16 @@ def _build_help_tooltip(ver: str):
     grid.add_column(style="cyan")
     grid.add_column(style="white")
     grid.add_column(style="green")
-    grid.add_row("pyserial",         "serial I/O",   "Chris Liechti")
-    grid.add_row("Textual / Rich",   "TUI + output", "Will McGugan")
-    grid.add_row("prompt_toolkit",   "CLI",          "Jonathan Slenders")
-    grid.add_row("reveng catalogue", reveng_role,    "Greg Cook")
+    grid.add_row("pyserial",         "serial I/O",     "Chris Liechti")
+    grid.add_row("Textual / Rich",   "TUI + output",   "Will McGugan")
+    grid.add_row("prompt_toolkit",   "CLI",            "Jonathan Slenders")
+    grid.add_row("reveng catalogue", reveng_role,      "Greg Cook")
+    grid.add_row("xmodem",           "file transfer",
+                 "Wijnand Modderman, Jeff Quast, Andrew Leech")
+    grid.add_row("ymodem",           "file transfer",  "alexwoo")
 
     return Group(
-        Text.from_markup(f"[bold]Termapy v{ver}[/]  [dim]Show help guide.[/]"),
+        Text.from_markup(f"[bold]Termapy v{ver}[/]  [dim]Show help guide{hint_str}.[/]"),
         Text(""),
         Text.from_markup("[bold]Built on open source:[/]"),
         grid,
@@ -260,6 +302,7 @@ class SerialTerminal(TerminalHost, App):
     #title-bar #title-center {
         width: 24;
         text-align: center;
+        background: dodgerblue;
     }
     #title-right {
         min-width: 14;
@@ -377,6 +420,19 @@ class SerialTerminal(TerminalHost, App):
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
         Binding("escape", "stop_script", "Stop Script", show=False),
+        # F-keys for top-row buttons -- defined in _HOTKEYS (module top)
+        # so the binding and the tooltip annotation share one source.
+        *[Binding(k, a, lbl, show=False) for (k, a, lbl) in _HOTKEYS.values()],
+        # Alt-key fallbacks: VS Code's integrated terminal (and a few
+        # other hosts) captures Ctrl+P / Ctrl+S / Ctrl+T before the
+        # shell sees them.  Alt-key bindings are rarely intercepted,
+        # so they give every user a path that survives hostile
+        # terminals.  Harmless everywhere else.
+        Binding("alt+q", "quit", "Quit (alt)", show=False),
+        Binding("alt+p", "show_palette", "Command Palette (alt)",
+                show=False, priority=True),
+        Binding("alt+s", "screenshot", "Screenshot (alt)", show=False),
+        Binding("alt+t", "text_screenshot", "Text Screenshot (alt)", show=False),
     ]
 
     PALETTE_CMDS = [
@@ -629,21 +685,21 @@ class SerialTerminal(TerminalHost, App):
 
             if not exit_on_right:
                 yield _make_exit_btn()
-            if self.cfg.get("cfg_enabled", True):
-                cfg_btn = Button("Cfg", id="btn-cfg")
-                cfg_btn.tooltip = "New / Edit / Load config."
-                yield cfg_btn
-            if self.cfg.get("run_enabled", True):
-                run_btn = Button("Run", id="btn-scripts")
-                run_btn.tooltip = "Run a script."
-                yield run_btn
-            if self.cfg.get("proto_enabled", True):
-                proto_btn = Button("Proto", id="btn-proto")
-                proto_btn.tooltip = "Protocol test scripts."
-                yield proto_btn
             help_btn = Button("Help", id="btn-help")
             help_btn.tooltip = _build_help_tooltip(ver)
             yield help_btn
+            if self.cfg.get("cfg_enabled", True):
+                cfg_btn = Button("Cfg", id="btn-cfg")
+                cfg_btn.tooltip = f"New / Edit / Load config ({_hotkey_label('btn-cfg')})."
+                yield cfg_btn
+            if self.cfg.get("run_enabled", True):
+                run_btn = Button("Run", id="btn-scripts")
+                run_btn.tooltip = f"Run a script ({_hotkey_label('btn-scripts')})."
+                yield run_btn
+            if self.cfg.get("proto_enabled", True):
+                proto_btn = Button("Proto", id="btn-proto")
+                proto_btn.tooltip = f"Protocol test scripts ({_hotkey_label('btn-proto')})."
+                yield proto_btn
             # Hidden at startup; _check_for_updates() unhides this if
             # a newer termapy version is out on PyPI.
             update_btn = Button("Update", id="btn-update", variant="warning")
@@ -653,7 +709,8 @@ class SerialTerminal(TerminalHost, App):
             yield Static("", id="title-spacer-l")
             center = Button(title, id="title-center")
             center.tooltip = (
-                f"Config: {self.config_path or 'none'}\nClick to edit config"
+                f"Config: {self.config_path or 'none'}\n"
+                f"Click to edit config ({_hotkey_label('title-center')})"
             )
             yield center
             yield Static("", id="title-spacer-r")
@@ -775,11 +832,57 @@ class SerialTerminal(TerminalHost, App):
         self._setup_vars()
         self._apply_border_color()
         self._build_context()
+        # VS Code tip goes first so it's at the top of the startup
+        # output -- before the plugin-load summary and anything else.
+        # Easy to miss if it's buried mid-startup.
+        self._maybe_show_vscode_tip()
         self._register_tui_hooks()
         self._load_plugins()
         self._run_startup()
         self.repl.fire_lifecycle("on_app_start")
         self._check_for_updates()
+
+    def _maybe_show_vscode_tip(self) -> None:
+        """Inform Windows/Linux VS Code users about the Alt-key fallbacks.
+
+        VS Code's integrated terminal captures Ctrl+P / Ctrl+S / Ctrl+T
+        on Windows and Linux for Quick Open, Save, New Tab.  Those never
+        reach termapy.  macOS VS Code uses Cmd+* for the same actions,
+        so Ctrl+* passes through to the terminal normally -- no tip
+        needed there.
+
+        The Alt+* aliases are bound unconditionally (they cost nothing
+        on non-VS-Code terminals), so on macOS we stay silent even
+        though the bindings still work.
+        """
+        if os.environ.get("TERM_PROGRAM") != "vscode":
+            return
+        if sys.platform == "darwin":
+            return
+        # Banner lines + bold-but-not-italic so the tip stands out at
+        # the top of the output.  _status uses "bold italic <color>"
+        # which renders as a faint dimmed tone; we want something that
+        # actually draws the eye.
+        try:
+            output = self.query_one("#output", RichLog)
+        except SHUTDOWN_RACE:
+            return
+        rule = Text("-" * 72, style="bold green")
+        output.write(rule)
+        output.write(Text(
+            "VS Code detected: F-keys and Ctrl+P/S/T are captured by VS Code.",
+            style="bold green",
+        ))
+        output.write(Text(
+            "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Edit Config.",
+            style="bold green",
+        ))
+        output.write(Text(
+            "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
+            style="bold green",
+        ))
+        output.write(rule)
+        self._log_line("#", "VS Code terminal detected -- Ctrl+Shift+N and Alt-key fallbacks bound.")
 
     @work(thread=True)
     def _check_for_updates(self) -> None:
@@ -914,6 +1017,11 @@ class SerialTerminal(TerminalHost, App):
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks."""
+        # Make bare /cfg, /run, /proto behave like clicking the matching
+        # title-bar button.  Plugin handlers (cfg.py, proto.py) and the
+        # /run hook check this callback when invoked with no args; CLI
+        # leaves it None so they fall through to their CLI fallbacks.
+        self.repl.ctx.engine.open_picker = self._open_picker
         self.repl.register_hook(
             "ss.svg",
             "{name}",
@@ -954,14 +1062,21 @@ class SerialTerminal(TerminalHost, App):
         )
         self.repl.register_hook(
             "run",
-            "<filename>",
-            "Run a script file. Checks scripts/ folder then cwd.",
+            "{filename}",
+            "Run a script file, or open the Run picker if no filename.",
             self._hook_run,
             source="app",
             flags={
                 "--verbose": "Show each command and its result as the script runs.",
                 "-v": "--verbose",
             },
+        )
+        self.repl.register_hook(
+            "run.help",
+            "",
+            "Show /run help.",
+            self._hook_run_help,
+            source="app",
         )
         self.repl.register_hook(
             "run.profile",
@@ -1083,19 +1198,52 @@ class SerialTerminal(TerminalHost, App):
             source="app",
         )
         self.repl.register_hook(
-            "edit.log",
-            "",
-            "Open the session log in the system viewer.",
-            lambda ctx, args: self._hook_edit_log(),
-            source="app",
-        )
-        self.repl.register_hook(
             "log.clear",
             "",
             "Delete the session log file.",
             lambda ctx, args: self._tui_hook_log_clear(),
             source="app",
         )
+        # /log.show, /log.dump, /log.fingerprint -- shared handlers in
+        # termapy.log_show / log_dump / log_fingerprint.
+        from termapy import log_dump, log_fingerprint, log_show
+
+        self.repl.register_hook(
+            "log.show",
+            log_show.ARGS,
+            log_show.HELP,
+            log_show.HANDLER,
+            source="app",
+            long_help=log_show.LONG_HELP,
+        )
+        self.repl.register_hook(
+            "log.dump",
+            log_dump.ARGS,
+            log_dump.HELP,
+            log_dump.HANDLER,
+            source="app",
+            long_help=log_dump.LONG_HELP,
+        )
+        self.repl.register_hook(
+            "log.fingerprint",
+            log_fingerprint.ARGS,
+            log_fingerprint.HELP,
+            log_fingerprint.HANDLER,
+            source="app",
+            long_help=log_fingerprint.LONG_HELP,
+            flags=log_fingerprint.FLAGS,
+        )
+        # /edit.log -- hidden legacy forwarder to /log.show.
+        from termapy.legacy import make_forwarder
+
+        self.repl.register_hook(
+            "edit.log",
+            "",
+            "Open the session log in the system viewer.",
+            make_forwarder("edit.log", "log.show"),
+            source="app",
+        )
+        self.repl._plugins["edit.log"].hidden = True
         self.repl.register_hook(
             "edit.info",
             "",
@@ -1932,7 +2080,9 @@ class SerialTerminal(TerminalHost, App):
             ("show_timestamps", bool(self.cfg.get("show_timestamps"))),
             ("os_cmd_enabled", bool(self.cfg.get("os_cmd_enabled"))),
         ]
-        center.tooltip = self._format_title_tooltip(cfg_title, cfg_pairs, "edit config")
+        center.tooltip = self._format_title_tooltip(
+            cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})"
+        )
 
         # Port button (left) tooltip + label
         try:
@@ -2001,7 +2151,6 @@ class SerialTerminal(TerminalHost, App):
             widget.label = f"{text:^12}"
             widget.styles.background = color
             self.query_one("#title-left", Button).styles.background = color
-            self.query_one("#title-center", Button).styles.background = color
             self._update_conn_tooltip(widget)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
@@ -2950,6 +3099,31 @@ class SerialTerminal(TerminalHost, App):
         """Stop a running script or repeat (Escape key)."""
         self.repl._script_stop.set()
 
+    def action_btn_help(self) -> None:
+        self._btn_help()
+
+    def action_btn_cfg(self) -> None:
+        if self.cfg.get("cfg_enabled", True):
+            self._btn_cfg()
+
+    def action_btn_run(self) -> None:
+        if self.cfg.get("run_enabled", True):
+            self._btn_scripts()
+
+    def action_btn_proto(self) -> None:
+        if self.cfg.get("proto_enabled", True):
+            self._btn_proto()
+
+    def action_btn_open_config(self) -> None:
+        self._btn_title_center()
+
+    def action_help_quit(self) -> None:
+        """Suppress Textual's "Press Ctrl+Q to quit" toast on Ctrl+C.
+
+        Ctrl+Q is shown in the footer; the redundant toast just adds noise.
+        """
+        return
+
     def action_clear_log(self) -> None:
         try:
             self.query_one("#output", RichLog).clear()
@@ -3029,19 +3203,17 @@ class SerialTerminal(TerminalHost, App):
         """Update the Scripts button tooltip with file counts."""
         btn = self.query_one("#btn-scripts", Button)
         count = self._count_files(self.repl.scripts_dir, FOLDER_PATTERNS["run"])
-        btn.tooltip = (
-            f"Run a script ({count} available)." if count else "Run a script (empty)."
-        )
+        hk = _hotkey_label("btn-scripts")
+        suffix = f"{count} available" if count else "empty"
+        btn.tooltip = f"Run a script ({hk}, {suffix})."
 
     def _sync_proto_button(self) -> None:
         """Update the Proto button tooltip with file counts."""
         btn = self.query_one("#btn-proto", Button)
         count = self._count_files(self.repl.proto_dir, FOLDER_PATTERNS["proto"])
-        btn.tooltip = (
-            f"Protocol test scripts ({count} available)."
-            if count
-            else "Protocol test scripts (empty)."
-        )
+        hk = _hotkey_label("btn-proto")
+        suffix = f"{count} available" if count else "empty"
+        btn.tooltip = f"Protocol test scripts ({hk}, {suffix})."
 
     def _sync_cap_button(self) -> None:
         """Update the Captures button tooltip with file counts."""
@@ -3317,11 +3489,6 @@ class SerialTerminal(TerminalHost, App):
         )
         return CmdResult.ok()
 
-    def _hook_edit_log(self) -> CmdResult:
-        """Open the session log in the system viewer."""
-        open_with_system(self._log_path())
-        return CmdResult.ok()
-
     def _tui_hook_log_clear(self) -> CmdResult:
         """Delete the session log file."""
         log_path = self._log_path()
@@ -3430,11 +3597,51 @@ class SerialTerminal(TerminalHost, App):
         return CmdResult.ok()
 
     def _hook_run(self, ctx, args: str) -> CmdResult:
+        # Bare /run -- mirror the title-bar Run button (open ScriptPicker).
+        if not args.strip():
+            self._on_main(self._btn_scripts)
+            return CmdResult.ok()
         verbose = ctx.flag("--verbose")
         path, result = self.repl.start_script(args)
         if path:
             self._run_script(path, verbose=verbose)
         return result
+
+    def _hook_run_help(self, ctx, args: str) -> CmdResult:
+        """Same as /help run, plus an AVAILABLE RUN FILES list."""
+        from termapy.builtins.plugins.help import (
+            _show_command_help,
+            append_files_section,
+        )
+
+        result = _show_command_help(ctx, "run")
+        scripts_dir = ctx.scripts_dir
+        files = (
+            sorted(f.name for f in scripts_dir.glob("*.run"))
+            if scripts_dir.is_dir() else []
+        )
+        append_files_section(ctx, "AVAILABLE RUN FILES", files)
+        return result
+
+    def _open_picker(self, name: str) -> CmdResult:
+        """Open the picker/dialog for a top-level command name.
+
+        Wired into ``EngineAPI.open_picker`` from ``_register_tui_hooks``
+        so that bare ``/cfg``, ``/run``, ``/proto`` invocations behave
+        like clicking the matching title-bar button.  CLI never installs
+        this callback; plugin handlers fall through to their CLI fallback.
+        """
+        dispatch = {
+            "cfg": self._btn_cfg,
+            "run": self._btn_scripts,
+            "proto": self._btn_proto,
+            "port": self._show_port_picker,
+        }
+        fn = dispatch.get(name)
+        if fn is None:
+            return CmdResult.fail(msg=f"Unknown picker: {name}")
+        self._on_main(fn)
+        return CmdResult.ok()
 
     _PROFILE_TMP_PREFIX = "_profile_tmp_"
 

@@ -259,25 +259,40 @@ demo> /port.break 100
 demo> /print === section: port subcommands ===
   === section: port subcommands ===
 demo> /port
-  Subcommands of /port:
-    /port.baud_rate {value} - Show or set baud rate.
-    /port.break {duration_ms} - Send a break signal (default 250ms).
-    /port.byte_size {value} - Show or set data bits.
-    /port.cd - Show Carrier Detect state (read-only).
-    /port.chip {name|*} - Identify USB-serial chip(s) and report USB speed class.
-    /port.close - Disconnect from the serial port.
-    /port.cts - Show CTS state (read-only).
-    /port.dsr - Show DSR state (read-only).
-    /port.dtr {0|1} - Show or set DTR line (hardware only).
-    /port.flow_control {mode} - Show or set flow control (none/rtscts/xonxoff/manual).
-    /port.info - Show status, params, chip, and live signals for the connected port.
-    /port.list - List available serial ports.
-    /port.mode {baud} {mode} - Show or set serial mode (e.g. /port.mode 9600 N81).
-    /port.open {name} {baud} {mode} - Connect to the serial port (e.g. /port.open COM3 9600 N81).
-    /port.parity {value} - Show or set parity.
-    /port.ri - Show Ring Indicator state (read-only).
-    /port.rts {0|1} - Show or set RTS line (hardware only).
-    /port.stop_bits {value} - Show or set stop bits.
+NAME
+  /port - Serial port tools: open, close, list, configure.
+
+SYNOPSIS
+  /port {name}
+
+DESCRIPTION
+  Connected: DEMO @ 115200 8N1
+
+  Open, close, list, or configure the serial port.
+  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
+  USB chip identification (/port.chip.*), and the four mode
+  settings baud_rate, byte_size, parity, stop_bits.
+
+SUBCOMMANDS
+  /port.baud_rate       Show or set baud rate.
+  /port.break           Send a break signal (default 250ms).
+  /port.byte_size       Show or set data bits.
+  /port.cd              Show Carrier Detect state (read-only).
+  /port.chip            Identify USB-serial chip(s) and report USB speed class.
+  /port.close           Disconnect from the serial port.
+  /port.cts             Show CTS state (read-only).
+  /port.dsr             Show DSR state (read-only).
+  /port.dtr             Show or set DTR line (hardware only).
+  /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
+  /port.help            Show /port help.
+  /port.info            Show status, params, chip, and live signals for the connected port.
+  /port.list            List available serial ports.
+  /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
+  /port.open            Connect to the serial port (e.g. /port.open COM3 9600 N81).
+  /port.parity          Show or set parity.
+  /port.ri              Show Ring Indicator state (read-only).
+  /port.rts             Show or set RTS line (hardware only).
+  /port.stop_bits       Show or set stop bits.
 demo> /print === section: line endings ===
   === section: line endings ===
 demo> /show_line_endings on
@@ -365,6 +380,7 @@ SUBCOMMANDS
   /port.dsr             Show DSR state (read-only).
   /port.dtr             Show or set DTR line (hardware only).
   /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
+  /port.help            Show /port help.
   /port.info            Show status, params, chip, and live signals for the connected port.
   /port.list            List available serial ports.
   /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
@@ -384,23 +400,26 @@ DESCRIPTION
   Active cfg = demo (1 config available)
 
   Three modes:
-    /cfg              - show all config key/value pairs
-    /cfg baud_rate    - show current value of 'baud_rate'
+    /cfg                  - TUI: open Cfg picker.  CLI: show this help.
+    /cfg baud_rate        - show current value of 'baud_rate'
     /cfg baud_rate 115200 - change with confirmation dialog
 
   Type is auto-detected from the existing value (int, float,
   bool, string). Bool accepts: true/false, yes/no, on/off, 1/0.
   Changes are saved to the JSON config file.
 
+  Use /cfg.dump to print every key/value pair as JSON.
   Use /cfg.auto to set values without confirmation (for scripts).
 
 SUBCOMMANDS
   /cfg.auto       Set immediately (no confirmation).
   /cfg.dump       Print current config as JSON to the terminal.
   /cfg.explore    Open config directory in file explorer.
+  /cfg.help       Show /cfg help.
   /cfg.info       Show project summary.
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (CLI mode).
+  /cfg.show       Open the current config file in the system viewer.
 demo> /help proto.crc
 NAME
   /proto.crc - Browse and compute CRC algorithms.
@@ -424,7 +443,7 @@ SUBCOMMANDS
   /proto.crc.rust      Generate Rust source code for a CRC algorithm.
 
 SEE ALSO
-  /proto.debug, /proto.dump, /proto.explore, /proto.hex, /proto.list, /proto.run, /proto.send, /proto.show,
+  /proto.debug, /proto.dump, /proto.explore, /proto.help, /proto.hex, /proto.list, /proto.run, /proto.send, /proto.show,
 /proto.status, /proto
 demo> /help var
 NAME
@@ -572,6 +591,7 @@ SUBCOMMANDS
   /proto.debug      Interactive protocol debug screen.
   /proto.dump       Print the newest (or named) file from proto/ to the terminal.
   /proto.explore    Open proto/ in the system file explorer.
+  /proto.help       Show /proto help.
   /proto.hex        Toggle hex display mode.
   /proto.list       List files in proto/.
   /proto.run        Run a protocol test script.
@@ -600,6 +620,7 @@ FLAGS
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
   /run.explore    Open run/ in the system file explorer.
+  /run.help       Show /run help.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       List files in run/.
   /run.profile    Run a script with per-command timing.

@@ -110,6 +110,26 @@ def _handler_line_no_placeholder(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.fail(msg="term.line_no handler not installed")
 
 
+# ── /term.log: write to the session log without echoing to screen ──────────
+
+
+def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
+    """Append a line to the session log without printing it to the terminal.
+
+    Useful for annotating long sessions with markers, timestamps, or
+    events you want to see when reviewing the log later but don't
+    want cluttering the screen while the session is running.
+
+    In CLI mode (no log file), this is a no-op -- the bridge's
+    ``ctx.log`` lambda absorbs the call silently.
+    """
+    text = args.strip()
+    if not text:
+        return CmdResult.fail(msg=f"Usage: {ctx.engine.prefix}term.log <text>")
+    ctx.log("#", text)
+    return CmdResult.ok()
+
+
 # ── /term.info: snapshot ────────────────────────────────────────────────────
 
 
@@ -205,6 +225,20 @@ COMMAND = Command(
         "info": Command(
             help="Snapshot the state of every /term.* toggle.",
             handler=_handler_info,
+        ),
+        "log": Command(
+            args="<text>",
+            help="Append a line to the session log without echoing to screen.",
+            long_help=(
+                "Annotate the session log with a marker the user types but\n"
+                "doesn't want to see in the terminal output.  Useful for\n"
+                "recording events, timestamps, and notes that are only\n"
+                "interesting when reviewing the log after the fact.\n"
+                "\n"
+                "CLI mode has no log file -- the command is a silent no-op\n"
+                "there (returns success, writes nothing)."
+            ),
+            handler=_handler_log,
         ),
     },
 )

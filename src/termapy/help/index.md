@@ -7,6 +7,7 @@ Welcome to `termapy`, a TUI serial terminal with scripting, protocol testing, an
 Select a topic:
 
 - [Installation](installation.md): requirements, install with uv or pip
+- [Environment & compatibility](environment.md): OS, terminal emulators, VS Code quirks, KVM/keyboard gotchas
 - [Demo mode](demo.md): try everything without hardware
 - [Getting started](getting-started.md): connect to real hardware, config files, folder layout
 - [Configuration](config.md): JSON config, field reference, config management

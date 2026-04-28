@@ -17,6 +17,7 @@ theme:
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Environment & compatibility: environment.md
   - Demo Mode: demo.md
   - Getting Started: getting-started.md
   - Configuration: config.md

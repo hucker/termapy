@@ -601,6 +601,11 @@ class EngineAPI:
     rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
     xfer_cancel: Any = None  # threading.Event - set by Escape to cancel transfers
     script_stop_event: Any = None  # threading.Event - set by /stop to abort scripts
+    # Open the picker/dialog associated with a top-level command name
+    # ("cfg", "run", "proto").  TUI installs this in _register_tui_hooks;
+    # CLI leaves it None so plugin handlers fall through to their existing
+    # bare-args behaviour (JSON dump, script list, long-help, etc.).
+    open_picker: Callable | None = None  # (name: str) -> CmdResult
 
 
 class PluginConfig:

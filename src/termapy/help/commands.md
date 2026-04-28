@@ -13,7 +13,8 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.plugin`            | List loaded plugins grouped by source                                       |
 | `/help.dev <cmd>`         | Show a command handler's Python docstring (developer view)                  |
-| `/port [name]`            | Open a port by name, or show subcommands                                    |
+| `/port {name}`            | TUI bare: open Port picker. CLI bare: list subcommands. With name: open it. |
+| `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
 | `/port.list`              | List available serial ports                                                 |
 | `/port.open {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81) |
 | `/port.mode {baud} {mode}` | Show or set serial mode (e.g. /port.mode 9600 N81)                        |
@@ -31,17 +32,20 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/port.ri`                | Show RI state (read-only)                                                   |
 | `/port.cd`                | Show CD state (read-only)                                                   |
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
-| `/cfg [key [value]]`      | View or change config values                                                |
+| `/cfg [key [value]]`      | TUI: open the Cfg picker. Bare in CLI: dump JSON. With args: get/set.       |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
 | `/cfg.configs`            | List all config files                                                       |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
+| `/cfg.show`               | Open the current config file in the system viewer                           |
+| `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
 | `/ss.txt [name]`          | Save a text screenshot                                                      |
 | `/ss.dir`                 | Show the screenshot folder                                                  |
 | `/cls`                    | Clear the terminal                                                          |
-| `/run <file> {-v}`        | Run a script file (-v/--verbose for per-line timing)                        |
+| `/run {file} {-v}`        | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.list`               | List .run files in the run/ directory                                       |
 | `/run.load <file>`        | Run a script file (same as /run)                                            |
+| `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
 | `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                       |
 | `/repeat ...`             | Repeat a command N times: `count=<N> {delay=<dur>} {var=<name>} cmd=<cmd>`  |
@@ -54,6 +58,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/show.cfg`               | Show the current config file                                                |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
+| `/term.log <text>`        | Append a line to the session log without echoing to screen                  |
 | `/term.echo [on\|off]`    | Toggle command echo                                                         |
 | `/term.line_no [on\|off]` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output                      |
@@ -69,11 +74,15 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/edit.proto {file}`      | Edit a .pro file, or list available files if no name given                  |
 | `/edit.plugin {file}`     | Edit a plugin, or list available plugins if no name given                   |
 | `/edit.cfg`               | Edit the current config file                                                |
-| `/edit.log`               | Open the session log in the system viewer                                   |
+| `/log.show`               | Open the session log in the system viewer                                   |
+| `/log.dump {N}`           | Print the session log (all, or last N lines) to the terminal                |
+| `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
 | `/log.clear`              | Delete the session log file                                                 |
 | `/edit.info`              | Open the info report in the system viewer                                   |
 | `/cfg.info {--display}`   | Show project summary; `--display` opens full report                         |
 | `/cfg.files`              | Show project directory tree                                                 |
+| `/proto`                  | TUI: open the Proto picker. CLI: show /proto long-help.                     |
+| `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
 | `/proto.list`             | List .pro files in the proto/ directory                                     |

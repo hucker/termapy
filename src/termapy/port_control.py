@@ -266,17 +266,26 @@ def _result(msgs: list[Msg], **side_effects: Any) -> Result:
 
 
 def list_ports() -> Result:
-    """List available serial ports.
+    """List available serial ports as a picker-style table.
+
+    Output matches the TUI port picker and the ``--ports`` CLI flag:
+    one line per port with PORT / MFG / DESCRIPTION / CHIP / SPEED /
+    VID:PID / SN columns.  Width adapts to the current terminal so
+    low-priority columns (speed, chip, vid_pid) drop before the row
+    wraps.
 
     Returns:
-        Messages with port device and description.
+        Messages: header, separator, then one row per port.
     """
-    from serial.tools.list_ports import comports
+    import shutil
 
-    ports = sorted(comports(), key=lambda p: p.device)
-    if not ports:
+    from termapy.port_format import format_table
+
+    facts_list = _gather_all_chip_facts()
+    if not facts_list:
         return _result([_msg("No serial ports found", "yellow")])
-    return _result([_msg(f"  {p.device}  {p.description or ''}") for p in ports])
+    row_width = shutil.get_terminal_size((80, 24)).columns
+    return _result([_msg(line) for line in format_table(facts_list, row_width)])
 
 
 # Field names exposed by /port.chip.<field> subcommands.  Order is the

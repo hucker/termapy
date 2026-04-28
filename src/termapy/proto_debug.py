@@ -52,10 +52,13 @@ _BTN_CSS = """
 class ProtoDebugScreen(ModalScreen[None]):
     """Interactive protocol debug screen for TOML .pro scripts."""
 
-    BINDINGS = [("ctrl+q", "dismiss_modal", "Close")]
+    BINDINGS = [
+        ("ctrl+q", "dismiss_modal", "Close"),
+        ("escape", "dismiss_modal", "Close"),
+    ]
 
     def action_dismiss_modal(self) -> None:
-        """Close the modal on Ctrl+Q."""
+        """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
     CSS = f"""

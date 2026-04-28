@@ -1633,17 +1633,19 @@ class TestConfirm:
 
 
 class TestCfgRead:
-    def test_cfg_no_args_shows_all(self, repl_env):
-        # Arrange
+    def test_cfg_dump_shows_all(self, repl_env):
+        # Arrange -- bare /cfg now opens the Cfg picker (TUI) or shows
+        # /help cfg (CLI); /cfg.dump is the explicit "print every key"
+        # path that this test guards.
         engine, cfg, _, output = repl_env
 
         # Act
-        engine.dispatch("cfg")
+        engine.dispatch("cfg.dump")
 
         # Assert - should list config keys
         texts = [t for t, _ in output]
-        assert any("port" in t for t in texts)  # shows port key
-        assert any("baud_rate" in t or "115200" in t for t in texts)
+        assert any("port" in t for t in texts), "shows port key"
+        assert any("baud_rate" in t or "115200" in t for t in texts), "shows baud_rate"
 
     def test_cfg_specific_key(self, repl_env):
         # Arrange

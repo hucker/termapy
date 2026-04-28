@@ -409,6 +409,59 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
         )
 
 
+# ── Extension hook: extra man-page section ───────────────────────────────────
+
+
+def append_files_section(
+    ctx: PluginContext,
+    title: str,
+    files: list[str],
+) -> None:
+    """Append a man-page-styled section listing available files as a tree.
+
+    Used by ``_handler_help`` in /cfg, /run, /proto so that
+    ``/cfg.help`` / ``/run.help`` / ``/proto.help`` show what's
+    actually present in the relevant folder right where the user is
+    reading the help.  ``files`` should already be sorted display
+    strings; entries containing a ``/`` are grouped under their first
+    path component (e.g. ``demo/demo.cfg`` becomes a child of
+    ``demo/``).  Entries without ``/`` render at the root level.
+
+    Style matches ``cfg._build_tree``: ``├── └── │`` connectors in
+    dim, directory names in cyan, file names in blue.
+
+    The plain ``/help <name>`` path bypasses this hook -- it stays
+    purely declarative so its output is reproducible across
+    environments and stable for the gold test.
+    """
+    from termapy.tree_render import FileTree
+
+    ctx.write_markup("")
+    ctx.write_markup(_SECTION_FMT.format(text=title))
+    if not files:
+        ctx.write_markup("  (none)")
+        return
+
+    # Group "dir/file" entries under their first component; entries
+    # without "/" render as loose files at the root level (after the
+    # directories, matching the `tree` command's order).
+    dirs: dict[str, list[str]] = {}
+    loose: list[str] = []
+    for f in files:
+        head, sep, tail = f.partition("/")
+        if sep:
+            dirs.setdefault(head, []).append(tail)
+        else:
+            loose.append(f)
+
+    sections: list[tuple[str, list[str]]] = (
+        [(d + "/", dirs[d]) for d in sorted(dirs)]
+        + [(f, []) for f in loose]
+    )
+    for line in FileTree(sections, indent="  ").render():
+        ctx.write_markup(line)
+
+
 # ── Main /help lookup ────────────────────────────────────────────────────────
 
 

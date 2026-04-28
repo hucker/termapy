@@ -166,20 +166,9 @@ things, man-inspired:
 - `/search --dev <word>`   -- also searches handler docstrings.
 - `/help.dev <cmd>`        -- developer view: shows the handler's Python docstring.
 
-## Note for VS Code users: selecting text in the terminal
-
-The TUI captures mouse events so plain click-and-drag selection inside
-the VS Code integrated terminal doesn't behave normally while termapy
-has focus.  What works:
-
-1. Hold **Alt+Shift** and drag to select.
-2. While still holding the left mouse button, **right-click** to copy
-   the selection.
-
-This is general Textual-TUI behaviour, not a termapy bug.  Native
-terminals (Windows Terminal, iTerm2, most Linux terminals) usually
-accept plain **Shift+click** to bypass the TUI's mouse capture.  For
-anything longer, `Ctrl+S` saves an SVG screenshot and `Ctrl+T` a text
-screenshot -- often more useful than a selection.
+For OS / terminal quirks -- VS Code integrated-terminal key capture
+and text-selection behaviour, macOS Option-as-Meta, KVM cross-platform
+keyboard gotchas, Windows vs. Linux vs. macOS support notes -- see
+[Environment and compatibility](environment.md).
 
 ---

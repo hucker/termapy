@@ -203,25 +203,30 @@ class TestHookRaw:
 
 
 class TestHookRun:
-    def test_run_no_script_no_dir(self, cli, tmp_path):
-        # Arrange - run/ dir exists but is empty
+    def test_run_bare_shows_help(self, cli, capsys):
+        # Arrange -- bare /run in CLI now shows /help run for parity with
+        # /cfg, /proto, /port (TUI opens the Run picker; CLI has no picker).
         # Act
         result = cli._hook_run(cli.ctx, "")
 
         # Assert
-        assert result.success, "listing with no files is ok"
+        assert result.success, "bare /run succeeds"
+        actual = capsys.readouterr().out
+        assert "/run" in actual, "help output mentions /run"
+        assert "SUBCOMMANDS" in actual or "Synopsis" in actual or "SYNOPSIS" in actual, (
+            "help output has the man-page shape"
+        )
 
-    def test_run_lists_scripts(self, cli, capsys):
+    def test_run_list_enumerates_scripts(self, cli, capsys):
         # Arrange
         run_dir = Path(cli.config_path).parent / "run"
         (run_dir / "test1.run").write_text("/echo hello")
         (run_dir / "test2.run").write_text("/echo world")
 
         # Act
-        result = cli._hook_run(cli.ctx, "")
+        cli.repl.dispatch("run.list")
 
         # Assert
-        assert result.success, "listing succeeds"
         actual = capsys.readouterr().out
         assert "test1.run" in actual, "first script listed"
         assert "test2.run" in actual, "second script listed"

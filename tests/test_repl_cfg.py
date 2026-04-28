@@ -46,11 +46,13 @@ def repl_env(tmp_path):
 
 class TestCfgShowAll:
     def test_show_all_keys(self, repl_env):
-        # Arrange
+        # Arrange -- bare /cfg now opens the Cfg picker (TUI) or shows
+        # /help cfg (CLI); /cfg.dump is the explicit "print every key"
+        # path.
         engine, cfg, _, output = repl_env
 
         # Act
-        engine.dispatch("cfg")
+        engine.dispatch("cfg.dump")
 
         # Assert
         texts = [t for t, _ in output]

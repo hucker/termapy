@@ -327,6 +327,13 @@ class CLITerminal(TerminalHost):
             flags=run_legacy.FLAGS,
         )
         self.repl.register_hook(
+            "run.help",
+            "",
+            "Show /run help.",
+            self._hook_run_help,
+            source="app",
+        )
+        self.repl.register_hook(
             "demo",
             "",
             "Set up and switch to the demo device config.",
@@ -367,6 +374,34 @@ class CLITerminal(TerminalHost):
             "Delete the session log file.",
             self._hook_log_clear,
             source="app",
+        )
+        # /log.show, /log.dump, /log.fingerprint -- shared handlers.
+        from termapy import log_dump, log_fingerprint, log_show
+
+        self.repl.register_hook(
+            "log.show",
+            log_show.ARGS,
+            log_show.HELP,
+            log_show.HANDLER,
+            source="app",
+            long_help=log_show.LONG_HELP,
+        )
+        self.repl.register_hook(
+            "log.dump",
+            log_dump.ARGS,
+            log_dump.HELP,
+            log_dump.HANDLER,
+            source="app",
+            long_help=log_dump.LONG_HELP,
+        )
+        self.repl.register_hook(
+            "log.fingerprint",
+            log_fingerprint.ARGS,
+            log_fingerprint.HELP,
+            log_fingerprint.HANDLER,
+            source="app",
+            long_help=log_fingerprint.LONG_HELP,
+            flags=log_fingerprint.FLAGS,
         )
         self.repl.register_hook(
             "tui",
@@ -468,23 +503,33 @@ class CLITerminal(TerminalHost):
             self.status(f"Color: {state}")
         return CmdResult.ok()
 
-    def _hook_run(self, ctx, args: str):
-        """Run a script file or list available scripts."""
+    def _hook_run_help(self, ctx, args: str) -> CmdResult:
+        """Same as /help run, plus an AVAILABLE RUN FILES list."""
+        from termapy.builtins.plugins.help import (
+            _show_command_help,
+            append_files_section,
+        )
 
+        result = _show_command_help(ctx, "run")
+        scripts_dir = ctx.scripts_dir
+        files = (
+            sorted(f.name for f in scripts_dir.glob("*.run"))
+            if scripts_dir.is_dir() else []
+        )
+        append_files_section(ctx, "AVAILABLE RUN FILES", files)
+        return result
+
+    def _hook_run(self, ctx, args: str):
+        """Run a script file, or show /help run when bare.
+
+        TUI opens the Run picker for bare /run (registered in app.py);
+        CLI has no picker, so bare invocation shows /help run for
+        consistency with /cfg, /proto, /port.  Use /run.list to list
+        available scripts.
+        """
         script = args.strip()
         if not script:
-            scripts_dir = Path(self.config_path).parent / "run"
-            if not scripts_dir.is_dir():
-                self.status("No run/ directory found.")
-                return CmdResult.ok()
-            files = sorted(scripts_dir.glob("*.run"))
-            if not files:
-                self.status("No .run files found in run/")
-                return CmdResult.ok()
-            self.status("Available scripts:")
-            for f in files:
-                self.status(f"  {f.name}")
-            return CmdResult.ok()
+            return self._hook_run_help(ctx, args)
         verbose = ctx.flag("--verbose")
         path, result = self.repl.start_script(script)
         if path:

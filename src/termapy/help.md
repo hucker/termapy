@@ -169,6 +169,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/show.cfg`                    | Show the current config file                                                |
 | `/term`                        | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.info`                   | Snapshot the state of every `/term.*` toggle                                |
+| `/term.log <text>`             | Append a line to the session log without echoing to screen                  |
 | `/term.echo [on\|off]`         | Toggle command echo                                                         |
 | `/term.line_no [on\|off]`      | Toggle line numbers in serial output (TUI only)                             |
 | `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
@@ -181,7 +182,10 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/grep <pattern>`              | Search scrollback for regex matches (case-insensitive, skips own output)    |
 | `/edit <file>`                 | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.cfg`                    | Edit the current config file                                                |
-| `/edit.log`                    | Open the session log in the system viewer                                   |
+| `/log.show`                    | Open the session log in the system viewer                                   |
+| `/log.dump {N}`                | Print the session log (all, or last N lines) to the terminal                |
+| `/log.fingerprint`             | Write a session fingerprint (OS, terminal, port params) to the log          |
+| `/log.clear`                   | Delete the session log file                                                 |
 | `/edit.info`                   | Open the info report in the system viewer                                   |
 | `/cfg.info {--display}`        | Show project summary; `--display` opens full report in system viewer        |
 | `/cfg.files`                   | Show project directory tree                                                 |

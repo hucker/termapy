@@ -269,7 +269,7 @@ class TestPrefixOutputFlowThrough:
         )
 
     def test_cfg_dump_reports_live_prefix_value(self, tmp_path):
-        # Arrange -- `!cfg` (bare) dumps the full config JSON.  The
+        # Arrange -- `!cfg.dump` prints the loaded config as JSON.  The
         # `cmd_prefix` field should show `!`.  We don't check for
         # absence of `/` in the output because the dump is JSON and
         # includes user-authored custom_buttons command strings
@@ -277,14 +277,14 @@ class TestPrefixOutputFlowThrough:
         result = _run_cli(
             tmp_path,
             cfg_overrides={"cmd_prefix": "!"},
-            script_lines=["!cfg"],
+            script_lines=["!cfg.dump"],
         )
 
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
         assert '"cmd_prefix": "!"' in actual, (
-            f"!cfg dump doesn't reflect the configured cmd_prefix: {actual!r}"
+            f"!cfg.dump doesn't reflect the configured cmd_prefix: {actual!r}"
         )
 
 

@@ -1066,12 +1066,50 @@ def _proto_long_help(ctx: PluginContext) -> str:
     return compose(_proto_folder_line(ctx), _PROTO_PROSE)
 
 
+def _proto_root_handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Bare /proto: TUI opens the Proto picker, CLI shows /help proto.
+
+    With args, /proto is a namespace -- the dispatcher routes to a
+    subcommand.  This handler runs only when no subcommand matched.
+    """
+    if args.strip():
+        prefix = ctx.engine.prefix
+        return CmdResult.fail(
+            msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)"
+        )
+    if ctx.engine.open_picker is not None:
+        return ctx.engine.open_picker("proto")
+    return _proto_help_handler(ctx, args)
+
+
+def _proto_help_handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Same as /help proto, plus an AVAILABLE PROTO FILES list."""
+    from termapy.builtins.plugins.help import (
+        _show_command_help,
+        append_files_section,
+    )
+
+    result = _show_command_help(ctx, "proto")
+    proto_dir = ctx.proto_dir
+    files = (
+        sorted(f.name for f in proto_dir.glob("*.pro"))
+        if proto_dir.is_dir() else []
+    )
+    append_files_section(ctx, "AVAILABLE PROTO FILES", files)
+    return result
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="proto",
     help="Binary protocol tools: send, run, debug, hex, crc, status.",
     long_help=_proto_long_help,
+    handler=_proto_root_handler,
     sub_commands={
+        "help": Command(
+            help="Show /proto help.",
+            handler=_proto_help_handler,
+        ),
         "send": Command(
             args='{algo[_le|_be][_ascii]} <hex|"text">',
             help="Send raw bytes (with optional CRC), show response.",

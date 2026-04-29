@@ -23,7 +23,7 @@
     
     
       
-        <title>Toolbar and shortcuts - Termapy Help v0.63.0</title>
+        <title>Toolbar and shortcuts - Termapy Help v0.63.1</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.63.0" class="md-header__button md-logo" aria-label="Termapy Help v0.63.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.63.1" class="md-header__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.63.0
+            Termapy Help v0.63.1
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.63.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.63.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.63.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.63.0
+    Termapy Help v0.63.1
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1006,7 +1006,7 @@
 
 <h1 id="toolbar-and-shortcuts">Toolbar and shortcuts<a class="headerlink" href="#toolbar-and-shortcuts" title="Permanent link">&para;</a></h1>
 <h2 id="title-bar-buttons">Title bar buttons<a class="headerlink" href="#title-bar-buttons" title="Permanent link">&para;</a></h2>
-<p>The top bar has four always-visible buttons plus a centered config name:</p>
+<p>The top bar has the title-bar buttons plus a centered config name:</p>
 <table>
 <thead>
 <tr>
@@ -1016,11 +1016,6 @@
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><strong>?</strong></td>
-<td>Top-left</td>
-<td>Open this help guide</td>
-</tr>
 <tr>
 <td><strong>Cfg</strong></td>
 <td>Top-left</td>
@@ -1037,6 +1032,11 @@
 <td>Open a protocol test script</td>
 </tr>
 <tr>
+<td><strong>Help</strong></td>
+<td>Top-left</td>
+<td>Open this help guide</td>
+</tr>
+<tr>
 <td><strong>Config name</strong></td>
 <td>Center</td>
 <td>Click to edit the currently-loaded config</td>
@@ -1051,8 +1051,18 @@
 <td>Far-right</td>
 <td>Click to connect or disconnect</td>
 </tr>
+<tr>
+<td><strong>X</strong></td>
+<td>Corner (OS)</td>
+<td>Red — close the connection and quit</td>
+</tr>
 </tbody>
 </table>
+<p>The <strong>X</strong> sits top-left on macOS/Linux and top-right on Windows, matching
+each platform's window-control convention.  Cfg, Run, and Proto can be
+hidden per config via <code>cfg_enabled</code>, <code>run_enabled</code>, and <code>proto_enabled</code>.
+Typing the bare command (e.g. <code>/cfg</code>) is equivalent to clicking the
+button.</p>
 <p>Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.</p>
 <h3 id="port-picker">Port picker<a class="headerlink" href="#port-picker" title="Permanent link">&para;</a></h3>
@@ -1076,7 +1086,7 @@ diagnostics, see <a href="ports.html">Serial ports</a>.</p>
 <tr>
 <td><strong>/</strong></td>
 <td>Always</td>
-<td>Show REPL command picker</td>
+<td>Show REPL command picker (filters as you type)</td>
 </tr>
 <tr>
 <td><strong>DTR:0/1</strong></td>
@@ -1118,11 +1128,6 @@ diagnostics, see <a href="ports.html">Serial ports</a>.</p>
 <td><code>custom_buttons</code> enabled</td>
 <td>User-defined command buttons</td>
 </tr>
-<tr>
-<td><strong>Exit</strong></td>
-<td>Always</td>
-<td>Close the connection and quit</td>
-</tr>
 </tbody>
 </table>
 <h2 id="keyboard-shortcuts">Keyboard shortcuts<a class="headerlink" href="#keyboard-shortcuts" title="Permanent link">&para;</a></h2>
@@ -1136,7 +1141,19 @@ diagnostics, see <a href="ports.html">Serial ports</a>.</p>
 <tbody>
 <tr>
 <td><strong>Ctrl+Q</strong></td>
-<td>Quit (also closes any open dialog)</td>
+<td>Quit (also dismisses any open dialog)</td>
+</tr>
+<tr>
+<td><strong>Escape</strong></td>
+<td>Dismiss dialog / clear input / exit history</td>
+</tr>
+<tr>
+<td><strong>F1</strong>–<strong>F4</strong></td>
+<td>Help / Cfg / Run / Proto (same as the buttons)</td>
+</tr>
+<tr>
+<td><strong>Ctrl+Shift+1</strong>–<strong>5</strong></td>
+<td>Same four, plus Edit Config on <strong>5</strong></td>
 </tr>
 <tr>
 <td><strong>Ctrl+L</strong></td>
@@ -1163,15 +1180,13 @@ diagnostics, see <a href="ports.html">Serial ports</a>.</p>
 <td>Cycle through command history</td>
 </tr>
 <tr>
-<td><strong>Escape</strong></td>
-<td>Clear input / exit history browsing</td>
-</tr>
-<tr>
 <td><strong>Right</strong></td>
 <td>Accept type-ahead suggestion</td>
 </tr>
 </tbody>
 </table>
+<p>The <code>Ctrl+Shift+digit</code> aliases work inside VS Code's integrated
+terminal, which intercepts some F-keys.</p>
 <h2 id="command-palette">Command palette<a class="headerlink" href="#command-palette" title="Permanent link">&para;</a></h2>
 <p>Press <strong>Ctrl+P</strong> to open the command palette, which provides quick access to:</p>
 <ul>

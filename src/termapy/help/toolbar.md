@@ -2,17 +2,24 @@
 
 ## Title bar buttons
 
-The top bar has four always-visible buttons plus a centered config name:
+The top bar has the title-bar buttons plus a centered config name:
 
-| Button          | Position  | Action                                       |
-| --------------- | --------- | -------------------------------------------- |
-| **?**           | Top-left  | Open this help guide                         |
-| **Cfg**         | Top-left  | New / Edit / Load a config                   |
-| **Run**         | Top-left  | Pick, run, or create a script                |
-| **Proto**       | Top-left  | Open a protocol test script                  |
-| **Config name** | Center    | Click to edit the currently-loaded config    |
-| **Port name**   | Top-right | Click to open the serial port picker         |
-| **Status**      | Far-right | Click to connect or disconnect               |
+| Button          | Position    | Action                                          |
+| --------------- | ----------- | ----------------------------------------------- |
+| **Cfg**         | Top-left    | New / Edit / Load a config                      |
+| **Run**         | Top-left    | Pick, run, or create a script                   |
+| **Proto**       | Top-left    | Open a protocol test script                     |
+| **Help**        | Top-left    | Open this help guide                            |
+| **Config name** | Center      | Click to edit the currently-loaded config       |
+| **Port name**   | Top-right   | Click to open the serial port picker            |
+| **Status**      | Far-right   | Click to connect or disconnect                  |
+| **X**           | Corner (OS) | Red — close the connection and quit             |
+
+The **X** sits top-left on macOS/Linux and top-right on Windows, matching
+each platform's window-control convention.  Cfg, Run, and Proto can be
+hidden per config via `cfg_enabled`, `run_enabled`, and `proto_enabled`.
+Typing the bare command (e.g. `/cfg`) is equivalent to clicking the
+button.
 
 Hover over any of the config, port, or status buttons to see a detailed
 tooltip with current settings and chip information.
@@ -30,32 +37,36 @@ diagnostics, see [Serial ports](ports.md).
 
 The bottom bar has buttons. Some appear based on context:
 
-| Button      | When Visible                 | Action                              |
-| ----------- | ---------------------------- | ----------------------------------- |
-| **/**       | Always                       | Show REPL command picker            |
-| **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line        |
-| **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line        |
-| **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal    |
-| **Log**     | Always                       | Open the session log in your editor |
-| **SS**      | Always                       | Open the screenshot folder          |
-| **Cap**     | Always                       | Open the cap/ folder                |
-| **Scripts** | Always                       | Pick, run, create, or edit a script |
-| **Custom**  | `custom_buttons` enabled     | User-defined command buttons        |
-| **Exit**    | Always                       | Close the connection and quit       |
+| Button      | When Visible                 | Action                                          |
+| ----------- | ---------------------------- | ----------------------------------------------- |
+| **/**       | Always                       | Show REPL command picker (filters as you type)  |
+| **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line                    |
+| **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line                    |
+| **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal                |
+| **Log**     | Always                       | Open the session log in your editor             |
+| **SS**      | Always                       | Open the screenshot folder                      |
+| **Cap**     | Always                       | Open the cap/ folder                            |
+| **Scripts** | Always                       | Pick, run, create, or edit a script             |
+| **Custom**  | `custom_buttons` enabled     | User-defined command buttons                    |
 
 ## Keyboard shortcuts
 
-| Key         | Action                              |
-| ----------- | ----------------------------------- |
-| **Ctrl+Q**  | Quit (also closes any open dialog)  |
-| **Ctrl+L**  | Clear screen                        |
-| **Ctrl+P**  | Open command palette                |
-| **F5**      | Save SVG screenshot                 |
-| **F6**      | Open screenshot folder              |
-| **F7**      | Save text screenshot                |
-| **Up/Down** | Cycle through command history       |
-| **Escape**  | Clear input / exit history browsing |
-| **Right**   | Accept type-ahead suggestion        |
+| Key                    | Action                                              |
+| ---------------------- | --------------------------------------------------- |
+| **Ctrl+Q**             | Quit (also dismisses any open dialog)               |
+| **Escape**             | Dismiss dialog / clear input / exit history         |
+| **F1**–**F4**          | Help / Cfg / Run / Proto (same as the buttons)      |
+| **Ctrl+Shift+1**–**5** | Same four, plus Edit Config on **5**                |
+| **Ctrl+L**             | Clear screen                                        |
+| **Ctrl+P**             | Open command palette                                |
+| **F5**                 | Save SVG screenshot                                 |
+| **F6**                 | Open screenshot folder                              |
+| **F7**                 | Save text screenshot                                |
+| **Up/Down**            | Cycle through command history                       |
+| **Right**              | Accept type-ahead suggestion                        |
+
+The `Ctrl+Shift+digit` aliases work inside VS Code's integrated
+terminal, which intercepts some F-keys.
 
 ## Command palette
 

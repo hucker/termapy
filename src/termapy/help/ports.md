@@ -29,9 +29,11 @@ is.  Use whichever entry point is convenient:
 | Where           | Command                    | What you get                                  |
 | --------------- | -------------------------- | --------------------------------------------- |
 | Title bar click | (no command)               | Port picker dialog with a table of every port |
+| Inside termapy  | `/port` or `/port.list`    | Same chip-aware table, printed to terminal    |
 | Inside termapy  | `/port.info`               | Full details for the currently-connected port |
 | Inside termapy  | `/port.chip <name>` or `*` | Chip details for any named port, or all ports |
 | Inside termapy  | `/port.chip.<field>`       | One field (e.g. `/port.chip.driver COM4`)     |
+| Shell           | `termapy --ports`          | Same chip-aware table, no TUI                 |
 | Shell           | `termapy --info`           | Same as `/port.chip *`, no TUI, pipe-friendly |
 | Shell           | `termapy --info=COM4`      | Same as `/port.chip COM4`, no TUI             |
 

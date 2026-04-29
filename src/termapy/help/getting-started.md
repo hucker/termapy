@@ -119,13 +119,20 @@ termapy_cfg/
 
 The title bar buttons (left to right):
 
-- **?** opens this help guide.
 - **Cfg** opens the config picker (New / Edit / Load / Cancel).
 - **Run** opens the script picker.
 - **Proto** opens the protocol test picker.
+- **Help** opens this help guide.
 - **Title** shows the config name (or custom title). Click to edit the config.
 - **Port** shows the port name and baud rate. Click to pick a different serial port.
 - **Status** shows connection status: green **Connected** or red **Disconnected**. Click to toggle the connection.
+- **X** closes the connection and quits — top-left on macOS/Linux, top-right on Windows.
+
+Cfg, Run, and Proto can be hidden per config via `cfg_enabled`,
+`run_enabled`, and `proto_enabled`.  Each title-bar button has a
+function-key shortcut (**F1**–**F4**) and a `Ctrl+Shift+1`–**5**
+alias that survives VS Code's terminal capture.  See
+[Toolbar and shortcuts](toolbar.md) for the full list.
 
 The title bar color can be set per config with `border_color` to visually distinguish multiple sessions.
 

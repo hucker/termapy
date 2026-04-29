@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.63.1 (2026-04-29)
+
+Documentation-only patch release.  Sync of the bundled in-app help
+with the v0.63.0 UI changes -- title-bar button labels (``Help``, no
+longer ``?``, plus the relocated Exit ``X``), the new ``Ctrl+Shift+1..5``
+hotkey aliases, the ``/term.*`` namespace, and one-line entries for
+the new commands (``/run.legacy``, ``/credits``, ``/var.list``, plus
+the chip-aware ``/port.list`` table).  No code changes.
+
 ## 0.63.0 (2026-04-29)
 
 REPL UX overhaul.  Termapy's title-bar buttons, pickers, and command

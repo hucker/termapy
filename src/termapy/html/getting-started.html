@@ -23,7 +23,7 @@
     
     
       
-        <title>Getting started - Termapy Help v0.63.0</title>
+        <title>Getting started - Termapy Help v0.63.1</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.63.0" class="md-header__button md-logo" aria-label="Termapy Help v0.63.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.63.1" class="md-header__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.63.0
+            Termapy Help v0.63.1
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.63.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.63.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.63.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.63.0
+    Termapy Help v0.63.1
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1180,14 +1180,20 @@ plugins) is stored alongside its JSON file in a subfolder:</p>
 <h2 id="title-bar">Title bar<a class="headerlink" href="#title-bar" title="Permanent link">&para;</a></h2>
 <p>The title bar buttons (left to right):</p>
 <ul>
-<li><strong>?</strong> opens this help guide.</li>
 <li><strong>Cfg</strong> opens the config picker (New / Edit / Load / Cancel).</li>
 <li><strong>Run</strong> opens the script picker.</li>
 <li><strong>Proto</strong> opens the protocol test picker.</li>
+<li><strong>Help</strong> opens this help guide.</li>
 <li><strong>Title</strong> shows the config name (or custom title). Click to edit the config.</li>
 <li><strong>Port</strong> shows the port name and baud rate. Click to pick a different serial port.</li>
 <li><strong>Status</strong> shows connection status: green <strong>Connected</strong> or red <strong>Disconnected</strong>. Click to toggle the connection.</li>
+<li><strong>X</strong> closes the connection and quits — top-left on macOS/Linux, top-right on Windows.</li>
 </ul>
+<p>Cfg, Run, and Proto can be hidden per config via <code>cfg_enabled</code>,
+<code>run_enabled</code>, and <code>proto_enabled</code>.  Each title-bar button has a
+function-key shortcut (<strong>F1</strong>–<strong>F4</strong>) and a <code>Ctrl+Shift+1</code>–<strong>5</strong>
+alias that survives VS Code's terminal capture.  See
+<a href="toolbar.html">Toolbar and shortcuts</a> for the full list.</p>
 <p>The title bar color can be set per config with <code>border_color</code> to visually distinguish multiple sessions.</p>
 <h2 id="terminal-output">Terminal output<a class="headerlink" href="#terminal-output" title="Permanent link">&para;</a></h2>
 <p>The main area displays serial data with full ANSI color support. Incoming escape sequences are rendered as colored text, and clear-screen sequences are handled automatically.</p>

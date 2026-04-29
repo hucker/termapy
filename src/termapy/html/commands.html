@@ -19,18 +19,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.33">
+      <meta name="generator" content="zensical-0.0.37">
     
     
       
-        <title>REPL commands - Termapy Help v0.62.0</title>
+        <title>REPL commands - Termapy Help v0.63.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.53a7feaf.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.1e981d71.min.css">
       
         
           
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.62.0" class="md-header__button md-logo" aria-label="Termapy Help v0.62.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.63.0" class="md-header__button md-logo" aria-label="Termapy Help v0.63.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.62.0
+            Termapy Help v0.63.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.62.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.62.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.63.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.63.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.62.0
+    Termapy Help v0.63.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -227,6 +227,33 @@
     
   
     Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment & compatibility
   
 
     
@@ -498,9 +525,9 @@
         <li class="md-nav__item">
   <a href="#script-profiling" class="md-nav__link">
     <span class="md-ellipsis">
-      
+      <span class="md-typeset">
         Script profiling
-      
+      </span>
     </span>
   </a>
   
@@ -509,9 +536,9 @@
         <li class="md-nav__item">
   <a href="#config-file-management" class="md-nav__link">
     <span class="md-ellipsis">
-      
+      <span class="md-typeset">
         Config file management
-      
+      </span>
     </span>
   </a>
   
@@ -795,6 +822,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./acknowledgments.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acknowledgments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -838,9 +892,9 @@
         <li class="md-nav__item">
   <a href="#script-profiling" class="md-nav__link">
     <span class="md-ellipsis">
-      
+      <span class="md-typeset">
         Script profiling
-      
+      </span>
     </span>
   </a>
   
@@ -849,9 +903,9 @@
         <li class="md-nav__item">
   <a href="#config-file-management" class="md-nav__link">
     <span class="md-ellipsis">
-      
+      <span class="md-typeset">
         Config file management
-      
+      </span>
     </span>
   </a>
   
@@ -914,8 +968,12 @@
 <td>Show a command handler's Python docstring (developer view)</td>
 </tr>
 <tr>
-<td><code>/port [name]</code></td>
-<td>Open a port by name, or show subcommands</td>
+<td><code>/port {name}</code></td>
+<td>TUI bare: open Port picker. CLI bare: list subcommands. With name: open it.</td>
+</tr>
+<tr>
+<td><code>/port.help</code></td>
+<td>Show <code>/port</code> help (alias for <code>/help port</code>)</td>
 </tr>
 <tr>
 <td><code>/port.list</code></td>
@@ -987,7 +1045,7 @@
 </tr>
 <tr>
 <td><code>/cfg [key [value]]</code></td>
-<td>View or change config values</td>
+<td>TUI: open the Cfg picker. Bare in CLI: dump JSON. With args: get/set.</td>
 </tr>
 <tr>
 <td><code>/cfg.auto &lt;key&gt; &lt;val&gt;</code></td>
@@ -1000,6 +1058,14 @@
 <tr>
 <td><code>/cfg.load &lt;name&gt;</code></td>
 <td>Switch to a different config by name</td>
+</tr>
+<tr>
+<td><code>/cfg.show</code></td>
+<td>Open the current config file in the system viewer</td>
+</tr>
+<tr>
+<td><code>/cfg.help</code></td>
+<td>Show <code>/cfg</code> help (alias for <code>/help cfg</code>)</td>
 </tr>
 <tr>
 <td><code>/ss.svg [name]</code></td>
@@ -1018,8 +1084,8 @@
 <td>Clear the terminal</td>
 </tr>
 <tr>
-<td><code>/run &lt;file&gt; {-v}</code></td>
-<td>Run a script file (-v/--verbose for per-line timing)</td>
+<td><code>/run {file} {-v}</code></td>
+<td>TUI bare: open Run picker. CLI bare: list scripts. With file: run it.</td>
 </tr>
 <tr>
 <td><code>/run.list</code></td>
@@ -1028,6 +1094,10 @@
 <tr>
 <td><code>/run.load &lt;file&gt;</code></td>
 <td>Run a script file (same as /run)</td>
+</tr>
+<tr>
+<td><code>/run.help</code></td>
+<td>Show <code>/run</code> help (alias for <code>/help run</code>)</td>
 </tr>
 <tr>
 <td><code>/delay &lt;duration&gt;</code></td>
@@ -1070,12 +1140,48 @@
 <td>Show the current config file</td>
 </tr>
 <tr>
-<td><code>/echo [on\|off]</code></td>
+<td><code>/term</code></td>
+<td>Terminal display / session toggles (echo, line_no, timestamps, ...)</td>
+</tr>
+<tr>
+<td><code>/term.info</code></td>
+<td>Snapshot the state of every <code>/term.*</code> toggle</td>
+</tr>
+<tr>
+<td><code>/term.log &lt;text&gt;</code></td>
+<td>Append a line to the session log without echoing to screen</td>
+</tr>
+<tr>
+<td><code>/term.echo [on\|off]</code></td>
 <td>Toggle command echo</td>
 </tr>
 <tr>
-<td><code>/echo.quiet &lt;on\|off&gt;</code></td>
-<td>Set echo on/off silently (for scripts and on_connect_cmd)</td>
+<td><code>/term.line_no [on\|off]</code></td>
+<td>Toggle line numbers in serial output (TUI only)</td>
+</tr>
+<tr>
+<td><code>/term.line_endings [on\|off]</code></td>
+<td>Toggle visible <code>\r</code> <code>\n</code> markers in serial output</td>
+</tr>
+<tr>
+<td><code>/term.verbose [on\|off]</code></td>
+<td>Toggle verbose status output</td>
+</tr>
+<tr>
+<td><code>/term.timestamps [on\|off]</code></td>
+<td>Toggle <code>[HH:MM:SS.mmm]</code> timestamp prefix</td>
+</tr>
+<tr>
+<td><code>/term.hex [on\|off]</code></td>
+<td>Toggle hex display of incoming bytes</td>
+</tr>
+<tr>
+<td><code>/term.encoding {name}</code></td>
+<td>Show or set byte-decoding encoding (utf-8, latin-1, ...)</td>
+</tr>
+<tr>
+<td><code>/term.send_bare_enter [on\|off]</code></td>
+<td>Send line ending on empty Enter</td>
 </tr>
 <tr>
 <td><code>/os &lt;cmd&gt;</code></td>
@@ -1084,10 +1190,6 @@
 <tr>
 <td><code>/grep &lt;pattern&gt;</code></td>
 <td>Search scrollback for regex matches (case-insensitive)</td>
-</tr>
-<tr>
-<td><code>/show_line_endings {on\|off}</code></td>
-<td>Toggle visible <code>\r</code> <code>\n</code> markers in serial output</td>
 </tr>
 <tr>
 <td><code>/edit &lt;file&gt;</code></td>
@@ -1110,8 +1212,16 @@
 <td>Edit the current config file</td>
 </tr>
 <tr>
-<td><code>/edit.log</code></td>
+<td><code>/log.show</code></td>
 <td>Open the session log in the system viewer</td>
+</tr>
+<tr>
+<td><code>/log.dump {N}</code></td>
+<td>Print the session log (all, or last N lines) to the terminal</td>
+</tr>
+<tr>
+<td><code>/log.fingerprint</code></td>
+<td>Write a full session fingerprint (OS, terminal, port params) to the log</td>
 </tr>
 <tr>
 <td><code>/log.clear</code></td>
@@ -1128,6 +1238,14 @@
 <tr>
 <td><code>/cfg.files</code></td>
 <td>Show project directory tree</td>
+</tr>
+<tr>
+<td><code>/proto</code></td>
+<td>TUI: open the Proto picker. CLI: show /proto long-help.</td>
+</tr>
+<tr>
+<td><code>/proto.help</code></td>
+<td>Show <code>/proto</code> help (alias for <code>/help proto</code>)</td>
 </tr>
 <tr>
 <td><code>/proto.send &lt;hex&gt;</code></td>
@@ -1158,12 +1276,16 @@
 <td>List CRC algorithms (optional glob filter)</td>
 </tr>
 <tr>
-<td><code>/proto.crc.help &lt;name&gt;</code></td>
+<td><code>/proto.crc.info &lt;name&gt;</code></td>
 <td>Show CRC algorithm parameters and description</td>
 </tr>
 <tr>
 <td><code>/proto.crc.calc &lt;n&gt; {d}</code></td>
 <td>Compute CRC over hex bytes, text, or file</td>
+</tr>
+<tr>
+<td><code>/proto.crc.find &lt;pkt&gt;</code></td>
+<td>Identify the CRC algorithm from a captured packet (bin= or asc=)</td>
 </tr>
 <tr>
 <td><code>/proto.status</code></td>
@@ -1426,7 +1548,7 @@
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.63456bd9.min.js"></script>
+      <script src="./assets/javascripts/bundle.dbc0afdc.min.js"></script>
       
     
   </body>

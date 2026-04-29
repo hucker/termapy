@@ -15,7 +15,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/help.dev <cmd>`         | Show a command handler's Python docstring (developer view)                  |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list subcommands. With name: open it. |
 | `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
-| `/port.list`              | List available serial ports                                                 |
+| `/port.list`              | Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SN, ...)                  |
 | `/port.open {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81) |
 | `/port.mode {baud} {mode}` | Show or set serial mode (e.g. /port.mode 9600 N81)                        |
 | `/port.close`             | Disconnect from the serial port                                             |
@@ -46,6 +46,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/run.list`               | List .run files in the run/ directory                                       |
 | `/run.load <file>`        | Run a script file (same as /run)                                            |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
+| `/run.legacy {file\|*}`   | Find pre-0.63 command names in scripts; `--fix` rewrites in place           |
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
 | `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                       |
 | `/repeat ...`             | Repeat a command N times: `count=<N> {delay=<dur>} {var=<name>} cmd=<cmd>`  |
@@ -54,6 +55,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/seq.reset`              | Reset all sequence counters to zero                                         |
 | `/print <text>`           | Print a message to the terminal                                             |
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
+| `/credits`                | Print acknowledgments (libraries and authors termapy depends on)            |
 | `/show <name>`            | Show a file                                                                 |
 | `/show.cfg`               | Show the current config file                                                |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
@@ -95,6 +97,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/proto.crc.find <pkt>`   | Identify the CRC algorithm from a captured packet (bin= or asc=)            |
 | `/proto.status`           | Show current protocol mode state                                            |
 | `/var {name}`             | List user variables, or show one by name                                    |
+| `/var.list`               | List user variables (explicit alias for bare `/var`)                        |
 | `/var.set <NAME> <value>` | Set a user variable                                                         |
 | `/var.clear`              | Clear all user variables                                                    |
 | `/env.list {pattern}`     | List environment variables (all, by name, or glob)                          |

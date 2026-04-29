@@ -133,7 +133,7 @@ without incrementing. Counters 1--9 are available.
 
 | Command                     | Description                                 |
 | --------------------------- | ------------------------------------------- |
-| `/var`                      | List all variables                          |
+| `/var` (or `/var.list`)     | List all variables                          |
 | `/var NAME`                 | Show one variable                           |
 | `/var.set <NAME> <v>`       | Set a variable to a literal value           |
 | `/var.capture <NAME> <cmd>` | Run cmd and store its result as NAME        |

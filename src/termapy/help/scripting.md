@@ -63,25 +63,31 @@ Termapy commands write to three output channels:
 
 When you run a script, the status channel is usually noise. You want to see what happened, not a running commentary of every step. Termapy gives you three ways to quiet things down:
 
-| What you want to silence                | How                                                          |
-| --------------------------------------- | ------------------------------------------------------------ |
-| Status messages from all commands       | `/verbose off` (or `/verbose.quiet off` in scripts, no echo) |
-| Echoing of each command before it runs  | `/echo off` (or `/echo.quiet off` in scripts)                |
-| Per-step status from a single `/expect` | Add `quiet=on` to the `/expect` line                         |
+| What you want to silence                | How                                                                |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| Status messages from all commands       | `/term.verbose off` (or `/term.verbose.quiet off` in scripts)      |
+| Echoing of each command before it runs  | `/term.echo off` (or `/term.echo.quiet off` in scripts)            |
+| Per-step status from a single `/expect` | Add `quiet=on` to the `/expect` line                               |
 
-The `.quiet` variants (`/verbose.quiet`, `/echo.quiet`) set the value without echoing the change itself. This is useful at the top of a script or in `on_connect_cmd` where the act of toggling shouldn't itself produce output.
+The `.quiet` variants (`/term.verbose.quiet`, `/term.echo.quiet`) set the value without echoing the change itself. This is useful at the top of a script or in `on_connect_cmd` where the act of toggling shouldn't itself produce output.
 
-`/verbose` only affects the *status* channel. Command results and data output are always visible. Quiet mode is about silencing chatter, not silencing answers. If you run `/cfg baud_rate` in quiet mode, you still get `115200`. You just don't get the dim status line that would normally precede it.
+`/term.verbose` only affects the *status* channel. Command results and data output are always visible. Quiet mode is about silencing chatter, not silencing answers. If you run `/cfg baud_rate` in quiet mode, you still get `115200`. You just don't get the dim status line that would normally precede it.
 
 ```text
 # clean_check.run -- quiet output, just the results
-/echo.quiet off
-/verbose.quiet off
+/term.echo.quiet off
+/term.verbose.quiet off
 AT+INFO
 /expect quiet=on match=Bassomatic
 AT+TEMP
 /expect quiet=on match=C
 ```
+
+> **Pre-0.63 scripts.**  The old names (`/echo`, `/verbose`,
+> `/show_line_endings`, `/line_no`) still work as hidden forwarders.
+> Use `/run.legacy <file>` to find them in a script, or
+> `/run.legacy --fix <file>` to rewrite them in place; `/run.legacy *`
+> processes every script in the `run/` directory.
 
 For plugin authors: `ctx.result()`, `ctx.output()`, and `ctx.status()` are the three channels. Use `status()` for anything that's progress narration so users can suppress it cleanly.
 

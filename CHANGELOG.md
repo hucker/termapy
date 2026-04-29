@@ -1,5 +1,148 @@
 # Changelog
 
+## 0.63.0 (2026-04-29)
+
+REPL UX overhaul.  Termapy's title-bar buttons, pickers, and command
+popup are now reachable from typed commands, with parity between TUI
+and CLI.  Display and session toggles consolidate under a new
+``/term.*`` namespace, session logs gain a ``/log.*`` family for
+inspection, and ``/proto.crc.find`` identifies an unknown CRC algorithm
+from a captured packet.  Old command names keep working as hidden
+forwarders, with a ``/run.legacy`` tool to find and rewrite them in
+existing scripts.
+
+### 0.63.0 New Features
+
+- **``/term.*`` namespace** -- display and session toggles consolidate
+  under one namespace, matching ``/port.*`` and ``/cfg.*``.  Nine
+  subcommands cover the ground that used to be scattered across
+  top-level commands: ``echo``, ``line_no``, ``line_endings``,
+  ``verbose``, ``timestamps``, ``hex``, ``encoding``,
+  ``send_bare_enter``, ``info``.  The old names (``/echo``,
+  ``/line_no``, ``/show_line_endings``, ``/verbose``) keep working as
+  hidden forwarders -- they redirect transparently to the ``/term.*``
+  equivalents and emit a one-time dim note suggesting the new spelling.
+
+- **``/run.legacy`` migration tool** -- scans a ``.run`` script for
+  old command names and either reports or (with ``--fix``) rewrites
+  in place.  ``/run.legacy *`` scans every script in the config's
+  ``run/`` directory in one pass, so a project full of pre-0.63
+  scripts can be migrated with a single command.
+
+- **Bare command opens a picker** -- ``/cfg`` ``/run`` ``/proto``
+  ``/port`` (no args) open the matching picker dialog in TUI mode and
+  fall through to ``/help <name>`` in CLI mode, with parity across
+  all four.  Each command gains a ``.help`` subcommand that prints
+  the same long help plus an ``AVAILABLE FILES`` tree of what's
+  actually in the relevant folder.  ``/cfg.show`` is new, opening the
+  loaded config in the system viewer for symmetry with
+  ``/run.show`` / ``/proto.show`` / ``/ss.show``.
+
+- **``/log.*`` namespace for session-log inspection** -- alongside
+  the existing ``/log.clear``:
+
+      /log.show         opens the session log in the system viewer
+      /log.dump {N}     prints the entire log (or last N lines) to terminal
+      /log.fingerprint  writes OS, terminal, Python, termapy, config,
+                        and serial port state to the log so old logs
+                        are unambiguous when read back later
+
+  Plus ``/term.log <text>`` for annotating the log without echoing
+  to screen -- useful for markers, timestamps, and notes that are
+  only interesting on later review.
+
+- **``/proto.crc.find``** -- identify an unknown CRC algorithm from
+  a captured packet.  Accepts ``bin=<hex>`` (tries trailing 1/2/4
+  bytes as CRC, both endians) or ``asc=<text>`` (trailing 2/4/8
+  chars as hex-ASCII CRC).  Iterates all 64 catalogue algorithms,
+  collapses catalogue aliases to one canonical line, and prints the
+  source-code generation command when exactly one algorithm matches.
+
+- **Title-bar Exit, config-gated buttons** -- the Exit button moves
+  out of the bottom bar and into the title bar as a red ``X``,
+  positioned by OS convention (top-left on mac/linux, top-right on
+  Windows).  The ``?`` help button is renamed to ``Help`` and moves
+  after the ``Cfg`` / ``Run`` / ``Proto`` trio.  New config booleans
+  ``cfg_enabled`` / ``run_enabled`` / ``proto_enabled`` (default
+  true) hide the corresponding title-bar buttons for projects that
+  don't use them.
+
+- **``/proto.crc.find`` attribution & ``/credits``** -- a new
+  ``ACKNOWLEDGMENTS.md`` page (bundled into help) names the projects
+  Termapy depends on: Greg Cook (reveng CRC catalogue), Will McGugan
+  / Textualize (Textual + Rich), Jonathan Slenders (prompt_toolkit),
+  Chris Liechti (pyserial).  ``/credits`` prints it in-terminal.
+  The Help button tooltip is restructured into a colored Rich table
+  with author attribution.
+
+### 0.63.0 Improvements
+
+- **Animated ``/delay`` progress bar in TUI** -- the CLI has had
+  ``[####....] 3s/10s`` for a while; the TUI now shows the same bar.
+  Interactive ``/delay`` renders into the status bar; script
+  ``/delay`` appends to the script overlay so
+  ``delay.run [1/4] [bar]`` stays in one line.
+
+- **Escape dismisses every modal** -- ``ConfigEditor``,
+  ``MarkdownViewer``, ``QuickSetup``, ``NamePicker``, and the proto
+  debug screen now accept Escape as an alternate dismiss key
+  alongside Ctrl+Q.
+
+- **Filtered command popup** -- clicking the ``/`` button with
+  ``po`` typed in the input now shows only commands containing ``po``
+  (``/port``, ``/proto``, ``/stop``, ...) instead of the full list
+  from the top.  ``/po`` and ``po`` behave identically; arguments
+  past the first token are ignored.
+
+- **Ctrl+Shift+1..5 hotkeys** replace the unreliable ``Alt+F*``
+  aliases for Help/Cfg/Run/Proto/Edit-Config.  F-keys remain primary;
+  the ``Ctrl+Shift+digit`` aliases survive VS Code's terminal capture
+  via ``modifyOtherKeys`` / csi-u.  The VS Code detected banner now
+  labels each shortcut so users know what ``Alt+P`` / ``Alt+S`` /
+  ``Alt+T`` actually do.
+
+- **Richer ``/port.list``** -- now uses the picker-style table
+  (PORT / MFG / DESCRIPTION / CHIP / SPEED / VID:PID / SN, with
+  terminal-width-aware column drop) -- same format as bare ``/port``
+  and the ``--ports`` CLI flag.  The zero-config welcome screen
+  picks up the richer output for free.
+
+- **``cli_intellisense`` -> ``cli_completion`` rename** --
+  IntelliSense is a Microsoft trademark, and "completion" is the
+  accurate name anyway (tab completion + auto-suggest + help
+  toolbar).  Migration v13 -> v14 handles the rename for existing
+  configs.
+
+- **``/proto.crc.help`` -> ``/proto.crc.info``** -- the command
+  shows algorithm parameters, not command help, so the name was
+  misleading.
+
+- **Command and error-message consistency audit** -- ``{on|off}``
+  spellings are uniform (no inner spaces, all toggles optional).
+  Error messages adopt sentence case and a small set of standard
+  phrasings (``Unknown X`` / ``Invalid X`` / ``X not found`` /
+  ``No X loaded.`` / ``Usage: /cmd ...``).  ``/var.list`` added as
+  an explicit alias for bare ``/var`` listing.
+
+- **New ``Environment & compatibility`` help page** -- one place
+  for OS support, terminal emulators, VS Code quirks, macOS
+  Option-as-Meta, KVM cross-platform keyboards, and SSH/WSL/container
+  notes.  Replaces the inline VS Code block that used to live in
+  ``getting-started.md``.
+
+- **``FileTree`` extracted to ``tree_render.py``** -- single source
+  of truth for box-drawing connectors, dim/cyan/blue style triplet,
+  and child-indent pattern that used to be duplicated between
+  ``cfg._build_tree`` and ``help.append_files_section``.  Pure
+  module, no Textual or serial deps; 14 new unit tests.
+
+- **Loopback integration tests** -- 7 new tests using pyserial's
+  ``loop://`` URL exercise the termapy <-> pyserial send path:
+  line-ending config, ``/raw`` bypass, CRC append via
+  ``/proto.send``, latin-1 encoding on the wire, plain round-trip.
+  ``/cap.bin`` with exact byte-count targets so captures close on
+  target-hit (reliable) rather than timeout.
+
 ## 0.62.0 (2026-04-19)
 
 CLI-mode release.  Termapy's ``--cli`` frontend gained a lot of

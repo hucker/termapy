@@ -168,7 +168,7 @@ class TestPortCommandStatusMessage:
             tmp_path,
             cfg_overrides={"port": "DEMO"},
             script_lines=[
-                "/port.close",
+                "/port.disconnect",
                 "/port FAKE_SN|DEMO",
                 "/echo done",
             ],
@@ -214,7 +214,7 @@ class TestPortCommandDoesNotWriteDisk:
 
         script_path = tmp_path / "port_override.run"
         script_path.write_text(
-            "/port.close\n"
+            "/port.disconnect\n"
             "/port A1B2C3D4\n"
             "/echo done\n"
         )

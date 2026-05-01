@@ -96,11 +96,11 @@ $(BAUD) <- /port.baud_rate
 /port.rts 0
 /port.rts
 
-# ── REPL: port control - close and reopen ───────────────────────────────────
-/print === section: port close/open ===
-/port.close
+# ── REPL: port control - disconnect and reconnect ───────────────────────────
+/print === section: port disconnect/connect ===
+/port.disconnect
 /port.baud_rate
-/port.open
+/port.connect
 /port.baud_rate
 
 # ── REPL: port break ────────────────────────────────────────────────────────

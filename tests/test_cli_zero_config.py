@@ -4,7 +4,7 @@
 previously printed ``"no config found"`` and exited 1.  It now enters a
 "zero-config" REPL: prints a welcome banner listing available ports,
 shows the defaults the user would get, and hints at
-``/port.open <name>``.  The user can then open any port without ever
+``/port.connect <name>``.  The user can then open any port without ever
 having written a ``.cfg`` file.
 """
 
@@ -87,8 +87,8 @@ class TestZeroConfigWelcomeBanner:
         assert "115200 N81 cr noecho" in out, (
             f"must state the defaults; stdout: {out!r}"
         )
-        assert "/port.open" in out, (
-            f"must hint at /port.open; stdout: {out!r}"
+        assert "/port.connect" in out, (
+            f"must hint at /port.connect; stdout: {out!r}"
         )
 
     def test_banner_mentions_help(self):

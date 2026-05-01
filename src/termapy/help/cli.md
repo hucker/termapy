@@ -168,7 +168,7 @@ found or no ports are connected.
 | `--chips=ftdi`    | Filter the table (case-insensitive substring match).          |
 | `--check`         | Validate your config, print JSON status, exit.                |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
-| `--cli`           | Launch the CLI REPL instead of the TUI. With no config, shows a welcome banner listing available ports -- use `/port.open <name>` to pick one. |
+| `--cli`           | Launch the CLI REPL instead of the TUI. With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
 
 `termapy --help` has the full list.

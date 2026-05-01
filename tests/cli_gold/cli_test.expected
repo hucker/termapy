@@ -240,13 +240,13 @@ demo> /port.rts 0
   RTS -> 0
 demo> /port.rts
   0
-demo> /print === section: port close/open ===
-  === section: port close/open ===
-demo> /port.close
+demo> /print === section: port disconnect/connect ===
+  === section: port disconnect/connect ===
+demo> /port.disconnect
 Disconnected.
 demo> /port.baud_rate
   115200 (disconnected)
-demo> /port.open
+demo> /port.connect
 Connected: DEMO 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
 demo> /port.baud_rate
   115200
@@ -260,7 +260,7 @@ demo> /print === section: port subcommands ===
   === section: port subcommands ===
 demo> /port
 NAME
-  /port - Serial port tools: open, close, list, configure.
+  /port - Serial port tools: connect, disconnect, list, configure.
 
 SYNOPSIS
   /port {name}
@@ -268,8 +268,8 @@ SYNOPSIS
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
 
-  Open, close, list, or configure the serial port.
-  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
+  Connect to, disconnect from, list, or configure the serial
+  port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
   settings baud_rate, byte_size, parity, stop_bits.
 
@@ -279,8 +279,9 @@ SUBCOMMANDS
   /port.byte_size       Show or set data bits.
   /port.cd              Show Carrier Detect state (read-only).
   /port.chip            Identify USB-serial chip(s) and report USB speed class.
-  /port.close           Disconnect from the serial port.
+  /port.connect         Connect to the serial port (e.g. /port.connect COM3 9600 N81).
   /port.cts             Show CTS state (read-only).
+  /port.disconnect      Disconnect from the serial port.
   /port.dsr             Show DSR state (read-only).
   /port.dtr             Show or set DTR line (hardware only).
   /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
@@ -288,7 +289,6 @@ SUBCOMMANDS
   /port.info            Show status, params, chip, and live signals for the connected port.
   /port.list            List available serial ports.
   /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
-  /port.open            Connect to the serial port (e.g. /port.open COM3 9600 N81).
   /port.parity          Show or set parity.
   /port.ri              Show Ring Indicator state (read-only).
   /port.rts             Show or set RTS line (hardware only).
@@ -356,7 +356,7 @@ SYNOPSIS
   /echo {on|off}
 demo> /help port
 NAME
-  /port - Serial port tools: open, close, list, configure.
+  /port - Serial port tools: connect, disconnect, list, configure.
 
 SYNOPSIS
   /port {name}
@@ -364,8 +364,8 @@ SYNOPSIS
 DESCRIPTION
   Connected: DEMO @ 115200 8N1
 
-  Open, close, list, or configure the serial port.
-  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
+  Connect to, disconnect from, list, or configure the serial
+  port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
   settings baud_rate, byte_size, parity, stop_bits.
 
@@ -375,8 +375,9 @@ SUBCOMMANDS
   /port.byte_size       Show or set data bits.
   /port.cd              Show Carrier Detect state (read-only).
   /port.chip            Identify USB-serial chip(s) and report USB speed class.
-  /port.close           Disconnect from the serial port.
+  /port.connect         Connect to the serial port (e.g. /port.connect COM3 9600 N81).
   /port.cts             Show CTS state (read-only).
+  /port.disconnect      Disconnect from the serial port.
   /port.dsr             Show DSR state (read-only).
   /port.dtr             Show or set DTR line (hardware only).
   /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
@@ -384,7 +385,6 @@ SUBCOMMANDS
   /port.info            Show status, params, chip, and live signals for the connected port.
   /port.list            List available serial ports.
   /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
-  /port.open            Connect to the serial port (e.g. /port.open COM3 9600 N81).
   /port.parity          Show or set parity.
   /port.ri              Show Ring Indicator state (read-only).
   /port.rts             Show or set RTS line (hardware only).
@@ -666,7 +666,7 @@ demo> /help.plugin
   /os         Run a shell command and show output (10s timeout). e.g. /os dir
   /ping       Send a command and measure response time.
   /plugin     Plugin-folder tools: list, explore, show, dump.
-  /port       Serial port tools: open, close, list, configure.
+  /port       Serial port tools: connect, disconnect, list, configure.
   /print      Print a message to the terminal.
   /proto      Binary protocol tools: send, run, debug, hex, crc, status.
   /repeat     Repeat a command N times with optional delay (escape to cancel).

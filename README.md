@@ -136,7 +136,7 @@ The most common ones:
 | ---------------------------------- | ------------------------------------------------------ |
 | `/help [cmd]`                      | List commands or show help for one                     |
 | `/port.list`                       | List available serial ports                            |
-| `/port.open {name} {baud} {mode}`  | Connect with optional baud rate and mode (e.g. N81)    |
+| `/port.connect {name} {baud} {mode}` | Connect with optional baud rate and mode (e.g. N81)  |
 | `/port.info`                       | Show port status and parameters                        |
 | `/cfg [key [value]]`               | Open Cfg picker (bare TUI), or get/set values          |
 | `/ss.svg [name]`                   | Save SVG screenshot                                    |
@@ -156,9 +156,9 @@ The most common ones:
 | `/port {name}`                      | Open Port picker (bare TUI), list subcommands (bare CLI), or open by name       |
 | `/port.help`                        | Same as `/help port`                                                            |
 | `/port.list`                        | List available serial ports                                                     |
-| `/port.open {name} {baud} {mode}`   | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81)             |
+| `/port.connect {name} {baud} {mode}`| Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81)          |
 | `/port.mode {baud} {mode}`          | Show or set serial mode (e.g. /port.mode 9600 N81)                              |
-| `/port.close`                       | Disconnect from the serial port                                                 |
+| `/port.disconnect`                  | Disconnect from the serial port                                                 |
 | `/port.info`                        | Show port status, serial parameters, and hardware lines                         |
 | `/port.baud_rate {value}`           | Show or set baud rate (hardware only)                                           |
 | `/port.byte_size {value}`           | Show or set data bits (hardware only)                                           |

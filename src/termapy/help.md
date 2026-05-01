@@ -131,9 +131,9 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/help.dev <cmd>`              | Show a command handler's Python docstring                                   |
 | `/port [name]`                 | Open a port by name, or show subcommands                                    |
 | `/port.list`                   | List available serial ports                                                 |
-| `/port.open {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81)     |
+| `/port.connect {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81) |
 | `/port.mode {baud} {mode}`    | Show or set serial mode (e.g. /port.mode 9600 N81)                         |
-| `/port.close`                  | Disconnect from the serial port                                             |
+| `/port.disconnect`             | Disconnect from the serial port                                             |
 | `/port.info`                   | Show port status, serial parameters, and hardware lines                     |
 | `/port.baud_rate {value}`      | Show or set baud rate (hardware only)                                       |
 | `/port.byte_size {value}`      | Show or set data bits (hardware only)                                       |

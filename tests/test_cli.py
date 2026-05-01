@@ -524,7 +524,7 @@ class TestHookRegistration:
         """All expected CLI hooks are registered."""
         # Arrange
         expected = {
-            "delay", "delay.quiet", "color", "run", "run.profile",
+            "delay", "delay.silent", "color", "run", "run.profile",
             "demo", "demo.force", "clr", "raw", "help.open",
             "log.clear", "tui", "cli",
         }

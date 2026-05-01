@@ -488,13 +488,13 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 
     def run_one(cmd: str) -> str:
         if cmd.startswith(cmd_prefix):
-            quiet = cmd if cmd.endswith(".quiet") else None
-            if quiet is None:
+            silent = cmd if cmd.endswith(".silent") else None
+            if silent is None:
                 parts = cmd.split(None, 1)
-                quiet = parts[0] + ".quiet"
+                silent = parts[0] + ".silent"
                 if len(parts) > 1:
-                    quiet += " " + parts[1]
-            result = ctx.dispatch(quiet)
+                    silent += " " + parts[1]
+            result = ctx.dispatch(silent)
             raw = result.value if result.success else ""
         else:
             if not ctx.is_connected():

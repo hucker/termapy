@@ -350,7 +350,7 @@ demo> /print === section: help ===
   === section: help ===
 demo> /help echo
 NAME
-  /echo - Toggle REPL command echo. Use /echo.quiet to set silently.
+  /echo - Toggle REPL command echo. Use /echo.silent to set without echoing.
 
 SYNOPSIS
   /echo {on|off}
@@ -614,9 +614,6 @@ NAME
 SYNOPSIS
   /run {filename}
 
-FLAGS
-  --verbose, -v - Show each command and its result as the script runs.
-
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
   /run.explore    Open run/ in the system file explorer.
@@ -749,5 +746,4 @@ demo> /ss.svg
   Error: /ss.svg requires: screen_capture (not available in this environment)
 demo> /ss.txt
   Error: /ss.txt requires: screen_capture (not available in this environment)
-  Script finished.
 Disconnected.

@@ -194,7 +194,7 @@ def _make_chip_field_handler(field: str):
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value
-        # so .quiet mode is useful for scripting.
+        # so silent mode is useful for scripting.
         msgs, _ = result
         if len(msgs) == 1:
             return CmdResult.ok(value=msgs[0][0])

@@ -119,6 +119,7 @@ class CLITerminal(TerminalHost):
         run_script: str | None = None,
         term_width: int | None = None,
         zero_config: bool = False,
+        output_level: str | None = None,
     ) -> None:
         """Create a CLI terminal frontend.
 
@@ -133,6 +134,8 @@ class CLITerminal(TerminalHost):
                 Triggers the welcome banner + port list on ``run()`` and
                 skips the automatic initial connect so the user can pick
                 a port interactively.
+            output_level: Initial output level (silent/quiet/normal/verbose)
+                from CLI flags.  None means use the default.
         """
         self.cfg = cfg
         self.config_path = config_path
@@ -140,6 +143,7 @@ class CLITerminal(TerminalHost):
         self.run_script = run_script
         self.term_width = term_width
         self.zero_config = zero_config
+        self.output_level = output_level
         self.prefix = cmd_prefix(cfg)
         self._xfer_cancel = threading.Event()
 
@@ -249,6 +253,8 @@ class CLITerminal(TerminalHost):
 
         self.repl.set_context(self.ctx)
         self._init_flags(echo=False)
+        if self.output_level is not None:
+            self.ctx.ns("flags")["output_level"] = self.output_level
 
     def _register_hooks(self) -> None:
         """Register CLI-specific hooks for /delay, /color, /run."""
@@ -260,7 +266,7 @@ class CLITerminal(TerminalHost):
             source="app",
         )
         self.repl.register_hook(
-            "delay.quiet",
+            "delay.silent",
             "<duration>",
             "Wait silently (no progress bar or output).",
             self._hook_delay_quiet,
@@ -279,10 +285,6 @@ class CLITerminal(TerminalHost):
             "Run a script file, or list available scripts.",
             self._hook_run,
             source="app",
-            flags={
-                "--verbose": "Show each command and its result as the script runs.",
-                "-v": "--verbose",
-            },
         )
         self.repl.register_hook(
             "run.profile",
@@ -290,10 +292,6 @@ class CLITerminal(TerminalHost):
             "Run a script with per-command timing.",
             self._hook_run_profile,
             source="app",
-            flags={
-                "--verbose": "Show each command and its result as the script runs.",
-                "-v": "--verbose",
-            },
         )
         # /run is a hook (not a plugin) because it needs CLI-specific
         # script-running machinery; register the standard folder
@@ -530,7 +528,7 @@ class CLITerminal(TerminalHost):
         script = args.strip()
         if not script:
             return self._hook_run_help(ctx, args)
-        verbose = ctx.flag("--verbose")
+        verbose = ctx.output_level == "verbose"
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(
@@ -548,7 +546,7 @@ class CLITerminal(TerminalHost):
         if not script:
             self.status("Usage: /run.profile <script>", "red")
             return CmdResult.fail(msg="Usage: /run.profile <script>")
-        verbose = ctx.flag("--verbose")
+        verbose = ctx.output_level == "verbose"
         path, result = self.repl.start_script(script)
         if path:
             self.repl.run_script(

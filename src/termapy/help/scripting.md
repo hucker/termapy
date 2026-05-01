@@ -53,43 +53,34 @@ This saves a CSV to the `prof/` folder with elapsed time for each line.
 | `/run.profile.explore`       | Open `prof/` folder in file explorer     |
 | `/run.profile.list`          | List profile files                       |
 
-## Quiet mode and output channels
+## Output levels
 
-Termapy commands write to three output channels:
+A single dial controls how loud commands are. Four monotonic levels:
 
-- **Result:** the answer to a command. Always shown. Example: `/cfg baud_rate` printing `115200`.
-- **Output:** data dumps, file contents, listings. Always shown. Example: `/show file.txt`.
-- **Status:** progress messages, intermediate notes, "doing X now..." lines. Suppressed when verbose is off.
+| Level     | Result | Output | Status | Use                                       |
+| --------- | :----: | :----: | :----: | ----------------------------------------- |
+| `silent`  |   —    |   —    |   —    | scripts reading only `CmdResult.value`    |
+| `quiet`   |   ✓    |   —    |   —    | show the answer, drop the rest            |
+| `normal`  |   ✓    |   ✓    |   —    | default                                   |
+| `verbose` |   ✓    |   ✓    |   ✓    | show progress chatter and timing          |
 
-When you run a script, the status channel is usually noise. You want to see what happened, not a running commentary of every step. Termapy gives you three ways to quiet things down:
-
-| What you want to silence                | How                                                                |
-| --------------------------------------- | ------------------------------------------------------------------ |
-| Status messages from all commands       | `/term.verbose off` (or `/term.verbose.quiet off` in scripts)      |
-| Echoing of each command before it runs  | `/term.echo off` (or `/term.echo.quiet off` in scripts)            |
-| Per-step status from a single `/expect` | Add `quiet=on` to the `/expect` line                               |
-
-The `.quiet` variants (`/term.verbose.quiet`, `/term.echo.quiet`) set the value without echoing the change itself. This is useful at the top of a script or in `on_connect_cmd` where the act of toggling shouldn't itself produce output.
-
-`/term.verbose` only affects the *status* channel. Command results and data output are always visible. Quiet mode is about silencing chatter, not silencing answers. If you run `/cfg baud_rate` in quiet mode, you still get `115200`. You just don't get the dim status line that would normally precede it.
+Set the session default with `/term.output <level>`. Override for a single
+call with `cmd --<level>` or `cmd.<level>`:
 
 ```text
-# clean_check.run -- quiet output, just the results
-/term.echo.quiet off
-/term.verbose.quiet off
-AT+INFO
-/expect quiet=on match=Bassomatic
-AT+TEMP
-/expect quiet=on match=C
+/term.output quiet              # session default
+/cfg baud_rate                  # shows 115200
+/help port --verbose            # one call back to verbose
+/cap show capture.bin --silent  # run, drop output, only value returns
 ```
 
-> **Pre-0.63 scripts.**  The old names (`/echo`, `/verbose`,
-> `/show_line_endings`, `/line_no`) still work as hidden forwarders.
-> Use `/run.legacy <file>` to find them in a script, or
-> `/run.legacy --fix <file>` to rewrite them in place; `/run.legacy *`
-> processes every script in the `run/` directory.
+Set the level at startup with `--silent`, `--quiet`, or `--verbose` on the
+`termapy` command line.
 
-For plugin authors: `ctx.result()`, `ctx.output()`, and `ctx.status()` are the three channels. Use `status()` for anything that's progress narration so users can suppress it cleanly.
+For plugin authors: `ctx.result()` is the answer, `ctx.output()` is bulk
+data, `ctx.status()` is progress chatter. Each gates on the active level.
+Handlers that produce scriptable data must call `CmdResult.ok(value=...)`
+so silent mode is useful.
 
 ## Example script
 

@@ -23,7 +23,7 @@ def send_env():
     # Seed the `flags` namespace (would be done by app.py._build_context).
     flags = ctx.ns("flags")
     flags["echo"] = True
-    flags["verbose"] = True
+    flags["output_level"] = "verbose"
     flags["hex_mode"] = False
     return ctx, output, tx_bytes
 

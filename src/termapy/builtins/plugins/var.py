@@ -305,14 +305,14 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
     cmd = parts[1]
     prefix = ctx.engine.prefix
     if cmd.startswith(prefix):
-        # REPL command: dispatch with .quiet suffix to suppress terminal output,
-        # then use CmdResult.value.  The user doesn't want to see the inner
-        # command's output -- only the variable assignment.
+        # REPL command: dispatch with .silent suffix to suppress terminal
+        # output, then use CmdResult.value.  The user doesn't want to see
+        # the inner command's output -- only the variable assignment.
         parts_cmd = cmd.split(None, 1)
-        quiet_cmd = parts_cmd[0] + ".quiet"
+        silent_cmd = parts_cmd[0] + ".silent"
         if len(parts_cmd) > 1:
-            quiet_cmd += " " + parts_cmd[1]
-        result = ctx.dispatch(quiet_cmd)
+            silent_cmd += " " + parts_cmd[1]
+        result = ctx.dispatch(silent_cmd)
         if not result.success:
             return CmdResult.fail(msg=result.error or f"Command failed: {cmd}")
         value = result.value

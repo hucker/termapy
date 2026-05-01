@@ -35,7 +35,7 @@ Each command entry has:
 - `long_help` (optional) -- multi-line prose shown in the DESCRIPTION
   section of `/help <command>`. Plain text, no markup.
 - `flags` (optional) -- flag map, same shape as a plugin's `Command.flags`.
-  Keys are canonical flag names (e.g. `--verbose`) with a description
+  Keys are canonical flag names (e.g. `--table`) with a description
   string value, or aliases (key = alias, value = canonical flag name).
 
 A richer entry looks like this:

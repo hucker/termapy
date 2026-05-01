@@ -170,6 +170,9 @@ found or no ports are connected.
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
 | `--cli`           | Launch the CLI REPL instead of the TUI. With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
+| `--silent`        | Output level: nothing (script reads `CmdResult.value` only).  |
+| `--quiet`         | Output level: command results only.                           |
+| `--verbose`       | Output level: results + data + progress chatter.              |
 
 `termapy --help` has the full list.
 

@@ -1,21 +1,24 @@
 """Built-in plugin: /term.* -- terminal display / session toggles.
 
 Consolidates what used to be a scattering of top-level toggles
-(/echo, /line_no, /show_line_endings, /verbose) under one namespace
-for symmetry with /port.* and /cfg.*.  Also adds runtime toggles
-for config keys that previously could only be set via /cfg
-(/term.timestamps, /term.hex, /term.encoding, /term.send_bare_enter).
-
-The old top-level names (/echo, /line_no, /show_line_endings,
-/verbose) remain as hidden legacy aliases that forward here and
-print a one-time deprecation note -- so existing scripts keep working.
+(/echo, /line_no, /show_line_endings) under one namespace for symmetry
+with /port.* and /cfg.*.  Also adds runtime toggles for config keys
+that previously could only be set via /cfg (/term.timestamps,
+/term.hex, /term.encoding, /term.send_bare_enter), plus the
+/term.output level dial that controls how loud commands are.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import (
+    OUTPUT_LEVELS,
+    CapabilitySet,
+    CmdResult,
+    Command,
+    parse_output_level,
+)
 from termapy.scripting import parse_bool
 
 if TYPE_CHECKING:
@@ -46,8 +49,26 @@ def _handler_echo(ctx: PluginContext, args: str) -> CmdResult:
     return _flag_toggle(ctx, args, "echo")
 
 
-def _handler_verbose(ctx: PluginContext, args: str) -> CmdResult:
-    return _flag_toggle(ctx, args, "verbose")
+def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
+    """Show or set the global output level.
+
+    Bare invocation reports the current level; an argument sets it.
+    Setting ``silent`` does not echo the new state (silent means silent).
+    """
+    flags = ctx.ns("flags")
+    arg = args.strip()
+    if not arg:
+        current = flags.get("output_level", "normal")
+        ctx.result(current)
+        return CmdResult.ok(value=current)
+    level = parse_output_level(arg)
+    if level is None:
+        return CmdResult.fail(
+            msg=f"Unknown level: {arg} (use {'/'.join(OUTPUT_LEVELS)})"
+        )
+    flags["output_level"] = level
+    ctx.result(level)
+    return CmdResult.ok(value=level)
 
 
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
@@ -138,7 +159,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     flags = ctx.ns("flags")
     rows = [
         ("echo",            "on" if flags.get("echo") else "off"),
-        ("verbose",         "on" if flags.get("verbose") else "off"),
+        ("output",          str(flags.get("output_level", "normal"))),
         ("hex",             "on" if flags.get("hex_mode") else "off"),
         ("line_no",         "on" if flags.get("line_no") else "off"),
         ("line_endings",    "on" if ctx.cfg.get("show_line_endings") else "off"),
@@ -170,11 +191,13 @@ COMMAND = Command(
     help="Terminal display / session toggles (echo, line_no, timestamps, ...).",
     long_help=(
         "Runtime display and session toggles.  Collapses what used to be\n"
-        "scattered top-level commands (/echo, /line_no, /show_line_endings,\n"
-        "/verbose) under one namespace and adds runtime access to a handful\n"
-        "of config-key toggles that previously required /cfg.\n"
+        "scattered top-level commands (/echo, /line_no, /show_line_endings)\n"
+        "under one namespace and adds runtime access to a handful of\n"
+        "config-key toggles that previously required /cfg, plus the\n"
+        "{prefix}term.output level dial.\n"
         "\n"
-        "All toggles accept ``on|off|true|false|1|0|yes|no``; empty args\n"
+        "Toggles accept ``on|off|true|false|1|0|yes|no``; {prefix}term.output\n"
+        "takes a level name (silent/quiet/normal/verbose).  Empty args\n"
         "reports the current state.\n"
         "\n"
         "Use {prefix}term.info for a full snapshot."
@@ -197,10 +220,22 @@ COMMAND = Command(
             help="Toggle visible \\r \\n markers in serial output.",
             handler=_handler_line_endings,
         ),
-        "verbose": Command(
-            args="{on|off}",
-            help="Toggle verbose status output.",
-            handler=_handler_verbose,
+        "output": Command(
+            args="{silent|quiet|normal|verbose}",
+            help="Show or set the global output level (silent/quiet/normal/verbose).",
+            long_help=(
+                "Controls how loud commands are.  Each level adds a channel\n"
+                "to the previous one:\n"
+                "\n"
+                "  silent   show nothing (CmdResult.value still returns)\n"
+                "  quiet    show command results only\n"
+                "  normal   show results + bulk output (default)\n"
+                "  verbose  show results + output + status/progress chatter\n"
+                "\n"
+                "Override per-call with ``cmd --<level>`` or ``cmd.<level>``\n"
+                "(e.g. ``{prefix}port.list.quiet`` or ``{prefix}cap show foo --silent``)."
+            ),
+            handler=_handler_output,
         ),
         "timestamps": Command(
             args="{on|off}",

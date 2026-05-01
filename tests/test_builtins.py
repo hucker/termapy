@@ -69,7 +69,7 @@ def repl_env(tmp_path):
     # PluginContext directly bypass that path, so do it explicitly here.
     flags = ctx.ns("flags")
     flags["echo"] = True
-    flags["verbose"] = True
+    flags["output_level"] = "verbose"
     flags["hex_mode"] = False
     return engine, cfg, config_path, output
 

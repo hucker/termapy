@@ -252,7 +252,7 @@ class TestInitFlags:
         # Assert
         flags = host.ctx.ns("flags")
         assert flags["echo"] is True, "echo set to True"
-        assert flags["verbose"] is True, "verbose defaults to True"
+        assert flags["output_level"] == "normal", "output_level defaults to normal"
 
     def test_echo_false(self, host):
         # Arrange

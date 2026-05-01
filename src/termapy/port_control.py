@@ -637,7 +637,10 @@ def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | N
     for p in comports():
         if p.device == port_name:
             return _facts_from_port_info(p, connected_port)
-    return None
+    # OS didn't enumerate it; fall back to synthesizing a record for
+    # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
+    # `termapy --info DEMO` work without hardware.
+    return synthetic_facts_for_reserved(port_name)
 
 
 # ─ Demo fleet ─────────────────────────────────────────────────────────────
@@ -701,6 +704,44 @@ def _gather_all_chip_facts(connected_port: str = "") -> list[ChipFacts]:
         _facts_from_port_info(p, connected_port)
         for p in sorted(comports(), key=lambda x: x.device)
     ]
+
+
+def synthetic_facts_for_reserved(name: str) -> ChipFacts | None:
+    """Return synthesized ChipFacts for a reserved virtual port, or None.
+
+    DEMO / DEMO_FAIL are not enumerated by the OS but are reachable
+    through termapy's runtime serial paths.  Surfacing them here lets
+    ``termapy --ports DEMO --json`` produce a real record so CI
+    pipelines can exercise the CLI without hardware -- the same way
+    ``loop://`` and other pyserial URL handlers are reachable only
+    when explicitly named.
+
+    Returns None for any name that isn't a recognized reserved port,
+    so callers can fall through to "no match" handling.
+    """
+    if name == "DEMO":
+        return ChipFacts(
+            device="DEMO",
+            description="Termapy simulated device",
+            manufacturer="termapy",
+            model="DEMO",
+            usb_speed="virtual (not a USB device)",
+            vid_pid="not a USB device",
+            in_use="no",
+            permissions="ok",
+        )
+    if name == "DEMO_FAIL":
+        return ChipFacts(
+            device="DEMO_FAIL",
+            description="Termapy simulated device (connect always fails)",
+            manufacturer="termapy",
+            model="DEMO_FAIL",
+            usb_speed="virtual (not a USB device)",
+            vid_pid="not a USB device",
+            in_use="no",
+            permissions="ok",
+        )
+    return None
 
 
 # ─ Port spec resolution ───────────────────────────────────────────────────

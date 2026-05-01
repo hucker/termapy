@@ -235,6 +235,14 @@ def run_ports(args: argparse.Namespace) -> None:
 
     if args.ports and args.ports != "*":
         all_facts = [f for f in all_facts if f.device == args.ports]
+        # Reserved virtual ports (DEMO, DEMO_FAIL) aren't OS-enumerated
+        # but are reachable at runtime; surface a synthetic record when
+        # the user names one explicitly so CI can exercise --ports
+        # without hardware.
+        if not all_facts:
+            synthetic = port_control.synthetic_facts_for_reserved(args.ports)
+            if synthetic is not None:
+                all_facts = [synthetic]
         if not all_facts and not args.json:
             print(f"No port matching {args.ports!r}", file=sys.stderr)
             sys.exit(1)

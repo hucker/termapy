@@ -364,3 +364,118 @@ class TestDriverColumn:
         # Assert
         record = json.loads(buf.getvalue())[0]
         assert record["driver"] == "ftdi_sio", "driver field present in JSON"
+
+
+# ── Reserved-port synthesis (DEMO / DEMO_FAIL) ────────────────────────────────
+
+
+class TestReservedPortSynthesis:
+    """`--ports DEMO` returns a synthetic record so CI can exercise the
+    CLI without hardware.  Bare `--ports` (no name) does NOT include
+    DEMO in the listing -- it appears only when explicitly named, the
+    same way pyserial's loop:// URL handler is reachable but not
+    enumerated.
+    """
+
+    def test_demo_not_in_unfiltered_listing(self, monkeypatch):
+        # Arrange -- no real ports; nothing should appear bare.
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True))
+
+        # Assert
+        actual = json.loads(buf.getvalue())
+        assert actual == [], "DEMO is not enumerated by default"
+        assert exc.value.code == 1, "exit 1 on empty listing"
+
+    def test_demo_synthesized_when_named(self, monkeypatch):
+        # Arrange -- no real ports, but user names DEMO explicitly.
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True, ports="DEMO"))
+
+        # Assert
+        records = json.loads(buf.getvalue())
+        assert exc.value.code == 0, "exit 0 -- record was synthesized"
+        assert len(records) == 1, "one synthetic record"
+        actual = records[0]
+        assert actual["device"] == "DEMO", "device name preserved"
+        assert actual["chip"] == "DEMO", "chip = DEMO sentinel"
+        assert actual["manufacturer"] == "termapy", "manufacturer = termapy"
+        assert actual["vid"] is None, "no VID for virtual port"
+        assert actual["pid"] is None, "no PID for virtual port"
+        assert actual["in_use"] is False, "synthesized as not-in-use"
+
+    def test_demo_fail_synthesized_when_named(self, monkeypatch):
+        # Arrange
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True, ports="DEMO_FAIL"))
+
+        # Assert
+        records = json.loads(buf.getvalue())
+        assert len(records) == 1, "one synthetic record"
+        assert records[0]["device"] == "DEMO_FAIL", "DEMO_FAIL preserved"
+
+    def test_unknown_reserved_name_still_errors(self, monkeypatch):
+        # Arrange -- a fake name that isn't reserved should not synthesize.
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True, ports="NOPE"))
+
+        # Assert -- empty array, exit 1; the synthesis only triggers for
+        # the reserved names DEMO and DEMO_FAIL.
+        actual = json.loads(buf.getvalue())
+        assert actual == [], "no synthesis for arbitrary names"
+        assert exc.value.code == 1, "exit 1 on no match"
+
+    def test_demo_real_port_takes_precedence(self, monkeypatch):
+        # Arrange -- if the OS somehow enumerates a port named "DEMO"
+        # (shouldn't happen, but fence it), the real one wins.
+        real_demo = _make_facts(
+            device="DEMO", manufacturer="real-vendor", driver="usbser"
+        )
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [real_demo],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True, ports="DEMO"))
+
+        # Assert -- real port's manufacturer wins, not the synthesized "termapy".
+        record = json.loads(buf.getvalue())[0]
+        assert record["manufacturer"] == "real-vendor", (
+            "OS-enumerated record wins over synthesis"
+        )

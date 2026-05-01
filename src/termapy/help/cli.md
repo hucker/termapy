@@ -202,6 +202,22 @@ Numeric fields stay numeric; missing values are `null` (not omitted).
 `ch341`, `cp210x`, ...) and the Windows service name (`FTDIBUS`,
 `usbser`, `silabser`, ...). On macOS `driver` is `null` for now.
 
+### Hardware-free CI: `--ports DEMO`
+
+`DEMO` and `DEMO_FAIL` are virtual port names that the OS doesn't
+enumerate but termapy can connect to.  Naming one explicitly returns
+a synthesized record so CI pipelines can exercise the CLI without
+plugging in real hardware:
+
+```sh
+termapy --ports DEMO --json
+termapy --info DEMO
+```
+
+Bare `--ports` (no filter) does NOT include `DEMO` in the listing --
+it only appears when you specifically ask for it, the same way
+pyserial's `loop://` URL handler is reachable but not enumerated.
+
 ## Other flags worth knowing
 
 | Flag              | What it does                                                  |

@@ -1,5 +1,147 @@
 # Changelog
 
+## 0.64.0 (2026-05-01)
+
+CLI and output-system overhaul.  The pre-0.64 boolean ``verbose`` toggle
+and the all-or-nothing ``.quiet`` suffix are replaced by a single
+monotonic dial -- ``silent`` < ``quiet`` < ``normal`` < ``verbose`` --
+that works the same way at three scopes (session default, per-call
+suffix, per-call flag).  ``termapy --ports`` gains a stable JSON shape
+with multi-axis filters, and the new ``vendor`` / ``location`` /
+``driver`` fields make port identification practical when you have
+identical adapters or unrecognized chips.  ``--watch`` is much
+lighter on CPU (3-4% during a session, was ~50% on multi-port hosts)
+thanks to a fast-gather path that skips the per-port in-use probe;
+user-observable reaction time is bounded by Windows USB-enumeration
+latency, which polling can't move.  Old command
+names continue to work as hidden forwarders, with ``/run.legacy``
+extended to rewrite them.
+
+### 0.64.0 New Features
+
+- **Four-level output dial** -- ``/term.output {silent|quiet|normal|
+  verbose}`` replaces the boolean ``/term.verbose`` toggle.  Each level
+  adds a channel: ``silent`` shows nothing (script consumers read
+  ``CmdResult.value``), ``quiet`` shows the answer, ``normal`` adds bulk
+  data output, ``verbose`` adds progress chatter.  The same vocabulary
+  works as a per-call flag (``cmd --quiet``) or suffix (``cmd.quiet``);
+  the universal level dispatch means every command accepts them
+  without per-handler setup.  CLI startup flags ``--silent`` /
+  ``--quiet`` / ``--verbose`` set the default before the REPL boots,
+  which matters most for ``--run`` script invocations.
+
+- **``--ports --json`` with stable schema** -- one JSON object per port
+  with snake_case keys, ``null`` for unknown values (not omitted),
+  numeric ``vid`` / ``pid`` plus the formatted lowercase-hex ``vid_pid``
+  string, and a boolean ``in_use``.  Schema is documented in
+  ``help/cli.md`` and treated as API for scripts.  ``--chips --json``
+  similarly emits the bundled chip lookup as structured records.
+
+- **Multi-axis port filters** -- ``--vid`` / ``--pid`` / ``--mfg`` /
+  ``--sn`` AND-compose with each other and with the existing
+  ``--ports <name>`` filter.  Hex flags accept ``0x0403`` or ``0403``;
+  ``--mfg`` is a case-insensitive substring; ``--sn`` is exact.
+  Distinct exit codes for "bad input" (2) and "no match" (1) so CI
+  pipelines can distinguish typo from missing-device.
+
+- **Vendor / location / driver columns** -- three new fields on every
+  port record, surfaced in ``--ports``, the JSON output, both port
+  pickers (PortPicker and QuickSetup), and the title-bar port hover
+  tooltip.
+
+  - ``vendor`` is the silicon-vendor name resolved from the VID via a
+    new curated ``usb_vendor`` table (~30 entries covering FTDI,
+    Silicon Labs, WCH, Microchip, Microsoft, Espressif, ST, NXP, ...).
+    Independent of the descriptor / driver-INF ``manufacturer`` string,
+    so a Microchip USB-CDC chip running on Microsoft's ``usbser.sys``
+    correctly reports ``Microchip`` as the silicon vendor while
+    ``manufacturer_raw`` still preserves the literal ``Microsoft``.
+
+  - ``location`` is the bus path (``1-2.3`` on Linux,
+    ``Hub_#0009.Port_#0004`` on Windows after registry fallback for
+    FTDI, hex location ID on macOS).  Disambiguates two physically
+    distinct adapters that share VID/PID/SN, which cheap clones and
+    duplicate-of-the-same-product scenarios both produce.
+
+  - ``driver`` is the bound kernel module (Linux) or service name
+    (Windows): ``ftdi_sio``, ``cdc_acm``, ``cp210x``, ``FTSER2K``,
+    ``usbser``, etc.  Surfaces driver-binding problems at a glance.
+
+- **DEMO synthesis for hardware-free CI** -- ``termapy --ports DEMO
+  --json`` and ``termapy --info DEMO`` now return synthetic records
+  for the reserved virtual port names so CI pipelines can exercise
+  the CLI without plugging in real hardware.  Bare ``--ports`` (no
+  filter) does NOT include DEMO -- it appears only when explicitly
+  named, the same way pyserial's ``loop://`` URL handler is reachable
+  but not enumerated.
+
+- **``--watch`` lighter on CPU** -- the watch loop previously called a
+  per-port ``_check_in_use`` probe that opens each port via
+  ``serial.Serial()`` to detect contention.  On Windows this is
+  ~250 ms / port (driver init on each ``CreateFile``), so gather
+  scaled linearly with port count and consumed ~50% CPU during a
+  watch session on a multi-port host.  A new fast-gather path skips
+  the in-use probe for the watch loop only -- ``--ports`` and
+  ``--info`` keep the full check -- so gather drops from 250+ ms to
+  ~7 ms regardless of port count, and CPU during watch falls to
+  ~3-4%.
+
+  Note: this does **not** lower user-observable hot-plug reaction
+  time meaningfully on Windows.  ``comports()`` itself returns stale
+  data for 1-3 seconds after a USB event (longer for FTDI, whose
+  driver does an EEPROM-read handshake on every connect), so the
+  floor is OS USB-enumeration latency, not termapy's polling loop.
+  Reaching that floor would require event-driven APIs (``WMI
+  Win32_DeviceChangeEvent``, ``RegisterDeviceNotification``), and
+  even those fire only after the driver finishes init -- so the
+  practical improvement on Windows would be small.  Linux with
+  ``udev`` events would benefit more; future work.
+
+- **``/port.connect`` and ``/port.disconnect``** -- ``/port.open`` and
+  ``/port.close`` are renamed to match the user-facing language already
+  used in status messages (``Connected:`` / ``Disconnected.``).  Old
+  names keep working as hidden forwarders.
+
+- **Three-field manufacturer breadcrumbs** -- the ``--ports --json``
+  record now exposes ``manufacturer_raw`` (literal descriptor / INF
+  string), ``manufacturer`` (column-friendly aliased short form), and
+  ``vendor`` (silicon vendor by VID).  These often agree; when they
+  diverge -- typically because a device uses a generic class driver --
+  all three are visible so engineers can spot the layering instead of
+  having one source silently override the others.
+
+### 0.64.0 Improvements
+
+- **Faster CLI startup** -- the import-discipline guard for
+  ``termapy.cli_flags`` is now mechanically enforced by a test that
+  fails if Textual / Rich / prompt_toolkit ever sneak into the
+  ``termapy --ports`` import path.  Cold-start under 50 ms is
+  preserved.
+
+- **Migration forwarders and ``/run.legacy`` updates** --
+  ``/verbose on|off`` continues to work, translating to
+  ``/term.output verbose|normal``.  ``/term.verbose`` similarly.
+  The old "set silently" idiom (``echo.quiet on``, ``term.echo.quiet
+  on``) is now recognized by ``/run.legacy --fix``, which rewrites it
+  to the ``.silent`` form.  Existing ``.run`` scripts continue to
+  work; migrate at your own pace with ``/run.legacy *``.
+
+- **Port pickers widened to 130 columns** -- the QuickSetup ("New
+  Config") and PortPicker dialogs gain horizontal space for the new
+  vendor/location columns.  ``DROP_ORDER`` reprioritized so vendor
+  outranks chip / vid_pid / driver when narrow -- ``Microchip`` in
+  9 characters beats ``04D8:9036`` or a 32-character chip name when
+  the row is squeezed.
+
+- **FTDI Windows location recovery** -- pyserial returns ``None`` for
+  ``location`` on FTDI ports because the FTDIBUS driver hides bus-
+  location info from SetupAPI.  termapy now falls back to the registry:
+  reads the FTDI device's ``ContainerID``, walks ``HKLM\\SYSTEM\\
+  CurrentControlSet\\Enum\\USB`` for the matching USB partner node,
+  and reads ``LocationInformation`` from there.  Strings are
+  normalized so hub appears before port (``Hub_#0009.Port_#0004``,
+  not ``Port_#0004.Hub_#0009``) to match natural reading order.
+
 ## 0.63.1 (2026-04-29)
 
 Documentation-only patch release.  Sync of the bundled in-app help

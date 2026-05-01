@@ -526,21 +526,82 @@ def _windows_match_inst(
         except OSError:
             service = None
         facts.driver = str(service) if service else None
-        # FTDI's Windows driver hides bus-location info from SetupAPI
-        # (pyserial returns None for facts.location on FTDI ports), but
-        # the registry has it as ``LocationInformation`` -- a string
-        # like ``Port_#0003.Hub_#0008``.  Read it as a fallback so two
-        # identical FTDI adapters can be told apart.
+        # Pyserial returns None for facts.location on FTDI ports because
+        # the FTDIBUS pseudo-bus driver hides location info from
+        # SetupAPI.  Fall back to the registry: LocationInformation
+        # may be at this key directly (Microsoft's usbser does this),
+        # or under the USB partner device that shares our ContainerID
+        # (FTDI presents both an FTDIBUS\... port node and a USB\...
+        # bus node; LocationInformation lives on the USB side).
         if not facts.location:
-            try:
-                loc, _ = winreg_mod.QueryValueEx(
-                    inst_key, "LocationInformation"
-                )
-                if loc:
-                    facts.location = str(loc)
-            except OSError:
-                pass
+            facts.location = _windows_lookup_location(
+                winreg_mod, inst_key
+            )
         return True
+
+
+def _windows_lookup_location(winreg_mod, inst_key) -> str | None:
+    """Return the device's bus-location string, walking via ContainerID
+    if necessary.
+
+    Microsoft's ``usbser`` puts ``LocationInformation`` directly on the
+    COM port's Enum node.  FTDI's ``FTSER2K`` puts the COM node under
+    ``FTDIBUS\\...`` which has no location; the matching USB device
+    (under ``USB\\...``) carries it.  Both nodes share the same
+    ``ContainerID``, so we use that as the join key.
+    """
+    # Direct: most non-FTDI drivers populate LocationInformation here.
+    try:
+        loc, _ = winreg_mod.QueryValueEx(inst_key, "LocationInformation")
+        if loc:
+            return str(loc)
+    except OSError:
+        pass
+    # Indirect: walk Enum\USB looking for a node with the same
+    # ContainerID, then read LocationInformation from there.
+    try:
+        container_id, _ = winreg_mod.QueryValueEx(inst_key, "ContainerID")
+    except OSError:
+        return None
+    if not container_id:
+        return None
+    try:
+        usb_root = winreg_mod.OpenKey(
+            winreg_mod.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Enum\USB",
+        )
+    except OSError:
+        return None
+    with usb_root:
+        for hwid in _enum_subkeys(winreg_mod, usb_root):
+            try:
+                hwid_key = winreg_mod.OpenKey(usb_root, hwid)
+            except OSError:
+                continue
+            with hwid_key:
+                for inst in _enum_subkeys(winreg_mod, hwid_key):
+                    try:
+                        node = winreg_mod.OpenKey(hwid_key, inst)
+                    except OSError:
+                        continue
+                    with node:
+                        try:
+                            cid, _ = winreg_mod.QueryValueEx(
+                                node, "ContainerID"
+                            )
+                        except OSError:
+                            continue
+                        if cid != container_id:
+                            continue
+                        try:
+                            loc, _ = winreg_mod.QueryValueEx(
+                                node, "LocationInformation"
+                            )
+                        except OSError:
+                            return None
+                        if loc:
+                            return str(loc)
+    return None
 
 
 def _check_in_use(device: str, connected_port: str = "") -> str:

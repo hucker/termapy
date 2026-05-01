@@ -272,6 +272,15 @@ class CLITerminal(TerminalHost):
             self._hook_delay_quiet,
             source="app",
         )
+        from termapy.legacy import make_forwarder
+        self.repl.register_hook(
+            "delay.quiet",
+            "<duration>",
+            "Legacy alias for /delay.silent.",
+            make_forwarder("delay.quiet", "delay.silent"),
+            source="app",
+            hidden=True,
+        )
         self.repl.register_hook(
             "color",
             "{on|off}",

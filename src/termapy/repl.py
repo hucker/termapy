@@ -502,6 +502,7 @@ class ReplEngine:
         raw_args: bool = False,
         flags: dict[str, str] | None = None,
         needs: CapabilitySet | None = None,
+        hidden: bool = False,
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -545,6 +546,7 @@ class ReplEngine:
             raw_args=raw_args,
             flags=dict(flags) if flags else {},
             needs=needs if needs is not None else CapabilitySet(),
+            hidden=hidden,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:

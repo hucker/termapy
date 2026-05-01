@@ -33,17 +33,22 @@ if TYPE_CHECKING:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-# Column order, left to right.  Optional columns (``sn``, ``driver``)
-# are conditionally hidden via ``active_columns`` when every row is blank.
+# Column order, left to right.  Optional columns (``sn``, ``driver``,
+# ``vendor``, ``location``) are conditionally hidden via
+# ``active_columns`` when every row is blank, so platforms that don't
+# populate them (e.g. macOS for ``driver``, non-USB ports for
+# ``vendor``) just don't show them.
 PORT_COLUMNS: tuple[str, ...] = (
     "port",
     "manufacturer",
+    "vendor",
     "description",
     "chip",
     "speed",
     "vid_pid",
     "sn",
     "driver",
+    "location",
 )
 
 # Header labels shown in the table header row.  MANUFACTURER is
@@ -53,12 +58,14 @@ PORT_COLUMNS: tuple[str, ...] = (
 COLUMN_HEADERS: dict[str, str] = {
     "port": "PORT",
     "manufacturer": "MFG",
+    "vendor": "VENDOR",
     "description": "DESCRIPTION",
     "chip": "CHIP",
     "speed": "SPEED",
     "vid_pid": "VID:PID",
     "sn": "SN",
     "driver": "DRIVER",
+    "location": "LOCATION",
 }
 
 # Column separator between adjacent fields.
@@ -68,7 +75,13 @@ _COL_SEP = "  "
 # priority order (most-expendable first).  port / description / mfg
 # are never dropped: port is required to pick a row, description is
 # the primary identifier, and mfg is already very short.
-DROP_ORDER: tuple[str, ...] = ("speed", "driver", "chip", "vid_pid", "sn")
+#
+# location dropped near the end -- it's the disambiguator for
+# identical adapters and matters more than vid_pid/chip/speed when
+# the user has duplicate hardware plugged in.
+DROP_ORDER: tuple[str, ...] = (
+    "speed", "driver", "vendor", "chip", "vid_pid", "sn", "location",
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -106,16 +119,22 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     manufacturer = _mfg_alias(facts.manufacturer) or "-"
     sn = facts.serial or "-"
     driver = facts.driver or "-"
+    # Vendor flows through the same alias table so narrow columns stay
+    # consistent ("Silicon Labs" -> "SiLabs", "Microchip" -> "Microchip").
+    vendor = _mfg_alias(facts.vendor) or "-"
+    location = facts.location or "-"
 
     return port, {
         "port": port,
         "manufacturer": manufacturer,
+        "vendor": vendor,
         "description": description,
         "chip": chip,
         "speed": speed,
         "vid_pid": vid_pid,
         "sn": sn,
         "driver": driver,
+        "location": location,
     }
 
 
@@ -127,18 +146,19 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
 def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     """Drop purely-blank optional columns from the display list.
 
-    ``sn`` and ``driver`` are optional: if every port reports ``"-"``
-    for one of them (common on built-in COM1/stock adapters, or on
-    macOS where driver isn't gathered yet), we hide that column
-    entirely so the row stays readable.  Other columns like
-    chip/speed/vid_pid can also be ``"-"`` for non-USB ports but are
-    informative enough to always show.
+    ``sn``, ``driver``, ``vendor``, and ``location`` are optional: if
+    every port reports ``"-"`` for one of them (common on built-in
+    COM1/stock adapters, on macOS where ``driver`` isn't gathered
+    yet, or for non-USB ports where ``vendor`` doesn't apply), we
+    hide that column entirely so the row stays readable.  Other
+    columns like chip/speed/vid_pid can also be ``"-"`` for non-USB
+    ports but are informative enough to always show.
     """
     cols = list(PORT_COLUMNS)
-    if rows and all(row["sn"] == "-" for _, row in rows):
-        cols.remove("sn")
-    if rows and all(row["driver"] == "-" for _, row in rows):
-        cols.remove("driver")
+    optional = ("sn", "driver", "vendor", "location")
+    for col in optional:
+        if rows and all(row[col] == "-" for _, row in rows):
+            cols.remove(col)
     return tuple(cols)
 
 

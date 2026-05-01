@@ -133,6 +133,10 @@ def _facts_to_json_record(facts) -> dict:
         "serial_number": facts.serial,
         "in_use": (facts.in_use or "").startswith("yes"),
         "driver": facts.driver,
+        # Bus location (e.g. "1-2.3" on Linux, "Port_#0003.Hub_#0008"
+        # on Windows).  Disambiguates two devices with the same VID/PID
+        # and serial number -- the cheap-clone scenario.
+        "location": facts.location,
     }
 
 

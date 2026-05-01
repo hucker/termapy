@@ -150,6 +150,7 @@ class TestPortsJsonShape:
         expected_keys = {
             "device", "manufacturer", "description", "chip", "speed",
             "vid", "pid", "vid_pid", "serial_number", "in_use", "driver",
+            "location",
         }
         assert set(actual.keys()) == expected_keys, (
             f"every documented field present; got {sorted(actual)}"
@@ -563,3 +564,52 @@ class TestFastGather:
         # Assert
         expected = "-"
         assert actual == expected, "fast gather marks state as unknown"
+
+
+class TestLocationField:
+    """`location` disambiguates devices with identical VID/PID/SN.
+
+    Windows FTDI driver hides location from SetupAPI (pyserial returns
+    None); ``_gather_windows_extras`` falls back to reading
+    ``LocationInformation`` from the device's Enum registry key.
+    """
+
+    def test_location_present_in_json_record(self, monkeypatch):
+        # Arrange
+        facts = _make_facts(device="COM7")
+        facts.location = "1-2.3"
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [facts],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True))
+
+        # Assert
+        record = json.loads(buf.getvalue())[0]
+        actual = record["location"]
+        expected = "1-2.3"
+        assert actual == expected, "location surfaced in JSON"
+
+    def test_location_null_when_unknown(self, monkeypatch):
+        # Arrange
+        facts = _make_facts()
+        facts.location = None
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [facts],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True))
+
+        # Assert
+        record = json.loads(buf.getvalue())[0]
+        assert record["location"] is None, "missing location -> null, not omitted"

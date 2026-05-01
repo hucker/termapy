@@ -498,7 +498,8 @@ def _enum_subkeys(winreg_mod, key) -> list[str]:
 def _windows_match_inst(
     winreg_mod, parent_key, inst: str, device: str, facts: ChipFacts
 ) -> bool:
-    """Check one Enum instance node for a PortName match; populate driver if so.
+    """Check one Enum instance node for a PortName match; populate
+    ``facts.driver`` and (if pyserial didn't already) ``facts.location``.
 
     Returns True if the instance owns ``device`` (the caller stops
     walking).  False otherwise.
@@ -523,8 +524,22 @@ def _windows_match_inst(
         try:
             service, _ = winreg_mod.QueryValueEx(inst_key, "Service")
         except OSError:
-            return False
+            service = None
         facts.driver = str(service) if service else None
+        # FTDI's Windows driver hides bus-location info from SetupAPI
+        # (pyserial returns None for facts.location on FTDI ports), but
+        # the registry has it as ``LocationInformation`` -- a string
+        # like ``Port_#0003.Hub_#0008``.  Read it as a fallback so two
+        # identical FTDI adapters can be told apart.
+        if not facts.location:
+            try:
+                loc, _ = winreg_mod.QueryValueEx(
+                    inst_key, "LocationInformation"
+                )
+                if loc:
+                    facts.location = str(loc)
+            except OSError:
+                pass
         return True
 
 

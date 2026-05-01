@@ -71,6 +71,39 @@ def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=level)
 
 
+def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
+    """Legacy /term.verbose forwarder: translate on/off and dispatch."""
+    warned = ctx.ns("legacy_warned")
+    if "term.verbose" not in warned:
+        warned["term.verbose"] = True
+        p = ctx.engine.prefix
+        ctx.write(
+            f"  Note: {p}term.verbose is legacy; use "
+            f"{p}term.output (verbose|normal).",
+            "yellow",
+        )
+    body = args.strip()
+    if not body:
+        target = "term.output"
+    else:
+        val = parse_bool(body)
+        if val is True:
+            target = "term.output verbose"
+        elif val is False:
+            target = "term.output normal"
+        else:
+            return CmdResult.fail(msg=f"Invalid: {body} (use on or off)")
+    result = ctx.engine.dispatch(target)
+    if not result.success:
+        return CmdResult(
+            success=False,
+            error="",
+            elapsed_s=result.elapsed_s,
+            value=result.value,
+        )
+    return result
+
+
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     return _flag_toggle(ctx, args, "hex_mode")
 
@@ -236,6 +269,12 @@ COMMAND = Command(
                 "(e.g. ``{prefix}port.list.quiet`` or ``{prefix}cap show foo --silent``)."
             ),
             handler=_handler_output,
+        ),
+        "verbose": Command(
+            args="{on|off}",
+            help="Legacy alias for /term.output (verbose|normal).",
+            handler=_handler_verbose_legacy,
+            hidden=True,
         ),
         "timestamps": Command(
             args="{on|off}",

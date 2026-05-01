@@ -1021,6 +1021,8 @@ class SerialTerminal(TerminalHost, App):
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks."""
+        from termapy.legacy import make_forwarder
+
         # Make bare /cfg, /run, /proto behave like clicking the matching
         # title-bar button.  Plugin handlers (cfg.py, proto.py) and the
         # /run hook check this callback when invoked with no args; CLI
@@ -1043,6 +1045,15 @@ class SerialTerminal(TerminalHost, App):
             needs=CapabilitySet(screen_capture=True),
         )
         self.repl.register_hook(
+            "ss.svg.quiet",
+            "{name}",
+            "Legacy alias for /ss.svg.silent.",
+            make_forwarder("ss.svg.quiet", "ss.svg.silent"),
+            source="app",
+            needs=CapabilitySet(screen_capture=True),
+            hidden=True,
+        )
+        self.repl.register_hook(
             "ss.txt",
             "{name}",
             "Save text screenshot. Name defaults to 'screenshot'.",
@@ -1063,6 +1074,14 @@ class SerialTerminal(TerminalHost, App):
             "Wait silently (no output).",
             self._hook_delay_quiet,
             source="app",
+        )
+        self.repl.register_hook(
+            "delay.quiet",
+            "<duration>",
+            "Legacy alias for /delay.silent.",
+            make_forwarder("delay.quiet", "delay.silent"),
+            source="app",
+            hidden=True,
         )
         self.repl.register_hook(
             "run",
@@ -1230,8 +1249,6 @@ class SerialTerminal(TerminalHost, App):
             flags=log_fingerprint.FLAGS,
         )
         # /edit.log -- hidden legacy forwarder to /log.show.
-        from termapy.legacy import make_forwarder
-
         self.repl.register_hook(
             "edit.log",
             "",

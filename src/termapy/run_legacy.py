@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import folder_line
-from termapy.legacy import LEGACY_COMMANDS
+from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
 from termapy.plugins import CmdResult
 
 if TYPE_CHECKING:
@@ -36,18 +36,32 @@ def _scan_line(line: str, prefix: str) -> tuple[str, list[tuple[str, str]]]:
     """Scan one line for legacy commands.
 
     Returns ``(rewritten_line, hits)`` where ``hits`` is a list of
-    ``(old_name, new_name)`` pairs found in this line.  Only matches a
+    ``(old_text, new_text)`` pairs found in this line.  Only matches a
     command name at the start of the (possibly prefix-stripped) line
-    or immediately after the REPL prefix, followed by a word boundary
-    -- so ``/echo`` matches but ``/echo.quiet`` does not (it isn't in
-    the legacy table).
+    or immediately after the REPL prefix.  ``LEGACY_REWRITES`` (regex,
+    args-aware) is checked first so a longer rewrite wins over a
+    name-only match (e.g. ``verbose on`` -> ``term.output verbose``
+    beats the bare ``verbose`` -> ``term.output`` rename).
     """
     stripped = line.lstrip()
     indent = line[: len(line) - len(stripped)]
     if not stripped.startswith(prefix):
         return line, []
     body = stripped[len(prefix):]
-    # Split the name off at a word boundary so we don't eat args.
+    # Args-aware rewrites first.  Each pattern matches the body (no
+    # prefix); the first hit wins.  We rebuild the indent + prefix
+    # around the substituted body so leading whitespace is preserved.
+    for pat, repl in LEGACY_REWRITES:
+        new_body, n = pat.subn(repl, body, count=1)
+        if n:
+            old_match = pat.search(body)
+            old_text = old_match.group(0) if old_match else body
+            return (
+                f"{indent}{prefix}{new_body}",
+                [(old_text, pat.sub(repl, old_text))],
+            )
+    # Simple name renames from LEGACY_COMMANDS.  Split the name off at
+    # a word boundary so we don't eat args.
     m = re.match(r"([A-Za-z_][\w.]*)", body)
     if not m:
         return line, []

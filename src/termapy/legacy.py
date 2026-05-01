@@ -7,13 +7,22 @@ and prints a one-time dim note the first time the legacy name is
 used in a session -- so scripts keep working and users get nudged to
 update.
 
-``LEGACY_COMMANDS`` is the single source of truth for every rename.
-It's populated as plugin modules import their forwarder, and consumed
-by the ``/run.legacy`` tool to scan / rewrite script files.
+Two rename tables back the migration tool:
+
+  ``LEGACY_COMMANDS``   simple name renames (``/echo`` -> ``/term.echo``).
+                        Populated automatically by :func:`make_forwarder`.
+
+  ``LEGACY_REWRITES``   args-aware rewrites (``/verbose on`` ->
+                        ``/term.output verbose``).  Plugins that need
+                        this register entries via
+                        :func:`register_legacy_rewrite`.
+
+``/run.legacy`` consults both tables when scanning script files.
 """
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Callable
 
 from termapy.plugins import CmdResult
@@ -26,6 +35,26 @@ if TYPE_CHECKING:
 # ``/run.legacy`` reads this to report or rewrite legacy usage in
 # script files.
 LEGACY_COMMANDS: dict[str, str] = {}
+
+
+# Args-aware rewrites.  Each entry is ``(pattern, replacement)`` where
+# ``pattern`` matches the body of a REPL line (after the prefix) and
+# ``replacement`` follows ``re.sub`` substitution syntax (``\1`` etc.).
+# Used by ``/run.legacy`` for renames that touch arguments, not just
+# the command name.
+LEGACY_REWRITES: list[tuple[re.Pattern[str], str]] = []
+
+
+def register_legacy_rewrite(pattern: str, replacement: str) -> None:
+    """Register an args-aware rewrite for ``/run.legacy``.
+
+    Args:
+        pattern: Regex matched against the prefix-stripped line.  Use
+            ``\\b`` boundaries for safety -- ``r"^foo\\s+on\\b"`` not
+            ``r"^foo on"``.
+        replacement: ``re.sub`` replacement string.
+    """
+    LEGACY_REWRITES.append((re.compile(pattern), replacement))
 
 
 def make_forwarder(old_name: str, new_name: str) -> Callable:

@@ -25,7 +25,7 @@ def engine(tmp_path):
     # app.py._build_context would set in production.
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
-    flags["verbose"] = True
+    flags["output_level"] = "verbose"
     flags["hex_mode"] = False
     return eng, output
 
@@ -270,7 +270,7 @@ class TestRunScript:
         # Seed the `flags` namespace (would be done by app.py._build_context).
         flags = ctx.ns("flags")
         flags["echo"] = True
-        flags["verbose"] = True
+        flags["output_level"] = "verbose"
         flags["hex_mode"] = False
         script = tmp_path / "test.run"
         script.write_text(script_text)
@@ -592,7 +592,7 @@ class TestDispatchFull:
         # Seed the `flags` namespace (would be done by app.py._build_context).
         flags = ctx.ns("flags")
         flags["echo"] = True
-        flags["verbose"] = True
+        flags["output_level"] = "verbose"
         flags["hex_mode"] = False
 
         def do_dispatch(cmd, connected=True):
@@ -719,15 +719,15 @@ class TestDispatchFull:
         # Assert
         assert writes == [b"ATZ\r\n"], "uses configured line ending"
 
-    def test_repl_command_echo_quiet_suppressed(self, dispatch_env):
+    def test_repl_command_echo_silent_suppressed(self, dispatch_env):
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
 
         # Act
-        do("/echo.quiet off")
+        do("/echo.silent off")
 
-        # Assert - echo.quiet commands should not be echoed even with echo on
-        assert not any("echo.quiet" in t for t in echoed), "suppressed"
+        # Assert - .silent commands should not be echoed even with echo on
+        assert not any("echo.silent" in t for t in echoed), "suppressed"
 
 
 # ── wait_for_match / feed_lines ──────────────────────────────────

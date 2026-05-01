@@ -64,7 +64,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.echo [on\|off]`    | Toggle command echo                                                         |
 | `/term.line_no [on\|off]` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output                      |
-| `/term.verbose [on\|off]` | Toggle verbose status output                                                |
+| `/term.output {level}`    | Show or set output level (silent/quiet/normal/verbose)                      |
 | `/term.timestamps [on\|off]` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
 | `/term.hex [on\|off]`     | Toggle hex display of incoming bytes                                        |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |

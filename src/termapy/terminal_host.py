@@ -285,9 +285,11 @@ class TerminalHost:
         Args:
             echo: Initial echo state (True for TUI, False for CLI).
         """
+        from termapy.plugins import DEFAULT_OUTPUT_LEVEL
+
         flags = self.ctx.ns("flags")
         flags.setdefault("echo", echo)
-        flags.setdefault("verbose", True)
+        flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
         flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 
     # -- Serial I/O -----------------------------------------------------------

@@ -72,6 +72,42 @@ LongHelp = Union[str, Callable[["PluginContext"], str]]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Output levels
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# A single dial controls how loud commands are.  Four monotonic levels
+# stratify the three output channels (result, output, status).  Set the
+# default for the session with ``/term.output <level>``; override for a
+# single call with ``cmd --<level>`` or ``cmd.<level>``.
+
+#: Canonical level names, ordered from quietest to loudest.
+OUTPUT_LEVELS: tuple[str, ...] = ("silent", "quiet", "normal", "verbose")
+
+#: Default level when nothing has been set explicitly.
+DEFAULT_OUTPUT_LEVEL = "normal"
+
+_OUTPUT_LEVEL_RANK: dict[str, int] = {
+    name: rank for rank, name in enumerate(OUTPUT_LEVELS)
+}
+
+# Channel→minimum-rank mapping.  A channel writes only when the active
+# level's rank is at least this.
+_RESULT_MIN_RANK = _OUTPUT_LEVEL_RANK["quiet"]    # quiet, normal, verbose
+_OUTPUT_MIN_RANK = _OUTPUT_LEVEL_RANK["normal"]   # normal, verbose
+_STATUS_MIN_RANK = _OUTPUT_LEVEL_RANK["verbose"]  # verbose only
+
+#: Per-call flag tokens that override the level for one dispatch.  Stripped
+#: from args before per-command flag parsing in ``ReplEngine.dispatch``.
+LEVEL_FLAGS: dict[str, str] = {f"--{name}": name for name in OUTPUT_LEVELS}
+
+
+def parse_output_level(s: str) -> str | None:
+    """Return the canonical level name for ``s``, or None if unknown."""
+    s = s.strip().lower()
+    return s if s in _OUTPUT_LEVEL_RANK else None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Capability model
 # ─────────────────────────────────────────────────────────────────────────────
 #
@@ -761,8 +797,8 @@ class PluginContext:
         ns: Return a session-scoped namespace dict, creating it on first
             access.  The supported API for storing per-session state in
             both built-in and third-party plugins.  See ``PluginContext.ns``.
-            Engine toggles like ``echo``, ``verbose``, and ``hex_mode`` live
-            in the reserved ``flags`` namespace; plugins should use their
+            Engine toggles like ``echo``, ``hex_mode``, and ``output_level``
+            live in the reserved ``flags`` namespace; plugins should use their
             own namespace name (e.g. ``ctx.ns("myplugin")``) to avoid
             collision.
         plugin_cfg: Return a persistent ``PluginConfig`` object for a named
@@ -856,8 +892,14 @@ class PluginContext:
     # invoking command's declared Command.flags before the handler runs.
     # Reset on every dispatch. Handlers read via ``ctx.flag("--name")``
     # which normalizes aliases. Distinct from the ``ns("flags")``
-    # namespace (echo/verbose/hex_mode toggles).
+    # namespace (echo/hex_mode toggles).
     active_flags: set[str] = field(default_factory=set)
+
+    # Per-call output-level override.  None means "use the global level
+    # from ctx.ns('flags')['output_level']".  Set by ReplEngine.dispatch
+    # when the user invokes a command with a level suffix or flag
+    # (e.g. ``cmd.quiet`` or ``cmd --silent``); cleared after dispatch.
+    _call_level: str | None = None
 
     # Capabilities this environment provides.  Dispatch compares a
     # command's declared ``needs`` against this set before calling the
@@ -891,8 +933,8 @@ class PluginContext:
         should document their key schema.
 
         The ``flags`` namespace is engine-reserved for toggles like ``echo``,
-        ``verbose``, and ``hex_mode``.  Third-party plugins should use their
-        own namespace name (conventionally the plugin name).
+        ``hex_mode``, and the ``output_level`` dial.  Third-party plugins
+        should use their own namespace name (conventionally the plugin name).
 
         Example::
 
@@ -919,8 +961,8 @@ class PluginContext:
         Handlers declare flags on their ``Command(flags={...})`` dict; the
         dispatcher strips them from the args string and records them in
         ``ctx.active_flags`` before calling the handler. Aliases resolve
-        to the canonical name, so ``ctx.flag("--verbose")`` is true whether
-        the user typed ``-v`` or ``--verbose``.
+        to the canonical name, so ``ctx.flag("--table")`` is true whether
+        the user typed ``-t`` or ``--table``.
 
         Args:
             name: Canonical flag name including the leading dashes
@@ -970,24 +1012,34 @@ class PluginContext:
 
     # -- Output channels -------------------------------------------------------
 
+    @property
+    def output_level(self) -> str:
+        """Active output level, honoring any per-call override.
+
+        Falls back to the global level in ``ctx.ns("flags")`` and finally
+        to ``DEFAULT_OUTPUT_LEVEL`` -- never raises on a missing key.
+        """
+        if self._call_level is not None:
+            return self._call_level
+        return self.ns("flags").get("output_level", DEFAULT_OUTPUT_LEVEL)
+
+    def _shows(self, min_rank: int) -> bool:
+        rank = _OUTPUT_LEVEL_RANK.get(self.output_level, _OUTPUT_LEVEL_RANK[DEFAULT_OUTPUT_LEVEL])
+        return rank >= min_rank
+
     def result(self, text: str, color: str = "green") -> None:
-        """Write a command result (single-line answer). Always shown."""
-        self.write(text, color)
+        """Write a command result (single-line answer). Shown at quiet+."""
+        if self._shows(_RESULT_MIN_RANK):
+            self.write(text, color)
 
     def output(self, text: str, color: str = "dim") -> None:
-        """Write data output (listings, dumps, file contents). Always shown."""
-        self.write(text, color)
+        """Write data output (listings, dumps, file contents). Shown at normal+."""
+        if self._shows(_OUTPUT_MIN_RANK):
+            self.write(text, color)
 
     def status(self, text: str) -> None:
-        """Write a status/progress message. Suppressed when verbose is off.
-
-        Reads the verbose flag from ``ctx.ns("flags")`` with an inline
-        default of ``True`` -- the one sanctioned exception to the
-        "flag defaults live in _build_context" rule.  ``status()`` is
-        the definition of "what verbose means" and must never raise on
-        a missing key.
-        """
-        if self.ns("flags").get("verbose", True):
+        """Write a status/progress message. Shown only at verbose."""
+        if self._shows(_STATUS_MIN_RANK):
             self.write(text, "dim")
 
     @contextmanager
@@ -1121,7 +1173,7 @@ class TargetCommand:
             section of ``/help <target>``. Plain string only -- no
             callables -- because device-published help is data, not code.
         flags: Optional flag map, same shape as ``Command.flags``.  Keys
-            are canonical flag names (e.g. ``--verbose``) or aliases
+            are canonical flag names (e.g. ``--table``) or aliases
             (key = alias, value = canonical name).  Rendered in the
             FLAGS section of ``/help <target>``.
     """

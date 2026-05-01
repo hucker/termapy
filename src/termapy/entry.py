@@ -97,6 +97,28 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Strip ANSI color codes from output (CLI mode)",
     )
+    output_level = parser.add_mutually_exclusive_group()
+    output_level.add_argument(
+        "--silent",
+        dest="output_level",
+        action="store_const",
+        const="silent",
+        help="Output level: nothing visible (use exit code).",
+    )
+    output_level.add_argument(
+        "--quiet",
+        dest="output_level",
+        action="store_const",
+        const="quiet",
+        help="Output level: command results only.",
+    )
+    output_level.add_argument(
+        "--verbose",
+        dest="output_level",
+        action="store_const",
+        const="verbose",
+        help="Output level: results, data, and progress chatter.",
+    )
     parser.add_argument(
         "--term-width",
         type=int,

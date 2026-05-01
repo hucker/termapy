@@ -19,6 +19,8 @@ from typing import Callable
 from termapy.defaults import DEFAULT_CMD_PREFIX
 from termapy.folders import CAP, PROF, PROTO, RUN, SS
 from termapy.plugins import (
+    LEVEL_FLAGS,
+    OUTPUT_LEVELS,
     BoundaryException,
     CapabilitySet,
     CmdResult,
@@ -36,7 +38,7 @@ from termapy.scripting import expand_template, parse_duration, parse_keywords
 
 
 def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
-    """Resolve a raw flag token (``-v``, ``--verbose``) to its canonical name.
+    """Resolve a raw flag token (``-t``, ``--table``) to its canonical name.
 
     Aliases in ``declared`` point at their canonical form as a string value;
     canonical entries have a description string as the value. Either way, the
@@ -105,6 +107,28 @@ def _parse_flags(
             continue
         remaining.append(tok)
     return " ".join(remaining), active, None
+
+
+def _strip_level_flags(args: str) -> tuple[str, str | None]:
+    """Strip universal level flags (``--silent`` etc.) from args.
+
+    Level flags are accepted by every command, parsed by the dispatcher
+    before per-command flag parsing.  Returns ``(remaining_args, level)``
+    where ``level`` is the canonical name or None if no level flag was
+    seen.  Conflicting level flags on the same call use the last-wins
+    rule (matches argparse).
+    """
+    if not args:
+        return args, None
+    tokens = args.split()
+    remaining: list[str] = []
+    level: str | None = None
+    for tok in tokens:
+        if tok in LEVEL_FLAGS:
+            level = LEVEL_FLAGS[tok]
+        else:
+            remaining.append(tok)
+    return " ".join(remaining), level
 
 
 def _closest_flag(needle: str, candidates: list[str]) -> str | None:
@@ -624,7 +648,7 @@ class ReplEngine:
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
-            if echo_on and ".quiet" not in repl_cmd.split()[0]:
+            if echo_on and ".silent" not in repl_cmd.split()[0]:
                 _echo_cmd(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
@@ -689,20 +713,24 @@ class ReplEngine:
         raw_args = parts[1] if len(parts) > 1 else ""
         args = self._expand_template(raw_args)
 
-        # Universal `.quiet` modifier: any command can be invoked as
-        # `<cmd>.quiet` to suppress its terminal output. We only fall back
-        # to this if no real plugin is registered with the `.quiet` suffix
-        # (so commands that explicitly define a `.quiet` subcommand still
-        # win, preserving their custom behavior).
-        quiet = False
+        # Universal level-suffix modifier: any command can be invoked as
+        # ``<cmd>.<level>`` (silent/quiet/normal/verbose) to override the
+        # output level for that one call.  We only fall back to this if
+        # no real plugin is registered with that suffix (so commands that
+        # explicitly define a ``.<level>`` subcommand still win).
+        call_level: str | None = None
         plugin = self._plugins.get(name)
-        if plugin is None and name.endswith(".quiet"):
-            bare_name = name[: -len(".quiet")]
-            bare_plugin = self._plugins.get(bare_name)
-            if bare_plugin is not None:
-                plugin = bare_plugin
-                name = bare_name
-                quiet = True
+        if plugin is None:
+            for level in OUTPUT_LEVELS:
+                suffix = "." + level
+                if name.endswith(suffix):
+                    bare_name = name[: -len(suffix)]
+                    bare_plugin = self._plugins.get(bare_name)
+                    if bare_plugin is not None:
+                        plugin = bare_plugin
+                        name = bare_name
+                        call_level = level
+                    break
 
         if plugin:
             # Capability gate: every command declares the environment
@@ -718,6 +746,20 @@ class ReplEngine:
                 )
                 self.write(result.err_msg, "red")
                 return result
+            # Universal level-flag pre-pass: strip --silent/--quiet/--normal/
+            # --verbose before per-command flag parsing so every command
+            # accepts them without declaring them.  Suffix and flag must
+            # not disagree (typo guard).
+            args, flag_level = _strip_level_flags(args)
+            if flag_level is not None:
+                if call_level is not None and call_level != flag_level:
+                    result = CmdResult.fail(
+                        msg=f"Conflicting output level: .{call_level} "
+                        f"and --{flag_level}"
+                    )
+                    self.write(result.err_msg, "red")
+                    return result
+                call_level = flag_level
             # First-class flag parsing: strip declared flags from args and
             # record them on the context for the handler to read via
             # ctx.flag(). Commands with no declared flags opt out entirely
@@ -728,9 +770,15 @@ class ReplEngine:
                 self.write(result.err_msg, "red")
                 return result
             self.ctx.active_flags = active_flags
+            # Save+restore the level (rather than reset to None) so a
+            # nested dispatch inside the handler -- e.g. /run cascading
+            # into the script's commands -- inherits this call's level.
+            saved_call_level = self.ctx._call_level
+            if call_level is not None:
+                self.ctx._call_level = call_level
             try:
                 t0 = time.perf_counter()
-                if quiet:
+                if self.ctx.output_level == "silent":
                     saved_write = self.ctx.write
                     saved_write_markup = self.ctx.write_markup
                     self.ctx.write = lambda text, color=None: None
@@ -751,9 +799,8 @@ class ReplEngine:
             except BoundaryException as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
             finally:
-                # Release the per-dispatch flag set so the next command
-                # starts clean even if the handler forgot to reset state.
                 self.ctx.active_flags = set()
+                self.ctx._call_level = saved_call_level
         else:
             suggestion = _suggest_command(name, self._plugins, self.prefix)
             if suggestion:
@@ -902,10 +949,10 @@ class ReplEngine:
     def _script_delay(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /delay in scripts - sleep on background thread.
 
-        For ``/delay`` (not ``.quiet``) with ``sctx.delay_progress``
+        For ``/delay`` (not ``.silent``) with ``sctx.delay_progress``
         registered, ticks every 0.25s and posts a rendered bar string
         so the TUI overlay can animate.  For short delays (<1s) or
-        the quiet variant, falls back to a single blocking wait.
+        the silent variant, falls back to a single blocking wait.
         """
         expanded = self._expand_template(args.strip())
         try:
@@ -1011,7 +1058,7 @@ class ReplEngine:
     # dispatched to the main thread via call_from_thread.
     _BLOCKING_COMMANDS: dict[str, Callable] = {
         "delay": _script_delay,
-        "delay.quiet": _script_delay,
+        "delay.silent": _script_delay,
         "expect": _script_expect,
         "expect.regex": _script_expect,
         "confirm": _script_confirm,
@@ -1178,7 +1225,7 @@ class ReplEngine:
                 if not profile and self._script_depth <= 1:
                     if self._script_stop.is_set():
                         w("Script aborted.", "red")
-                    elif self.ctx.ns("flags")["verbose"]:
+                    elif self.ctx.output_level == "verbose":
                         w("Script finished.")
 
     # -- Properties -----------------------------------------------------------

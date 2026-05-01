@@ -30,7 +30,7 @@ def engine(tmp_path):
     eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
-    flags["verbose"] = True
+    flags["output_level"] = "verbose"
     flags["hex_mode"] = False
     return eng, output
 

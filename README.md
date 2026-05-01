@@ -198,10 +198,10 @@ The most common ones:
 | `/term`                             | Terminal display / session toggles (echo, line_no, timestamps, ...)             |
 | `/term.info`                        | Snapshot the state of every `/term.*` toggle                                    |
 | `/term.echo [on \| off]`            | Toggle REPL command echo                                                        |
-| `/term.echo.quiet <on \| off>`      | Set echo on/off silently (for scripts and on_connect_cmd)                       |
+| `/term.echo.silent <on \| off>`     | Set echo on/off without echoing the change (for scripts and on_connect_cmd)     |
 | `/term.line_no [on \| off]`         | Toggle line numbers in serial output (TUI only)                                 |
 | `/term.line_endings [on \| off]`    | Toggle visible `\r` `\n` markers for line-ending troubleshooting                |
-| `/term.verbose [on \| off]`         | Toggle verbose status output                                                    |
+| `/term.output {level}`              | Show or set output level (silent/quiet/normal/verbose)                          |
 | `/term.timestamps [on \| off]`      | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                        |
 | `/term.hex [on \| off]`             | Toggle hex display of incoming bytes                                            |
 | `/term.encoding {name}`             | Show or set byte-decoding encoding (utf-8, latin-1, ...)                        |

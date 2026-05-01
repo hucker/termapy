@@ -1,6 +1,6 @@
 # Welcome script -- Runs on connect via on_connect_cmd config
 
-/echo.quiet off
+/echo.silent off
 /print
 /print ─────────────────────────────────────────────
 /print   Welcome to the Termapy Demo
@@ -19,4 +19,4 @@
 /print   Press Ctrl+P for the command palette.
 /print ─────────────────────────────────────────────
 /print
-/echo.quiet on
+/echo.silent on

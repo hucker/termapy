@@ -461,6 +461,7 @@ class SerialTerminal(TerminalHost, App):
         open_editor: bool = False,
         show_picker: bool = False,
         first_run: bool = False,
+        output_level: str | None = None,
     ) -> None:
         super().__init__()
         self.switch_to: str | None = None
@@ -468,6 +469,7 @@ class SerialTerminal(TerminalHost, App):
         self.open_editor_on_start = open_editor
         self.show_picker_on_start = show_picker
         self._first_run = first_run
+        self._initial_output_level = output_level
         self.log_fh = None
         self.last_screenshot: str | None = None
         self.repl = ReplEngine(
@@ -786,7 +788,7 @@ class SerialTerminal(TerminalHost, App):
         """Print config dir, file, and log file paths (verbose only)."""
         if not getattr(self.repl, "ctx", None):
             return
-        if not self.repl.ctx.ns("flags")["verbose"]:
+        if self.repl.ctx.output_level != "verbose":
             return
         resolved = Path(path).resolve()
         self._status(f"Config dir:  {resolved.parent}", "green")
@@ -1014,6 +1016,8 @@ class SerialTerminal(TerminalHost, App):
         self.repl._after_cfg = self._refresh_after_cfg
         self.ctx = ctx
         self._init_flags(echo=True)
+        if self._initial_output_level is not None:
+            ctx.ns("flags")["output_level"] = self._initial_output_level
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks."""
@@ -1031,7 +1035,7 @@ class SerialTerminal(TerminalHost, App):
             needs=CapabilitySet(screen_capture=True),
         )
         self.repl.register_hook(
-            "ss.svg.quiet",
+            "ss.svg.silent",
             "{name}",
             "Save SVG screenshot silently (no status message).",
             self._hook_ss_svg_quiet,
@@ -1054,7 +1058,7 @@ class SerialTerminal(TerminalHost, App):
             source="app",
         )
         self.repl.register_hook(
-            "delay.quiet",
+            "delay.silent",
             "<duration>",
             "Wait silently (no output).",
             self._hook_delay_quiet,
@@ -1066,10 +1070,6 @@ class SerialTerminal(TerminalHost, App):
             "Run a script file, or open the Run picker if no filename.",
             self._hook_run,
             source="app",
-            flags={
-                "--verbose": "Show each command and its result as the script runs.",
-                "-v": "--verbose",
-            },
         )
         self.repl.register_hook(
             "run.help",
@@ -1084,10 +1084,6 @@ class SerialTerminal(TerminalHost, App):
             "Run a script with per-line timing.",
             self._hook_run_profile,
             source="app",
-            flags={
-                "--verbose": "Show each command and its result as the script runs.",
-                "-v": "--verbose",
-            },
         )
         self.repl.register_hook(
             "run.profile.show",
@@ -1828,7 +1824,7 @@ class SerialTerminal(TerminalHost, App):
     def _start_demo_async(self, force: bool) -> None:
         """Background thread for demo setup so status messages render."""
         try:
-            verbose_on = self.repl.ctx.ns("flags")["verbose"]
+            verbose_on = self.repl.ctx.output_level == "verbose"
             if verbose_on:
                 self.call_from_thread(self._status, "Setting up demo files...", "dim")
             config_path = setup_demo_config(cfg_dir(), force=force)
@@ -3601,7 +3597,7 @@ class SerialTerminal(TerminalHost, App):
         if not args.strip():
             self._on_main(self._btn_scripts)
             return CmdResult.ok()
-        verbose = ctx.flag("--verbose")
+        verbose = ctx.output_level == "verbose"
         path, result = self.repl.start_script(args)
         if path:
             self._run_script(path, verbose=verbose)
@@ -4003,6 +3999,7 @@ def _run_cli_mode(args) -> str | None:
                 run_script=run_script,
                 term_width=getattr(args, "term_width", None),
                 zero_config=True,
+                output_level=getattr(args, "output_level", None),
             )
             result = cli.run()
             if result:
@@ -4022,6 +4019,7 @@ def _run_cli_mode(args) -> str | None:
         no_color=args.no_color,
         run_script=run_script,
         term_width=getattr(args, "term_width", None),
+        output_level=getattr(args, "output_level", None),
     )
     result = cli.run()
     if result:
@@ -4143,7 +4141,11 @@ def _run_tui_mode(args) -> str | None:
         except CONFIG_LOAD_ERRORS as e:
             print(f"termapy: failed to load demo config: {e}", file=sys.stderr)
             sys.exit(1)
-        app = SerialTerminal(cfg, config_path=str(config_path))
+        app = SerialTerminal(
+            cfg,
+            config_path=str(config_path),
+            output_level=getattr(args, "output_level", None),
+        )
         app.run()
         _reset_terminal()
         if app.switch_to:
@@ -4169,7 +4171,11 @@ def _run_tui_mode(args) -> str | None:
                 f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
             )
             sys.exit(1)
-        app = SerialTerminal(cfg, config_path=config_path)
+        app = SerialTerminal(
+            cfg,
+            config_path=config_path,
+            output_level=getattr(args, "output_level", None),
+        )
         app.run()
         _reset_terminal()
         if app.switch_to:
@@ -4186,7 +4192,11 @@ def _run_tui_mode(args) -> str | None:
                 f"termapy: failed to load config '{config_path}': {e}", file=sys.stderr
             )
             sys.exit(1)
-        app = SerialTerminal(cfg, config_path=config_path)
+        app = SerialTerminal(
+            cfg,
+            config_path=config_path,
+            output_level=getattr(args, "output_level", None),
+        )
         app.run()
         _reset_terminal()
         if app.switch_to:
@@ -4194,7 +4204,12 @@ def _run_tui_mode(args) -> str | None:
         return app.switch_to
     elif show_picker:
         cfg = dict(DEFAULT_CFG)
-        app = SerialTerminal(cfg, config_path="", show_picker=True)
+        app = SerialTerminal(
+            cfg,
+            config_path="",
+            show_picker=True,
+            output_level=getattr(args, "output_level", None),
+        )
         app.run()
         _reset_terminal()
         if app.switch_to:
@@ -4209,7 +4224,12 @@ def _run_tui_mode(args) -> str | None:
         except CONFIG_LOAD_ERRORS as e:
             print(f"termapy: failed to load demo config: {e}", file=sys.stderr)
             sys.exit(1)
-        app = SerialTerminal(cfg, config_path=config_path, first_run=True)
+        app = SerialTerminal(
+            cfg,
+            config_path=config_path,
+            first_run=True,
+            output_level=getattr(args, "output_level", None),
+        )
         app.run()
         _reset_terminal()
         if app.switch_to:

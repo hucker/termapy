@@ -107,7 +107,7 @@ directory. Absolute paths are always accepted.
 
 When set, both send and receive resolve relative paths against this
 directory instead of `cap/`. The transfer root is shown as a clickable
-path when a config loads (with verbose on).
+path when a config loads (at the verbose output level).
 
 This sets the `file_xfer_root` config key, which can also be edited
 directly in the JSON config file.

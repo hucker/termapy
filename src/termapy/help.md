@@ -155,7 +155,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/ss.txt [name]`               | Save a text screenshot                                                      |
 | `/ss.dir`                      | Show the screenshot folder                                                  |
 | `/cls`                         | Clear the terminal                                                          |
-| `/run <file> {-v}`             | Run a script file (-v/--verbose for per-line timing)                        |
+| `/run <file>`                  | Run a script file (add `--verbose` for per-line timing)                     |
 | `/run.list`                    | List .run files in the run/ directory                                       |
 | `/run.load <file>`             | Run a script file (same as /run)                                            |
 | `/delay <duration>`            | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
@@ -173,7 +173,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.echo [on\|off]`         | Toggle command echo                                                         |
 | `/term.line_no [on\|off]`      | Toggle line numbers in serial output (TUI only)                             |
 | `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
-| `/term.verbose [on\|off]`      | Toggle verbose status output                                                |
+| `/term.output {level}`         | Show or set output level (silent/quiet/normal/verbose)                      |
 | `/term.timestamps [on\|off]`   | Toggle `[HH:MM:SS.mmm]` timestamp prefix on each line                       |
 | `/term.hex [on\|off]`          | Toggle hex display of incoming bytes                                        |
 | `/term.encoding {name}`        | Show or set byte-decoding encoding (utf-8, latin-1, ascii, cp437)           |
@@ -356,7 +356,7 @@ Script files support:
 - Blank lines (ignored)
 - Sequence counters with `{+counter}` for auto-incrementing values
 
-Use `/run script.run -v` (or `--verbose`) for per-line timing output.
+Use `/run script.run --verbose` for per-line timing output.
 Press **Escape** or click the **Stop** button to abort a running script.
 
 ## Binary Protocol Testing

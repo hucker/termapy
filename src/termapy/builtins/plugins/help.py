@@ -132,7 +132,7 @@ def _canonical_flags(plugin) -> list[tuple[str, list[str], str]]:
     """Walk ``plugin.flags`` and return one row per canonical flag.
 
     Returns a list of ``(canonical, aliases, description)`` tuples, sorted
-    by canonical name. Alias entries (``"-v": "--verbose"``) collapse onto
+    by canonical name. Alias entries (``"-t": "--table"``) collapse onto
     their canonical row.
     """
     if not plugin.flags:

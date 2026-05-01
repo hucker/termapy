@@ -14,7 +14,7 @@ from termapy.plugins import Command
 COMMAND = Command(
     name="echo",
     args="{on|off}",
-    help="Toggle REPL command echo. Use {prefix}echo.quiet to set silently.",
+    help="Toggle REPL command echo. Use {prefix}echo.silent to set without echoing.",
     handler=make_forwarder("echo", "term.echo"),
     hidden=True,
 )

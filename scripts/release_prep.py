@@ -305,10 +305,13 @@ def insert_changelog_stub(version: str) -> None:
         f"\n"
     )
 
-    # Insert after the first line ("# Changelog")
+    # Insert after the first line ("# Changelog").  Use a lambda
+    # replacement so backslashes in the stub (e.g. "Enum\\USB" from a
+    # Windows-registry-path commit message) aren't interpreted as
+    # regex back-references / Unicode escapes.
     new_text = re.sub(
         r"(# Changelog\n+)",
-        r"\1" + stub,
+        lambda m: m.group(0) + stub,
         text,
         count=1,
     )

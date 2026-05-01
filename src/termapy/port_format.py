@@ -33,16 +33,22 @@ if TYPE_CHECKING:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-# Column order, left to right.  The ``sn`` column is conditionally hidden
-# via ``active_columns`` when no port reports a serial number.
+# Column order, left to right.  Optional columns (``sn``, ``driver``,
+# ``vendor``, ``location``) are conditionally hidden via
+# ``active_columns`` when every row is blank, so platforms that don't
+# populate them (e.g. macOS for ``driver``, non-USB ports for
+# ``vendor``) just don't show them.
 PORT_COLUMNS: tuple[str, ...] = (
     "port",
     "manufacturer",
+    "vendor",
     "description",
     "chip",
     "speed",
     "vid_pid",
     "sn",
+    "driver",
+    "location",
 )
 
 # Header labels shown in the table header row.  MANUFACTURER is
@@ -52,11 +58,14 @@ PORT_COLUMNS: tuple[str, ...] = (
 COLUMN_HEADERS: dict[str, str] = {
     "port": "PORT",
     "manufacturer": "MFG",
+    "vendor": "VENDOR",
     "description": "DESCRIPTION",
     "chip": "CHIP",
     "speed": "SPEED",
     "vid_pid": "VID:PID",
     "sn": "SN",
+    "driver": "DRIVER",
+    "location": "LOCATION",
 }
 
 # Column separator between adjacent fields.
@@ -66,7 +75,17 @@ _COL_SEP = "  "
 # priority order (most-expendable first).  port / description / mfg
 # are never dropped: port is required to pick a row, description is
 # the primary identifier, and mfg is already very short.
-DROP_ORDER: tuple[str, ...] = ("speed", "chip", "vid_pid", "sn")
+#
+# vendor / sn / location all rank near the end:
+#   - vendor (silicon vendor by VID) is high-information density
+#     compared to chip (which is verbose) or vid_pid (raw hex).
+#     "Microchip" tells the user more than "04D8:9036" in 9 chars.
+#   - sn and location are the disambiguators for identical adapters,
+#     which matters more than chip / speed / driver when the user
+#     has duplicate hardware plugged in.
+DROP_ORDER: tuple[str, ...] = (
+    "speed", "chip", "vid_pid", "driver", "vendor", "sn", "location",
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -103,15 +122,23 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     vid_pid = facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else "-"
     manufacturer = _mfg_alias(facts.manufacturer) or "-"
     sn = facts.serial or "-"
+    driver = facts.driver or "-"
+    # Vendor flows through the same alias table so narrow columns stay
+    # consistent ("Silicon Labs" -> "SiLabs", "Microchip" -> "Microchip").
+    vendor = _mfg_alias(facts.vendor) or "-"
+    location = facts.location or "-"
 
     return port, {
         "port": port,
         "manufacturer": manufacturer,
+        "vendor": vendor,
         "description": description,
         "chip": chip,
         "speed": speed,
         "vid_pid": vid_pid,
         "sn": sn,
+        "driver": driver,
+        "location": location,
     }
 
 
@@ -123,15 +150,20 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
 def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     """Drop purely-blank optional columns from the display list.
 
-    Today only ``sn`` is optional: if every port reports ``"-"`` for
-    serial number (common on built-in COM1/stock adapters), we hide
-    the column entirely so the row stays readable.  Other columns
-    like chip/speed/vid_pid can also be ``"-"`` for non-USB ports but
-    are informative enough to always show.
+    ``sn``, ``driver``, ``vendor``, and ``location`` are optional: if
+    every port reports ``"-"`` for one of them (common on built-in
+    COM1/stock adapters, on macOS where ``driver`` isn't gathered
+    yet, or for non-USB ports where ``vendor`` doesn't apply), we
+    hide that column entirely so the row stays readable.  Other
+    columns like chip/speed/vid_pid can also be ``"-"`` for non-USB
+    ports but are informative enough to always show.
     """
-    if rows and all(row["sn"] == "-" for _, row in rows):
-        return tuple(c for c in PORT_COLUMNS if c != "sn")
-    return PORT_COLUMNS
+    cols = list(PORT_COLUMNS)
+    optional = ("sn", "driver", "vendor", "location")
+    for col in optional:
+        if rows and all(row[col] == "-" for _, row in rows):
+            cols.remove(col)
+    return tuple(cols)
 
 
 def compute_widths(

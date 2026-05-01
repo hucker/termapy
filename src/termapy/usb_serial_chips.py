@@ -91,6 +91,11 @@ USB_SERIAL_CHIPS: dict[tuple[int, int], ChipInfo] = {
     # Microchip (vid 0x04D8)
     (0x04D8, 0x00DD): ChipInfo("Microchip MCP2200", "full", 1_000_000),
     (0x04D8, 0x00DF): ChipInfo("Microchip MCP2221 (UART+I2C)", "full", 460_800),
+    # 0x9036 is a composite (MI_xx) Microchip USB-CDC device -- not one
+    # of the dedicated bridge ICs.  Most likely a dev board / instrument
+    # using a PIC or SAMD MCU's native USB stack to expose CDC.  Keep
+    # the entry generic until the specific product is identified.
+    (0x04D8, 0x9036): ChipInfo("Microchip USB-CDC device", "full", 1_000_000),
     # STMicroelectronics (vid 0x0483)
     (0x0483, 0x5740): ChipInfo("STM32 Virtual COM Port", "full", 2_000_000),
     (0x0483, 0x374B): ChipInfo("ST-Link V2 (with VCP)", "full", 2_000_000),

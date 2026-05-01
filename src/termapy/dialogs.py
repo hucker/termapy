@@ -529,7 +529,7 @@ class QuickSetup(ModalScreen[tuple | None]):
     QuickSetup {{ align: center middle; }}
     QuickSetup Button {{ {_MODAL_BTN_CSS} }}
     #qs-dialog {{
-        width: 116; height: auto;
+        width: 130; height: auto;
         border: solid $primary; background: $surface; padding: 1 2;
         border-title-align: left;
     }}
@@ -567,7 +567,7 @@ class QuickSetup(ModalScreen[tuple | None]):
             yield Input(placeholder="e.g. my_device", id="qs-name")
             yield Static("Serial Port:", classes="qs-label")
             port_list = OptionList(id="qs-port-list")
-            _populate_port_option_list(port_list, ports, row_width=110)
+            _populate_port_option_list(port_list, ports, row_width=124)
             if ports:
                 port_list.highlighted = 2  # skip header + separator rows
             yield port_list
@@ -1622,7 +1622,7 @@ class PortPicker(ModalScreen[str | None]):
     PortPicker {{ align: center middle; }}
     PortPicker Button {{ {_MODAL_BTN_CSS} }}
     #port-dialog {{
-        width: 120; height: 24;
+        width: 130; height: 24;
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #port-title {{ height: 1; text-style: bold; }}
@@ -1631,10 +1631,10 @@ class PortPicker(ModalScreen[str | None]):
     """
 
     # Usable row width inside the dialog (dialog width - border - padding
-    # - OptionList border).  Matches #port-dialog width: 120 with
+    # - OptionList border).  Matches #port-dialog width: 130 with
     # border:solid (2), padding:1 2 (4 horizontal), and the OptionList's
     # thick border (2).  Adjust if the dialog width in CSS changes.
-    _ROW_WIDTH = 110
+    _ROW_WIDTH = 124
 
     def action_dismiss_modal(self) -> None:
         """Close the modal on Ctrl+Q or Escape."""

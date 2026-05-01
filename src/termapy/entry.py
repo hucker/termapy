@@ -159,6 +159,36 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Dump the USB-serial chip lookup table and exit.  "
              "Optional FILTER substring narrows to matching chip models.",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON instead of a column-aligned table.  "
+             "Applies to --ports and --chips.",
+    )
+    parser.add_argument(
+        "--vid",
+        default=None,
+        help="Filter --ports to USB devices matching this VID "
+             "(hex, with or without 0x).",
+    )
+    parser.add_argument(
+        "--pid",
+        default=None,
+        help="Filter --ports to USB devices matching this PID "
+             "(hex, with or without 0x).",
+    )
+    parser.add_argument(
+        "--mfg",
+        default=None,
+        help="Filter --ports to devices whose manufacturer string contains "
+             "this substring (case-insensitive).",
+    )
+    parser.add_argument(
+        "--sn",
+        default=None,
+        help="Filter --ports to the device with this exact serial number "
+             "(case-insensitive).",
+    )
     return parser
 
 

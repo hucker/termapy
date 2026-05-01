@@ -19,7 +19,7 @@ from typing import Any, Mapping
 
 import re
 
-from termapy import usb_serial_chips
+from termapy import usb_serial_chips, usb_vendor
 from termapy.defaults import (
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -294,6 +294,7 @@ CHIP_FIELDS: tuple[str, ...] = (
     "device",
     "description",
     "manufacturer",
+    "vendor",
     "product",
     "serial",
     "location",
@@ -315,6 +316,7 @@ CHIP_FIELD_LABELS: dict[str, str] = {
     "device": "Device",
     "description": "Description",
     "manufacturer": "Manufacturer",
+    "vendor": "Vendor",
     "product": "Product",
     "serial": "Serial",
     "location": "Location",
@@ -356,6 +358,11 @@ class ChipFacts:
     max_baud: str | None = None
     permissions: str | None = None
     in_use: str | None = None
+    # Silicon-vendor name resolved from the VID via ``usb_vendor``.
+    # Independent of ``manufacturer`` (which is the descriptor / INF
+    # string) -- they can disagree, and that disagreement is itself
+    # diagnostic information.
+    vendor: str | None = None
     # Color hint for the usb_speed line in the full dump (not a field).
     _usb_speed_color: str | None = None
 
@@ -431,6 +438,204 @@ def _gather_linux_extras(facts: ChipFacts, device: str) -> None:
         pass
 
 
+def _gather_windows_extras(facts: ChipFacts, device: str) -> None:
+    """Best-effort driver-name lookup on Windows via the registry.
+
+    Walks ``HKLM\\SYSTEM\\CurrentControlSet\\Enum`` looking for a device
+    whose ``Device Parameters\\PortName`` value matches ``device``
+    (e.g. "COM4").  Reads the ``Service`` value at that key, which is
+    the driver service name (e.g. "FTDIBUS", "usbser", "silabser").
+
+    Stdlib only -- ``winreg`` is part of CPython on Windows.  Silent on
+    non-Windows hosts and on any registry error.  Bounded walk so a
+    massive Enum tree doesn't slow down ``--ports``.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import winreg  # stdlib on Windows
+    except ImportError:
+        return
+
+    # Walk Enum\<bus>\<vid_pid>\<instance> looking for our COM port.
+    # Most USB-serial devices live under USB or USBSER, but some
+    # virtual ports (Bluetooth, com0com) live elsewhere -- so walk all
+    # top-level bus subkeys.
+    try:
+        enum_root = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum"
+        )
+    except OSError:
+        return
+    try:
+        for bus in _enum_subkeys(winreg, enum_root):
+            try:
+                bus_key = winreg.OpenKey(enum_root, bus)
+            except OSError:
+                continue
+            with bus_key:
+                for hwid in _enum_subkeys(winreg, bus_key):
+                    try:
+                        hwid_key = winreg.OpenKey(bus_key, hwid)
+                    except OSError:
+                        continue
+                    with hwid_key:
+                        for inst in _enum_subkeys(winreg, hwid_key):
+                            if _windows_match_inst(
+                                winreg, hwid_key, inst, device, facts
+                            ):
+                                return
+    finally:
+        enum_root.Close()
+
+
+def _enum_subkeys(winreg_mod, key) -> list[str]:
+    """Return every immediate subkey name of ``key`` (winreg-only)."""
+    names: list[str] = []
+    i = 0
+    while True:
+        try:
+            names.append(winreg_mod.EnumKey(key, i))
+        except OSError:
+            break
+        i += 1
+    return names
+
+
+def _windows_match_inst(
+    winreg_mod, parent_key, inst: str, device: str, facts: ChipFacts
+) -> bool:
+    """Check one Enum instance node for a PortName match; populate
+    ``facts.driver`` and (if pyserial didn't already) ``facts.location``.
+
+    Returns True if the instance owns ``device`` (the caller stops
+    walking).  False otherwise.
+    """
+    try:
+        inst_key = winreg_mod.OpenKey(parent_key, inst)
+    except OSError:
+        return False
+    with inst_key:
+        # Device Parameters\PortName carries "COMx" for serial-bound nodes.
+        try:
+            params = winreg_mod.OpenKey(inst_key, "Device Parameters")
+        except OSError:
+            return False
+        with params:
+            try:
+                port_name, _ = winreg_mod.QueryValueEx(params, "PortName")
+            except OSError:
+                return False
+        if port_name != device:
+            return False
+        try:
+            service, _ = winreg_mod.QueryValueEx(inst_key, "Service")
+        except OSError:
+            service = None
+        facts.driver = str(service) if service else None
+        # Pyserial returns None for facts.location on FTDI ports because
+        # the FTDIBUS pseudo-bus driver hides location info from
+        # SetupAPI.  Fall back to the registry: LocationInformation
+        # may be at this key directly (Microsoft's usbser does this),
+        # or under the USB partner device that shares our ContainerID
+        # (FTDI presents both an FTDIBUS\... port node and a USB\...
+        # bus node; LocationInformation lives on the USB side).
+        if not facts.location:
+            facts.location = _windows_lookup_location(
+                winreg_mod, inst_key
+            )
+        return True
+
+
+def _windows_lookup_location(winreg_mod, inst_key) -> str | None:
+    """Return the device's bus-location string, walking via ContainerID
+    if necessary.
+
+    Microsoft's ``usbser`` puts ``LocationInformation`` directly on the
+    COM port's Enum node.  FTDI's ``FTSER2K`` puts the COM node under
+    ``FTDIBUS\\...`` which has no location; the matching USB device
+    (under ``USB\\...``) carries it.  Both nodes share the same
+    ``ContainerID``, so we use that as the join key.
+
+    The returned string is normalized so hub appears before port
+    (``Hub_#0009.Port_#0004`` instead of the registry's port-first
+    ``Port_#0004.Hub_#0009``) -- top-of-tree first, matching the way
+    Linux's bus-port path reads.
+    """
+    # Direct: most non-FTDI drivers populate LocationInformation here.
+    try:
+        loc, _ = winreg_mod.QueryValueEx(inst_key, "LocationInformation")
+        if loc:
+            return _normalize_windows_location(str(loc))
+    except OSError:
+        pass
+    # Indirect: walk Enum\USB looking for a node with the same
+    # ContainerID, then read LocationInformation from there.
+    try:
+        container_id, _ = winreg_mod.QueryValueEx(inst_key, "ContainerID")
+    except OSError:
+        return None
+    if not container_id:
+        return None
+    try:
+        usb_root = winreg_mod.OpenKey(
+            winreg_mod.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Enum\USB",
+        )
+    except OSError:
+        return None
+    with usb_root:
+        for hwid in _enum_subkeys(winreg_mod, usb_root):
+            try:
+                hwid_key = winreg_mod.OpenKey(usb_root, hwid)
+            except OSError:
+                continue
+            with hwid_key:
+                for inst in _enum_subkeys(winreg_mod, hwid_key):
+                    try:
+                        node = winreg_mod.OpenKey(hwid_key, inst)
+                    except OSError:
+                        continue
+                    with node:
+                        try:
+                            cid, _ = winreg_mod.QueryValueEx(
+                                node, "ContainerID"
+                            )
+                        except OSError:
+                            continue
+                        if cid != container_id:
+                            continue
+                        try:
+                            loc, _ = winreg_mod.QueryValueEx(
+                                node, "LocationInformation"
+                            )
+                        except OSError:
+                            return None
+                        if loc:
+                            return _normalize_windows_location(str(loc))
+    return None
+
+
+def _normalize_windows_location(loc: str) -> str:
+    """Reorder ``Port_#NNNN.Hub_#NNNN`` to ``Hub_#NNNN.Port_#NNNN``.
+
+    Windows' ``LocationInformation`` registry value puts the leaf
+    (port) before the parent (hub), which reads backward.  Swap to
+    hub-then-port so the string reads top-of-tree first, matching
+    Linux's ``1-2.3`` and the way users describe physical hardware
+    ("plugged into hub 9, port 4").
+
+    Strings that don't match the simple ``Port_#X.Hub_#Y`` shape are
+    returned as-is -- some devices report a multi-hub chain or a
+    pre-formatted string we shouldn't mangle.
+    """
+    import re
+    m = re.match(r"^(Port_#\d+)\.(Hub_#\d+)$", loc)
+    if not m:
+        return loc
+    return f"{m.group(2)}.{m.group(1)}"
+
+
 def _check_in_use(device: str, connected_port: str = "") -> str:
     """Return 'yes', 'yes (this session)', or 'no'.
 
@@ -474,8 +679,18 @@ def _check_permissions(device: str) -> str:
     return "denied"
 
 
-def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
-    """Build a ChipFacts from a pyserial ListPortInfo plus platform extras."""
+def _facts_from_port_info(
+    p: Any, connected_port: str = "", *, fast: bool = False
+) -> ChipFacts:
+    """Build a ChipFacts from a pyserial ListPortInfo plus platform extras.
+
+    ``fast=True`` skips the per-port ``_check_in_use`` probe (which
+    opens each port to detect contention -- ~250 ms per port on
+    Windows).  Used by ``--watch`` so the poll loop doesn't scale
+    linearly with port count.  Fast-gathered records have
+    ``in_use=None`` and ``permissions=None`` so callers can tell the
+    field is missing rather than False.
+    """
     facts = ChipFacts(
         device=p.device,
         description=p.description if p.description and p.description != "n/a" else None,
@@ -487,6 +702,10 @@ def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
     )
     if p.vid is not None and p.pid is not None:
         facts.vid_pid = f"{p.vid:04X}:{p.pid:04X}"
+        # Silicon vendor by VID -- independent of the descriptor / INF
+        # string in facts.manufacturer.  Populated even when the (VID,
+        # PID) pair isn't in the chip table.
+        facts.vendor = usb_vendor.vendor_for(p.vid)
         chip = usb_serial_chips.chip(p.vid, p.pid)
         if chip:
             facts.model = chip.model
@@ -503,16 +722,23 @@ def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
             facts._usb_speed_color = "yellow"
     else:
         facts.vid_pid = "not a USB device"
-    facts.permissions = _check_permissions(p.device)
-    facts.in_use = _check_in_use(p.device, connected_port)
-    _gather_linux_extras(facts, p.device)
-    if (
-        facts.latency_timer is None
-        and sys.platform == "win32"
-        and facts.model
-        and facts.model.startswith("FT")
-    ):
-        facts.latency_timer = "n/a (Windows - check Device Manager)"
+    if not fast:
+        facts.permissions = _check_permissions(p.device)
+        facts.in_use = _check_in_use(p.device, connected_port)
+        # Per-port enrichment (driver, latency_timer, negotiated speed)
+        # reads sysfs / the registry.  Cheap relative to _check_in_use
+        # but unnecessary for --watch's plug-event detection, which
+        # reads only the always-populated identity fields (device,
+        # description, model, vid_pid, serial).
+        _gather_linux_extras(facts, p.device)
+        _gather_windows_extras(facts, p.device)
+        if (
+            facts.latency_timer is None
+            and sys.platform == "win32"
+            and facts.model
+            and facts.model.startswith("FT")
+        ):
+            facts.latency_timer = "n/a (Windows - check Device Manager)"
     return facts
 
 
@@ -539,7 +765,10 @@ def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | N
     for p in comports():
         if p.device == port_name:
             return _facts_from_port_info(p, connected_port)
-    return None
+    # OS didn't enumerate it; fall back to synthesizing a record for
+    # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
+    # `termapy --info DEMO` work without hardware.
+    return synthetic_facts_for_reserved(port_name)
 
 
 # ─ Demo fleet ─────────────────────────────────────────────────────────────
@@ -588,21 +817,67 @@ def _build_demo_fleet() -> list[ChipFacts]:
     ]
 
 
-def _gather_all_chip_facts(connected_port: str = "") -> list[ChipFacts]:
+def _gather_all_chip_facts(
+    connected_port: str = "", *, fast: bool = False
+) -> list[ChipFacts]:
     """Return ChipFacts for every connected port, sorted by device name.
 
-    Honors the ``TERMAPY_DEMO_FLEET`` env var: when set to any non-empty
-    value, returns a fixed synthetic fleet instead of enumerating real
-    ports.  See ``_build_demo_fleet`` for the roster.
+    ``fast=True`` skips the per-port ``_check_in_use`` probe so the
+    gather doesn't scale linearly with port count -- ``--watch`` uses
+    this to keep the poll loop responsive when many ports are
+    enumerated.  Records returned in fast mode have ``in_use=None``
+    and ``permissions=None``.
+
+    Honors the ``TERMAPY_DEMO_FLEET`` env var: when set to any
+    non-empty value, returns a fixed synthetic fleet instead of
+    enumerating real ports.  See ``_build_demo_fleet`` for the roster.
     """
     if os.environ.get(_DEMO_FLEET_ENV):
         return _build_demo_fleet()
     from serial.tools.list_ports import comports
 
     return [
-        _facts_from_port_info(p, connected_port)
+        _facts_from_port_info(p, connected_port, fast=fast)
         for p in sorted(comports(), key=lambda x: x.device)
     ]
+
+
+def synthetic_facts_for_reserved(name: str) -> ChipFacts | None:
+    """Return synthesized ChipFacts for a reserved virtual port, or None.
+
+    DEMO / DEMO_FAIL are not enumerated by the OS but are reachable
+    through termapy's runtime serial paths.  Surfacing them here lets
+    ``termapy --ports DEMO --json`` produce a real record so CI
+    pipelines can exercise the CLI without hardware -- the same way
+    ``loop://`` and other pyserial URL handlers are reachable only
+    when explicitly named.
+
+    Returns None for any name that isn't a recognized reserved port,
+    so callers can fall through to "no match" handling.
+    """
+    if name == "DEMO":
+        return ChipFacts(
+            device="DEMO",
+            description="Termapy simulated device",
+            manufacturer="termapy",
+            model="DEMO",
+            usb_speed="virtual (not a USB device)",
+            vid_pid="not a USB device",
+            in_use="no",
+            permissions="ok",
+        )
+    if name == "DEMO_FAIL":
+        return ChipFacts(
+            device="DEMO_FAIL",
+            description="Termapy simulated device (connect always fails)",
+            manufacturer="termapy",
+            model="DEMO_FAIL",
+            usb_speed="virtual (not a USB device)",
+            vid_pid="not a USB device",
+            in_use="no",
+            permissions="ok",
+        )
+    return None
 
 
 # ─ Port spec resolution ───────────────────────────────────────────────────

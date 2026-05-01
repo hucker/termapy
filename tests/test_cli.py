@@ -808,7 +808,7 @@ class TestWatchFlag:
         ]
         call_count = [0]
 
-        def _mock_gather():
+        def _mock_gather(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 return snapshots[0]
@@ -829,8 +829,10 @@ class TestWatchFlag:
         assert exc.value.code == 0, "Ctrl+C exits 0"
         assert "monitoring 1 port" in out, "baseline banner printed"
         # Baseline rows have a blank event marker and the full state row.
+        # State column shows "-" because fast-gather (used by --watch) skips
+        # _check_in_use to keep the poll loop fast on multi-port systems.
         assert "COM3" in out, "baseline has COM3"
-        assert "closed" in out, "baseline emits state column"
+        assert "FTDI FT232R" in out, "baseline emits chip column"
 
     def test_watch_emits_add_and_remove_events(self, capsys, monkeypatch):
         # Arrange -- scripted sequence: baseline (1 port), then second
@@ -846,7 +848,7 @@ class TestWatchFlag:
         )
         call_count = [0]
 
-        def _mock_gather():
+        def _mock_gather(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 return baseline

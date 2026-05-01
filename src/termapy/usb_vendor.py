@@ -80,15 +80,33 @@ USB_VENDORS: dict[int, str] = {
 def vendor_for(vid: int | None) -> str | None:
     """Return the canonical silicon-vendor name for a VID, or None.
 
+    Two-tier lookup:
+
+    1. ``USB_VENDORS`` (curated, ~30 entries) -- short forms tuned for
+       narrow column display ("FTDI", "SiLabs", "Microchip").  Tried
+       first so the common embedded chips keep their hand-picked
+       short names.
+    2. ``USB_VENDORS_FULL`` (generated from upstream usb.ids,
+       ~3,400 entries) -- canonical USB-IF assignments, used as a
+       fallback for any VID the curated table doesn't cover.  Names
+       here are full ("Future Technology Devices International, Ltd")
+       so callers run them through ``usb_mfg.mfg()`` for display.
+
     Args:
         vid: USB Vendor ID as an integer, or None.
 
     Returns:
-        Canonical vendor name (e.g. ``"Silicon Labs"``) when the VID
-        is in ``USB_VENDORS``.  None for unknown VIDs or ``None`` input.
+        Vendor name when the VID is recognized, None otherwise.
         Callers that want a column-friendly short form should pass the
         result through ``usb_mfg.mfg()``.
     """
     if vid is None:
         return None
-    return USB_VENDORS.get(vid)
+    name = USB_VENDORS.get(vid)
+    if name is not None:
+        return name
+    # Lazy import: pulls a 3,000-entry dict module.  ~30 ms at first
+    # lookup; cached by Python's import system thereafter.  Keeps
+    # cold-start fast for callers that only need the curated names.
+    from termapy._usb_vendor_full import USB_VENDORS_FULL
+    return USB_VENDORS_FULL.get(vid)

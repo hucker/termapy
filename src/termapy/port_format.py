@@ -76,11 +76,15 @@ _COL_SEP = "  "
 # are never dropped: port is required to pick a row, description is
 # the primary identifier, and mfg is already very short.
 #
-# location dropped near the end -- it's the disambiguator for
-# identical adapters and matters more than vid_pid/chip/speed when
-# the user has duplicate hardware plugged in.
+# vendor / sn / location all rank near the end:
+#   - vendor (silicon vendor by VID) is high-information density
+#     compared to chip (which is verbose) or vid_pid (raw hex).
+#     "Microchip" tells the user more than "04D8:9036" in 9 chars.
+#   - sn and location are the disambiguators for identical adapters,
+#     which matters more than chip / speed / driver when the user
+#     has duplicate hardware plugged in.
 DROP_ORDER: tuple[str, ...] = (
-    "speed", "driver", "vendor", "chip", "vid_pid", "sn", "location",
+    "speed", "chip", "vid_pid", "driver", "vendor", "sn", "location",
 )
 
 

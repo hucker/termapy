@@ -19,11 +19,11 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.38">
+      <meta name="generator" content="zensical-0.0.39">
     
     
       
-        <title>Command-line flags - Termapy Help v0.63.1</title>
+        <title>Command-line flags - Termapy Help v0.64.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.63.1" class="md-header__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.64.0" class="md-header__button md-logo" aria-label="Termapy Help v0.64.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.63.1
+            Termapy Help v0.64.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.63.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.64.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.64.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.63.1
+    Termapy Help v0.64.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -499,6 +499,34 @@
       </span>
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filtering-and-json-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filtering and JSON output
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filtering and JSON output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hardware-free-ci-ports-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Hardware-free CI: <code>--ports DEMO</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1012,6 +1040,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#filtering-and-json-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filtering and JSON output
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filtering and JSON output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hardware-free-ci-ports-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Hardware-free CI: <code>--ports DEMO</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#other-flags-worth-knowing" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1192,6 +1248,90 @@ is always printed so you can identify it manually, and termapy nudges
 you to open an issue so the lookup table can grow.</p>
 <p>Exits 0 if at least one port was printed, 1 if the named port wasn't
 found or no ports are connected.</p>
+<h2 id="filtering-and-json-output">Filtering and JSON output<a class="headerlink" href="#filtering-and-json-output" title="Permanent link">&para;</a></h2>
+<p><code>--ports</code> accepts these script-friendly filters (AND together):</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--vid HEX</code></td>
+<td>Only USB devices matching this VID. Hex with or without <code>0x</code>.</td>
+</tr>
+<tr>
+<td><code>--pid HEX</code></td>
+<td>Only USB devices matching this PID.</td>
+</tr>
+<tr>
+<td><code>--mfg STR</code></td>
+<td>Manufacturer substring match (case-insensitive).</td>
+</tr>
+<tr>
+<td><code>--sn STR</code></td>
+<td>Exact serial-number match (case-insensitive).</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>Emit a JSON array instead of the column table; also for <code>--chips</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Example:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>termapy<span class="w"> </span>--ports<span class="w"> </span>--vid<span class="w"> </span><span class="m">0403</span><span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[].device&#39;</span>
+</span></code></pre></div>
+<p>Each <code>--ports --json</code> record has a stable schema:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;COM4&quot;</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">&quot;manufacturer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;FTDI&quot;</span><span class="p">,</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">&quot;manufacturer_raw&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Future Technology Devices, Inc.&quot;</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">&quot;vendor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;FTDI&quot;</span><span class="p">,</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;USB Serial Converter&quot;</span><span class="p">,</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="nt">&quot;chip&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;FTDI FT232R&quot;</span><span class="p">,</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span><span class="nt">&quot;speed&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Full-Speed&quot;</span><span class="p">,</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="nt">&quot;vid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1027</span><span class="p">,</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="nt">&quot;pid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">24577</span><span class="p">,</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nt">&quot;vid_pid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0403:6001&quot;</span><span class="p">,</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nt">&quot;serial_number&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AL01ABCD&quot;</span><span class="p">,</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">&quot;in_use&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="nt">&quot;driver&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ftdi_sio&quot;</span><span class="p">,</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Hub_#0009.Port_#0004&quot;</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Three vendor-related fields, intentionally separate:</p>
+<ul>
+<li><code>manufacturer_raw</code> — the literal string the device descriptor or driver
+  INF reports.</li>
+<li><code>manufacturer</code> — the same string folded to a column-friendly short
+  form (e.g. <code>"Future Technology Devices..."</code> → <code>"FTDI"</code>,
+  <code>"Silicon Labs"</code> → <code>"SiLabs"</code>).</li>
+<li><code>vendor</code> — the silicon vendor resolved from the VID per USB-IF
+  assignment.  Independent of what the descriptor / INF reports.</li>
+</ul>
+<p>These often agree.  They can disagree when a device uses a generic
+driver — a Microchip USB-serial chip running on Microsoft's
+<code>usbser.sys</code> reports <code>manufacturer_raw = "Microsoft"</code> (driver INF) but
+<code>vendor = "Microchip"</code> (VID <code>0x04D8</code>).  Engineers diagnosing devices
+benefit from seeing all three.</p>
+<p>Numeric fields stay numeric; missing values are <code>null</code> (not omitted).
+<code>vid_pid</code> is the canonical lowercase-hex form for literal matching.
+<code>driver</code> is the kernel module name on Linux (<code>ftdi_sio</code>, <code>cdc_acm</code>,
+<code>ch341</code>, <code>cp210x</code>, ...) and the Windows service name (<code>FTDIBUS</code>,
+<code>usbser</code>, <code>silabser</code>, ...). On macOS <code>driver</code> is <code>null</code> for now.</p>
+<h3 id="hardware-free-ci-ports-demo">Hardware-free CI: <code>--ports DEMO</code><a class="headerlink" href="#hardware-free-ci-ports-demo" title="Permanent link">&para;</a></h3>
+<p><code>DEMO</code> and <code>DEMO_FAIL</code> are virtual port names that the OS doesn't
+enumerate but termapy can connect to.  Naming one explicitly returns
+a synthesized record so CI pipelines can exercise the CLI without
+plugging in real hardware:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>termapy<span class="w"> </span>--ports<span class="w"> </span>DEMO<span class="w"> </span>--json
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>termapy<span class="w"> </span>--info<span class="w"> </span>DEMO
+</span></code></pre></div>
+<p>Bare <code>--ports</code> (no filter) does NOT include <code>DEMO</code> in the listing --
+it only appears when you specifically ask for it, the same way
+pyserial's <code>loop://</code> URL handler is reachable but not enumerated.</p>
 <h2 id="other-flags-worth-knowing">Other flags worth knowing<a class="headerlink" href="#other-flags-worth-knowing" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1225,6 +1365,18 @@ found or no ports are connected.</p>
 <td><code>--run SCRIPT</code></td>
 <td>Run a <code>.run</code> script headlessly, then exit.</td>
 </tr>
+<tr>
+<td><code>--silent</code></td>
+<td>Output level: nothing (script reads <code>CmdResult.value</code> only).</td>
+</tr>
+<tr>
+<td><code>--quiet</code></td>
+<td>Output level: command results only.</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>Output level: results + data + progress chatter.</td>
+</tr>
 </tbody>
 </table>
 <p><code>termapy --help</code> has the full list.</p>
@@ -1234,8 +1386,8 @@ USB-serial adapters plugged in?  Set <code>TERMAPY_DEMO_FLEET=1</code> and terma
 will enumerate a fixed three-port synthetic fleet (FTDI FT232R on COM3,
 Silicon Labs CP2102 on COM4, Microsoft USB Serial on COM7) instead of
 calling the OS.</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--ports<span class="w">    </span><span class="c1"># fake three-port table</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--info<span class="o">=</span>COM4<span class="w">  </span><span class="c1"># fake CP2102 info dump</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--ports<span class="w">    </span><span class="c1"># fake three-port table</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--info<span class="o">=</span>COM4<span class="w">  </span><span class="c1"># fake CP2102 info dump</span>
 </span></code></pre></div>
 <p>Useful for docs, screenshots, trying the tool before you own hardware,
 and cross-platform bug reports.  This is a sibling to the <code>DEMO</code> port

@@ -871,7 +871,7 @@ class CLITerminal(TerminalHost):
 
         # Zero-config mode: show a welcome banner with available ports,
         # skip the initial connect (no port selected yet), and let the
-        # user type /port.open <name> to pick one.  Every other path --
+        # user type /port.connect <name> to pick one.  Every other path --
         # a real config file, --demo, --run with an inferred config --
         # has a non-empty cfg["port"] by contract, so the else branch
         # here just connects as before.
@@ -915,9 +915,9 @@ class CLITerminal(TerminalHost):
 
         Called from ``run()`` when ``zero_config`` is set.  Lists the
         currently-available serial ports (via ``port_control.list_ports``)
-        and shows the user what ``/port.open`` invocation would use them
+        and shows the user what ``/port.connect`` invocation would use them
         with the built-in defaults (115200 N81 cr noecho).  The user then
-        types the actual ``/port.open`` to connect.
+        types the actual ``/port.connect`` to connect.
         """
         from termapy import port_control
 
@@ -933,16 +933,16 @@ class CLITerminal(TerminalHost):
         first_port = self._first_available_port()
         if first_port:
             self.write(
-                f"Try:  {self.prefix}port.open {first_port}",
+                f"Try:  {self.prefix}port.connect {first_port}",
                 "green",
             )
             self.write(
-                f"Or:   {self.prefix}port.open {first_port} 9600 N81 crlf echo",
+                f"Or:   {self.prefix}port.connect {first_port} 9600 N81 crlf echo",
                 "dim",
             )
         else:
             self.write(
-                f"Try:  {self.prefix}port.open DEMO    "
+                f"Try:  {self.prefix}port.connect DEMO    "
                 "-- no hardware ports; use the built-in simulator",
                 "green",
             )

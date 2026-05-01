@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from termapy import port_control, usb_serial_chips
 from termapy.help_dynamic import compose, green, port_status, state_line
+from termapy.legacy import make_forwarder
 from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
@@ -51,7 +52,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-def _handler_open(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
     if err:
         ctx.write(err, "red")
@@ -84,7 +85,7 @@ def _handler_open(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
-def _handler_close(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
     ctx.engine.disconnect()
     return CmdResult.ok()
 
@@ -268,8 +269,8 @@ def _cfg_value_long_help(key: str, label: str):
 def _port_root_long_help(ctx: PluginContext) -> str:
     return compose(
         port_status(ctx),
-        "Open, close, list, or configure the serial port.\n"
-        "Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),\n"
+        "Connect to, disconnect from, list, or configure the serial\n"
+        "port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),\n"
         "USB chip identification ({prefix}port.chip.*), and the four mode\n"
         "settings baud_rate, byte_size, parity, stop_bits.",
     )
@@ -346,7 +347,7 @@ def _port_hw_line_long_help(line: str, direction: str):
 COMMAND = Command(
     name="port",
     args="{name}",
-    help="Serial port tools: open, close, list, configure.",
+    help="Serial port tools: connect, disconnect, list, configure.",
     long_help=_port_root_long_help,
     handler=_handler_root,
     sub_commands={
@@ -358,37 +359,33 @@ COMMAND = Command(
             help="Show /port help.",
             handler=_handler_help,
         ),
-        "open": Command(
+        "connect": Command(
             args="{name} {baud} {mode}",
-            help="Connect to the serial port (e.g. {prefix}port.open COM3 9600 N81).",
+            help="Connect to the serial port (e.g. {prefix}port.connect COM3 9600 N81).",
             long_help=(
-                "Open the serial port, optionally setting any of baud rate, "
-                "serial frame mode, line ending, or echo in the same stroke.\n"
+                "Connect to the serial port, optionally setting baud rate, "
+                "frame mode, line ending, or echo in one stroke.\n"
                 "\n"
-                "Syntax: {prefix}port.open [name] [baud] [mode] [cr|lf|crlf] [echo|noecho]\n"
+                "Syntax: {prefix}port.connect [name] [baud] [mode] [cr|lf|crlf] [echo|noecho]\n"
                 "\n"
-                "  name         Port device or USB serial number. MUST be the\n"
-                "               first token. Falls back to cfg[\"port\"] if\n"
-                "               omitted.\n"
+                "  name         Port device or USB serial number. MUST come\n"
+                "               first. Falls back to cfg[\"port\"].\n"
                 "  baud         Baud rate (e.g. 9600, 115200).\n"
-                "  mode         Frame: parity + data bits + stop bits (e.g.\n"
-                "               N81, E72, O81.5). Parity letters: N/E/O/M/S.\n"
-                "  cr|lf|crlf   Line ending appended to text writes. Stored\n"
-                "               as cfg[\"line_ending\"].\n"
+                "  mode         Frame, e.g. N81 or E72. Parity: N/E/O/M/S.\n"
+                "  cr|lf|crlf   Line ending. Stored as cfg[\"line_ending\"].\n"
                 "  echo|noecho  Toggle cfg[\"echo_input\"].\n"
                 "\n"
-                "Examples:\n"
-                "  {prefix}port.open                         - open with current cfg\n"
-                "  {prefix}port.open COM3                    - open COM3, keep rest\n"
-                "  {prefix}port.open COM3 9600 N81           - port + baud + mode\n"
-                "  {prefix}port.open COM3 9600 N81 crlf echo - the full monty\n"
-                "  {prefix}port.open COM3 echo crlf 9600 N81 - same (order-independent)\n"
+                "Tokens after name are order-independent. Mutations are\n"
+                "session-only -- edit the config file to persist.\n"
                 "\n"
-                "None of these mutations are written to disk -- they live for\n"
-                "the session only. Edit the config file (via {prefix}cfg or\n"
-                "directly) to persist."
+                "Example: {prefix}port.connect COM3 9600 N81 crlf echo"
             ),
-            handler=_handler_open,
+            handler=_handler_connect,
+        ),
+        "open": Command(
+            help="Legacy alias for /port.connect.",
+            handler=make_forwarder("port.open", "port.connect"),
+            hidden=True,
         ),
         "mode": Command(
             args="{baud} {mode}",
@@ -396,10 +393,15 @@ COMMAND = Command(
             long_help=_port_mode_long_help,
             handler=_handler_mode,
         ),
-        "close": Command(
+        "disconnect": Command(
             help="Disconnect from the serial port.",
             long_help=port_status,
-            handler=_handler_close,
+            handler=_handler_disconnect,
+        ),
+        "close": Command(
+            help="Legacy alias for /port.disconnect.",
+            handler=make_forwarder("port.close", "port.disconnect"),
+            hidden=True,
         ),
         "info": Command(
             help="Show status, params, chip, and live signals for the connected port.",

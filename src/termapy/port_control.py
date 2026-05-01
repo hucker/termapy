@@ -70,7 +70,7 @@ def parse_mode(mode: str) -> tuple[str, int, float] | None:
     return parity, byte_size, stop_bits
 
 
-#: Line-ending tokens accepted by /port.open.  Values are the literal
+#: Line-ending tokens accepted by /port.connect.  Values are the literal
 #: strings stored in cfg["line_ending"].
 _LINE_ENDING_TOKENS: dict[str, str] = {
     "cr": "\r",
@@ -89,7 +89,7 @@ def parse_open_args(
     bool | None,
     str | None,
 ]:
-    """Parse /port.open arguments.
+    """Parse /port.connect arguments.
 
     Syntax: ``{name} {baud} {mode} {line_ending} {echo}``.  The port
     name, if supplied, MUST be the first token -- everything else is

@@ -1,10 +1,10 @@
-"""End-to-end tests for the extended /port.open command.
+"""End-to-end tests for the extended /port.connect command.
 
-/port.open now accepts line-ending (cr/lf/crlf) and echo (echo/noecho)
+/port.connect now accepts line-ending (cr/lf/crlf) and echo (echo/noecho)
 tokens in addition to port name, baud, and mode.  Port name must be
 the first token; everything else is order-independent.  Unit tests for
 ``parse_open_args`` live in [tests/test_port_control.py](tests/test_port_control.py);
-this file exercises the full REPL path through ``_handler_open`` and
+this file exercises the full REPL path through ``_handler_connect`` and
 verifies the cfg dict is updated correctly.
 """
 
@@ -29,7 +29,7 @@ def _run_cli(
     cfg = {**DEFAULT_CFG, "port": "DEMO", "auto_connect": False, **cfg_overrides}
     (proj_dir / "proj.cfg").write_text(json.dumps(cfg, indent=4))
 
-    script_path = tmp_path / "open.run"
+    script_path = tmp_path / "connect.run"
     script_path.write_text("\n".join(script_lines) + "\n")
 
     return subprocess.run(
@@ -48,11 +48,11 @@ def _run_cli(
     )
 
 
-class TestPortOpenExtendedArgs:
-    """/port.open now accepts cr/lf/crlf and echo/noecho tokens."""
+class TestPortConnectExtendedArgs:
+    """/port.connect now accepts cr/lf/crlf and echo/noecho tokens."""
 
-    def test_port_open_with_all_fields(self, tmp_path):
-        # Arrange -- start disconnected, open DEMO with the full
+    def test_port_connect_with_all_fields(self, tmp_path):
+        # Arrange -- start disconnected, connect DEMO with the full
         # argument set and verify each field made it into the cfg.
         # /cfg <key> reads a single cfg value back so we can assert
         # against it end-to-end.
@@ -61,7 +61,7 @@ class TestPortOpenExtendedArgs:
             cfg_overrides={"baud_rate": 115200, "line_ending": "\r",
                            "echo_input": False},
             script_lines=[
-                "/port.open DEMO 9600 N81 crlf echo",
+                "/port.connect DEMO 9600 N81 crlf echo",
                 "/cfg baud_rate",
                 "/cfg line_ending",
                 "/cfg echo_input",
@@ -88,14 +88,14 @@ class TestPortOpenExtendedArgs:
             f"echo_input should show True; stdout: {out!r}"
         )
 
-    def test_port_open_order_independent_after_port(self, tmp_path):
+    def test_port_connect_order_independent_after_port(self, tmp_path):
         # Arrange -- same fields, different order.  Port stays first,
         # the trailing fields are shuffled.
         result = _run_cli(
             tmp_path,
             cfg_overrides={"baud_rate": 115200},
             script_lines=[
-                "/port.open DEMO echo crlf 9600 N81",
+                "/port.connect DEMO echo crlf 9600 N81",
                 "/cfg baud_rate",
                 "/cfg echo_input",
             ],
@@ -110,13 +110,13 @@ class TestPortOpenExtendedArgs:
             f"echo_input should be True; stdout: {result.stdout!r}"
         )
 
-    def test_port_open_noecho_disables_echo(self, tmp_path):
-        # Arrange -- start with echo on, /port.open noecho turns it off.
+    def test_port_connect_noecho_disables_echo(self, tmp_path):
+        # Arrange -- start with echo on, /port.connect noecho turns it off.
         result = _run_cli(
             tmp_path,
             cfg_overrides={"echo_input": True},
             script_lines=[
-                "/port.open DEMO noecho",
+                "/port.connect DEMO noecho",
                 "/cfg echo_input",
             ],
         )
@@ -126,18 +126,18 @@ class TestPortOpenExtendedArgs:
         # echo_input should now be False -- look for "False" in the
         # /cfg output and make sure "True" doesn't also appear (would
         # indicate noecho was ignored).
-        lines_after_open = result.stdout.split("/port.open")[-1]
-        assert "False" in lines_after_open, (
+        lines_after_connect = result.stdout.split("/port.connect")[-1]
+        assert "False" in lines_after_connect, (
             f"noecho should disable echo_input; stdout: {result.stdout!r}"
         )
 
-    def test_port_open_line_ending_lf(self, tmp_path):
+    def test_port_connect_line_ending_lf(self, tmp_path):
         # Arrange
         result = _run_cli(
             tmp_path,
             cfg_overrides={"line_ending": "\r\n"},
             script_lines=[
-                "/port.open DEMO lf",
+                "/port.connect DEMO lf",
                 "/cfg line_ending",
             ],
         )
@@ -152,7 +152,7 @@ class TestPortOpenExtendedArgs:
             f"line_ending should be LF; stdout: {out!r}"
         )
 
-    def test_port_open_port_must_be_first(self, tmp_path):
+    def test_port_connect_port_must_be_first(self, tmp_path):
         # Arrange -- a port-name-looking token after another token
         # must be rejected.  Previously (position-independent) this
         # would have been accepted with port=DEMO.
@@ -160,7 +160,7 @@ class TestPortOpenExtendedArgs:
             tmp_path,
             cfg_overrides={},
             script_lines=[
-                "/port.open echo DEMO",
+                "/port.connect echo DEMO",
                 "/echo survived",
             ],
         )

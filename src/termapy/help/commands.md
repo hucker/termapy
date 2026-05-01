@@ -16,9 +16,9 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list subcommands. With name: open it. |
 | `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
 | `/port.list`              | Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SN, ...)                  |
-| `/port.open {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.open COM3 9600 N81) |
+| `/port.connect {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81) |
 | `/port.mode {baud} {mode}` | Show or set serial mode (e.g. /port.mode 9600 N81)                        |
-| `/port.close`             | Disconnect from the serial port                                             |
+| `/port.disconnect`        | Disconnect from the serial port                                             |
 | `/port.info`              | Show port status, serial parameters, hardware lines, and xfer root          |
 | `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |
 | `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |

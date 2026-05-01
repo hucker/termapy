@@ -320,12 +320,17 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     # Clean name + one-liner, no args column. This is the fix for the
     # pre-redesign "wall of text" complaint on /help cap.
     if plugin.children:
-        ctx.write_markup("")
-        ctx.write_markup(_SECTION_FMT.format(text="SUBCOMMANDS"))
-        children = [(n, plugins[n]) for n in sorted(plugin.children) if n in plugins]
-        cmd_w = _compute_cmd_w([n for n, _ in children], prefix)
-        for child_name, child in children:
-            ctx.write_markup(_landscape_row(prefix, child_name, child, cmd_w))
+        children = [
+            (n, plugins[n])
+            for n in sorted(plugin.children)
+            if n in plugins and not plugins[n].hidden
+        ]
+        if children:
+            ctx.write_markup("")
+            ctx.write_markup(_SECTION_FMT.format(text="SUBCOMMANDS"))
+            cmd_w = _compute_cmd_w([n for n, _ in children], prefix)
+            for child_name, child in children:
+                ctx.write_markup(_landscape_row(prefix, child_name, child, cmd_w))
 
     # SEE ALSO ────────────────────────────────────────────────────────────────
     see = _siblings_for_see_also(name, plugins)

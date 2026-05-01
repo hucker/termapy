@@ -3989,7 +3989,7 @@ def _run_cli_mode(args) -> str | None:
         if not path:
             # Zero-config CLI: no config file anywhere.  Start the REPL
             # with an in-memory DEFAULT_CFG and let the user pick a port
-            # interactively via /port.open.  This replaces the previous
+            # interactively via /port.connect.  This replaces the previous
             # "no config found -- exit" behaviour for interactive use.
             # --run without an inferrable config still errors (handled
             # above), since scripting without a config is ambiguous.

@@ -2114,9 +2114,11 @@ class SerialTerminal(TerminalHost, App):
         Uses the shared three-section layout (title / kv body / action).
         The title is the device name from cfg["port"].  The body shows
         chip identification fields from port_control.gather_chip_facts():
-        description, manufacturer, model, USB speed, VID:PID, max baud,
-        and the in_use status.  Linux-only fields (driver, latency_timer,
-        negotiated link speed) appear automatically when available.
+        description, manufacturer (descriptor / INF), vendor (silicon
+        vendor by VID), model, USB speed, VID:PID, location (bus path),
+        max baud, and the in_use status.  Linux-only fields (driver,
+        latency_timer, negotiated link speed) appear automatically when
+        available.
 
         Falls back to a brief "no USB chip info available" body when the
         port is not enumerable (DEMO, unplugged cable, non-USB device).
@@ -2135,9 +2137,11 @@ class SerialTerminal(TerminalHost, App):
             for field_name in (
                 "description",
                 "manufacturer",
+                "vendor",
                 "model",
                 "usb_speed",
                 "vid_pid",
+                "location",
                 "serial",
                 "negotiated",
                 "driver",

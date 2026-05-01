@@ -19,11 +19,11 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.38">
+      <meta name="generator" content="zensical-0.0.39">
     
     
       
-        <title>Scripting - Termapy Help v0.63.1</title>
+        <title>Scripting - Termapy Help v0.64.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.63.1" class="md-header__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.64.0" class="md-header__button md-logo" aria-label="Termapy Help v0.64.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.63.1
+            Termapy Help v0.64.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.63.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.63.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.64.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.64.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.63.1
+    Termapy Help v0.64.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -610,10 +610,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quiet-mode-and-output-channels" class="md-nav__link">
+  <a href="#output-levels" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Quiet mode and output channels
+        Output levels
       </span>
     </span>
   </a>
@@ -956,10 +956,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quiet-mode-and-output-channels" class="md-nav__link">
+  <a href="#output-levels" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Quiet mode and output channels
+        Output levels
       </span>
     </span>
   </a>
@@ -1088,54 +1088,69 @@ last -- everything after it is the pattern.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="quiet-mode-and-output-channels">Quiet mode and output channels<a class="headerlink" href="#quiet-mode-and-output-channels" title="Permanent link">&para;</a></h2>
-<p>Termapy commands write to three output channels:</p>
-<ul>
-<li><strong>Result:</strong> the answer to a command. Always shown. Example: <code>/cfg baud_rate</code> printing <code>115200</code>.</li>
-<li><strong>Output:</strong> data dumps, file contents, listings. Always shown. Example: <code>/show file.txt</code>.</li>
-<li><strong>Status:</strong> progress messages, intermediate notes, "doing X now..." lines. Suppressed when verbose is off.</li>
-</ul>
-<p>When you run a script, the status channel is usually noise. You want to see what happened, not a running commentary of every step. Termapy gives you three ways to quiet things down:</p>
+<h2 id="output-levels">Output levels<a class="headerlink" href="#output-levels" title="Permanent link">&para;</a></h2>
+<p>A single dial controls how loud commands are. Four monotonic levels:</p>
 <table>
 <thead>
 <tr>
-<th>What you want to silence</th>
-<th>How</th>
+<th>Level</th>
+<th style="text-align: center;">Result</th>
+<th style="text-align: center;">Output</th>
+<th style="text-align: center;">Status</th>
+<th>Use</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Status messages from all commands</td>
-<td><code>/term.verbose off</code> (or <code>/term.verbose.quiet off</code> in scripts)</td>
+<td><code>silent</code></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td>scripts reading only <code>CmdResult.value</code></td>
 </tr>
 <tr>
-<td>Echoing of each command before it runs</td>
-<td><code>/term.echo off</code> (or <code>/term.echo.quiet off</code> in scripts)</td>
+<td><code>quiet</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td>show the answer, drop the rest</td>
 </tr>
 <tr>
-<td>Per-step status from a single <code>/expect</code></td>
-<td>Add <code>quiet=on</code> to the <code>/expect</code> line</td>
+<td><code>normal</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">—</td>
+<td>default</td>
+</tr>
+<tr>
+<td><code>verbose</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>show progress chatter and timing</td>
 </tr>
 </tbody>
 </table>
-<p>The <code>.quiet</code> variants (<code>/term.verbose.quiet</code>, <code>/term.echo.quiet</code>) set the value without echoing the change itself. This is useful at the top of a script or in <code>on_connect_cmd</code> where the act of toggling shouldn't itself produce output.</p>
-<p><code>/term.verbose</code> only affects the <em>status</em> channel. Command results and data output are always visible. Quiet mode is about silencing chatter, not silencing answers. If you run <code>/cfg baud_rate</code> in quiet mode, you still get <code>115200</code>. You just don't get the dim status line that would normally precede it.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># clean_check.run -- quiet output, just the results
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/term.echo.quiet off
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>/term.verbose.quiet off
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>AT+INFO
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>/expect quiet=on match=Bassomatic
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>AT+TEMP
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>/expect quiet=on match=C
+<p>Set the session default with <code>/term.output &lt;level&gt;</code>. Override for a single
+call with <code>cmd --&lt;level&gt;</code> or <code>cmd.&lt;level&gt;</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/term.output quiet              # session default
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/cfg baud_rate                  # shows 115200
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>/help port --verbose            # one call back to verbose
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>/cap show capture.bin --silent  # run, drop output, only value returns
 </span></code></pre></div>
+<p>Set the level at startup with <code>--silent</code>, <code>--quiet</code>, or <code>--verbose</code> on the
+<code>termapy</code> command line.</p>
+<p>For plugin authors: <code>ctx.result()</code> is the answer, <code>ctx.output()</code> is bulk
+data, <code>ctx.status()</code> is progress chatter. Each gates on the active level.
+Handlers that produce scriptable data must call <code>CmdResult.ok(value=...)</code>
+so silent mode is useful.</p>
 <blockquote>
-<p><strong>Pre-0.63 scripts.</strong>  The old names (<code>/echo</code>, <code>/verbose</code>,
-<code>/show_line_endings</code>, <code>/line_no</code>) still work as hidden forwarders.
-Use <code>/run.legacy &lt;file&gt;</code> to find them in a script, or
-<code>/run.legacy --fix &lt;file&gt;</code> to rewrite them in place; <code>/run.legacy *</code>
-processes every script in the <code>run/</code> directory.</p>
+<p><strong>Migrating older scripts.</strong> Scripts that used <code>/verbose on/off</code>,
+<code>/term.verbose on/off</code>, or <code>*.quiet</code> as a "set silently" idiom keep
+working via hidden forwarders. Run <code>/run.legacy &lt;file&gt;</code> to preview
+the canonical replacements, or <code>/run.legacy --fix &lt;file&gt;</code> to rewrite
+in place. <code>/run.legacy *</code> processes every script in <code>run/</code>.</p>
 </blockquote>
-<p>For plugin authors: <code>ctx.result()</code>, <code>ctx.output()</code>, and <code>ctx.status()</code> are the three channels. Use <code>status()</code> for anything that's progress narration so users can suppress it cleanly.</p>
 <h2 id="example-script">Example script<a class="headerlink" href="#example-script" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># smoke_test.run -- quick device check
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>AT

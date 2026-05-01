@@ -571,8 +571,18 @@ def _check_permissions(device: str) -> str:
     return "denied"
 
 
-def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
-    """Build a ChipFacts from a pyserial ListPortInfo plus platform extras."""
+def _facts_from_port_info(
+    p: Any, connected_port: str = "", *, fast: bool = False
+) -> ChipFacts:
+    """Build a ChipFacts from a pyserial ListPortInfo plus platform extras.
+
+    ``fast=True`` skips the per-port ``_check_in_use`` probe (which
+    opens each port to detect contention -- ~250 ms per port on
+    Windows).  Used by ``--watch`` so the poll loop doesn't scale
+    linearly with port count.  Fast-gathered records have
+    ``in_use=None`` and ``permissions=None`` so callers can tell the
+    field is missing rather than False.
+    """
     facts = ChipFacts(
         device=p.device,
         description=p.description if p.description and p.description != "n/a" else None,
@@ -600,17 +610,23 @@ def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
             facts._usb_speed_color = "yellow"
     else:
         facts.vid_pid = "not a USB device"
-    facts.permissions = _check_permissions(p.device)
-    facts.in_use = _check_in_use(p.device, connected_port)
-    _gather_linux_extras(facts, p.device)
-    _gather_windows_extras(facts, p.device)
-    if (
-        facts.latency_timer is None
-        and sys.platform == "win32"
-        and facts.model
-        and facts.model.startswith("FT")
-    ):
-        facts.latency_timer = "n/a (Windows - check Device Manager)"
+    if not fast:
+        facts.permissions = _check_permissions(p.device)
+        facts.in_use = _check_in_use(p.device, connected_port)
+        # Per-port enrichment (driver, latency_timer, negotiated speed)
+        # reads sysfs / the registry.  Cheap relative to _check_in_use
+        # but unnecessary for --watch's plug-event detection, which
+        # reads only the always-populated identity fields (device,
+        # description, model, vid_pid, serial).
+        _gather_linux_extras(facts, p.device)
+        _gather_windows_extras(facts, p.device)
+        if (
+            facts.latency_timer is None
+            and sys.platform == "win32"
+            and facts.model
+            and facts.model.startswith("FT")
+        ):
+            facts.latency_timer = "n/a (Windows - check Device Manager)"
     return facts
 
 
@@ -689,19 +705,27 @@ def _build_demo_fleet() -> list[ChipFacts]:
     ]
 
 
-def _gather_all_chip_facts(connected_port: str = "") -> list[ChipFacts]:
+def _gather_all_chip_facts(
+    connected_port: str = "", *, fast: bool = False
+) -> list[ChipFacts]:
     """Return ChipFacts for every connected port, sorted by device name.
 
-    Honors the ``TERMAPY_DEMO_FLEET`` env var: when set to any non-empty
-    value, returns a fixed synthetic fleet instead of enumerating real
-    ports.  See ``_build_demo_fleet`` for the roster.
+    ``fast=True`` skips the per-port ``_check_in_use`` probe so the
+    gather doesn't scale linearly with port count -- ``--watch`` uses
+    this to keep the poll loop responsive when many ports are
+    enumerated.  Records returned in fast mode have ``in_use=None``
+    and ``permissions=None``.
+
+    Honors the ``TERMAPY_DEMO_FLEET`` env var: when set to any
+    non-empty value, returns a fixed synthetic fleet instead of
+    enumerating real ports.  See ``_build_demo_fleet`` for the roster.
     """
     if os.environ.get(_DEMO_FLEET_ENV):
         return _build_demo_fleet()
     from serial.tools.list_ports import comports
 
     return [
-        _facts_from_port_info(p, connected_port)
+        _facts_from_port_info(p, connected_port, fast=fast)
         for p in sorted(comports(), key=lambda x: x.device)
     ]
 

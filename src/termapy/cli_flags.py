@@ -275,7 +275,14 @@ def run_ports(args: argparse.Namespace) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-_WATCH_INTERVAL_S = 0.5
+# 200 ms = 5 Hz polling.  Below the ~250 ms human perceptual threshold
+# for plug events, so the response feels instant.  Watch uses the
+# fast-gather path (skips _check_in_use, which costs ~250 ms per port
+# on Windows) so the poll loop doesn't scale linearly with port count.
+# CPU during a watch session is ~3% on a typical laptop; tightening
+# below 100 ms doesn't help because comports() itself is ~5 ms and the
+# perceived gain is zero for human consumers.
+_WATCH_INTERVAL_S = 0.2
 
 # Fixed-width columns for --watch log lines.  Tuned from the chip
 # table's longest plausible values so rows line up column-for-column
@@ -326,7 +333,7 @@ def run_watch(args: argparse.Namespace) -> None:
     from termapy import port_control
 
     banner_ts = datetime.now().strftime("%H:%M:%S")
-    initial = {f.device: f for f in port_control._gather_all_chip_facts()}
+    initial = {f.device: f for f in port_control._gather_all_chip_facts(fast=True)}
     print(
         f"[{banner_ts}] monitoring {len(initial)} port(s); Ctrl+C to exit"
     )
@@ -338,7 +345,7 @@ def run_watch(args: argparse.Namespace) -> None:
         while True:
             time.sleep(_WATCH_INTERVAL_S)
             current = {
-                f.device: f for f in port_control._gather_all_chip_facts()
+                f.device: f for f in port_control._gather_all_chip_facts(fast=True)
             }
             _emit_diff(previous, current)
             previous = current
@@ -395,13 +402,16 @@ def _format_marker_line(marker: str, device: str) -> str:
 
 
 def _state_of(facts) -> str:
-    """Return ``open`` or ``closed`` for the state column.
+    """Return ``open`` / ``closed`` / ``-`` for the state column.
 
     Matches pyserial's ``serial.Serial.is_open`` terminology.  ``open``
-    means some process (possibly termapy itself) has the port open.
+    means some process (possibly termapy itself) has the port open;
+    ``-`` means the in-use state wasn't gathered (fast-gather path used
+    by ``--watch`` skips ``_check_in_use`` so the poll loop stays fast).
     """
-    in_use = facts.in_use or ""
-    return "open" if in_use.startswith("yes") else "closed"
+    if facts.in_use is None:
+        return "-"
+    return "open" if facts.in_use.startswith("yes") else "closed"
 
 
 def _speed_of(facts) -> str:

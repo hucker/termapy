@@ -479,3 +479,87 @@ class TestReservedPortSynthesis:
         assert record["manufacturer"] == "real-vendor", (
             "OS-enumerated record wins over synthesis"
         )
+
+
+# ── Fast-gather path used by --watch ──────────────────────────────────────────
+
+
+class TestFastGather:
+    """The fast-gather variant skips per-port enrichment so --watch
+    doesn't scale linearly with port count.
+
+    Pre-existing _check_in_use opens each port via serial.Serial() to
+    detect contention -- ~250 ms per port on Windows.  At 5 ports that
+    was ~1.25 s of gather alone, plus the 500 ms sleep, giving the
+    watch loop a 2-3 s reaction time.  fast=True drops it to ~5 ms
+    regardless of port count.
+    """
+
+    def test_fast_gather_skips_in_use(self, monkeypatch):
+        # Arrange -- if anything calls _check_in_use, the test fails.
+        from termapy import port_control
+
+        called = []
+
+        def _trap(*a, **kw):
+            called.append(("_check_in_use", a, kw))
+            return "yes"
+
+        monkeypatch.setattr(port_control, "_check_in_use", _trap)
+        # Also fence off the platform extras so the test doesn't depend
+        # on whether we're running on Linux or Windows.
+        monkeypatch.setattr(port_control, "_gather_linux_extras",
+                            lambda *a, **kw: None)
+        monkeypatch.setattr(port_control, "_gather_windows_extras",
+                            lambda *a, **kw: None)
+
+        # Act
+        port_control._gather_all_chip_facts(fast=True)
+
+        # Assert
+        assert called == [], (
+            "fast=True must not call _check_in_use; "
+            f"trap recorded: {called}"
+        )
+
+    def test_fast_gather_marks_in_use_none(self):
+        # Arrange + Act
+        from termapy import port_control
+        from unittest.mock import MagicMock
+
+        # Use a synthetic ListPortInfo since we don't want to depend on
+        # the real OS port set for this assertion.
+        p = MagicMock()
+        p.device = "COM4"
+        p.description = "USB Serial"
+        p.manufacturer = "FTDI"
+        p.product = None
+        p.serial_number = "AL01"
+        p.location = None
+        p.interface = None
+        p.vid = 0x0403
+        p.pid = 0x6001
+
+        facts = port_control._facts_from_port_info(p, fast=True)
+
+        # Assert -- fast=True leaves in_use and permissions untouched
+        # (None defaults from the dataclass) so callers can tell the
+        # field wasn't gathered.
+        assert facts.in_use is None, "fast=True leaves in_use unset"
+        assert facts.permissions is None, "fast=True leaves permissions unset"
+        # Identity fields populate normally.
+        assert facts.device == "COM4", "device populated in fast mode"
+        assert facts.vid_pid == "0403:6001", "vid_pid populated"
+
+    def test_state_column_shows_dash_when_in_use_unknown(self):
+        # Arrange
+        from termapy.cli_flags import _state_of
+
+        facts = ChipFacts(device="COM4", in_use=None)
+
+        # Act
+        actual = _state_of(facts)
+
+        # Assert
+        expected = "-"
+        assert actual == expected, "fast gather marks state as unknown"

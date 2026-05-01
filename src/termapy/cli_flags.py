@@ -121,9 +121,25 @@ def _facts_to_json_record(facts) -> dict:
             pid = int(pid_s, 16)
         except ValueError:
             vid = pid = None
+    # Vendor info comes from two independent sources:
+    #   - manufacturer / manufacturer_raw: what the device descriptor
+    #     or driver INF reports.  manufacturer is the column-friendly
+    #     short form (via usb_mfg.mfg()); manufacturer_raw is the
+    #     literal string.
+    #   - vendor: the silicon-vendor name resolved from the VID per
+    #     USB-IF assignment.  Populated even when the (VID, PID) pair
+    #     isn't in our chip table; useful when manufacturer is generic
+    #     (e.g. "Microsoft" because the device uses usbser.sys).
+    # All three are exposed so engineers can see the full picture --
+    # they often agree, and when they disagree the disagreement is
+    # diagnostic information.
+    from termapy.usb_mfg import mfg as _mfg_alias
+    raw_mfg = facts.manufacturer
     return {
         "device": facts.device,
-        "manufacturer": facts.manufacturer,
+        "manufacturer": _mfg_alias(raw_mfg) or None,
+        "manufacturer_raw": raw_mfg,
+        "vendor": facts.vendor,
         "description": facts.description,
         "chip": facts.model if facts.model and facts.model != "unknown" else None,
         "speed": _normalize_speed(facts.usb_speed),

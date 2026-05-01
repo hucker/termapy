@@ -19,7 +19,7 @@ from typing import Any, Mapping
 
 import re
 
-from termapy import usb_serial_chips
+from termapy import usb_serial_chips, usb_vendor
 from termapy.defaults import (
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -294,6 +294,7 @@ CHIP_FIELDS: tuple[str, ...] = (
     "device",
     "description",
     "manufacturer",
+    "vendor",
     "product",
     "serial",
     "location",
@@ -315,6 +316,7 @@ CHIP_FIELD_LABELS: dict[str, str] = {
     "device": "Device",
     "description": "Description",
     "manufacturer": "Manufacturer",
+    "vendor": "Vendor",
     "product": "Product",
     "serial": "Serial",
     "location": "Location",
@@ -356,6 +358,11 @@ class ChipFacts:
     max_baud: str | None = None
     permissions: str | None = None
     in_use: str | None = None
+    # Silicon-vendor name resolved from the VID via ``usb_vendor``.
+    # Independent of ``manufacturer`` (which is the descriptor / INF
+    # string) -- they can disagree, and that disagreement is itself
+    # diagnostic information.
+    vendor: str | None = None
     # Color hint for the usb_speed line in the full dump (not a field).
     _usb_speed_color: str | None = None
 
@@ -549,12 +556,17 @@ def _windows_lookup_location(winreg_mod, inst_key) -> str | None:
     ``FTDIBUS\\...`` which has no location; the matching USB device
     (under ``USB\\...``) carries it.  Both nodes share the same
     ``ContainerID``, so we use that as the join key.
+
+    The returned string is normalized so hub appears before port
+    (``Hub_#0009.Port_#0004`` instead of the registry's port-first
+    ``Port_#0004.Hub_#0009``) -- top-of-tree first, matching the way
+    Linux's bus-port path reads.
     """
     # Direct: most non-FTDI drivers populate LocationInformation here.
     try:
         loc, _ = winreg_mod.QueryValueEx(inst_key, "LocationInformation")
         if loc:
-            return str(loc)
+            return _normalize_windows_location(str(loc))
     except OSError:
         pass
     # Indirect: walk Enum\USB looking for a node with the same
@@ -600,8 +612,28 @@ def _windows_lookup_location(winreg_mod, inst_key) -> str | None:
                         except OSError:
                             return None
                         if loc:
-                            return str(loc)
+                            return _normalize_windows_location(str(loc))
     return None
+
+
+def _normalize_windows_location(loc: str) -> str:
+    """Reorder ``Port_#NNNN.Hub_#NNNN`` to ``Hub_#NNNN.Port_#NNNN``.
+
+    Windows' ``LocationInformation`` registry value puts the leaf
+    (port) before the parent (hub), which reads backward.  Swap to
+    hub-then-port so the string reads top-of-tree first, matching
+    Linux's ``1-2.3`` and the way users describe physical hardware
+    ("plugged into hub 9, port 4").
+
+    Strings that don't match the simple ``Port_#X.Hub_#Y`` shape are
+    returned as-is -- some devices report a multi-hub chain or a
+    pre-formatted string we shouldn't mangle.
+    """
+    import re
+    m = re.match(r"^(Port_#\d+)\.(Hub_#\d+)$", loc)
+    if not m:
+        return loc
+    return f"{m.group(2)}.{m.group(1)}"
 
 
 def _check_in_use(device: str, connected_port: str = "") -> str:
@@ -670,6 +702,10 @@ def _facts_from_port_info(
     )
     if p.vid is not None and p.pid is not None:
         facts.vid_pid = f"{p.vid:04X}:{p.pid:04X}"
+        # Silicon vendor by VID -- independent of the descriptor / INF
+        # string in facts.manufacturer.  Populated even when the (VID,
+        # PID) pair isn't in the chip table.
+        facts.vendor = usb_vendor.vendor_for(p.vid)
         chip = usb_serial_chips.chip(p.vid, p.pid)
         if chip:
             facts.model = chip.model

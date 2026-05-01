@@ -184,6 +184,8 @@ Each `--ports --json` record has a stable schema:
 {
   "device": "COM4",
   "manufacturer": "FTDI",
+  "manufacturer_raw": "Future Technology Devices, Inc.",
+  "vendor": "FTDI",
   "description": "USB Serial Converter",
   "chip": "FTDI FT232R",
   "speed": "Full-Speed",
@@ -192,9 +194,26 @@ Each `--ports --json` record has a stable schema:
   "vid_pid": "0403:6001",
   "serial_number": "AL01ABCD",
   "in_use": false,
-  "driver": "ftdi_sio"
+  "driver": "ftdi_sio",
+  "location": "Hub_#0009.Port_#0004"
 }
 ```
+
+Three vendor-related fields, intentionally separate:
+
+- `manufacturer_raw` — the literal string the device descriptor or driver
+  INF reports.
+- `manufacturer` — the same string folded to a column-friendly short
+  form (e.g. `"Future Technology Devices..."` → `"FTDI"`,
+  `"Silicon Labs"` → `"SiLabs"`).
+- `vendor` — the silicon vendor resolved from the VID per USB-IF
+  assignment.  Independent of what the descriptor / INF reports.
+
+These often agree.  They can disagree when a device uses a generic
+driver — a Microchip USB-serial chip running on Microsoft's
+`usbser.sys` reports `manufacturer_raw = "Microsoft"` (driver INF) but
+`vendor = "Microchip"` (VID `0x04D8`).  Engineers diagnosing devices
+benefit from seeing all three.
 
 Numeric fields stay numeric; missing values are `null` (not omitted).
 `vid_pid` is the canonical lowercase-hex form for literal matching.

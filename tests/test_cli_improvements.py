@@ -148,7 +148,8 @@ class TestPortsJsonShape:
         assert len(records) == 1, "one record for one fact"
         actual = records[0]
         expected_keys = {
-            "device", "manufacturer", "description", "chip", "speed",
+            "device", "manufacturer", "manufacturer_raw", "vendor",
+            "description", "chip", "speed",
             "vid", "pid", "vid_pid", "serial_number", "in_use", "driver",
             "location",
         }
@@ -613,3 +614,167 @@ class TestLocationField:
         # Assert
         record = json.loads(buf.getvalue())[0]
         assert record["location"] is None, "missing location -> null, not omitted"
+
+
+class TestVendorLookup:
+    """``vendor`` is the silicon-vendor name resolved from the VID via
+    ``usb_vendor.USB_VENDORS``.  Independent of ``manufacturer`` (which
+    is the descriptor / INF string) -- they often agree, and when they
+    disagree the disagreement is itself useful diagnostic information.
+    """
+
+    def test_vendor_from_vid(self):
+        # Arrange + Act
+        from termapy.usb_vendor import vendor_for
+
+        # Assert
+        assert vendor_for(0x0403) == "FTDI", "FTDI VID resolves"
+        assert vendor_for(0x10C4) == "Silicon Labs", "SiLabs VID resolves"
+        assert vendor_for(0x04D8) == "Microchip", "Microchip VID resolves"
+
+    def test_vendor_unknown_vid_returns_none(self):
+        # Arrange + Act
+        from termapy.usb_vendor import vendor_for
+
+        # Assert
+        assert vendor_for(0xDEAD) is None, "unknown VID -> None"
+        assert vendor_for(None) is None, "None VID -> None"
+
+    def test_microchip_via_microsoft_driver(self, monkeypatch):
+        """The breadcrumb case: descriptor says Microsoft (driver INF),
+        VID 0x04D8 says Microchip (silicon).  JSON exposes both so the
+        engineer can see the layering.
+        """
+        # Arrange -- ChipFacts as gathered for the user's COM3-style port.
+        from termapy.port_control import ChipFacts
+
+        facts = ChipFacts(
+            device="COM3",
+            description="USB Serial Device (COM3)",
+            manufacturer="Microsoft",   # from usbser.sys INF
+            vendor="Microchip",         # from VID 0x04D8 lookup
+            vid_pid="04D8:9036",
+            model=None,
+            in_use="no",
+            driver="usbser",
+        )
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [facts],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True))
+
+        # Assert -- all three fields visible, telling the full story.
+        record = json.loads(buf.getvalue())[0]
+        assert record["manufacturer_raw"] == "Microsoft", (
+            "raw descriptor / INF string preserved"
+        )
+        assert record["manufacturer"] == "MSFT", (
+            "manufacturer column-aliased to short form"
+        )
+        assert record["vendor"] == "Microchip", (
+            "silicon vendor from VID lookup"
+        )
+
+    def test_ftdi_all_three_fields_agree(self, monkeypatch):
+        # Arrange -- FTDI port: descriptor says FTDI, alias short-forms
+        # to FTDI, VID 0x0403 also resolves to FTDI.  All three agree.
+        from termapy.port_control import ChipFacts
+
+        facts = ChipFacts(
+            device="COM7",
+            manufacturer="FTDI",
+            vendor="FTDI",
+            vid_pid="0403:6001",
+            model="FTDI FT232R",
+            in_use="no",
+            driver="FTSER2K",
+        )
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [facts],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True))
+
+        # Assert
+        record = json.loads(buf.getvalue())[0]
+        assert record["manufacturer_raw"] == "FTDI", "raw FTDI string"
+        assert record["manufacturer"] == "FTDI", "alias passes through"
+        assert record["vendor"] == "FTDI", "VID lookup matches"
+
+    def test_normalize_windows_location_reorders_hub_first(self):
+        """Windows' LocationInformation stores port before hub; we
+        flip it so hub comes first, matching natural reading order
+        ('the device is on hub 9, port 4').
+        """
+        # Arrange + Act + Assert
+        from termapy.port_control import _normalize_windows_location
+
+        actual = _normalize_windows_location("Port_#0004.Hub_#0009")
+        expected = "Hub_#0009.Port_#0004"
+        assert actual == expected, "hub before port for natural reading"
+
+    def test_normalize_windows_location_passes_through_unknown_shape(self):
+        """Multi-hub chains and pre-formatted strings shouldn't be
+        mangled by the simple two-element reorder.
+        """
+        # Arrange + Act + Assert
+        from termapy.port_control import _normalize_windows_location
+
+        # Multi-element chain -- leave as-is.
+        actual = _normalize_windows_location(
+            "Port_#0001.Hub_#0001.Hub_#0002"
+        )
+        expected = "Port_#0001.Hub_#0001.Hub_#0002"
+        assert actual == expected, "complex chains unchanged"
+
+        # Linux-style passthrough.
+        actual2 = _normalize_windows_location("1-8.3:x.1")
+        assert actual2 == "1-8.3:x.1", "non-Windows format unchanged"
+
+    def test_silicon_labs_short_form_via_alias(self, monkeypatch):
+        # Arrange -- USB_VENDORS uses the canonical "Silicon Labs", but
+        # narrow-column display goes through usb_mfg.mfg() which folds
+        # it to "SiLabs".  Verify the JSON record's `manufacturer` (the
+        # column-aliased one) gets the short form when the raw input
+        # is "Silicon Labs".
+        from termapy.port_control import ChipFacts
+
+        facts = ChipFacts(
+            device="COM4",
+            manufacturer="Silicon Labs",
+            vendor="Silicon Labs",
+            vid_pid="10C4:EA60",
+            model="CP2102",
+            in_use="no",
+        )
+        monkeypatch.setattr(
+            port_control,
+            "_gather_all_chip_facts",
+            lambda *a, **kw: [facts],
+        )
+
+        # Act
+        buf = io.StringIO()
+        with pytest.raises(SystemExit), redirect_stdout(buf):
+            cli_flags.run_ports(_ports_args(json=True))
+
+        # Assert
+        record = json.loads(buf.getvalue())[0]
+        assert record["manufacturer_raw"] == "Silicon Labs", "raw preserved"
+        assert record["manufacturer"] == "SiLabs", (
+            "alias collapses to narrow column form"
+        )
+        assert record["vendor"] == "Silicon Labs", (
+            "vendor stays canonical for machine consumers"
+        )

@@ -100,17 +100,131 @@ def _ports_row_width() -> int:
     return _PORTS_PIPED_ROW_WIDTH
 
 
+def _facts_to_json_record(facts) -> dict:
+    """Build a stable JSON record from a ChipFacts.
+
+    Field names are snake_case (matching pyserial convention) and the
+    schema is fixed: every record has every field, with ``null`` for
+    unknown values, so consumers can rely on the shape.  Numeric
+    ``vid``/``pid`` are kept alongside the formatted ``vid_pid`` so
+    consumers can do numeric or literal-string filtering.
+    """
+    # vid_pid on ChipFacts is "0403:6001" (uppercase hex); split it
+    # back to integers when present so consumers can do numeric ops.
+    vid: int | None = None
+    pid: int | None = None
+    vp = facts.vid_pid
+    if vp and ":" in vp:
+        try:
+            vid_s, pid_s = vp.split(":", 1)
+            vid = int(vid_s, 16)
+            pid = int(pid_s, 16)
+        except ValueError:
+            vid = pid = None
+    return {
+        "device": facts.device,
+        "manufacturer": facts.manufacturer,
+        "description": facts.description,
+        "chip": facts.model if facts.model and facts.model != "unknown" else None,
+        "speed": _normalize_speed(facts.usb_speed),
+        "vid": vid,
+        "pid": pid,
+        "vid_pid": vp.lower() if vp and ":" in vp else None,
+        "serial_number": facts.serial,
+        "in_use": (facts.in_use or "").startswith("yes"),
+        "driver": facts.driver,
+    }
+
+
+def _normalize_speed(usb_speed: str | None) -> str | None:
+    """Reduce the verbose usb_speed string to a short label or None."""
+    if not usb_speed:
+        return None
+    if "Full-Speed" in usb_speed:
+        return "Full-Speed"
+    if "High-Speed" in usb_speed:
+        return "High-Speed"
+    if "Super-Speed" in usb_speed:
+        return "Super-Speed"
+    return None
+
+
+def _filter_facts(args: argparse.Namespace, facts_list: list) -> list:
+    """Apply --vid / --pid / --mfg / --sn filters.
+
+    Each filter is optional; any combination AND-s.  ``--vid`` /
+    ``--pid`` accept hex (with or without 0x prefix) or decimal.
+    ``--mfg`` is a case-insensitive substring match.  ``--sn`` is an
+    exact case-insensitive match.
+    """
+    out = facts_list
+    if args.vid is not None:
+        needle = _parse_hex_int(args.vid)
+        if needle is None:
+            print(f"Invalid --vid: {args.vid!r}", file=sys.stderr)
+            sys.exit(2)
+        out = [f for f in out if _vid_of(f) == needle]
+    if args.pid is not None:
+        needle = _parse_hex_int(args.pid)
+        if needle is None:
+            print(f"Invalid --pid: {args.pid!r}", file=sys.stderr)
+            sys.exit(2)
+        out = [f for f in out if _pid_of(f) == needle]
+    if args.mfg:
+        m = args.mfg.lower()
+        out = [
+            f for f in out
+            if f.manufacturer and m in f.manufacturer.lower()
+        ]
+    if args.sn:
+        s = args.sn.lower()
+        out = [f for f in out if f.serial and f.serial.lower() == s]
+    return out
+
+
+def _parse_hex_int(s: str) -> int | None:
+    """Parse a VID/PID string as hex.  Accepts ``0x0403``, ``0403``, ``403``."""
+    s = s.strip().lower()
+    if s.startswith("0x"):
+        s = s[2:]
+    try:
+        return int(s, 16)
+    except ValueError:
+        return None
+
+
+def _vid_of(facts) -> int | None:
+    if facts.vid_pid and ":" in facts.vid_pid:
+        try:
+            return int(facts.vid_pid.split(":")[0], 16)
+        except ValueError:
+            return None
+    return None
+
+
+def _pid_of(facts) -> int | None:
+    if facts.vid_pid and ":" in facts.vid_pid:
+        try:
+            return int(facts.vid_pid.split(":")[1], 16)
+        except ValueError:
+            return None
+    return None
+
+
 def run_ports(args: argparse.Namespace) -> None:
     """List serial ports one line per port and exit.
 
     With ``args.ports == "*"`` (the argparse ``const`` when the flag
-    is given bare), lists every port.  Otherwise filters to the one
-    matching device name.  Output matches the picker table (PORT /
-    MFG / DESCRIPTION / CHIP / SPEED / VID:PID / SN).
+    is given bare), lists every port.  ``args.ports`` as a literal
+    name filters to that one device.  Multi-axis filters (``--vid``,
+    ``--pid``, ``--mfg``, ``--sn``) AND with the name match.
 
-    Row width adapts to the real terminal when run interactively so
-    low-priority columns drop before the row wraps.  When piped, a
-    wide budget is used so scripts see every column.
+    Output is the picker table by default (PORT / MFG / DESCRIPTION /
+    CHIP / SPEED / VID:PID / SN / DRIVER), or a JSON array when
+    ``--json`` is given.  Row width adapts to the real terminal when
+    run interactively so low-priority columns drop before the row
+    wraps.  When piped, a wide budget is used so scripts see every
+    column.
 
     Exits 0 if at least one row was shown, 1 if nothing matched.
     """
@@ -120,14 +234,23 @@ def run_ports(args: argparse.Namespace) -> None:
     all_facts = port_control._gather_all_chip_facts()
 
     if args.ports and args.ports != "*":
-        matches = [f for f in all_facts if f.device == args.ports]
-        if not matches:
+        all_facts = [f for f in all_facts if f.device == args.ports]
+        if not all_facts and not args.json:
             print(f"No port matching {args.ports!r}", file=sys.stderr)
             sys.exit(1)
-        facts_list = matches
-    else:
-        facts_list = all_facts
 
+    facts_list = _filter_facts(args, all_facts)
+
+    if args.json:
+        records = [_facts_to_json_record(f) for f in facts_list]
+        print(json.dumps(records, indent=2))
+        sys.exit(0 if records else 1)
+
+    if not facts_list:
+        if args.ports and args.ports != "*":
+            # Already printed the no-match message above.
+            sys.exit(1)
+        # Filters narrowed to empty; format_table prints a header still.
     lines = format_table(facts_list, _ports_row_width())
     for line in lines:
         print(line)
@@ -325,7 +448,8 @@ def run_chips(args: argparse.Namespace) -> None:
 
     Optional filter narrows to rows whose chip model contains the
     filter substring (case-insensitive).  Mirrors the REPL
-    ``/port.chip.list`` command.
+    ``/port.chip.list`` command.  ``--json`` produces an array of
+    chip records instead of the column-aligned table.
 
     Exits 0 even on no matches; a zero-match filter is a legitimate
     query, not an error.
@@ -342,6 +466,21 @@ def run_chips(args: argparse.Namespace) -> None:
             continue
         rows.append((vid, pid, info))
     rows.sort(key=lambda row: (row[0], row[1]))
+
+    if args.json:
+        records = [
+            {
+                "vid": vid,
+                "pid": pid,
+                "vid_pid": f"{vid:04x}:{pid:04x}",
+                "model": info.model,
+                "speed": info.speed,
+                "max_baud": info.max_baud,
+            }
+            for vid, pid, info in rows
+        ]
+        print(json.dumps(records, indent=2))
+        sys.exit(0)
 
     if not rows:
         print(f"No chips match '{args.chips}'", file=sys.stderr)

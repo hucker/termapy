@@ -431,6 +431,103 @@ def _gather_linux_extras(facts: ChipFacts, device: str) -> None:
         pass
 
 
+def _gather_windows_extras(facts: ChipFacts, device: str) -> None:
+    """Best-effort driver-name lookup on Windows via the registry.
+
+    Walks ``HKLM\\SYSTEM\\CurrentControlSet\\Enum`` looking for a device
+    whose ``Device Parameters\\PortName`` value matches ``device``
+    (e.g. "COM4").  Reads the ``Service`` value at that key, which is
+    the driver service name (e.g. "FTDIBUS", "usbser", "silabser").
+
+    Stdlib only -- ``winreg`` is part of CPython on Windows.  Silent on
+    non-Windows hosts and on any registry error.  Bounded walk so a
+    massive Enum tree doesn't slow down ``--ports``.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import winreg  # stdlib on Windows
+    except ImportError:
+        return
+
+    # Walk Enum\<bus>\<vid_pid>\<instance> looking for our COM port.
+    # Most USB-serial devices live under USB or USBSER, but some
+    # virtual ports (Bluetooth, com0com) live elsewhere -- so walk all
+    # top-level bus subkeys.
+    try:
+        enum_root = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum"
+        )
+    except OSError:
+        return
+    try:
+        for bus in _enum_subkeys(winreg, enum_root):
+            try:
+                bus_key = winreg.OpenKey(enum_root, bus)
+            except OSError:
+                continue
+            with bus_key:
+                for hwid in _enum_subkeys(winreg, bus_key):
+                    try:
+                        hwid_key = winreg.OpenKey(bus_key, hwid)
+                    except OSError:
+                        continue
+                    with hwid_key:
+                        for inst in _enum_subkeys(winreg, hwid_key):
+                            if _windows_match_inst(
+                                winreg, hwid_key, inst, device, facts
+                            ):
+                                return
+    finally:
+        enum_root.Close()
+
+
+def _enum_subkeys(winreg_mod, key) -> list[str]:
+    """Return every immediate subkey name of ``key`` (winreg-only)."""
+    names: list[str] = []
+    i = 0
+    while True:
+        try:
+            names.append(winreg_mod.EnumKey(key, i))
+        except OSError:
+            break
+        i += 1
+    return names
+
+
+def _windows_match_inst(
+    winreg_mod, parent_key, inst: str, device: str, facts: ChipFacts
+) -> bool:
+    """Check one Enum instance node for a PortName match; populate driver if so.
+
+    Returns True if the instance owns ``device`` (the caller stops
+    walking).  False otherwise.
+    """
+    try:
+        inst_key = winreg_mod.OpenKey(parent_key, inst)
+    except OSError:
+        return False
+    with inst_key:
+        # Device Parameters\PortName carries "COMx" for serial-bound nodes.
+        try:
+            params = winreg_mod.OpenKey(inst_key, "Device Parameters")
+        except OSError:
+            return False
+        with params:
+            try:
+                port_name, _ = winreg_mod.QueryValueEx(params, "PortName")
+            except OSError:
+                return False
+        if port_name != device:
+            return False
+        try:
+            service, _ = winreg_mod.QueryValueEx(inst_key, "Service")
+        except OSError:
+            return False
+        facts.driver = str(service) if service else None
+        return True
+
+
 def _check_in_use(device: str, connected_port: str = "") -> str:
     """Return 'yes', 'yes (this session)', or 'no'.
 
@@ -506,6 +603,7 @@ def _facts_from_port_info(p: Any, connected_port: str = "") -> ChipFacts:
     facts.permissions = _check_permissions(p.device)
     facts.in_use = _check_in_use(p.device, connected_port)
     _gather_linux_extras(facts, p.device)
+    _gather_windows_extras(facts, p.device)
     if (
         facts.latency_timer is None
         and sys.platform == "win32"

@@ -160,6 +160,48 @@ you to open an issue so the lookup table can grow.
 Exits 0 if at least one port was printed, 1 if the named port wasn't
 found or no ports are connected.
 
+## Filtering and JSON output
+
+`--ports` accepts these script-friendly filters (AND together):
+
+| Flag        | Effect                                                              |
+| ----------- | ------------------------------------------------------------------- |
+| `--vid HEX` | Only USB devices matching this VID. Hex with or without `0x`.       |
+| `--pid HEX` | Only USB devices matching this PID.                                 |
+| `--mfg STR` | Manufacturer substring match (case-insensitive).                    |
+| `--sn STR`  | Exact serial-number match (case-insensitive).                       |
+| `--json`    | Emit a JSON array instead of the column table; also for `--chips`.  |
+
+Example:
+
+```sh
+termapy --ports --vid 0403 --json | jq '.[].device'
+```
+
+Each `--ports --json` record has a stable schema:
+
+```json
+{
+  "device": "COM4",
+  "manufacturer": "FTDI",
+  "description": "USB Serial Converter",
+  "chip": "FTDI FT232R",
+  "speed": "Full-Speed",
+  "vid": 1027,
+  "pid": 24577,
+  "vid_pid": "0403:6001",
+  "serial_number": "AL01ABCD",
+  "in_use": false,
+  "driver": "ftdi_sio"
+}
+```
+
+Numeric fields stay numeric; missing values are `null` (not omitted).
+`vid_pid` is the canonical lowercase-hex form for literal matching.
+`driver` is the kernel module name on Linux (`ftdi_sio`, `cdc_acm`,
+`ch341`, `cp210x`, ...) and the Windows service name (`FTDIBUS`,
+`usbser`, `silabser`, ...). On macOS `driver` is `null` for now.
+
 ## Other flags worth knowing
 
 | Flag              | What it does                                                  |

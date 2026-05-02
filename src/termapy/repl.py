@@ -661,7 +661,12 @@ class ReplEngine:
                         return CmdResult.fail(msg=str(e))
             return self.dispatch(repl_cmd)
 
-        # 4. Serial command - apply transforms, encode, send
+        # 4. Non-prefix line -> rewrite to /term.send <text> and dispatch.
+        #    Goal: every dispatched action has a discoverable slash-command
+        #    name (/help, /search, MCP catalog).  /term.send is the
+        #    literal-bytes primitive; transforms + connect-check live in
+        #    this fallthrough only -- /term.send (called directly) gets
+        #    predictable literal-bytes semantics for LLMs and scripts.
         if self.has_serial_transforms:
             try:
                 cmd = self.transform_serial(cmd)
@@ -680,16 +685,17 @@ class ReplEngine:
             _status("Not connected.", "red")
             return CmdResult.fail(msg="Not connected.")
 
-        line_ending = self.cfg.get("line_ending", "\r")
-        if serial_write:
-            try:
-                serial_write(
-                    (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-                )
-            except (OSError, Exception) as e:
-                _status(f"Send error: {e}", "red")
-                return CmdResult.fail(msg=f"Send error: {e}")
-        return CmdResult.ok()
+        # Bridge dispatch_full's serial_write callback into ctx for the
+        # handler.  Hosts (CLITerminal, MCPHost) wire both to the same
+        # SerialPort so this is a no-op in production; tests that pass a
+        # mock serial_write to dispatch_full now reach the handler too.
+        saved_serial_write = self.ctx.serial_write
+        if serial_write is not None:
+            self.ctx.serial_write = serial_write
+        try:
+            return self.dispatch(f"term.send {cmd}")
+        finally:
+            self.ctx.serial_write = saved_serial_write
 
     # -- REPL dispatch ---------------------------------------------------------
 

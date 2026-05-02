@@ -60,6 +60,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/show.cfg`               | Show the current config file                                                |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
+| `/term.send <text>`       | Send literal text to the serial port (with line ending; canonical name for the bare-line send) |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |
 | `/term.echo [on\|off]`    | Toggle command echo                                                         |
 | `/term.line_no [on\|off]` | Toggle line numbers in serial output (TUI only)                             |

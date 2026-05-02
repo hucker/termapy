@@ -196,6 +196,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Validate a device profile (.json or .toml) against the schema "
              "and exit.  Exit 0 if valid, 1 with errors otherwise.",
     )
+    parser.add_argument(
+        "--mcp",
+        action="store_true",
+        help="Run as a stdio MCP (Model Context Protocol) server.  Stdout "
+             "is reserved for protocol frames; session log goes to "
+             "<cfg_dir>/mcp/session.log.  Requires the 'mcp' extra: "
+             "pip install termapy[mcp].",
+    )
+    parser.add_argument(
+        "--mcp-verbose",
+        action="store_true",
+        help="Dev observability for --mcp: tee log events to stderr in real "
+             "time.  Stderr is safe (only stdout is the MCP wire); production "
+             "users omit this flag for clean stdio.",
+    )
     return parser
 
 
@@ -309,6 +324,13 @@ def main() -> None:
     if args.web:
         from termapy.app import _run_web_mode
         _run_web_mode(args)
+        return
+
+    # --mcp runs the MCP stdio server.  Lazy-import keeps the mcp SDK
+    # (and pydantic) out of the import graph for normal termapy usage.
+    if args.mcp:
+        from termapy.mcp.server import run_mcp_stdio
+        run_mcp_stdio(args)
         return
 
     if args.run:

@@ -48,9 +48,16 @@ dependencies = [
 
 [project.optional-dependencies]
 web = ["textual-serve>=1.1"]
+mcp = ["mcp>=1.0,<2.0"]
 
 [tool.uv-build]
-include = ["src/termapy/*.md", "src/termapy/help/*.md", "src/termapy/html/**", "src/termapy/builtins/demo/**"]
+include = [
+    "src/termapy/*.md",
+    "src/termapy/*.json",
+    "src/termapy/help/*.md",
+    "src/termapy/html/**",
+    "src/termapy/builtins/demo/**",
+]
 
 [build-system]
 requires = ["uv_build"]

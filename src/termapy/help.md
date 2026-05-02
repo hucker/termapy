@@ -186,7 +186,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/log.show`                    | Open the session log in the system viewer                                   |
 | `/log.dump {N}`                | Print the session log (all, or last N lines) to the terminal                |
 | `/log.fingerprint`             | Write a session fingerprint (OS, terminal, port params) to the log          |
-| `/log.clear`                   | Delete the session log file                                                 |
+| `/log.delete`                  | Delete the session log file                                                 |
 | `/edit.info`                   | Open the info report in the system viewer                                   |
 | `/cfg.info {--display}`        | Show project summary; `--display` opens full report in system viewer        |
 | `/cfg.files`                   | Show project directory tree                                                 |

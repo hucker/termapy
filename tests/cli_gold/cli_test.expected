@@ -214,26 +214,26 @@ demo> /port.ri
 demo> /port.cd
   1
 demo> /port.info
-    Port:         DEMO  (connected)
-    Baud rate:    115200
-    Frame:        8N1
-    Flow control: none
-    Encoding:     utf-8
+  Port        : DEMO  (connected)
+  Baud rate   : 115200
+  Frame       : 8N1
+  Flow control: none
+  Encoding    : utf-8
 
-    Description   Termapy simulated device
-    Manufacturer  termapy
-    VID:PID       not a USB device
-    Model         DEMO
-    USB speed     virtual (not a USB device)
-    Permissions   ok
-    In use        no
+  Description : Termapy simulated device
+  Manufacturer: termapy
+  VID:PID     : not a USB device
+  Model       : DEMO
+  USB speed   : virtual (not a USB device)
+  Permissions : ok
+  In use      : no
 
-    DTR:          1
-    RTS:          1
-    CTS:          1
-    DSR:          1
-    RI:           0
-    CD:           1
+  DTR: 1
+  RTS: 1
+  CTS: 1
+  DSR: 1
+  RI : 0
+  CD : 1
 demo> /print === section: port modify ===
   === section: port modify ===
 demo> /port.dtr 0
@@ -329,14 +329,14 @@ demo> /print === section: proto crc ===
 demo> /proto.crc.info crc16-modbus
     crc16-modbus
     Modbus RTU serial protocol
-    Width:   16 bits (2 bytes)
-    Poly:    0x8005
-    Init:    0xFFFF
-    RefIn:   True
-    RefOut:  True
-    XorOut:  0x0000
-    Check:   0x4B37  (CRC of '123456789')
-    Spec:    CRC:crc16-modbus_le  or  CRC:crc16-modbus_be
+  Width : 16 bits (2 bytes)
+  Poly  : 0x8005
+  Init  : 0xFFFF
+  RefIn : True
+  RefOut: True
+  XorOut: 0x0000
+  Check : 0x4B37  (CRC of '123456789')
+  Spec  : CRC:crc16-modbus_le  or  CRC:crc16-modbus_be
 demo> /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
     Algorithm: crc16-modbus
     Data:      01 03 00 00 00 0A  (6 bytes)

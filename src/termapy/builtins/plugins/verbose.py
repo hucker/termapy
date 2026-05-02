@@ -32,6 +32,12 @@ LEGACY_COMMANDS["term.verbose"] = "term.output"
 # Forward old-idiom callers to the new spelling.
 LEGACY_COMMANDS["echo.quiet"] = "echo.silent"
 LEGACY_COMMANDS["term.echo.quiet"] = "term.echo.silent"
+# "clear" should mean "empty visible state" -- /log.clear was the
+# outlier that actually deleted the on-disk file.  Renamed to
+# /log.delete to match the verb's meaning elsewhere (clear screen,
+# clear vars, reset counters).  Old name keeps working as a hidden
+# forwarder.
+LEGACY_COMMANDS["log.clear"] = "log.delete"
 register_legacy_rewrite(r"^verbose\s+on\b", "term.output verbose")
 register_legacy_rewrite(r"^verbose\s+off\b", "term.output normal")
 register_legacy_rewrite(r"^term\.verbose\s+on\b", "term.output verbose")

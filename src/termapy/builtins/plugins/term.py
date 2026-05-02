@@ -186,6 +186,7 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
     path.  ``CmdResult.value`` is the full-table count so scripts can
     read it via .quiet/.silent.
     """
+    from termapy.plugins import format_kv_lines
     from termapy.usb_vendor import USB_VENDORS
 
     rows: list[tuple[str, str]] = [
@@ -213,9 +214,8 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
     except ImportError:
         rows.append(("full_table", "(missing -- reinstall termapy)"))
 
-    width = max(len(name) for name, _ in rows)
-    for name, val in rows:
-        ctx.write_markup(f"  [cyan]{name:<{width}}[/]  {val}")
+    for line in format_kv_lines(rows):
+        ctx.write_markup(line)
     # Update hint targets end users (PyPI installs) -- the bundled
     # data refreshes on each termapy release, so upgrading is the
     # right path for newer entries.  Maintainers update via
@@ -254,6 +254,8 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Snapshot the current state of every /term.* toggle."""
+    from termapy.plugins import format_kv_lines
+
     flags = ctx.ns("flags")
     rows = [
         ("echo", "on" if flags.get("echo") else "off"),
@@ -265,9 +267,8 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
         ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
     ]
-    width = max(len(name) for name, _ in rows)
-    for name, val in rows:
-        ctx.write_markup(f"  [cyan]{name:<{width}}[/]  {val}")
+    for line in format_kv_lines(rows):
+        ctx.write_markup(line)
     return CmdResult.ok()
 
 

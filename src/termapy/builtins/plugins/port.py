@@ -14,10 +14,20 @@ if TYPE_CHECKING:
 
 
 def _apply(ctx: PluginContext, result: port_control.Result) -> None:
-    """Output messages and apply side effects from a port_control function."""
+    """Output messages and apply side effects from a port_control function.
+
+    Lines that carry Rich markup (detected by the close tag ``[/]``)
+    route through ``ctx.write_markup`` so embedded colors render.
+    Other lines keep the legacy ``(text, color)`` write path.  This
+    lets info-style commands use the shared ``format_kv_lines()``
+    helper alongside older message-bearing functions in the same
+    Result without breaking either.
+    """
     msgs, effects = result
     for text, color in msgs:
-        if color:
+        if "[/]" in text:
+            ctx.write_markup(text)
+        elif color:
             ctx.write(text, color)
         else:
             ctx.write(text)

@@ -1213,11 +1213,23 @@ class SerialTerminal(TerminalHost, App):
             source="app",
         )
         self.repl.register_hook(
-            "log.clear",
+            "log.delete",
             "",
             "Delete the session log file.",
-            lambda ctx, args: self._tui_hook_log_clear(),
+            lambda ctx, args: self._tui_hook_log_delete(),
             source="app",
+        )
+        # /log.clear is a hidden legacy alias -- "clear" should mean
+        # "empty visible state," and the canonical "delete the file"
+        # verb is /log.delete.  Forwarder pattern matches /port.open
+        # -> /port.connect and the rest of the v0.64 renames.
+        self.repl.register_hook(
+            "log.clear",
+            "",
+            "Legacy alias for /log.delete.",
+            make_forwarder("log.clear", "log.delete"),
+            source="app",
+            hidden=True,
         )
         # /log.show, /log.dump, /log.fingerprint -- shared handlers in
         # termapy.log_show / log_dump / log_fingerprint.
@@ -3506,8 +3518,17 @@ class SerialTerminal(TerminalHost, App):
         )
         return CmdResult.ok()
 
-    def _tui_hook_log_clear(self) -> CmdResult:
-        """Delete the session log file."""
+    def _tui_hook_log_delete(self) -> CmdResult:
+        """Delete the session log file on disk.
+
+        This is the canonical name; ``/log.clear`` is a hidden legacy
+        alias that forwards here (with a one-time deprecation note).
+        Vocabulary: "clear" should mean "empty visible/transient state"
+        (``/cls`` for the screen; ``/var.clear`` for variables;
+        ``/seq.reset`` for counters), and "delete" should mean
+        "permanently remove from disk."  Pre-rename behaviour
+        conflated those.
+        """
         log_path = self._log_path()
         if not log_path or not Path(log_path).exists():
             self._status("No log file to delete.", "yellow")

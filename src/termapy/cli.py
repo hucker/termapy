@@ -376,11 +376,22 @@ class CLITerminal(TerminalHost):
             source="app",
         )
         self.repl.register_hook(
-            "log.clear",
+            "log.delete",
             "",
             "Delete the session log file.",
-            self._hook_log_clear,
+            self._hook_log_delete,
             source="app",
+        )
+        # /log.clear is a hidden legacy alias -- "clear" means "empty
+        # visible state," and "delete" is the canonical verb for
+        # removing on-disk files.
+        self.repl.register_hook(
+            "log.clear",
+            "",
+            "Legacy alias for /log.delete.",
+            make_forwarder("log.clear", "log.delete"),
+            source="app",
+            hidden=True,
         )
         # /log.show, /log.dump, /log.fingerprint -- shared handlers.
         from termapy import log_dump, log_fingerprint, log_show

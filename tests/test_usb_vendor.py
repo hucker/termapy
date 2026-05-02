@@ -318,9 +318,15 @@ class TestTermUsbDbHandler:
         joined = "\n".join(out)
         for label in ("curated", "full_table", "generated", "source", "path"):
             assert label in joined, f"output missing {label}: {joined!r}"
-        # The trailing refresh hint must be present.
-        assert "refresh" in joined.lower(), (
-            "output should include a refresh hint"
+        # The trailing update hint must be present and point at the
+        # package-upgrade path (not the dev script, which PyPI users
+        # don't have access to).
+        assert "upgrade" in joined.lower() or "update" in joined.lower(), (
+            "output should include an update hint"
+        )
+        assert "scripts/refresh_usb_ids" not in joined, (
+            "output must not point at dev-only scripts; PyPI users "
+            "get the package, not the scripts/ directory"
         )
 
     def test_handler_returns_full_count_as_value(self):

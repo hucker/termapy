@@ -182,8 +182,9 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
       source          where the upstream file was fetched from
       path            location of the generated file on disk
 
-    Followed by a one-line refresh hint.  ``CmdResult.value`` is the
-    full-table count so scripts can read it via .quiet/.silent.
+    Followed by a one-line update hint pointing at the package upgrade
+    path.  ``CmdResult.value`` is the full-table count so scripts can
+    read it via .quiet/.silent.
     """
     from termapy.usb_vendor import USB_VENDORS
 
@@ -198,27 +199,32 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
         rows.append(("full_table", str(full_count)))
         rows.append(("generated", str(getattr(_full, "GENERATED_DATE", "?"))))
         rows.append(("source", str(getattr(_full, "SOURCE_URL", "?"))))
-        # Path on disk -- helpful when the user wants to inspect or
-        # hand-edit the generated module.
+        # Path on disk -- helpful when the user wants to inspect the
+        # bundled module or sanity-check which copy is loaded.
         from pathlib import Path
         full_path = Path(_full.__file__).resolve()
         try:
             display_path = str(full_path.relative_to(Path.cwd()))
         except ValueError:
-            # Generated file is outside cwd (unusual); show absolute.
+            # Generated file is outside cwd (typical for installed pkg
+            # users); show absolute path.
             display_path = str(full_path)
         rows.append(("path", display_path))
     except ImportError:
-        rows.append(("full_table", "(not generated -- run scripts/refresh_usb_ids.py)"))
+        rows.append(("full_table", "(missing -- reinstall termapy)"))
 
     width = max(len(name) for name, _ in rows)
     for name, val in rows:
         ctx.write_markup(f"  [cyan]{name:<{width}}[/]  {val}")
-    # Refresh hint: not a fact, an action, so it's prose rather than
-    # another kv row.
+    # Update hint targets end users (PyPI installs) -- the bundled
+    # data refreshes on each termapy release, so upgrading is the
+    # right path for newer entries.  Maintainers update via
+    # scripts/refresh_usb_ids.py during release prep, but that's a
+    # repo-level workflow, not exposed to package users.
     ctx.write_markup("")
     ctx.write_markup(
-        "  [dim]To refresh:[/]  python scripts/refresh_usb_ids.py"
+        "  [dim]To update:[/]   upgrade termapy (e.g. "
+        "[cyan]uv tool upgrade termapy[/] or [cyan]pip install -U termapy[/])"
     )
     return CmdResult.ok(value=str(full_count))
 
@@ -379,13 +385,14 @@ COMMAND = Command(
                 "              table doesn't cover a VID.\n"
                 "  generated   Local timestamp from the last refresh run.\n"
                 "  source      URL the bundled data was fetched from.\n"
-                "  path        Generated module on disk (relative to cwd).\n"
+                "  path        Generated module on disk.\n"
                 "\n"
-                "To refresh the bundled data:\n"
-                "    python scripts/refresh_usb_ids.py\n"
+                "The bundled table is regenerated on every termapy release\n"
+                "(release_prep step 6 pulls upstream usb.ids), so to get newer\n"
+                "vendor entries: upgrade the termapy package itself.\n"
                 "\n"
-                "Releases run the refresh automatically (release_prep step 6),\n"
-                "so the bundled table tracks upstream on a per-release cadence."
+                "    uv tool upgrade termapy\n"
+                "    pip install --upgrade termapy"
             ),
             handler=_handler_usb_db,
         ),

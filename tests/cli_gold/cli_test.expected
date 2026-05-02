@@ -673,6 +673,7 @@ demo> /help.plugin
   /plugin     Plugin-folder tools: list, explore, show, dump.
   /port       Serial port tools: connect, disconnect, list, configure.
   /print      Print a message to the terminal.
+  /profile    Device profile commands (MCP profile schema, validator).
   /proto      Binary protocol tools: send, run, debug, hex, crc, status.
   /repeat     Repeat a command N times with optional delay (escape to cancel).
   /search     Deep-search every command's metadata (name, help, args, flags, long help).
@@ -690,7 +691,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
   /expect     Wait for text in serial output (script-only).
-  39 commands.
+  40 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

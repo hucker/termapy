@@ -189,7 +189,43 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter --ports to the device with this exact serial number "
              "(case-insensitive).",
     )
+    parser.add_argument(
+        "--validate-profile",
+        default=None,
+        metavar="PATH",
+        help="Validate a device profile (.json or .toml) against the schema "
+             "and exit.  Exit 0 if valid, 1 with errors otherwise.",
+    )
     return parser
+
+
+def _run_validate_profile(path_str: str) -> None:
+    """Validate a profile file against the schema and exit.
+
+    Exits 0 on valid, 1 with line-numbered errors otherwise.  Stays
+    Textual-free -- the validator only needs ``profile.py`` and
+    optionally ``jsonschema``.
+    """
+    from termapy.profile import load_profile, validate_profile
+
+    p = Path(path_str)
+    if not p.exists():
+        print(f"termapy: profile not found: {p}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        profile = load_profile(p)
+    except (OSError, ValueError) as e:
+        print(f"termapy: parse error: {e}", file=sys.stderr)
+        sys.exit(1)
+    result = validate_profile(profile)
+    if result.ok:
+        n = len(profile.get("commands", {})) if isinstance(profile, dict) else 0
+        print(f"OK: {p} ({n} commands)")
+        sys.exit(0)
+    print(f"FAIL: {p}", file=sys.stderr)
+    for err in result.errors:
+        print(f"  {err}", file=sys.stderr)
+    sys.exit(1)
 
 
 def main() -> None:
@@ -211,6 +247,8 @@ def main() -> None:
     if args.chips is not None:
         from termapy.cli_flags import run_chips
         run_chips(args)
+    if args.validate_profile is not None:
+        _run_validate_profile(args.validate_profile)
 
     # --cfg-dir writes a module-global; do this before anything else
     # that might resolve configs.

@@ -1,0 +1,76 @@
+{
+  "profile_version": 2,
+  "profile_revision": "1.0.0",
+  "profile_date": "2026-05-01",
+
+  "device": {
+    "name": "Generic AT Modem",
+    "vendor": "Reference",
+    "startup_banner": "^READY$",
+    "prompt": ""
+  },
+
+  "transport": {
+    "protocol": "text",
+    "baud_rate": 115200,
+    "byte_size": 8,
+    "parity": "N",
+    "stop_bits": 1,
+    "flow_control": "none",
+    "line_ending_send": "\r\n",
+    "line_ending_recv": "\r\n",
+    "encoding": "ascii",
+    "echo": true,
+    "inter_command_delay_ms": 20,
+    "default_response_timeout_ms": 1000
+  },
+
+  "error_detection": {
+    "pattern": "^ERROR(?::\\s*(?P<message>.+))?$",
+    "async": false,
+    "types": {"message": "str"}
+  },
+
+  "commands": {
+    "AT": {
+      "help": "Connectivity test (returns OK).",
+      "safety": "readonly",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    },
+    "AT+VER": {
+      "help": "Read firmware version.",
+      "safety": "readonly",
+      "response": {
+        "format": "regex",
+        "pattern": "VER=(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)",
+        "types": {"major": "int", "minor": "int", "patch": "int"},
+        "timeout_ms": 500
+      }
+    },
+    "AT+CSQ": {
+      "help": "Query received signal strength (RSSI).",
+      "safety": "readonly",
+      "response": {
+        "format": "regex",
+        "pattern": "\\+CSQ:\\s*(?P<rssi>\\d+),(?P<ber>\\d+)",
+        "types": {"rssi": "int", "ber": "int"},
+        "timeout_ms": 500
+      }
+    },
+    "AT+CPIN": {
+      "help": "Set or query SIM PIN.",
+      "send_template": "AT+CPIN={pin}",
+      "typed_args": [
+        {"name": "pin", "type": "str", "required": true, "help": "4-8 digit SIM PIN."}
+      ],
+      "safety": "destructive",
+      "rate_limit_hz": 1,
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 5000}
+    },
+    "AT+RESET": {
+      "help": "Reset the modem.  Triggers startup banner on next connect.",
+      "safety": "destructive",
+      "response": {"format": "none", "timeout_ms": 0}
+    }
+  }
+}

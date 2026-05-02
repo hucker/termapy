@@ -39,7 +39,12 @@ from typing import TYPE_CHECKING, Any
 
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial
-from termapy.mcp.catalog import build_catalog, catalog_json
+from termapy.mcp.catalog import (
+    build_catalog,
+    build_device_state,
+    catalog_json,
+    device_state_json,
+)
 from termapy.plugins import (
     CapabilitySet,
     CmdResult,
@@ -101,6 +106,15 @@ class MCPHost(TerminalHost):
         self._mcp_dir.mkdir(parents=True, exist_ok=True)
         self._log_path = self._mcp_dir / "session.log"
         self._log_lock = threading.Lock()
+
+        # device_state tracking (served by termapy://device_state.json).
+        # Updated by run_command_async after each dispatch.  expect_history
+        # filled when an /expect call resolves.  async_events/errors stay
+        # empty until Phase 5+ NDJSON pipeline.
+        self._last_command: dict[str, Any] | None = None
+        self._expect_history: list[dict[str, Any]] = []
+        self._async_events: list[dict[str, Any]] = []
+        self._async_errors: list[dict[str, Any]] = []
 
         # Engines (mirroring CLITerminal construction).
         self.capture = CaptureEngine(
@@ -251,10 +265,16 @@ class MCPHost(TerminalHost):
         self.ctx.clear_screen = lambda: None
         self.ctx.exit_app = lambda: None
         self.ctx.get_screen_text = lambda: ""
-        # Baseline capabilities only -- no tui_mode, no block_until.
-        # Commands needing TUI features (e.g. /proto.debug) fail with a
-        # clear "not available in this environment" message.
-        self.ctx.capabilities = CapabilitySet()
+        # Wire wait_for_match to the engine's serial-line predicate
+        # waiter so /expect can block on serial input.  Each
+        # run_command runs in a worker thread (asyncio executor); the
+        # asyncio lock serializes them, so the engine's single-active-
+        # predicate model is honored.
+        self.ctx.wait_for_match = self.repl.wait_for_match
+        # Capabilities: baseline + block_until (for /expect).  Keeps
+        # tui_mode/confirm_dialog/etc. off so commands that need a
+        # screen still fail-fast.
+        self.ctx.capabilities = CapabilitySet(block_until=True)
         self.repl.set_context(self.ctx)
         # MCP runs without echoing typed input (there's no human typing).
         # Default output_level "quiet" so Claude gets results, not
@@ -340,6 +360,24 @@ def _build_server(host: MCPHost) -> Any:
     def commands_resource() -> str:
         """Termapy's command catalog as JSON.  Same content as /mcp.catalog."""
         return catalog_json(host.ctx)
+
+    # ── device_state resource ──────────────────────────────────────────────-
+    @server.resource("termapy://device_state.json")
+    def device_state_resource() -> str:
+        """Live snapshot of port/profile/last_command/captures.
+
+        The LLM-as-debugger "where am I" view.  Refreshed on every
+        read.  Tracks state that lives on MCPHost (last_command,
+        expect_history, async_events/errors) plus things derived
+        from ctx (port, profile, captures).
+        """
+        return device_state_json(
+            host.ctx,
+            last_command=host._last_command,
+            expect_history=host._expect_history,
+            async_events=host._async_events,
+            async_errors=host._async_errors,
+        )
 
     # ── capture resources ──────────────────────────────────────────────────-
     @server.resource("termapy://capture/{filename}")
@@ -473,6 +511,33 @@ async def _run_command_async(
 
         cap_after = _snapshot_cap_dir(Path(self.ctx.cap_dir))
         artifacts = _new_artifacts(cap_before, cap_after, Path(self.ctx.cap_dir))
+
+        # Track for device_state resource.  ISO 8601 timestamp matches
+        # the spec's "<at>" field; UTC with explicit Z avoids TZ surprises.
+        from datetime import datetime, timezone
+
+        at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self._last_command = {
+            "cmd": command,
+            "success": bool(result.success),
+            "elapsed_s": float(result.elapsed_s or 0.0),
+            "at": at,
+        }
+        # /expect calls go into expect_history with match status.
+        cmd_name = (command.strip().lstrip(self.prefix).split() or [""])[0]
+        if cmd_name in ("expect", "expect.regex"):
+            self._expect_history.append(
+                {
+                    "command": command,
+                    "matched": bool(result.success),
+                    "value": result.value or "",
+                    "elapsed_s": float(result.elapsed_s or 0.0),
+                    "at": at,
+                }
+            )
+            # Cap history at last 50 entries to keep the resource small.
+            if len(self._expect_history) > 50:
+                self._expect_history = self._expect_history[-50:]
 
         return {
             "cmd": command,

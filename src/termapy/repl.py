@@ -305,61 +305,114 @@ class ReplEngine:
         self._register_script_commands()
 
     def _register_script_commands(self) -> None:
-        """Register the blocking script-only commands as first-class plugins.
+        """Register the blocking commands as first-class plugins.
 
-        ``/expect`` and ``/expect.regex`` are executed by the script
-        runner (see ``_BLOCKING_COMMANDS``) and never reach normal
-        ``dispatch()`` -- their PluginInfo entries here only exist to
-        make them discoverable via ``/help``.  At the REPL prompt the
-        capability gate catches them via ``block_until`` (provided only
-        when ``in_script`` is true) and returns a clean error instead
-        of "Unknown command".
+        ``/expect`` and ``/expect.regex`` are dispatched two ways:
+
+        - **From a .run script**: the script runner's ``_BLOCKING_COMMANDS``
+          dispatch (see ``_run_line``) intercepts BEFORE ``dispatch()`` is
+          reached, calling ``_script_expect`` which can write progress to
+          the script's ``sctx`` and stop the whole script on timeout.
+        - **From dispatch (REPL prompt or MCP)**: ``_expect_handler``
+          below runs.  Same wait, simpler return shape -- no script
+          state, just ``CmdResult`` with the matched line in ``value``.
+
+        Both paths require ``block_until=True``: scripts have it
+        dynamically; MCP hosts opt in by setting it on
+        ``ctx.capabilities``; the interactive REPL doesn't have it,
+        so the capability gate keeps ``/expect`` script-only there.
 
         ``/confirm`` is a regular plugin (see ``confirm.py``) that
         declares its own ``needs``; no registration here.
         """
+        from termapy.scripting import parse_duration, parse_keywords
 
-        def _prompt_handler(ctx: PluginContext, args: str) -> CmdResult:
-            # Never actually runs: the capability gate catches it at the
-            # prompt (no block_until), and in a script the runner
-            # intercepts before dispatch() is reached.
-            return CmdResult.fail(
-                msg="script-only command; invoke from inside a .run file"
-            )
+        def _make_expect_handler(use_regex: bool) -> Callable:
+            def _expect_handler(ctx: PluginContext, args: str) -> CmdResult:
+                kw = parse_keywords(
+                    args, {"timeout", "match"}, rest_keyword="match"
+                )
+                pattern = kw.get("match", "").strip()
+                if not pattern:
+                    return CmdResult.fail(msg="Expect: missing match= keyword")
+                try:
+                    timeout_s = (
+                        parse_duration(kw["timeout"]) if "timeout" in kw else 5.0
+                    )
+                except ValueError as e:
+                    return CmdResult.fail(msg=f"Expect: {e}")
+                if use_regex:
+                    import re as _re
+
+                    try:
+                        compiled = _re.compile(pattern)
+                    except _re.error as e:
+                        return CmdResult.fail(msg=f"Expect: invalid regex: {e}")
+
+                    def predicate(line: str) -> bool:
+                        return bool(compiled.search(line))
+                else:
+
+                    def predicate(line: str) -> bool:
+                        return pattern in line
+
+                match = ctx.wait_for_match(predicate, timeout=timeout_s)
+                if match is None:
+                    return CmdResult.fail(
+                        msg=f'Expect "{pattern}" timeout after {timeout_s}s'
+                    )
+                return CmdResult.ok(value=match)
+
+            return _expect_handler
 
         self.register_plugin(
             PluginInfo(
                 name="expect",
-                args="match=<text> {timeout=<dur>}",
-                help="Wait for text in serial output (script-only).",
+                args="{timeout=<dur>} match=<text>",
+                help="Wait for text in serial output (blocks until match or timeout).",
                 long_help=(
-                    "Block the running script until the serial device outputs\n"
-                    "a line containing <text>.  Fails the script if the\n"
-                    "timeout elapses first (default: engine-wide expect timeout).\n"
+                    "Block until the device outputs a line containing <text>.\n"
+                    "Returns the matched line as the result value; fails on\n"
+                    "timeout (default 5s).\n"
+                    "\n"
+                    "Available wherever ``block_until`` is provided: inside\n"
+                    "a .run script (always), and from the MCP server (the\n"
+                    "MCPHost opts in).  The interactive REPL prompt does\n"
+                    "not provide it -- type {prefix}expect there and you'll\n"
+                    "get a clear capability error.\n"
+                    "\n"
+                    "**match= must be the LAST keyword** because it consumes\n"
+                    "to end of line (text can contain spaces).\n"
                     "\n"
                     "Example:\n"
                     "  AT+CONNECT\n"
-                    "  /expect match=CONNECTED timeout=5s"
+                    "  {prefix}expect timeout=5s match=CONNECTED"
                 ),
-                handler=_prompt_handler,
+                handler=_make_expect_handler(False),
                 needs=CapabilitySet(block_until=True),
+                raw_args=True,
             )
         )
         self.register_plugin(
             PluginInfo(
                 name="expect.regex",
-                args="match=<pattern> {timeout=<dur>}",
-                help="Wait for regex match in serial output (script-only).",
+                args="{timeout=<dur>} match=<pattern>",
+                help="Wait for regex match in serial output (blocks until match or timeout).",
                 long_help=(
-                    "Block the running script until the serial device outputs\n"
-                    "a line matching <pattern>.  Pattern is a Python regex.\n"
+                    "Block until the device outputs a line matching <pattern>.\n"
+                    "<pattern> is a Python regex.  See {prefix}expect for the\n"
+                    "non-regex variant and the capability gate that decides\n"
+                    "where this command runs.\n"
+                    "\n"
+                    "**match= must be the LAST keyword.**\n"
                     "\n"
                     "Example:\n"
                     "  AT+STATUS\n"
-                    "  /expect.regex match=^\\+STATUS: \\d+$ timeout=2s"
+                    "  {prefix}expect.regex timeout=2s match=^\\+STATUS: \\d+$"
                 ),
-                handler=_prompt_handler,
+                handler=_make_expect_handler(True),
                 needs=CapabilitySet(block_until=True),
+                raw_args=True,
             )
         )
 

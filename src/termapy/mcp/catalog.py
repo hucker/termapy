@@ -95,6 +95,126 @@ def catalog_json(ctx: PluginContext, *, indent: int = 2) -> str:
     return json.dumps(build_catalog(ctx), indent=indent, sort_keys=False)
 
 
+# ── Device state (the LLM-as-debugger "where am I" view) ────────────────────
+
+
+DEVICE_STATE_SCHEMA_VERSION: int = 1
+
+
+def build_device_state(
+    ctx: PluginContext,
+    *,
+    last_command: dict | None = None,
+    expect_history: list | None = None,
+    async_events: list | None = None,
+    async_errors: list | None = None,
+) -> dict[str, Any]:
+    """Snapshot of everything the bridge knows about the device right now.
+
+    Served by the ``termapy://device_state.json`` MCP resource.  This
+    is the LLM-as-debugger view: port state, active profile, recent
+    commands, capture artifacts, async events.  Refreshed on every
+    read -- there's no caching.
+
+    MCP-specific fields (last_command, expect_history, async_events,
+    async_errors) are passed in by the host because they live on the
+    MCPHost instance.  Profile and port state come from ctx + engine.
+
+    Args:
+        ctx: Live PluginContext.
+        last_command: Last run_command invocation, or None if no calls
+            have been made yet.  Shape:
+            ``{"cmd": str, "success": bool, "elapsed_s": float,
+               "at": "<ISO 8601>"}``.
+        expect_history: Recent /expect calls (list of dicts).  Empty
+            list when none.
+        async_events: Async device events captured between calls.
+            Empty until Phase 5+ NDJSON pipeline.
+        async_errors: Unsolicited errors captured between calls.
+            Empty until Phase 5+.
+
+    Returns:
+        Dict suitable for ``json.dumps(..., indent=2)``.
+    """
+    from pathlib import Path
+
+    # Port state.
+    port_obj = ctx.port() if ctx.is_connected() else None
+    port_info: dict[str, Any] = {
+        "name": ctx.cfg.get("port", ""),
+        "open": ctx.is_connected(),
+    }
+    if port_obj is not None:
+        baud = getattr(port_obj, "baudrate", None)
+        if baud is not None:
+            port_info["baud"] = baud
+        # 8N1 string: "<bytesize><parity><stopbits>"
+        bs = getattr(port_obj, "bytesize", None)
+        par = getattr(port_obj, "parity", None)
+        sb = getattr(port_obj, "stopbits", None)
+        if all(v is not None for v in (bs, par, sb)):
+            sb_str = "1" if sb == 1 else ("1.5" if sb == 1.5 else "2")
+            port_info["params"] = f"{bs}{par}{sb_str}"
+
+    # Active profile metadata (commands omitted -- they're in commands.json).
+    active = ctx.ns("active_profile") or {}
+    profile_info: dict[str, Any] = {}
+    if active:
+        profile_info = {
+            "path": active.get("__source_path", ""),
+            "revision": active.get("profile_revision", ""),
+            "date": active.get("profile_date", ""),
+            "command_count": len(active.get("commands", {})),
+            "source": "hand-authored" if active.get("__source_path") else "in-memory",
+        }
+    device_info: dict[str, Any] = {}
+    device = active.get("device") if isinstance(active, dict) else None
+    if isinstance(device, dict) and device:
+        device_info = {
+            "name": device.get("name", ""),
+            "prompt": device.get("prompt", ""),
+            "banner_seen": False,  # Phase 6 banner watcher will populate
+            "banner_text": "",
+        }
+
+    # Capture artifacts (live read of cap_dir).
+    captures: list[dict[str, Any]] = []
+    cap_dir = Path(ctx.cap_dir) if ctx.cap_dir else None
+    if cap_dir and cap_dir.exists():
+        for p in sorted(cap_dir.iterdir()):
+            if p.is_file():
+                try:
+                    size = p.stat().st_size
+                except OSError:
+                    size = 0
+                captures.append(
+                    {
+                        "name": p.name,
+                        "bytes": size,
+                        "uri": f"termapy://capture/{p.name}",
+                    }
+                )
+
+    return {
+        "schema": DEVICE_STATE_SCHEMA_VERSION,
+        "port": port_info,
+        "profile": profile_info,
+        "device": device_info,
+        "last_command": last_command or {},
+        "captures": captures,
+        "expect_history": list(expect_history or []),
+        "async_events": list(async_events or []),
+        "async_errors": list(async_errors or []),
+    }
+
+
+def device_state_json(ctx: PluginContext, **kwargs: Any) -> str:
+    """Serialize device_state to JSON (indent=2, stable order)."""
+    return json.dumps(
+        build_device_state(ctx, **kwargs), indent=2, sort_keys=False
+    )
+
+
 # ── Command descriptors ─────────────────────────────────────────────────────
 
 

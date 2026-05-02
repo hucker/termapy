@@ -283,6 +283,91 @@ class TestCatalogParity:
         assert isinstance(cat["target_meta"], dict), "target_meta is dict"
 
 
+# ── device_state resource ───────────────────────────────────────────────────
+
+
+class TestDeviceStateResource:
+    def test_top_level_keys_present(self, host):
+        # Arrange
+        from termapy.mcp.catalog import build_device_state
+
+        # Act
+        state = build_device_state(host.ctx)
+        # Assert
+        for key in (
+            "schema",
+            "port",
+            "profile",
+            "device",
+            "last_command",
+            "captures",
+            "expect_history",
+            "async_events",
+            "async_errors",
+        ):
+            assert key in state, f"device_state missing {key!r}"
+
+    def test_port_state_reflects_disconnected_host(self, host):
+        # Arrange / Act
+        from termapy.mcp.catalog import build_device_state
+
+        state = build_device_state(host.ctx)
+        # Assert
+        assert state["port"]["open"] is False, "no port = closed"
+
+    def test_last_command_populated_after_run(self, host):
+        # Arrange / Act
+        import asyncio
+
+        from termapy.mcp.catalog import build_device_state
+
+        asyncio.run(host.run_command_async("/help", "normal", 5.0))
+        state = build_device_state(
+            host.ctx,
+            last_command=host._last_command,
+        )
+        # Assert
+        assert state["last_command"]["cmd"] == "/help", "last cmd recorded"
+        assert state["last_command"]["success"] is True, "success flag recorded"
+
+    def test_expect_history_grows_after_expect_call(self, host):
+        # Arrange / Act
+        import asyncio
+
+        from termapy.mcp.catalog import build_device_state
+
+        # /expect with no port and no match data; will time out fast.
+        asyncio.run(
+            host.run_command_async(
+                "/expect timeout=50ms match=NEVER", "normal", 5.0
+            )
+        )
+        state = build_device_state(
+            host.ctx,
+            expect_history=host._expect_history,
+        )
+        # Assert
+        assert len(state["expect_history"]) == 1, "history grew by one"
+        assert state["expect_history"][0]["matched"] is False, "timeout = no match"
+
+    def test_captures_list_reflects_cap_dir(self, host, tmp_path):
+        # Arrange — write a file to cap_dir
+        from pathlib import Path
+
+        from termapy.mcp.catalog import build_device_state
+
+        cap_dir = Path(host.ctx.cap_dir)
+        cap_dir.mkdir(parents=True, exist_ok=True)
+        (cap_dir / "smoke.txt").write_text("hi", encoding="utf-8")
+        # Act
+        state = build_device_state(host.ctx)
+        # Assert
+        names = {c["name"] for c in state["captures"]}
+        assert "smoke.txt" in names, "captures list reflects cap_dir contents"
+        smoke = next(c for c in state["captures"] if c["name"] == "smoke.txt")
+        assert smoke["uri"] == "termapy://capture/smoke.txt", "uri formatted"
+
+
 # ── Capture resource path-traversal guard ───────────────────────────────────
 
 

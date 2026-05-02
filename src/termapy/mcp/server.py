@@ -225,10 +225,12 @@ class MCPHost(TerminalHost):
         """Start the background serial reader thread."""
 
         def on_lines(lines: list[str]) -> None:
-            # Inbound serial bytes -> log + (when we're inside a
-            # run_command) buffer them so Claude sees them in the
-            # response.  Outside run_command (e.g. async events between
-            # calls), only logged.
+            # Inbound serial bytes -> feed the engine's expect-watcher
+            # ring buffer (so /expect sees them), log, and -- when
+            # we're inside a run_command -- append to the buffer so
+            # Claude sees them in the response.  Outside run_command
+            # (e.g. async events between calls), only logged + watched.
+            self.repl.feed_lines(lines)
             for line in lines:
                 self._log_line(f"< {line}")
                 buf = _buffer.get()

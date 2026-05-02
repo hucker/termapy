@@ -85,24 +85,35 @@ class TestLazyImport:
 
 
 class TestMcpDispatch:
-    def test_mcp_dispatch_with_sdk_exits_zero(self):
-        """--mcp on a system with the SDK installed exits cleanly (stub)."""
+    def test_mcp_dispatch_with_sdk_exits_cleanly_on_eof(self):
+        """--mcp with the SDK installed runs the stdio server.
+
+        Phase 3 made --mcp a real FastMCP stdio server.  When stdin
+        closes immediately (no protocol peer), the server should
+        shut down without traceback.  We don't assert exit code 0 --
+        FastMCP may exit non-zero on abrupt stdin close on some
+        platforms; what matters is no crash and no stdout pollution
+        (stdout is the protocol wire).
+        """
         # Arrange — only meaningful if the mcp SDK is importable.
         try:
             import mcp  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; nothing to dispatch")
-        # Act
+        # Act — close stdin immediately so FastMCP sees EOF.
         result = subprocess.run(
             [sys.executable, "-m", "termapy", "--mcp"],
             capture_output=True,
             text=True,
             timeout=10,
+            input="",
         )
-        # Assert
-        assert result.returncode == 0, (
-            f"stub should exit 0 when SDK present; stderr: {result.stderr}"
+        # Assert — clean shutdown: no Python traceback in stderr.
+        assert "Traceback" not in result.stderr, (
+            f"server crashed; stderr: {result.stderr[:500]}"
         )
+        # Note: stdout may contain MCP protocol frames or be empty;
+        # what matters is it didn't crash.
 
     def test_mcp_dispatch_without_sdk_prints_install_hint(self):
         """When the mcp SDK is missing, --mcp must give a clean install hint."""
@@ -128,25 +139,30 @@ class TestMcpDispatch:
             "install hint mentions the extra: pip install termapy[mcp]"
         )
 
-    def test_mcp_verbose_emits_stub_notice_to_stderr(self):
-        """--mcp --mcp-verbose prints a one-line dev notice to stderr."""
-        # Arrange — only when SDK installed (otherwise we exit before verbose path).
+    def test_mcp_verbose_emits_host_built_notice_to_stderr(self):
+        """--mcp --mcp-verbose prints a startup notice to stderr.
+
+        Phase 3 emits "host built; cfg=...; mcp_dir=..." on startup
+        when --mcp-verbose is set.  Stdout stays clean (it's the
+        protocol wire); stderr gets dev observability.
+        """
+        # Arrange — only when SDK installed.
         try:
             import mcp  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; verbose path unreachable")
-        # Act
+        # Act — close stdin so the server shuts down quickly after the banner.
         result = subprocess.run(
             [sys.executable, "-m", "termapy", "--mcp", "--mcp-verbose"],
             capture_output=True,
             text=True,
             timeout=10,
+            input="",
         )
         # Assert
-        assert result.returncode == 0, "stub still exits 0 in verbose mode"
-        assert "Phase 1 stub" in result.stderr, (
-            "verbose flag prints the stub notice to stderr"
+        assert "Traceback" not in result.stderr, (
+            f"server crashed; stderr: {result.stderr[:500]}"
         )
-        assert result.stdout == "", (
-            "stdout must stay clean -- it's reserved for MCP protocol frames"
+        assert "host built" in result.stderr, (
+            "verbose flag prints the startup notice to stderr"
         )

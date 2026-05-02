@@ -32,7 +32,7 @@ def _flag_toggle(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
     """Toggle or set a session-scoped flag.
 
     Empty args flips the current state (so the command doubles as a
-    "toggle"); any recognised boolean token is an explicit set.
+    "toggle"); any recognized boolean token is an explicit set.
     """
     flags = ctx.ns("flags")
     val = parse_bool(args)
@@ -172,41 +172,55 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
 
     Reads the curated ``USB_VENDORS`` short-form table and the
     generated ``_usb_vendor_full`` module's metadata constants.  Local
-    only -- never makes a network call.  Users who want to compare
-    against upstream run ``python scripts/refresh_usb_ids.py --check``.
+    only -- never makes a network call.
 
     Output (kv pairs):
 
       curated         number of curated short-form entries
       full_table      number of canonical entries from upstream usb.ids
       generated       date the bundled file was last regenerated
-      upstream        upstream Last-Modified at the time of fetch
-                      (often "unknown" -- not all CDNs return the
-                      header; release prep refreshes regardless)
       source          where the upstream file was fetched from
+      path            location of the generated file on disk
+
+    Followed by a one-line refresh hint.  ``CmdResult.value`` is the
+    full-table count so scripts can read it via .quiet/.silent.
     """
     from termapy.usb_vendor import USB_VENDORS
 
     rows: list[tuple[str, str]] = [
         ("curated", str(len(USB_VENDORS))),
     ]
+    full_count = 0
     try:
         from termapy import _usb_vendor_full as _full
 
-        rows.append(("full_table", str(len(_full.USB_VENDORS_FULL))))
+        full_count = len(_full.USB_VENDORS_FULL)
+        rows.append(("full_table", str(full_count)))
         rows.append(("generated", str(getattr(_full, "GENERATED_DATE", "?"))))
-        rows.append((
-            "upstream",
-            str(getattr(_full, "UPSTREAM_LAST_MODIFIED", None) or "unknown"),
-        ))
         rows.append(("source", str(getattr(_full, "SOURCE_URL", "?"))))
+        # Path on disk -- helpful when the user wants to inspect or
+        # hand-edit the generated module.
+        from pathlib import Path
+        full_path = Path(_full.__file__).resolve()
+        try:
+            display_path = str(full_path.relative_to(Path.cwd()))
+        except ValueError:
+            # Generated file is outside cwd (unusual); show absolute.
+            display_path = str(full_path)
+        rows.append(("path", display_path))
     except ImportError:
         rows.append(("full_table", "(not generated -- run scripts/refresh_usb_ids.py)"))
 
     width = max(len(name) for name, _ in rows)
     for name, val in rows:
         ctx.write_markup(f"  [cyan]{name:<{width}}[/]  {val}")
-    return CmdResult.ok(value=str(rows[1][1] if len(rows) > 1 else 0))
+    # Refresh hint: not a fact, an action, so it's prose rather than
+    # another kv row.
+    ctx.write_markup("")
+    ctx.write_markup(
+        "  [dim]To refresh:[/]  python scripts/refresh_usb_ids.py"
+    )
+    return CmdResult.ok(value=str(full_count))
 
 
 # ── /term.log: write to the session log without echoing to screen ──────────
@@ -236,14 +250,14 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Snapshot the current state of every /term.* toggle."""
     flags = ctx.ns("flags")
     rows = [
-        ("echo",            "on" if flags.get("echo") else "off"),
-        ("output",          str(flags.get("output_level", "normal"))),
-        ("hex",             "on" if flags.get("hex_mode") else "off"),
-        ("line_no",         "on" if flags.get("line_no") else "off"),
-        ("line_endings",    "on" if ctx.cfg.get("show_line_endings") else "off"),
-        ("timestamps",      "on" if ctx.cfg.get("show_timestamps") else "off"),
+        ("echo", "on" if flags.get("echo") else "off"),
+        ("output", str(flags.get("output_level", "normal"))),
+        ("hex", "on" if flags.get("hex_mode") else "off"),
+        ("line_no", "on" if flags.get("line_no") else "off"),
+        ("line_endings", "on" if ctx.cfg.get("show_line_endings") else "off"),
+        ("timestamps", "on" if ctx.cfg.get("show_timestamps") else "off"),
         ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
-        ("encoding",        str(ctx.cfg.get("encoding", "utf-8"))),
+        ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
     ]
     width = max(len(name) for name, _ in rows)
     for name, val in rows:
@@ -348,17 +362,30 @@ COMMAND = Command(
         "usb_db": Command(
             help="Report freshness of the bundled USB vendor database.",
             long_help=(
-                "Shows the curated short-form table size, the generated\n"
-                "full-table size, the date the bundled file was last\n"
-                "regenerated, and the upstream URL.  Local read only --\n"
-                "no network call is made.\n"
+                "Termapy ships a USB Vendor ID lookup table so it can name the\n"
+                "silicon vendor for any USB-serial port -- even when the device's\n"
+                "manufacturer string is missing or set to a generic driver name\n"
+                "(``Microsoft`` for ``usbser.sys``, etc.).  This command reports\n"
+                "what's bundled and how fresh it is.  Local read only -- never\n"
+                "makes a network call.\n"
+                "\n"
+                "Fields:\n"
+                "  curated     Hand-picked short-form names (FTDI, SiLabs, ...)\n"
+                "              tuned for narrow column display.  Tried first by\n"
+                "              vendor_for() so common chips keep their short names.\n"
+                "  full_table  Canonical USB-IF assignments from the upstream\n"
+                "              ``usb.ids`` file at linux-usb.org / its GitHub\n"
+                "              mirror.  Used as a fallback when the curated\n"
+                "              table doesn't cover a VID.\n"
+                "  generated   Local timestamp from the last refresh run.\n"
+                "  source      URL the bundled data was fetched from.\n"
+                "  path        Generated module on disk (relative to cwd).\n"
                 "\n"
                 "To refresh the bundled data:\n"
                 "    python scripts/refresh_usb_ids.py\n"
                 "\n"
-                "To check whether upstream has been updated since the\n"
-                "last refresh:\n"
-                "    python scripts/refresh_usb_ids.py --check"
+                "Releases run the refresh automatically (release_prep step 6),\n"
+                "so the bundled table tracks upstream on a per-release cadence."
             ),
             handler=_handler_usb_db,
         ),

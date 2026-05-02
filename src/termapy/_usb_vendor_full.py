@@ -7,7 +7,6 @@ from the upstream USB ID Repository.  To refresh, run::
 
 Source:    https://raw.githubusercontent.com/usbids/usbids/master/usb.ids
 Generated: 2026-05-01
-Upstream:  unknown
 Entries:   3427
 
 Used as a fallback by ``termapy.usb_vendor.vendor_for()`` when a
@@ -18,9 +17,8 @@ be long; ``usb_mfg.mfg()`` handles narrow-column display.
 
 from __future__ import annotations
 
-# Metadata for /term.usb_db and other introspection callers.
+# Metadata for /term.usb_db introspection.
 GENERATED_DATE: str = '2026-05-01'
-UPSTREAM_LAST_MODIFIED: str | None = None
 SOURCE_URL: str = 'https://raw.githubusercontent.com/usbids/usbids/master/usb.ids'
 
 USB_VENDORS_FULL: dict[int, str] = {

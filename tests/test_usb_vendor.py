@@ -148,7 +148,7 @@ class TestEmitPythonModule:
         }
 
         # Act
-        text = emit_python_module(vendors, "test://source", "Wed, 01 May 2026 00:00:00 GMT")
+        text = emit_python_module(vendors, "test://source")
 
         # Assert
         # Compile to confirm it's valid Python.
@@ -166,7 +166,7 @@ class TestEmitPythonModule:
         vendors = {0xFFFF: "Last", 0x0001: "First", 0x10C4: "Middle"}
 
         # Act
-        text = emit_python_module(vendors, "test://", None)
+        text = emit_python_module(vendors, "test://")
 
         # Assert -- find the line offsets for each VID; First < Middle < Last.
         first = text.index("0x0001")
@@ -182,7 +182,7 @@ class TestEmitPythonModule:
         vendors = {0xCAFE: 'Some "Quoted" Name'}
 
         # Act
-        text = emit_python_module(vendors, "test://", None)
+        text = emit_python_module(vendors, "test://")
 
         # Assert -- compile succeeds; loading the module gives the right value.
         ns: dict = {}
@@ -291,16 +291,6 @@ class TestGeneratedMetadata:
             f"SOURCE_URL should reference usb.ids; got {actual!r}"
         )
 
-    def test_upstream_last_modified_attribute(self):
-        # May be None if the upstream source didn't return a Last-Modified
-        # header (e.g. raw.githubusercontent.com uses ETag instead).  Just
-        # verify the attribute exists -- the value is informational, not
-        # required.
-        from termapy import _usb_vendor_full
-
-        assert hasattr(_usb_vendor_full, "UPSTREAM_LAST_MODIFIED"), (
-            "module exports UPSTREAM_LAST_MODIFIED for /term.usb_db"
-        )
 
 
 # ── /term.usb_db handler ──────────────────────────────────────────────────────
@@ -326,8 +316,37 @@ class TestTermUsbDbHandler:
         # Assert
         assert result.success, "/term.usb_db should succeed"
         joined = "\n".join(out)
-        for label in ("curated", "full_table", "generated", "upstream", "source"):
+        for label in ("curated", "full_table", "generated", "source", "path"):
             assert label in joined, f"output missing {label}: {joined!r}"
+        # The trailing refresh hint must be present.
+        assert "refresh" in joined.lower(), (
+            "output should include a refresh hint"
+        )
+
+    def test_handler_returns_full_count_as_value(self):
+        """CmdResult.value carries the full-table count so scripts can
+        read it via .quiet/.silent and use the integer programmatically.
+        """
+        # Arrange
+        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy._usb_vendor_full import USB_VENDORS_FULL
+        from termapy.plugins import PluginContext
+
+        ctx = PluginContext(
+            write=lambda t, c=None: None,
+            write_markup=lambda t: None,
+        )
+
+        # Act
+        result = _handler_usb_db(ctx, "")
+
+        # Assert
+        actual = result.value
+        expected = str(len(USB_VENDORS_FULL))
+        assert actual == expected, (
+            f"value should be the full-table count ({expected}); "
+            f"got {actual!r}"
+        )
 
     def test_handler_does_not_make_network_calls(self, monkeypatch):
         """Sanity guard: the handler must never reach for the network."""

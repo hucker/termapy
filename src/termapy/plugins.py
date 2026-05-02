@@ -1219,6 +1219,12 @@ class TargetCommand:
     Both are optional -- a device JSON entry that supplies only
     ``help`` + ``args`` (the old shape) still works unchanged.
 
+    **v2 profile fields** (``typed_args`` through ``subcommands``) are
+    optional metadata consumed by the MCP server and codegen tools.
+    All have defaults so v1 manifests round-trip unchanged: a manifest
+    with only ``help`` + ``args`` produces a TargetCommand whose v2
+    fields are at their defaults, and ``_to_json_dict`` omits them.
+
     Attributes:
         name: Command name as the device expects it (no / prefix).
         help: One-line description.
@@ -1230,6 +1236,26 @@ class TargetCommand:
             are canonical flag names (e.g. ``--table``) or aliases
             (key = alias, value = canonical name).  Rendered in the
             FLAGS section of ``/help <target>``.
+        typed_args: v2.  Structured argument schemas: list of dicts
+            ``{name, type, required, default, help, min, max, enum}``.
+            Consumed by the MCP server (typed signatures) and codegen.
+        send_template: v2.  Python-format-style template for the
+            outbound bytes, e.g. ``"AT+VOLT={mv}"``.  Empty = use the
+            command name verbatim.  For NDJSON protocol, the bridge
+            JSON-serializes args instead of using the template.
+        response: v2.  Response shape descriptor: dict with ``format``
+            (none/literal/lines/regex/json), ``pattern``, ``types``,
+            ``terminator``, ``line_pattern``, ``line_types``,
+            ``timeout_ms``.  See ``response_parsers.parse_response``.
+        safety: v2.  Safety tier: ``"safe"`` (default), ``"readonly"``,
+            or ``"destructive"``.  ``destructive`` surfaces the MCP
+            ``annotations.destructiveHint=true`` so clients prompt for
+            confirmation.
+        rate_limit_hz: v2.  Bridge-enforced rate limit.  ``0.0`` = no
+            limit.
+        timeout_ms: v2.  Per-command outer timeout (overrides config
+            default).  ``0`` = use the default.
+        subcommands: v2.  Nested commands, same shape (recursive).
     """
 
     name: str
@@ -1237,6 +1263,14 @@ class TargetCommand:
     args: str = ""
     long_help: str = ""
     flags: dict[str, str] = field(default_factory=dict)
+    # v2 profile fields (all optional, all have v1-preserving defaults)
+    typed_args: list[dict] = field(default_factory=list)
+    send_template: str = ""
+    response: dict = field(default_factory=dict)
+    safety: str = "safe"
+    rate_limit_hz: float = 0.0
+    timeout_ms: int = 0
+    subcommands: dict[str, "TargetCommand"] = field(default_factory=dict)
 
 
 def builtins_dir() -> Path:

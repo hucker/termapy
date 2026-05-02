@@ -86,22 +86,65 @@ def _get_version(ctx: PluginContext) -> str | None:
     return ctx.ns(_META_NS).get("version")
 
 
+_VALID_SAFETY = ("safe", "readonly", "destructive")
+
+
+def _sanitize_typed_args(raw: object) -> list[dict]:
+    """Coerce a raw ``typed_args`` value to the canonical list-of-dicts.
+
+    Accepts only a list of dicts; everything else collapses to ``[]``.
+    Per-item we keep recognized keys and drop the rest -- forward-compat
+    is "ignore unknown keys," same as the top-level entry shape.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[dict] = []
+    keep = {"name", "type", "required", "default", "help", "min", "max", "enum"}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        cleaned = {k: v for k, v in item.items() if k in keep}
+        if cleaned:
+            out.append(cleaned)
+    return out
+
+
+def _sanitize_response(raw: object) -> dict:
+    """Coerce a raw ``response`` value to the canonical dict shape."""
+    if not isinstance(raw, dict):
+        return {}
+    keep = {
+        "format", "pattern", "types", "terminator",
+        "line_pattern", "line_types", "timeout_ms",
+    }
+    return {k: v for k, v in raw.items() if k in keep}
+
+
 def _build_commands(cmd_dict: dict) -> dict[str, TargetCommand]:
     """Build TargetCommand dict from a commands dict.
 
     The JSON entry shape is::
 
         {
-            "help":      "<one-line summary>",       # required
-            "args":      "<arg spec>",                # optional
-            "long_help": "<multi-line prose>",        # optional
-            "flags":     {"--name": "description"}    # optional
+            "help":          "<one-line summary>",       # required
+            "args":          "<arg spec>",                # optional v1
+            "long_help":     "<multi-line prose>",        # optional v1
+            "flags":         {"--name": "description"},   # optional v1
+            "typed_args":    [{...}, ...],                # optional v2
+            "send_template": "AT+VOLT={mv}",              # optional v2
+            "response":      {"format": "...", ...},      # optional v2
+            "safety":        "safe|readonly|destructive", # optional v2
+            "rate_limit_hz": 5.0,                         # optional v2
+            "timeout_ms":    1000,                        # optional v2
+            "subcommands":   {...}                        # optional v2 (recursive)
         }
 
     Only ``help`` is required.  Unknown keys are ignored so a device can
     emit future fields without breaking older termapy.  Malformed
-    ``long_help`` (non-string) or ``flags`` (non-dict / non-string-value)
-    are silently dropped rather than failing the whole include.
+    values are silently dropped rather than failing the whole include.
+    v1 manifests with only ``help`` + ``args`` produce TargetCommands
+    whose v2 fields are at their defaults; ``_to_json_dict`` omits
+    those defaults so v1 round-trips remain byte-stable.
     """
     commands: dict[str, TargetCommand] = {}
     for name, entry in cmd_dict.items():
@@ -117,12 +160,40 @@ def _build_commands(cmd_dict: dict) -> dict[str, TargetCommand]:
                 for k, v in raw_flags.items()
                 if isinstance(k, str) and isinstance(v, str)
             }
+        # v2 fields: each defaults to a v1-equivalent value.
+        typed_args = _sanitize_typed_args(entry.get("typed_args"))
+        send_template = entry.get("send_template", "")
+        if not isinstance(send_template, str):
+            send_template = ""
+        response = _sanitize_response(entry.get("response"))
+        safety = entry.get("safety", "safe")
+        if safety not in _VALID_SAFETY:
+            safety = "safe"
+        try:
+            rate_limit_hz = float(entry.get("rate_limit_hz", 0.0))
+        except (TypeError, ValueError):
+            rate_limit_hz = 0.0
+        try:
+            timeout_ms = int(entry.get("timeout_ms", 0))
+        except (TypeError, ValueError):
+            timeout_ms = 0
+        sub_raw = entry.get("subcommands")
+        subcommands = (
+            _build_commands(sub_raw) if isinstance(sub_raw, dict) else {}
+        )
         commands[name] = TargetCommand(
             name=name,
             help=entry["help"],
             args=entry.get("args", ""),
             long_help=long_help,
             flags=flags,
+            typed_args=typed_args,
+            send_template=send_template,
+            response=response,
+            safety=safety,
+            rate_limit_hz=rate_limit_hz,
+            timeout_ms=timeout_ms,
+            subcommands=subcommands,
         )
     return commands
 
@@ -136,6 +207,11 @@ def _to_json_dict(
     "old-shape" JSON (help + args only) stays byte-identical.  A
     ``None`` or empty ``version`` is likewise omitted -- devices that
     never ship a version keep round-tripping unchanged.
+
+    v2 fields are also omitted when at their defaults, so a v1
+    manifest still round-trips byte-stably.  Order: v1 fields first
+    (help, args, long_help, flags), then v2 fields, so existing v1
+    consumers reading the JSON see no shape change.
     """
     out: dict[str, dict] = {}
     for name, tc in sorted(target.items()):
@@ -144,6 +220,21 @@ def _to_json_dict(
             entry["long_help"] = tc.long_help
         if tc.flags:
             entry["flags"] = dict(tc.flags)
+        # v2 fields -- omit defaults to preserve v1 byte-stability.
+        if tc.typed_args:
+            entry["typed_args"] = [dict(a) for a in tc.typed_args]
+        if tc.send_template:
+            entry["send_template"] = tc.send_template
+        if tc.response:
+            entry["response"] = dict(tc.response)
+        if tc.safety and tc.safety != "safe":
+            entry["safety"] = tc.safety
+        if tc.rate_limit_hz:
+            entry["rate_limit_hz"] = tc.rate_limit_hz
+        if tc.timeout_ms:
+            entry["timeout_ms"] = tc.timeout_ms
+        if tc.subcommands:
+            entry["subcommands"] = _to_json_dict(tc.subcommands)["commands"]
         out[name] = entry
     payload: dict = {}
     if version:

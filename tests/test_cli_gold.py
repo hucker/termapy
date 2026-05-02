@@ -8,6 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.slow  # full CLI subprocess + ~100-command gold compare
+
 GOLD_DIR = Path(__file__).parent / "cli_gold"
 
 

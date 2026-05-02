@@ -192,6 +192,7 @@ class TestRunCommandErrors:
         assert result["success"] is False, "no port = no send"
         assert "Not connected" in result["error"], "error says disconnected"
 
+    @pytest.mark.slow  # ~5s: the /delay actually sleeps in the worker thread
     def test_timeout_returns_failure(self, host):
         # Arrange / Act — /delay 5s with timeout_s=0.3
         result = asyncio.run(host.run_command_async("/delay 5s", "normal", 0.3))

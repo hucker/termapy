@@ -11,6 +11,8 @@ import pytest
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 
+pytestmark = pytest.mark.slow  # subprocess-spawning + CLITerminal end-to-end
+
 
 # -- Fixtures ----------------------------------------------------------------
 

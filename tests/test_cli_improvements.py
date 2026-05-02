@@ -24,6 +24,8 @@ import pytest
 from termapy import cli_flags, port_control
 from termapy.port_control import ChipFacts
 
+pytestmark = pytest.mark.slow  # subprocess-spawning CLI flag tests
+
 
 # ── Import guard: cli_flags must not pull in Textual / Rich / etc. ────────────
 

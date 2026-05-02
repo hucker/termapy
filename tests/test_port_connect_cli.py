@@ -15,7 +15,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from termapy.defaults import DEFAULT_CFG
+
+pytestmark = pytest.mark.slow  # subprocess CLI /port.connect end-to-end
 
 
 def _run_cli(

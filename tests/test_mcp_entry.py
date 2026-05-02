@@ -84,6 +84,7 @@ class TestLazyImport:
 # ── --mcp dispatch reaches the stub ─────────────────────────────────────────
 
 
+@pytest.mark.slow  # subprocess-spawning + MCP server startup (~1-2s each)
 class TestMcpDispatch:
     def test_mcp_dispatch_with_sdk_exits_cleanly_on_eof(self):
         """--mcp with the SDK installed runs the stdio server.

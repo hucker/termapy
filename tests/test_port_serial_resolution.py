@@ -23,6 +23,8 @@ from termapy.defaults import DEFAULT_CFG
 from termapy.port_control import AmbiguousSerialNumberError
 from termapy.serial_engine import SerialEngine
 
+pytestmark = pytest.mark.slow  # subprocess CLI tests for port resolution
+
 
 def _run_cli(
     tmp_path: Path,

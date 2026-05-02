@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.slow  # real-pyserial loopback + subprocess CLI tests
+
 
 def _run_cli(
     tmp_path: Path,

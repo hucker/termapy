@@ -571,6 +571,7 @@ class TestProfileDataclass:
 # ── --validate-profile CLI smoke ────────────────────────────────────────────
 
 
+@pytest.mark.slow  # subprocess-spawning --validate-profile smoke tests
 class TestValidateProfileCli:
     def test_cli_validates_reference_profile(self, tmp_path):
         # Arrange

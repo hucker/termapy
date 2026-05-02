@@ -503,6 +503,7 @@ class TestHardwareSignals:
 # -- Reconnect loop ------------------------------------------------------------
 
 
+@pytest.mark.slow  # ~2.5s sleep-based reconnect simulation
 class TestReconnectLoop:
     def test_reconnect_loop_success(self):
         # Arrange

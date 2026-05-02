@@ -148,7 +148,7 @@ class TestEmitPythonModule:
         }
 
         # Act
-        text = emit_python_module(vendors, "test://source")
+        text = emit_python_module(vendors, "test://source", "Wed, 01 May 2026 00:00:00 GMT")
 
         # Assert
         # Compile to confirm it's valid Python.
@@ -166,7 +166,7 @@ class TestEmitPythonModule:
         vendors = {0xFFFF: "Last", 0x0001: "First", 0x10C4: "Middle"}
 
         # Act
-        text = emit_python_module(vendors, "test://")
+        text = emit_python_module(vendors, "test://", None)
 
         # Assert -- find the line offsets for each VID; First < Middle < Last.
         first = text.index("0x0001")
@@ -182,7 +182,7 @@ class TestEmitPythonModule:
         vendors = {0xCAFE: 'Some "Quoted" Name'}
 
         # Act
-        text = emit_python_module(vendors, "test://")
+        text = emit_python_module(vendors, "test://", None)
 
         # Assert -- compile succeeds; loading the module gives the right value.
         ns: dict = {}
@@ -264,3 +264,94 @@ class TestVendorLookupFallback:
         assert actual > len(USB_VENDORS) * 30, (
             "full table should dwarf curated table"
         )
+
+
+# ── Generated-module metadata ────────────────────────────────────────────────
+
+
+class TestGeneratedMetadata:
+    """The generator emits constants for /term.usb_db introspection."""
+
+    def test_generated_date_present(self):
+        from termapy import _usb_vendor_full
+
+        actual = _usb_vendor_full.GENERATED_DATE
+        # ISO date format: YYYY-MM-DD.
+        import re
+
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", actual), (
+            f"GENERATED_DATE looks wrong: {actual!r}"
+        )
+
+    def test_source_url_present(self):
+        from termapy import _usb_vendor_full
+
+        actual = _usb_vendor_full.SOURCE_URL
+        assert "usb.ids" in actual, (
+            f"SOURCE_URL should reference usb.ids; got {actual!r}"
+        )
+
+    def test_upstream_last_modified_attribute(self):
+        # May be None if the upstream source didn't return a Last-Modified
+        # header (e.g. raw.githubusercontent.com uses ETag instead).  Just
+        # verify the attribute exists -- the value is informational, not
+        # required.
+        from termapy import _usb_vendor_full
+
+        assert hasattr(_usb_vendor_full, "UPSTREAM_LAST_MODIFIED"), (
+            "module exports UPSTREAM_LAST_MODIFIED for /term.usb_db"
+        )
+
+
+# ── /term.usb_db handler ──────────────────────────────────────────────────────
+
+
+class TestTermUsbDbHandler:
+    """The /term.usb_db command reports local metadata only -- no network."""
+
+    def test_handler_writes_expected_fields(self):
+        # Arrange
+        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy.plugins import PluginContext
+
+        out: list[str] = []
+        ctx = PluginContext(
+            write=lambda t, c=None: out.append(t),
+            write_markup=lambda t: out.append(t),
+        )
+
+        # Act
+        result = _handler_usb_db(ctx, "")
+
+        # Assert
+        assert result.success, "/term.usb_db should succeed"
+        joined = "\n".join(out)
+        for label in ("curated", "full_table", "generated", "upstream", "source"):
+            assert label in joined, f"output missing {label}: {joined!r}"
+
+    def test_handler_does_not_make_network_calls(self, monkeypatch):
+        """Sanity guard: the handler must never reach for the network."""
+        # Arrange -- monkeypatch urllib so any network call would fail loudly.
+        import urllib.request
+
+        def _trap(*args, **kwargs):
+            raise AssertionError(
+                "/term.usb_db must not make HTTP requests; "
+                f"caught urlopen({args!r}, {kwargs!r})"
+            )
+
+        monkeypatch.setattr(urllib.request, "urlopen", _trap)
+
+        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy.plugins import PluginContext
+
+        ctx = PluginContext(
+            write=lambda t, c=None: None,
+            write_markup=lambda t: None,
+        )
+
+        # Act -- if the handler ever calls urlopen, this raises.
+        result = _handler_usb_db(ctx, "")
+
+        # Assert
+        assert result.success, "handler ran offline cleanly"

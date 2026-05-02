@@ -164,6 +164,51 @@ def _handler_line_no_placeholder(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.fail(msg="term.line_no handler not installed")
 
 
+# ── /term.usb_db: report bundled USB-vendor database freshness ────────────
+
+
+def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
+    """Report metadata for the bundled USB vendor database.
+
+    Reads the curated ``USB_VENDORS`` short-form table and the
+    generated ``_usb_vendor_full`` module's metadata constants.  Local
+    only -- never makes a network call.  Users who want to compare
+    against upstream run ``python scripts/refresh_usb_ids.py --check``.
+
+    Output (kv pairs):
+
+      curated         number of curated short-form entries
+      full_table      number of canonical entries from upstream usb.ids
+      generated       date the bundled file was last regenerated
+      upstream        upstream Last-Modified at the time of fetch
+                      (often "unknown" -- not all CDNs return the
+                      header; release prep refreshes regardless)
+      source          where the upstream file was fetched from
+    """
+    from termapy.usb_vendor import USB_VENDORS
+
+    rows: list[tuple[str, str]] = [
+        ("curated", str(len(USB_VENDORS))),
+    ]
+    try:
+        from termapy import _usb_vendor_full as _full
+
+        rows.append(("full_table", str(len(_full.USB_VENDORS_FULL))))
+        rows.append(("generated", str(getattr(_full, "GENERATED_DATE", "?"))))
+        rows.append((
+            "upstream",
+            str(getattr(_full, "UPSTREAM_LAST_MODIFIED", None) or "unknown"),
+        ))
+        rows.append(("source", str(getattr(_full, "SOURCE_URL", "?"))))
+    except ImportError:
+        rows.append(("full_table", "(not generated -- run scripts/refresh_usb_ids.py)"))
+
+    width = max(len(name) for name, _ in rows)
+    for name, val in rows:
+        ctx.write_markup(f"  [cyan]{name:<{width}}[/]  {val}")
+    return CmdResult.ok(value=str(rows[1][1] if len(rows) > 1 else 0))
+
+
 # ── /term.log: write to the session log without echoing to screen ──────────
 
 
@@ -299,6 +344,23 @@ COMMAND = Command(
         "info": Command(
             help="Snapshot the state of every /term.* toggle.",
             handler=_handler_info,
+        ),
+        "usb_db": Command(
+            help="Report freshness of the bundled USB vendor database.",
+            long_help=(
+                "Shows the curated short-form table size, the generated\n"
+                "full-table size, the date the bundled file was last\n"
+                "regenerated, and the upstream URL.  Local read only --\n"
+                "no network call is made.\n"
+                "\n"
+                "To refresh the bundled data:\n"
+                "    python scripts/refresh_usb_ids.py\n"
+                "\n"
+                "To check whether upstream has been updated since the\n"
+                "last refresh:\n"
+                "    python scripts/refresh_usb_ids.py --check"
+            ),
+            handler=_handler_usb_db,
         ),
         "log": Command(
             args="<text>",

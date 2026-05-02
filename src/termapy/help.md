@@ -174,6 +174,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.line_no [on\|off]`      | Toggle line numbers in serial output (TUI only)                             |
 | `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
 | `/term.output {level}`         | Show or set output level (silent/quiet/normal/verbose)                      |
+| `/term.usb_db`                 | Report bundled USB vendor-database freshness (local read; no network)       |
 | `/term.timestamps [on\|off]`   | Toggle `[HH:MM:SS.mmm]` timestamp prefix on each line                       |
 | `/term.hex [on\|off]`          | Toggle hex display of incoming bytes                                        |
 | `/term.encoding {name}`        | Show or set byte-decoding encoding (utf-8, latin-1, ascii, cp437)           |

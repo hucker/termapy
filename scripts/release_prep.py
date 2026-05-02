@@ -268,30 +268,63 @@ def refresh_usb_vendor_table() -> None:
     in the release commit.  When upstream has changed, the new vendor
     entries are picked up automatically and become part of the release.
 
-    Defensive checks:
+    Defensive checks (release aborts if any fail):
 
-      - Vendor count must be at least 1000.  The upstream file
-        currently has ~3,400; a sudden drop suggests a format change.
-      - A handful of well-known VIDs must still resolve to recognizable
-        names.  If 0x0403 stops mapping to anything containing "FTDI",
-        the parser is broken -- abort the release rather than ship
-        garbage.
-      - The generated module must compile as valid Python.
+      - **Monotonic growth.**  The upstream usb.ids table essentially
+        never shrinks meaningfully; new VIDs get assigned, retired
+        vendors keep their entries for ``lsusb`` backward-compat, and
+        merges typically add notes rather than remove lines.  We
+        compare the freshly-parsed count against the count baked into
+        the previous ``_usb_vendor_full.py`` and require the new value
+        to be within a small tolerance below the old one (typo /
+        dedup pass = OK; sudden 100-entry drop = format change or
+        parser bug, abort).  First-time generation gets a floor check
+        of 1000 instead.
+
+      - **Spot-check stable VIDs.**  Three decades-old assignments
+        (FTDI 0x0403, Silicon Labs 0x10C4, Microchip 0x04D8) must
+        still resolve to recognizable names.
+
+      - **Compilable Python.**  The generated module must parse and
+        import cleanly.
     """
+    full_path = REPO_ROOT / "src" / "termapy" / "_usb_vendor_full.py"
+    # Capture the previous count from the generated module's header
+    # (``Entries:   3427``).  Falls back to None if the file doesn't
+    # exist yet or the header line is absent.
+    previous_count = _read_previous_vendor_count(full_path)
+
     run([sys.executable, "scripts/refresh_usb_ids.py"])
     # Sanity-check the freshly-generated file before letting the release
     # proceed.  Importing the module also serves as the syntax check.
-    full_path = REPO_ROOT / "src" / "termapy" / "_usb_vendor_full.py"
     ns: dict = {}
     exec(compile(full_path.read_text(encoding="utf-8"), str(full_path), "exec"), ns)
     table = ns.get("USB_VENDORS_FULL")
     if not isinstance(table, dict):
         die("_usb_vendor_full.py did not define USB_VENDORS_FULL as a dict")
-    if len(table) < 1000:
-        die(
-            f"USB_VENDORS_FULL has only {len(table)} entries; "
-            "upstream may have changed format"
-        )
+
+    new_count = len(table)
+    # Allow a tiny shrinkage (typo-fix / dedup pass).  Anything beyond
+    # this is suspicious enough to halt the release for review.  Three
+    # entries was picked empirically: real upstream cleanups historically
+    # touch 1-2 lines; a 5-entry drop has no benign explanation.
+    SHRINK_TOLERANCE = 3
+    if previous_count is None:
+        # Bootstrap: no prior baseline; use a coarse floor.
+        if new_count < 1000:
+            die(
+                f"USB_VENDORS_FULL has only {new_count} entries with no "
+                f"baseline -- upstream may have changed format"
+            )
+    else:
+        if new_count < previous_count - SHRINK_TOLERANCE:
+            die(
+                f"USB_VENDORS_FULL shrank from {previous_count} to "
+                f"{new_count} entries (tolerance {SHRINK_TOLERANCE}). "
+                "Upstream may have changed format, or the parser is "
+                "missing entries.  Investigate before re-running."
+            )
+
     # Spot-check a few stable, well-known assignments.  If any of these
     # vanish, something is wrong with either upstream or the parser.
     spot_checks = [
@@ -306,7 +339,30 @@ def refresh_usb_vendor_table() -> None:
                 f"VID 0x{vid:04X} expected to contain {expected_substring!r}; "
                 f"got {actual!r}"
             )
-    ok(f"USB vendor table refreshed ({len(table)} entries)")
+
+    delta = (
+        f"{new_count - previous_count:+d}"
+        if previous_count is not None else "first run"
+    )
+    ok(f"USB vendor table refreshed ({new_count} entries, {delta})")
+
+
+def _read_previous_vendor_count(path: Path) -> int | None:
+    """Extract the ``Entries:`` value from the generated module's header.
+
+    Returns ``None`` if the file doesn't exist (first-time generation)
+    or the header line is missing / unparseable.  The count line is
+    written by ``scripts/refresh_usb_ids.py`` and looks like::
+
+        Entries:   3427
+    """
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r"^Entries:\s+(\d+)", text, flags=re.MULTILINE)
+    if not m:
+        return None
+    return int(m.group(1))
 
 
 def insert_changelog_stub(version: str) -> None:

@@ -174,6 +174,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.line_no [on\|off]`      | Toggle line numbers in serial output (TUI only)                             |
 | `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output for line-ending debugging |
 | `/term.output {level}`         | Show or set output level (silent/quiet/normal/verbose)                      |
+| `/term.usb_db`                 | Report bundled USB vendor-database freshness (local read; no network)       |
 | `/term.timestamps [on\|off]`   | Toggle `[HH:MM:SS.mmm]` timestamp prefix on each line                       |
 | `/term.hex [on\|off]`          | Toggle hex display of incoming bytes                                        |
 | `/term.encoding {name}`        | Show or set byte-decoding encoding (utf-8, latin-1, ascii, cp437)           |
@@ -185,7 +186,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/log.show`                    | Open the session log in the system viewer                                   |
 | `/log.dump {N}`                | Print the session log (all, or last N lines) to the terminal                |
 | `/log.fingerprint`             | Write a session fingerprint (OS, terminal, port params) to the log          |
-| `/log.clear`                   | Delete the session log file                                                 |
+| `/log.delete`                  | Delete the session log file                                                 |
 | `/edit.info`                   | Open the info report in the system viewer                                   |
 | `/cfg.info {--display}`        | Show project summary; `--display` opens full report in system viewer        |
 | `/cfg.files`                   | Show project directory tree                                                 |

@@ -12,12 +12,13 @@ What it does:
     3. Bump version in pyproject.toml and mkdocs.yml, refresh uv.lock
     4. Update doc counts (test count, ty count, line counts)
     5. Update tagged config examples in help docs
-    6. Insert CHANGELOG stub
-    7. Run pytest
-    8. Run tox (multi-version)
-    9. Build HTML help with zensical
-    10. Commit HTML rebuild
-    11. Commit release
+    6. Refresh USB vendor table from upstream usb.ids
+    7. Insert CHANGELOG stub
+    8. Run pytest
+    9. Run tox (multi-version)
+    10. Build HTML help with zensical
+    11. Commit HTML rebuild
+    12. Commit release
 
 Aborts loudly on any failure. Safe-restart: if it fails halfway, delete
 the release branch and start over (`git checkout main && git branch -D
@@ -259,6 +260,111 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
 # ── changelog ────────────────────────────────────────────────────────────────
 
 
+def refresh_usb_vendor_table() -> None:
+    """Pull latest upstream usb.ids and regenerate _usb_vendor_full.py.
+
+    Idempotent -- if upstream hasn't changed since the last release,
+    the regeneration produces byte-identical output and no diff lands
+    in the release commit.  When upstream has changed, the new vendor
+    entries are picked up automatically and become part of the release.
+
+    Defensive checks (release aborts if any fail):
+
+      - **Monotonic growth.**  The upstream usb.ids table essentially
+        never shrinks meaningfully; new VIDs get assigned, retired
+        vendors keep their entries for ``lsusb`` backward-compat, and
+        merges typically add notes rather than remove lines.  We
+        compare the freshly-parsed count against the count baked into
+        the previous ``_usb_vendor_full.py`` and require the new value
+        to be within a small tolerance below the old one (typo /
+        dedup pass = OK; sudden 100-entry drop = format change or
+        parser bug, abort).  First-time generation gets a floor check
+        of 1000 instead.
+
+      - **Spot-check stable VIDs.**  Three decades-old assignments
+        (FTDI 0x0403, Silicon Labs 0x10C4, Microchip 0x04D8) must
+        still resolve to recognizable names.
+
+      - **Compilable Python.**  The generated module must parse and
+        import cleanly.
+    """
+    full_path = REPO_ROOT / "src" / "termapy" / "_usb_vendor_full.py"
+    # Capture the previous count from the generated module's header
+    # (``Entries:   3427``).  Falls back to None if the file doesn't
+    # exist yet or the header line is absent.
+    previous_count = _read_previous_vendor_count(full_path)
+
+    run([sys.executable, "scripts/refresh_usb_ids.py"])
+    # Sanity-check the freshly-generated file before letting the release
+    # proceed.  Importing the module also serves as the syntax check.
+    ns: dict = {}
+    exec(compile(full_path.read_text(encoding="utf-8"), str(full_path), "exec"), ns)
+    table = ns.get("USB_VENDORS_FULL")
+    if not isinstance(table, dict):
+        die("_usb_vendor_full.py did not define USB_VENDORS_FULL as a dict")
+
+    new_count = len(table)
+    # Allow a tiny shrinkage (typo-fix / dedup pass).  Anything beyond
+    # this is suspicious enough to halt the release for review.  Three
+    # entries was picked empirically: real upstream cleanups historically
+    # touch 1-2 lines; a 5-entry drop has no benign explanation.
+    SHRINK_TOLERANCE = 3
+    if previous_count is None:
+        # Bootstrap: no prior baseline; use a coarse floor.
+        if new_count < 1000:
+            die(
+                f"USB_VENDORS_FULL has only {new_count} entries with no "
+                f"baseline -- upstream may have changed format"
+            )
+    else:
+        if new_count < previous_count - SHRINK_TOLERANCE:
+            die(
+                f"USB_VENDORS_FULL shrank from {previous_count} to "
+                f"{new_count} entries (tolerance {SHRINK_TOLERANCE}). "
+                "Upstream may have changed format, or the parser is "
+                "missing entries.  Investigate before re-running."
+            )
+
+    # Spot-check a few stable, well-known assignments.  If any of these
+    # vanish, something is wrong with either upstream or the parser.
+    spot_checks = [
+        (0x0403, "Future Technology"),  # FTDI
+        (0x10C4, "Silicon Lab"),        # Silicon Labs
+        (0x04D8, "Microchip"),          # Microchip Technology
+    ]
+    for vid, expected_substring in spot_checks:
+        actual = table.get(vid, "")
+        if expected_substring.lower() not in actual.lower():
+            die(
+                f"VID 0x{vid:04X} expected to contain {expected_substring!r}; "
+                f"got {actual!r}"
+            )
+
+    delta = (
+        f"{new_count - previous_count:+d}"
+        if previous_count is not None else "first run"
+    )
+    ok(f"USB vendor table refreshed ({new_count} entries, {delta})")
+
+
+def _read_previous_vendor_count(path: Path) -> int | None:
+    """Extract the ``Entries:`` value from the generated module's header.
+
+    Returns ``None`` if the file doesn't exist (first-time generation)
+    or the header line is missing / unparseable.  The count line is
+    written by ``scripts/refresh_usb_ids.py`` and looks like::
+
+        Entries:   3427
+    """
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r"^Entries:\s+(\d+)", text, flags=re.MULTILINE)
+    if not m:
+        return None
+    return int(m.group(1))
+
+
 def insert_changelog_stub(version: str) -> None:
     """Insert a CHANGELOG stub for the new version, populated with git log."""
     path = REPO_ROOT / "CHANGELOG.md"
@@ -445,7 +551,7 @@ def main() -> None:
 
     info(f"Preparing release v{version}")
 
-    total = 11
+    total = 12
 
     def step(n: int, label: str) -> None:
         info(f"[{n}/{total}] {label}")
@@ -483,22 +589,25 @@ def main() -> None:
     else:
         ok("all config examples current")
 
-    step(6, "Inserting CHANGELOG stub...")
+    step(6, "Refreshing USB vendor table from upstream usb.ids...")
+    refresh_usb_vendor_table()
+
+    step(7, "Inserting CHANGELOG stub...")
     insert_changelog_stub(version)
 
-    step(7, "Running pytest...")
+    step(8, "Running pytest...")
     run_pytest()
 
-    step(8, "Running tox (multi-version)...")
+    step(9, "Running tox (multi-version)...")
     run_tox()
 
-    step(9, "Building HTML help with zensical...")
+    step(10, "Building HTML help with zensical...")
     run_zensical_build()
 
-    step(10, "Committing HTML rebuild...")
+    step(11, "Committing HTML rebuild...")
     commit_html_rebuild(version)
 
-    step(11, "Committing release...")
+    step(12, "Committing release...")
     commit_release(version)
 
     # ── Done ─────────────────────────────────────────────────────────────

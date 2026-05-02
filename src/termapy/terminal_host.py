@@ -523,8 +523,13 @@ class TerminalHost:
             )
         return CmdResult.ok()
 
-    def _hook_log_clear(self, ctx, args: str) -> CmdResult:
-        """Delete the session log file."""
+    def _hook_log_delete(self, ctx, args: str) -> CmdResult:
+        """Delete the session log file on disk.
+
+        Canonical name; ``/log.clear`` is a hidden legacy alias.
+        Vocabulary: "clear" means "empty visible state" (``/cls``);
+        "delete" means "permanently remove from disk."
+        """
         from termapy.config import cfg_log_path
 
         log_path = cfg_log_path(self.config_path) if self.config_path else ""

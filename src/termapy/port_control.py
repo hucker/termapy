@@ -1023,8 +1023,23 @@ def resolve_port_trace(
 
 
 def _format_facts_full(facts: ChipFacts) -> list[Msg]:
-    """Format a single ChipFacts as a multi-line dump."""
+    """Format a single ChipFacts as a multi-line dump.
+
+    Uses ``format_kv_lines()`` for consistent label coloring and column
+    alignment with the other info commands (/term.info, /term.usb_db,
+    /port.info, /proto.crc.info).  Per-row coloring -- USB-speed
+    indicator, latency-timer warning, denied permissions -- is encoded
+    inline as Rich markup on the value side; the cyan label color
+    comes from the helper.
+    """
+    from termapy.plugins import format_kv_lines
+
     msgs: list[Msg] = [_msg(f"{facts.device}", "green")]
+
+    # Build (label, value) rows, embedding any per-row coloring inline
+    # via Rich markup.  All rows then flow through format_kv_lines()
+    # for consistent cyan-label / colon / aligned-width formatting.
+    rows: list[tuple[str, str]] = []
     for field_name in CHIP_FIELDS:
         if field_name == "device":
             continue  # already shown as the header line
@@ -1032,15 +1047,26 @@ def _format_facts_full(facts: ChipFacts) -> list[Msg]:
         if value is None:
             continue
         label = CHIP_FIELD_LABELS[field_name]
-        line = f"  {label:<14}{value}"
+        sval = str(value)
         if field_name == "usb_speed" and facts._usb_speed_color:
-            msgs.append(_msg(line, facts._usb_speed_color))
-        elif field_name == "latency_timer" and value != "1 ms":
-            msgs.append(_msg(line + "  (set to 1 for low latency)", "yellow"))
+            sval = f"[{facts._usb_speed_color}]{sval}[/]"
+        elif (
+            field_name == "latency_timer"
+            and isinstance(value, str)
+            and value
+            and value[0].isdigit()
+            and value != "1 ms"
+        ):
+            # Only warn when the timer is a numeric ms value above 1.
+            # Strings like "n/a" or "n/a (Windows - check Device Manager)"
+            # mean we don't know -- no actionable advice to give.
+            sval = f"[yellow]{sval}  (set to 1 for low latency)[/]"
         elif field_name == "permissions" and value == "denied":
-            msgs.append(_msg(line, "red"))
-        else:
-            msgs.append(_msg(line))
+            sval = f"[red]{sval}[/]"
+        rows.append((label, sval))
+
+    for line in format_kv_lines(rows):
+        msgs.append(_msg(line))
 
     # Nudge: when we see a real USB device whose VID:PID isn't in the
     # chip table, invite the user to report it so the table can grow.
@@ -1174,26 +1200,30 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
         except AmbiguousSerialNumberError:
             actual = spec  # stay honest; chip section will skip
 
-    if spec and spec != actual:
-        # Use parens instead of square brackets -- Rich treats square
-        # brackets as markup and would silently eat "[resolved from X]".
-        port_line = f"  Port:         {actual}  ({state})  (resolved from {spec})"
-    else:
-        port_line = f"  Port:         {actual or '?'}  ({state})"
+    from termapy.plugins import format_kv_lines
 
-    msgs: list[Msg] = [
-        _msg(port_line),
-        _msg(f"  Baud rate:    {cfg.get('baud_rate', '?')}"),
-        _msg(
-            f"  Frame:        {cfg.get('byte_size', 8)}"
-            f"{cfg.get('parity', 'N')}{sb_str}"
-        ),
-        _msg(f"  Flow control: {cfg.get('flow_control', 'none')}"),
-        _msg(f"  Encoding:     {cfg.get('encoding', 'utf-8')}"),
+    # Top section: configured serial parameters.  Port row carries
+    # extra trailing context (state, "resolved from spec") on the
+    # value side -- the helper just sees one big value string.
+    if spec and spec != actual:
+        # Parens instead of square brackets -- Rich would otherwise
+        # try to interpret "[resolved from X]" as markup.
+        port_value = f"{actual}  ({state})  (resolved from {spec})"
+    else:
+        port_value = f"{actual or '?'}  ({state})"
+
+    top_rows: list[tuple[str, str]] = [
+        ("Port", port_value),
+        ("Baud rate", str(cfg.get("baud_rate", "?"))),
+        ("Frame", f"{cfg.get('byte_size', 8)}{cfg.get('parity', 'N')}{sb_str}"),
+        ("Flow control", str(cfg.get("flow_control", "none"))),
+        ("Encoding", str(cfg.get("encoding", "utf-8"))),
     ]
     xfer_root = cfg.get("file_xfer_root", "")
     if xfer_root:
-        msgs.append(_msg(f"  Xfer root:    {xfer_root}"))
+        top_rows.append(("Xfer root", str(xfer_root)))
+
+    msgs: list[Msg] = [_msg(line) for line in format_kv_lines(top_rows)]
 
     # USB chip section -- looked up from the OS, not from the open Serial
     # object, so it works whether or not the port is currently connected.
@@ -1211,6 +1241,7 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
         facts = gather_chip_facts(port_name, connected_port)
         if facts is not None:
             msgs.append(_msg(""))
+            chip_rows: list[tuple[str, str]] = []
             for field_name in CHIP_FIELDS:
                 if field_name == "device":
                     continue  # already shown as the Port: header
@@ -1218,20 +1249,26 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
                 if value is None:
                     continue
                 label = CHIP_FIELD_LABELS[field_name]
-                line = f"  {label:<14s}{value}"
+                sval = str(value)
                 if field_name == "usb_speed" and facts._usb_speed_color:
-                    msgs.append(_msg(line, facts._usb_speed_color))
+                    sval = f"[{facts._usb_speed_color}]{sval}[/]"
                 elif field_name == "latency_timer" and value != "1 ms":
-                    msgs.append(_msg(line + "  (set to 1 for low latency)", "yellow"))
-                else:
-                    msgs.append(_msg(line))
+                    sval = f"[yellow]{sval}  (set to 1 for low latency)[/]"
+                elif field_name == "permissions" and value == "denied":
+                    sval = f"[red]{sval}[/]"
+                chip_rows.append((label, sval))
+            for line in format_kv_lines(chip_rows):
+                msgs.append(_msg(line))
 
     if connected:
         msgs.append(_msg(""))
         try:
-            for name in ("dtr", "rts", "cts", "dsr", "ri", "cd"):
-                label = f"{name.upper()}:"
-                msgs.append(_msg(f"  {label:<14s}{int(getattr(ser, name))}"))
+            hw_rows = [
+                (name.upper(), str(int(getattr(ser, name))))
+                for name in ("dtr", "rts", "cts", "dsr", "ri", "cd")
+            ]
+            for line in format_kv_lines(hw_rows):
+                msgs.append(_msg(line))
         except OSError:
             pass
     return _result(msgs)

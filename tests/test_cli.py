@@ -245,7 +245,7 @@ class TestHookRun:
 class TestHookLogClear:
     def test_no_log_file(self, cli):
         # Act
-        result = cli._hook_log_clear(cli.ctx, "")
+        result = cli._hook_log_delete(cli.ctx, "")
 
         # Assert
         assert not result.success, "no log file to delete"
@@ -261,7 +261,7 @@ class TestHookLogClear:
         log_path.write_text("log data")
 
         # Act
-        result = cli._hook_log_clear(cli.ctx, "")
+        result = cli._hook_log_delete(cli.ctx, "")
 
         # Assert
         assert result.success, "deletion succeeds"

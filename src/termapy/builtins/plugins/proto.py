@@ -605,6 +605,8 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Algorithm name (e.g. ``"crc16-modbus"``).
     """
+    from termapy.plugins import format_kv_lines
+
     p = ctx.engine.prefix
     name = args.strip().lower()
     if not name:
@@ -628,18 +630,22 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
     desc = entry.get("desc", "")
     if desc:
         ctx.write(f"  {desc}")
-    ctx.write(f"  Width:   {w} bits ({w // 8} bytes)")
-    ctx.write(f"  Poly:    0x{entry['poly']:0{hex_w}X}")
-    ctx.write(f"  Init:    0x{entry['init']:0{hex_w}X}")
-    ctx.write(f"  RefIn:   {entry['refin']}")
-    ctx.write(f"  RefOut:  {entry['refout']}")
-    ctx.write(f"  XorOut:  0x{entry['xorout']:0{hex_w}X}")
-    ctx.write(f"  Check:   0x{entry['check']:0{hex_w}X}  (CRC of '123456789')")
-    # Show format spec usage
-    if w == 8:
-        ctx.write(f"  Spec:    CRC:{name}")
-    else:
-        ctx.write(f"  Spec:    CRC:{name}_le  or  CRC:{name}_be")
+    spec = (
+        f"CRC:{name}" if w == 8
+        else f"CRC:{name}_le  or  CRC:{name}_be"
+    )
+    rows = [
+        ("Width",  f"{w} bits ({w // 8} bytes)"),
+        ("Poly",   f"0x{entry['poly']:0{hex_w}X}"),
+        ("Init",   f"0x{entry['init']:0{hex_w}X}"),
+        ("RefIn",  str(entry['refin'])),
+        ("RefOut", str(entry['refout'])),
+        ("XorOut", f"0x{entry['xorout']:0{hex_w}X}"),
+        ("Check",  f"0x{entry['check']:0{hex_w}X}  (CRC of '123456789')"),
+        ("Spec",   spec),
+    ]
+    for line in format_kv_lines(rows):
+        ctx.write_markup(line)
     return CmdResult.ok()
 
 

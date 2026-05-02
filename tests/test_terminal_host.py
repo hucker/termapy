@@ -554,7 +554,7 @@ class TestHookRaw:
             "raw bytes sent to port"
 
 
-# -- _hook_log_clear ---------------------------------------------------------
+# -- _hook_log_delete ---------------------------------------------------------
 
 
 class TestHookLogClear:
@@ -562,7 +562,7 @@ class TestHookLogClear:
         # Arrange - config_path has no log file
 
         # Act
-        result = host._hook_log_clear(None, "")
+        result = host._hook_log_delete(None, "")
 
         # Assert
         assert result.success is False, "fails when no log file"
@@ -573,7 +573,7 @@ class TestHookLogClear:
         log_path.write_text("session log data")
         with patch("termapy.config.cfg_log_path", return_value=str(log_path)):
             # Act
-            result = host._hook_log_clear(None, "")
+            result = host._hook_log_delete(None, "")
 
         # Assert
         assert result.success is True, "succeeds when log exists"
@@ -586,7 +586,7 @@ class TestHookLogClear:
         with patch("termapy.config.cfg_log_path", return_value=str(log_path)), \
              patch.object(Path, "unlink", side_effect=OSError("permission denied")):
             # Act
-            result = host._hook_log_clear(None, "")
+            result = host._hook_log_delete(None, "")
 
         # Assert
         assert result.success is False, "fails on OSError"

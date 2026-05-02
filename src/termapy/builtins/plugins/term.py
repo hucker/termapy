@@ -32,7 +32,7 @@ def _flag_toggle(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
     """Toggle or set a session-scoped flag.
 
     Empty args flips the current state (so the command doubles as a
-    "toggle"); any recognised boolean token is an explicit set.
+    "toggle"); any recognized boolean token is an explicit set.
     """
     flags = ctx.ns("flags")
     val = parse_bool(args)
@@ -164,6 +164,71 @@ def _handler_line_no_placeholder(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.fail(msg="term.line_no handler not installed")
 
 
+# ── /term.usb_db: report bundled USB-vendor database freshness ────────────
+
+
+def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
+    """Report metadata for the bundled USB vendor database.
+
+    Reads the curated ``USB_VENDORS`` short-form table and the
+    generated ``_usb_vendor_full`` module's metadata constants.  Local
+    only -- never makes a network call.
+
+    Output (kv pairs):
+
+      curated         number of curated short-form entries
+      full_table      number of canonical entries from upstream usb.ids
+      generated       date the bundled file was last regenerated
+      source          where the upstream file was fetched from
+      path            location of the generated file on disk
+
+    Followed by a one-line update hint pointing at the package upgrade
+    path.  ``CmdResult.value`` is the full-table count so scripts can
+    read it via .quiet/.silent.
+    """
+    from termapy.plugins import format_kv_lines
+    from termapy.usb_vendor import USB_VENDORS
+
+    rows: list[tuple[str, str]] = [
+        ("curated", str(len(USB_VENDORS))),
+    ]
+    full_count = 0
+    try:
+        from termapy import _usb_vendor_full as _full
+
+        full_count = len(_full.USB_VENDORS_FULL)
+        rows.append(("full_table", str(full_count)))
+        rows.append(("generated", str(getattr(_full, "GENERATED_DATE", "?"))))
+        rows.append(("source", str(getattr(_full, "SOURCE_URL", "?"))))
+        # Path on disk -- helpful when the user wants to inspect the
+        # bundled module or sanity-check which copy is loaded.
+        from pathlib import Path
+        full_path = Path(_full.__file__).resolve()
+        try:
+            display_path = str(full_path.relative_to(Path.cwd()))
+        except ValueError:
+            # Generated file is outside cwd (typical for installed pkg
+            # users); show absolute path.
+            display_path = str(full_path)
+        rows.append(("path", display_path))
+    except ImportError:
+        rows.append(("full_table", "(missing -- reinstall termapy)"))
+
+    for line in format_kv_lines(rows):
+        ctx.write_markup(line)
+    # Update hint targets end users (PyPI installs) -- the bundled
+    # data refreshes on each termapy release, so upgrading is the
+    # right path for newer entries.  Maintainers update via
+    # scripts/refresh_usb_ids.py during release prep, but that's a
+    # repo-level workflow, not exposed to package users.
+    ctx.write_markup("")
+    ctx.write_markup(
+        "  [dim]To update:[/]   upgrade termapy (e.g. "
+        "[cyan]uv tool upgrade termapy[/] or [cyan]pip install -U termapy[/])"
+    )
+    return CmdResult.ok(value=str(full_count))
+
+
 # ── /term.log: write to the session log without echoing to screen ──────────
 
 
@@ -189,20 +254,21 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Snapshot the current state of every /term.* toggle."""
+    from termapy.plugins import format_kv_lines
+
     flags = ctx.ns("flags")
     rows = [
-        ("echo",            "on" if flags.get("echo") else "off"),
-        ("output",          str(flags.get("output_level", "normal"))),
-        ("hex",             "on" if flags.get("hex_mode") else "off"),
-        ("line_no",         "on" if flags.get("line_no") else "off"),
-        ("line_endings",    "on" if ctx.cfg.get("show_line_endings") else "off"),
-        ("timestamps",      "on" if ctx.cfg.get("show_timestamps") else "off"),
+        ("echo", "on" if flags.get("echo") else "off"),
+        ("output", str(flags.get("output_level", "normal"))),
+        ("hex", "on" if flags.get("hex_mode") else "off"),
+        ("line_no", "on" if flags.get("line_no") else "off"),
+        ("line_endings", "on" if ctx.cfg.get("show_line_endings") else "off"),
+        ("timestamps", "on" if ctx.cfg.get("show_timestamps") else "off"),
         ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
-        ("encoding",        str(ctx.cfg.get("encoding", "utf-8"))),
+        ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
     ]
-    width = max(len(name) for name, _ in rows)
-    for name, val in rows:
-        ctx.write_markup(f"  [cyan]{name:<{width}}[/]  {val}")
+    for line in format_kv_lines(rows):
+        ctx.write_markup(line)
     return CmdResult.ok()
 
 
@@ -299,6 +365,37 @@ COMMAND = Command(
         "info": Command(
             help="Snapshot the state of every /term.* toggle.",
             handler=_handler_info,
+        ),
+        "usb_db": Command(
+            help="Report freshness of the bundled USB vendor database.",
+            long_help=(
+                "Termapy ships a USB Vendor ID lookup table so it can name the\n"
+                "silicon vendor for any USB-serial port -- even when the device's\n"
+                "manufacturer string is missing or set to a generic driver name\n"
+                "(``Microsoft`` for ``usbser.sys``, etc.).  This command reports\n"
+                "what's bundled and how fresh it is.  Local read only -- never\n"
+                "makes a network call.\n"
+                "\n"
+                "Fields:\n"
+                "  curated     Hand-picked short-form names (FTDI, SiLabs, ...)\n"
+                "              tuned for narrow column display.  Tried first by\n"
+                "              vendor_for() so common chips keep their short names.\n"
+                "  full_table  Canonical USB-IF assignments from the upstream\n"
+                "              ``usb.ids`` file at linux-usb.org / its GitHub\n"
+                "              mirror.  Used as a fallback when the curated\n"
+                "              table doesn't cover a VID.\n"
+                "  generated   Local timestamp from the last refresh run.\n"
+                "  source      URL the bundled data was fetched from.\n"
+                "  path        Generated module on disk.\n"
+                "\n"
+                "The bundled table is regenerated on every termapy release\n"
+                "(release_prep step 6 pulls upstream usb.ids), so to get newer\n"
+                "vendor entries: upgrade the termapy package itself.\n"
+                "\n"
+                "    uv tool upgrade termapy\n"
+                "    pip install --upgrade termapy"
+            ),
+            handler=_handler_usb_db,
         ),
         "log": Command(
             args="<text>",

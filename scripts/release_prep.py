@@ -12,12 +12,13 @@ What it does:
     3. Bump version in pyproject.toml and mkdocs.yml, refresh uv.lock
     4. Update doc counts (test count, ty count, line counts)
     5. Update tagged config examples in help docs
-    6. Insert CHANGELOG stub
-    7. Run pytest
-    8. Run tox (multi-version)
-    9. Build HTML help with zensical
-    10. Commit HTML rebuild
-    11. Commit release
+    6. Refresh USB vendor table from upstream usb.ids
+    7. Insert CHANGELOG stub
+    8. Run pytest
+    9. Run tox (multi-version)
+    10. Build HTML help with zensical
+    11. Commit HTML rebuild
+    12. Commit release
 
 Aborts loudly on any failure. Safe-restart: if it fails halfway, delete
 the release branch and start over (`git checkout main && git branch -D
@@ -259,6 +260,55 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
 # ── changelog ────────────────────────────────────────────────────────────────
 
 
+def refresh_usb_vendor_table() -> None:
+    """Pull latest upstream usb.ids and regenerate _usb_vendor_full.py.
+
+    Idempotent -- if upstream hasn't changed since the last release,
+    the regeneration produces byte-identical output and no diff lands
+    in the release commit.  When upstream has changed, the new vendor
+    entries are picked up automatically and become part of the release.
+
+    Defensive checks:
+
+      - Vendor count must be at least 1000.  The upstream file
+        currently has ~3,400; a sudden drop suggests a format change.
+      - A handful of well-known VIDs must still resolve to recognizable
+        names.  If 0x0403 stops mapping to anything containing "FTDI",
+        the parser is broken -- abort the release rather than ship
+        garbage.
+      - The generated module must compile as valid Python.
+    """
+    run([sys.executable, "scripts/refresh_usb_ids.py"])
+    # Sanity-check the freshly-generated file before letting the release
+    # proceed.  Importing the module also serves as the syntax check.
+    full_path = REPO_ROOT / "src" / "termapy" / "_usb_vendor_full.py"
+    ns: dict = {}
+    exec(compile(full_path.read_text(encoding="utf-8"), str(full_path), "exec"), ns)
+    table = ns.get("USB_VENDORS_FULL")
+    if not isinstance(table, dict):
+        die("_usb_vendor_full.py did not define USB_VENDORS_FULL as a dict")
+    if len(table) < 1000:
+        die(
+            f"USB_VENDORS_FULL has only {len(table)} entries; "
+            "upstream may have changed format"
+        )
+    # Spot-check a few stable, well-known assignments.  If any of these
+    # vanish, something is wrong with either upstream or the parser.
+    spot_checks = [
+        (0x0403, "Future Technology"),  # FTDI
+        (0x10C4, "Silicon Lab"),        # Silicon Labs
+        (0x04D8, "Microchip"),          # Microchip Technology
+    ]
+    for vid, expected_substring in spot_checks:
+        actual = table.get(vid, "")
+        if expected_substring.lower() not in actual.lower():
+            die(
+                f"VID 0x{vid:04X} expected to contain {expected_substring!r}; "
+                f"got {actual!r}"
+            )
+    ok(f"USB vendor table refreshed ({len(table)} entries)")
+
+
 def insert_changelog_stub(version: str) -> None:
     """Insert a CHANGELOG stub for the new version, populated with git log."""
     path = REPO_ROOT / "CHANGELOG.md"
@@ -445,7 +495,7 @@ def main() -> None:
 
     info(f"Preparing release v{version}")
 
-    total = 11
+    total = 12
 
     def step(n: int, label: str) -> None:
         info(f"[{n}/{total}] {label}")
@@ -483,22 +533,25 @@ def main() -> None:
     else:
         ok("all config examples current")
 
-    step(6, "Inserting CHANGELOG stub...")
+    step(6, "Refreshing USB vendor table from upstream usb.ids...")
+    refresh_usb_vendor_table()
+
+    step(7, "Inserting CHANGELOG stub...")
     insert_changelog_stub(version)
 
-    step(7, "Running pytest...")
+    step(8, "Running pytest...")
     run_pytest()
 
-    step(8, "Running tox (multi-version)...")
+    step(9, "Running tox (multi-version)...")
     run_tox()
 
-    step(9, "Building HTML help with zensical...")
+    step(10, "Building HTML help with zensical...")
     run_zensical_build()
 
-    step(10, "Committing HTML rebuild...")
+    step(11, "Committing HTML rebuild...")
     commit_html_rebuild(version)
 
-    step(11, "Committing release...")
+    step(12, "Committing release...")
     commit_release(version)
 
     # ── Done ─────────────────────────────────────────────────────────────

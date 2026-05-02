@@ -108,6 +108,8 @@ def build_device_state(
     expect_history: list | None = None,
     async_events: list | None = None,
     async_errors: list | None = None,
+    banner_seen: bool = False,
+    banner_text: str = "",
 ) -> dict[str, Any]:
     """Snapshot of everything the bridge knows about the device right now.
 
@@ -173,8 +175,8 @@ def build_device_state(
         device_info = {
             "name": device.get("name", ""),
             "prompt": device.get("prompt", ""),
-            "banner_seen": False,  # Phase 6 banner watcher will populate
-            "banner_text": "",
+            "banner_seen": bool(banner_seen),
+            "banner_text": banner_text or "",
         }
 
     # Capture artifacts (live read of cap_dir).

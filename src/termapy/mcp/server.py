@@ -115,6 +115,9 @@ class MCPHost(TerminalHost):
         self._expect_history: list[dict[str, Any]] = []
         self._async_events: list[dict[str, Any]] = []
         self._async_errors: list[dict[str, Any]] = []
+        # Banner-watch state, populated by _on_connect_banner_watch.
+        self._banner_seen: bool = False
+        self._banner_text: str = ""
 
         # Engines (mirroring CLITerminal construction).
         self.capture = CaptureEngine(
@@ -319,6 +322,93 @@ class MCPHost(TerminalHost):
             source="app",
         )
 
+        # auto-include + banner-watch fire from _on_connected (the
+        # TerminalHost override below).  We don't use the on_connect
+        # lifecycle hook for these because TerminalHost._connect
+        # fires the lifecycle BEFORE _start_reader() -- the reader
+        # thread isn't pumping yet, so /include can't read the
+        # device's reply.  _on_connected runs AFTER _start_reader.
+
+    def _on_connected(self, message: str) -> None:
+        """Override: run post-reader-start hooks (auto-include, banner watch).
+
+        TerminalHost._connect fires the on_connect lifecycle BEFORE
+        starting the reader thread, then calls _on_connected after.
+        Auto-include needs the reader pumping (it dispatches a serial
+        command and waits for a response), so it lives here.  Banner
+        watcher uses ctx.wait_for_match which also needs the reader's
+        feed_lines calls.
+        """
+        super()._on_connected(message)
+        self._on_connect_auto_include(self.ctx)
+        self._on_connect_banner_watch(self.ctx)
+
+    def _on_connect_auto_include(self, ctx: PluginContext) -> None:
+        """Run ``/include`` after connect when configured.
+
+        Fires when ``cfg.auto_include_on_connect`` is True and
+        ``cfg.device_json_cmd`` is set.  Errors are non-fatal -- the
+        device may not actually serve a help-JSON command, in which
+        case the user/profile is the source of truth.
+        """
+        if not ctx.cfg.get("auto_include_on_connect", True):
+            return
+        if not ctx.cfg.get("device_json_cmd", ""):
+            return
+        self._log_line("$ /include  (auto-include on connect)")
+        try:
+            result = self.repl.dispatch("include")
+        except Exception as exc:  # noqa: BLE001 -- boundary
+            self._log_line(f"! auto-include failed: {exc}")
+            return
+        if not result.success:
+            self._log_line(f"! auto-include: {result.error}")
+
+    def _on_connect_banner_watch(self, ctx: PluginContext) -> None:
+        """Spawn a 2-second watcher for the active profile's startup banner.
+
+        If the active profile declares ``device.startup_banner``, scan
+        the first 4KB of post-connect input for that pattern.  Match
+        records ``self._banner_seen`` / ``self._banner_text``; non-match
+        logs a warning.  Never blocks the lifecycle.
+
+        The watcher uses ``ctx.wait_for_match`` with a substring or
+        regex predicate -- same machinery /expect uses, so it
+        cooperates with the engine's recent-lines buffer and the
+        reader thread's ``feed_lines`` calls.
+        """
+        active = ctx.ns("active_profile")
+        device = active.get("device") if isinstance(active, dict) else None
+        if not isinstance(device, dict):
+            return
+        pattern = device.get("startup_banner", "")
+        if not pattern or not isinstance(pattern, str):
+            return
+
+        import re as _re
+
+        def watch() -> None:
+            try:
+                compiled = _re.compile(pattern)
+
+                def predicate(line: str) -> bool:
+                    return bool(compiled.search(line))
+
+                match = ctx.wait_for_match(predicate, timeout=2.0)
+            except Exception as exc:  # noqa: BLE001 -- boundary thread
+                self._log_line(f"! banner watcher error: {exc}")
+                return
+            if match:
+                self._banner_seen = True
+                self._banner_text = match
+                self._log_line(f"  banner: {match}")
+            else:
+                self._log_line(
+                    f"! banner not seen within 2s (pattern: {pattern!r})"
+                )
+
+        threading.Thread(target=watch, daemon=True, name="mcp-banner-watch").start()
+
 
 # ── FastMCP server wiring (lazy, only when --mcp runs) ──────────────────────
 
@@ -379,6 +469,8 @@ def _build_server(host: MCPHost) -> Any:
             expect_history=host._expect_history,
             async_events=host._async_events,
             async_errors=host._async_errors,
+            banner_seen=host._banner_seen,
+            banner_text=host._banner_text,
         )
 
     # ── capture resources ──────────────────────────────────────────────────-
@@ -622,12 +714,45 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     # Fire on_app_start lifecycle so plugins that registered hooks at
     # plugin-load time get a chance to initialize.
     host.repl.fire_lifecycle("on_app_start")
+
+    # SIGINT/SIGTERM handlers translate to KeyboardInterrupt so FastMCP's
+    # stdio loop unwinds cleanly through the finally block.  On Windows
+    # only SIGINT is supported by signal.signal; SIGTERM is best-effort
+    # and silently no-ops there.  KeyboardInterrupt is the cleanest
+    # signal for asyncio to unwind.
+    import signal as _signal
+
+    def _term_handler(signum: int, _frame: Any) -> None:
+        host._log_line(f"! signal {signum} received; shutting down")
+        raise KeyboardInterrupt
+
+    _orig_handlers: dict[int, Any] = {}
+    for sig in (_signal.SIGINT, getattr(_signal, "SIGTERM", None)):
+        if sig is None:
+            continue
+        try:
+            _orig_handlers[sig] = _signal.signal(sig, _term_handler)
+        except (ValueError, OSError):  # noqa: PERF203 - small set
+            # Not in main thread on Windows, etc.  Skip.
+            pass
+
     try:
         # FastMCP.run() blocks until the stdio peer disconnects.  No
         # other transports -- if you want HTTP, that's deferred to v2
         # (see plan: "TUI + MCP simultaneously via HTTP transport").
         server.run(transport="stdio")
+    except KeyboardInterrupt:
+        # Clean shutdown: fall through to finally.
+        pass
     finally:
+        # Restore signal handlers so we don't leave the process in
+        # an unexpected state if termapy is invoked from a parent
+        # that owns SIGINT.
+        for sig, old in _orig_handlers.items():
+            try:
+                _signal.signal(sig, old)
+            except (ValueError, OSError):
+                pass
         host.repl.fire_lifecycle("on_app_stop")
         if host.engine.is_connected:
             host._disconnect()

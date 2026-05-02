@@ -18,7 +18,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command, format_kv_lines
-from termapy.profile import load_profile, validate_profile
+from termapy.profile import (
+    SERIAL_LEVEL_TRANSPORT_KEYS,
+    apply_profile_transport,
+    load_profile,
+    validate_profile,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -93,6 +98,20 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     ns.update(profile)
     # Record the source path so /profile.info shows where it came from.
     ns["__source_path"] = str(path.resolve())
+
+    # Apply transport rules to the live cfg (Phase 6).  Serial-level
+    # params (baud, parity, ...) are applied but only take effect on
+    # the next connect() -- pyserial doesn't hot-swap these safely.
+    transport = profile.get("transport") or {}
+    changes = apply_profile_transport(transport, ctx.engine.apply_cfg)
+    serial_changed = [k for k in changes if k in SERIAL_LEVEL_TRANSPORT_KEYS]
+    if serial_changed and ctx.is_connected():
+        ctx.write(
+            "  note: serial-level params changed ("
+            + ", ".join(serial_changed)
+            + ") -- reconnect to take effect.",
+            "yellow",
+        )
 
     n = len(profile.get("commands", {}))
     rev = profile.get("profile_revision") or "(none)"

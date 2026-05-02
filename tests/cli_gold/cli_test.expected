@@ -110,6 +110,7 @@ demo> /cfg.dump
     "config_read_only": false,
     "os_cmd_enabled": false,
     "device_json_cmd": "AT+HELP.JSON",
+    "auto_include_on_connect": true,
     "port": "DEMO",
     "baud_rate": 115200,
     "custom_baud": false,

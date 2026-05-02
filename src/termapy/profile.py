@@ -87,6 +87,77 @@ class ValidationResult:
     errors: list[str] = field(default_factory=list)
 
 
+# ── Transport-apply: profile.transport -> live config ─────────────────────
+
+
+# Mapping from profile transport keys to termapy cfg keys.  Most are 1:1;
+# `line_ending_send` is the special case (the cfg name predates v2).
+_TRANSPORT_KEY_MAP: dict[str, str] = {
+    "baud_rate": "baud_rate",
+    "byte_size": "byte_size",
+    "parity": "parity",
+    "stop_bits": "stop_bits",
+    "flow_control": "flow_control",
+    "encoding": "encoding",
+    "inter_command_delay_ms": "inter_command_delay_ms",
+    "default_response_timeout_ms": "default_response_timeout_ms",
+    "line_ending_send": "line_ending",
+}
+
+# Serial-level params: changes to these only take effect on the next
+# ``engine.connect()``.  Bridge code that sees changes to any of these
+# while connected can warn the user.
+SERIAL_LEVEL_TRANSPORT_KEYS: frozenset[str] = frozenset(
+    {"baud_rate", "byte_size", "parity", "stop_bits", "flow_control"}
+)
+
+
+def apply_profile_transport(
+    transport: dict[str, Any],
+    apply_cfg: Any,
+) -> dict[str, tuple[Any, Any]]:
+    """Apply a profile's ``transport`` block to the live config.
+
+    Walks the recognized fields in ``transport`` and calls ``apply_cfg``
+    for each change.  ``apply_cfg`` is the engine's per-key updater
+    (see ``ReplEngine._apply_cfg``).  Returns a dict of changes
+    ``{cfg_key: (old, new)}`` so callers can warn about serial-level
+    params that need a reconnect.
+
+    Termapy-level params (``line_ending``, ``encoding``,
+    ``inter_command_delay_ms``) take effect immediately.  Serial-level
+    params (``baud_rate``, ``byte_size``, ``parity``, ``stop_bits``,
+    ``flow_control``) are applied to ``cfg`` but only consumed by the
+    next ``engine.connect()`` -- pyserial doesn't safely allow hot-
+    swapping these on an open port.
+
+    NDJSON-only fields (``protocol``, ``field_routing``) are NOT
+    written to ``cfg`` -- the bridge reads them from the active
+    profile namespace directly.
+
+    Args:
+        transport: The ``transport`` block from a loaded profile dict.
+        apply_cfg: Callable matching ``ReplEngine._apply_cfg`` signature
+            ``(key: str, value: Any) -> None``.  Plugin handlers use
+            ``ctx.engine.apply_cfg``.
+
+    Returns:
+        ``{cfg_key: (old_value, new_value)}`` for every key that changed.
+    """
+    if not isinstance(transport, dict):
+        return {}
+    changes: dict[str, tuple[Any, Any]] = {}
+    # apply_cfg's caller side maintains the cfg dict; we don't have it
+    # here, so we don't dedup against the current value.  A no-op
+    # apply_cfg is a cheap session log line in the worst case.
+    for tkey, ckey in _TRANSPORT_KEY_MAP.items():
+        if tkey in transport:
+            new_val = transport[tkey]
+            apply_cfg(ckey, new_val)
+            changes[ckey] = (None, new_val)
+    return changes
+
+
 def validate_profile(profile: dict) -> ValidationResult:
     """Validate a profile dict against ``profile.schema.json``.
 

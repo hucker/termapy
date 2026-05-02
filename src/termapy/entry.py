@@ -211,6 +211,15 @@ def _build_parser() -> argparse.ArgumentParser:
              "time.  Stderr is safe (only stdout is the MCP wire); production "
              "users omit this flag for clean stdio.",
     )
+    parser.add_argument(
+        "--mcp-emit",
+        default=None,
+        metavar="PROFILE",
+        help="Codegen: read a device profile (.json or .toml) and write a "
+             "standalone PEP 723 MCP server to stdout.  Generated file runs "
+             "with 'uv run <file>' (no termapy required).  Output is editable "
+             "Python.",
+    )
     return parser
 
 
@@ -243,6 +252,41 @@ def _run_validate_profile(path_str: str) -> None:
     sys.exit(1)
 
 
+def _run_mcp_emit(path_str: str) -> None:
+    """Codegen a standalone MCP server from a profile and write to stdout.
+
+    Stays Textual-free.  Validates the profile first; refuses to emit
+    on schema errors so the generated file is always meaningful.  Exits
+    0 on success, 1 on parse/validation failure.
+    """
+    from termapy.mcp.emit import emit_mcp_server
+    from termapy.profile import load_profile, validate_profile
+
+    p = Path(path_str)
+    if not p.exists():
+        print(f"termapy: profile not found: {p}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        profile = load_profile(p)
+    except (OSError, ValueError) as e:
+        print(f"termapy: parse error: {e}", file=sys.stderr)
+        sys.exit(1)
+    result = validate_profile(profile)
+    if not result.ok:
+        print(
+            f"termapy: profile has {len(result.errors)} schema error(s); "
+            f"refusing to emit:",
+            file=sys.stderr,
+        )
+        for err in result.errors:
+            print(f"  {err}", file=sys.stderr)
+        sys.exit(1)
+    src = emit_mcp_server(profile)
+    # Write via stdout buffer so newlines stay LF on Windows.
+    sys.stdout.write(src)
+    sys.exit(0)
+
+
 def main() -> None:
     """Argparse + dispatch.  Print-and-exit flags run Textual-free."""
     parser = _build_parser()
@@ -264,6 +308,8 @@ def main() -> None:
         run_chips(args)
     if args.validate_profile is not None:
         _run_validate_profile(args.validate_profile)
+    if args.mcp_emit is not None:
+        _run_mcp_emit(args.mcp_emit)
 
     # --cfg-dir writes a module-global; do this before anything else
     # that might resolve configs.

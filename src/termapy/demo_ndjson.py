@@ -226,6 +226,31 @@ class FakeSerialNDJSON:
                 return b""
             time.sleep(0.001)
 
+    def readline(self, size: int = -1) -> bytes:
+        """Read one ``\\n``-terminated line, blocking up to ``self.timeout``.
+
+        Matches ``serial.Serial.readline``: returns bytes including the
+        trailing newline, or whatever was buffered if the timeout fires
+        first.  Generated MCP servers (per ``termapy --mcp-emit``)
+        use this idiom, so duck-typing pyserial means we provide it.
+        """
+        deadline = time.time() + (self._timeout or 0)
+        out = bytearray()
+        while True:
+            with self._lock:
+                self._maybe_queue_banner()
+                while self._output_buf:
+                    b = self._output_buf[0]
+                    out.append(b)
+                    del self._output_buf[:1]
+                    if b == 0x0A:  # '\n'
+                        return bytes(out)
+                    if size != -1 and len(out) >= size:
+                        return bytes(out)
+            if time.time() >= deadline:
+                return bytes(out)
+            time.sleep(0.001)
+
     def close(self) -> None:
         self._is_open = False
 

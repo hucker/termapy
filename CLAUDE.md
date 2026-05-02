@@ -1,0 +1,149 @@
+# CLAUDE.md
+
+## Project
+
+Termapy — TUI serial terminal. Textual + pyserial. Python 3.11+.
+
+## Key Files
+
+- `app.py` — Textual app (UI, serial I/O, modals, config)
+- `repl.py` — REPL engine (dispatch, scripting)
+- `plugins.py` — plugin system (discovery, loading, PluginContext)
+- `scripting.py` — pure functions (templates, duration parsing)
+- `help.md` — in-app help (bundled via `[tool.uv.build]`)
+- `builtins/` — built-in REPL commands
+- `ARCHITECTURE.md` — architecture overview
+
+All paths relative to `src/termapy/`.
+
+## Architecture
+
+- `app.py` is the monolith — only file that imports Textual
+- `plugins.py` and `scripting.py` — zero Textual/pyserial deps
+- `repl.py` bridges plugins and app via `PluginContext` callbacks
+- Load order: builtins → global → per-config → app hooks (later overrides earlier)
+- External plugins use `PluginContext` only. `EngineAPI` is internal/unstable.
+
+## Config
+
+- Config dirs: `termapy_cfg/<name>/` with `plugin/`, `ss/`, `run/`, `proto/`, `viz/`, `cap/` subdirs
+- Most users have a single config per project folder (one device), but multiple configs are supported for working with more than one device — each folder gets its own isolated `termapy_cfg/` so setups don't bleed together
+- `termapy_cfg/` is gitignored
+- New `DEFAULT_CFG` options must also be added to `builtins/demo/demo.cfg`
+- New config keys must be documented in: `DEFAULT_CFG` (defaults.py), README.md config reference table, `help/config.md` field reference, and the demo.cfg template
+
+## Rules
+
+- Never edit files/folders on main branch.
+- Always merge with `--no-ff` to preserve branch history in the graph.
+
+## Conventions
+
+- Plugin args: `""` = none, `{braces}` = optional, `<angle>` = required
+- No spaces inside brace/angle groups: `{on|off}` not `{on | off}`, `{name|*}` not `{name | *}`
+- Toggle commands use `{on|off}` (optional) — bare invocation queries or toggles state; arg sets it
+- REPL prefix: `/`
+- Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`
+- Buttons: rainbow palette, Exit always red (`error`)
+- SS/Scripts buttons always visible with file-count tooltips
+- Plugin files end with `COMMAND` dict preceded by:
+  `# ── COMMAND (must be at end of file) ──────────────────────────────────────────`
+- Subcommands = distinct operations (`port.list` vs `port.connect`)
+- Toggles/values = args (`echo on`, `cfg baudrate 9600`)
+- Handlers that produce scriptable data must return `CmdResult.ok(value=...)` — without it, scripts in quiet mode get nothing. See `CmdResult` docstring in `plugins.py`.
+
+## Error Messages (`CmdResult.fail(msg=...)`)
+
+- Sentence case: capitalize the first letter (`"Count is required"`, not `"count is required"`)
+- Exception: when the subject is a literal keyword/flag name, keep its native case (`"cmd= must have at least one command"`)
+- No leading whitespace — the dispatcher adds the `Error:` prefix and formats the line
+- State statements end with a period: `"No config loaded."`, `"Not connected."`, `"No log file."`
+- Validation/lookup errors do NOT end with a period: `"Unknown config key: X"`, `"Invalid delay: Y"`
+- Standard phrasings (reuse these verbatim before inventing a new form):
+  - `"Unknown <thing>: <name>"` — categorical lookup failure (command, algorithm, folder, key)
+  - `"Invalid <thing>: <value>"` — value failed validation (regex, duration, count, format spec)
+  - `"<Thing> not found: <name>"` — file, directory, or config missing from disk
+  - `"No <thing> loaded."` / `"Not connected."` — app state precondition unmet
+  - `"Usage: /cmd <args>"` — called with wrong arity (include the exact args signature)
+  - `"<Thing> error: {e}"` — wrap an exception from a named subsystem (`"Type error"`, `"Parse error"`, `"Read error"`)
+- Module-prefix style (`"Ping: ..."`, `"Include: ..."`, `"Expect: ..."`) is acceptable when **every** error from that plugin uses the same prefix — don't mix styles within one plugin
+
+## Development
+
+```sh
+uv run pytest              # run tests
+uv run termapy             # run the app
+uv run termapy --cfg-dir . # use cwd for configs
+```
+
+## Testing
+
+- `uv run pytest` — full suite (~110s); use this before commit/merge
+- `uv run pytest -m "not slow"` — fast suite (~25s) for tight iteration. Skips ~230 subprocess-spawning, real-serial-loopback, and sleep-based tests. Use during dev; ALWAYS run the full suite before pushing.
+- `uv run pytest -m slow` — only the slow tests (useful when debugging a specific subprocess test)
+- Coverage omits `__init__.py` and `builtins/*.py`
+- `app.py` not unit tested — only non-UI modules
+- Run tests before commit; full suite before merging to main
+- AAA comments (`# Arrange`, `# Act`, `# Assert`) for non-trivial tests
+- Assert comments required
+- Assert order: `actual == expected`
+- Assert messages required — every `assert` must include a message string describing what failed
+- Non-trivial: use `actual`/`expected` variables
+- Multiple checks: `actual_x == expected_x` pattern
+
+## CLI Gold Test
+
+- `tests/cli_gold/cli_test.run` — deterministic script exercising ~100 commands
+- `tests/cli_gold/cli_test.expected` — gold standard output (476 lines)
+- Regenerating the gold file requires manual review — the expected output is the source of truth for CLI regression testing
+- Only deterministic commands allowed — no timestamps, random values, or hardware-dependent output
+- No Unicode in output strings — use ASCII only (hyphens, not em dashes)
+
+## Code Style
+
+- If code manages state, use a class — not functions with closures over shared variables
+- Pure functions are fine and preferred when there's no state (e.g. `scripting.py`)
+- `scripting.py` — pure functions, no state, no I/O
+- `plugins.py` — no Textual/pyserial imports
+- New commands → plugins in `builtins/` unless they need Textual
+- Textual-dependent commands → `register_hook()` in `app.py`
+- Google-style docstrings and type hints
+- Warn about hacks, threads, delays, magic,monkeypatch, test constants
+- OS-independent path handling: use `pathlib.Path` — never split on `/` or `\\`
+- Watch for large code added to solve small problems. AI can make any spec work regardless of how much code it takes, so volume is not evidence of difficulty. Sprawling helpers, many-branched special cases, or duplicated logic across helpers usually indicate the spec was underspecified or the approach is wrong — pause and re-scope rather than piling on more code.
+
+## Threading
+
+- `read_serial()` runs on a background thread via `@work(thread=True)`
+- `run_script()` in `repl.py` runs on a background thread via `_run_script` wrapper
+- Script commands are dispatched to the main thread via `call_from_thread`
+- Commands that **block** or **use `call_from_thread` internally** (e.g. `/delay`, `/confirm`) must NOT be dispatched to the main thread — handle them as special cases directly in `run_script()`'s background thread
+- `_confirm()` blocks with `event.wait()` and posts a dialog via `call_from_thread` — must always be called from a background thread
+- When refactoring dispatch paths, verify that blocking commands still run on background threads
+
+## Exception Safety
+
+- `call_from_thread` → `try/except RuntimeError` (shutdown)
+- `ser.write/dtr/rts/send_break` → catch `(OSError, SerialException)`
+- Config load/write → catch `Exception`/`OSError`
+- Non-critical file I/O (history, logs) → swallow `OSError`
+- Plugin handlers called inside `dispatch()` try/except — no unguarded calls
+- Never crash to stack trace — use `_status()` for errors
+
+## Precommit
+
+- Update README.md and help/*.md
+- Update ARCHITECTURE.md if modules, plugins, or structure changed
+- Do NOT rebuild HTML help in feature commits — it adds noise to diffs
+- HTML help rebuild should be a separate commit before release versions
+- Run tox, pytest, coverage review
+
+## Release
+
+Two-stage automation in `scripts/`. From clean main:
+
+1. `python scripts/release_prep.py <version>` -- cuts `release/v<version>`, bumps `pyproject.toml` and `mkdocs.yml`, refreshes `uv.lock`, updates line/test counts in `ARCHITECTURE.md` and `README.md`, inserts a CHANGELOG stub, runs `pytest` and `tox`, builds HTML with `uvx zensical build`, makes two commits (HTML rebuild, then `Release v<version>`).
+2. Manual review: edit `CHANGELOG.md` to replace the TODO stub with a user-facing summary, then `git commit --amend --no-edit`.
+3. `python scripts/release_publish.py --yes` -- merges release branch to main with `--no-ff`, tags `v<version>`, pushes main + tag + release branch, creates the GitHub release with notes pulled from CHANGELOG.
+
+No RC versions, no leading `v` in the version arg, never run from anywhere but main. Scripts are stdlib-only and fail loud. See script docstrings for details.

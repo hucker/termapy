@@ -186,6 +186,7 @@ COMMAND = Command(
     args="<filename>",
     help="Open a project file in the system editor.",
     handler=_handler_root,
+    mcp_visible=False,  # opens external editor; subcommands inherit
     sub_commands={
         "run": _build_folder_sub(
             lambda ctx: ctx.scripts_dir, ".run", "*.run",

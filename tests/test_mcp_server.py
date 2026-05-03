@@ -81,19 +81,19 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         names = {c["name"] for c in cat["commands"]}
         # Assert
-        assert "help" in names, "/help present"
+        assert "/help" in names, "/help present (catalog names include prefix)"
 
     def test_catalog_includes_term_send(self, host):
         # Arrange / Act — /term.send was added in Phase 2.5
         cat = build_catalog(host.ctx)
         names = {c["name"] for c in cat["commands"]}
         # Assert
-        assert "term.send" in names, "/term.send present (Phase 2.5)"
+        assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
     def test_catalog_command_has_required_fields(self, host):
         # Arrange / Act
         cat = build_catalog(host.ctx)
-        sample = next(c for c in cat["commands"] if c["name"] == "help")
+        sample = next(c for c in cat["commands"] if c["name"] == "/help")
         # Assert
         for key in ("name", "args", "help", "long_help", "flags",
                     "needs", "hidden", "source"):
@@ -123,6 +123,81 @@ class TestCatalog:
             assert isinstance(c["hidden"], bool), (
                 f"hidden flag must be bool, got {type(c['hidden']).__name__}"
             )
+
+    def test_catalog_filters_mcp_visible_false(self, host):
+        """Plugins explicitly marked ``mcp_visible=False`` are filtered."""
+        # Arrange
+        cat = build_catalog(host.ctx)
+        names = {c["name"] for c in cat["commands"]}
+        # Assert — sample of plugins marked mcp_visible=False
+        for cmd in ("/cls", "/grep", "/confirm", "/exit", "/os",
+                    "/seq", "/show", "/credits", "/edit"):
+            assert cmd not in names, (
+                f"{cmd} should be filtered (mcp_visible=False on the plugin)"
+            )
+
+    def test_catalog_filter_propagates_to_subcommands(self, host):
+        """Marking a parent ``mcp_visible=False`` filters all subcommands too."""
+        # Arrange
+        cat = build_catalog(host.ctx)
+        names = {c["name"] for c in cat["commands"]}
+        # Assert — parents marked False; subcommands should inherit and disappear
+        for sub in ("/seq.reset", "/show.cfg", "/ss.svg", "/ss.txt",
+                    "/xmodem.send", "/xmodem.recv", "/ymodem.send",
+                    "/ymodem.recv", "/edit.run", "/edit.proto", "/edit.cfg"):
+            assert sub not in names, (
+                f"{sub} should inherit mcp_visible=False from its parent"
+            )
+
+    def test_catalog_keeps_hidden_commands(self, host):
+        """``hidden=True`` is a UI-discoverability flag (legacy forwarders),
+        not a "don't expose to MCP" signal.  Catalog includes them with
+        ``hidden: true`` so MCP clients that want to filter can; the
+        bridge doesn't pre-filter them.
+        """
+        # Arrange — verify there ARE hidden plugins registered
+        plugins = host.repl._plugins
+        hidden_names = {p.name for p in plugins.values() if p.hidden}
+        assert hidden_names, "engine has hidden plugins registered (precondition)"
+        # Act
+        cat = build_catalog(host.ctx)
+        # Pick a hidden plugin that doesn't have unmet capabilities, so
+        # only the hidden-vs-not distinction is being tested.
+        hidden_plugin = next(
+            p for p in plugins.values()
+            if p.hidden and not p.needs.missing_from(host.ctx.capabilities)
+        )
+        prefixed = host.ctx.engine.prefix + hidden_plugin.name
+        cat_names = {c["name"] for c in cat["commands"]}
+        # Assert
+        assert prefixed in cat_names, (
+            f"hidden but capability-satisfied plugin {prefixed!r} "
+            f"should be in catalog"
+        )
+
+    def test_catalog_filters_tui_only_commands(self, host):
+        # Arrange — /proto.debug needs tui_mode; MCP doesn't have it
+        plugins = host.repl._plugins
+        assert "proto.debug" in plugins, "/proto.debug registered (precondition)"
+        # Act
+        cat = build_catalog(host.ctx)
+        cat_names = {c["name"] for c in cat["commands"]}
+        # Assert
+        assert "/proto.debug" not in cat_names, (
+            "tui_mode-only commands filtered when ctx lacks tui_mode"
+        )
+
+    def test_catalog_filter_is_meaningful(self, host):
+        # Arrange / Act
+        cat = build_catalog(host.ctx)
+        n_filtered = len(cat["commands"])
+        n_total = len(host.repl._plugins)
+        # Assert -- at least 10 commands filtered (sanity: filter is doing
+        # real work, not a no-op)
+        assert n_total - n_filtered >= 10, (
+            f"expected at least 10 commands filtered for MCP context; "
+            f"total={n_total} catalog={n_filtered}"
+        )
 
 
 # ── run_command happy paths ─────────────────────────────────────────────────

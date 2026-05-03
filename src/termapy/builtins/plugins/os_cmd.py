@@ -60,4 +60,5 @@ Examples:
   /os python --version   - check Python version
   /os ping -c 1 host     - network test""",
     handler=_handler,
+    mcp_visible=False,  # shell exec; security, also disabled by default
 )

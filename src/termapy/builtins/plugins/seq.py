@@ -130,6 +130,7 @@ COMMAND = Command(
     help="Show sequence counters.",
     long_help=_seq_long_help,
     handler=_handler,
+    mcp_visible=False,  # script-state primitive; subcommands inherit
     sub_commands={
         "reset": Command(
             help="Reset all counters to zero.",

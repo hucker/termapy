@@ -26,4 +26,5 @@ COMMAND = Command(
     name="exit",
     help="Exit termapy.",
     handler=_handler,
+    mcp_visible=False,  # would kill the MCP server
 )

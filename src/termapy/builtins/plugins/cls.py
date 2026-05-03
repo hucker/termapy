@@ -26,4 +26,5 @@ COMMAND = Command(
     name="cls",
     help="Clear the terminal screen.",
     handler=_handler,
+    mcp_visible=False,  # no screen in MCP mode
 )

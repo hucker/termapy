@@ -135,6 +135,7 @@ COMMAND = Command(
     name="ymodem",
     help="YMODEM file transfer (batch, 1K blocks).",
     handler=None,
+    mcp_visible=False,  # long-blocking binary protocol; subcommands inherit
     sub_commands={
         "send": Command(
             args="<file> {file2} ...",

@@ -35,4 +35,5 @@ COMMAND = Command(
     help="Show Yes/Cancel dialog; Cancel stops a running script.",
     handler=_handler,
     needs=CapabilitySet(block_until=True, confirm_dialog=True),
+    mcp_visible=False,  # UI dialog; also capability-gated
 )

@@ -90,10 +90,10 @@ class TestMcpCatalog:
         result = eng.dispatch("mcp.catalog")
         parsed = json.loads(result.value)
         names = {c["name"] for c in parsed["commands"]}
-        # Assert
-        assert "help" in names, "/help in catalog"
-        assert "term.send" in names, "/term.send in catalog"
-        assert "expect" in names, "/expect in catalog"
+        # Assert -- catalog names are prefixed (LLM symbol-table style)
+        assert "/help" in names, "/help in catalog"
+        assert "/term.send" in names, "/term.send in catalog"
+        assert "/expect" in names, "/expect in catalog"
 
 
 # ── /mcp.info ──────────────────────────────────────────────────────────────

@@ -88,4 +88,5 @@ Examples:
   /grep ^OK            - lines starting with 'OK'
   /grep temp.*\\d+      - 'temp' followed by digits""",
     handler=_handler,
+    mcp_visible=False,  # searches scrollback that doesn't exist in MCP
 )

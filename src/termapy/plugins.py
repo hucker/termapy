@@ -455,6 +455,21 @@ class Command:
             without polluting the user's sense of the "real" command
             surface.  ``/help <name>`` with an exact hidden name still
             shows the help.
+        mcp_visible: When False, this command is omitted from the MCP
+            catalog (the symbol table the LLM consumes).  Distinct
+            from ``hidden`` -- a command can be discoverable in /help
+            (``hidden=False``) but inappropriate for MCP because it
+            needs the user's screen, opens an external program, or
+            otherwise doesn't translate to LLM-driven invocation.
+            Examples: /grep (searches scrollback that doesn't exist
+            in MCP), /cls (no screen), /show (system viewer),
+            /xmodem // /ymodem (long-blocking file transfer with no
+            way for Claude to participate in the protocol), /confirm
+            (requires UI dialog), /seq (script-state primitives).
+            Subcommands inherit ``mcp_visible=False`` from their
+            parent automatically -- mark the root, get the whole
+            subtree filtered.  Default True (most commands ARE
+            MCP-appropriate).
     """
 
     help: str
@@ -467,6 +482,7 @@ class Command:
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
     hidden: bool = False
+    mcp_visible: bool = True
 
 
 @dataclass
@@ -1158,6 +1174,7 @@ class PluginInfo:
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
     hidden: bool = False
+    mcp_visible: bool = True  # see Command.mcp_visible -- inherited from declaration
 
 
 def interpolate_help(text: str, prefix: str) -> str:
@@ -1449,6 +1466,7 @@ def _flatten_command(
     node: Command,
     prefix: str,
     source: str,
+    parent_mcp_visible: bool = True,
 ) -> list[PluginInfo]:
     """Recursively flatten a Command tree into PluginInfo entries.
 
@@ -1456,10 +1474,18 @@ def _flatten_command(
     with ``sub_commands``) get a synthetic handler that lists their
     subcommands. Leaf nodes must have a ``handler`` callable.
 
+    ``mcp_visible`` is AND-gated with the parent's value: marking
+    ``/xmodem`` (root) with ``mcp_visible=False`` propagates to
+    ``/xmodem.send`` and ``/xmodem.recv`` automatically -- you don't
+    have to mark every subcommand individually.  A child can still
+    override to True if the parent is False, but that's unusual.
+
     Args:
         node: Command instance with name/help/handler/sub_commands.
         prefix: Dotted path prefix (empty for root).
         source: Plugin source label.
+        parent_mcp_visible: AND-gate from ancestors.  False propagates
+            down the subtree.
 
     Returns:
         List of PluginInfo for this node and all descendants.
@@ -1470,11 +1496,16 @@ def _flatten_command(
     children: list[str] = []
     result: list[PluginInfo] = []
 
+    # Effective mcp_visible for THIS node = parent's && node's.
+    effective_mcp_visible = parent_mcp_visible and node.mcp_visible
+
     # Recurse into sub_commands first so we can build the children list
     for sub_name, sub_node in sub_commands.items():
         # Set name on sub-node so recursion works uniformly
         sub_node.name = sub_name
-        child_infos = _flatten_command(sub_node, full_name, source)
+        child_infos = _flatten_command(
+            sub_node, full_name, source, effective_mcp_visible
+        )
         result.extend(child_infos)
         children.append(f"{full_name}.{sub_name}".lower())
 
@@ -1498,6 +1529,7 @@ def _flatten_command(
         flags=dict(node.flags),
         needs=node.needs,
         hidden=node.hidden,
+        mcp_visible=effective_mcp_visible,
     )
     result.insert(0, info)
     return result

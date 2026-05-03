@@ -77,6 +77,7 @@ Examples:
   /show my_script.run    - view a script file
   /show ../notes.txt     - relative path""",
     handler=_handler,
+    mcp_visible=False,  # opens system viewer; subcommands inherit
     sub_commands={
         "cfg": Command(
             help="Show the current config file.",

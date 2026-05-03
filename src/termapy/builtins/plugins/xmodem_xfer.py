@@ -207,6 +207,7 @@ COMMAND = Command(
     name="xmodem",
     help="XMODEM file transfer.",
     handler=None,
+    mcp_visible=False,  # long-blocking binary protocol; subcommands inherit
     sub_commands={
         "send": Command(
             args="<file>",

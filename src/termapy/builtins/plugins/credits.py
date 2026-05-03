@@ -48,4 +48,5 @@ COMMAND = Command(
         "The canonical source file is ``src/termapy/help/acknowledgments.md``."
     ),
     handler=_handler,
+    mcp_visible=False,  # display-only; not useful for LLM-driven invocation
 )

@@ -35,4 +35,5 @@ COMMAND = Command(
     help="Open a .run script in the system editor.",
     long_help=_run_long_help,
     handler=_handler,
+    mcp_visible=False,  # opens external editor
 )

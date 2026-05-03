@@ -121,15 +121,25 @@ class TestDemoNdjsonProfileShape:
         assert ta[0]["name"] == "celsius", "celsius"
         assert ta[0]["type"] == "float", "float type"
 
-    def test_destructive_commands_marked(self):
-        # Arrange / Act
+    def test_safety_classifications(self):
+        # Arrange
         profile = load_profile(DEMO_NDJSON_PROFILE)
-        # Assert
-        # set_threshold, set_mode, calibrate, reset are all destructive.
-        for name in ("set_threshold", "set_mode", "calibrate", "reset"):
-            assert (
-                profile["commands"][name].get("safety") == "destructive"
-            ), f"{name} is destructive"
+        commands = profile["commands"]
+        # Assert -- four-tier safety taxonomy (readonly/safe/mutable/
+        # destructive).  Only destructive triggers the MCP confirmation
+        # gate; mutable changes state but is reversible (set_threshold/
+        # set_mode can be called again with a different value).
+        expected_safety = {
+            "set_threshold": "mutable",
+            "set_mode": "mutable",
+            "calibrate": "destructive",  # alters stored cal data
+            "reset": "destructive",       # loses RAM state
+        }
+        for name, expected in expected_safety.items():
+            actual = commands[name].get("safety")
+            assert actual == expected, (
+                f"{name} expected safety={expected!r}, got {actual!r}"
+            )
 
     def test_reset_is_fire_and_forget(self):
         # Arrange / Act

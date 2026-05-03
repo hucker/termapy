@@ -473,17 +473,31 @@ class CmdResult:
     success: bool = True
     error: str = ""
     elapsed_s: float = 0.0
-    value: str = ""
+    # ``value`` is loosely typed because most handlers return strings
+    # (scripting/quiet-mode reads it as text), but profile-aware MCP
+    # dispatches return shaped data (dicts, lists, numbers) per the
+    # device profile's response schema.  Callers that stringify must
+    # do so explicitly.
+    value: Any = ""
 
     @classmethod
-    def ok(cls, value: str = "") -> CmdResult:
-        """Return a successful result, optionally with a value."""
+    def ok(cls, value: Any = "") -> CmdResult:
+        """Return a successful result, optionally with a value.
+
+        ``value`` is typically a string (script-readable), but profile
+        executors pass typed shapes (dict/list/number) that survive
+        through to the MCP response.
+        """
         return cls(value=value)
 
     @classmethod
-    def fail(cls, msg: str = "") -> CmdResult:
-        """Return a failure result with an error message."""
-        return cls(success=False, error=msg)
+    def fail(cls, msg: str = "", *, value: Any = "") -> CmdResult:
+        """Return a failure result with an error message.
+
+        ``value`` is optional; profile executors set it on parse-failure
+        so the LLM still sees the raw response text alongside the error.
+        """
+        return cls(success=False, error=msg, value=value)
 
     @property
     def err_msg(self) -> str:

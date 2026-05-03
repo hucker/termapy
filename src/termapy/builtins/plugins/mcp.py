@@ -61,6 +61,21 @@ def _handler_catalog(ctx: PluginContext, args: str) -> CmdResult:
 # ── /mcp.info ───────────────────────────────────────────────────────────────
 
 
+def _format_destructive(names: list[str]) -> str:
+    """Render the destructive-command audit value for /mcp.info.
+
+    Empty list reads as ``0`` (clean).  Non-empty shows count + names
+    so a quick eyeballing of /mcp.info catches profile drift (e.g. an
+    AT+ERASE_FLASH that snuck in on the latest /include).
+    """
+    if not names:
+        return "0"
+    if len(names) <= 5:
+        return f"{len(names)} ({', '.join(names)})"
+    head = ", ".join(names[:5])
+    return f"{len(names)} ({head}, ...)"
+
+
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Print MCP-mode status: catalog, port, profile, captures.
 
@@ -101,6 +116,18 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     cap_dir = Path(ctx.cap_dir)
     cap_count = sum(1 for _ in cap_dir.iterdir()) if cap_dir.exists() else 0
 
+    # Destructive-command audit: count entries flagged safety=destructive
+    # in the active profile.  These require ``confirm=true`` on the
+    # MCP tool call -- the LLM cannot run them autonomously.  Zero is
+    # the expected steady state for a well-behaved profile; a non-zero
+    # count is the user's chance to verify they recognize each entry.
+    profile = ctx.ns("active_profile") if hasattr(ctx, "ns") else {}
+    profile_cmds = profile.get("commands", {}) if isinstance(profile, dict) else {}
+    destructive_names = sorted(
+        name for name, spec in profile_cmds.items()
+        if isinstance(spec, dict) and spec.get("safety") == "destructive"
+    )
+
     rows = [
         ("port", f"{port_name} ({port_state})"),
         ("commands", str(cmd_count)),
@@ -111,6 +138,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("protocol", protocol),
         ("baud_rate", str(baud)),
         ("captures", str(cap_count)),
+        ("destructive", _format_destructive(destructive_names)),
     ]
     for line in format_kv_lines(rows):
         ctx.write_markup(line)

@@ -91,7 +91,7 @@
         {"name": "state", "type": "str", "required": true,
          "help": "LED state.", "enum": ["on", "off"]}
       ],
-      "safety": "destructive",
+      "safety": "mutable",
       "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
     }
   }

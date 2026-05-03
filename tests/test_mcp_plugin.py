@@ -132,3 +132,34 @@ class TestMcpInfo:
         result = eng.dispatch("mcp.info")
         # Assert
         assert int(result.value) > 0, "value is the command count integer"
+
+    def test_destructive_count_zero_when_no_profile(self, env):
+        # Arrange / Act -- no /profile.load, no /include
+        eng, _ctx, output = env
+        eng.dispatch("mcp.info")
+        full = " ".join(t for t, _ in output)
+        # Assert -- the destructive row is present and reads 0
+        assert "destructive" in full, "destructive row present"
+        assert "destructive" in full and ": 0" in full, (
+            "no profile -> zero destructive commands"
+        )
+
+    def test_destructive_count_lists_names_when_present(self, env):
+        # Arrange -- seed an active profile with one destructive entry
+        eng, ctx, output = env
+        ns = ctx.ns("active_profile")
+        ns.update({
+            "commands": {
+                "AT+RESET": {"help": "x", "safety": "destructive"},
+                "AT": {"help": "y", "safety": "readonly"},
+            },
+        })
+        # Act
+        output.clear()
+        eng.dispatch("mcp.info")
+        # Assert
+        full = " ".join(t for t, _ in output)
+        assert "AT+RESET" in full, "destructive name surfaces in /mcp.info"
+        assert "1 (AT+RESET)" in full, (
+            "count + name list rendered exactly"
+        )

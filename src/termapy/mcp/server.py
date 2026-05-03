@@ -224,6 +224,27 @@ class MCPHost(TerminalHost):
             if self.verbose:
                 print(line.rstrip("\n"), file=sys.stderr, flush=True)
 
+    def _record_async_event(self, line: str, *, source: str) -> None:
+        """Append an async serial event with a UTC timestamp and source tag.
+
+        ``source`` distinguishes lines that arrived between MCP calls
+        (``"between_calls"``) from lines that were sitting in the
+        recent-lines buffer when a profile-mapped command was sent
+        (``"pre_send_drain"``).  The ring is capped to keep the
+        device_state resource bounded.
+        """
+        from datetime import datetime, timezone
+
+        self._async_events.append(
+            {
+                "line": line,
+                "source": source,
+                "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+        )
+        if len(self._async_events) > 50:
+            self._async_events = self._async_events[-50:]
+
     def _start_reader(self) -> None:
         """Start the background serial reader thread."""
 
@@ -232,13 +253,16 @@ class MCPHost(TerminalHost):
             # ring buffer (so /expect sees them), log, and -- when
             # we're inside a run_command -- append to the buffer so
             # Claude sees them in the response.  Outside run_command
-            # (e.g. async events between calls), only logged + watched.
+            # (e.g. async events between calls), append to async_events
+            # so they survive into the next device_state read.
             self.repl.feed_lines(lines)
+            buf = _buffer.get()
             for line in lines:
                 self._log_line(f"< {line}")
-                buf = _buffer.get()
                 if buf is not None:
                     buf.append({"level": "rx", "text": line, "color": ""})
+                else:
+                    self._record_async_event(line, source="between_calls")
 
         self._reader_thread = threading.Thread(
             target=self.engine.read_loop,
@@ -428,6 +452,7 @@ def _build_server(host: MCPHost) -> Any:
         command: str,
         output: str = "normal",
         timeout_s: float = 30.0,
+        confirm: bool = False,
     ) -> dict[str, Any]:
         """Run a single termapy REPL command and return its result.
 
@@ -440,12 +465,21 @@ def _build_server(host: MCPHost) -> Any:
                 into the universal ``--<level>`` flag the engine already
                 supports.
             timeout_s: Outer wall-clock cap for the call (default 30s).
+            confirm: Pass ``True`` only after the human has explicitly
+                approved a destructive command.  Commands flagged
+                ``safety: destructive`` in the active profile (e.g.
+                resets, factory wipes, flash erases) refuse to run
+                without it -- the server returns an error asking for
+                confirmation.  Safe and readonly commands ignore this
+                parameter.
 
         Returns:
             JSON-able dict with ``cmd``, ``success``, ``error``, ``value``,
             ``elapsed_s``, ``output_lines``, ``captured_artifacts``.
         """
-        return await host.run_command_async(command, output, timeout_s)
+        return await host.run_command_async(
+            command, output, timeout_s, confirm=confirm
+        )
 
     # ── catalog resource ────────────────────────────────────────────────────
     @server.resource("termapy://commands.json")
@@ -543,11 +577,235 @@ def _new_artifacts(
     return out
 
 
+# ── Profile-aware request/response dispatch ────────────────────────────────
+
+
+def _template_to_regex(template: str) -> str:
+    """Turn an `AT+LED={state}` send_template into a match regex.
+
+    Each `{name}` placeholder becomes `(?P<name>.+?)`.  Surrounding
+    literals are escaped.  Anchored at both ends so partial matches
+    don't confuse lookup.
+    """
+    import re as _re
+
+    pattern_parts: list[str] = []
+    pos = 0
+    for m in _re.finditer(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", template):
+        pattern_parts.append(_re.escape(template[pos:m.start()]))
+        pattern_parts.append(f"(?P<{m.group(1)}>.+?)")
+        pos = m.end()
+    pattern_parts.append(_re.escape(template[pos:]))
+    return "^" + "".join(pattern_parts) + "$"
+
+
+def _match_profile_command(
+    text: str, commands: dict[str, dict],
+) -> tuple[str, dict, dict[str, str]] | None:
+    """Find the profile entry that ``text`` invokes, if any.
+
+    Lookup order:
+
+    1. Exact name match (the common case -- LLM types the literal
+       command name straight from /help).
+    2. Iterate entries with ``send_template`` and try to match
+       ``text`` against the template-derived regex.  The first hit
+       wins; profile authors shouldn't write overlapping templates.
+
+    Returns (canonical_name, command_dict, bound_args), or None.
+    """
+    import re as _re
+
+    if text in commands:
+        return text, commands[text], {}
+    for name, spec in commands.items():
+        if not isinstance(spec, dict):
+            continue
+        tmpl = spec.get("send_template", "")
+        if not tmpl:
+            continue
+        try:
+            m = _re.match(_template_to_regex(tmpl), text)
+        except _re.error:
+            continue
+        if m:
+            return name, spec, m.groupdict()
+    return None
+
+
+def _dispatch_via_profile(
+    host: MCPHost, command_text: str, *, confirm: bool = False,
+) -> CmdResult | None:
+    """Send a profile-mapped command and shape the response.
+
+    Returns ``None`` when the command isn't a profile entry -- callers
+    fall through to ``dispatch_full`` (today's literal-write path).
+    Returns a ``CmdResult`` (success or failure) when the profile
+    governs the call.
+
+    Lifecycle:
+      1. Drain stale recent-lines into async_events (source pre_send_drain)
+         so the next wait cycle starts clean.
+      2. Send command_text + transport.line_ending_send.
+      3. Per response.format: collect lines (lines/multi-line) or wait
+         for a single line (literal/regex/json) or skip wait (none).
+      4. Run error_detection.pattern over the collected text first;
+         a hit short-circuits to fail.
+      5. Run response_parsers.parse_response and return value.
+
+    The function is sync; it's called from inside the worker thread
+    that already runs dispatch_full.
+    """
+    # Slash commands always go through the dispatcher -- profile only
+    # rewrites bare device commands.
+    if command_text.startswith(host.prefix):
+        return None
+    if not host.engine.is_connected:
+        return None
+    profile = host.ctx.ns("active_profile")
+    if not profile or not isinstance(profile, dict):
+        return None
+    commands = profile.get("commands") or {}
+    if not isinstance(commands, dict):
+        return None
+    match = _match_profile_command(command_text, commands)
+    if match is None:
+        return None
+
+    import time as _time
+
+    from termapy.response_parsers import parse_response
+
+    name, spec, _bound = match
+
+    # Destructive commands MUST require human-in-the-loop approval.
+    # The MCP host can't show a UI, so we surface a structured failure
+    # the LLM client can elicit confirmation for, then retry with
+    # confirm=True.  Marker fields in the value let well-behaved
+    # clients render a confirmation prompt rather than just an error.
+    safety = spec.get("safety", "safe")
+    if safety == "destructive" and not confirm:
+        result = CmdResult.fail(
+            msg=(
+                f"Confirmation required: {name!r} is destructive. "
+                "Re-call with confirm=true after the user has approved."
+            ),
+            value={
+                "needs_confirmation": True,
+                "command": name,
+                "safety": "destructive",
+                "help": spec.get("help", ""),
+            },
+        )
+        return result
+
+    transport = profile.get("transport") or {}
+    encoding = transport.get("encoding", "utf-8")
+    eol_send = transport.get("line_ending_send", "\r")
+    raw_response = spec.get("response") or {}
+    response = raw_response if isinstance(raw_response, dict) else {}
+    fmt = response.get("format", "none")
+    timeout_s = float(
+        response.get(
+            "timeout_ms",
+            transport.get("default_response_timeout_ms", 1000),
+        )
+    ) / 1000.0
+
+    # Drain stale lines so they don't pollute this command's parse.
+    stale = host.repl.drain_recent_lines()
+    for line in stale:
+        host._record_async_event(line, source="pre_send_drain")
+
+    # Send.
+    t0 = _time.perf_counter()
+    payload = (command_text + eol_send).encode(encoding)
+    try:
+        host._serial_write(payload)
+    except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
+        result = CmdResult.fail(msg=f"Send error: {exc}")
+        result.elapsed_s = _time.perf_counter() - t0
+        return result
+
+    # Receive.
+    if fmt == "none":
+        text = ""
+        collected: list[str] = []
+    elif fmt == "lines":
+        terminator = response.get("terminator", "")
+        collected = host.repl.wait_for_lines(
+            timeout=timeout_s, terminator=terminator
+        )
+        text = "\n".join(collected)
+    else:
+        # literal / regex / json: typically one response line.  Use a
+        # short idle window so multi-line pre-OK chatter still settles.
+        collected = host.repl.wait_for_lines(
+            timeout=timeout_s, idle_gap=0.05
+        )
+        text = "\n".join(collected)
+
+    elapsed = _time.perf_counter() - t0
+
+    # Error detection wins over response parsing.
+    err_block = profile.get("error_detection") or {}
+    err_pat = err_block.get("pattern", "") if isinstance(err_block, dict) else ""
+    if err_pat and text:
+        import re as _re
+
+        try:
+            err_re = _re.compile(err_pat, _re.MULTILINE)
+        except _re.error:
+            err_re = None
+        if err_re is not None:
+            for line in collected:
+                m = err_re.search(line)
+                if m:
+                    msg = m.groupdict().get("message") or line
+                    result = CmdResult.fail(msg=str(msg))
+                    result.elapsed_s = elapsed
+                    return result
+
+    if fmt == "none":
+        result = CmdResult.ok(value={"sent": True, "cmd": name})
+        result.elapsed_s = elapsed
+        return result
+
+    if not text:
+        result = CmdResult.fail(msg=f"No response within {timeout_s:.2f}s")
+        result.elapsed_s = elapsed
+        return result
+
+    value = parse_response(
+        text,
+        fmt,
+        pattern=response.get("pattern", ""),
+        types=response.get("types"),
+        line_pattern=response.get("line_pattern", ""),
+        line_types=response.get("line_types"),
+        terminator=response.get("terminator", ""),
+    )
+    if value is None:
+        # Parser refused the text (regex didn't match, JSON didn't parse).
+        # Surface raw text so the LLM can still see what came back.
+        result = CmdResult.fail(
+            msg=f"Response did not match {fmt} format",
+            value={"raw": text, "cmd": name},
+        )
+        result.elapsed_s = elapsed
+        return result
+    result = CmdResult.ok(value=value)
+    result.elapsed_s = elapsed
+    return result
+
+
 async def _run_command_async(
     self: MCPHost,
     command: str,
     output: str,
     timeout_s: float,
+    *,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Implementation of MCPHost.run_command_async (attached below)."""
     # Validate output level early; default to "normal" on bad input.
@@ -578,6 +836,15 @@ async def _run_command_async(
 
             def _run_sync() -> CmdResult:
                 self._log_line(f"$ {command}  ({level})")
+                # Profile-aware path: bare device commands that match a
+                # loaded profile entry get sent + parsed per the
+                # response schema, returning a typed value.  Returns
+                # None for slash commands, unmapped bare lines, or no
+                # active profile -- fall through to dispatch_full's
+                # literal-write behavior.
+                profiled = _dispatch_via_profile(self, line, confirm=confirm)
+                if profiled is not None:
+                    return profiled
                 # Use dispatch_full so /raw bypass + directive layer
                 # + the /term.send fallthrough all behave normally.
                 return self.repl.dispatch_full(
@@ -633,11 +900,16 @@ async def _run_command_async(
             if len(self._expect_history) > 50:
                 self._expect_history = self._expect_history[-50:]
 
+        # Pass result.value through verbatim so profile-shaped responses
+        # (dicts/lists/numbers) survive to the LLM.  Coerce only the
+        # legacy empty-string default -- never stringify dicts.
+        value: Any = result.value if result.value not in (None, "") else ""
+
         return {
             "cmd": command,
             "success": bool(result.success),
             "error": result.error or "",
-            "value": result.value or "",
+            "value": value,
             "elapsed_s": float(result.elapsed_s or 0.0),
             "output_lines": output_lines,
             "captured_artifacts": artifacts,

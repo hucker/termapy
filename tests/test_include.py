@@ -986,3 +986,152 @@ class TestSearchIndexesTargets:
         assert not any(
             "help" in t and "(target)" in t for t in texts
         ), "plugin takes precedence over target on collision"
+
+
+# -- /include -> active_profile mirroring (v2 unification) -------------------
+
+
+class TestActiveProfileMirroring:
+    """``/include`` writes a v2 manifest into ``active_profile.commands``.
+
+    The MCP request/response executor reads from ``active_profile``;
+    without this mirror, ``/include`` would populate help and
+    completion but leave the executor blind to device-published
+    ``response`` schemas.  These tests verify the mirror happens for
+    v2 manifests and is suppressed for pure v1 (help-only) manifests
+    so v1-era users see no surprise.
+    """
+
+    def _run_fetch(self, engine, device_json: dict, *, force: bool = False):
+        """Mock _read_json and call _fetch_and_include, return result."""
+        from termapy.builtins.plugins import include
+        eng, output = engine
+        original = include._read_json
+        include._read_json = lambda ctx, tms: device_json  # ty: ignore[invalid-assignment]
+        try:
+            eng.ctx.is_connected = lambda: True
+            eng.ctx.serial_io = lambda: _NullContext()
+            eng.ctx.serial_drain = lambda: 0
+            eng.ctx.serial_send = lambda text: None
+            output.clear()
+            result = include._fetch_and_include(
+                eng.ctx, "AT+HELP.JSON", 100, force=force,
+            )
+        finally:
+            include._read_json = original
+        return result
+
+    def test_v2_manifest_populates_active_profile(self, engine) -> None:
+        # Arrange — manifest with response shape on a single command
+        eng, _ = engine
+        device_json = {
+            "version": "2.0.0",
+            "transport": {"line_ending_send": "\r\n"},
+            "error_detection": {"pattern": "^ERROR.*$"},
+            "commands": {
+                "AT+TEMP": {
+                    "help": "Read temperature",
+                    "response": {
+                        "format": "regex",
+                        "pattern": r"(?P<celsius>-?\d+\.\d+)C",
+                        "types": {"celsius": "float"},
+                    },
+                },
+            },
+        }
+        # Act
+        result = self._run_fetch(engine, device_json)
+        # Assert
+        assert result.success, "include succeeded"
+        profile = eng.ctx.ns("active_profile")
+        actual_cmds = profile.get("commands", {})
+        expected_keys = {"AT+TEMP"}
+        assert set(actual_cmds.keys()) == expected_keys, "active_profile mirrors the v2 commands"
+        assert actual_cmds["AT+TEMP"]["response"]["pattern"] == (
+            r"(?P<celsius>-?\d+\.\d+)C"
+        ), "response block survived the mirror"
+        assert profile.get("transport", {}).get("line_ending_send") == "\r\n", (
+            "top-level transport block copied"
+        )
+        assert profile.get("error_detection", {}).get("pattern") == "^ERROR.*$", (
+            "top-level error_detection block copied"
+        )
+        assert profile.get("__source_path", "").startswith("<device>/"), (
+            "source path tagged so /include.clear knows to wipe it"
+        )
+
+    def test_v1_only_manifest_skips_active_profile(self, engine) -> None:
+        # Arrange — pure v1: only help/args.  Mirroring would do nothing
+        # useful for the executor, so we intentionally suppress it to
+        # avoid surprising users whose devices never opted into v2.
+        eng, _ = engine
+        device_json = {
+            "version": "1.0.0",
+            "commands": {
+                "FOO": {"help": "old-style command", "args": "<x>"},
+            },
+        }
+        # Act
+        result = self._run_fetch(engine, device_json)
+        # Assert
+        assert result.success, "v1 include still succeeds"
+        target = eng.ctx.ns("target_commands")
+        assert "FOO" in target, "target_commands populated as before"
+        profile = eng.ctx.ns("active_profile")
+        assert profile.get("commands", {}) == {}, (
+            "v1-only manifest does NOT touch active_profile"
+        )
+
+    def test_clear_wipes_device_sourced_active_profile(self, engine) -> None:
+        # Arrange — populate via /include first
+        eng, _ = engine
+        device_json = {
+            "version": "2.0.0",
+            "commands": {
+                "AT": {
+                    "help": "Connection test",
+                    "response": {"format": "literal", "pattern": "OK"},
+                },
+            },
+        }
+        self._run_fetch(engine, device_json)
+        assert eng.ctx.ns("active_profile").get("commands"), (
+            "precondition: active_profile populated"
+        )
+        # Act
+        eng.dispatch("include.clear")
+        # Assert
+        profile = eng.ctx.ns("active_profile")
+        assert profile == {}, (
+            "/include.clear wiped device-sourced active_profile entirely"
+        )
+
+    def test_clear_leaves_file_loaded_profile_alone(self, engine) -> None:
+        # Arrange — simulate a /profile.load by setting source path to a file
+        eng, _ = engine
+        ns = eng.ctx.ns("active_profile")
+        ns.update({
+            "commands": {
+                "AT": {
+                    "help": "from file",
+                    "response": {"format": "literal", "pattern": "OK"},
+                },
+            },
+            "__source_path": "/some/file.profile.json",
+        })
+        # Also populate target_commands so /include.clear has work to do.
+        eng.ctx.ns("target_commands").update({
+            "AT": TargetCommand(name="AT", help="from include"),
+        })
+        # Act
+        eng.dispatch("include.clear")
+        # Assert -- /include.clear cleared target_commands but left
+        # the file-sourced profile intact (different __source_path).
+        assert eng.ctx.ns("target_commands") == {}, "target cleared"
+        profile = eng.ctx.ns("active_profile")
+        assert profile.get("__source_path") == "/some/file.profile.json", (
+            "file-loaded profile survived /include.clear"
+        )
+        assert "AT" in profile.get("commands", {}), (
+            "file-loaded command entries survived"
+        )

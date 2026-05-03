@@ -230,6 +230,7 @@ def _builtin_validate(profile: dict) -> ValidationResult:
                 if safety is not None and safety not in (
                     "safe",
                     "readonly",
+                    "mutable",
                     "destructive",
                 ):
                     errors.append(

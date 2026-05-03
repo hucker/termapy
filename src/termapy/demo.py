@@ -443,25 +443,66 @@ class FakeSerial:
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
     def _help_json(self) -> bytes:
-        """Return device descriptor as a JSON object.
+        """Return device descriptor as a v2 profile JSON object.
 
-        A handful of entries carry optional ``long_help`` and ``flags``
-        fields so ``/help <cmd>`` and ``/search`` render the full
-        man-page treatment for target-device commands.  Entries that
-        use only ``help`` + ``args`` still work -- parity is additive.
+        v2 profile = single source of truth for both human help (``help``,
+        ``args``, ``long_help``, ``flags`` -- consumed by ``/help``) AND
+        machine-driven MCP execution (``response``, ``safety``,
+        ``send_template``, ``typed_args`` -- consumed by the bridge's
+        request/response executor).  Devices that publish v2 get typed
+        JSON responses end-to-end after a single ``/include``.
+
+        Response shapes here MUST match what the simulator actually
+        emits in ``_handle_*`` above -- co-locating them is the whole
+        point of the unification.  When you change a device-side reply,
+        update the matching ``response`` block in this descriptor.
         """
         import json
         descriptor = {
             # Schema version lets /include compare against its cache and
             # keep whichever is newer.  Bump this when the demo's command
             # set changes in a way users should pick up automatically.
-            "version": "1.0.0",
+            "version": "2.1.0",
+            "profile_version": 2,
+            "transport": {
+                "protocol": "text",
+                "encoding": "utf-8",
+                "line_ending_send": "\r\n",
+                "line_ending_recv": "\r\n",
+                "default_response_timeout_ms": 500,
+                "echo": False,
+            },
+            "error_detection": {
+                # Captures `Usage: ...` text from `ERROR: Usage: AT+LED on|off`
+                # and similar.  Anchored to the start of a line so a literal
+                # `OK` reply that happens to contain the word "error" later
+                # (it won't, but defensively) doesn't get hijacked.
+                "pattern": r"^ERROR(?::\s*(?P<message>.+))?$",
+            },
             "commands": {
-                "AT": {"help": "Connection test", "args": ""},
-                "AT+PROD-ID": {"help": "Product identifier", "args": ""},
+                "AT": {
+                    "help": "Connection test",
+                    "args": "",
+                    "safety": "readonly",
+                    "response": {
+                        "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                    },
+                },
+                "AT+PROD-ID": {
+                    "help": "Product identifier",
+                    "args": "",
+                    "safety": "readonly",
+                    "response": {
+                        "format": "regex",
+                        # Strip the `+PROD-ID:` prefix; capture the model token.
+                        "pattern": r"^\+PROD-ID:(?P<id>.+)$",
+                        "timeout_ms": 200,
+                    },
+                },
                 "AT+INFO": {
                     "help": "Device information",
                     "args": "",
+                    "safety": "readonly",
                     "long_help": (
                         "Prints a multi-line summary: product ID, firmware\n"
                         "version, hardware revision, uptime, and the active\n"
@@ -469,10 +510,15 @@ class FakeSerial:
                         "using.  Useful as the first command after connect\n"
                         "to verify identity and configuration."
                     ),
+                    "response": {
+                        # 3 lines, no explicit terminator -- rely on idle gap.
+                        "format": "lines", "timeout_ms": 500,
+                    },
                 },
                 "AT+TEMP": {
                     "help": "Read temperature",
                     "args": "",
+                    "safety": "readonly",
                     "long_help": (
                         "Returns the on-board temperature reading.  Output\n"
                         "format: '+TEMP: <value>C'.  The raw numeric value\n"
@@ -481,11 +527,43 @@ class FakeSerial:
                         "Common use: /cap.poll cmd=AT+TEMP delay=1s\n"
                         "will log a timestamped temperature series to CSV."
                     ),
+                    "response": {
+                        "format": "regex",
+                        "pattern": r"(?P<celsius>-?\d+\.\d+)C",
+                        "types": {"celsius": "float"},
+                        "timeout_ms": 200,
+                    },
                 },
-                "AT+RAMP": {"help": "Deterministic saw wave 0.0-1.0", "args": ""},
+                "AT+RAMP": {
+                    "help": "Deterministic saw wave 0.0-1.0",
+                    "args": "",
+                    "safety": "readonly",
+                    "response": {
+                        "format": "regex",
+                        # Wire emits `0.5\r\n` (float, one decimal); profile
+                        # used to declare int -- which never matched.  This
+                        # version tracks the actual simulator output.
+                        "pattern": r"^(?P<value>-?\d+(?:\.\d+)?)$",
+                        "types": {"value": "float"},
+                        "timeout_ms": 200,
+                    },
+                },
                 "AT+LED": {
                     "help": "Control LED",
+                    # The wire syntax is `AT+LED on` (space) per simulator,
+                    # not `AT+LED=on`.  send_template tracks the simulator.
                     "args": "<on|off> {--blink}",
+                    # mutable, not destructive: changes state but trivially
+                    # reversible (`AT+LED off`).  destructive is reserved for
+                    # irreversible/data-loss commands like AT+RESET below.
+                    "safety": "mutable",
+                    "send_template": "AT+LED {state}",
+                    "typed_args": [
+                        {
+                            "name": "state", "type": "str", "required": True,
+                            "help": "LED state.", "enum": ["on", "off"],
+                        }
+                    ],
                     "long_help": (
                         "Drive the on-board status LED.\n"
                         "\n"
@@ -498,13 +576,32 @@ class FakeSerial:
                         "--blink": "Blink at 2 Hz instead of solid on.",
                         "-b": "--blink",
                     },
+                    "response": {
+                        "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                    },
                 },
                 "AT+NAME?": {"help": "Query device name", "args": ""},
                 "AT+NAME=": {"help": "Set device name", "args": "<val>"},
                 "AT+BAUD?": {"help": "Query baud rate", "args": ""},
                 "AT+BAUD=": {"help": "Set baud rate", "args": "<val>"},
-                "AT+STATUS": {"help": "Device status", "args": ""},
-                "AT+RESET": {"help": "Reset device", "args": ""},
+                "AT+STATUS": {
+                    "help": "Device status",
+                    "args": "",
+                    "safety": "readonly",
+                    "response": {
+                        # 3 lines (LED/Uptime/Connections); no OK terminator.
+                        "format": "lines", "timeout_ms": 500,
+                    },
+                },
+                "AT+RESET": {
+                    "help": "Reset device",
+                    "args": "",
+                    "safety": "destructive",
+                    "response": {
+                        # 4 lines including "[Boot] Ready"; no OK terminator.
+                        "format": "lines", "timeout_ms": 1000,
+                    },
+                },
                 "AT+TEXTDUMP": {"help": "Emit text readings", "args": "<n>"},
                 "AT+BINDUMP": {
                     "help": "Emit binary records",
@@ -530,7 +627,12 @@ class FakeSerial:
                 "mem": {"help": "Memory dump", "args": "<addr> {len}"},
                 "AT+FS.LIST": {"help": "List files on device", "args": ""},
                 "AT+FS.INFO": {"help": "Filesystem summary", "args": ""},
-                "AT+FS.DELETE": {"help": "Delete a file", "args": "<filename>"},
+                "AT+FS.DELETE": {
+                    "help": "Delete a file",
+                    "args": "<filename>",
+                    # Irreversible: file is gone after acknowledgment.
+                    "safety": "destructive",
+                },
                 "AT+XMODEM=RECV": {"help": "Receive file via XMODEM", "args": "{filename}"},
                 "AT+XMODEM=SEND": {"help": "Send file via XMODEM", "args": "{filename}"},
                 "AT+YMODEM=RECV": {"help": "Receive file via YMODEM", "args": ""},

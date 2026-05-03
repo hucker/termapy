@@ -47,7 +47,7 @@
         {"name": "celsius", "type": "float", "required": true,
          "help": "Threshold in degrees Celsius.", "min": -40.0, "max": 125.0}
       ],
-      "safety": "destructive",
+      "safety": "mutable",
       "rate_limit_hz": 10,
       "response": {"format": "json", "timeout_ms": 500}
     },
@@ -58,7 +58,7 @@
          "help": "Operating mode.",
          "enum": ["idle", "active", "sleep", "diagnostic"]}
       ],
-      "safety": "destructive",
+      "safety": "mutable",
       "response": {"format": "json", "timeout_ms": 500}
     },
     "calibrate": {

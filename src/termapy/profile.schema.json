@@ -182,9 +182,9 @@
         },
         "response": {"$ref": "#/$defs/response"},
         "safety": {
-          "description": "v2: safety tier. destructive surfaces annotations.destructiveHint=true to MCP clients.",
+          "description": "v2: safety tier. readonly = pure observation; safe = default, no enduring effect; mutable = changes device state but reversible (LED toggle, set baud); destructive = irreversible / data-loss (factory reset, flash erase, file delete). Only destructive triggers the MCP confirmation gate; other tiers are documentation-only metadata.",
           "type": "string",
-          "enum": ["safe", "readonly", "destructive"],
+          "enum": ["safe", "readonly", "mutable", "destructive"],
           "default": "safe"
         },
         "rate_limit_hz": {

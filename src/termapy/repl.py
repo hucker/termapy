@@ -461,6 +461,92 @@ class ReplEngine:
             return self._expect_matched_line
         return None
 
+    def drain_recent_lines(self) -> list[str]:
+        """Snapshot and clear the recent-lines ring buffer.
+
+        Returns the lines that had been buffered for retroactive
+        wait_for_match() scans.  Callers (e.g. profile-aware request/
+        response in the MCP host) drain before sending so the next
+        wait cycle starts from a clean slate -- stale lines are
+        archived as async events instead of leaking into the next
+        response parse.
+        """
+        snapshot = list(self._recent_lines)
+        self._recent_lines.clear()
+        return snapshot
+
+    def wait_for_lines(
+        self,
+        timeout: float,
+        *,
+        terminator: str = "",
+        idle_gap: float = 0.1,
+    ) -> list[str]:
+        """Collect serial lines until terminator, idle gap, or timeout.
+
+        For multi-line profile responses (``response.format == "lines"``).
+        Lines that arrive after this call starts are accumulated; if
+        ``terminator`` is a non-empty regex, collection stops on the
+        first matching line (the terminator line is NOT included).
+        Otherwise collection stops when no new line arrives for
+        ``idle_gap`` seconds, or when ``timeout`` elapses overall.
+
+        Drains and returns whatever was already in the recent-lines
+        buffer first -- callers that want a clean slate should call
+        ``drain_recent_lines()`` before sending and archive those
+        lines elsewhere (see MCPHost._archive_stale_lines).
+
+        Must be called from a background thread (same constraint as
+        ``wait_for_match``).
+
+        Args:
+            timeout: Hard deadline in seconds.
+            terminator: Optional regex; first matching line ends collection.
+            idle_gap: Seconds without new lines before stopping (when no
+                terminator matches).  Smaller = snappier but riskier on
+                slow devices.  Default 100ms.
+
+        Returns:
+            List of lines collected (excluding the terminator line, if any).
+        """
+        import re as _re
+
+        term_re = None
+        if terminator:
+            try:
+                term_re = _re.compile(terminator)
+            except _re.error:
+                term_re = None
+
+        collected: list[str] = []
+        # Pull anything already buffered; this is the "drain" half.
+        for line in list(self._recent_lines):
+            if term_re is not None and term_re.search(line):
+                self._recent_lines.clear()
+                return collected
+            collected.append(line)
+        self._recent_lines.clear()
+
+        deadline = time.monotonic() + timeout
+        last_arrival = time.monotonic()
+        while time.monotonic() < deadline:
+            new_lines = list(self._recent_lines)
+            if new_lines:
+                self._recent_lines.clear()
+                last_arrival = time.monotonic()
+                for line in new_lines:
+                    if term_re is not None and term_re.search(line):
+                        return collected
+                    collected.append(line)
+            elif collected and (time.monotonic() - last_arrival) >= idle_gap:
+                # Idle: nothing new for idle_gap seconds AND we have content.
+                # No-content idle still waits the full timeout so slow
+                # devices get a chance to start replying.
+                return collected
+            else:
+                time.sleep(0.01)
+        return collected
+
     def feed_lines(self, lines: list[str]) -> None:
         """Feed serial output lines to the expect watcher.
 

@@ -18,7 +18,7 @@ from termapy.plugins import CapabilitySet, CmdResult, Command, TargetCommand
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
-    from termapy.plugins import PluginContext
+    from termapy.plugins import PluginContext, TargetCommand  # noqa: F401
 
 _CACHE_NAME = ".target_menu.json"
 
@@ -86,7 +86,87 @@ def _get_version(ctx: PluginContext) -> str | None:
     return ctx.ns(_META_NS).get("version")
 
 
-_VALID_SAFETY = ("safe", "readonly", "destructive")
+# ── active_profile mirroring (drives MCP request/response shaping) ──────────
+
+
+def _has_v2_response_data(commands: dict[str, "TargetCommand"]) -> bool:
+    """True if any command carries v2 response shape -- worth mirroring.
+
+    A pure v1 manifest (only help/args) gives the executor nothing to
+    do, so we don't pollute active_profile with it.  A single command
+    declaring a ``response`` block flips the switch for the whole set;
+    commands without one fall through normally (executor returns None).
+    """
+    for tc in commands.values():
+        if tc.response or tc.send_template or tc.typed_args:
+            return True
+    return False
+
+
+def _project_to_active_profile(
+    ctx: PluginContext,
+    commands: dict[str, "TargetCommand"],
+    raw_data: dict | None = None,
+) -> None:
+    """Mirror included target commands into ``ctx.ns("active_profile")``.
+
+    The MCP request/response executor reads from ``active_profile``;
+    /include is the device-driven sibling of /profile.load.  Without
+    this mirror, /include would populate help and completion but leave
+    the executor blind to the device's response shapes.
+
+    Strategy:
+
+    - No-op when the manifest carries no v2 fields (pure v1 help-only
+      shape).  Avoids surprising users whose devices never opt in.
+    - Replaces the active_profile commands wholesale (matching the
+      "fresh include wins" semantics of target_commands).
+    - Copies ``transport`` and ``error_detection`` from the raw
+      descriptor when present -- these are top-level v2 blocks the
+      device may ship alongside its commands.
+    - Records the include source so /profile.info can show where the
+      active profile came from (``__source_path = "<device>/<cmd>"``).
+    """
+    if not _has_v2_response_data(commands):
+        return
+    profile_commands: dict[str, dict] = {}
+    for name, tc in commands.items():
+        entry: dict = {"help": tc.help}
+        if tc.args:
+            entry["args"] = tc.args
+        if tc.long_help:
+            entry["long_help"] = tc.long_help
+        if tc.flags:
+            entry["flags"] = dict(tc.flags)
+        if tc.typed_args:
+            entry["typed_args"] = [dict(a) for a in tc.typed_args]
+        if tc.send_template:
+            entry["send_template"] = tc.send_template
+        if tc.response:
+            entry["response"] = dict(tc.response)
+        if tc.safety and tc.safety != "safe":
+            entry["safety"] = tc.safety
+        if tc.timeout_ms:
+            entry["timeout_ms"] = tc.timeout_ms
+        profile_commands[name] = entry
+
+    ns = ctx.ns("active_profile")
+    ns.clear()
+    ns["commands"] = profile_commands
+    if isinstance(raw_data, dict):
+        # Top-level v2 blocks travel with the manifest if the device sent
+        # them; default to nothing so a device that only ships commands
+        # still works (transport falls back to cfg).
+        for top_key in ("transport", "error_detection", "device",
+                        "profile_version", "profile_revision",
+                        "profile_date"):
+            val = raw_data.get(top_key)
+            if val is not None:
+                ns[top_key] = val
+    ns["__source_path"] = "<device>/" + ctx.cfg.get("device_json_cmd", "include")
+
+
+_VALID_SAFETY = ("safe", "readonly", "mutable", "destructive")
 
 
 def _sanitize_typed_args(raw: object) -> list[dict]:
@@ -366,6 +446,13 @@ def _fetch_and_include(
                 target.clear()
                 target.update(cached_commands)
                 _set_version(ctx, cached_version)
+                # Mirror the cached set into active_profile so the MCP
+                # executor sees the same data the help/completion does.
+                # Cache file lacks the raw descriptor envelope; pass None
+                # for raw_data so transport/error_detection blocks come
+                # from whatever was already in active_profile (or fall
+                # back to cfg defaults inside _dispatch_via_profile).
+                _project_to_active_profile(ctx, cached_commands, None)
                 ctx.result(
                     f"Included {len(cached_commands)} device commands "
                     f"(cache kept, version {cached_version or '?'} "
@@ -378,6 +465,9 @@ def _fetch_and_include(
     target.update(commands)
     _set_version(ctx, new_version)
     _save_cache(ctx, commands, new_version)
+    # Project into active_profile so MCP request/response shaping picks
+    # up the device-published response schemas in addition to help text.
+    _project_to_active_profile(ctx, commands, data)
     tag = f" (v{new_version})" if new_version else ""
     ctx.result(f"Included {len(commands)} device commands{tag}.")
     return CmdResult.ok(value=str(len(commands)))
@@ -421,6 +511,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         commands, version = from_disk
         existing.update(commands)
         _set_version(ctx, version)
+        # Mirror to active_profile so MCP executor sees the cache too.
+        _project_to_active_profile(ctx, commands, None)
         tag = f" (v{version})" if version else ""
         ctx.result(
             f"Included {len(commands)} device commands (from cache{tag})."
@@ -461,9 +553,20 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
-    """Remove all included target commands and delete cache file."""
+    """Remove all included target commands and delete cache file.
+
+    Also clears the active_profile commands when they came from
+    /include (source path tagged ``<device>/...``), so the MCP
+    executor stops shaping responses for the removed commands.
+    /profile.load-installed profiles are left intact -- their source
+    path is the file path, not the ``<device>/`` sentinel.
+    """
     ctx.ns("target_commands").clear()
     _set_version(ctx, None)
+    profile_ns = ctx.ns("active_profile")
+    src = profile_ns.get("__source_path", "")
+    if isinstance(src, str) and src.startswith("<device>/"):
+        profile_ns.clear()
     try:
         _cache_path(ctx).unlink(missing_ok=True)
     except OSError:

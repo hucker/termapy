@@ -124,56 +124,65 @@ class TestCatalog:
                 f"hidden flag must be bool, got {type(c['hidden']).__name__}"
             )
 
-    def test_catalog_filters_mcp_visible_false(self, host):
-        """Plugins explicitly marked ``mcp_visible=False`` are filtered."""
-        # Arrange
+    def test_catalog_filters_interactive_only_commands(self, host):
+        """Plugins requiring ``interactive`` are filtered from MCP catalog."""
+        # Arrange / Act
         cat = build_catalog(host.ctx)
         names = {c["name"] for c in cat["commands"]}
-        # Assert — sample of plugins marked mcp_visible=False
-        for cmd in ("/cls", "/grep", "/confirm", "/exit", "/os",
-                    "/seq", "/show", "/credits", "/edit"):
+        # Assert -- sample of plugins that declare needs.interactive=True
+        for cmd in ("/cls", "/grep", "/exit", "/os",
+                    "/seq", "/credits", "/xmodem", "/ymodem"):
             assert cmd not in names, (
-                f"{cmd} should be filtered (mcp_visible=False on the plugin)"
+                f"{cmd} should be filtered (needs.interactive=True; "
+                f"MCP doesn't advertise interactive)"
             )
 
-    def test_catalog_filter_propagates_to_subcommands(self, host):
-        """Marking a parent ``mcp_visible=False`` filters all subcommands too."""
-        # Arrange
+    def test_catalog_filters_gui_apps_commands(self, host):
+        """Plugins requiring ``gui_apps`` are filtered from MCP catalog."""
+        # Arrange / Act
         cat = build_catalog(host.ctx)
         names = {c["name"] for c in cat["commands"]}
-        # Assert — parents marked False; subcommands should inherit and disappear
-        for sub in ("/seq.reset", "/show.cfg", "/ss.svg", "/ss.txt",
-                    "/xmodem.send", "/xmodem.recv", "/ymodem.send",
-                    "/ymodem.recv", "/edit.run", "/edit.proto", "/edit.cfg"):
-            assert sub not in names, (
-                f"{sub} should inherit mcp_visible=False from its parent"
+        # Assert -- sample of plugins that declare needs.gui_apps=True
+        for cmd in ("/edit", "/edit.cfg", "/show", "/show.cfg",
+                    "/cfg.show", "/cfg.explore", "/app.explore",
+                    "/run.edit"):
+            assert cmd not in names, (
+                f"{cmd} should be filtered (needs.gui_apps=True; "
+                f"MCP doesn't advertise gui_apps)"
             )
 
-    def test_catalog_keeps_hidden_commands(self, host):
-        """``hidden=True`` is a UI-discoverability flag (legacy forwarders),
-        not a "don't expose to MCP" signal.  Catalog includes them with
-        ``hidden: true`` so MCP clients that want to filter can; the
-        bridge doesn't pre-filter them.
+    def test_hidden_and_capability_filter_are_independent(self, host):
+        """``hidden`` is a UI-discoverability flag, NOT a catalog filter.
+
+        Hidden plugins (legacy forwarders for human typing) appear in
+        the MCP catalog with ``hidden: true`` -- the LLM can choose to
+        skip them itself.  The catalog filter is purely capability-based.
+        This test stashes a synthetic hidden+capability-satisfied plugin
+        and verifies it shows up.
         """
-        # Arrange — verify there ARE hidden plugins registered
-        plugins = host.repl._plugins
-        hidden_names = {p.name for p in plugins.values() if p.hidden}
-        assert hidden_names, "engine has hidden plugins registered (precondition)"
-        # Act
-        cat = build_catalog(host.ctx)
-        # Pick a hidden plugin that doesn't have unmet capabilities, so
-        # only the hidden-vs-not distinction is being tested.
-        hidden_plugin = next(
-            p for p in plugins.values()
-            if p.hidden and not p.needs.missing_from(host.ctx.capabilities)
+        # Arrange -- synthetic hidden plugin with no needs (baseline only)
+        from termapy.plugins import CapabilitySet, PluginInfo
+
+        synthetic = PluginInfo(
+            name="__test_hidden_visible",
+            args="",
+            help="synthetic test plugin",
+            handler=lambda ctx, args: None,
+            hidden=True,
+            needs=CapabilitySet(),  # baseline only -- satisfied by every host
         )
-        prefixed = host.ctx.engine.prefix + hidden_plugin.name
-        cat_names = {c["name"] for c in cat["commands"]}
-        # Assert
-        assert prefixed in cat_names, (
-            f"hidden but capability-satisfied plugin {prefixed!r} "
-            f"should be in catalog"
-        )
+        host.repl._plugins[synthetic.name] = synthetic
+        try:
+            # Act
+            cat = build_catalog(host.ctx)
+            cat_names = {c["name"] for c in cat["commands"]}
+            # Assert
+            prefixed = host.ctx.engine.prefix + synthetic.name
+            assert prefixed in cat_names, (
+                "hidden=True with no restrictive needs should appear in catalog"
+            )
+        finally:
+            del host.repl._plugins[synthetic.name]
 
     def test_catalog_filters_tui_only_commands(self, host):
         # Arrange — /proto.debug needs tui_mode; MCP doesn't have it

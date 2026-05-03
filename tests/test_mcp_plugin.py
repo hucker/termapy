@@ -39,14 +39,22 @@ def env(tmp_path):
     # Verbose so ctx.output() in handler isn't gated by quiet default.
     host.ctx.ns("flags")["output_level"] = "verbose"
     output: list = []
-    # Capture writes by replacing write/output/etc to also append to a list.
+    # Capture both write and write_markup so info-style handlers that
+    # use format_kv_lines (which routes through write_markup) are
+    # observable to assertions.
     orig_write = host.ctx.write
+    orig_write_markup = host.ctx.write_markup
 
     def captured_write(text, color=""):
         output.append((text, color))
         orig_write(text, color)
 
+    def captured_write_markup(text):
+        output.append((text, "markup"))
+        orig_write_markup(text)
+
     host.ctx.write = captured_write
+    host.ctx.write_markup = captured_write_markup
     return host.repl, host.ctx, output
 
 

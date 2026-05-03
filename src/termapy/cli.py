@@ -245,11 +245,17 @@ class CLITerminal(TerminalHost):
         self.ctx.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
         self.ctx.exit_app = lambda: None
         self.ctx.get_screen_text = lambda: ""
-        # CLI provides only the baseline; no TUI features (dialogs,
-        # screen capture, status bar, toast notifications).  block_until
-        # is added dynamically by the script runner when running a .run
-        # file in CLI mode -- see ReplEngine._effective_capabilities.
-        self.ctx.capabilities = CapabilitySet()
+        # CLI provides interactive (a human at a terminal -- including
+        # over SSH) and gui_apps when a local desktop is available.  No
+        # TUI features (dialogs, screen capture, status bar, toast
+        # notifications).  block_until is added dynamically by the script
+        # runner when running a .run file in CLI mode -- see
+        # ReplEngine._effective_capabilities.
+        from termapy.plugins import detect_gui_apps
+        self.ctx.capabilities = CapabilitySet(
+            interactive=True,
+            gui_apps=detect_gui_apps(),
+        )
 
         self.repl.set_context(self.ctx)
         self._init_flags(echo=False)
@@ -346,6 +352,7 @@ class CLITerminal(TerminalHost):
             "Set up and switch to the demo device config.",
             self._hook_demo,
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "demo.force",
@@ -353,6 +360,7 @@ class CLITerminal(TerminalHost):
             "Reset demo config to defaults.",
             lambda ctx, args: self._hook_demo(ctx, "--force"),
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "clr",
@@ -360,6 +368,7 @@ class CLITerminal(TerminalHost):
             "Clear the terminal screen (alias for {prefix}cls).",
             lambda ctx, args: (ctx.clear_screen(), CmdResult.ok())[-1],
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "raw",
@@ -374,6 +383,7 @@ class CLITerminal(TerminalHost):
             "Open help in browser.",
             self._hook_help_open,
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl.register_hook(
             "log.delete",
@@ -403,6 +413,7 @@ class CLITerminal(TerminalHost):
             log_show.HANDLER,
             source="app",
             long_help=log_show.LONG_HELP,
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl.register_hook(
             "log.dump",
@@ -427,6 +438,7 @@ class CLITerminal(TerminalHost):
             "Switch to TUI mode.",
             lambda ctx, args: CmdResult.ok(),  # handled in _run_interactive
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "cli",
@@ -434,6 +446,7 @@ class CLITerminal(TerminalHost):
             "Already in CLI mode.",
             lambda ctx, args: CmdResult.ok(),
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "cli.completion",
@@ -441,6 +454,7 @@ class CLITerminal(TerminalHost):
             "Show or toggle CLI tab completion, auto-suggest, and help toolbar.",
             self._hook_cli_completion,
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         # Historically, CLI registered placeholder hooks for TUI-only
         # commands (/line_no and friends) so users got a clear "Only

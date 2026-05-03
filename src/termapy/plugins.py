@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
@@ -312,6 +313,26 @@ class CapabilitySet:
     #        each handler re-implementing the check.
     serial_connected: bool = False
 
+    # What:  An interactive session -- a human at a terminal with
+    #        persistent scrollback, modal dialog support, or in-band UI
+    #        chrome (mode switch, screen clear, line numbers).  Also
+    #        the home of legacy aliases retained for human typing
+    #        convenience (``/echo`` -> ``/term.echo``).
+    # Where: TUI, CLI (whether running locally or over SSH).  Not MCP --
+    #        an LLM client has no interactive session.
+    interactive: bool = False
+
+    # What:  Host can launch external desktop apps the user must visually
+    #        see -- system editor, file viewer, browser, file explorer.
+    #        Distinct from ``interactive`` because an SSH user IS
+    #        interactive but has no local display, so calls like
+    #        ``webbrowser.open()`` succeed silently while opening on
+    #        the remote machine the user can't see.
+    # Where: TUI / CLI when running locally on a graphical desktop.
+    #        Detected at host startup via env vars; users can override
+    #        with ``TERMAPY_GUI=1`` / ``TERMAPY_GUI=0``.  Not MCP.
+    gui_apps: bool = False
+
     def satisfied_by(self, provided: "CapabilitySet") -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
@@ -342,6 +363,88 @@ class CapabilitySet:
                 for f in fields(self)
             }
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GUI-apps detection + environment capability sets
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def detect_gui_apps() -> bool:
+    """Heuristic: can this process launch external desktop apps the user sees?
+
+    SSH users have an *interactive* session but typically no local desktop --
+    ``webbrowser.open()`` and ``os.startfile()`` succeed silently while
+    opening on the remote machine.  This detector lets hosts advertise
+    ``gui_apps`` correctly so commands like ``/help.open`` and ``/edit``
+    are gated when they wouldn't actually be useful.
+
+    Detection order:
+
+      1. ``TERMAPY_GUI`` env override (``1``/``yes``/``true``/``on`` -> True;
+         ``0``/``no``/``false``/``off`` -> False).  Escape hatch for users
+         whose environment fools the heuristic (mosh, tmux-in-SSH, WSLg,
+         X2Go, ...).
+      2. SSH session (``SSH_CONNECTION`` or ``SSH_TTY`` set): True only if
+         X11 forwarding is also configured (``DISPLAY`` set).
+      3. Linux / macOS: True iff ``DISPLAY`` or ``WAYLAND_DISPLAY`` is set.
+      4. Windows: True (assume native graphical session).
+      5. Unknown platform: False (fail safe).
+
+    The heuristic is best-effort, not authoritative.  Real-world environments
+    that fool it are handled by the override.
+
+    Returns:
+        True if external desktop apps will likely be visible to the user.
+    """
+    override = os.environ.get("TERMAPY_GUI", "").strip().lower()
+    if override in ("1", "yes", "true", "on"):
+        return True
+    if override in ("0", "no", "false", "off"):
+        return False
+    if os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"):
+        return bool(os.environ.get("DISPLAY"))
+    if sys.platform.startswith("linux") or sys.platform == "darwin":
+        return bool(
+            os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+        )
+    if sys.platform == "win32":
+        return True
+    return False
+
+
+def _build_environments() -> dict[str, "CapabilitySet"]:
+    """Build the per-environment capability sets used by ``/help`` rendering.
+
+    The single source of truth for "where can this command run."  The
+    ``AVAILABLE`` row in the man page and ``/help --mcp`` both derive from
+    this map.  Adding a new host (web preview, CI runner, ...) means adding
+    a row here.
+
+    ``gui_apps`` is computed once at import time via :func:`detect_gui_apps`.
+    Long-running servers don't change desktop state mid-process; users who
+    SSH in and out and reload termapy get fresh detection.
+    """
+    gui = detect_gui_apps()
+    return {
+        # TUI (Textual app): everything an interactive desktop terminal has.
+        "TUI": CapabilitySet(
+            interactive=True,
+            gui_apps=gui,
+            tui_mode=True,
+            screen_capture=True,
+            confirm_dialog=True,
+            ui_notify=True,
+            status_bar=True,
+        ),
+        # CLI (interactive REPL or --run script): interactive but no Textual UI.
+        "CLI": CapabilitySet(interactive=True, gui_apps=gui),
+        # MCP (stdio server): no human, no display.  Pure machine-driven.
+        "MCP": CapabilitySet(),
+    }
+
+
+ENVIRONMENTS: dict[str, "CapabilitySet"] = _build_environments()
 
 
 @dataclass
@@ -455,21 +558,6 @@ class Command:
             without polluting the user's sense of the "real" command
             surface.  ``/help <name>`` with an exact hidden name still
             shows the help.
-        mcp_visible: When False, this command is omitted from the MCP
-            catalog (the symbol table the LLM consumes).  Distinct
-            from ``hidden`` -- a command can be discoverable in /help
-            (``hidden=False``) but inappropriate for MCP because it
-            needs the user's screen, opens an external program, or
-            otherwise doesn't translate to LLM-driven invocation.
-            Examples: /grep (searches scrollback that doesn't exist
-            in MCP), /cls (no screen), /show (system viewer),
-            /xmodem // /ymodem (long-blocking file transfer with no
-            way for Claude to participate in the protocol), /confirm
-            (requires UI dialog), /seq (script-state primitives).
-            Subcommands inherit ``mcp_visible=False`` from their
-            parent automatically -- mark the root, get the whole
-            subtree filtered.  Default True (most commands ARE
-            MCP-appropriate).
     """
 
     help: str
@@ -482,7 +570,6 @@ class Command:
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
     hidden: bool = False
-    mcp_visible: bool = True
 
 
 @dataclass
@@ -1174,7 +1261,6 @@ class PluginInfo:
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
     hidden: bool = False
-    mcp_visible: bool = True  # see Command.mcp_visible -- inherited from declaration
 
 
 def interpolate_help(text: str, prefix: str) -> str:
@@ -1466,7 +1552,6 @@ def _flatten_command(
     node: Command,
     prefix: str,
     source: str,
-    parent_mcp_visible: bool = True,
 ) -> list[PluginInfo]:
     """Recursively flatten a Command tree into PluginInfo entries.
 
@@ -1474,18 +1559,16 @@ def _flatten_command(
     with ``sub_commands``) get a synthetic handler that lists their
     subcommands. Leaf nodes must have a ``handler`` callable.
 
-    ``mcp_visible`` is AND-gated with the parent's value: marking
-    ``/xmodem`` (root) with ``mcp_visible=False`` propagates to
-    ``/xmodem.send`` and ``/xmodem.recv`` automatically -- you don't
-    have to mark every subcommand individually.  A child can still
-    override to True if the parent is False, but that's unusual.
+    Each child declares its own ``needs`` independently.  When a parent
+    is gated out of an environment by capabilities (e.g. ``/edit`` with
+    ``needs.gui_apps=True``), children that should also be gated must
+    declare the same need explicitly.  This keeps the gate local and
+    auditable.
 
     Args:
         node: Command instance with name/help/handler/sub_commands.
         prefix: Dotted path prefix (empty for root).
         source: Plugin source label.
-        parent_mcp_visible: AND-gate from ancestors.  False propagates
-            down the subtree.
 
     Returns:
         List of PluginInfo for this node and all descendants.
@@ -1496,16 +1579,11 @@ def _flatten_command(
     children: list[str] = []
     result: list[PluginInfo] = []
 
-    # Effective mcp_visible for THIS node = parent's && node's.
-    effective_mcp_visible = parent_mcp_visible and node.mcp_visible
-
     # Recurse into sub_commands first so we can build the children list
     for sub_name, sub_node in sub_commands.items():
         # Set name on sub-node so recursion works uniformly
         sub_node.name = sub_name
-        child_infos = _flatten_command(
-            sub_node, full_name, source, effective_mcp_visible
-        )
+        child_infos = _flatten_command(sub_node, full_name, source)
         result.extend(child_infos)
         children.append(f"{full_name}.{sub_name}".lower())
 
@@ -1529,7 +1607,6 @@ def _flatten_command(
         flags=dict(node.flags),
         needs=node.needs,
         hidden=node.hidden,
-        mcp_visible=effective_mcp_visible,
     )
     result.insert(0, info)
     return result

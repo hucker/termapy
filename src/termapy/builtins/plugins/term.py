@@ -396,6 +396,7 @@ COMMAND = Command(
             help="Legacy alias for /term.output (verbose|normal).",
             handler=_handler_verbose_legacy,
             hidden=True,
+            needs=CapabilitySet(interactive=True),  # legacy alias
         ),
         "timestamps": Command(
             args="{on|off}",

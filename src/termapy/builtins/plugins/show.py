@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -77,11 +77,12 @@ Examples:
   /show my_script.run    - view a script file
   /show ../notes.txt     - relative path""",
     handler=_handler,
-    mcp_visible=False,  # opens system viewer; subcommands inherit
+    needs=CapabilitySet(gui_apps=True),
     sub_commands={
         "cfg": Command(
             help="Show the current config file.",
             handler=_handler_cfg,
+            needs=CapabilitySet(gui_apps=True),
         ),
     },
 )

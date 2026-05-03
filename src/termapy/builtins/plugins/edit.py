@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Callable
 from termapy.config import cfg_log_path
 from termapy.folders import EXT_TO_FOLDER
 from termapy.help_dynamic import folder_line
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -164,6 +164,7 @@ def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
         help=f"Open a {ext} file in the system editor.",
         long_help=long_help,
         handler=_make_edit_handler(get_dir, ext, pattern),
+        needs=CapabilitySet(gui_apps=True),
         sub_commands={
             "list": Command(
                 help=f"List {ext} files.",
@@ -174,6 +175,7 @@ def _build_folder_sub(get_dir, ext, pattern, kind=None, noun=None):
                 help="Open folder in file explorer.",
                 long_help=long_help,
                 handler=_make_explore_handler(get_dir),
+                needs=CapabilitySet(gui_apps=True),
             ),
         },
     )
@@ -186,7 +188,7 @@ COMMAND = Command(
     args="<filename>",
     help="Open a project file in the system editor.",
     handler=_handler_root,
-    mcp_visible=False,  # opens external editor; subcommands inherit
+    needs=CapabilitySet(gui_apps=True),
     sub_commands={
         "run": _build_folder_sub(
             lambda ctx: ctx.scripts_dir, ".run", "*.run",
@@ -204,14 +206,17 @@ COMMAND = Command(
         "cfg": Command(
             help="Open the config file in the system editor.",
             handler=_handler_cfg,
+            needs=CapabilitySet(gui_apps=True),
         ),
         "log": Command(
             help="Open the session log in the system viewer.",
             handler=_handler_log,
+            needs=CapabilitySet(gui_apps=True),
         ),
         "info": Command(
             help="Open the info report in the system viewer.",
             handler=_handler_info,
+            needs=CapabilitySet(gui_apps=True),
         ),
     },
 )

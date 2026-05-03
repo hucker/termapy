@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import folder_line
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -35,5 +35,5 @@ COMMAND = Command(
     help="Open a .run script in the system editor.",
     long_help=_run_long_help,
     handler=_handler,
-    mcp_visible=False,  # opens external editor
+    needs=CapabilitySet(gui_apps=True),
 )

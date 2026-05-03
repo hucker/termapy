@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -26,5 +26,5 @@ COMMAND = Command(
     name="exit",
     help="Exit termapy.",
     handler=_handler,
-    mcp_visible=False,  # would kill the MCP server
+    needs=CapabilitySet(interactive=True),  # interactive shutdown only
 )

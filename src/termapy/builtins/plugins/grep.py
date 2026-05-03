@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.scripting import ANSI_RE as _ANSI_RE
 
 if TYPE_CHECKING:
@@ -88,5 +88,5 @@ Examples:
   /grep ^OK            - lines starting with 'OK'
   /grep temp.*\\d+      - 'temp' followed by digits""",
     handler=_handler,
-    mcp_visible=False,  # searches scrollback that doesn't exist in MCP
+    needs=CapabilitySet(interactive=True),  # scrollback only exists interactively
 )

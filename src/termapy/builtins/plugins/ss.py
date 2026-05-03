@@ -42,7 +42,6 @@ COMMAND = Command(
     name="ss",
     help="Screenshot tools: save SVG/text, manage folder.",
     long_help=_ss_long_help,
-    mcp_visible=False,  # screenshots; TUI-bound; subcommands inherit
     sub_commands={
         "svg": Command(
             args="{name}",

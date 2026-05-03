@@ -9,6 +9,10 @@ Phase 4 of the MCP-server work.  Subcommands:
 - ``/mcp.info`` -- show MCP-mode status: catalog size, port,
   active profile metadata, capture artifact count.
 
+For a human-readable view of the MCP-visible command list, use
+``/help --mcp`` -- same filter as ``/mcp.catalog``, rendered like
+``/help``.  No new sibling here: keeping the surface small.
+
 Both commands work in any frontend (TUI, CLI, MCP); they don't
 require ``--mcp`` to be running.  ``/mcp.catalog`` is a generic
 "dump all commands as JSON" tool that's useful regardless.
@@ -58,9 +62,20 @@ def _handler_catalog(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Print MCP-mode status: catalog, port, profile, captures."""
+    """Print MCP-mode status: catalog, port, profile, captures.
+
+    Always reports counts from the **MCP perspective**, regardless of
+    which host /mcp.info runs in.  In a TUI session running this
+    command, the catalog count answers "what would my MCP client see?"
+    -- not "what would a catalog built from this TUI's capabilities
+    look like?"  That second question is uninteresting; the first is
+    why someone runs /mcp.info.
+    """
+    from termapy.plugins import ENVIRONMENTS, format_kv_lines
+
+    # Catalog metadata is host-independent (profile / device / transport
+    # come from the active profile namespace, not capabilities).
     cat = build_catalog(ctx)
-    cmd_count = len(cat["commands"])
     target_count = len(cat["target_commands"])
     profile_rev = cat.get("profile_revision") or "(none)"
     profile_date = cat.get("profile_date") or "(none)"
@@ -68,6 +83,14 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     transport = cat.get("transport") or {}
     protocol = transport.get("protocol", "(none)")
     baud = transport.get("baud_rate", "(none)")
+
+    # Command count: always count what MCP would see, not what the
+    # current host's capabilities would surface.
+    mcp_caps = ENVIRONMENTS["MCP"]
+    cmd_count = sum(
+        1 for p in ctx.engine.plugins.values()
+        if not p.needs.missing_from(mcp_caps)
+    )
 
     # Port state.
     is_connected = ctx.is_connected()
@@ -77,9 +100,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     # Capture artifacts.
     cap_dir = Path(ctx.cap_dir)
     cap_count = sum(1 for _ in cap_dir.iterdir()) if cap_dir.exists() else 0
-
-    # Match the format_kv_lines() style other /*.info commands use.
-    from termapy.plugins import format_kv_lines
 
     rows = [
         ("port", f"{port_name} ({port_state})"),
@@ -93,7 +113,14 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("captures", str(cap_count)),
     ]
     for line in format_kv_lines(rows):
-        ctx.output(line)
+        ctx.write_markup(line)
+    # Discoverability hint: many users will reach for /mcp.info first when
+    # learning the MCP surface; point them at the human-readable view.
+    prefix = ctx.engine.prefix
+    ctx.write_markup(
+        f"  [dim](Use {prefix}help --mcp for the human-readable command "
+        f"list, {prefix}mcp.catalog for raw JSON.)[/]"
+    )
     return CmdResult.ok(value=str(cmd_count))
 
 

@@ -53,25 +53,14 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         ver = "unknown"
 
     plugins = ctx.engine.plugins
-    # Filter to commands the LLM can actually invoke meaningfully in
-    # this context.  Two cuts, both grounded in existing semantics:
-    #
-    #   1. ``needs`` not satisfied by ``ctx.capabilities`` -- the
-    #      capability gate would reject these at dispatch (e.g.
-    #      /proto.debug needs tui_mode, /confirm needs confirm_dialog).
-    #      Listing them is dishonest about what's available.
-    #
-    #   2. ``mcp_visible=False`` -- the explicit "this command isn't
-    #      MCP-appropriate" flag.  Used for things that would technically
-    #      run but produce no useful effect (or actively harmful effect)
-    #      via an LLM: /grep (no scrollback), /cls (no screen), /show
-    #      (system viewer), /xmodem (long-blocking binary), /confirm
-    #      (UI dialog), /seq (script primitive), /os (shell exec --
-    #      security), /edit (no editor), /exit (would kill the server),
-    #      /credits (display-only), /ss (screenshots).  Subcommands
-    #      inherit from their parent automatically (handled in
-    #      _flatten_command), so marking the root /xmodem covers
-    #      /xmodem.send and /xmodem.recv too.
+    # Filter to commands the LLM can actually invoke meaningfully:
+    # ``needs`` not satisfied by ``ctx.capabilities`` -- the capability
+    # gate would reject these at dispatch.  The MCP host advertises
+    # neither ``interactive`` nor ``gui_apps``, so commands that
+    # require a human at a terminal (/grep, /cls, /seq, ...) or a
+    # local desktop (/edit, /help.open, ...) are filtered out
+    # automatically.  TUI-only commands (/term.line_no via tui_mode,
+    # /confirm via confirm_dialog) drop out the same way.
     #
     # The ``hidden`` flag is intentionally NOT a filter.  ``hidden``
     # is a UI-discoverability concern (don't list in /help) used for
@@ -82,8 +71,6 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     cmd_list: list[dict[str, Any]] = []
     for name in sorted(plugins):
         plugin = plugins[name]
-        if not plugin.mcp_visible:
-            continue
         if capabilities is not None and plugin.needs.missing_from(capabilities):
             continue
         cmd_list.append(_command_descriptor(plugin, ctx))

@@ -11,6 +11,7 @@ import json
 import pytest
 
 from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
+from termapy.plugins import CapabilitySet
 from termapy.repl import ReplEngine
 from termapy.run_legacy import _scan_line
 
@@ -209,6 +210,10 @@ def engine_with_term(tmp_path):
     # ctx.engine.dispatch reach the REPL pipeline instead of the no-op
     # lambda default.
     eng.ctx.engine.dispatch = eng.dispatch
+    # Real CLI/TUI hosts advertise interactive + gui_apps; legacy aliases
+    # under test (/verbose, /term.verbose) declare needs.interactive=True.
+    # Mirror the host capability set so the dispatcher allows them through.
+    eng.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
     flags["output_level"] = "normal"

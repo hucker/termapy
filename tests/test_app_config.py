@@ -19,6 +19,8 @@ from termapy.config import (
     validate_config,
 )
 
+pytestmark = pytest.mark.slow  # subprocess-based config-load tests
+
 
 # DEFAULT_CFG has an empty ``port`` field because the zero-config CLI
 # needs somewhere to synthesize its in-memory cfg from, but any cfg

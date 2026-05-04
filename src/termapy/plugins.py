@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
@@ -312,6 +313,26 @@ class CapabilitySet:
     #        each handler re-implementing the check.
     serial_connected: bool = False
 
+    # What:  An interactive session -- a human at a terminal with
+    #        persistent scrollback, modal dialog support, or in-band UI
+    #        chrome (mode switch, screen clear, line numbers).  Also
+    #        the home of legacy aliases retained for human typing
+    #        convenience (``/echo`` -> ``/term.echo``).
+    # Where: TUI, CLI (whether running locally or over SSH).  Not MCP --
+    #        an LLM client has no interactive session.
+    interactive: bool = False
+
+    # What:  Host can launch external desktop apps the user must visually
+    #        see -- system editor, file viewer, browser, file explorer.
+    #        Distinct from ``interactive`` because an SSH user IS
+    #        interactive but has no local display, so calls like
+    #        ``webbrowser.open()`` succeed silently while opening on
+    #        the remote machine the user can't see.
+    # Where: TUI / CLI when running locally on a graphical desktop.
+    #        Detected at host startup via env vars; users can override
+    #        with ``TERMAPY_GUI=1`` / ``TERMAPY_GUI=0``.  Not MCP.
+    gui_apps: bool = False
+
     def satisfied_by(self, provided: "CapabilitySet") -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
@@ -344,6 +365,88 @@ class CapabilitySet:
         )
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# GUI-apps detection + environment capability sets
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def detect_gui_apps() -> bool:
+    """Heuristic: can this process launch external desktop apps the user sees?
+
+    SSH users have an *interactive* session but typically no local desktop --
+    ``webbrowser.open()`` and ``os.startfile()`` succeed silently while
+    opening on the remote machine.  This detector lets hosts advertise
+    ``gui_apps`` correctly so commands like ``/help.open`` and ``/edit``
+    are gated when they wouldn't actually be useful.
+
+    Detection order:
+
+      1. ``TERMAPY_GUI`` env override (``1``/``yes``/``true``/``on`` -> True;
+         ``0``/``no``/``false``/``off`` -> False).  Escape hatch for users
+         whose environment fools the heuristic (mosh, tmux-in-SSH, WSLg,
+         X2Go, ...).
+      2. SSH session (``SSH_CONNECTION`` or ``SSH_TTY`` set): True only if
+         X11 forwarding is also configured (``DISPLAY`` set).
+      3. Linux / macOS: True iff ``DISPLAY`` or ``WAYLAND_DISPLAY`` is set.
+      4. Windows: True (assume native graphical session).
+      5. Unknown platform: False (fail safe).
+
+    The heuristic is best-effort, not authoritative.  Real-world environments
+    that fool it are handled by the override.
+
+    Returns:
+        True if external desktop apps will likely be visible to the user.
+    """
+    override = os.environ.get("TERMAPY_GUI", "").strip().lower()
+    if override in ("1", "yes", "true", "on"):
+        return True
+    if override in ("0", "no", "false", "off"):
+        return False
+    if os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"):
+        return bool(os.environ.get("DISPLAY"))
+    if sys.platform.startswith("linux") or sys.platform == "darwin":
+        return bool(
+            os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+        )
+    if sys.platform == "win32":
+        return True
+    return False
+
+
+def _build_environments() -> dict[str, "CapabilitySet"]:
+    """Build the per-environment capability sets used by ``/help`` rendering.
+
+    The single source of truth for "where can this command run."  The
+    ``AVAILABLE`` row in the man page and ``/help --mcp`` both derive from
+    this map.  Adding a new host (web preview, CI runner, ...) means adding
+    a row here.
+
+    ``gui_apps`` is computed once at import time via :func:`detect_gui_apps`.
+    Long-running servers don't change desktop state mid-process; users who
+    SSH in and out and reload termapy get fresh detection.
+    """
+    gui = detect_gui_apps()
+    return {
+        # TUI (Textual app): everything an interactive desktop terminal has.
+        "TUI": CapabilitySet(
+            interactive=True,
+            gui_apps=gui,
+            tui_mode=True,
+            screen_capture=True,
+            confirm_dialog=True,
+            ui_notify=True,
+            status_bar=True,
+        ),
+        # CLI (interactive REPL or --run script): interactive but no Textual UI.
+        "CLI": CapabilitySet(interactive=True, gui_apps=gui),
+        # MCP (stdio server): no human, no display.  Pure machine-driven.
+        "MCP": CapabilitySet(),
+    }
+
+
+ENVIRONMENTS: dict[str, "CapabilitySet"] = _build_environments()
+
+
 @dataclass
 class CmdResult:
     """Result returned by every plugin/hook handler and by dispatch().
@@ -370,17 +473,31 @@ class CmdResult:
     success: bool = True
     error: str = ""
     elapsed_s: float = 0.0
-    value: str = ""
+    # ``value`` is loosely typed because most handlers return strings
+    # (scripting/quiet-mode reads it as text), but profile-aware MCP
+    # dispatches return shaped data (dicts, lists, numbers) per the
+    # device profile's response schema.  Callers that stringify must
+    # do so explicitly.
+    value: Any = ""
 
     @classmethod
-    def ok(cls, value: str = "") -> CmdResult:
-        """Return a successful result, optionally with a value."""
+    def ok(cls, value: Any = "") -> CmdResult:
+        """Return a successful result, optionally with a value.
+
+        ``value`` is typically a string (script-readable), but profile
+        executors pass typed shapes (dict/list/number) that survive
+        through to the MCP response.
+        """
         return cls(value=value)
 
     @classmethod
-    def fail(cls, msg: str = "") -> CmdResult:
-        """Return a failure result with an error message."""
-        return cls(success=False, error=msg)
+    def fail(cls, msg: str = "", *, value: Any = "") -> CmdResult:
+        """Return a failure result with an error message.
+
+        ``value`` is optional; profile executors set it on parse-failure
+        so the LLM still sees the raw response text alongside the error.
+        """
+        return cls(success=False, error=msg, value=value)
 
     @property
     def err_msg(self) -> str:
@@ -1219,6 +1336,12 @@ class TargetCommand:
     Both are optional -- a device JSON entry that supplies only
     ``help`` + ``args`` (the old shape) still works unchanged.
 
+    **v2 profile fields** (``typed_args`` through ``subcommands``) are
+    optional metadata consumed by the MCP server and codegen tools.
+    All have defaults so v1 manifests round-trip unchanged: a manifest
+    with only ``help`` + ``args`` produces a TargetCommand whose v2
+    fields are at their defaults, and ``_to_json_dict`` omits them.
+
     Attributes:
         name: Command name as the device expects it (no / prefix).
         help: One-line description.
@@ -1230,6 +1353,26 @@ class TargetCommand:
             are canonical flag names (e.g. ``--table``) or aliases
             (key = alias, value = canonical name).  Rendered in the
             FLAGS section of ``/help <target>``.
+        typed_args: v2.  Structured argument schemas: list of dicts
+            ``{name, type, required, default, help, min, max, enum}``.
+            Consumed by the MCP server (typed signatures) and codegen.
+        send_template: v2.  Python-format-style template for the
+            outbound bytes, e.g. ``"AT+VOLT={mv}"``.  Empty = use the
+            command name verbatim.  For NDJSON protocol, the bridge
+            JSON-serializes args instead of using the template.
+        response: v2.  Response shape descriptor: dict with ``format``
+            (none/literal/lines/regex/json), ``pattern``, ``types``,
+            ``terminator``, ``line_pattern``, ``line_types``,
+            ``timeout_ms``.  See ``response_parsers.parse_response``.
+        safety: v2.  Safety tier: ``"safe"`` (default), ``"readonly"``,
+            or ``"destructive"``.  ``destructive`` surfaces the MCP
+            ``annotations.destructiveHint=true`` so clients prompt for
+            confirmation.
+        rate_limit_hz: v2.  Bridge-enforced rate limit.  ``0.0`` = no
+            limit.
+        timeout_ms: v2.  Per-command outer timeout (overrides config
+            default).  ``0`` = use the default.
+        subcommands: v2.  Nested commands, same shape (recursive).
     """
 
     name: str
@@ -1237,6 +1380,19 @@ class TargetCommand:
     args: str = ""
     long_help: str = ""
     flags: dict[str, str] = field(default_factory=dict)
+    # v2 profile fields (all optional, all have v1-preserving defaults)
+    typed_args: list[dict] = field(default_factory=list)
+    send_template: str = ""
+    response: dict = field(default_factory=dict)
+    safety: str = "safe"
+    # ``enabled`` defaults True so existing curated profiles and device-
+    # self-published manifests stay exposed without an explicit opt-in.
+    # Profiles drafted from legacy help dumps (where the engineer hasn't
+    # audited each entry yet) explicitly emit enabled=False.
+    enabled: bool = True
+    rate_limit_hz: float = 0.0
+    timeout_ms: int = 0
+    subcommands: dict[str, "TargetCommand"] = field(default_factory=dict)
 
 
 def builtins_dir() -> Path:
@@ -1421,6 +1577,12 @@ def _flatten_command(
     Each node in the tree becomes a PluginInfo. Interior nodes (those
     with ``sub_commands``) get a synthetic handler that lists their
     subcommands. Leaf nodes must have a ``handler`` callable.
+
+    Each child declares its own ``needs`` independently.  When a parent
+    is gated out of an environment by capabilities (e.g. ``/edit`` with
+    ``needs.gui_apps=True``), children that should also be gated must
+    declare the same need explicitly.  This keeps the gate local and
+    auditable.
 
     Args:
         node: Command instance with name/help/handler/sub_commands.

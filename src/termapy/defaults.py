@@ -53,6 +53,8 @@ DEFAULT_CFG = {
     "config_read_only": False,
     "os_cmd_enabled": False,
     "device_json_cmd": "",
+    "auto_include_on_connect": True,
+    "profile_path": "",
     # Serial
     "port": "",
     "baud_rate": 115200,
@@ -379,6 +381,14 @@ CFG_HELP: dict[str, tuple] = {
     "device_json_cmd": (
         "Command sent by /include to fetch device command help JSON.",
         "Device command returning JSON. Empty = must specify cmd= arg.",
+    ),
+    "auto_include_on_connect": (
+        "Auto-run /include after a successful connect (when device_json_cmd is set).",
+        "Valid: true, false.",
+    ),
+    "profile_path": (
+        "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",
+        'Valid: file path (e.g. "termapy_cfg/myrig/myrig.profile.json"), or empty.',
     ),
     # Title-bar buttons
     "cfg_enabled": (

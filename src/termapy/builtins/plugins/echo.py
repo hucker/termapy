@@ -7,7 +7,7 @@ handler lives in ``term.py``.
 from __future__ import annotations
 
 from termapy.legacy import make_forwarder
-from termapy.plugins import Command
+from termapy.plugins import CapabilitySet, Command
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -17,4 +17,5 @@ COMMAND = Command(
     help="Toggle REPL command echo. Use {prefix}echo.silent to set without echoing.",
     handler=make_forwarder("echo", "term.echo"),
     hidden=True,
+    needs=CapabilitySet(interactive=True),  # legacy alias for human typing
 )

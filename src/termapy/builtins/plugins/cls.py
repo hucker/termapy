@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -26,4 +26,5 @@ COMMAND = Command(
     name="cls",
     help="Clear the terminal screen.",
     handler=_handler,
+    needs=CapabilitySet(interactive=True),  # no screen to clear in MCP
 )

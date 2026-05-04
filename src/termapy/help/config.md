@@ -49,6 +49,8 @@ Here is an example config for a device called `iot_device`:
     "config_read_only": false,
     "os_cmd_enabled": false,
     "device_json_cmd": "",
+    "auto_include_on_connect": true,
+    "profile_path": "",
     "port": "COM4",
     "baud_rate": 115200,
     "custom_baud": false,
@@ -115,6 +117,8 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `auto_connect`           | `false`               | Connect automatically when the app starts                                                   |
 | `auto_reconnect`         | `false`               | Retry connection every 2.5s if the port drops or fails to open                              |
 | `on_connect_cmd`         | ` `                   | Commands to send after connecting, separated by `\n`                                        |
+| `auto_include_on_connect`| `true`                | If `device_json_cmd` is set, auto-run `/include` after a successful connect (MCP mode)      |
+| `profile_path`           | ` `                   | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention     |
 | `echo_input`             | `false`               | Show sent commands in the terminal output                                                   |
 | `echo_input_fmt`         | `[purple]> {cmd}[/]`  | Rich markup format for echoed commands                                                      |
 | `log_file`               | ` `                   | Session log path (defaults to `<name>.log` in config subfolder)                             |

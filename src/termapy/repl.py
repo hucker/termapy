@@ -305,61 +305,114 @@ class ReplEngine:
         self._register_script_commands()
 
     def _register_script_commands(self) -> None:
-        """Register the blocking script-only commands as first-class plugins.
+        """Register the blocking commands as first-class plugins.
 
-        ``/expect`` and ``/expect.regex`` are executed by the script
-        runner (see ``_BLOCKING_COMMANDS``) and never reach normal
-        ``dispatch()`` -- their PluginInfo entries here only exist to
-        make them discoverable via ``/help``.  At the REPL prompt the
-        capability gate catches them via ``block_until`` (provided only
-        when ``in_script`` is true) and returns a clean error instead
-        of "Unknown command".
+        ``/expect`` and ``/expect.regex`` are dispatched two ways:
+
+        - **From a .run script**: the script runner's ``_BLOCKING_COMMANDS``
+          dispatch (see ``_run_line``) intercepts BEFORE ``dispatch()`` is
+          reached, calling ``_script_expect`` which can write progress to
+          the script's ``sctx`` and stop the whole script on timeout.
+        - **From dispatch (REPL prompt or MCP)**: ``_expect_handler``
+          below runs.  Same wait, simpler return shape -- no script
+          state, just ``CmdResult`` with the matched line in ``value``.
+
+        Both paths require ``block_until=True``: scripts have it
+        dynamically; MCP hosts opt in by setting it on
+        ``ctx.capabilities``; the interactive REPL doesn't have it,
+        so the capability gate keeps ``/expect`` script-only there.
 
         ``/confirm`` is a regular plugin (see ``confirm.py``) that
         declares its own ``needs``; no registration here.
         """
+        from termapy.scripting import parse_duration, parse_keywords
 
-        def _prompt_handler(ctx: PluginContext, args: str) -> CmdResult:
-            # Never actually runs: the capability gate catches it at the
-            # prompt (no block_until), and in a script the runner
-            # intercepts before dispatch() is reached.
-            return CmdResult.fail(
-                msg="script-only command; invoke from inside a .run file"
-            )
+        def _make_expect_handler(use_regex: bool) -> Callable:
+            def _expect_handler(ctx: PluginContext, args: str) -> CmdResult:
+                kw = parse_keywords(
+                    args, {"timeout", "match"}, rest_keyword="match"
+                )
+                pattern = kw.get("match", "").strip()
+                if not pattern:
+                    return CmdResult.fail(msg="Expect: missing match= keyword")
+                try:
+                    timeout_s = (
+                        parse_duration(kw["timeout"]) if "timeout" in kw else 5.0
+                    )
+                except ValueError as e:
+                    return CmdResult.fail(msg=f"Expect: {e}")
+                if use_regex:
+                    import re as _re
+
+                    try:
+                        compiled = _re.compile(pattern)
+                    except _re.error as e:
+                        return CmdResult.fail(msg=f"Expect: invalid regex: {e}")
+
+                    def predicate(line: str) -> bool:
+                        return bool(compiled.search(line))
+                else:
+
+                    def predicate(line: str) -> bool:
+                        return pattern in line
+
+                match = ctx.wait_for_match(predicate, timeout=timeout_s)
+                if match is None:
+                    return CmdResult.fail(
+                        msg=f'Expect "{pattern}" timeout after {timeout_s}s'
+                    )
+                return CmdResult.ok(value=match)
+
+            return _expect_handler
 
         self.register_plugin(
             PluginInfo(
                 name="expect",
-                args="match=<text> {timeout=<dur>}",
-                help="Wait for text in serial output (script-only).",
+                args="{timeout=<dur>} match=<text>",
+                help="Wait for text in serial output (blocks until match or timeout).",
                 long_help=(
-                    "Block the running script until the serial device outputs\n"
-                    "a line containing <text>.  Fails the script if the\n"
-                    "timeout elapses first (default: engine-wide expect timeout).\n"
+                    "Block until the device outputs a line containing <text>.\n"
+                    "Returns the matched line as the result value; fails on\n"
+                    "timeout (default 5s).\n"
+                    "\n"
+                    "Available wherever ``block_until`` is provided: inside\n"
+                    "a .run script (always), and from the MCP server (the\n"
+                    "MCPHost opts in).  The interactive REPL prompt does\n"
+                    "not provide it -- type {prefix}expect there and you'll\n"
+                    "get a clear capability error.\n"
+                    "\n"
+                    "**match= must be the LAST keyword** because it consumes\n"
+                    "to end of line (text can contain spaces).\n"
                     "\n"
                     "Example:\n"
                     "  AT+CONNECT\n"
-                    "  /expect match=CONNECTED timeout=5s"
+                    "  {prefix}expect timeout=5s match=CONNECTED"
                 ),
-                handler=_prompt_handler,
+                handler=_make_expect_handler(False),
                 needs=CapabilitySet(block_until=True),
+                raw_args=True,
             )
         )
         self.register_plugin(
             PluginInfo(
                 name="expect.regex",
-                args="match=<pattern> {timeout=<dur>}",
-                help="Wait for regex match in serial output (script-only).",
+                args="{timeout=<dur>} match=<pattern>",
+                help="Wait for regex match in serial output (blocks until match or timeout).",
                 long_help=(
-                    "Block the running script until the serial device outputs\n"
-                    "a line matching <pattern>.  Pattern is a Python regex.\n"
+                    "Block until the device outputs a line matching <pattern>.\n"
+                    "<pattern> is a Python regex.  See {prefix}expect for the\n"
+                    "non-regex variant and the capability gate that decides\n"
+                    "where this command runs.\n"
+                    "\n"
+                    "**match= must be the LAST keyword.**\n"
                     "\n"
                     "Example:\n"
                     "  AT+STATUS\n"
-                    "  /expect.regex match=^\\+STATUS: \\d+$ timeout=2s"
+                    "  {prefix}expect.regex timeout=2s match=^\\+STATUS: \\d+$"
                 ),
-                handler=_prompt_handler,
+                handler=_make_expect_handler(True),
                 needs=CapabilitySet(block_until=True),
+                raw_args=True,
             )
         )
 
@@ -407,6 +460,92 @@ class ReplEngine:
         if self._expect_event.is_set():
             return self._expect_matched_line
         return None
+
+    def drain_recent_lines(self) -> list[str]:
+        """Snapshot and clear the recent-lines ring buffer.
+
+        Returns the lines that had been buffered for retroactive
+        wait_for_match() scans.  Callers (e.g. profile-aware request/
+        response in the MCP host) drain before sending so the next
+        wait cycle starts from a clean slate -- stale lines are
+        archived as async events instead of leaking into the next
+        response parse.
+        """
+        snapshot = list(self._recent_lines)
+        self._recent_lines.clear()
+        return snapshot
+
+    def wait_for_lines(
+        self,
+        timeout: float,
+        *,
+        terminator: str = "",
+        idle_gap: float = 0.1,
+    ) -> list[str]:
+        """Collect serial lines until terminator, idle gap, or timeout.
+
+        For multi-line profile responses (``response.format == "lines"``).
+        Lines that arrive after this call starts are accumulated; if
+        ``terminator`` is a non-empty regex, collection stops on the
+        first matching line (the terminator line is NOT included).
+        Otherwise collection stops when no new line arrives for
+        ``idle_gap`` seconds, or when ``timeout`` elapses overall.
+
+        Drains and returns whatever was already in the recent-lines
+        buffer first -- callers that want a clean slate should call
+        ``drain_recent_lines()`` before sending and archive those
+        lines elsewhere (see MCPHost._archive_stale_lines).
+
+        Must be called from a background thread (same constraint as
+        ``wait_for_match``).
+
+        Args:
+            timeout: Hard deadline in seconds.
+            terminator: Optional regex; first matching line ends collection.
+            idle_gap: Seconds without new lines before stopping (when no
+                terminator matches).  Smaller = snappier but riskier on
+                slow devices.  Default 100ms.
+
+        Returns:
+            List of lines collected (excluding the terminator line, if any).
+        """
+        import re as _re
+
+        term_re = None
+        if terminator:
+            try:
+                term_re = _re.compile(terminator)
+            except _re.error:
+                term_re = None
+
+        collected: list[str] = []
+        # Pull anything already buffered; this is the "drain" half.
+        for line in list(self._recent_lines):
+            if term_re is not None and term_re.search(line):
+                self._recent_lines.clear()
+                return collected
+            collected.append(line)
+        self._recent_lines.clear()
+
+        deadline = time.monotonic() + timeout
+        last_arrival = time.monotonic()
+        while time.monotonic() < deadline:
+            new_lines = list(self._recent_lines)
+            if new_lines:
+                self._recent_lines.clear()
+                last_arrival = time.monotonic()
+                for line in new_lines:
+                    if term_re is not None and term_re.search(line):
+                        return collected
+                    collected.append(line)
+            elif collected and (time.monotonic() - last_arrival) >= idle_gap:
+                # Idle: nothing new for idle_gap seconds AND we have content.
+                # No-content idle still waits the full timeout so slow
+                # devices get a chance to start replying.
+                return collected
+            else:
+                time.sleep(0.01)
+        return collected
 
     def feed_lines(self, lines: list[str]) -> None:
         """Feed serial output lines to the expect watcher.
@@ -661,7 +800,12 @@ class ReplEngine:
                         return CmdResult.fail(msg=str(e))
             return self.dispatch(repl_cmd)
 
-        # 4. Serial command - apply transforms, encode, send
+        # 4. Non-prefix line -> rewrite to /term.send <text> and dispatch.
+        #    Goal: every dispatched action has a discoverable slash-command
+        #    name (/help, /search, MCP catalog).  /term.send is the
+        #    literal-bytes primitive; transforms + connect-check live in
+        #    this fallthrough only -- /term.send (called directly) gets
+        #    predictable literal-bytes semantics for LLMs and scripts.
         if self.has_serial_transforms:
             try:
                 cmd = self.transform_serial(cmd)
@@ -680,16 +824,17 @@ class ReplEngine:
             _status("Not connected.", "red")
             return CmdResult.fail(msg="Not connected.")
 
-        line_ending = self.cfg.get("line_ending", "\r")
-        if serial_write:
-            try:
-                serial_write(
-                    (cmd + line_ending).encode(self.cfg.get("encoding", "utf-8"))
-                )
-            except (OSError, Exception) as e:
-                _status(f"Send error: {e}", "red")
-                return CmdResult.fail(msg=f"Send error: {e}")
-        return CmdResult.ok()
+        # Bridge dispatch_full's serial_write callback into ctx for the
+        # handler.  Hosts (CLITerminal, MCPHost) wire both to the same
+        # SerialPort so this is a no-op in production; tests that pass a
+        # mock serial_write to dispatch_full now reach the handler too.
+        saved_serial_write = self.ctx.serial_write
+        if serial_write is not None:
+            self.ctx.serial_write = serial_write
+        try:
+            return self.dispatch(f"term.send {cmd}")
+        finally:
+            self.ctx.serial_write = saved_serial_write
 
     # -- REPL dispatch ---------------------------------------------------------
 

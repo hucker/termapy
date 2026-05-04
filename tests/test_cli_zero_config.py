@@ -17,6 +17,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.slow  # subprocess-spawning zero-config CLI tests
+
 
 def _run_zero_config(
     script_lines: list[str] | None = None,

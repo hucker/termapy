@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import compose, green
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -130,11 +130,13 @@ COMMAND = Command(
     help="Show sequence counters.",
     long_help=_seq_long_help,
     handler=_handler,
+    needs=CapabilitySet(interactive=True),  # script-state primitive
     sub_commands={
         "reset": Command(
             help="Reset all counters to zero.",
             long_help=_seq_state_line,
             handler=_handler_reset,
+            needs=CapabilitySet(interactive=True),
         ),
     },
 )

@@ -15,7 +15,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from termapy.defaults import DEFAULT_CFG
+
+pytestmark = pytest.mark.slow  # subprocess + tempfile config-switching tests
 
 
 def _write_cfg(cfg_dir: Path, name: str, cfg_overrides: dict) -> Path:

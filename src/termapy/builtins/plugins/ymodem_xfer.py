@@ -135,18 +135,19 @@ COMMAND = Command(
     name="ymodem",
     help="YMODEM file transfer (batch, 1K blocks).",
     handler=None,
+    needs=CapabilitySet(interactive=True),  # long-blocking binary protocol
     sub_commands={
         "send": Command(
             args="<file> {file2} ...",
             help="Send file(s) via YMODEM to the device.",
             handler=_handler_send,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet(serial_connected=True, interactive=True),
         ),
         "recv": Command(
             args="{directory}",
             help="Receive file(s) via YMODEM from the device.",
             handler=_handler_recv,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet(serial_connected=True, interactive=True),
         ),
     },
 )

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
 from termapy.folders import FOLDERS
 from termapy.help_dynamic import cfg_status, compose
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -410,6 +410,7 @@ COMMAND = Command(
         "explore": Command(
             help="Open config directory in file explorer.",
             handler=_handler_explore,
+            needs=CapabilitySet(gui_apps=True),
         ),
         "dump": Command(
             help="Print current config as JSON to the terminal.",
@@ -421,6 +422,7 @@ COMMAND = Command(
         "show": Command(
             help="Open the current config file in the system viewer.",
             handler=_handler_show,
+            needs=CapabilitySet(gui_apps=True),
         ),
         "help": Command(
             help="Show /cfg help.",

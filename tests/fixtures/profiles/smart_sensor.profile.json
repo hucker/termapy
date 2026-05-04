@@ -1,0 +1,81 @@
+{
+  "profile_version": 2,
+  "profile_revision": "1.2.1",
+  "profile_date": "2026-05-01",
+
+  "device": {
+    "name": "SmartSensor (NDJSON-native)",
+    "vendor": "Reference",
+    "model": "SS-32",
+    "startup_banner": "\"event\"\\s*:\\s*\"ready\""
+  },
+
+  "transport": {
+    "protocol": "ndjson",
+    "baud_rate": 115200,
+    "byte_size": 8,
+    "parity": "N",
+    "stop_bits": 1,
+    "flow_control": "none",
+    "line_ending_send": "\n",
+    "line_ending_recv": "\n",
+    "encoding": "utf-8",
+    "echo": false,
+    "inter_command_delay_ms": 5,
+    "default_response_timeout_ms": 500,
+    "field_routing": {
+      "response_id": "id",
+      "error_field": "error",
+      "event_field": "event"
+    }
+  },
+
+  "error_detection": {
+    "pattern": "\"error\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
+    "async": true,
+    "types": {"message": "str"}
+  },
+
+  "commands": {
+    "get_temp": {
+      "help": "Read temperature in Celsius.",
+      "safety": "readonly",
+      "response": {"format": "json", "timeout_ms": 200}
+    },
+    "get_status": {
+      "help": "Return full device status snapshot (JSON).",
+      "safety": "readonly",
+      "response": {"format": "json", "timeout_ms": 500}
+    },
+    "set_threshold": {
+      "help": "Set the high-temperature alarm threshold.",
+      "typed_args": [
+        {"name": "celsius", "type": "float", "required": true,
+         "help": "Threshold in degrees Celsius.", "min": -40.0, "max": 125.0}
+      ],
+      "safety": "destructive",
+      "rate_limit_hz": 10,
+      "response": {"format": "json", "timeout_ms": 500}
+    },
+    "set_mode": {
+      "help": "Switch operating mode.",
+      "typed_args": [
+        {"name": "mode", "type": "str", "required": true,
+         "help": "Operating mode.",
+         "enum": ["idle", "active", "sleep", "diagnostic"]}
+      ],
+      "safety": "destructive",
+      "response": {"format": "json", "timeout_ms": 500}
+    },
+    "calibrate": {
+      "help": "Begin in-place calibration.  Async events report progress.",
+      "safety": "destructive",
+      "response": {"format": "json", "timeout_ms": 1000}
+    },
+    "reset": {
+      "help": "Soft reset.  Banner re-emits after.",
+      "safety": "destructive",
+      "response": {"format": "none", "timeout_ms": 0}
+    }
+  }
+}

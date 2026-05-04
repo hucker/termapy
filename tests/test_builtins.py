@@ -57,6 +57,8 @@ def repl_env(tmp_path):
             status_bar=True,
             screen_capture=True,
             serial_connected=True,
+            interactive=True,
+            gui_apps=True,
         ),
         # Wire ctx.dispatch so handlers that forward to other commands
         # (legacy aliases like /echo -> /term.echo) actually reach the
@@ -263,6 +265,90 @@ class TestHelp:
         assert any("DESCRIPTION" in t for t in texts), "DESCRIPTION section"
         assert any("Line one." in t for t in texts), "long_help line 1 present"
         assert any("Line two." in t for t in texts), "long_help line 2 present"
+
+    def test_help_mcp_flag_drops_interactive_only_commands(self, repl_env):
+        """``/help --mcp`` filters the landscape via ENVIRONMENTS["MCP"].
+
+        Commands that need interactive/gui_apps drop because MCP
+        advertises neither.
+        """
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        result = engine.dispatch("help --mcp")
+
+        # Assert
+        assert result.success, "/help --mcp succeeds"
+        texts = [_plain(t) for t, _ in output]
+        joined = "\n".join(texts)
+        # /grep needs interactive; must NOT appear under --mcp.
+        assert "/grep " not in joined and "/grep[" not in joined, (
+            "/grep needs interactive and should be filtered out"
+        )
+        # /help itself has no restrictive needs; must still appear.
+        assert "/help" in joined, "/help has no needs and should remain"
+
+    def test_help_mcp_flag_emits_filter_header(self, repl_env):
+        """The header makes the filter mode unmistakable."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help --mcp")
+
+        # Assert
+        texts = [_plain(t) for t, _ in output]
+        assert any("MCP-visible only" in t for t in texts), (
+            "filter banner identifies the mode"
+        )
+
+    def test_help_without_mcp_flag_keeps_invisible_commands(self, repl_env):
+        """Without ``--mcp`` the landscape is unfiltered: /grep still shows."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help")
+
+        # Assert
+        texts = [_plain(t) for t, _ in output]
+        joined = "\n".join(texts)
+        assert "/grep" in joined, "plain /help still includes /grep"
+
+    def test_help_man_page_renders_available_matrix(self, repl_env):
+        """``/help <cmd>`` shows AVAILABLE row with TUI/CLI/MCP cells."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        engine.dispatch("help help")
+
+        # Assert
+        texts = [_plain(t) for t, _ in output]
+        assert any("AVAILABLE" in t for t in texts), "AVAILABLE section emitted"
+        assert any("TUI:" in t for t in texts), "TUI cell present"
+        assert any("CLI:" in t for t in texts), "CLI cell present"
+        assert any("MCP:" in t for t in texts), "MCP cell present"
+
+    def test_help_available_matrix_marks_interactive_commands(self, repl_env):
+        """A command needing interactive shows MCP: no with reason."""
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act -- /grep needs interactive
+        engine.dispatch("help grep")
+
+        # Assert
+        texts = [_plain(t) for t, _ in output]
+        joined = "\n".join(texts)
+        assert "MCP: no" in joined, (
+            "/grep needs interactive; MCP cell should be 'no'"
+        )
+        assert "does not provide: interactive" in joined, (
+            "the explanation should name the missing capability and "
+            "phrase it from the environment's perspective"
+        )
 
     def test_help_zero_matches_fails_with_search_hint(self, repl_env):
         """/help <term> with no name+help hits hard-fails and points at /search."""

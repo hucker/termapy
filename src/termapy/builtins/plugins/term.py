@@ -49,6 +49,40 @@ def _handler_echo(ctx: PluginContext, args: str) -> CmdResult:
     return _flag_toggle(ctx, args, "echo")
 
 
+def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
+    """Send literal text to the serial port (with line ending + encoding).
+
+    The slash-command equivalent of typing a bare line in the terminal.
+    The dispatcher's fallthrough branch (in ``repl.py``) rewrites bare
+    user input to ``/term.send <text>`` so every action has a slash-
+    command name -- helps LLMs (the catalog now contains the device-
+    send primitive), helps logging (every dispatched action has a
+    discoverable name), helps ``/help``/``/search`` discoverability.
+
+    **Literal send.**  No template/var expansion, no echo.  Transforms
+    happen upstream (in the fallthrough branch) so the user-typed
+    bare line gets full template+var expansion BEFORE the redispatch.
+    Direct calls (e.g. an LLM via MCP, a script) get literal-bytes
+    semantics on purpose -- predictable, no surprises.
+
+    For literal raw bytes WITHOUT a line ending, use ``/raw`` instead.
+    """
+    if not args:
+        return CmdResult.fail(msg="Usage: /term.send <text>")
+    if not ctx.is_connected():
+        return CmdResult.fail(msg="Not connected.")
+    encoding = ctx.cfg.get("encoding", "utf-8")
+    line_ending = ctx.cfg.get("line_ending", "\r")
+    try:
+        ctx.serial_write((args + line_ending).encode(encoding))
+    # Plugin handlers can be called from many hosts; OSError covers
+    # the file-descriptor / IO classes and pyserial.SerialException
+    # is a subclass of Exception. Match dispatch_full's legacy catch.
+    except (OSError, Exception) as e:  # noqa: BLE001  -- boundary catch
+        return CmdResult.fail(msg=f"Send error: {e}")
+    return CmdResult.ok()
+
+
 def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set the global output level.
 
@@ -308,6 +342,27 @@ COMMAND = Command(
             help="Toggle echoing of sent commands in terminal output.",
             handler=_handler_echo,
         ),
+        "send": Command(
+            args="<text>",
+            help="Send literal text to the serial port (with line ending).",
+            long_help=(
+                "The slash-command equivalent of typing a bare line in the\n"
+                "terminal.  The dispatcher's fallthrough branch rewrites\n"
+                "bare user input to {prefix}term.send <text> so every\n"
+                "action has a discoverable command name -- helps LLMs,\n"
+                "logging, and {prefix}help / {prefix}search.\n"
+                "\n"
+                "Literal send: no template/var expansion, no echo.  When\n"
+                "the user types a bare line, the dispatcher applies\n"
+                "transforms BEFORE rewriting to {prefix}term.send, so the\n"
+                "user-facing behavior is unchanged.  Direct callers (LLMs,\n"
+                "scripts) get predictable literal-bytes semantics.\n"
+                "\n"
+                "For raw bytes WITHOUT a line ending, use {prefix}raw."
+            ),
+            handler=_handler_send,
+            raw_args=True,
+        ),
         "line_no": Command(
             args="{on|off}",
             help="Toggle line numbers in serial output (TUI only).",
@@ -341,6 +396,7 @@ COMMAND = Command(
             help="Legacy alias for /term.output (verbose|normal).",
             handler=_handler_verbose_legacy,
             hidden=True,
+            needs=CapabilitySet(interactive=True),  # legacy alias
         ),
         "timestamps": Command(
             args="{on|off}",

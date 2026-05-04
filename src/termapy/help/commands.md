@@ -60,6 +60,20 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/show.cfg`               | Show the current config file                                                |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
+| `/term.send <text>`       | Send literal text to the serial port (with line ending; canonical name for the bare-line send) |
+| `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
+| `/mcp.info`               | Show MCP-mode status (catalog size, port, profile, captures)                |
+| `/profile.load <path>`    | Load a device profile and set the active_profile namespace                  |
+| `/profile.info`           | Show metadata of the active profile                                         |
+| `/profile.validate <path>`| Validate an MCP device profile against the schema                           |
+| `/expect {timeout} match=<text>`       | Wait for serial-output line containing text (blocks; needs block_until) |
+| `/expect.regex {timeout} match=<pat>`  | Wait for serial-output line matching regex                              |
+
+## Reserved port names
+
+- `DEMO` — text-protocol simulator (Bassomatic v77; AT commands, Modbus RTU, file transfer)
+- `DEMO_JSON` — NDJSON simulator (modern path; matches `demo_ndjson.profile.json`)
+- `DEMO_FAIL` — opens raise OSError (test hook for the failure path)
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |
 | `/term.echo [on\|off]`    | Toggle command echo                                                         |
 | `/term.line_no [on\|off]` | Toggle line numbers in serial output (TUI only)                             |

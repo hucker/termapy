@@ -41,7 +41,7 @@ from termapy.app_dirs import (
     load_app_config,
     load_app_state,
 )
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -202,6 +202,7 @@ COMMAND = Command(
         "explore": Command(
             help="Open the app folder in the file manager.",
             handler=_handler_explore,
+            needs=CapabilitySet(gui_apps=True),
         ),
         "state": Command(
             help="Print state.json path.",
@@ -219,6 +220,7 @@ COMMAND = Command(
                 "edit": Command(
                     help="Open state.json in the system editor.",
                     handler=_handler_state_edit,
+                    needs=CapabilitySet(gui_apps=True),
                 ),
             },
         ),
@@ -238,6 +240,7 @@ COMMAND = Command(
                 "edit": Command(
                     help="Open config.json in the system editor.",
                     handler=_handler_config_edit,
+                    needs=CapabilitySet(gui_apps=True),
                 ),
             },
         ),

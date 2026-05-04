@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import open_with_system
 from termapy.folders import FOLDERS, FolderSpec
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -204,12 +204,14 @@ def build_folder_subcommands(folder: str) -> dict[str, Command]:
         "explore": Command(
             help=f"Open {folder}/ in the system file explorer.",
             handler=_make_explore_handler(folder),
+            needs=CapabilitySet(gui_apps=True),
         ),
     }
     if spec.showable:
         subs["show"] = Command(
             help=f"Open the newest file in {folder}/ with the system viewer.",
             handler=_make_show_handler(folder, pattern),
+            needs=CapabilitySet(gui_apps=True),
         )
     if spec.dumpable:
         subs["dump"] = Command(

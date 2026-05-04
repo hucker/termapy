@@ -24,7 +24,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from termapy.defaults import DEFAULT_CFG
+
+pytestmark = pytest.mark.slow  # subprocess-spawning CLI prefix-substitution tests
 
 
 def _run_cli(

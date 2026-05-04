@@ -1004,12 +1004,15 @@ class SerialTerminal(TerminalHost, App):
         # TUI environment capabilities.  See CapabilitySet for the full
         # vocabulary.  block_until is NOT set here -- it's provided
         # dynamically by the script runner (see _effective_capabilities).
+        from termapy.plugins import detect_gui_apps
         ctx.capabilities = CapabilitySet(
             confirm_dialog=True,
             ui_notify=True,
             status_bar=True,
             screen_capture=True,
             tui_mode=True,
+            interactive=True,
+            gui_apps=detect_gui_apps(),
         )
 
         self.repl.set_context(ctx)
@@ -1110,6 +1113,7 @@ class SerialTerminal(TerminalHost, App):
             "Open the newest .prof file in system viewer.",
             self._hook_run_profile_show,
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl.register_hook(
             "run.profile.explore",
@@ -1117,6 +1121,7 @@ class SerialTerminal(TerminalHost, App):
             "Open config directory in file explorer.",
             self._hook_run_profile_explore,
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl.register_hook(
             "run.profile.cmd",
@@ -1165,6 +1170,7 @@ class SerialTerminal(TerminalHost, App):
             "Switch to the built-in demo device.",
             lambda ctx, args: self._start_demo(args),
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "demo.force",
@@ -1172,6 +1178,7 @@ class SerialTerminal(TerminalHost, App):
             "Switch to demo device, overwriting existing config.",
             lambda ctx, args: self._start_demo("--force"),
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "cli",
@@ -1179,6 +1186,7 @@ class SerialTerminal(TerminalHost, App):
             "Switch to CLI mode.",
             lambda ctx, args: self._switch_to_cli(),
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "tui",
@@ -1186,6 +1194,7 @@ class SerialTerminal(TerminalHost, App):
             "Already in TUI mode.",
             lambda ctx, args: CmdResult.ok(),
             source="app",
+            needs=CapabilitySet(interactive=True),
         )
         self.repl.register_hook(
             "term.line_no",
@@ -1204,6 +1213,7 @@ class SerialTerminal(TerminalHost, App):
             "Edit a project file (scripts/proto path).",
             self._hook_edit,
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl.register_hook(
             "edit.cfg",
@@ -1211,6 +1221,7 @@ class SerialTerminal(TerminalHost, App):
             "Edit the current config file.",
             lambda ctx, args: self._hook_edit_cfg(),
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl.register_hook(
             "log.delete",
@@ -1242,6 +1253,7 @@ class SerialTerminal(TerminalHost, App):
             log_show.HANDLER,
             source="app",
             long_help=log_show.LONG_HELP,
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl.register_hook(
             "log.dump",
@@ -1267,6 +1279,7 @@ class SerialTerminal(TerminalHost, App):
             "Open the session log in the system viewer.",
             make_forwarder("edit.log", "log.show"),
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
         self.repl._plugins["edit.log"].hidden = True
         self.repl.register_hook(
@@ -1275,6 +1288,7 @@ class SerialTerminal(TerminalHost, App):
             "Open the info report in the system viewer.",
             lambda ctx, args: self._hook_edit_info(),
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
         # Re-register folder subcommands (wiped by /edit override)
         from termapy.builtins.plugins.edit import (
@@ -1306,6 +1320,7 @@ class SerialTerminal(TerminalHost, App):
                         args: self._hook_edit_folder(ctx, args, f, e)
                     )(),
                     source="app",
+                    needs=CapabilitySet(gui_apps=True),
                 )
             else:
                 self.repl.register_hook(
@@ -1314,7 +1329,10 @@ class SerialTerminal(TerminalHost, App):
                     f"Open a {ext} file in the system editor.",
                     _make_edit_handler(get_dir, ext, pat),
                     source="app",
+                    needs=CapabilitySet(gui_apps=True),
                 )
+            # /edit.<folder>.list is the only branch where listing is useful
+            # to the LLM -- it's a discovery tool, not an editor invocation.
             self.repl.register_hook(
                 f"edit.{folder}.list",
                 "",
@@ -1328,6 +1346,7 @@ class SerialTerminal(TerminalHost, App):
                 f"Open {folder}/ in file explorer.",
                 _make_explore_handler(get_dir),
                 source="app",
+                needs=CapabilitySet(gui_apps=True),
             )
         self.repl.register_hook(
             "cfg.load",
@@ -1363,6 +1382,7 @@ class SerialTerminal(TerminalHost, App):
             "Open help file in system viewer.",
             self._hook_help_open,
             source="app",
+            needs=CapabilitySet(gui_apps=True),
         )
 
     def _load_plugins(self) -> None:

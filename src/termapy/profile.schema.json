@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://termapy.org/profile.schema.json",
+  "title": "Termapy Device Profile",
+  "description": "Declarative description of a serial device for the termapy MCP bridge. Profiles describe the four supported response patterns plus transport noise handling. Behavior beyond pattern matching belongs in scripts, not profiles.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "profile_version": {
+      "description": "Schema version. 2 = v2 (top-level transport/device/error_detection blocks). Absent = treat as v1 (commands-only, backward compatible).",
+      "type": "integer",
+      "enum": [1, 2]
+    },
+    "profile_revision": {
+      "description": "Per-profile semver revision (e.g. \"1.4.0\"). Used in precedence comparisons against device-fetched manifests. Absent = treat as 0.0.0.",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+    },
+    "profile_date": {
+      "description": "ISO 8601 date the profile was authored/edited. Tiebreaker when revisions are equal. Absent = treat as epoch.",
+      "type": "string",
+      "format": "date"
+    },
+    "version": {
+      "description": "Legacy v1 commands-dict version field. Ignored by v2 readers; kept for backward compat round-trip.",
+      "type": "string"
+    },
+    "device": {
+      "description": "Device-level metadata.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "vendor": {"type": "string"},
+        "model": {"type": "string"},
+        "startup_banner": {
+          "description": "Regex matching the device's banner after connect or reset. Bridge logs match/non-match; never blocks.",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Trailing prompt string (e.g. \">\", \"# \"). Used as default response terminator when set. Empty = no prompt.",
+          "type": "string"
+        }
+      }
+    },
+    "transport": {
+      "description": "Wire-level rules: serial parameters, framing, noise handling. Applied to the live session when the profile loads in MCP mode.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol": {
+          "description": "Wire format. ndjson = JSON object per line. text = templated text in/out.",
+          "type": "string",
+          "enum": ["text", "ndjson"],
+          "default": "text"
+        },
+        "baud_rate": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 4000000
+        },
+        "byte_size": {
+          "type": "integer",
+          "enum": [5, 6, 7, 8]
+        },
+        "parity": {
+          "type": "string",
+          "enum": ["N", "E", "O", "M", "S"]
+        },
+        "stop_bits": {
+          "type": "number",
+          "enum": [1, 1.5, 2]
+        },
+        "flow_control": {
+          "type": "string",
+          "enum": ["none", "rtscts", "xonxoff", "manual"]
+        },
+        "line_ending_send": {
+          "description": "Line ending appended to outbound text commands. Common values: \"\\n\", \"\\r\\n\", \"\\r\".",
+          "type": "string"
+        },
+        "line_ending_recv": {
+          "description": "Line ending used to split inbound text. Default: \"\\n\".",
+          "type": "string"
+        },
+        "encoding": {
+          "description": "Byte-decoding encoding (utf-8, latin-1, ascii, ...).",
+          "type": "string"
+        },
+        "echo": {
+          "description": "True if device echoes inbound bytes; bridge strips the echoed line from response.",
+          "type": "boolean"
+        },
+        "inter_command_delay_ms": {
+          "description": "Minimum gap between consecutive serial sends, regardless of source. Bridge enforces.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "default_response_timeout_ms": {
+          "description": "Fallback timeout for commands without explicit response.timeout_ms.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "field_routing": {
+          "description": "NDJSON-only: which JSON fields the bridge uses to auto-route inbound messages. Defaults: response_id=id, error_field=error, event_field=event. Override only if device uses different conventions.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "response_id": {"type": "string"},
+            "error_field": {"type": "string"},
+            "event_field": {"type": "string"}
+          }
+        }
+      }
+    },
+    "error_detection": {
+      "description": "Global error pattern. Applied to every response after per-command parsing. Async-flagged matches without an in-flight command route to device_state.async_errors.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "description": "Regex matching the error indicator in device output. Named groups recommended (e.g. (?P<code>\\d+)).",
+          "type": "string"
+        },
+        "async": {
+          "description": "True if errors can arrive unsolicited between commands.",
+          "type": "boolean"
+        },
+        "codes": {
+          "description": "Map of error code (string) to human-readable meaning. Used for context in error messages.",
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "types": {
+          "description": "Type coercion for named regex groups. Same vocabulary as response.types.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["int", "float", "bool", "hex", "str"]
+          }
+        }
+      }
+    },
+    "commands": {
+      "description": "Command catalog. Keys are command names as the device expects them.",
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/command"}
+    }
+  },
+  "$defs": {
+    "command": {
+      "description": "A single device command. Only `help` is required; everything else is optional. v1 manifests with just help/args/long_help/flags continue to work.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["help"],
+      "properties": {
+        "help": {
+          "description": "One-line description.",
+          "type": "string"
+        },
+        "args": {
+          "description": "Argument spec for help display (legacy v1 shape).",
+          "type": "string"
+        },
+        "long_help": {
+          "description": "Extended prose shown by /help <cmd>.",
+          "type": "string"
+        },
+        "flags": {
+          "description": "Map of flag name to description (v1 shape).",
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "typed_args": {
+          "description": "v2: structured argument schemas for codegen and validation.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/typed_arg"}
+        },
+        "send_template": {
+          "description": "v2: how to format the outbound bytes. Python-format style with named placeholders, e.g. \"AT+VOLT={mv}\". Empty = use the command name verbatim. For NDJSON protocol, the bridge serializes args as a JSON object instead.",
+          "type": "string"
+        },
+        "enabled": {
+          "description": "v2: gate flag.  False = command is in the profile but hidden from the MCP catalog and not dispatched by the request/response executor (bare invocation falls through to /term.send literal write).  Default true: existing curated profiles and device-self-published manifests work unchanged.  The --profile-from-help generator emits enabled=false per entry so human-imported legacy help dumps require explicit per-command audit before exposure.",
+          "type": "boolean",
+          "default": true
+        },
+        "response": {"$ref": "#/$defs/response"},
+        "safety": {
+          "description": "v2: safety tier. readonly = pure observation; safe = default, no enduring effect; mutable = changes device state but reversible (LED toggle, set baud); destructive = irreversible / data-loss (factory reset, flash erase, file delete). Only destructive triggers the MCP confirmation gate; other tiers are documentation-only metadata.",
+          "type": "string",
+          "enum": ["safe", "readonly", "mutable", "destructive"],
+          "default": "safe"
+        },
+        "rate_limit_hz": {
+          "description": "v2: bridge-enforced rate limit. 0 = no limit.",
+          "type": "number",
+          "minimum": 0
+        },
+        "timeout_ms": {
+          "description": "v2: per-command timeout override (separate from response.timeout_ms which is the wait-for-response window). 0 = use config default.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "subcommands": {
+          "description": "v2: nested commands (e.g. /port.connect under /port).",
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/command"}
+        }
+      }
+    },
+    "typed_arg": {
+      "description": "A single argument descriptor. Matches the shape of a function parameter for codegen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": {"type": "string"},
+        "type": {
+          "type": "string",
+          "enum": ["int", "float", "bool", "hex", "str"]
+        },
+        "required": {"type": "boolean"},
+        "default": {},
+        "help": {"type": "string"},
+        "min": {"type": "number"},
+        "max": {"type": "number"},
+        "enum": {
+          "description": "Allowed values for str-typed args.",
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "response": {
+      "description": "How to interpret the device's response. The four patterns + none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format"],
+      "properties": {
+        "format": {
+          "description": "Response shape. none=fire-and-forget. literal=must equal pattern. lines=collect until terminator. regex=match pattern (named groups become typed dict). json=parse as JSON.",
+          "type": "string",
+          "enum": ["none", "literal", "lines", "regex", "json"]
+        },
+        "pattern": {
+          "description": "Regex (for format=regex/lines line-filter) or literal string (for format=literal).",
+          "type": "string"
+        },
+        "terminator": {
+          "description": "For format=lines: regex matching the line that ends collection (e.g. \"^OK$\"). Overrides transport.prompt for this command.",
+          "type": "string"
+        },
+        "line_pattern": {
+          "description": "For format=lines: optional regex with named groups applied to each line, producing a list of dicts.",
+          "type": "string"
+        },
+        "line_types": {
+          "description": "Type coercion for line_pattern named groups.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["int", "float", "bool", "hex", "str"]
+          }
+        },
+        "types": {
+          "description": "For format=regex: type coercion for named groups in pattern.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["int", "float", "bool", "hex", "str"]
+          }
+        },
+        "timeout_ms": {
+          "description": "Wait-for-response window (overrides transport.default_response_timeout_ms).",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

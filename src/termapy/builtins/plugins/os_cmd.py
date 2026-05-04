@@ -8,7 +8,7 @@ from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -60,4 +60,5 @@ Examples:
   /os python --version   - check Python version
   /os ping -c 1 host     - network test""",
     handler=_handler,
+    needs=CapabilitySet(interactive=True),  # shell exec; interactive only
 )

@@ -252,6 +252,7 @@ def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedPro
     )
 
 
+@pytest.mark.slow
 class TestCrcFindCli:
     """End-to-end through the CLI dispatch."""
 

@@ -21,7 +21,6 @@ __pycache__/
 termapy_cfg/
 junk/
 .coverage
-CLAUDE.md
 *.log
 .cmd_history.txt
 coverage.xml

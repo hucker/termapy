@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.legacy import LEGACY_COMMANDS, register_legacy_rewrite
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.scripting import parse_bool
 
 if TYPE_CHECKING:
@@ -98,4 +98,5 @@ COMMAND = Command(
     help="Legacy alias for /term.output (silent/quiet/normal/verbose).",
     handler=_handler_verbose,
     hidden=True,
+    needs=CapabilitySet(interactive=True),  # legacy alias for human typing
 )

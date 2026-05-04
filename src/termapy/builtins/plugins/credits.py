@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -48,4 +48,5 @@ COMMAND = Command(
         "The canonical source file is ``src/termapy/help/acknowledgments.md``."
     ),
     handler=_handler,
+    needs=CapabilitySet(interactive=True),  # display-only; for human reading
 )

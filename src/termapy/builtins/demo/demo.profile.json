@@ -1,0 +1,98 @@
+{
+  "profile_version": 2,
+  "profile_revision": "1.0.0",
+  "profile_date": "2026-05-02",
+
+  "device": {
+    "name": "Bassomatic v77 (text simulator)",
+    "vendor": "termapy",
+    "model": "DEMO"
+  },
+
+  "transport": {
+    "protocol": "text",
+    "baud_rate": 115200,
+    "byte_size": 8,
+    "parity": "N",
+    "stop_bits": 1,
+    "flow_control": "none",
+    "line_ending_send": "\r\n",
+    "line_ending_recv": "\r\n",
+    "encoding": "utf-8",
+    "echo": false,
+    "inter_command_delay_ms": 0,
+    "default_response_timeout_ms": 500
+  },
+
+  "error_detection": {
+    "pattern": "^ERROR(?::\\s*(?P<message>.+))?$",
+    "async": false,
+    "types": {"message": "str"}
+  },
+
+  "commands": {
+    "AT": {
+      "help": "Connectivity test (returns OK).",
+      "safety": "readonly",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    },
+    "AT+PROD-ID": {
+      "help": "Product identifier.",
+      "safety": "readonly",
+      "response": {"format": "regex", "pattern": "(?P<id>.+)", "timeout_ms": 200}
+    },
+    "AT+INFO": {
+      "help": "Multi-line device info dump.",
+      "safety": "readonly",
+      "response": {
+        "format": "lines",
+        "terminator": "^OK$",
+        "timeout_ms": 500
+      }
+    },
+    "AT+TEMP": {
+      "help": "Read current temperature in Celsius.",
+      "safety": "readonly",
+      "response": {
+        "format": "regex",
+        "pattern": "(?P<celsius>-?\\d+\\.\\d+)C",
+        "types": {"celsius": "float"},
+        "timeout_ms": 200
+      }
+    },
+    "AT+RAMP": {
+      "help": "Read next sample of a saw-wave generator.",
+      "safety": "readonly",
+      "response": {
+        "format": "regex",
+        "pattern": "(?P<value>\\d+)",
+        "types": {"value": "int"},
+        "timeout_ms": 200
+      }
+    },
+    "AT+STATUS": {
+      "help": "Multi-line device status (LED, uptime, baud, ...).",
+      "safety": "readonly",
+      "response": {
+        "format": "lines",
+        "terminator": "^OK$",
+        "timeout_ms": 500
+      }
+    },
+    "AT+RESET": {
+      "help": "Soft reset.  Returns BOOT banner; loses session state.",
+      "safety": "destructive",
+      "response": {"format": "lines", "terminator": "^OK$", "timeout_ms": 1000}
+    },
+    "AT+LED": {
+      "help": "Set LED state.",
+      "send_template": "AT+LED={state}",
+      "typed_args": [
+        {"name": "state", "type": "str", "required": true,
+         "help": "LED state.", "enum": ["on", "off"]}
+      ],
+      "safety": "mutable",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    }
+  }
+}

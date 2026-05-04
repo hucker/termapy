@@ -110,6 +110,8 @@ demo> /cfg.dump
     "config_read_only": false,
     "os_cmd_enabled": false,
     "device_json_cmd": "AT+HELP.JSON",
+    "auto_include_on_connect": true,
+    "profile_path": "",
     "port": "DEMO",
     "baud_rate": 115200,
     "custom_baud": false,
@@ -281,6 +283,9 @@ DESCRIPTION
   USB chip identification (/port.chip.*), and the four mode
   settings baud_rate, byte_size, parity, stop_bits.
 
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
+
 SUBCOMMANDS
   /port.baud_rate       Show or set baud rate.
   /port.break           Send a break signal (default 250ms).
@@ -362,6 +367,10 @@ NAME
 
 SYNOPSIS
   /echo {on|off}
+
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: no
+  (MCP does not provide: interactive)
 demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -376,6 +385,9 @@ DESCRIPTION
   port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),
   USB chip identification (/port.chip.*), and the four mode
   settings baud_rate, byte_size, parity, stop_bits.
+
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
 
 SUBCOMMANDS
   /port.baud_rate       Show or set baud rate.
@@ -419,6 +431,9 @@ DESCRIPTION
   Use /cfg.dump to print every key/value pair as JSON.
   Use /cfg.auto to set values without confirmation (for scripts).
 
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
+
 SUBCOMMANDS
   /cfg.auto       Set immediately (no confirmation).
   /cfg.dump       Print current config as JSON to the terminal.
@@ -440,6 +455,9 @@ DESCRIPTION
   Every algorithm is verified against its catalogue check
   value (the CRC of the ASCII string '123456789') on every
   test run.  See /credits for full attribution.
+
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
 
 SUBCOMMANDS
   /proto.crc.c         Generate C source code for a CRC algorithm.
@@ -523,6 +541,9 @@ DESCRIPTION
   or the Run menu, but NOT when /run is typed interactively.
   Use /var.clear to reset manually.
 
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
+
 SUBCOMMANDS
   /var.capture    Capture command output into a user variable.
   /var.clear      Clear all user variables.
@@ -534,6 +555,9 @@ NAME
 
 DESCRIPTION
   0 files in cap/
+
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
 
 SUBCOMMANDS
   /cap.bin        Capture raw binary bytes.
@@ -553,6 +577,9 @@ NAME
 
 DESCRIPTION
   0 screenshots in ss/
+
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
 
 SUBCOMMANDS
   /ss.clear      Delete all files in ss/.
@@ -594,6 +621,9 @@ DESCRIPTION
   or flat format with send:/expect: directives. Scripts are found
   in the proto/ subfolder of your config directory.
 
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
+
 SUBCOMMANDS
   /proto.crc        Browse and compute CRC algorithms.
   /proto.debug      Interactive protocol debug screen.
@@ -610,6 +640,9 @@ demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump.
 
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
+
 SUBCOMMANDS
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
   /plugin.explore    Open plugin/ in the system file explorer.
@@ -621,6 +654,9 @@ NAME
 
 SYNOPSIS
   /run {filename}
+
+AVAILABLE
+  TUI: yes   CLI: yes   MCP: yes
 
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
@@ -668,11 +704,13 @@ demo> /help.plugin
   /grep       Search the scrollback for lines matching a pattern (case-insensitive regex).
   /help       Show the command landscape or look up a specific command.
   /include    Include device command help from JSON response.
+  /mcp        MCP catalog and status (Model Context Protocol).
   /os         Run a shell command and show output (10s timeout). e.g. /os dir
   /ping       Send a command and measure response time.
   /plugin     Plugin-folder tools: list, explore, show, dump.
   /port       Serial port tools: connect, disconnect, list, configure.
   /print      Print a message to the terminal.
+  /profile    Device profile commands (MCP profile schema, validator, loader).
   /proto      Binary protocol tools: send, run, debug, hex, crc, status.
   /repeat     Repeat a command N times with optional delay (escape to cancel).
   /search     Deep-search every command's metadata (name, help, args, flags, long help).
@@ -689,8 +727,8 @@ demo> /help.plugin
 
 -- Script Commands (.run files only) --
   /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
-  /expect     Wait for text in serial output (script-only).
-  39 commands.
+  /expect     Wait for text in serial output (blocks until match or timeout).
+  41 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

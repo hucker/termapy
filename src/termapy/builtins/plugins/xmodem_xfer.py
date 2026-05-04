@@ -207,18 +207,19 @@ COMMAND = Command(
     name="xmodem",
     help="XMODEM file transfer.",
     handler=None,
+    needs=CapabilitySet(interactive=True),  # long-blocking binary protocol
     sub_commands={
         "send": Command(
             args="<file>",
             help="Send a file via XMODEM to the device.",
             handler=_handler_send,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet(serial_connected=True, interactive=True),
         ),
         "recv": Command(
             args="<file>",
             help="Receive a file via XMODEM from the device.",
             handler=_handler_recv,
-            needs=CapabilitySet(serial_connected=True),
+            needs=CapabilitySet(serial_connected=True, interactive=True),
         ),
     },
 )

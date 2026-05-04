@@ -877,6 +877,17 @@ def synthetic_facts_for_reserved(name: str) -> ChipFacts | None:
             in_use="no",
             permissions="ok",
         )
+    if name == "DEMO_JSON":
+        return ChipFacts(
+            device="DEMO_JSON",
+            description="Termapy simulated NDJSON device (modern path)",
+            manufacturer="termapy",
+            model="DEMO_JSON",
+            usb_speed="virtual (not a USB device)",
+            vid_pid="not a USB device",
+            in_use="no",
+            permissions="ok",
+        )
     return None
 
 
@@ -910,7 +921,7 @@ class AmbiguousSerialNumberError(Exception):
 
 
 #: Reserved port names that bypass enumeration.
-_RESERVED_PORTS = frozenset({"DEMO", "DEMO_FAIL"})
+_RESERVED_PORTS = frozenset({"DEMO", "DEMO_FAIL", "DEMO_JSON"})
 
 #: Match-reason strings returned by ``resolve_port_trace``.
 MATCH_LITERAL = "literal"

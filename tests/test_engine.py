@@ -679,7 +679,12 @@ class TestDispatchFull:
         assert any("Not connected" in t for t, _ in statuses), "error shown"
 
     def test_serial_write_error(self, dispatch_env):
-        # Arrange
+        # Arrange — bare-line input goes through /term.send via dispatch_full
+        # fallthrough.  dispatch_full bridges its serial_write callback to
+        # ctx.serial_write for the duration of the call, so passing a bad
+        # serial_write here exercises the handler's error path.  The error
+        # comes back via CmdResult.fail and dispatch displays it through
+        # the engine's write callback (output), not the _status callback.
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
 
         def bad_write(data):
@@ -694,7 +699,9 @@ class TestDispatchFull:
         )
 
         # Assert
-        assert any("Send error" in t for t, _ in statuses), "error reported"
+        assert any(
+            "Send error" in t for t, _ in output
+        ), "error reported via engine's write callback"
 
     def test_echo_input_config(self, dispatch_env):
         # Arrange

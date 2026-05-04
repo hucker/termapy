@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.plugins import (
+    ENVIRONMENTS,
     CapabilitySet,
     CmdResult,
     Command,
@@ -316,6 +317,39 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
         for cap_name, hint in required:
             ctx.write_markup(f"  [{_OPT}]{cap_name}[/] - [{_SEP}]{hint}[/]")
 
+    # AVAILABLE ───────────────────────────────────────────────────────────────
+    # Symmetric "where does this run" matrix across all known environments.
+    # Derived from comparing plugin.needs against ENVIRONMENTS -- single
+    # source of truth, no per-host special casing.  Future hosts get a
+    # column for free by adding an entry to ENVIRONMENTS in plugins.py.
+    ctx.write_markup("")
+    ctx.write_markup(_SECTION_FMT.format(text="AVAILABLE"))
+    cells: list[str] = []
+    missing_by_env: dict[str, list[str]] = {}
+    for env_name, env_caps in ENVIRONMENTS.items():
+        missing = plugin.needs.missing_from(env_caps)
+        if missing:
+            cells.append(f"[{_REQ}]{env_name}: no[/]")
+            missing_by_env[env_name] = missing
+        else:
+            cells.append(f"[{_OPT}]{env_name}: yes[/]")
+    ctx.write_markup("  " + "   ".join(cells))
+    if missing_by_env:
+        # Group identical missing-capability sets so the explanation stays compact.
+        # ``frozenset`` keys de-duplicate envs with the same gate.
+        groups: dict[frozenset[str], list[str]] = {}
+        for env_name, missing in missing_by_env.items():
+            groups.setdefault(frozenset(missing), []).append(env_name)
+        notes: list[str] = []
+        for missing_set, env_names in groups.items():
+            envs = "/".join(env_names)
+            caps = ", ".join(sorted(missing_set))
+            # Phrasing: the COMMAND requires the capability; the
+            # environment doesn't supply it.  "MCP does not provide:
+            # gui_apps" reads correctly either way.
+            notes.append(f"{envs} does not provide: {caps}")
+        ctx.write_markup(f"  [{_SEP}]({'; '.join(notes)})[/]")
+
     # SUBCOMMANDS ─────────────────────────────────────────────────────────────
     # Clean name + one-liner, no args column. This is the fix for the
     # pre-redesign "wall of text" complaint on /help cap.
@@ -548,6 +582,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     all_plugins = ctx.engine.plugins
 
+    # ``--mcp`` narrows the landscape to commands an MCP client would see.
+    # The MCP host advertises ``ENVIRONMENTS["MCP"]`` so we just check
+    # each plugin's needs against that capability set -- same gate the
+    # catalog filter applies, no duplication.
+    mcp_only = ctx.flag("--mcp")
+    mcp_caps = ENVIRONMENTS["MCP"] if mcp_only else None
+
     # Collect top-level commands by source, excluding script-only ones
     # (they render in their own section so users see at a glance which
     # commands only work inside .run files).
@@ -559,6 +600,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             continue
         if getattr(plugin, "hidden", False):
             continue
+        if mcp_caps is not None and plugin.needs.missing_from(mcp_caps):
+            continue
         groups.setdefault(plugin.source, []).append((cmd_name, plugin))
 
     # Unified column width across every section of the landscape so all
@@ -569,6 +612,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         if "." not in cmd_name
         and plugin.needs.block_until
         and not getattr(plugin, "hidden", False)
+        and (mcp_caps is None or not plugin.needs.missing_from(mcp_caps))
     ]
     directives = ctx.engine.directives or []
     all_names = (
@@ -577,6 +621,20 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         + [d.name for d in directives]
     )
     cmd_w = _compute_cmd_w(all_names, prefix)
+
+    if mcp_only:
+        # Make the filter mode unmistakable.  Counts read against
+        # everything that would otherwise have been listed top-level
+        # (matching the post-filter denominator users care about).
+        shown = sum(len(v) for v in groups.values()) + len(script_only)
+        total = sum(
+            1 for n, p in all_plugins.items()
+            if "." not in n and not getattr(p, "hidden", False)
+        )
+        ctx.write_markup(
+            f"[{_SEP}]-- MCP-visible only ({shown} of {total} top-level) --[/]"
+        )
+        ctx.write_markup("")
 
     sorted_sources = sorted(groups, key=lambda s: _SOURCE_ORDER.get(s, 3))
     first = True
@@ -779,6 +837,9 @@ def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     name="help",
     args="{term}",
+    flags={
+        "--mcp": "Show only commands visible to the MCP catalog.",
+    },
     help="Show the command landscape or look up a specific command.",
     long_help="""\
 Three ways to find things:
@@ -786,6 +847,8 @@ Three ways to find things:
   /help              landscape of all commands (name + one-liner).
   /help <term>       exact match -> detail; otherwise a candidate list
                      by substring match on name + short help.
+  /help --mcp        landscape filtered to MCP-visible commands only
+                     (same set the LLM sees via {prefix}mcp.catalog).
   /search <word>     deep search across names, args, flags, long help.
 
 /help is forgiving: if you can't remember the full name, it lists

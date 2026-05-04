@@ -495,6 +495,8 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "config_read_only": false,
     "os_cmd_enabled": false,
     "device_json_cmd": "",
+    "auto_include_on_connect": true,
+    "profile_path": "",
     "port": "COM4",
     "baud_rate": 115200,
     "custom_baud": false,
@@ -545,6 +547,8 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `auto_connect`       | `false`                | Connect to the port on startup                                                                           |
 | `auto_reconnect`     | `false`                | Retry every 2.5s if the port drops or fails to open (does not control startup)                           |
 | `on_connect_cmd`     | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
+| `auto_include_on_connect` | `true`            | When `device_json_cmd` is set, run `/include` automatically after a successful connect (MCP mode)        |
+| `profile_path`       | `""`                   | Explicit path to a v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention lookup |
 | `echo_input`         | `false`                | Echo sent commands locally                                                                               |
 | `echo_input_fmt`     | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
 | `log_file`           | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |

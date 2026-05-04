@@ -28,6 +28,8 @@ import pytest
 
 from termapy.defaults import DEFAULT_CFG
 
+pytestmark = pytest.mark.slow  # subprocess CLI tests for codegen error branches
+
 
 def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedProcess[str]:
     """Invoke termapy --cli against a throwaway config and script."""

@@ -284,6 +284,242 @@ class TestBannerWatcher:
                 h._disconnect()
 
 
+# ── Disconnect clears device-specific state ─────────────────────────────────
+
+
+class TestDisconnectClearsDeviceState:
+    """Disconnect wipes per-device namespaces and MCP-specific tracking.
+
+    Pinning the contract: after a disconnect, ``active_profile`` and
+    ``target_commands`` are empty, and the MCP host's banner/expect/
+    async-event/last-command attributes are reset.  Carrying any of
+    these across a port switch is the bug that motivated this whole
+    cleanup -- the next connect lands fresh.
+    """
+
+    @pytest.fixture
+    def host(self, tmp_path):
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = "DEMO"
+        cfg["auto_include_on_connect"] = False  # focus the test
+        config_path = tmp_path / "cfg" / "test.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps(cfg))
+        for sub in ("plugin", "ss", "run", "cap"):
+            (config_path.parent / sub).mkdir(exist_ok=True)
+        return MCPHost(cfg, str(config_path), verbose=False)
+
+    def test_active_profile_cleared_on_disconnect(self, host):
+        # Arrange -- connect, load a profile, verify it stuck
+        host._connect()
+        host.repl.dispatch(f"profile.load {DEMO_NDJSON_PROFILE}")
+        actual_before = host.ctx.ns("active_profile").get("commands", {})
+        assert actual_before, "precondition: profile loaded"
+        # Act
+        host._disconnect()
+        # Assert
+        actual_after = host.ctx.ns("active_profile")
+        expected: dict = {}
+        assert actual_after == expected, (
+            "active_profile wiped on disconnect (no leak to next device)"
+        )
+
+    def test_target_commands_cleared_on_disconnect(self, host):
+        # Arrange -- connect and seed target_commands directly
+        from termapy.plugins import TargetCommand
+        host._connect()
+        host.ctx.ns("target_commands").update({
+            "AT+FOO": TargetCommand(name="AT+FOO", help="x"),
+        })
+        actual_before = len(host.ctx.ns("target_commands"))
+        assert actual_before == 1, "precondition: target_commands seeded"
+        # Act
+        host._disconnect()
+        # Assert
+        actual_after = host.ctx.ns("target_commands")
+        expected: dict = {}
+        assert actual_after == expected, "target_commands cleared on disconnect"
+
+    def test_banner_state_cleared_on_disconnect(self, host):
+        # Arrange -- simulate a banner observation, then disconnect
+        host._connect()
+        host._banner_seen = True
+        host._banner_text = "READY 1.2.3"
+        # Act
+        host._disconnect()
+        # Assert
+        assert host._banner_seen is False, "banner_seen reset"
+        assert host._banner_text == "", "banner_text reset"
+
+    def test_event_buffers_cleared_on_disconnect(self, host):
+        # Arrange -- simulate captured events, then disconnect
+        host._connect()
+        host._last_command = {"cmd": "AT+TEMP", "success": True}
+        host._expect_history.append({"match": "OK"})
+        host._async_events.append({"line": "unsolicited"})
+        host._async_errors.append({"code": "E001"})
+        # Act
+        host._disconnect()
+        # Assert -- four independent buffers, each must reset
+        assert host._last_command is None, "last_command reset"
+        assert host._expect_history == [], "expect_history cleared"
+        assert host._async_events == [], "async_events cleared"
+        assert host._async_errors == [], "async_errors cleared"
+
+
+# ── MCP auto-load profile on connect ────────────────────────────────────────
+
+
+class TestAutoLoadProfileOnConnect:
+    """``--mcp`` auto-loads a v2 profile on connect.
+
+    Two lookup paths: explicit ``cfg.profile_path`` wins; otherwise
+    convention ``<cfg_dir>/<cfg_name>.profile.json``.  Missing file is
+    a non-fatal log line, never a connect failure.
+    """
+
+    def _write_profile(self, path: Path) -> None:
+        """Write a minimal v2 profile to the given path."""
+        path.write_text(json.dumps({
+            "profile_version": 2,
+            "profile_revision": "1.0.0",
+            "profile_date": "2026-05-03",
+            "device": {"name": "Test Device"},
+            "transport": {"protocol": "text"},
+            "commands": {
+                "PING": {"help": "ping the device", "safety": "readonly"},
+            },
+        }))
+
+    @pytest.fixture
+    def cfg_dir(self, tmp_path):
+        cfg_dir = tmp_path / "cfg"
+        cfg_dir.mkdir()
+        for sub in ("plugin", "ss", "run", "cap"):
+            (cfg_dir / sub).mkdir(exist_ok=True)
+        return cfg_dir
+
+    def test_explicit_profile_path_loads(self, cfg_dir):
+        # Arrange -- write profile at a non-conventional location
+        profile = cfg_dir / "weird-name.profile.json"
+        self._write_profile(profile)
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = "DEMO"
+        cfg["profile_path"] = str(profile)
+        cfg["auto_include_on_connect"] = False
+        config_path = cfg_dir / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        h = MCPHost(cfg, str(config_path), verbose=False)
+        try:
+            # Act
+            h._connect()
+            time.sleep(0.1)
+            # Assert
+            actual = h.ctx.ns("active_profile").get("commands", {})
+            expected_keys = {"PING"}
+            assert set(actual.keys()) == expected_keys, (
+                "explicit cfg.profile_path loaded on connect"
+            )
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+    def test_convention_profile_loads_when_no_explicit_path(self, cfg_dir):
+        # Arrange -- profile at <cfg_dir>/<cfg_name>.profile.json
+        profile = cfg_dir / "test.profile.json"
+        self._write_profile(profile)
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = "DEMO"
+        cfg["auto_include_on_connect"] = False
+        # profile_path empty -> falls back to convention
+        config_path = cfg_dir / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        h = MCPHost(cfg, str(config_path), verbose=False)
+        try:
+            # Act
+            h._connect()
+            time.sleep(0.1)
+            # Assert
+            actual = h.ctx.ns("active_profile").get("commands", {})
+            expected_keys = {"PING"}
+            assert set(actual.keys()) == expected_keys, (
+                "convention <cfg>.profile.json loaded on connect"
+            )
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+    def test_no_profile_file_is_non_fatal(self, cfg_dir):
+        # Arrange -- no profile file at any expected location
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = "DEMO"
+        cfg["auto_include_on_connect"] = False
+        config_path = cfg_dir / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        h = MCPHost(cfg, str(config_path), verbose=False)
+        try:
+            # Act -- connect should still succeed
+            connected = h._connect()
+            time.sleep(0.1)
+            # Assert
+            assert connected, "connect succeeds even with no profile"
+            actual = h.ctx.ns("active_profile")
+            expected: dict = {}
+            assert actual == expected, "no profile loaded -> active_profile empty"
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+    def test_auto_load_method_lives_on_mcphost_only(self):
+        # Arrange / Act / Assert -- the auto-load hook is MCP-only by
+        # construction; TUI/CLI inherit from TerminalHost and never get
+        # it.  Pinning the invariant so a future "let's hoist this to
+        # the base class" refactor has to consciously break this test.
+        from termapy.terminal_host import TerminalHost
+        assert not hasattr(TerminalHost, "_on_connect_auto_load_profile"), (
+            "TerminalHost must NOT have profile auto-load -- "
+            "TUI/CLI stay text-to-text by design"
+        )
+        assert hasattr(MCPHost, "_on_connect_auto_load_profile"), (
+            "MCPHost auto-loads profiles on connect"
+        )
+
+    def test_explicit_path_beats_convention(self, cfg_dir):
+        # Arrange -- both files exist, explicit must win
+        explicit = cfg_dir / "explicit.profile.json"
+        self._write_profile(explicit)
+        # Convention path exists with a DIFFERENT command name so we can tell
+        convention = cfg_dir / "test.profile.json"
+        convention.write_text(json.dumps({
+            "profile_version": 2,
+            "profile_revision": "1.0.0",
+            "profile_date": "2026-05-03",
+            "device": {"name": "Convention Device"},
+            "transport": {"protocol": "text"},
+            "commands": {"DIFFERENT": {"help": "from convention"}},
+        }))
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = "DEMO"
+        cfg["profile_path"] = str(explicit)  # explicit wins
+        cfg["auto_include_on_connect"] = False
+        config_path = cfg_dir / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        h = MCPHost(cfg, str(config_path), verbose=False)
+        try:
+            # Act
+            h._connect()
+            time.sleep(0.1)
+            # Assert -- "PING" from explicit, NOT "DIFFERENT" from convention
+            actual = h.ctx.ns("active_profile").get("commands", {})
+            assert "PING" in actual, "explicit profile loaded"
+            assert "DIFFERENT" not in actual, (
+                "convention NOT loaded when explicit path is set"
+            )
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 

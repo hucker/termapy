@@ -182,16 +182,34 @@ class TerminalHost:
     def _disconnect(self) -> None:
         """Disconnect from the serial port.
 
-        Handles the shared logic: fire lifecycle, engine.disconnect().
-        Subclasses override ``_on_disconnected()`` for UI updates.
+        Handles the shared logic: fire lifecycle, engine.disconnect(),
+        clear device-specific state.  Subclasses override
+        ``_on_disconnected()`` for UI updates.
         """
         if not self.engine.is_connected:
             self.status("Not connected.", "yellow")
             return
         self.repl.fire_lifecycle("on_disconnect")
         self.engine.disconnect()
+        self._clear_device_state()
         self.write("Disconnected.", "red")
         self._on_disconnected()
+
+    def _clear_device_state(self) -> None:
+        """Wipe namespaces tied to the device that just disconnected.
+
+        ``active_profile`` and ``target_commands`` are per-device:
+        they describe the box on the wire, not the termapy session.
+        Carrying them across a disconnect produces a real bug -- the
+        next ``/port.connect <other>`` lands you on a new device with
+        the previous device's profile silently driving the MCP
+        executor and stale ``/help`` entries cluttering completion.
+
+        Subclasses with frontend-specific device state (e.g. MCPHost's
+        banner-watch attrs) should extend this rather than override it.
+        """
+        self.ctx.ns("active_profile").clear()
+        self.ctx.ns("target_commands").clear()
 
     def _on_disconnected(self) -> None:
         """Called after disconnection.  Override for UI updates."""

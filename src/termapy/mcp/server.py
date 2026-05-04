@@ -364,8 +364,66 @@ class MCPHost(TerminalHost):
         feed_lines calls.
         """
         super()._on_connected(message)
+        self._on_connect_auto_load_profile(self.ctx)
         self._on_connect_auto_include(self.ctx)
         self._on_connect_banner_watch(self.ctx)
+
+    def _clear_device_state(self) -> None:
+        """Extend base clear with MCP-specific per-device attributes.
+
+        Banner state, the last-command record, the expect history, and
+        the async event/error queues all describe the box that just
+        disconnected.  Carrying them across a port switch would mix
+        the previous device's traces into the next session's
+        device_state.json -- a confusing reading for an LLM.
+        """
+        super()._clear_device_state()
+        self._banner_seen = False
+        self._banner_text = ""
+        self._last_command = None
+        self._expect_history.clear()
+        self._async_events.clear()
+        self._async_errors.clear()
+
+    def _on_connect_auto_load_profile(self, ctx: PluginContext) -> None:
+        """Load a v2 profile on connect: explicit cfg.profile_path, then convention.
+
+        MCP-only.  TUI/CLI users stay in text-to-text land unless they
+        explicitly run ``/profile.load``.  Lookup order:
+
+        1. ``cfg.profile_path`` -- explicit, wins.
+        2. ``<cfg_dir>/<cfg_name>.profile.json`` -- convention,
+           "one profile per device folder, named after the cfg".
+        3. Nothing found -> no profile loaded.  ``_dispatch_via_profile``
+           returns None for every call, falling through to the legacy
+           literal-write path.  Lets a user spin up an MCP session
+           against an unprofiled device for exploratory work.
+
+        Errors are non-fatal: a malformed or unreadable profile logs
+        a warning but doesn't block the connect.
+        """
+        explicit = ctx.cfg.get("profile_path", "")
+        candidate: Path | None = None
+        if explicit and isinstance(explicit, str):
+            candidate = Path(explicit)
+        elif self.config_path:
+            cfg_path = Path(self.config_path)
+            convention = cfg_path.parent / f"{cfg_path.stem}.profile.json"
+            if convention.exists():
+                candidate = convention
+        if candidate is None:
+            return
+        if not candidate.exists():
+            self._log_line(f"! auto-load profile: not found: {candidate}")
+            return
+        self._log_line(f"$ /profile.load {candidate}  (auto-load on connect)")
+        try:
+            result = self.repl.dispatch(f"profile.load {candidate}")
+        except Exception as exc:  # noqa: BLE001 -- boundary
+            self._log_line(f"! auto-load profile failed: {exc}")
+            return
+        if not result.success:
+            self._log_line(f"! auto-load profile: {result.error}")
 
     def _on_connect_auto_include(self, ctx: PluginContext) -> None:
         """Run ``/include`` after connect when configured.

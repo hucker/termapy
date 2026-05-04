@@ -991,15 +991,21 @@ class TestSearchIndexesTargets:
 # -- /include -> active_profile mirroring (v2 unification) -------------------
 
 
-class TestActiveProfileMirroring:
-    """``/include`` writes a v2 manifest into ``active_profile.commands``.
+class TestIncludeAndProfileSeparation:
+    """``/include`` and ``active_profile`` are independent namespaces.
 
-    The MCP request/response executor reads from ``active_profile``;
-    without this mirror, ``/include`` would populate help and
-    completion but leave the executor blind to device-published
-    ``response`` schemas.  These tests verify the mirror happens for
-    v2 manifests and is suppressed for pure v1 (help-only) manifests
-    so v1-era users see no surprise.
+    Old behavior (removed): ``/include`` mirrored v2 manifests into
+    ``active_profile`` so the MCP executor saw device-published
+    response schemas without an explicit ``/profile.load``.  That
+    convenience conflated display data (target_commands) with
+    execution data (active_profile) and surfaced as a real bug when
+    a port switch left stale target_commands visible alongside a
+    freshly-loaded profile.
+
+    New contract: ``/include`` populates ``target_commands`` only.
+    ``active_profile`` is owned exclusively by ``/profile.load`` and
+    by MCP's auto-load-on-connect.  These tests pin that boundary so
+    a future "convenience" PR can't quietly re-introduce the leak.
     """
 
     def _run_fetch(self, engine, device_json: dict, *, force: bool = False):
@@ -1021,8 +1027,10 @@ class TestActiveProfileMirroring:
             include._read_json = original
         return result
 
-    def test_v2_manifest_populates_active_profile(self, engine) -> None:
-        # Arrange — manifest with response shape on a single command
+    def test_v2_manifest_does_not_touch_active_profile(self, engine) -> None:
+        # Arrange — even a fully-fledged v2 manifest with response
+        # schemas, transport, and error_detection must NOT leak into
+        # active_profile.  Display data and execution data stay apart.
         eng, _ = engine
         device_json = {
             "version": "2.0.0",
@@ -1043,27 +1051,18 @@ class TestActiveProfileMirroring:
         result = self._run_fetch(engine, device_json)
         # Assert
         assert result.success, "include succeeded"
-        profile = eng.ctx.ns("active_profile")
-        actual_cmds = profile.get("commands", {})
-        expected_keys = {"AT+TEMP"}
-        assert set(actual_cmds.keys()) == expected_keys, "active_profile mirrors the v2 commands"
-        assert actual_cmds["AT+TEMP"]["response"]["pattern"] == (
-            r"(?P<celsius>-?\d+\.\d+)C"
-        ), "response block survived the mirror"
-        assert profile.get("transport", {}).get("line_ending_send") == "\r\n", (
-            "top-level transport block copied"
+        actual_target = eng.ctx.ns("target_commands")
+        assert "AT+TEMP" in actual_target, (
+            "target_commands populated for /help display"
         )
-        assert profile.get("error_detection", {}).get("pattern") == "^ERROR.*$", (
-            "top-level error_detection block copied"
-        )
-        assert profile.get("__source_path", "").startswith("<device>/"), (
-            "source path tagged so /include.clear knows to wipe it"
+        actual_profile = eng.ctx.ns("active_profile")
+        expected_profile: dict = {}
+        assert actual_profile == expected_profile, (
+            "active_profile untouched -- /include never writes it"
         )
 
-    def test_v1_only_manifest_skips_active_profile(self, engine) -> None:
-        # Arrange — pure v1: only help/args.  Mirroring would do nothing
-        # useful for the executor, so we intentionally suppress it to
-        # avoid surprising users whose devices never opted into v2.
+    def test_v1_manifest_does_not_touch_active_profile(self, engine) -> None:
+        # Arrange — pure v1 (help/args only).  Same contract: no leak.
         eng, _ = engine
         device_json = {
             "version": "1.0.0",
@@ -1075,63 +1074,36 @@ class TestActiveProfileMirroring:
         result = self._run_fetch(engine, device_json)
         # Assert
         assert result.success, "v1 include still succeeds"
-        target = eng.ctx.ns("target_commands")
-        assert "FOO" in target, "target_commands populated as before"
-        profile = eng.ctx.ns("active_profile")
-        assert profile.get("commands", {}) == {}, (
-            "v1-only manifest does NOT touch active_profile"
+        actual_target = eng.ctx.ns("target_commands")
+        assert "FOO" in actual_target, "target_commands populated as before"
+        actual_profile = eng.ctx.ns("active_profile")
+        expected_profile: dict = {}
+        assert actual_profile == expected_profile, (
+            "v1 manifest does NOT touch active_profile"
         )
 
-    def test_clear_wipes_device_sourced_active_profile(self, engine) -> None:
-        # Arrange — populate via /include first
+    def test_clear_does_not_touch_active_profile(self, engine) -> None:
+        # Arrange — independently set both namespaces, simulating a
+        # session where the user ran /include and /profile.load.
         eng, _ = engine
-        device_json = {
-            "version": "2.0.0",
-            "commands": {
-                "AT": {
-                    "help": "Connection test",
-                    "response": {"format": "literal", "pattern": "OK"},
-                },
-            },
-        }
-        self._run_fetch(engine, device_json)
-        assert eng.ctx.ns("active_profile").get("commands"), (
-            "precondition: active_profile populated"
-        )
-        # Act
-        eng.dispatch("include.clear")
-        # Assert
-        profile = eng.ctx.ns("active_profile")
-        assert profile == {}, (
-            "/include.clear wiped device-sourced active_profile entirely"
-        )
-
-    def test_clear_leaves_file_loaded_profile_alone(self, engine) -> None:
-        # Arrange — simulate a /profile.load by setting source path to a file
-        eng, _ = engine
-        ns = eng.ctx.ns("active_profile")
-        ns.update({
-            "commands": {
-                "AT": {
-                    "help": "from file",
-                    "response": {"format": "literal", "pattern": "OK"},
-                },
-            },
-            "__source_path": "/some/file.profile.json",
-        })
-        # Also populate target_commands so /include.clear has work to do.
         eng.ctx.ns("target_commands").update({
             "AT": TargetCommand(name="AT", help="from include"),
         })
+        profile_ns = eng.ctx.ns("active_profile")
+        profile_ns.update({
+            "commands": {"AT": {"help": "from profile"}},
+            "__source_path": "/some/file.profile.json",
+        })
         # Act
         eng.dispatch("include.clear")
-        # Assert -- /include.clear cleared target_commands but left
-        # the file-sourced profile intact (different __source_path).
-        assert eng.ctx.ns("target_commands") == {}, "target cleared"
-        profile = eng.ctx.ns("active_profile")
-        assert profile.get("__source_path") == "/some/file.profile.json", (
-            "file-loaded profile survived /include.clear"
+        # Assert -- /include.clear scopes itself to /include's data
+        actual_target = eng.ctx.ns("target_commands")
+        expected_target: dict = {}
+        assert actual_target == expected_target, "target_commands cleared"
+        actual_profile = eng.ctx.ns("active_profile")
+        assert actual_profile.get("__source_path") == "/some/file.profile.json", (
+            "active_profile survived /include.clear (separate namespace)"
         )
-        assert "AT" in profile.get("commands", {}), (
-            "file-loaded command entries survived"
+        assert "AT" in actual_profile.get("commands", {}), (
+            "active_profile commands survived /include.clear"
         )

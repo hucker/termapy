@@ -111,6 +111,7 @@ demo> /cfg.dump
     "os_cmd_enabled": false,
     "device_json_cmd": "AT+HELP.JSON",
     "auto_include_on_connect": true,
+    "profile_path": "",
     "port": "DEMO",
     "baud_rate": 115200,
     "custom_baud": false,

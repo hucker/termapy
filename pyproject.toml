@@ -49,6 +49,14 @@ dependencies = [
 [project.optional-dependencies]
 web = ["textual-serve>=1.1"]
 mcp = ["mcp>=1.0,<2.0"]
+# Catch-all for "I want everything; don't make me think about extras."
+# Lazy imports inside termapy.entry mean unused deps cost nothing at
+# runtime (TUI/CLI never load pydantic; --mcp never loads textual).
+# Only the disk footprint adds up -- ~16 MB for [mcp] -- which is
+# rounding error on any modern dev machine.  The individual extras
+# stay available for embedded / containerized installs that genuinely
+# need a slim install.
+all = ["termapy[mcp,web]"]
 
 [tool.uv-build]
 include = [

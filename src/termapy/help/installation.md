@@ -18,7 +18,7 @@ run the upgrade command, then relaunch.
 Install:
 
 ```sh
-uv tool install termapy
+uv tool install "termapy[all]"
 ```
 
 Upgrade:
@@ -32,14 +32,38 @@ uv tool upgrade termapy
 Install:
 
 ```sh
-pip install termapy
+pip install "termapy[all]"
 ```
 
 Upgrade:
 
 ```sh
-pip install --upgrade termapy
+pip install --upgrade "termapy[all]"
 ```
+
+## What `[all]` includes
+
+`[all]` is a catch-all that bundles every optional extra so you don't
+have to think about it.  Lazy imports inside termapy mean unused deps
+cost nothing at runtime: TUI/CLI users never load pydantic, and `--mcp`
+users never load Textual.  The only tradeoff is disk footprint --
+`[all]` adds ~16 MB on top of the base install -- which is rounding
+error on any modern dev machine.
+
+## Slim installs
+
+If you specifically need a smaller footprint (embedded targets, slim
+containers, paranoid security review), pick individual extras:
+
+| Want                         | Install                       |
+|------------------------------|-------------------------------|
+| TUI + CLI only               | `pip install termapy`         |
+| TUI + CLI + MCP server       | `pip install "termapy[mcp]"`  |
+| TUI + CLI + web mode         | `pip install "termapy[web]"`  |
+| Everything                   | `pip install "termapy[all]"`  |
+
+`--mcp` requires the `[mcp]` extra (or `[all]`) and exits with an
+install hint if it's missing.  Same for `--web` and `[web]`.
 
 ## Uninstall
 

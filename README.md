@@ -31,8 +31,10 @@ Low time commitment: about 1 minute from scratch, or under 10 seconds if you alr
 2) Install termapy - **< 1 second**:
 
     ```sh
-    uv tool install -q termapy
+    uv tool install -q "termapy[all]"
     ```
+
+    `[all]` adds the optional MCP server (drive termapy from an LLM) and web mode (HTTP-served TUI). Lazy imports mean unused deps cost nothing at runtime — TUI/CLI users don't pay for MCP, MCP users don't pay for Textual. If you specifically need a slim install (embedded, container), drop the `[all]` and add `[mcp]` or `[web]` only when needed.
 
 3) Run termapy - starts a simulated device, no hardware needed. You're typing commands in seconds:
 

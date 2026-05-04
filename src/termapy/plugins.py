@@ -1385,6 +1385,11 @@ class TargetCommand:
     send_template: str = ""
     response: dict = field(default_factory=dict)
     safety: str = "safe"
+    # ``enabled`` defaults True so existing curated profiles and device-
+    # self-published manifests stay exposed without an explicit opt-in.
+    # Profiles drafted from legacy help dumps (where the engineer hasn't
+    # audited each entry yet) explicitly emit enabled=False.
+    enabled: bool = True
     rate_limit_hz: float = 0.0
     timeout_ms: int = 0
     subcommands: dict[str, "TargetCommand"] = field(default_factory=dict)

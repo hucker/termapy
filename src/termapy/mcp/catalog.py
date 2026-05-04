@@ -79,8 +79,15 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     target_meta = ctx.ns("target_meta")
     target_ns = ctx.ns("target_commands")
     if isinstance(target_ns, dict) and target_ns:
+        # Filter out enabled=False entries so disabled commands never
+        # appear in the LLM-facing catalog.  Disabled entries still
+        # exist in target_commands (visible to /help <cmd> for the
+        # human supervisor) but the bot doesn't see them.  Default
+        # True keeps existing curated/v2-published manifests visible.
         target_commands = [
-            _target_descriptor(target_ns[n]) for n in sorted(target_ns)
+            _target_descriptor(target_ns[n])
+            for n in sorted(target_ns)
+            if getattr(target_ns[n], "enabled", True)
         ]
 
     # Profile blocks come from a future "active profile" namespace; v1

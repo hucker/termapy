@@ -90,6 +90,25 @@ class TestCatalog:
         # Assert
         assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
+    def test_catalog_filters_disabled_target_commands(self, host):
+        # Arrange -- seed two target commands, one disabled
+        from termapy.plugins import TargetCommand
+        target = host.ctx.ns("target_commands")
+        target["AT_OK"] = TargetCommand(
+            name="AT_OK", help="enabled command", enabled=True,
+        )
+        target["AT_DRAFT"] = TargetCommand(
+            name="AT_DRAFT", help="draft command pending review", enabled=False,
+        )
+        # Act
+        cat = build_catalog(host.ctx)
+        names = {entry["name"] for entry in cat["target_commands"]}
+        # Assert -- LLM sees the enabled one only; disabled hidden
+        assert "AT_OK" in names, "enabled target command appears in catalog"
+        assert "AT_DRAFT" not in names, (
+            "disabled target command hidden from MCP catalog"
+        )
+
     def test_catalog_command_has_required_fields(self, host):
         # Arrange / Act
         cat = build_catalog(host.ctx)

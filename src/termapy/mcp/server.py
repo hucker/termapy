@@ -522,6 +522,11 @@ def _build_server(host: MCPHost) -> Any:
             return target.read_bytes().hex()
         return target.read_text(encoding="utf-8", errors="replace")
 
+    # Prompts: user-invocable conversation recipes (e.g. draft_profile).
+    # Lives in mcp/prompts.py to keep this file focused on host wiring.
+    from termapy.mcp.prompts import register_prompts
+    register_prompts(server, host)
+
     return server
 
 
@@ -677,6 +682,30 @@ def _dispatch_via_profile(
     from termapy.response_parsers import parse_response
 
     name, spec, _bound = match
+
+    # Disabled-by-author gate.  ``enabled: false`` means "the engineer
+    # has not audited this entry; do NOT run it."  We REFUSE rather
+    # than fall through to /term.send because the user's intent is
+    # that every command be confirmed before exposure -- a fall-
+    # through would let a clever LLM bypass the audit by typing a
+    # command name it shouldn't even know exists.  The catalog
+    # filter hides disabled entries from the LLM's view; this gate
+    # is defense in depth for cases where the LLM gets the name
+    # anyway (from help text, prior chat context, etc.).
+    # Default true preserves existing curated profiles unchanged.
+    if not spec.get("enabled", True):
+        result = CmdResult.fail(
+            msg=(
+                f"Command {name!r} is disabled in the active profile. "
+                "Edit the profile and set enabled=true after auditing."
+            ),
+            value={
+                "disabled": True,
+                "command": name,
+                "help": spec.get("help", ""),
+            },
+        )
+        return result
 
     # Destructive commands MUST require human-in-the-loop approval.
     # The MCP host can't show a UI, so we surface a structured failure

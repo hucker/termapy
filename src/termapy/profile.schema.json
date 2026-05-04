@@ -180,6 +180,11 @@
           "description": "v2: how to format the outbound bytes. Python-format style with named placeholders, e.g. \"AT+VOLT={mv}\". Empty = use the command name verbatim. For NDJSON protocol, the bridge serializes args as a JSON object instead.",
           "type": "string"
         },
+        "enabled": {
+          "description": "v2: gate flag.  False = command is in the profile but hidden from the MCP catalog and not dispatched by the request/response executor (bare invocation falls through to /term.send literal write).  Default true: existing curated profiles and device-self-published manifests work unchanged.  The --profile-from-help generator emits enabled=false per entry so human-imported legacy help dumps require explicit per-command audit before exposure.",
+          "type": "boolean",
+          "default": true
+        },
         "response": {"$ref": "#/$defs/response"},
         "safety": {
           "description": "v2: safety tier. readonly = pure observation; safe = default, no enduring effect; mutable = changes device state but reversible (LED toggle, set baud); destructive = irreversible / data-loss (factory reset, flash erase, file delete). Only destructive triggers the MCP confirmation gate; other tiers are documentation-only metadata.",

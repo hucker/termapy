@@ -226,6 +226,11 @@ def _builtin_validate(profile: dict) -> ValidationResult:
                     continue
                 if "help" not in entry:
                     errors.append(f"commands/{name}: missing required 'help'")
+                enabled = entry.get("enabled")
+                if enabled is not None and not isinstance(enabled, bool):
+                    errors.append(
+                        f"commands/{name}/enabled: must be a boolean, got {type(enabled).__name__}"
+                    )
                 safety = entry.get("safety")
                 if safety is not None and safety not in (
                     "safe",

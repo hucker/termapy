@@ -393,6 +393,84 @@ class TestDestructiveGate:
         assert host._sent == [b"AT+LED\r\n"], "mutable bytes hit the wire"
 
 
+# ── Enabled gate (per-command audit toggle) ─────────────────────────────────
+
+
+class TestEnabledGate:
+    """Profile entries with ``enabled: false`` are hidden from the
+    executor and fall through to /term.send.  Default-true preserves
+    existing curated profiles unchanged.  This is the second line of
+    defense after the catalog filter (which hides them from the LLM
+    in the first place); the gate exists so even a hand-typed bare
+    command can't run a draft entry."""
+
+    def test_disabled_command_refuses(self, host):
+        # Arrange — entry exists in profile but enabled=false.  The
+        # executor MUST refuse (defense in depth: catalog filter
+        # already hid it, but if the LLM somehow learned the name
+        # we still won't let it run).
+        _load_profile(host, _profile_with({
+            "AT": {
+                "help": "Connection test.",
+                "enabled": False,
+                "safety": "readonly",
+                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+            },
+        }))
+        # Act
+        result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
+        # Assert -- refused; no bytes on the wire; structured marker
+        actual_marker = result["value"]
+        expected_marker = {
+            "disabled": True,
+            "command": "AT",
+            "help": "Connection test.",
+        }
+        assert result["success"] is False, "disabled commands refuse to run"
+        assert "disabled" in result["error"], "error names the gate reason"
+        assert actual_marker == expected_marker, "structured marker for client UI"
+        assert host._sent == [], "no bytes hit the wire when entry is disabled"
+
+    def test_enabled_default_true_runs_normally(self, host):
+        # Arrange -- entry omits ``enabled`` entirely.  Default true.
+        _load_profile(host, _profile_with({
+            "AT": {
+                "help": "Connection test.",
+                "safety": "readonly",
+                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+            },
+        }))
+        _reply_after_send(host, ["OK"])
+        # Act
+        result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
+        # Assert
+        assert result["success"] is True, "enabled-by-default runs normally"
+        assert result["value"] == "OK", "executor shaped the response"
+
+    def test_disabled_takes_precedence_over_destructive(self, host):
+        # Arrange -- destructive AND disabled.  The disabled gate
+        # checks first; failure carries the disabled marker, NOT the
+        # needs_confirmation marker.  Either way the user gets a
+        # refusal -- but the message is "audit and enable" rather
+        # than "approve once" because that's the right action.
+        _load_profile(host, _profile_with({
+            "RESET": {
+                "help": "Soft reset.",
+                "enabled": False,
+                "safety": "destructive",
+                "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200},
+            },
+        }))
+        # Act -- even with confirm=True, disabled refuses
+        result = asyncio.run(
+            host.run_command_async("RESET", "normal", 5.0, confirm=True)
+        )
+        # Assert
+        assert result["success"] is False, "disabled refuses regardless of confirm"
+        assert result["value"].get("disabled") is True, "disabled marker, not needs_confirmation"
+        assert host._sent == [], "no bytes go out for a disabled entry"
+
+
 # ── Fall-through (no profile / no match / slash) ────────────────────────────
 
 

@@ -144,6 +144,56 @@ class TestMcpInfo:
             "no profile -> zero destructive commands"
         )
 
+    def test_no_profile_omits_enabled_row(self, env):
+        # Arrange / Act -- no /profile.load, no /include
+        eng, _ctx, output = env
+        eng.dispatch("mcp.info")
+        full = " ".join(t for t, _ in output)
+        # Assert -- "profile_enabled" row is suppressed when no profile loaded
+        # so we don't render a meaningless "0 of 0" line
+        assert "profile_enabled" not in full, (
+            "no profile -> enabled row suppressed"
+        )
+
+    def test_enabled_split_when_profile_has_drafts(self, env):
+        # Arrange -- seed profile with one enabled and two disabled entries
+        eng, ctx, output = env
+        ns = ctx.ns("active_profile")
+        ns.update({
+            "commands": {
+                "AT": {"help": "x", "enabled": True},
+                "RESET": {"help": "y", "enabled": False},
+                "ERASE": {"help": "z", "enabled": False},
+            },
+        })
+        # Act
+        output.clear()
+        eng.dispatch("mcp.info")
+        full = " ".join(t for t, _ in output)
+        # Assert -- explicit count + drafts-pending phrasing
+        assert "1 of 3" in full, "shows enabled-of-total ratio"
+        assert "2 drafts pending review" in full, (
+            "calls out unreviewed entries explicitly"
+        )
+
+    def test_enabled_split_all_enabled(self, env):
+        # Arrange -- profile with everything enabled (curated steady state)
+        eng, ctx, output = env
+        ns = ctx.ns("active_profile")
+        ns.update({
+            "commands": {
+                "AT": {"help": "x"},  # enabled defaults true
+                "AT+TEMP": {"help": "y", "enabled": True},
+            },
+        })
+        # Act
+        output.clear()
+        eng.dispatch("mcp.info")
+        full = " ".join(t for t, _ in output)
+        # Assert
+        assert "2 of 2" in full, "shows full count"
+        assert "all enabled" in full, "happy-path phrasing"
+
     def test_destructive_count_lists_names_when_present(self, env):
         # Arrange -- seed an active profile with one destructive entry
         eng, ctx, output = env
@@ -163,3 +213,96 @@ class TestMcpInfo:
         assert "1 (AT+RESET)" in full, (
             "count + name list rendered exactly"
         )
+
+
+# ── /mcp.log + subcommands ─────────────────────────────────────────────────
+
+
+class TestMcpLog:
+    """Subcommands that surface the MCP server's session log to the user.
+
+    The log itself is written by ``termapy --mcp`` to
+    ``<cfg_dir>/mcp/session.log``.  These commands open / dump / locate
+    the file from any frontend (TUI/CLI/MCP) so a user debugging an
+    LLM session can review what happened without leaving termapy.
+    """
+
+    def _seed_log(self, ctx, content: str) -> Path:
+        """Write a fake MCP session log to <cfg_dir>/mcp/session.log."""
+        cfg_dir = Path(ctx.config_path).parent
+        mcp_dir = cfg_dir / "mcp"
+        mcp_dir.mkdir(exist_ok=True)
+        log = mcp_dir / "session.log"
+        log.write_text(content, encoding="utf-8")
+        return log
+
+    def test_log_path_reports_location_when_absent(self, env):
+        # Arrange / Act -- no log file written yet
+        eng, _ctx, output = env
+        result = eng.dispatch("mcp.log.path")
+        # Assert
+        assert result.success, "/mcp.log.path always succeeds (informational)"
+        full = " ".join(t for t, _ in output)
+        assert "session.log" in full, "path includes session.log"
+        assert "(not yet created)" in full, (
+            "absent file marked explicitly so user knows MCP hasn't run"
+        )
+
+    def test_log_path_reports_location_when_present(self, env):
+        # Arrange
+        eng, ctx, output = env
+        self._seed_log(ctx, "fake log content\n")
+        # Act
+        output.clear()
+        result = eng.dispatch("mcp.log.path")
+        # Assert
+        assert result.success, "succeeds when file exists"
+        full = " ".join(t for t, _ in output)
+        assert "session.log" in full, "path printed"
+        assert "(not yet created)" not in full, (
+            "no absent-marker when file is there"
+        )
+
+    def test_log_dump_when_absent_fails_cleanly(self, env):
+        # Arrange / Act
+        eng, _ctx, _output = env
+        result = eng.dispatch("mcp.log.dump")
+        # Assert
+        assert not result.success, "fails when log file missing"
+        assert "not found" in result.error, "names the failure mode"
+
+    def test_log_dump_prints_full_log(self, env):
+        # Arrange
+        eng, ctx, output = env
+        self._seed_log(ctx, "line 1\nline 2\nline 3\n")
+        # Act
+        output.clear()
+        result = eng.dispatch("mcp.log.dump")
+        # Assert
+        assert result.success, "dump succeeds"
+        assert int(result.value) == 3, "value is line count"
+        text = "\n".join(t for t, _ in output)
+        assert "line 1" in text and "line 3" in text, "all lines printed"
+
+    def test_log_dump_n_prints_last_n(self, env):
+        # Arrange
+        eng, ctx, output = env
+        self._seed_log(ctx, "a\nb\nc\nd\ne\n")
+        # Act -- last 2 lines
+        output.clear()
+        result = eng.dispatch("mcp.log.dump 2")
+        # Assert
+        assert result.success, "tail-N succeeds"
+        text = "\n".join(t for t, _ in output)
+        assert "d" in text and "e" in text, "last 2 lines present"
+        assert "a" not in text.split("\n")[0], "earlier lines suppressed"
+
+    def test_log_dump_invalid_n_fails(self, env):
+        # Arrange
+        eng, ctx, _output = env
+        self._seed_log(ctx, "x\n")
+        # Act
+        result = eng.dispatch("mcp.log.dump notanumber")
+        # Assert
+        assert not result.success, "non-int N rejected"
+        assert "Usage" in result.error, "usage shown"

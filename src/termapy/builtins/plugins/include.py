@@ -146,6 +146,10 @@ def _project_to_active_profile(
             entry["response"] = dict(tc.response)
         if tc.safety and tc.safety != "safe":
             entry["safety"] = tc.safety
+        # Surface enabled=false explicitly so the executor's gate sees
+        # it.  Default True is left implicit (saves a per-entry key).
+        if not tc.enabled:
+            entry["enabled"] = False
         if tc.timeout_ms:
             entry["timeout_ms"] = tc.timeout_ms
         profile_commands[name] = entry
@@ -249,6 +253,10 @@ def _build_commands(cmd_dict: dict) -> dict[str, TargetCommand]:
         safety = entry.get("safety", "safe")
         if safety not in _VALID_SAFETY:
             safety = "safe"
+        # ``enabled`` defaults True so existing manifests stay exposed.
+        # Profiles authored from legacy help dumps explicitly set False.
+        raw_enabled = entry.get("enabled", True)
+        enabled = bool(raw_enabled) if isinstance(raw_enabled, bool) else True
         try:
             rate_limit_hz = float(entry.get("rate_limit_hz", 0.0))
         except (TypeError, ValueError):
@@ -271,6 +279,7 @@ def _build_commands(cmd_dict: dict) -> dict[str, TargetCommand]:
             send_template=send_template,
             response=response,
             safety=safety,
+            enabled=enabled,
             rate_limit_hz=rate_limit_hz,
             timeout_ms=timeout_ms,
             subcommands=subcommands,
@@ -309,6 +318,11 @@ def _to_json_dict(
             entry["response"] = dict(tc.response)
         if tc.safety and tc.safety != "safe":
             entry["safety"] = tc.safety
+        # ``enabled`` round-trips only when False (the non-default).
+        # Default True omitted so existing v1/v2 manifests stay
+        # byte-identical through a load/save cycle.
+        if not tc.enabled:
+            entry["enabled"] = False
         if tc.rate_limit_hz:
             entry["rate_limit_hz"] = tc.rate_limit_hz
         if tc.timeout_ms:

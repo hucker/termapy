@@ -23,8 +23,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.config import open_with_system
 from termapy.mcp.catalog import build_catalog, catalog_json
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -127,6 +128,17 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         name for name, spec in profile_cmds.items()
         if isinstance(spec, dict) and spec.get("safety") == "destructive"
     )
+    # Enabled audit: when the profile contains any disabled entries the
+    # engineer is mid-audit (typical for a freshly-drafted profile from
+    # a legacy help dump).  Show the split so it's obvious how much
+    # remains to review.  Hide the row entirely when no profile is
+    # loaded -- otherwise it's just noise saying "0 of 0".
+    profile_enabled = sum(
+        1 for spec in profile_cmds.values()
+        if isinstance(spec, dict) and spec.get("enabled", True)
+    )
+    profile_total = len(profile_cmds)
+    profile_disabled = profile_total - profile_enabled
 
     rows = [
         ("port", f"{port_name} ({port_state})"),
@@ -140,6 +152,13 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("captures", str(cap_count)),
         ("destructive", _format_destructive(destructive_names)),
     ]
+    if profile_total:
+        rows.append((
+            "profile_enabled",
+            f"{profile_enabled} of {profile_total}"
+            + (f" ({profile_disabled} drafts pending review)"
+               if profile_disabled else " (all enabled)"),
+        ))
     for line in format_kv_lines(rows):
         ctx.write_markup(line)
     # Discoverability hint: many users will reach for /mcp.info first when
@@ -152,6 +171,106 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=str(cmd_count))
 
 
+# ── /mcp.log ────────────────────────────────────────────────────────────────
+
+
+def _mcp_log_path(ctx: PluginContext) -> Path:
+    """Resolve the MCP session log path.
+
+    Lives at ``<cfg_dir>/mcp/session.log`` where cfg_dir is the parent
+    of the active config file.  For zero-config sessions, falls back
+    to ``<cwd>/mcp/session.log``.  Mirrors ``MCPHost._resolve_mcp_dir``
+    in mcp/server.py -- duplicated rather than imported because mcp/
+    server.py has heavy imports (FastMCP) we don't want to pull into
+    a bare /mcp.log call from CLI/TUI.
+
+    Returns the path even when the file doesn't exist; callers check.
+    """
+    if ctx.config_path:
+        return Path(ctx.config_path).parent / "mcp" / "session.log"
+    return Path.cwd() / "mcp" / "session.log"
+
+
+def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
+    """Open the MCP session log in the system viewer.
+
+    The log is written by termapy's MCP server (``--mcp``) to
+    ``<cfg_dir>/mcp/session.log`` and contains every dispatch, every
+    tool result, every TX/RX line, with timestamps.  Useful when
+    debugging an LLM session that didn't behave the way you expected
+    -- the log shows exactly what the LLM sent and what came back,
+    in order.
+
+    Mirrors ``/log.show`` for the regular session log.  Same idiom,
+    different file.
+    """
+    path = _mcp_log_path(ctx)
+    if not path.exists():
+        return CmdResult.fail(
+            msg=(
+                f"MCP session log not found: {path}\n"
+                "Run termapy --mcp to start an MCP server (it writes the log)."
+            )
+        )
+    open_with_system(str(path))
+    ctx.write(f"  Opening {path.name}", "green")
+    return CmdResult.ok(value=str(path))
+
+
+def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
+    """Print the MCP session log to the terminal (or last N lines).
+
+    With no argument prints the entire log; with a positive integer
+    N prints only the last N lines (tail -N).  Useful when you want
+    to see the log inline rather than launching an external viewer
+    -- particularly in CLI/SSH sessions where /mcp.log can't open
+    anything.
+
+    Mirrors ``/log.dump`` for the regular session log.
+    """
+    path = _mcp_log_path(ctx)
+    if not path.exists():
+        return CmdResult.fail(msg=f"MCP session log not found: {path}")
+
+    n: int | None = None
+    arg = args.strip()
+    if arg:
+        try:
+            n = int(arg)
+        except ValueError:
+            return CmdResult.fail(
+                msg=f"Usage: {ctx.engine.prefix}mcp.log.dump {{N}}  (N = last N lines)"
+            )
+        if n <= 0:
+            return CmdResult.fail(msg="N must be a positive integer.")
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        return CmdResult.fail(msg=f"Read error: {e}")
+
+    if n is not None:
+        lines = lines[-n:]
+
+    for line in lines:
+        ctx.output(line)
+    return CmdResult.ok(value=str(len(lines)))
+
+
+def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
+    """Print the MCP session log path (without opening it).
+
+    Useful for piping into other tools (``tail -f $(...)``, etc.)
+    or for confirming where the log will land before starting an
+    MCP server.  Reports the path whether or not the file exists,
+    with a marker noting absence.
+    """
+    path = _mcp_log_path(ctx)
+    marker = "" if path.exists() else "  (not yet created)"
+    ctx.write(f"{path}{marker}")
+    return CmdResult.ok(value=str(path))
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="mcp",
@@ -160,11 +279,13 @@ COMMAND = Command(
         "MCP-mode tools.  /mcp.catalog dumps the JSON command catalog\n"
         "(same content as the termapy://commands.json MCP resource).\n"
         "/mcp.info shows MCP-mode state: catalog size, port, active\n"
-        "profile metadata, capture artifact count.\n"
+        "profile metadata, capture artifact count.  /mcp.log opens the\n"
+        "MCP session log written by termapy --mcp; /mcp.log.dump prints\n"
+        "it inline; /mcp.log.path reports its location.\n"
         "\n"
         "Both commands work in any frontend (TUI/CLI/MCP); they don't\n"
         "require --mcp to be running.  See also: /profile, /port.info,\n"
-        "/term.info."
+        "/term.info, /log.show (for the regular session log)."
     ),
     handler=None,
     sub_commands={
@@ -175,6 +296,22 @@ COMMAND = Command(
         "info": Command(
             help="Show MCP-mode status (catalog/profile/port/captures).",
             handler=_handler_info,
+        ),
+        "log": Command(
+            help="Open the MCP session log in the system viewer.",
+            handler=_handler_log,
+            needs=CapabilitySet(gui_apps=True),
+            sub_commands={
+                "dump": Command(
+                    args="{count}",
+                    help="Print the MCP session log to the terminal (or last N lines).",
+                    handler=_handler_log_dump,
+                ),
+                "path": Command(
+                    help="Print the MCP session log file path.",
+                    handler=_handler_log_path,
+                ),
+            },
         ),
     },
 )

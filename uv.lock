@@ -1453,6 +1453,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "mcp" },
+    { name = "textual-serve" },
+]
 mcp = [
     { name = "mcp" },
 ]
@@ -1472,6 +1476,7 @@ requires-dist = [
     { name = "platformdirs", specifier = ">=4.0" },
     { name = "prompt-toolkit", specifier = ">=3.0" },
     { name = "pygments", specifier = ">=2.20.0" },
+    { name = "termapy", extras = ["mcp", "web"], marker = "extra == 'all'" },
     { name = "textual", specifier = ">=0.80" },
     { name = "textual-serve", marker = "extra == 'web'", specifier = ">=1.1" },
     { name = "tree-sitter", marker = "python_full_version >= '3.10'", specifier = ">=0.25.0,<0.26" },
@@ -1479,7 +1484,7 @@ requires-dist = [
     { name = "tree-sitter-json", marker = "python_full_version >= '3.10'", specifier = ">=0.24.0,<0.25" },
     { name = "tree-sitter-toml", marker = "python_full_version >= '3.10'", specifier = ">=0.6.0,<0.8" },
 ]
-provides-extras = ["web", "mcp"]
+provides-extras = ["web", "mcp", "all"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest-cov", specifier = ">=7.0.0" }]

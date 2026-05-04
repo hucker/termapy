@@ -231,8 +231,8 @@ class FakeSerialNDJSON:
 
         Matches ``serial.Serial.readline``: returns bytes including the
         trailing newline, or whatever was buffered if the timeout fires
-        first.  Generated MCP servers (per ``termapy --mcp-emit``)
-        use this idiom, so duck-typing pyserial means we provide it.
+        first.  Duck-typing pyserial means consumers expecting this
+        method (e.g. legacy text-protocol parsers) keep working.
         """
         deadline = time.time() + (self._timeout or 0)
         out = bytearray()

@@ -1689,6 +1689,41 @@ class TestCapWire:
         assert rx_cbs == [], "RX observer released even on exception"
         assert tx_cbs == [], "TX observer released even on exception"
 
+    def test_wire_wait_gap_zero_skips_settle_loop(self, repl_env):
+        # Arrange -- wait_gap=0 disables the settle loop so the handler
+        # returns as soon as dispatch does.  Useful as a fast path when
+        # the caller doesn't care about async response settling.
+        import time as _time
+
+        engine, _, _, _ = repl_env
+        ctx = engine.ctx
+        rx_cbs, tx_cbs = self._wire_observers(ctx)
+        from termapy.plugins import CmdResult
+        ctx.dispatch = lambda cmd: CmdResult.ok()
+
+        # Act -- with wait_gap=0, total wall time should be well under
+        # the default 50ms idle gap (no settle loop runs).
+        t0 = _time.monotonic()
+        result = engine.dispatch("cap.wire AT+VER wait_gap=0ms")
+        elapsed_ms = (_time.monotonic() - t0) * 1000
+
+        # Assert -- handler exited immediately; no 50ms settle penalty.
+        assert result.success is True, "wait_gap=0 dispatches successfully"
+        assert elapsed_ms < 30, (
+            f"wait_gap=0 should skip the settle loop (took {elapsed_ms:.1f}ms)"
+        )
+
+    def test_wire_invalid_wait_gap_fails(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("cap.wire AT+VER wait_gap=garbage")
+
+        # Assert
+        assert result.success is False, "invalid wait_gap rejected"
+        assert "wait_gap" in result.error, "error names the bad arg"
+
 
 # -- /cap.text with mock start_capture ------------------------------------
 

@@ -9,7 +9,7 @@ from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.protocol import parse_format_spec
-from termapy.scripting import parse_duration, resolve_seq_filename
+from termapy.scripting import parse_duration, parse_keywords, resolve_seq_filename
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -632,19 +632,57 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     decoded text so non-printing characters appear as escape sequences
     (``\\r``, ``\\n``, ``\\x00``) instead of being rendered or eaten.
 
+    Async response handling: ``ctx.dispatch()`` returns immediately
+    after writing TX bytes; the RX response arrives later via the
+    on_lines pipeline and the rx_observer.  After dispatch returns,
+    we stay inside the with-block and poll a "last byte arrival" timer
+    until the device's RX has been quiet for ``wait_gap`` (default
+    50ms) -- the same idle-gap settling pattern used by
+    ``request_response.py`` and the profile executor.  Capped by a
+    5-second hard deadline.
+
+    Args (parsed via parse_keywords; both forms work):
+
+        /cap.wire <cmd>                    default wait_gap=50ms
+        /cap.wire <cmd> wait_gap=200ms     custom wait_gap
+
     The canonical use case is line-ending and non-printing-character
     debugging: when a device "doesn't respond," it almost always
     actually does, but the response gets eaten by a terminator
     mismatch.  ``/cap.wire`` makes the mismatch immediately visible.
     """
-    if not args.strip():
-        return CmdResult.fail(msg="Usage: /cap.wire <cmd>")
+    import time as _time
+
+    kw = parse_keywords(args, {"wait_gap"})
+    cmd = kw.get("_positional", "").strip()
+    if not cmd:
+        return CmdResult.fail(msg="Usage: /cap.wire <cmd> [wait_gap=<dur>]")
+    try:
+        wait_gap_s = parse_duration(kw.get("wait_gap", "50ms"))
+    except ValueError as e:
+        return CmdResult.fail(msg=f"Invalid wait_gap: {e}")
 
     tx = bytearray()
     rx = bytearray()
+    last_arrival = [_time.monotonic()]
 
-    with ctx.rx_observer(rx.extend), ctx.tx_observer(tx.extend):
-        ctx.dispatch(args)
+    def cap_rx(data: bytes) -> None:
+        rx.extend(data)
+        last_arrival[0] = _time.monotonic()
+
+    def cap_tx(data: bytes) -> None:
+        tx.extend(data)
+
+    with ctx.rx_observer(cap_rx), ctx.tx_observer(cap_tx):
+        ctx.dispatch(cmd)
+        # Settle on idle-gap: wait until rx has been quiet for wait_gap_s.
+        # Hard-capped at 5s so a chatty device can't hang us forever.
+        if wait_gap_s > 0:
+            deadline = _time.monotonic() + 5.0
+            while _time.monotonic() < deadline:
+                if (_time.monotonic() - last_arrival[0]) >= wait_gap_s:
+                    break
+                _time.sleep(0.01)
 
     encoding = ctx.cfg.get("encoding", "utf-8")
     tx_decoded = bytes(tx).decode(encoding, errors="replace")
@@ -788,14 +826,22 @@ _CAP_WIRE_PROSE = (
     "Running the same command through {prefix}cap.wire makes the bytes\n"
     "on the wire immediately visible.\n"
     "\n"
+    "Parameters:\n"
+    "  <cmd>             REQUIRED command to run (slash or bare).\n"
+    "  wait_gap=<dur>    Idle gap that signals the device's response\n"
+    "                    is complete (default: 50ms).  Capped at 5s.\n"
+    "                    Increase for slow devices; lower for snappy\n"
+    "                    ones where 50ms feels laggy.\n"
+    "\n"
     "Examples:\n"
-    "  {prefix}cap.wire AT+VER          - one-shot trace of a device cmd\n"
-    "  {prefix}cap.wire {prefix}help    - any dispatchable command works\n"
+    "  {prefix}cap.wire AT+VER                - default 50ms wait_gap\n"
+    "  {prefix}cap.wire AT+VER wait_gap=200ms - slow device\n"
+    "  {prefix}cap.wire {prefix}help          - any dispatchable command works\n"
     "\n"
     "Output format::\n"
     "\n"
     "  TX (  7): 41 54 2b 56 45 52 0d                       'AT+VER\\r'\n"
-    "  RX ( 12): 56 45 52 3d 31 2e 32 2e 33 0d 0a           'VER=1.2.3\\r\\n'\n"
+    "  RX ( 11): 56 45 52 3d 31 2e 32 2e 33 0d 0a           'VER=1.2.3\\r\\n'\n"
     "\n"
     "Output is inline only -- this is for interactive debugging, not\n"
     "logging.  For long-running wire captures to a file, use the\n"

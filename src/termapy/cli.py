@@ -844,18 +844,41 @@ class CLITerminal(TerminalHost):
 
         Bare device text is dispatched asynchronously: ``ctx.dispatch``
         returns after writing TX bytes, but the device's response
-        arrives later via the background reader thread.  We wait for
-        the rx buffer to settle (matching the ``on_connect_cmd`` and
-        ``request_response.py`` patterns) before disconnecting, so
-        captured stdout actually contains the response.
+        arrives later via the background reader thread.  We watch the
+        reader directly via ``ctx.rx_observer``: every chunk of
+        received bytes resets a "last arrival" clock, and we exit
+        once the rx stream has been quiet for ``_EXEC_IDLE_GAP_S``
+        (default 500ms).  Capped at ``_EXEC_MAX_WAIT_S`` (60s) so a
+        runaway device can't hang the pipeline indefinitely.
+
+        Why an observer instead of ``serial_port.wait_for_idle()``:
+        ``wait_for_idle`` polls ``in_waiting`` on a 10ms timer.
+        Between lines of a streamed response, the reader has often
+        drained the OS buffer to 0 already, so a sample taken in
+        that window sees 0 bytes and the idle clock ages even though
+        the response is still in flight.  The observer fires on every
+        actual reader-thread read, so the clock resets on real
+        line-by-line streaming pacing -- matches the same pattern
+        ``/cap.wire`` uses.
 
         No "Disconnected." chrome banner -- exec mode is the piping
         mode, and chrome bytes corrupt captured stdout.
         """
+        import time as _time
+
+        last_arrival = [_time.monotonic()]
+
+        def _bump_last_rx(_data: bytes) -> None:
+            last_arrival[0] = _time.monotonic()
+
         try:
-            result = self.ctx.dispatch(command)
-            if self.engine.is_connected and self.engine.serial_port:
-                self.engine.serial_port.wait_for_idle()
+            with self.ctx.rx_observer(_bump_last_rx):
+                result = self.ctx.dispatch(command)
+                deadline = _time.monotonic() + self._EXEC_MAX_WAIT_S
+                while _time.monotonic() < deadline:
+                    if (_time.monotonic() - last_arrival[0]) >= self._EXEC_IDLE_GAP_S:
+                        break
+                    _time.sleep(0.01)
         except KeyboardInterrupt:
             self._raw("\nInterrupted")
             self._exec_exit_code = 130  # SIGINT convention
@@ -863,6 +886,12 @@ class CLITerminal(TerminalHost):
             return
         self._exec_exit_code = 0 if result.success else 1
         self.engine.disconnect()
+
+    # Tuning knobs for _run_exec_mode.  Class constants so they're
+    # easy to find / override in a subclass or test, and so the docstring
+    # references stay accurate without magic numbers in the body.
+    _EXEC_IDLE_GAP_S = 0.5   # quiet period that signals "device done"
+    _EXEC_MAX_WAIT_S = 60.0  # hard cap so runaway streams can't hang us
 
     def _run_interactive(self) -> None:
         """Run the interactive input loop.

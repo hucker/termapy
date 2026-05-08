@@ -265,6 +265,42 @@ termapy --cli my_device -e "/help port"       # run a slash command
 termapy --cli my_device --exec "/proto.crc.calc CRC-16/MODBUS data=01 03 00 00 00 02"
 ```
 
+### Worked example
+
+Reproducible against the bundled demo (no hardware needed):
+
+```text
+$ termapy --cli --demo -e "AT+INFO"
+Bassomatic v77 v1.0
+Uptime: 0h 0m 0s
+Free memory: 29135 bytes
+$ echo $?
+0
+```
+
+Three lines from the device, exit 0, no banner, no echo prefix, no
+ANSI -- ready to feed into `awk`, `grep`, or `jq`.
+
+### Exit code contract
+
+Exit `0` if termapy successfully dispatched the command, `1` if the
+dispatch itself failed.  **Termapy's dispatch is what's checked, not
+the device's response.**  An unknown slash command exits 1 because
+termapy can detect it locally:
+
+```text
+$ termapy --cli --demo -e "/notacommand"
+  Error: Unknown command: notacommand
+$ echo $?
+1
+```
+
+But a device-side error text (e.g. the simulator's
+`"ERROR: Unknown command 'AT+NOPE'"`) still exits 0 -- termapy sent
+the command and got a reply.  Reading device errors from exit codes
+requires a device profile that parses the response, or you can
+``grep -q`` the stdout yourself.
+
 **Quoting.** A single-arg flag means multi-token commands must be
 quoted, the same way `git commit -m "msg"` and `bash -c "cmd"` work --
 the shell tokenizes before argparse sees anything:

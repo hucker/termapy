@@ -117,6 +117,7 @@ class CLITerminal(TerminalHost):
         config_path: str,
         no_color: bool = False,
         run_script: str | None = None,
+        exec_cmd: str | None = None,
         term_width: int | None = None,
         zero_config: bool = False,
         output_level: str | None = None,
@@ -129,6 +130,9 @@ class CLITerminal(TerminalHost):
                 zero-config mode (no config file, in-memory defaults).
             no_color: Strip Rich color markup.
             run_script: Optional .run path; if given, runs script and exits.
+            exec_cmd: Optional single command string; if given, dispatches
+                it once and exits with status 0/1.  Mutually exclusive
+                with ``run_script`` (entry.py enforces).
             term_width: Optional terminal width override.
             zero_config: True when the app started without a config file.
                 Triggers the welcome banner + port list on ``run()`` and
@@ -141,11 +145,13 @@ class CLITerminal(TerminalHost):
         self.config_path = config_path
         self.no_color = no_color
         self.run_script = run_script
+        self.exec_cmd = exec_cmd
         self.term_width = term_width
         self.zero_config = zero_config
         self.output_level = output_level
         self.prefix = cmd_prefix(cfg)
         self._xfer_cancel = threading.Event()
+        self._exec_exit_code = 0
 
         # Ensure stdout handles unicode on Windows.  sys.stdout is typed as
         # IO[str] (no reconfigure) but is actually TextIOWrapper at runtime.
@@ -793,6 +799,17 @@ class CLITerminal(TerminalHost):
 
     # -- Run modes ------------------------------------------------------------
 
+    @property
+    def is_oneshot(self) -> bool:
+        """True for --run and --exec -- non-interactive, exits when done.
+
+        Interactive modes (TUI, CLI REPL) run the cfg's connect-time
+        autorun (``device_json_cmd`` auto-include, ``on_connect_cmd``,
+        the help banner).  One-shot modes suppress those -- the user
+        expects only the script or exec'd command to produce output.
+        """
+        return bool(self.run_script or self.exec_cmd)
+
     def _run_script_mode(self, run_script: str) -> None:
         """Execute a .run script and exit."""
         script_path = Path(run_script)
@@ -814,6 +831,22 @@ class CLITerminal(TerminalHost):
                 self._raw("\nScript interrupted")
         self.engine.disconnect()
         self.write("Disconnected.", "red")
+
+    def _run_exec_mode(self, command: str) -> None:
+        """Dispatch one command and exit.  Sets self._exec_exit_code.
+
+        No "Disconnected." chrome banner -- exec mode is the piping
+        mode, and chrome bytes corrupt captured stdout.
+        """
+        try:
+            result = self.ctx.dispatch(command)
+        except KeyboardInterrupt:
+            self._raw("\nInterrupted")
+            self._exec_exit_code = 130  # SIGINT convention
+            self.engine.disconnect()
+            return
+        self._exec_exit_code = 0 if result.success else 1
+        self.engine.disconnect()
 
     def _run_interactive(self) -> None:
         """Run the interactive input loop.
@@ -913,20 +946,24 @@ class CLITerminal(TerminalHost):
             if not self._connect():
                 sys.exit(1)
 
-        # Show hint before on_connect_cmd so it appears first
-        if not self.run_script:
+        # Show hint before on_connect_cmd so it appears first.  All
+        # connect-time autorun (banner, device_json_cmd auto-include,
+        # on_connect_cmd) is gated on is_oneshot: interactive modes
+        # run them; --run and --exec suppress them so piped/captured
+        # stdout contains only the user's script or command output.
+        if not self.is_oneshot:
             self.write(
                 f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
                 "dim",
             )
 
         # Auto-import target commands if configured
-        if self.cfg.get("device_json_cmd", "") and not self.run_script:
+        if self.cfg.get("device_json_cmd", "") and not self.is_oneshot:
             self._dispatch(self.repl.cmd("include"))
 
         # Run on_connect_cmd (same as TUI does after connecting)
         auto_cmd = self.cfg.get("on_connect_cmd", "")
-        if auto_cmd and not self.run_script:
+        if auto_cmd and not self.is_oneshot:
             parts = auto_cmd.replace("\\n", "\n").split("\n")
             for cmd in parts:
                 cmd = cmd.strip()
@@ -937,6 +974,8 @@ class CLITerminal(TerminalHost):
 
         if self.run_script:
             self._run_script_mode(self.run_script)
+        elif self.exec_cmd:
+            self._run_exec_mode(self.exec_cmd)
         else:
             self._run_interactive()
         self.repl.fire_lifecycle("on_app_stop")

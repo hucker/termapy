@@ -245,13 +245,48 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 | `--chips=ftdi`    | Filter the table (case-insensitive substring match).          |
 | `--check`         | Validate your config, print JSON status, exit.                |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
-| `--cli`           | Launch the CLI REPL instead of the TUI. With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
+| `--cli`           | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
+| `-e`, `--exec CMD` | Run a single command and exit (CLI mode).  Implies `--cli`.  See [One-shot exec](#one-shot-exec--e----exec) below. |
 | `--silent`        | Output level: nothing (script reads `CmdResult.value` only).  |
 | `--quiet`         | Output level: command results only.                           |
 | `--verbose`       | Output level: results + data + progress chatter.              |
 
 `termapy --help` has the full list.
+
+## One-shot exec: `-e` / `--exec`
+
+Run a single command, print its output to stdout, exit with status 0
+(success) or 1 (failure):
+
+```sh
+termapy --cli my_device -e "AT+VER"           # send a device command
+termapy --cli my_device -e "/help port"       # run a slash command
+termapy --cli my_device --exec "/proto.crc.calc CRC-16/MODBUS data=01 03 00 00 00 02"
+```
+
+**Quoting.** A single-arg flag means multi-token commands must be
+quoted, the same way `git commit -m "msg"` and `bash -c "cmd"` work --
+the shell tokenizes before argparse sees anything:
+
+```sh
+termapy --cli cfg -e "start_system a=23 b=24"   # MUST be quoted
+termapy --cli cfg -e="start_system a=23 b=24"   # = form also works
+termapy --cli cfg -e start_system a=23 b=24     # WRONG: shell splits into 4 tokens
+```
+
+**Suppressed cfg autorun.** Connect-time autorun (`device_json_cmd`
+auto-include, `on_connect_cmd`, the help banner) doesn't fire in
+one-shot mode -- captured stdout contains only the command's output.
+If your one-shot needs init steps, chain them in the command or
+write a `.run` file and use `--run`.
+
+**Pairing with `--no-color`** strips ANSI escapes for clean piping;
+**pairing with `request_mode=true`** in cfg emits a JSON envelope
+(`{cmd, success, error, elapsed_s, result}`) instead of plain text.
+
+**Mutual exclusion.** `--exec` and `--run` can't both be set; passing
+both exits with an argparse error.
 
 ## Try without hardware: `TERMAPY_DEMO_FLEET`
 

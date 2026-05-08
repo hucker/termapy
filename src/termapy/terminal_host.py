@@ -267,6 +267,11 @@ class TerminalHost:
             engine=engine_api,
             # Serial
             is_connected=lambda: self.engine.is_connected,
+            # Oneshot: True when --run / --exec is in effect.  Plugins
+            # use this to suppress chatter that would corrupt captured
+            # stdout.  Defaults to False; CLITerminal overrides via a
+            # property that consults run_script / exec_cmd.
+            is_oneshot=lambda: getattr(self, "is_oneshot", False),
             serial_write=self._serial_write,
             serial_send=self._serial_send,
             serial_claim=lambda: setattr(self.engine, "serial_claimed", True),

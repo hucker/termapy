@@ -4011,6 +4011,7 @@ def _run_cli_mode(args) -> str | None:
     from termapy.cli import CLITerminal
 
     run_script = getattr(args, "run", None)
+    exec_cmd = getattr(args, "exec_cmd", None)
 
     # If a positional arg is a .run file, treat it as --run
     if args.config and args.config.endswith(".run") and not run_script:
@@ -4059,11 +4060,14 @@ def _run_cli_mode(args) -> str | None:
                 config_path="",
                 no_color=args.no_color,
                 run_script=run_script,
+                exec_cmd=exec_cmd,
                 term_width=getattr(args, "term_width", None),
                 zero_config=True,
                 output_level=getattr(args, "output_level", None),
             )
             result = cli.run()
+            if exec_cmd:
+                sys.exit(cli._exec_exit_code)
             if result:
                 args.config = cli.config_path
             return result
@@ -4080,10 +4084,13 @@ def _run_cli_mode(args) -> str | None:
         config_path,
         no_color=args.no_color,
         run_script=run_script,
+        exec_cmd=exec_cmd,
         term_width=getattr(args, "term_width", None),
         output_level=getattr(args, "output_level", None),
     )
     result = cli.run()
+    if exec_cmd:
+        sys.exit(cli._exec_exit_code)
     if result:
         args.config = cli.config_path
     return result

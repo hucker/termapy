@@ -23,7 +23,7 @@ The demo creates a complete project at `termapy_cfg/demo/` with:
 - **5 toolbar buttons**: Demo Help, AT Demo, Info, Probe, TempPlot
 - **6 scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo
 - **3 protocol test files**: at_test, bitfield_inline, modbus_inline
-- **3 plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline)
+- **4 plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)
 
 ## Device commands
 
@@ -91,13 +91,43 @@ Supports function codes 0x03 (read holding registers) and 0x06
 
 ## Demo plugins
 
-| Plugin       | Command      | What it does                                     |
-| ------------ | ------------ | ------------------------------------------------ |
-| cmd.py       | `/cmd`       | Custom shortcut, wraps a device command          |
-| probe.py     | `/probe`     | Device survey, send/receive cycle with output    |
-| temp_plot.py | `/temp_plot` | Sample temperature N times, draw ASCII sparkline |
+| Plugin       | Command       | What it does                                                                |
+| ------------ | ------------- | --------------------------------------------------------------------------- |
+| cmd.py       | `/cmd`        | Custom shortcut, wraps a device command                                     |
+| probe.py     | `/probe`      | Device survey, send/receive cycle with output                               |
+| temp_plot.py | `/temp_plot`  | Sample temperature N times, draw ASCII sparkline                            |
+| traffic.py   | `/traffic.*`  | RX/TX byte tap: count, hex-dump, rate, snoop (passive observer pattern)     |
 
-`probe.py` is the best starting template for writing your own plugins.
-See [Writing Plugins](writing-plugins.md) for details.
+`probe.py` is the best starting template for plugins that send and parse a single
+device response.  `traffic.py` is the template for plugins that need to *watch*
+the byte stream without disrupting normal operation -- it demonstrates the
+``ctx.rx_observer()`` / ``ctx.tx_observer()`` context managers (see
+[Writing Plugins](writing-plugins.md) for the full pattern).
+
+### `/traffic.*` subcommands
+
+| Subcommand | Args | What it does |
+| ---------- | ---- | ------------ |
+| `/traffic.count` | `<cmd>` | Run a command and report TX/RX bytes during it |
+| `/traffic.hexdump` | `<file> [duration]` | Tee timestamped hex of all I/O to a file (default 5s) |
+| `/traffic.rate` | `[duration]` | Bytes/sec rate over a window (default 5s) |
+| `/traffic.snoop` | `<hex> [timeout=<dur>]` | Block until a hex byte pattern appears in RX |
+
+Examples against the demo:
+
+```text
+demo> /traffic.count AT+VER
+  TX: 7  RX: 12  bytes
+
+demo> /traffic.rate 3s
+  Sampling for 3.0s...
+  TX: 0 bytes (0.0 B/s)
+  RX: 28 bytes (9.3 B/s)
+
+demo> /traffic.hexdump capture.log 10s
+
+demo> /traffic.snoop 56 45 52 timeout=2s    # wait for "VER" in RX
+  Matched 565452 at offset 14
+```
 
 ---

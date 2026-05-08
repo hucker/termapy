@@ -268,7 +268,10 @@ termapy_cfg/
     │   ├── smoke_test.run
     │   └── status_check.run
     ├── plugin/                         # per-config plugins
-    │   └── probe.py
+    │   ├── cmd.py
+    │   ├── probe.py
+    │   ├── temp_plot.py
+    │   └── traffic.py
     ├── cap/                            # data capture output files
     └── proto/                          # protocol test scripts
         ├── at_test.pro
@@ -1012,7 +1015,7 @@ See `examples/plugins/` for working examples:
 - **timestamp.py:** print the current date/time
 - **ping.py:** send a command and measure response time
 
-A more complete example ships with `--demo`: the `probe.py` plugin demonstrates the drain → write → read → parse cycle for device interaction. Run `/help probe` or `/help.dev probe` to see its documentation.
+More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.rx_observer()` / `ctx.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
 
 </details>
 

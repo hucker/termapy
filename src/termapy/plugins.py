@@ -981,19 +981,10 @@ class PluginContext:
             The text shares space with the REPL input and auto-clears after
             a timeout (default 5 seconds).  No-op in CLI mode.
             Signature: ``status_bar(text, timeout=5.0)``.
-        add_rx_observer: Register a callback that receives every raw RX byte
-            chunk from the serial port.  Observers see data alongside the
-            normal display pipeline -- they cannot modify or block it.
-            Callbacks fire on the reader background thread.
-            Signature: ``add_rx_observer(cb: Callable[[bytes], None])``.
-        remove_rx_observer: Unregister an RX observer callback.
-            Signature: ``remove_rx_observer(cb: Callable[[bytes], None])``.
-        add_tx_observer: Register a callback that receives every TX byte
-            chunk sent to the serial port.  Observers see data alongside
-            the normal write path.  Callbacks fire on the calling thread.
-            Signature: ``add_tx_observer(cb: Callable[[bytes], None])``.
-        remove_tx_observer: Unregister a TX observer callback.
-            Signature: ``remove_tx_observer(cb: Callable[[bytes], None])``.
+    Serial observers (RX/TX byte taps) are reached through the
+    :meth:`rx_observer` and :meth:`tx_observer` context managers; the bare
+    register/unregister methods are intentionally not part of the public
+    surface so exceptions can't leak observers.
     """
 
     # Core I/O
@@ -1026,11 +1017,15 @@ class PluginContext:
     # Status bar - transient text in the bottom bar (TUI only, no-op in CLI)
     status_bar: Callable = lambda text, timeout=5.0: None
 
-    # Serial observers - see raw bytes without disrupting the pipeline
-    add_rx_observer: Callable = lambda cb: None
-    remove_rx_observer: Callable = lambda cb: None
-    add_tx_observer: Callable = lambda cb: None
-    remove_tx_observer: Callable = lambda cb: None
+    # Serial observers - see raw bytes without disrupting the pipeline.
+    # Underscore-prefixed: ``ctx.rx_observer(cb)`` and ``ctx.tx_observer(cb)``
+    # context managers are the public path; bare register/unregister stays
+    # private so leaks (observer never removed on exception) are
+    # structurally impossible from plugin code.
+    _add_rx_observer: Callable = lambda cb: None
+    _remove_rx_observer: Callable = lambda cb: None
+    _add_tx_observer: Callable = lambda cb: None
+    _remove_tx_observer: Callable = lambda cb: None
 
     # Filesystem
     ss_dir: Path = field(default_factory=lambda: Path("."))
@@ -1237,6 +1232,67 @@ class PluginContext:
             yield
         finally:
             self.serial_release()
+
+    @contextmanager
+    def rx_observer(
+        self, cb: Callable[[bytes], None],
+    ) -> Generator[None, None, None]:
+        """Register an RX byte observer for the duration of the block.
+
+        Observers see every raw RX byte chunk alongside the normal
+        line-decoding pipeline -- they cannot modify or block it.
+        Callbacks fire on the reader background thread; keep them fast
+        or offload to a queue.
+
+        Released on every exit path including exceptions, so a handler
+        that crashes mid-block can't leak the observer.  This is the
+        only public path -- the bare register/unregister methods are
+        intentionally unreachable from plugin code so leaks are
+        structurally impossible.
+
+        Usage::
+
+            byte_count = [0]
+            def watch(data: bytes) -> None:
+                byte_count[0] += len(data)
+
+            with ctx.rx_observer(watch):
+                ctx.dispatch(some_command)
+
+            ctx.result(f"saw {byte_count[0]} RX bytes")
+        """
+        self._add_rx_observer(cb)
+        try:
+            yield
+        finally:
+            self._remove_rx_observer(cb)
+
+    @contextmanager
+    def tx_observer(
+        self, cb: Callable[[bytes], None],
+    ) -> Generator[None, None, None]:
+        """Register a TX byte observer for the duration of the block.
+
+        Observers see every raw TX byte chunk alongside the normal
+        write path -- they cannot modify or block it.  Callbacks fire
+        on the calling thread.
+
+        Released on every exit path including exceptions; bare
+        register/unregister methods are not exposed from plugin code.
+        Pairs with :meth:`rx_observer` for full traffic taps.
+
+        Usage::
+
+            written = bytearray()
+            with ctx.tx_observer(written.extend):
+                ctx.serial_write(b"AT+VER\\r")
+            ctx.result(f"sent {len(written)} bytes")
+        """
+        self._add_tx_observer(cb)
+        try:
+            yield
+        finally:
+            self._remove_tx_observer(cb)
 
 
 @dataclass

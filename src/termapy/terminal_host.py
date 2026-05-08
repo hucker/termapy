@@ -271,10 +271,14 @@ class TerminalHost:
             serial_send=self._serial_send,
             serial_claim=lambda: setattr(self.engine, "serial_claimed", True),
             serial_release=lambda: setattr(self.engine, "serial_claimed", False),
-            add_rx_observer=self.engine.add_rx_observer,
-            remove_rx_observer=self.engine.remove_rx_observer,
-            add_tx_observer=self.engine.add_tx_observer,
-            remove_tx_observer=self.engine.remove_tx_observer,
+            # Underscore-prefixed: ``ctx.rx_observer(cb)`` and
+            # ``ctx.tx_observer(cb)`` context managers are the public
+            # path; bare register/unregister stays private so plugin
+            # code can't leak observers on exception.
+            _add_rx_observer=self.engine.add_rx_observer,
+            _remove_rx_observer=self.engine.remove_rx_observer,
+            _add_tx_observer=self.engine.add_tx_observer,
+            _remove_tx_observer=self.engine.remove_tx_observer,
             # Dispatch / confirmation
             dispatch=lambda cmd: self._dispatch(cmd),
             confirm=lambda msg: self._confirm(msg),

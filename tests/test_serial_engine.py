@@ -114,23 +114,23 @@ class TestProperties:
         # Assert
         assert engine.rx_queue is not None, "rx_queue should exist"
 
-    def test_proto_active_default(self):
+    def test_serial_claimed_default(self):
         # Arrange
         engine, _, _ = _make_engine()
 
         # Assert
-        assert engine.proto_active is False, "proto_active should default to False"
+        assert engine.serial_claimed is False, "serial_claimed defaults to False"
 
-    def test_proto_active_setter(self):
+    def test_serial_claimed_setter(self):
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
 
         # Act
-        engine.proto_active = True
+        engine.serial_claimed = True
 
         # Assert
-        assert engine.proto_active is True, "proto_active should be True after set"
+        assert engine.serial_claimed is True, "serial_claimed True after set"
         engine.disconnect()
 
 

@@ -2674,7 +2674,7 @@ class SerialTerminal(TerminalHost, App):
         if mode == "text":
             self._cap_timer = self.set_timer(duration, self._cap_stop)
         else:
-            self._engine.proto_active = True
+            self._engine.serial_claimed = True
             if timeout > 0:
                 self._cap_timer = self.set_timer(timeout, self._cap_stop)
             else:
@@ -2694,7 +2694,7 @@ class SerialTerminal(TerminalHost, App):
         result = self._capture.stop()
 
         if not self.repl.in_script:
-            self._engine.proto_active = False
+            self._engine.serial_claimed = False
 
         if self._cap_timer:
             self._cap_timer.stop()
@@ -3099,7 +3099,7 @@ class SerialTerminal(TerminalHost, App):
         popup_visible = popup.has_class("visible")
 
         if event.key == "escape":
-            if self._engine.proto_active:
+            if self._engine.serial_claimed:
                 self._xfer_cancel.set()
                 event.prevent_default()
             elif popup_visible:
@@ -3933,7 +3933,7 @@ class SerialTerminal(TerminalHost, App):
                 self._script_last_label = ""
                 inp.disabled = False
                 inp.focus()
-                self._engine.proto_active = False
+                self._engine.serial_claimed = False
         except SHUTDOWN_RACE:
             pass  # event posted after widget tree teardown
 

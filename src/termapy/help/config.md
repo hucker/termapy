@@ -75,6 +75,7 @@ Here is an example config for a device called `iot_device`:
     "show_line_endings": false,
     "show_line_numbers": false,
     "hex_mode": false,
+    "request_mode": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
     "cfg_enabled": true,
@@ -126,6 +127,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `show_line_endings`      | `false`               | Show dim `\r` `\n` markers in serial output for debugging                                   |
 | `show_line_numbers`      | `false`               | Show line numbers in serial output                                                          |
 | `hex_mode`               | `false`               | Display serial I/O as hex bytes instead of text                                             |
+| `request_mode`           | `false`               | Turn bare device commands into synchronous request/response (see `/term.request`)           |
 | `max_grep_lines`         | `100`                 | Maximum lines shown by `/grep`                                                              |
 | `file_xfer_root`         | ` `                   | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md).   |
 | `proto_frame_gap_ms`     | `50`                  | Silence gap (ms) to detect end of a binary frame                                            |

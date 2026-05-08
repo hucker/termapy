@@ -115,9 +115,8 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
-    try:
+    with ctx.serial_io():
+        ctx.serial_drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
         modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial_write(data) or len(data))
 
@@ -137,8 +136,6 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
             ctx.result(f"XMODEM send complete: {path} ({file_size} bytes)")
             return CmdResult.ok(value=str(path))
         return CmdResult.fail(msg="XMODEM send failed.")
-    finally:
-        ctx.engine.set_proto_active(False)
 
 
 def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
@@ -163,9 +160,8 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
-    try:
+    with ctx.serial_io():
+        ctx.serial_drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
         modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial_write(data) or len(data))
 
@@ -198,8 +194,6 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         if path.exists() and path.stat().st_size == 0:
             path.unlink()
         return CmdResult.fail(msg="XMODEM recv failed.")
-    finally:
-        ctx.engine.set_proto_active(False)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

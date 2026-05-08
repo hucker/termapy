@@ -202,7 +202,11 @@ class SerialReader:
         encoding: Character encoding for decoding bytes.
         show_line_endings: Insert visible EOL markers.
         capture: Optional CaptureEngine for binary capture tap.
-        proto_active: Callable returning True when display should be suppressed.
+        serial_claimed: Callable returning True while the serial port is
+            claimed by a synchronous reader.  Display is suppressed and
+            bytes are queued for ``serial_read_raw()`` instead of feeding
+            ``on_lines``.  ``PluginContext.serial_io()`` is the canonical
+            way to enter this state.
     """
 
     def __init__(
@@ -210,12 +214,12 @@ class SerialReader:
         encoding: str = "utf-8",
         show_line_endings: bool = False,
         capture: Any | None = None,
-        proto_active: Callable[[], bool] | None = None,
+        serial_claimed: Callable[[], bool] | None = None,
     ) -> None:
         self._encoding = encoding
         self._show_line_endings = show_line_endings
         self._capture = capture
-        self._proto_active = proto_active or (lambda: False)
+        self._serial_claimed = serial_claimed or (lambda: False)
         self._buf: str = ""
         self._last_rx: float = time.monotonic()
 
@@ -258,8 +262,8 @@ class SerialReader:
                     result.capture_target_reached = True
                 return result
 
-            # Suppress display during protocol operations
-            if self._proto_active():
+            # Suppress display while the port is claimed for synchronous read.
+            if self._serial_claimed():
                 self._last_rx = time.monotonic()
                 self._buf = ""
                 return result

@@ -170,6 +170,10 @@ def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_toggle(ctx, args, "show_timestamps")
 
 
+def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
+    return _cfg_toggle(ctx, args, "request_mode")
+
+
 def _handler_send_bare_enter(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_toggle(ctx, args, "send_bare_enter")
 
@@ -407,6 +411,34 @@ COMMAND = Command(
             args="{on|off}",
             help="Toggle hex display of incoming bytes.",
             handler=_handler_hex,
+        ),
+        "request": Command(
+            args="{on|off}",
+            help="Toggle request/response mode for bare device commands.",
+            long_help=(
+                "When on, every bare device command (a line that doesn't\n"
+                "start with {prefix}) is sent through the request/response\n"
+                "executor and its reply is wrapped in a JSON envelope:\n"
+                "\n"
+                "  {\"cmd\":\"<text>\",\"success\":true,\"error\":\"\",\n"
+                "   \"elapsed_s\":0.065,\"result\":\"<response text>\"}\n"
+                "\n"
+                "The envelope is rendered to the terminal as a single\n"
+                "line and surfaces in CmdResult.value (visible to MCP\n"
+                "clients and scripts).\n"
+                "\n"
+                "Input is symmetric: a JSON object with a string ``cmd``\n"
+                "field is unwrapped, so callers can send either plain\n"
+                "text (``get_voltage``) or JSON ({\"cmd\":\"get_voltage\"}).\n"
+                "Malformed JSON or JSON without a ``cmd`` key falls back\n"
+                "to plain-text send for graceful behavior.\n"
+                "\n"
+                "Profile-mapped commands keep their declared\n"
+                "response.format -- more-specific wins.  Use this for\n"
+                "ad-hoc exploration of devices, or as a baseline before\n"
+                "authoring a profile."
+            ),
+            handler=_handler_request,
         ),
         "send_bare_enter": Command(
             args="{on|off}",

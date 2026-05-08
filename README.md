@@ -523,6 +523,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "show_line_endings": false,
     "show_line_numbers": false,
     "hex_mode": false,
+    "request_mode": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
     "cfg_enabled": true,
@@ -558,6 +559,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `show_line_endings`  | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
 | `show_line_numbers`  | `false`                | Show line numbers in serial output                                                                       |
 | `hex_mode`           | `false`                | Display serial I/O as hex bytes instead of text                                                          |
+| `request_mode`       | `false`                | Turn bare device commands into synchronous request/response (see `/term.request`)                        |
 | `max_grep_lines`     | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
 | `proto_frame_gap_ms` | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`              | `""`                   | Title bar center text. Defaults to the config filename                                                   |

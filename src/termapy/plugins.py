@@ -791,7 +791,6 @@ class EngineAPI:
     save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
     apply_cfg: Callable = lambda key, val: None
     coerce_type: Callable = lambda val, existing: val
-    set_proto_active: Callable = lambda active: None
     open_proto_debug: Callable = lambda path, script: None
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
@@ -1215,11 +1214,16 @@ class PluginContext:
 
     @contextmanager
     def serial_io(self) -> Generator[None, None, None]:
-        """Claim exclusive serial access, suppressing terminal display.
+        """The synchronous-serial-read primitive.
 
-        While active, incoming bytes are queued for ``serial_read_raw()``
-        instead of being displayed in the terminal.  Use this around any
-        drain -> write -> read cycle so responses are captured reliably.
+        Claims the serial port for the duration of the block (suppresses
+        display, queues bytes for ``serial_read_raw()`` instead of feeding
+        ``on_lines``).  Releases on every exit path including exceptions.
+        Use this for any drain -> write -> read cycle.
+
+        This is the only public path -- the bare flag setter is
+        intentionally unreachable from plugin code so exception safety
+        is structural rather than a rule contributors have to remember.
 
         Usage::
 

@@ -547,6 +547,107 @@ class ReplEngine:
                 time.sleep(0.01)
         return collected
 
+    def _exec_request_mode(self, command: str) -> CmdResult:
+        """Send a bare device command and emit a JSON-envelope response.
+
+        Used when ``cfg["request_mode"]`` is true.  Mirrors ``/ping``'s
+        byte-oriented pattern: claim the serial port (suppressing raw
+        terminal display), drain, send, read until the response settles,
+        decode.  Wraps the response in an envelope rendered to the
+        terminal as a single line and returned in ``CmdResult.value``::
+
+            {"cmd": "...", "success": bool, "error": "...",
+             "elapsed_s": float, "result": "<response text>"}
+
+        Input is symmetric: a JSON object with a string ``cmd`` field is
+        unwrapped, so callers can send either plain text
+        (``get_voltage``) or JSON ({"cmd":"get_voltage"}).  Malformed
+        JSON or JSON without a ``cmd`` key falls back to plain-text send
+        for graceful behavior; the only hard failure is JSON with a
+        ``cmd`` field set to a non-string or empty value.
+
+        In MCP mode the profile executor runs upstream of this hook
+        (``mcp/server.py:_dispatch_via_profile``) and short-circuits for
+        profile-mapped commands.  In TUI/CLI there's no executor on this
+        path, so request_mode applies to every bare command.
+        """
+        import json as _json
+        import time as _time
+
+        # Symmetric input: unwrap {"cmd": "..."} into the cmd value.
+        # Graceful for non-JSON, non-dict, and dict-without-cmd inputs --
+        # they all fall through to plain-text send.  An explicit cmd
+        # field with a bad value (None / empty / non-string) is the one
+        # hard error; do not send because the user clearly meant JSON
+        # but got it wrong.
+        cmd_text = command.strip()
+        if cmd_text.startswith("{") and cmd_text.endswith("}"):
+            try:
+                parsed = _json.loads(cmd_text)
+            except (ValueError, _json.JSONDecodeError):
+                parsed = None
+            if isinstance(parsed, dict) and "cmd" in parsed:
+                cmd_value = parsed["cmd"]
+                if isinstance(cmd_value, str) and cmd_value:
+                    command = cmd_value
+                else:
+                    err_msg = (
+                        'Invalid JSON input: "cmd" must be a non-empty string'
+                    )
+                    envelope = {
+                        "cmd": cmd_text,
+                        "success": False,
+                        "error": err_msg,
+                        "elapsed_s": 0.0,
+                        "result": "",
+                    }
+                    self.ctx.write_markup(_json.dumps(envelope))
+                    return CmdResult.fail(msg=err_msg, value=envelope)
+
+        # Symmetric request-side echo: in request_mode, the JSON
+        # conversation IS the visible state -- both directions always
+        # render, regardless of echo_input.  echo_input is a plain-text
+        # ergonomic knob; in request_mode the protocol view replaces it.
+        # Always rendered AFTER unwrap so the canonical post-unwrap form
+        # is what the user sees, not the raw input string.  dispatch_full
+        # skips its legacy plain-text echo when request_mode is on, so
+        # this is the sole echo path in that mode.
+        self.ctx.write_markup(_json.dumps({"cmd": command}))
+
+        encoding = self.cfg.get("encoding", "utf-8")
+        line_ending = self.cfg.get("line_ending", "\r")
+        timeout_ms = int(self.cfg.get("response_timeout_ms", 1000))
+        payload = (command + line_ending).encode(encoding)
+
+        t0 = _time.perf_counter()
+        error = ""
+        text = ""
+        try:
+            with self.ctx.serial_io():
+                self.ctx.serial_drain()
+                self.ctx.serial_write(payload)
+                response = self.ctx.serial_read_raw(timeout_ms=timeout_ms)
+            text = response.decode(encoding, errors="replace").strip()
+        except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
+            error = f"Send error: {exc}"
+        elapsed = _time.perf_counter() - t0
+
+        success = not error
+        envelope = {
+            "cmd": command,
+            "success": success,
+            "error": error,
+            "elapsed_s": round(elapsed, 4),
+            "result": text,
+        }
+        self.ctx.write_markup(_json.dumps(envelope))
+        if success:
+            result = CmdResult.ok(value=envelope)
+        else:
+            result = CmdResult.fail(msg=error, value=envelope)
+        result.elapsed_s = elapsed
+        return result
+
     def feed_lines(self, lines: list[str]) -> None:
         """Feed serial output lines to the expect watcher.
 
@@ -813,7 +914,11 @@ class ReplEngine:
                 _status(str(e), "red")
                 return CmdResult.fail(msg=str(e))
 
-        if self.cfg.get("echo_input"):
+        # Skip the legacy plain-text echo when request_mode is on -- the
+        # executor will render a JSON-form request envelope instead so
+        # the session log stays all-JSON in that mode.  Same intent
+        # ("show what was typed"), different rendering.
+        if self.cfg.get("echo_input") and not self.cfg.get("request_mode"):
             echo_text = cmd
             if self.cfg.get("show_line_endings", False) and eol_label:
                 le = self.cfg.get("line_ending", "\r")
@@ -832,6 +937,15 @@ class ReplEngine:
         if serial_write is not None:
             self.ctx.serial_write = serial_write
         try:
+            # When request_mode is on, run the bare command through the
+            # request/response executor and emit a JSON envelope.  In
+            # MCP mode the profile executor (mcp/server.py) runs first
+            # and short-circuits for profile-mapped commands, so this
+            # hook only sees commands the profile didn't claim.  In
+            # TUI/CLI there's no profile executor on this path, so
+            # request_mode applies to every bare command.
+            if self.cfg.get("request_mode") and self.ctx.serial_write is not None:
+                return self._exec_request_mode(cmd)
             return self.dispatch(f"term.send {cmd}")
         finally:
             self.ctx.serial_write = saved_serial_write

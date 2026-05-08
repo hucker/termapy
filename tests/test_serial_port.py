@@ -387,26 +387,26 @@ class TestSerialReaderCapture:
         assert result.lines == ["hello"], "passed through to display"
 
 
-class TestSerialReaderProtoActive:
-    def test_display_suppressed(self):
+class TestSerialReaderClaimed:
+    def test_display_suppressed_when_claimed(self):
         # Arrange
-        reader = SerialReader(proto_active=lambda: True)
+        reader = SerialReader(serial_claimed=lambda: True)
 
         # Act
         result = reader.process(b"hello\r\n")
 
         # Assert
-        assert result.lines == [], "suppressed"
+        assert result.lines == [], "display suppressed while serial claimed"
 
-    def test_display_not_suppressed(self):
+    def test_display_not_suppressed_when_not_claimed(self):
         # Arrange
-        reader = SerialReader(proto_active=lambda: False)
+        reader = SerialReader(serial_claimed=lambda: False)
 
         # Act
         result = reader.process(b"hello\r\n")
 
         # Assert
-        assert result.lines == ["hello"]  # normal
+        assert result.lines == ["hello"], "display normal when not claimed"
 
 
 class TestSerialReaderReset:

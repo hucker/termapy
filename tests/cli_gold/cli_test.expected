@@ -133,6 +133,7 @@ demo> /cfg.dump
     "show_line_endings": false,
     "show_line_numbers": false,
     "hex_mode": false,
+    "request_mode": false,
     "file_xfer_root": "",
     "cfg_enabled": true,
     "run_enabled": true,

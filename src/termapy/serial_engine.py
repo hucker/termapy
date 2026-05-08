@@ -209,7 +209,7 @@ class SerialEngine:
         self._stop_event = Event()
         self._reader_stopped = Event()
         self._reader_stopped.set()
-        self._proto_active: bool = False
+        self._serial_claimed: bool = False
         self._rx_observers: list[Callable[[bytes], None]] = []
         self._tx_observers: list[Callable[[bytes], None]] = []
         self.last_error: str = ""
@@ -250,14 +250,22 @@ class SerialEngine:
         return self._reader_stopped
 
     @property
-    def proto_active(self) -> bool:
-        return self._proto_active
+    def serial_claimed(self) -> bool:
+        """True while a synchronous reader has claimed the port.
 
-    @proto_active.setter
-    def proto_active(self, value: bool) -> None:
-        self._proto_active = value
+        When True, incoming bytes accumulate in ``rx_queue`` for
+        ``serial_read_raw()`` to drain instead of flowing through
+        ``on_lines`` (terminal display + session log).  The setter
+        is internal -- ``PluginContext.serial_io()`` is the public
+        path for entering and exiting this state.
+        """
+        return self._serial_claimed
+
+    @serial_claimed.setter
+    def serial_claimed(self, value: bool) -> None:
+        self._serial_claimed = value
         if self._reader:
-            self._reader._proto_active = lambda: value
+            self._reader._serial_claimed = lambda: value
 
     def add_rx_observer(self, cb: Callable[[bytes], None]) -> None:
         """Register a callback that receives every raw RX byte chunk.
@@ -362,7 +370,7 @@ class SerialEngine:
             encoding=self._cfg.get("encoding", "utf-8"),
             show_line_endings=self._cfg.get("show_line_endings", False),
             capture=self._capture,
-            proto_active=lambda: self._proto_active,
+            serial_claimed=lambda: self._serial_claimed,
         )
         self._stop_event.clear()
         self._reader_stopped.clear()

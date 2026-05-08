@@ -113,64 +113,63 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
         path: Path to the script file (for display).
         script: Parsed ProtoScript.
     """
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
+    with ctx.serial_io():
+        ctx.serial_drain()
 
-    script_name = script.name or path.name
-    ctx.write(f"{'─' * 40}")
-    ctx.write(f"  {script_name}", "bold underline bright_white")
-    ctx.output(f"  {path.name} - {len(script.tests)} tests")
-    ctx.write(f"{'─' * 40}")
+        script_name = script.name or path.name
+        ctx.write(f"{'─' * 40}")
+        ctx.write(f"  {script_name}", "bold underline bright_white")
+        ctx.output(f"  {path.name} - {len(script.tests)} tests")
+        ctx.write(f"{'─' * 40}")
 
-    frame_gap = script.frame_gap_ms
+        frame_gap = script.frame_gap_ms
 
-    # Run setup commands
-    for cmd_text in script.setup:
-        _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
-
-    pass_count = 0
-    fail_count = 0
-    t_start = time.monotonic()
-
-    for tc in script.tests:
-        # Run per-test setup commands
-        for cmd_text in tc.setup:
+        # Run setup commands
+        for cmd_text in script.setup:
             _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
 
-        ctx.write(f"[PROTO] {tc.name}")
-        ctx.write(f"  TX:       {format_spaced(tc.send_data, tc.binary)}", "cyan")
-        ctx.serial_drain()
-        ctx.serial_write(tc.send_data)
+        pass_count = 0
+        fail_count = 0
+        t_start = time.monotonic()
 
-        t0 = time.monotonic()
-        response = ctx.serial_read_raw(tc.timeout_ms, frame_gap)
-        elapsed_ms = (time.monotonic() - t0) * 1000
-        if script.strip_ansi:
-            response = strip_ansi(response)
+        for tc in script.tests:
+            # Run per-test setup commands
+            for cmd_text in tc.setup:
+                _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
 
-        ctx.output(f"  Expected: {format_spaced(tc.expect_data, tc.binary)}")
-        if response:
-            ctx.write(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
-            if match_response(tc.expect_data, response, tc.expect_mask):
-                ctx.write(
-                    f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
-                    "bright_green",
-                )
-                pass_count += 1
+            ctx.write(f"[PROTO] {tc.name}")
+            ctx.write(f"  TX:       {format_spaced(tc.send_data, tc.binary)}", "cyan")
+            ctx.serial_drain()
+            ctx.serial_write(tc.send_data)
+
+            t0 = time.monotonic()
+            response = ctx.serial_read_raw(tc.timeout_ms, frame_gap)
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            if script.strip_ansi:
+                response = strip_ansi(response)
+
+            ctx.output(f"  Expected: {format_spaced(tc.expect_data, tc.binary)}")
+            if response:
+                ctx.write(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
+                if match_response(tc.expect_data, response, tc.expect_mask):
+                    ctx.write(
+                        f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
+                        "bright_green",
+                    )
+                    pass_count += 1
+                else:
+                    ctx.write("  FAIL", "red")
+                    fail_count += 1
             else:
+                ctx.write(f"  Actual:   (timeout after {tc.timeout_ms}ms)", "red")
                 ctx.write("  FAIL", "red")
                 fail_count += 1
-        else:
-            ctx.write(f"  Actual:   (timeout after {tc.timeout_ms}ms)", "red")
-            ctx.write("  FAIL", "red")
-            fail_count += 1
 
-    # Run teardown commands
-    for cmd_text in script.teardown:
-        _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
+        # Run teardown commands
+        for cmd_text in script.teardown:
+            _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
 
-    # Summary
-    ctx.engine.set_proto_active(False)
+    # Summary (after the with-block; serial port is released)
     elapsed_s = time.monotonic() - t_start
     total = pass_count + fail_count
     if total > 0:
@@ -195,83 +194,82 @@ def _run_flat_script(
     quiet = False
     frame_gap = settings.get("frame_gap_ms", 0)
 
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
+    with ctx.serial_io():
+        ctx.serial_drain()
 
-    script_name = settings.get("name") or path.name
-    ctx.write(f"{'─' * 40}")
-    ctx.write(f"  {script_name}", "bold underline bright_white")
-    ctx.output(f"  {path.name} - {len(steps)} steps")
-    ctx.write(f"{'─' * 40}")
+        script_name = settings.get("name") or path.name
+        ctx.write(f"{'─' * 40}")
+        ctx.write(f"  {script_name}", "bold underline bright_white")
+        ctx.output(f"  {path.name} - {len(steps)} steps")
+        ctx.write(f"{'─' * 40}")
 
-    pass_count = 0
-    fail_count = 0
-    step_num = 0
-    t_start = time.monotonic()
+        pass_count = 0
+        fail_count = 0
+        step_num = 0
+        t_start = time.monotonic()
 
-    for step in steps:
-        if step.action == "quiet":
-            quiet = True
-            continue
+        for step in steps:
+            if step.action == "quiet":
+                quiet = True
+                continue
 
-        if step.action == "loud":
-            quiet = False
-            continue
+            if step.action == "loud":
+                quiet = False
+                continue
 
-        if step.action == "delay":
-            time.sleep(step.timeout_ms / 1000.0)
-            continue
+            if step.action == "delay":
+                time.sleep(step.timeout_ms / 1000.0)
+                continue
 
-        if step.action == "flush":
-            ctx.serial_drain()
-            continue
+            if step.action == "flush":
+                ctx.serial_drain()
+                continue
 
-        if step.action == "cmd":
-            _run_cmd(ctx, step.data.decode("utf-8"), frame_gap, quiet)
-            continue
+            if step.action == "cmd":
+                _run_cmd(ctx, step.data.decode("utf-8"), frame_gap, quiet)
+                continue
 
-        if step.action == "send":
-            ctx.serial_drain()
-            step_num += 1
-            label = step.label or f"Step {step_num}"
-            ctx.write(f"[PROTO] {label}")
-            ctx.write(f"  TX:       {format_spaced(step.data, step.binary)}", "cyan")
-            ctx.serial_write(step.data)
-
-        elif step.action == "expect":
-            if not step.label:
-                pass
-            else:
+            if step.action == "send":
+                ctx.serial_drain()
                 step_num += 1
-                ctx.write(f"[PROTO] {step.label}")
+                label = step.label or f"Step {step_num}"
+                ctx.write(f"[PROTO] {label}")
+                ctx.write(f"  TX:       {format_spaced(step.data, step.binary)}", "cyan")
+                ctx.serial_write(step.data)
 
-            t0 = time.monotonic()
-            response = ctx.serial_read_raw(step.timeout_ms, frame_gap)
-            elapsed_ms = (time.monotonic() - t0) * 1000
-            if do_strip_ansi:
-                response = strip_ansi(response)
-
-            ctx.output(f"  Expected: {format_spaced(step.data, step.binary)}")
-            if response:
-                ctx.write(
-                    f"  Actual:   {format_spaced(response, step.binary)}", "yellow"
-                )
-                if match_response(step.data, response, step.mask):
-                    ctx.write(
-                        f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
-                        "bright_green",
-                    )
-                    pass_count += 1
+            elif step.action == "expect":
+                if not step.label:
+                    pass
                 else:
+                    step_num += 1
+                    ctx.write(f"[PROTO] {step.label}")
+
+                t0 = time.monotonic()
+                response = ctx.serial_read_raw(step.timeout_ms, frame_gap)
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                if do_strip_ansi:
+                    response = strip_ansi(response)
+
+                ctx.output(f"  Expected: {format_spaced(step.data, step.binary)}")
+                if response:
+                    ctx.write(
+                        f"  Actual:   {format_spaced(response, step.binary)}", "yellow"
+                    )
+                    if match_response(step.data, response, step.mask):
+                        ctx.write(
+                            f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
+                            "bright_green",
+                        )
+                        pass_count += 1
+                    else:
+                        ctx.write("  FAIL", "red")
+                        fail_count += 1
+                else:
+                    ctx.write(f"  Actual:   (timeout after {step.timeout_ms}ms)", "red")
                     ctx.write("  FAIL", "red")
                     fail_count += 1
-            else:
-                ctx.write(f"  Actual:   (timeout after {step.timeout_ms}ms)", "red")
-                ctx.write("  FAIL", "red")
-                fail_count += 1
 
-    # Summary
-    ctx.engine.set_proto_active(False)
+    # Summary (after the with-block; serial port is released)
     elapsed_s = time.monotonic() - t_start
     total = pass_count + fail_count
     if total > 0:
@@ -408,39 +406,38 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     all_data = b"".join(s for s in segments if isinstance(s, bytes))
     has_delays = any(isinstance(s, float) for s in segments)
 
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
-    if ctx.output_level == "verbose":
-        if has_delays:
-            parts = []
-            for s in segments:
-                if isinstance(s, bytes):
-                    hex_str = format_hex(s)
-                    smart_str = format_smart(s)
-                    if hex_str == smart_str:
-                        parts.append(f"[cyan]{hex_str}[/]")
+    with ctx.serial_io():
+        ctx.serial_drain()
+        if ctx.output_level == "verbose":
+            if has_delays:
+                parts = []
+                for s in segments:
+                    if isinstance(s, bytes):
+                        hex_str = format_hex(s)
+                        smart_str = format_smart(s)
+                        if hex_str == smart_str:
+                            parts.append(f"[cyan]{hex_str}[/]")
+                        else:
+                            parts.append(f"[cyan]{hex_str}[/]  [dim]{smart_str}[/]")
                     else:
-                        parts.append(f"[cyan]{hex_str}[/]  [dim]{smart_str}[/]")
-                else:
-                    if s >= 1.0:
-                        parts.append(f"[dim][~{s:.1f}s][/]")
-                    elif s >= 0.001:
-                        parts.append(f"[dim][~{s * 1000:.0f}ms][/]")
-                    else:
-                        parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
-            ctx.write_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
-        else:
-            _display_bytes(ctx, "TX", all_data, binary=True)
+                        if s >= 1.0:
+                            parts.append(f"[dim][~{s:.1f}s][/]")
+                        elif s >= 0.001:
+                            parts.append(f"[dim][~{s * 1000:.0f}ms][/]")
+                        else:
+                            parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
+                ctx.write_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
+            else:
+                _display_bytes(ctx, "TX", all_data, binary=True)
 
-    t0 = time.monotonic()
-    for segment in segments:
-        if isinstance(segment, float):
-            _delay_at_least(segment)
-        else:
-            ctx.serial_write(segment)
-    response = ctx.serial_read_raw(1000)
-    elapsed_ms = (time.monotonic() - t0) * 1000
-    ctx.engine.set_proto_active(False)
+        t0 = time.monotonic()
+        for segment in segments:
+            if isinstance(segment, float):
+                _delay_at_least(segment)
+            else:
+                ctx.serial_write(segment)
+        response = ctx.serial_read_raw(1000)
+        elapsed_ms = (time.monotonic() - t0) * 1000
 
     if response:
         _display_bytes(ctx, "RX", response, binary=True)

@@ -123,6 +123,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
+| `/cap.wire <cmd>`         | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
 | `/cap.stop`               | Stop an active capture                                                      |
 | `/xmodem.send <file>`     | Send a file to the device via XMODEM                                        |
 | `/xmodem.recv <file>`     | Receive a file from the device via XMODEM                                   |

@@ -572,6 +572,7 @@ SUBCOMMANDS
   /cap.stop       Stop an active capture.
   /cap.struct     Capture raw bytes, decode with format spec to CSV.
   /cap.text       Capture serial text to a file for a timed duration.
+  /cap.wire       Run a command and show TX/RX bytes as inline hex + repr.
 demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.

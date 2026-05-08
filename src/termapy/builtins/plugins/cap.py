@@ -619,6 +619,62 @@ def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok()
 
 
+# ── /cap.wire handler ────────────────────────────────────────────────────────
+
+
+def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
+    """Run a command and show TX/RX bytes as inline hex + repr.
+
+    Wraps the command in ``ctx.rx_observer()`` / ``ctx.tx_observer()``
+    so the bytes that flow during the dispatch are captured both ways.
+    Emits two lines: one for TX, one for RX.  Each line shows the byte
+    count, the hex-spaced bytes, and a Python ``repr()`` of the
+    decoded text so non-printing characters appear as escape sequences
+    (``\\r``, ``\\n``, ``\\x00``) instead of being rendered or eaten.
+
+    The canonical use case is line-ending and non-printing-character
+    debugging: when a device "doesn't respond," it almost always
+    actually does, but the response gets eaten by a terminator
+    mismatch.  ``/cap.wire`` makes the mismatch immediately visible.
+    """
+    if not args.strip():
+        return CmdResult.fail(msg="Usage: /cap.wire <cmd>")
+
+    tx = bytearray()
+    rx = bytearray()
+
+    with ctx.rx_observer(rx.extend), ctx.tx_observer(tx.extend):
+        ctx.dispatch(args)
+
+    encoding = ctx.cfg.get("encoding", "utf-8")
+    tx_decoded = bytes(tx).decode(encoding, errors="replace")
+    rx_decoded = bytes(rx).decode(encoding, errors="replace")
+
+    if not tx and not rx:
+        ctx.write("  (no traffic observed)", "dim")
+    else:
+        # Hex-spaced bytes paired with a Python repr() of the decoded
+        # text on the same line so escape sequences for non-printing
+        # bytes (\\r, \\n, \\x00, \\x1b) are visible.
+        ctx.write_markup(
+            f"  [yellow]TX ({len(tx):3d}):[/] "
+            f"{bytes(tx).hex(' ')}  [dim]{tx_decoded!r}[/]",
+        )
+        ctx.write_markup(
+            f"  [cyan]RX ({len(rx):3d}):[/] "
+            f"{bytes(rx).hex(' ')}  [dim]{rx_decoded!r}[/]",
+        )
+
+    return CmdResult.ok(value={
+        "tx_bytes": len(tx),
+        "rx_bytes": len(rx),
+        "tx_hex": bytes(tx).hex(),
+        "rx_hex": bytes(rx).hex(),
+        "tx_text": tx_decoded,
+        "rx_text": rx_decoded,
+    })
+
+
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
 def _cap_folder_line(ctx: PluginContext) -> str:
@@ -719,6 +775,34 @@ _CAP_POLL_PROSE = (
 )
 
 
+_CAP_WIRE_PROSE = (
+    "Run a single command, then display the TX and RX bytes that flowed\n"
+    "during it as hex + Python repr() of the decoded text.  The repr()\n"
+    "shows non-printing characters (\\r, \\n, \\x00, \\x1b) as visible\n"
+    "escape sequences instead of letting them get eaten by line-splitting\n"
+    "or rendered as control characters.\n"
+    "\n"
+    "Canonical use case: line-ending and non-printing-character debugging.\n"
+    "When a device 'doesn't respond,' it almost always does -- but the\n"
+    "response gets eaten by a terminator mismatch (\\r vs \\n vs \\r\\n).\n"
+    "Running the same command through {prefix}cap.wire makes the bytes\n"
+    "on the wire immediately visible.\n"
+    "\n"
+    "Examples:\n"
+    "  {prefix}cap.wire AT+VER          - one-shot trace of a device cmd\n"
+    "  {prefix}cap.wire {prefix}help    - any dispatchable command works\n"
+    "\n"
+    "Output format::\n"
+    "\n"
+    "  TX (  7): 41 54 2b 56 45 52 0d                       'AT+VER\\r'\n"
+    "  RX ( 12): 56 45 52 3d 31 2e 32 2e 33 0d 0a           'VER=1.2.3\\r\\n'\n"
+    "\n"
+    "Output is inline only -- this is for interactive debugging, not\n"
+    "logging.  For long-running wire captures to a file, use the\n"
+    "{prefix}cap.text or {prefix}cap.bin commands."
+)
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="cap",
@@ -768,6 +852,13 @@ COMMAND = Command(
         "stop": Command(
             help="Stop an active capture.",
             handler=_handler_stop,
+        ),
+        "wire": Command(
+            args="<cmd>",
+            help="Run a command and show TX/RX bytes as inline hex + repr.",
+            long_help=_cap_long_help_with_prose(_CAP_WIRE_PROSE),
+            handler=_handler_wire,
+            raw_args=True,
         ),
         **build_folder_subcommands("cap"),
     },

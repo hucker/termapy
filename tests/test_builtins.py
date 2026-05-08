@@ -1549,6 +1549,147 @@ class TestCapArgParsing:
         assert _parse_mode({"mode": "bad"}) is None
 
 
+# ── /cap.wire ────────────────────────────────────────────────────────────────
+
+
+class TestCapWire:
+    """Verify the wrap-and-show-hex handler.
+
+    The handler registers RX/TX observers via ``ctx.rx_observer()`` /
+    ``ctx.tx_observer()``, dispatches the wrapped command, and emits
+    a two-line hex+repr envelope.  Tests inject fake observer hooks
+    so we control exactly which bytes "flow" during the dispatch.
+    """
+
+    def _wire_observers(self, ctx):
+        """Replace ctx's private observer hooks with a recording pair.
+
+        Returns the lists of registered RX/TX callbacks so the test
+        can fire them to simulate bytes arriving / being sent.
+        """
+        rx_callbacks: list = []
+        tx_callbacks: list = []
+        ctx._add_rx_observer = rx_callbacks.append
+        ctx._remove_rx_observer = (
+            lambda cb: rx_callbacks.remove(cb) if cb in rx_callbacks else None
+        )
+        ctx._add_tx_observer = tx_callbacks.append
+        ctx._remove_tx_observer = (
+            lambda cb: tx_callbacks.remove(cb) if cb in tx_callbacks else None
+        )
+        return rx_callbacks, tx_callbacks
+
+    def test_wire_no_args_fails_with_usage(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("cap.wire")
+
+        # Assert
+        assert result.success is False, "/cap.wire requires args"
+        assert "Usage" in result.error, "error names usage"
+
+    def test_wire_envelope_shape(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        ctx = engine.ctx
+        rx_cbs, tx_cbs = self._wire_observers(ctx)
+        # Replace ctx.dispatch so it fires observers to simulate bytes
+        # flowing during the wrapped command.
+        from termapy.plugins import CmdResult
+
+        def fake_dispatch(cmd):
+            for cb in tx_cbs:
+                cb(b"AT+VER\r")
+            for cb in rx_cbs:
+                cb(b"VER=1.2.3\r\n")
+            return CmdResult.ok()
+
+        ctx.dispatch = fake_dispatch
+
+        # Act
+        result = engine.dispatch("cap.wire AT+VER")
+
+        # Assert -- 7-byte TX ("AT+VER\r"), 11-byte RX ("VER=1.2.3\r\n")
+        envelope = result.value
+        assert envelope["tx_bytes"] == 7, "TX byte count"
+        assert envelope["rx_bytes"] == 11, "RX byte count"
+        assert envelope["tx_hex"] == "41542b5645520d", "TX hex"
+        assert envelope["rx_hex"] == "5645523d312e322e330d0a", "RX hex"
+        assert envelope["tx_text"] == "AT+VER\r", "TX decoded"
+        assert envelope["rx_text"] == "VER=1.2.3\r\n", "RX decoded"
+
+    def test_wire_renders_hex_and_repr(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        ctx = engine.ctx
+        rx_cbs, tx_cbs = self._wire_observers(ctx)
+        from termapy.plugins import CmdResult
+
+        def fake_dispatch(cmd):
+            for cb in tx_cbs:
+                cb(b"x\r")
+            for cb in rx_cbs:
+                cb(b"y\r\n")
+            return CmdResult.ok()
+
+        ctx.dispatch = fake_dispatch
+
+        # Act
+        engine.dispatch("cap.wire x")
+
+        # Assert -- TX line has hex AND a Python repr() that exposes
+        # non-printing characters as escape sequences (the canonical
+        # use case for /cap.wire is line-ending debugging).
+        rendered = "\n".join(t for t, _ in output)
+        assert "78 0d" in rendered, "TX bytes shown as hex"
+        assert "79 0d 0a" in rendered, "RX bytes shown as hex"
+        assert r"'x\r'" in rendered, "TX shown via repr() so \\r is visible"
+        assert r"'y\r\n'" in rendered, "RX shown via repr() so \\r\\n is visible"
+
+    def test_wire_no_traffic_emits_friendly_message(self, repl_env):
+        # Arrange -- dispatch happens but no bytes flow (dispatched
+        # something that doesn't touch serial, e.g. /help)
+        engine, _, _, output = repl_env
+        ctx = engine.ctx
+        self._wire_observers(ctx)
+        from termapy.plugins import CmdResult
+        ctx.dispatch = lambda cmd: CmdResult.ok()
+
+        # Act
+        result = engine.dispatch("cap.wire help")
+
+        # Assert
+        rendered = "\n".join(t for t, _ in output)
+        assert "no traffic observed" in rendered, "friendly message on zero bytes"
+        envelope = result.value
+        assert envelope["tx_bytes"] == 0, "zero TX"
+        assert envelope["rx_bytes"] == 0, "zero RX"
+
+    def test_wire_releases_observers_on_exception(self, repl_env):
+        # Arrange -- dispatch raises mid-block; observers must still be
+        # unregistered so subsequent commands aren't tapped.
+        engine, _, _, _ = repl_env
+        ctx = engine.ctx
+        rx_cbs, tx_cbs = self._wire_observers(ctx)
+
+        def boom_dispatch(cmd):
+            raise RuntimeError("simulated handler crash")
+
+        ctx.dispatch = boom_dispatch
+
+        # Act -- wrapping dispatch is the engine.dispatch that runs
+        # /cap.wire; the handler's BoundaryException-protected layer
+        # swallows the exception and returns a fail result.
+        result = engine.dispatch("cap.wire AT+CRASH")
+
+        # Assert -- whatever the result, observers must have been
+        # released.  This is the whole point of the with-block.
+        assert rx_cbs == [], "RX observer released even on exception"
+        assert tx_cbs == [], "TX observer released even on exception"
+
+
 # -- /cap.text with mock start_capture ------------------------------------
 
 

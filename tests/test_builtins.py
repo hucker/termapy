@@ -1609,7 +1609,7 @@ class TestCapWire:
         ctx.dispatch = fake_dispatch
 
         # Act
-        result = engine.dispatch("cap.wire AT+VER")
+        result = engine.dispatch("cap.wire cmd=AT+VER")
 
         # Assert -- 7-byte TX ("AT+VER\r"), 11-byte RX ("VER=1.2.3\r\n")
         envelope = result.value
@@ -1637,7 +1637,7 @@ class TestCapWire:
         ctx.dispatch = fake_dispatch
 
         # Act
-        engine.dispatch("cap.wire x")
+        engine.dispatch("cap.wire cmd=x")
 
         # Assert -- TX line has hex AND a Python repr() that exposes
         # non-printing characters as escape sequences (the canonical
@@ -1648,9 +1648,12 @@ class TestCapWire:
         assert r"'x\r'" in rendered, "TX shown via repr() so \\r is visible"
         assert r"'y\r\n'" in rendered, "RX shown via repr() so \\r\\n is visible"
 
-    def test_wire_no_traffic_emits_friendly_message(self, repl_env):
+    def test_wire_no_traffic_renders_empty_envelope_with_warning(self, repl_env):
         # Arrange -- dispatch happens but no bytes flow (dispatched
-        # something that doesn't touch serial, e.g. /help)
+        # something that doesn't touch serial, e.g. /help).  The output
+        # should be a structured envelope (TX/RX lines with 0 bytes)
+        # plus a yellow warning header -- the empty envelope is itself
+        # the diagnostic.
         engine, _, _, output = repl_env
         ctx = engine.ctx
         self._wire_observers(ctx)
@@ -1658,11 +1661,13 @@ class TestCapWire:
         ctx.dispatch = lambda cmd: CmdResult.ok()
 
         # Act
-        result = engine.dispatch("cap.wire help")
+        result = engine.dispatch("cap.wire cmd=help")
 
         # Assert
         rendered = "\n".join(t for t, _ in output)
-        assert "no traffic observed" in rendered, "friendly message on zero bytes"
+        assert "no wire traffic" in rendered.lower(), "warning header present"
+        assert "TX (  0)" in rendered, "TX line rendered with 0-byte count"
+        assert "RX (  0)" in rendered, "RX line rendered with 0-byte count"
         envelope = result.value
         assert envelope["tx_bytes"] == 0, "zero TX"
         assert envelope["rx_bytes"] == 0, "zero RX"
@@ -1682,7 +1687,7 @@ class TestCapWire:
         # Act -- wrapping dispatch is the engine.dispatch that runs
         # /cap.wire; the handler's BoundaryException-protected layer
         # swallows the exception and returns a fail result.
-        result = engine.dispatch("cap.wire AT+CRASH")
+        result = engine.dispatch("cap.wire cmd=AT+CRASH")
 
         # Assert -- whatever the result, observers must have been
         # released.  This is the whole point of the with-block.
@@ -1702,9 +1707,11 @@ class TestCapWire:
         ctx.dispatch = lambda cmd: CmdResult.ok()
 
         # Act -- with wait_gap=0, total wall time should be well under
-        # the default 50ms idle gap (no settle loop runs).
+        # the default 50ms idle gap (no settle loop runs).  Note the
+        # canonical arg order: parameters first, cmd= last as the
+        # rest-keyword that consumes everything to end of line.
         t0 = _time.monotonic()
-        result = engine.dispatch("cap.wire AT+VER wait_gap=0ms")
+        result = engine.dispatch("cap.wire wait_gap=0ms cmd=AT+VER")
         elapsed_ms = (_time.monotonic() - t0) * 1000
 
         # Assert -- handler exited immediately; no 50ms settle penalty.
@@ -1718,12 +1725,11 @@ class TestCapWire:
         engine, _, _, _ = repl_env
 
         # Act
-        result = engine.dispatch("cap.wire AT+VER wait_gap=garbage")
+        result = engine.dispatch("cap.wire wait_gap=garbage cmd=AT+VER")
 
         # Assert
         assert result.success is False, "invalid wait_gap rejected"
         assert "wait_gap" in result.error, "error names the bad arg"
-
 
 # -- /cap.text with mock start_capture ------------------------------------
 

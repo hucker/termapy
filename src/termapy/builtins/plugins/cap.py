@@ -641,10 +641,12 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     ``request_response.py`` and the profile executor.  Capped by a
     5-second hard deadline.
 
-    Args (parsed via parse_keywords; both forms work):
+    Args (parameters first, ``cmd=`` last as the rest-keyword that
+    consumes the rest of the line so the wrapped command can contain
+    spaces, equals signs, or quotes without escaping):
 
-        /cap.wire <cmd>                    default wait_gap=50ms
-        /cap.wire <cmd> wait_gap=200ms     custom wait_gap
+        /cap.wire cmd=AT+VER                       default 50ms wait_gap
+        /cap.wire wait_gap=200ms cmd=AT+VER        slow device
 
     The canonical use case is line-ending and non-printing-character
     debugging: when a device "doesn't respond," it almost always
@@ -653,10 +655,10 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     """
     import time as _time
 
-    kw = parse_keywords(args, {"wait_gap"})
-    cmd = kw.get("_positional", "").strip()
+    kw = parse_keywords(args, {"cmd", "wait_gap"}, rest_keyword="cmd")
+    cmd = kw.get("cmd", "").strip()
     if not cmd:
-        return CmdResult.fail(msg="Usage: /cap.wire <cmd> [wait_gap=<dur>]")
+        return CmdResult.fail(msg="Usage: /cap.wire {wait_gap=<dur>} cmd=<command>")
     try:
         wait_gap_s = parse_duration(kw.get("wait_gap", "50ms"))
     except ValueError as e:
@@ -688,20 +690,24 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     tx_decoded = bytes(tx).decode(encoding, errors="replace")
     rx_decoded = bytes(rx).decode(encoding, errors="replace")
 
+    # Render the standard TX/RX envelope.  When zero bytes flowed (the
+    # cmd was a slash command that ran locally, or the device just
+    # didn't respond), we still render the lines with byte count 0 --
+    # that empty envelope is itself the diagnostic, and a "Warning: no
+    # wire traffic" header explains what to look at.
     if not tx and not rx:
-        ctx.write("  (no traffic observed)", "dim")
-    else:
-        # Hex-spaced bytes paired with a Python repr() of the decoded
-        # text on the same line so escape sequences for non-printing
-        # bytes (\\r, \\n, \\x00, \\x1b) are visible.
-        ctx.write_markup(
-            f"  [yellow]TX ({len(tx):3d}):[/] "
-            f"{bytes(tx).hex(' ')}  [dim]{tx_decoded!r}[/]",
-        )
-        ctx.write_markup(
-            f"  [cyan]RX ({len(rx):3d}):[/] "
-            f"{bytes(rx).hex(' ')}  [dim]{rx_decoded!r}[/]",
-        )
+        ctx.write("  Warning: no wire traffic", "yellow")
+    # Hex-spaced bytes paired with a Python repr() of the decoded
+    # text on the same line so escape sequences for non-printing
+    # bytes (\\r, \\n, \\x00, \\x1b) are visible.
+    ctx.write_markup(
+        f"  [yellow]TX ({len(tx):3d}):[/] "
+        f"{bytes(tx).hex(' ')}  [dim]{tx_decoded!r}[/]",
+    )
+    ctx.write_markup(
+        f"  [cyan]RX ({len(rx):3d}):[/] "
+        f"{bytes(rx).hex(' ')}  [dim]{rx_decoded!r}[/]",
+    )
 
     return CmdResult.ok(value={
         "tx_bytes": len(tx),
@@ -827,16 +833,24 @@ _CAP_WIRE_PROSE = (
     "on the wire immediately visible.\n"
     "\n"
     "Parameters:\n"
-    "  <cmd>             REQUIRED command to run (slash or bare).\n"
+    "  cmd=<command>     REQUIRED command to run (slash or bare).\n"
+    "                    Must be last; consumes the rest of the line\n"
+    "                    so the command can contain spaces, '=', or\n"
+    "                    quotes without escaping.\n"
     "  wait_gap=<dur>    Idle gap that signals the device's response\n"
     "                    is complete (default: 50ms).  Capped at 5s.\n"
     "                    Increase for slow devices; lower for snappy\n"
     "                    ones where 50ms feels laggy.\n"
     "\n"
     "Examples:\n"
-    "  {prefix}cap.wire AT+VER                - default 50ms wait_gap\n"
-    "  {prefix}cap.wire AT+VER wait_gap=200ms - slow device\n"
-    "  {prefix}cap.wire {prefix}help          - any dispatchable command works\n"
+    "  {prefix}cap.wire cmd=AT+VER                - default 50ms wait_gap\n"
+    "  {prefix}cap.wire wait_gap=200ms cmd=AT+VER - slow device\n"
+    "\n"
+    "Note: cmd= must be something that produces serial traffic.  Slash\n"
+    "commands like {prefix}help are handled inside termapy and never\n"
+    "reach the wire, so {prefix}cap.wire renders an empty envelope\n"
+    "(TX/RX both showing 0 bytes) with a 'no wire traffic' warning\n"
+    "header.\n"
     "\n"
     "Output format::\n"
     "\n"
@@ -900,9 +914,12 @@ COMMAND = Command(
             handler=_handler_stop,
         ),
         "wire": Command(
-            args="<cmd>",
+            args="{wait_gap=<dur>} cmd=<command>",
             help="Run a command and show TX/RX bytes as inline hex + repr.",
-            long_help=_cap_long_help_with_prose(_CAP_WIRE_PROSE),
+            # Plain string -- /cap.wire is inline-only, no file output, so
+            # the "N files in cap/" prefix that other cap.* commands use
+            # would be misleading.
+            long_help=_CAP_WIRE_PROSE,
             handler=_handler_wire,
             raw_args=True,
         ),

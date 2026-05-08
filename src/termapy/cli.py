@@ -153,6 +153,13 @@ class CLITerminal(TerminalHost):
         self._xfer_cancel = threading.Event()
         self._exec_exit_code = 0
 
+        # In exec mode the output is meant for piping/scripting, so
+        # suppress the input echo ("demo> AT+VER") that's helpful in
+        # interactive use but noise in captured stdout.  The connect
+        # banner is suppressed separately in terminal_host._connect().
+        if self.exec_cmd:
+            self.cfg["echo_input"] = False
+
         # Ensure stdout handles unicode on Windows.  sys.stdout is typed as
         # IO[str] (no reconfigure) but is actually TextIOWrapper at runtime.
         # Test harnesses sometimes replace it with StringIO, so we hasattr
@@ -835,11 +842,20 @@ class CLITerminal(TerminalHost):
     def _run_exec_mode(self, command: str) -> None:
         """Dispatch one command and exit.  Sets self._exec_exit_code.
 
+        Bare device text is dispatched asynchronously: ``ctx.dispatch``
+        returns after writing TX bytes, but the device's response
+        arrives later via the background reader thread.  We wait for
+        the rx buffer to settle (matching the ``on_connect_cmd`` and
+        ``request_response.py`` patterns) before disconnecting, so
+        captured stdout actually contains the response.
+
         No "Disconnected." chrome banner -- exec mode is the piping
         mode, and chrome bytes corrupt captured stdout.
         """
         try:
             result = self.ctx.dispatch(command)
+            if self.engine.is_connected and self.engine.serial_port:
+                self.engine.serial_port.wait_for_idle()
         except KeyboardInterrupt:
             self._raw("\nInterrupted")
             self._exec_exit_code = 130  # SIGINT convention

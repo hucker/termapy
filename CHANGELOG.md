@@ -5,13 +5,15 @@
 ### Added
 
 - **``-e`` / ``--exec`` one-shot CLI mode** -- ``termapy --cli <cfg>
-  -e "AT+VER"`` connects, dispatches a single command, prints the
+  -e "AT+INFO"`` connects, dispatches a single command, prints the
   response to stdout, and exits with status 0 (success) or 1
-  (failure).  Pairs with ``--no-color`` for clean piping and with
+  (failure).  Implies ``--cli`` and ``--no-color``; suppresses the
+  connect banner, input echo, and cfg-driven autorun so captured
+  stdout contains only the command's output.  Pair with
   ``request_mode=true`` cfg for JSON-envelope output.  Mutually
-  exclusive with ``--run``.  This fills the long-standing capability
-  gap behind ``--cli``: previously the only way to run a single
-  command non-interactively was to write a one-line ``.run`` file.
+  exclusive with ``--run``.  Fills the long-standing capability gap
+  behind ``--cli``: previously the only way to run a single command
+  non-interactively was to write a one-line ``.run`` file.
 
 - **``ctx.is_oneshot``** -- ``PluginContext`` callable that returns
   ``True`` when the host is in ``--run`` or ``--exec`` mode (false

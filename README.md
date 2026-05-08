@@ -888,7 +888,7 @@ termapy --cli my_device              # interactive REPL
 termapy --cli --demo                 # demo device, no hardware needed
 termapy --cli smoke_test.run         # run a .run script and exit
 termapy --cli my_device -e "AT+VER"  # one-shot: run command, print stdout, exit
-termapy --cli my_device --no-color   # strip ANSI color codes (for piping)
+termapy --cli my_device --no-color   # strip ANSI color codes (REPL piping)
 ```
 
 `--cli` covers two shapes of non-TUI use:

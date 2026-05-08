@@ -89,7 +89,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="COMMAND",
         dest="exec_cmd",
-        help="Run a single command and exit (CLI mode, implies --cli)",
+        help=(
+            "Run a single command and exit (CLI mode, implies --cli "
+            "and --no-color)"
+        ),
     )
     parser.add_argument(
         "--web",
@@ -352,6 +355,14 @@ def main() -> None:
 
     if args.run or args.exec_cmd:
         args.cli = True  # --run / --exec imply --cli
+
+    if args.exec_cmd:
+        # --exec is for piping/scripting; ANSI escapes pollute captured
+        # stdout and break grep/awk/jq.  Force --no-color so users
+        # don't have to remember the pairing.  Anyone who genuinely
+        # wants color in exec output is doing live-viewing -- use the
+        # REPL form for that.
+        args.no_color = True
 
     # Mode switching loop -- CLI or TUI.  Both paths pull from
     # termapy.app which imports Textual; this is where Textual

@@ -247,7 +247,7 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
 | `--cli`           | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
-| `-e`, `--exec CMD` | Run a single command and exit (CLI mode).  Implies `--cli`.  See [One-shot exec](#one-shot-exec--e----exec) below. |
+| `-e`, `--exec CMD` | Run a single command and exit (CLI mode).  Implies `--cli` and `--no-color`.  See [One-shot exec](#one-shot-exec--e----exec) below. |
 | `--silent`        | Output level: nothing (script reads `CmdResult.value` only).  |
 | `--quiet`         | Output level: command results only.                           |
 | `--verbose`       | Output level: results + data + progress chatter.              |
@@ -275,14 +275,16 @@ termapy --cli cfg -e="start_system a=23 b=24"   # = form also works
 termapy --cli cfg -e start_system a=23 b=24     # WRONG: shell splits into 4 tokens
 ```
 
-**Suppressed cfg autorun.** Connect-time autorun (`device_json_cmd`
-auto-include, `on_connect_cmd`, the help banner) doesn't fire in
-one-shot mode -- captured stdout contains only the command's output.
-If your one-shot needs init steps, chain them in the command or
-write a `.run` file and use `--run`.
+**Suppressed chrome.** Connect-time autorun (`device_json_cmd`
+auto-include, `on_connect_cmd`, the help banner), the
+"`Connected: ...`" banner, and the input-echo prefix (`> AT+VER`)
+are all suppressed in `--exec` -- captured stdout contains only the
+command's output.  `--exec` also implies `--no-color` so ANSI
+escapes never reach captured stdout.  If your one-shot needs init
+steps, chain them in the command or write a `.run` file and use
+`--run`.
 
-**Pairing with `--no-color`** strips ANSI escapes for clean piping;
-**pairing with `request_mode=true`** in cfg emits a JSON envelope
+**Pair with `request_mode=true`** in cfg to emit a JSON envelope
 (`{cmd, success, error, elapsed_s, result}`) instead of plain text.
 
 **Mutual exclusion.** `--exec` and `--run` can't both be set; passing

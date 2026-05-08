@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **``-e`` / ``--exec`` one-shot CLI mode** -- ``termapy --cli <cfg>
+  -e "AT+INFO"`` connects, dispatches a single command, prints the
+  response to stdout, and exits with status 0 (success) or 1
+  (failure).  Implies ``--cli`` and ``--no-color``; suppresses the
+  connect banner, input echo, and cfg-driven autorun so captured
+  stdout contains only the command's output.  Pair with
+  ``request_mode=true`` cfg for JSON-envelope output.  Mutually
+  exclusive with ``--run``.  Fills the long-standing capability gap
+  behind ``--cli``: previously the only way to run a single command
+  non-interactively was to write a one-line ``.run`` file.
+
+- **``ctx.is_oneshot``** -- ``PluginContext`` callable that returns
+  ``True`` when the host is in ``--run`` or ``--exec`` mode (false
+  for interactive TUI / CLI REPL).  Plugins authoring chatty
+  on-connect logic can read this to suppress output that would
+  corrupt captured stdout.
+
+### Changed
+
+- **``--cli`` argparse help text** -- now reads "Use plain-text mode
+  instead of the TUI (interactive REPL by default; pair with --run
+  or --exec for one-shot)" so the interactive-REPL semantics are
+  obvious from ``termapy --help``.  No flag rename; the umbrella
+  "CLI mode" label now covers both REPL (default) and one-shot
+  (--run / --exec) forms.
+
+- **Connect-time autorun gate** -- the cfg-driven autorun checks
+  (``device_json_cmd`` auto-include, ``on_connect_cmd``, the help
+  banner) previously skipped only ``--run``.  They now uniformly skip
+  any one-shot mode via ``CLITerminal.is_oneshot``, so ``--exec``
+  output is never polluted by autorun output.
+
 ## 0.64.0 (2026-05-01)
 
 CLI and output-system overhaul.  The pre-0.64 boolean ``verbose`` toggle

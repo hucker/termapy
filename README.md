@@ -884,11 +884,17 @@ The demo comes with everything wired up so you can try each feature:
 `termapy --cli` runs a plain-text serial terminal in your existing terminal window. No Textual UI, no mouse, just keyboard input and text output. The TUI is the intended way to use termapy, but the CLI exists for two cases: people who don't want a TUI (you know who you are), and pipelines that want to feed termapy's output into a file or another tool. The engine doesn't care which frontend it's running under; the TUI and CLI share the same `ReplEngine`, `SerialEngine`, plugins, scripts, and configs.
 
 ```sh
-termapy --cli my_device              # interactive terminal
+termapy --cli my_device              # interactive REPL
 termapy --cli --demo                 # demo device, no hardware needed
 termapy --cli smoke_test.run         # run a .run script and exit
-termapy --cli my_device --no-color   # strip ANSI color codes
+termapy --cli my_device -e "AT+VER"  # one-shot: run command, print stdout, exit
+termapy --cli my_device --no-color   # strip ANSI color codes (REPL piping)
 ```
+
+`--cli` covers two shapes of non-TUI use:
+
+- **Interactive REPL** (the default): blocks on stdin, dispatches each line, exits on `/exit` or EOF.
+- **One-shot**: pair `--cli` with `--run <script>` (run a `.run` file and exit) or `-e "<command>"` (run one command and exit). Exit status reflects success (`0`) or failure (`1`); cfg-driven connect-time autorun (`device_json_cmd` auto-include, `on_connect_cmd`) is suppressed so piped/captured stdout contains only the user's output.
 
 Passing a `.run` file to `--cli` automatically infers the config from the file's location and runs it. Passing a config name or path opens an interactive session.
 

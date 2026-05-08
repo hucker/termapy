@@ -1000,6 +1000,10 @@ class PluginContext:
     # Serial port
     port: Callable = lambda: None  # -> serial.Serial | None
     is_connected: Callable = lambda: False
+    # True when the host is running a one-shot mode (--run or --exec):
+    # plugins should suppress chatter / banners that would corrupt
+    # captured stdout.  False in interactive TUI / CLI REPL.
+    is_oneshot: Callable = lambda: False
     serial_write: Callable = lambda data: None
     serial_send: Callable = (
         lambda text: None

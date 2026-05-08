@@ -167,7 +167,12 @@ class TerminalHost:
         conn = connection_string(self.cfg, actual_port=actual)
         hw = hardware_signals(self.engine.port_obj)
         full = f"Connected: {conn}  {hw}" if hw else f"Connected: {conn}"
-        self.write(full, "green")
+        # In --exec mode the output is for piping; the connect banner
+        # would corrupt captured stdout.  Run mode keeps it -- the
+        # gold test asserts on it, and human script output benefits
+        # from the confirmation.
+        if not getattr(self, "exec_cmd", None):
+            self.write(full, "green")
         self.repl.fire_lifecycle("on_connect")
         self._start_reader()
         self._on_connected(full)
@@ -267,6 +272,11 @@ class TerminalHost:
             engine=engine_api,
             # Serial
             is_connected=lambda: self.engine.is_connected,
+            # Oneshot: True when --run / --exec is in effect.  Plugins
+            # use this to suppress chatter that would corrupt captured
+            # stdout.  Defaults to False; CLITerminal overrides via a
+            # property that consults run_script / exec_cmd.
+            is_oneshot=lambda: getattr(self, "is_oneshot", False),
             serial_write=self._serial_write,
             serial_send=self._serial_send,
             serial_claim=lambda: setattr(self.engine, "serial_claimed", True),

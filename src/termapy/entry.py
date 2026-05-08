@@ -73,13 +73,26 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cli",
         action="store_true",
-        help="Run in CLI mode (plain text terminal, no TUI)",
+        help=(
+            "Use plain-text mode instead of the TUI (interactive REPL by "
+            "default; pair with --run or --exec for one-shot)"
+        ),
     )
     parser.add_argument(
         "--run",
         default=None,
         metavar="SCRIPT",
         help="Run a .run script and exit (CLI mode, implies --cli)",
+    )
+    parser.add_argument(
+        "-e", "--exec",
+        default=None,
+        metavar="COMMAND",
+        dest="exec_cmd",
+        help=(
+            "Run a single command and exit (CLI mode, implies --cli "
+            "and --no-color)"
+        ),
     )
     parser.add_argument(
         "--web",
@@ -333,8 +346,23 @@ def main() -> None:
         run_mcp_stdio(args)
         return
 
-    if args.run:
-        args.cli = True  # --run implies --cli
+    if args.run and args.exec_cmd:
+        print(
+            "termapy: --run and --exec are mutually exclusive",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    if args.run or args.exec_cmd:
+        args.cli = True  # --run / --exec imply --cli
+
+    if args.exec_cmd:
+        # --exec is for piping/scripting; ANSI escapes pollute captured
+        # stdout and break grep/awk/jq.  Force --no-color so users
+        # don't have to remember the pairing.  Anyone who genuinely
+        # wants color in exec output is doing live-viewing -- use the
+        # REPL form for that.
+        args.no_color = True
 
     # Mode switching loop -- CLI or TUI.  Both paths pull from
     # termapy.app which imports Textual; this is where Textual
@@ -384,4 +412,5 @@ def main() -> None:
         mode = result
         args.cli = mode == "cli"
         args.run = None  # don't re-run a script on switch
+        args.exec_cmd = None  # don't re-run an exec command on switch
         args.demo = False  # don't re-setup demo on switch

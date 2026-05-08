@@ -245,13 +245,97 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 | `--chips=ftdi`    | Filter the table (case-insensitive substring match).          |
 | `--check`         | Validate your config, print JSON status, exit.                |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
-| `--cli`           | Launch the CLI REPL instead of the TUI. With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
+| `--cli`           | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
+| `-e`, `--exec CMD` | Run a single command and exit (CLI mode).  Implies `--cli` and `--no-color`.  See [One-shot exec](#one-shot-exec--e----exec) below. |
 | `--silent`        | Output level: nothing (script reads `CmdResult.value` only).  |
 | `--quiet`         | Output level: command results only.                           |
 | `--verbose`       | Output level: results + data + progress chatter.              |
 
 `termapy --help` has the full list.
+
+## One-shot exec: `-e` / `--exec`
+
+Run a single command, print its output to stdout, exit with status 0
+(success) or 1 (failure):
+
+```sh
+termapy --cli my_device -e "AT+VER"           # send a device command
+termapy --cli my_device -e "/help port"       # run a slash command
+termapy --cli my_device --exec "/proto.crc.calc CRC-16/MODBUS data=01 03 00 00 00 02"
+```
+
+### Worked example
+
+The general shape is `termapy <cfg> --cli -e "<command>"`.  For a
+device whose cfg is `my_device`, asking for the firmware version
+might look like:
+
+```text
+$ termapy my_device --cli -e "AT+VER"
+Firmware v1.4.2
+$ echo $?
+0
+```
+
+One line from the device, exit 0, no banner, no echo prefix, no
+ANSI -- ready to feed into `awk`, `grep`, or `jq`.
+
+If you don't have a cfg set up yet, swap the cfg name for `--demo`
+to use the bundled simulator (no hardware needed); the rest of the
+shape is identical:
+
+```text
+$ termapy --cli --demo -e "AT+INFO"
+Bassomatic v77 v1.0
+Uptime: 0h 0m 0s
+Free memory: 29135 bytes
+```
+
+### Exit code contract
+
+Exit `0` if termapy successfully dispatched the command, `1` if the
+dispatch itself failed.  **Termapy's dispatch is what's checked, not
+the device's response.**  An unknown slash command exits 1 because
+termapy can detect it locally:
+
+```text
+$ termapy --cli --demo -e "/notacommand"
+  Error: Unknown command: notacommand
+$ echo $?
+1
+```
+
+But a device-side error text (e.g. the simulator's
+`"ERROR: Unknown command 'AT+NOPE'"`) still exits 0 -- termapy sent
+the command and got a reply.  Reading device errors from exit codes
+requires a device profile that parses the response, or you can
+``grep -q`` the stdout yourself.
+
+**Quoting.** A single-arg flag means multi-token commands must be
+quoted, the same way `git commit -m "msg"` and `bash -c "cmd"` work --
+the shell tokenizes before argparse sees anything:
+
+```sh
+termapy --cli cfg -e "start_system a=23 b=24"   # MUST be quoted
+termapy --cli cfg -e="start_system a=23 b=24"   # = form also works
+termapy --cli cfg -e start_system a=23 b=24     # WRONG: shell splits into 4 tokens
+```
+
+**Suppressed chrome.** Connect-time autorun (`device_json_cmd`
+auto-include, `on_connect_cmd`, the help banner), the
+"`Connected: ...`" banner, and the input-echo prefix (`> AT+VER`)
+are all suppressed in `--exec` -- captured stdout contains only the
+command's output.  `--exec` also implies `--no-color` so ANSI
+escapes never reach captured stdout.  If your one-shot needs init
+steps, chain them in the command or write a `.run` file and use
+`--run`.
+
+**Pair with `request_mode=true`** in cfg to emit a JSON envelope
+(`{cmd, success, error, elapsed_s, result}`) instead of plain text.
+
+**Mutual exclusion.** `--exec` and `--run` can't both be set; passing
+both exits with an argparse error.
 
 ## Try without hardware: `TERMAPY_DEMO_FLEET`
 

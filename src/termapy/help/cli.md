@@ -267,19 +267,30 @@ termapy --cli my_device --exec "/proto.crc.calc CRC-16/MODBUS data=01 03 00 00 0
 
 ### Worked example
 
-Reproducible against the bundled demo (no hardware needed):
+The general shape is `termapy <cfg> --cli -e "<command>"`.  For a
+device whose cfg is `my_device`, asking for the firmware version
+might look like:
+
+```text
+$ termapy my_device --cli -e "AT+VER"
+Firmware v1.4.2
+$ echo $?
+0
+```
+
+One line from the device, exit 0, no banner, no echo prefix, no
+ANSI -- ready to feed into `awk`, `grep`, or `jq`.
+
+If you don't have a cfg set up yet, swap the cfg name for `--demo`
+to use the bundled simulator (no hardware needed); the rest of the
+shape is identical:
 
 ```text
 $ termapy --cli --demo -e "AT+INFO"
 Bassomatic v77 v1.0
 Uptime: 0h 0m 0s
 Free memory: 29135 bytes
-$ echo $?
-0
 ```
-
-Three lines from the device, exit 0, no banner, no echo prefix, no
-ANSI -- ready to feed into `awk`, `grep`, or `jq`.
 
 ### Exit code contract
 

@@ -44,9 +44,8 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
-    try:
+    with ctx.serial_io():
+        ctx.serial_drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
@@ -71,8 +70,6 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
             ctx.result(f"YMODEM send complete: {names} ({total_size} bytes)")
             return CmdResult.ok(value=names)
         return CmdResult.fail(msg="YMODEM send failed.")
-    finally:
-        ctx.engine.set_proto_active(False)
 
 
 def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
@@ -100,9 +97,8 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    ctx.engine.set_proto_active(True)
-    ctx.serial_drain()
-    try:
+    with ctx.serial_io():
+        ctx.serial_drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
@@ -126,8 +122,6 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
             ctx.result(f"YMODEM recv complete -> {out_dir}")
             return CmdResult.ok(value=str(out_dir))
         return CmdResult.fail(msg="YMODEM recv failed.")
-    finally:
-        ctx.engine.set_proto_active(False)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

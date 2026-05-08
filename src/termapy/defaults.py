@@ -87,6 +87,7 @@ DEFAULT_CFG = {
     "show_line_endings": False,
     "show_line_numbers": False,
     "hex_mode": False,
+    "request_mode": False,
     "max_grep_lines": 100,
     # File transfer
     "file_xfer_root": "",
@@ -352,6 +353,15 @@ CFG_HELP: dict[str, tuple] = {
     "hex_mode": (
         "Display serial I/O as hex bytes instead of text.",
         "Valid: true, false",
+    ),
+    "request_mode": (
+        "Turn bare device commands into synchronous request/response.",
+        "Valid: true, false. When true, bare device commands are sent and "
+        "their response is captured into a JSON envelope "
+        "{cmd, success, error, elapsed_s, result} -- see /term.request. "
+        "Also accepts JSON-shape input ({\"cmd\":\"...\"}) so callers can "
+        "stay symmetric. Profile-mapped commands keep their declared "
+        "response.format (more-specific wins).",
     ),
     "max_grep_lines": (
         "Maximum lines shown by /grep.",

@@ -233,9 +233,8 @@ class TerminalHost:
             apply_cfg=self.repl._apply_cfg,
             coerce_type=ReplEngine._coerce_type,
             dispatch=self.repl.dispatch,
-            set_proto_active=lambda active: setattr(
-                self.engine, "proto_active", active
-            ),
+            # set_proto_active intentionally not exposed -- the bare flag
+            # setter is private; ``ctx.serial_io()`` is the public path.
             # TUI override installs a real modal launcher.  In non-TUI
             # environments the capability gate (tui_mode) fails /proto.debug
             # dispatch before this is called, so the no-op default is fine.
@@ -270,12 +269,16 @@ class TerminalHost:
             is_connected=lambda: self.engine.is_connected,
             serial_write=self._serial_write,
             serial_send=self._serial_send,
-            serial_claim=lambda: setattr(self.engine, "proto_active", True),
-            serial_release=lambda: setattr(self.engine, "proto_active", False),
-            add_rx_observer=self.engine.add_rx_observer,
-            remove_rx_observer=self.engine.remove_rx_observer,
-            add_tx_observer=self.engine.add_tx_observer,
-            remove_tx_observer=self.engine.remove_tx_observer,
+            serial_claim=lambda: setattr(self.engine, "serial_claimed", True),
+            serial_release=lambda: setattr(self.engine, "serial_claimed", False),
+            # Underscore-prefixed: ``ctx.rx_observer(cb)`` and
+            # ``ctx.tx_observer(cb)`` context managers are the public
+            # path; bare register/unregister stays private so plugin
+            # code can't leak observers on exception.
+            _add_rx_observer=self.engine.add_rx_observer,
+            _remove_rx_observer=self.engine.remove_rx_observer,
+            _add_tx_observer=self.engine.add_tx_observer,
+            _remove_tx_observer=self.engine.remove_tx_observer,
             # Dispatch / confirmation
             dispatch=lambda cmd: self._dispatch(cmd),
             confirm=lambda msg: self._confirm(msg),
@@ -444,7 +447,7 @@ class TerminalHost:
         mode = kwargs.get("mode", "?")
         path = kwargs.get("path", "?")
         if mode != "text":
-            self.engine.proto_active = True
+            self.engine.serial_claimed = True
         self.status(f"Capture started: {path} ({mode})")
         return True
 
@@ -455,7 +458,7 @@ class TerminalHost:
         """
         result = self.capture.stop()
         if not self.repl.in_script:
-            self.engine.proto_active = False
+            self.engine.serial_claimed = False
         if result:
             self.status(f"Capture complete: {result.path} ({result.size_label})")
 

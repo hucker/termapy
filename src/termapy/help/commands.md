@@ -82,6 +82,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.usb_db`            | Report bundled USB vendor-database freshness (local read)                   |
 | `/term.timestamps [on\|off]` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
 | `/term.hex [on\|off]`     | Toggle hex display of incoming bytes                                        |
+| `/term.request [on\|off]` | Toggle request/response mode for bare device commands                       |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
 | `/term.send_bare_enter [on\|off]` | Send line ending on empty Enter                                     |
 | `/os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
@@ -122,6 +123,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
+| `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
 | `/cap.stop`               | Stop an active capture                                                      |
 | `/xmodem.send <file>`     | Send a file to the device via XMODEM                                        |
 | `/xmodem.recv <file>`     | Receive a file from the device via XMODEM                                   |

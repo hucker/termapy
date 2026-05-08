@@ -271,13 +271,15 @@ COMMAND = Command(
 
 ## Example plugins
 
-The demo config ships with three plugins of increasing complexity:
+The demo config ships with four plugins of increasing complexity:
 
 - **cmd.py:** minimal. Wraps a single AT command in a custom name.
 - **probe.py:** intermediate. Send/receive cycle with formatted output, good starting template.
 - **temp_plot.py:** advanced. Repeated sampling, response parsing, ASCII sparkline visualization.
+- **traffic.py:** advanced. RX/TX byte tap (`/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`); demonstrates `ctx.rx_observer()` / `ctx.tx_observer()` context managers for passive monitoring without disrupting the normal pipeline.
 
-`temp_plot.py` is the best example for real-world plugin development. It shows:
+`temp_plot.py` is the best example for plugins that *send and parse* a single
+device response.  It shows:
 
 - Checking connection before I/O
 - Reading config for encoding and line ending
@@ -286,7 +288,19 @@ The demo config ships with three plugins of increasing complexity:
 - Handling edge cases (no data, invalid count)
 - Rendering results with Rich markup
 
-Run `/temp_plot` in demo mode to see it in action, then read the source.
+`traffic.py` is the best example for plugins that *watch* the byte stream
+without disrupting normal operation.  It shows:
+
+- Using `ctx.rx_observer(cb)` and `ctx.tx_observer(cb)` as the canonical
+  passive-tap pattern -- observers are released on every exit path
+  including exceptions, no try/finally needed
+- Coordinating an observer with a `threading.Event` for "wait for X"
+  semantics (the snoop subcommand)
+- Letting normal device output continue flowing through the pipeline
+  while traffic is also being measured / logged in the background
+
+Run `/temp_plot` and `/traffic.count AT+VER` in demo mode to see them
+in action, then read the source.
 
 ## Using AI coding tools
 

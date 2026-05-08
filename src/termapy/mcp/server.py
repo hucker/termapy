@@ -735,8 +735,7 @@ def _dispatch_via_profile(
     if match is None:
         return None
 
-    import time as _time
-
+    from termapy.request_response import request_response
     from termapy.response_parsers import parse_response
 
     name, spec, _bound = match
@@ -799,40 +798,47 @@ def _dispatch_via_profile(
         )
     ) / 1000.0
 
-    # Drain stale lines so they don't pollute this command's parse.
-    stale = host.repl.drain_recent_lines()
-    for line in stale:
-        host._record_async_event(line, source="pre_send_drain")
-
-    # Send.
-    t0 = _time.perf_counter()
-    payload = (command_text + eol_send).encode(encoding)
-    try:
-        host._serial_write(payload)
-    except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
-        result = CmdResult.fail(msg=f"Send error: {exc}")
-        result.elapsed_s = _time.perf_counter() - t0
-        return result
-
-    # Receive.
+    # Drain -> send -> wait pipeline lives in request_response.py so the
+    # generic json_mode fallthrough (repl.py) shares identical timing
+    # semantics.  fmt branch maps to:
+    #   none   -> wait=False (fire-and-forget; drain+send only)
+    #   lines  -> idle_gap=0.1, terminator from response.terminator
+    #   else   -> idle_gap=0.05 (one-line responses settle fast)
     if fmt == "none":
-        text = ""
-        collected: list[str] = []
+        wait = False
+        terminator = ""
+        idle_gap_s = 0.05  # unused when wait=False
     elif fmt == "lines":
+        wait = True
         terminator = response.get("terminator", "")
-        collected = host.repl.wait_for_lines(
-            timeout=timeout_s, terminator=terminator
-        )
-        text = "\n".join(collected)
+        idle_gap_s = 0.1
     else:
-        # literal / regex / json: typically one response line.  Use a
-        # short idle window so multi-line pre-OK chatter still settles.
-        collected = host.repl.wait_for_lines(
-            timeout=timeout_s, idle_gap=0.05
-        )
-        text = "\n".join(collected)
+        wait = True
+        terminator = ""
+        idle_gap_s = 0.05
 
-    elapsed = _time.perf_counter() - t0
+    rr = request_response(
+        serial_write=host._serial_write,
+        drain_recent_lines=host.repl.drain_recent_lines,
+        wait_for_lines=host.repl.wait_for_lines,
+        command=command_text,
+        encoding=encoding,
+        line_ending=eol_send,
+        timeout_s=timeout_s,
+        terminator=terminator,
+        idle_gap_s=idle_gap_s,
+        on_drained_line=lambda line: host._record_async_event(
+            line, source="pre_send_drain"
+        ),
+        wait=wait,
+    )
+    if rr["error"]:
+        result = CmdResult.fail(msg=rr["error"])
+        result.elapsed_s = rr["elapsed_s"]
+        return result
+    text = rr["text"]
+    collected = rr["lines"]
+    elapsed = rr["elapsed_s"]
 
     # Error detection wins over response parsing.
     err_block = profile.get("error_detection") or {}

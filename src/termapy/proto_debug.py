@@ -1046,12 +1046,11 @@ class ProtoDebugScreen(ModalScreen[None]):
             self._log_session_header(tests, repeat)
             self._running = True
             self.app.call_from_thread(self._clear_detail)
-            self._ctx.engine.set_proto_active(True)
             total_pass = 0
             total_fail = 0
             stopped = False
             t_start = time.monotonic()
-            try:
+            with self._ctx.serial_io():
                 for run_num in range(1, repeat + 1):
                     if repeat > 1:
                         self._log(f"--- Repeat {run_num}/{repeat} ---")
@@ -1097,8 +1096,6 @@ class ProtoDebugScreen(ModalScreen[None]):
 
                     if stopped:
                         break
-            finally:
-                self._ctx.engine.set_proto_active(False)
 
             total_elapsed_ms = (time.monotonic() - t_start) * 1000
             self._log_summary(tests, total_pass, total_fail, stopped)
@@ -1133,9 +1130,11 @@ class ProtoDebugScreen(ModalScreen[None]):
             # Test runner executes user .pro scripts -- any underlying
             # command handler or protocol step can raise anything.
             # Report in the test log and let the finally clean up.
+            # The serial-port release is handled by the ctx.serial_io()
+            # context manager wrapping the test loop, so no defensive
+            # flag flip is needed here.
             self._log(f"Test runner error: {e}")
         finally:
-            self._ctx.engine.set_proto_active(False)
             try:
                 self.app.call_from_thread(setattr, self, "_running", False)
             except RuntimeError:
@@ -1158,23 +1157,21 @@ class ProtoDebugScreen(ModalScreen[None]):
                 self._set_status,
                 f"{label}: running...", "bold yellow")
 
-            self._ctx.engine.set_proto_active(True)
-            try:
+            with self._ctx.serial_io():
                 self._send_proto_cmds(cmds)
-            finally:
-                self._ctx.engine.set_proto_active(False)
 
             self._log(f"{label}: done ({len(cmds)} commands)")
             self.app.call_from_thread(
                 self._set_status,
                 f"{label}: done ({len(cmds)} commands)", "dim")
         except RuntimeError:
-            # call_from_thread fails during app shutdown - exit silently
-            self._ctx.engine.set_proto_active(False)
+            # call_from_thread fails during app shutdown - exit silently.
+            # Serial-port release is handled by the ctx.serial_io() context
+            # manager; no defensive flag flip needed.
+            pass
         except BoundaryException as e:
             # Setup/teardown commands from the .pro script go through
             # the same user-code path as the main test runner; a broken
-            # step reports to the log and the proto-active flag is
-            # cleared so the session can continue.
-            self._ctx.engine.set_proto_active(False)
+            # step reports to the log.  Serial-port release is handled
+            # by the ctx.serial_io() context manager.
             self._log(f"Command runner error: {e}")

@@ -1,4 +1,4 @@
-"""PluginContext, EngineAPI, PluginConfig, and output-level utilities.
+"""PluginContext, EngineAPI, and PluginConfig.
 
 The runtime objects every plugin handler interacts with:
 
@@ -8,12 +8,10 @@ The runtime objects every plugin handler interacts with:
     Built-in plugins only; unstable.
   - ``PluginConfig`` -- per-plugin persistent JSON config object.
 
-Plus the output-level vocabulary that shapes what ``ctx.result()``,
-``ctx.output()``, and ``ctx.status()`` write:
-
-  - ``OUTPUT_LEVELS`` / ``DEFAULT_OUTPUT_LEVEL`` / ``LEVEL_FLAGS``
-  - ``parse_output_level()``
-  - ``format_kv_lines()`` (key-value rendering helper used by info commands)
+The output-level vocabulary (``OUTPUT_LEVELS``, ``LEVEL_FLAGS``,
+``parse_output_level``, ``format_kv_lines``) lives in
+:mod:`termapy.plugins.output_levels` so both this module and
+:class:`IOHandle` can reach it without circular imports.
 """
 
 from __future__ import annotations
@@ -27,102 +25,23 @@ from typing import Any, Callable, Generator, TYPE_CHECKING
 
 from termapy.plugins.capabilities import CapabilitySet
 from termapy.plugins.handles.engine import EngineAPI, EngineHandle
+from termapy.plugins.output_levels import (
+    DEFAULT_OUTPUT_LEVEL,
+    LEVEL_FLAGS,
+    OUTPUT_LEVEL_RANK,
+    OUTPUT_LEVELS,
+    OUTPUT_MIN_RANK,
+    RESULT_MIN_RANK,
+    STATUS_MIN_RANK,
+    format_kv_lines,
+    parse_output_level,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins.handles.fs import FilesystemHandle
     from termapy.plugins.handles.io import IOHandle
     from termapy.plugins.handles.serial import SerialHandle
     from termapy.plugins.handles.ui import UIHandle
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Output levels
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# A single dial controls how loud commands are.  Four monotonic levels
-# stratify the three output channels (result, output, status).  Set the
-# default for the session with ``/term.output <level>``; override for a
-# single call with ``cmd --<level>`` or ``cmd.<level>``.
-
-#: Canonical level names, ordered from quietest to loudest.
-OUTPUT_LEVELS: tuple[str, ...] = ("silent", "quiet", "normal", "verbose")
-
-#: Default level when nothing has been set explicitly.
-DEFAULT_OUTPUT_LEVEL = "normal"
-
-_OUTPUT_LEVEL_RANK: dict[str, int] = {
-    name: rank for rank, name in enumerate(OUTPUT_LEVELS)
-}
-
-# Channel→minimum-rank mapping.  A channel writes only when the active
-# level's rank is at least this.
-_RESULT_MIN_RANK = _OUTPUT_LEVEL_RANK["quiet"]    # quiet, normal, verbose
-_OUTPUT_MIN_RANK = _OUTPUT_LEVEL_RANK["normal"]   # normal, verbose
-_STATUS_MIN_RANK = _OUTPUT_LEVEL_RANK["verbose"]  # verbose only
-
-#: Per-call flag tokens that override the level for one dispatch.  Stripped
-#: from args before per-command flag parsing in ``ReplEngine.dispatch``.
-LEVEL_FLAGS: dict[str, str] = {f"--{name}": name for name in OUTPUT_LEVELS}
-
-
-def parse_output_level(s: str) -> str | None:
-    """Return the canonical level name for ``s``, or None if unknown."""
-    s = s.strip().lower()
-    return s if s in _OUTPUT_LEVEL_RANK else None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared key/value rendering for info-style commands
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# Every command that emits a "label: value" table -- /term.info, /term.usb_db,
-# /port.info, /proto.crc.info, etc. -- routes through ``format_kv_lines()``
-# below so they render with one consistent style:
-#
-#   - Two-space indent.
-#   - Cyan label, padded to the widest in the set.
-#   - Colon + single space between label and value.
-#   - Optional per-row color baked into the value via Rich markup.
-#
-# Adding a new info command?  Build ``[(label, value), ...]``, call
-# ``format_kv_lines()``, write each line via ``ctx.write_markup()``.  Don't
-# roll your own padding -- consistency across info commands matters.
-
-
-def format_kv_lines(
-    rows: "list[tuple[str, str]]",
-    indent: str = "  ",
-    label_color: str = "cyan",
-) -> "list[str]":
-    """Render a list of ``(label, value)`` pairs as cyan-key markup lines.
-
-    Pads labels to the widest in the set and adds a colon-space
-    separator between label and value.  Returns a list of markup
-    strings ready to pass to ``ctx.write_markup()``.
-
-    Per-row coloring of the *value* is the caller's responsibility:
-    embed Rich markup directly in the value string (e.g.
-    ``"[yellow]warning[/]"``) and it'll render on top of the cyan
-    label.  The label itself is always rendered in ``label_color``
-    (default cyan) for consistency.
-
-    Args:
-        rows: Sequence of ``(label, value)`` tuples.
-        indent: String prefix on each line (default two spaces).
-        label_color: Rich color name for the label (default
-            ``"cyan"``).
-
-    Returns:
-        A list of pre-formatted markup strings, one per row.  Empty
-        list if ``rows`` is empty.
-    """
-    if not rows:
-        return []
-    width = max(len(label) for label, _ in rows)
-    return [
-        f"{indent}[{label_color}]{label:<{width}}[/]: {value}"
-        for label, value in rows
-    ]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -559,22 +478,22 @@ class PluginContext:
         return self.ns("flags").get("output_level", DEFAULT_OUTPUT_LEVEL)
 
     def _shows(self, min_rank: int) -> bool:
-        rank = _OUTPUT_LEVEL_RANK.get(self.output_level, _OUTPUT_LEVEL_RANK[DEFAULT_OUTPUT_LEVEL])
+        rank = OUTPUT_LEVEL_RANK.get(self.output_level, OUTPUT_LEVEL_RANK[DEFAULT_OUTPUT_LEVEL])
         return rank >= min_rank
 
     def result(self, text: str, color: str = "green") -> None:
         """Write a command result (single-line answer). Shown at quiet+."""
-        if self._shows(_RESULT_MIN_RANK):
+        if self._shows(RESULT_MIN_RANK):
             self.write(text, color)
 
     def output(self, text: str, color: str = "dim") -> None:
         """Write data output (listings, dumps, file contents). Shown at normal+."""
-        if self._shows(_OUTPUT_MIN_RANK):
+        if self._shows(OUTPUT_MIN_RANK):
             self.write(text, color)
 
     def status(self, text: str) -> None:
         """Write a status/progress message. Shown only at verbose."""
-        if self._shows(_STATUS_MIN_RANK):
+        if self._shows(STATUS_MIN_RANK):
             self.write(text, "dim")
 
     @contextmanager

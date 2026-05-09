@@ -75,7 +75,7 @@ def _get_xfer_root(ctx: PluginContext) -> Path:
     root = ctx.cfg.get("file_xfer_root", "")
     if root:
         return Path(root).resolve()
-    return ctx.cap_dir
+    return ctx.fs.cap_dir
 
 
 def _resolve_path(filename: str, root_dir: Path) -> Path:
@@ -110,22 +110,22 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"File not found: {path}")
 
     file_size = path.stat().st_size
-    ctx.write(f"  XMODEM send: {path.name} ({file_size} bytes) -- Esc to cancel")
+    ctx.io.write(f"  XMODEM send: {path.name} ({file_size} bytes) -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    with ctx.serial_io():
-        ctx.serial_drain()
+    with ctx.serial.io():
+        ctx.serial.drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
-        modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial_write(data) or len(data))
+        modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial.write(data) or len(data))
 
         _last = [0]
 
         def _progress(total: int, success: int, error: int, pkt_size: int = 128) -> None:
             if success != _last[0]:
                 _last[0] = success
-                ctx.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) sent, {error} errors")
+                ctx.io.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) sent, {error} errors")
 
         with open(path, "rb") as f:
             ok = modem.send(f, callback=_progress)
@@ -133,7 +133,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         if cancel and cancel.is_set():
             return CmdResult.fail(msg="XMODEM send cancelled.")
         if ok:
-            ctx.result(f"XMODEM send complete: {path} ({file_size} bytes)")
+            ctx.io.result(f"XMODEM send complete: {path} ({file_size} bytes)")
             return CmdResult.ok(value=str(path))
         return CmdResult.fail(msg="XMODEM send failed.")
 
@@ -155,22 +155,22 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=str(e))
 
     path = _resolve_path(filename, _get_xfer_root(ctx))
-    ctx.write(f"  XMODEM recv: waiting for data -> {path} -- Esc to cancel")
+    ctx.io.write(f"  XMODEM recv: waiting for data -> {path} -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    with ctx.serial_io():
-        ctx.serial_drain()
+    with ctx.serial.io():
+        ctx.serial.drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
-        modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial_write(data) or len(data))
+        modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial.write(data) or len(data))
 
         _last = [0]
 
         def _progress(total: int, success: int, error: int, pkt_size: int = 128) -> None:
             if success != _last[0]:
                 _last[0] = success
-                ctx.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) received, {error} errors")
+                ctx.io.status(f"  XMODEM: {success} packets ({success * pkt_size} bytes) received, {error} errors")
 
         with open(path, "wb") as f:
             ok = modem.recv(f, callback=_progress)
@@ -188,7 +188,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg="XMODEM recv cancelled.")
         if ok:
             size = path.stat().st_size
-            ctx.result(f"XMODEM recv complete: {path} ({size} bytes)")
+            ctx.io.result(f"XMODEM recv complete: {path} ({size} bytes)")
             return CmdResult.ok(value=str(path))
         # Clean up empty file on failure
         if path.exists() and path.stat().st_size == 0:

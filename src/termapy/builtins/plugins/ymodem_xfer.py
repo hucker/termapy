@@ -39,13 +39,13 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         paths.append(str(path))
 
     total_size = sum(Path(p).stat().st_size for p in paths)
-    ctx.write(f"  YMODEM send: {len(paths)} file(s), {total_size} bytes -- Esc to cancel")
+    ctx.io.write(f"  YMODEM send: {len(paths)} file(s), {total_size} bytes -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    with ctx.serial_io():
-        ctx.serial_drain()
+    with ctx.serial.io():
+        ctx.serial.drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
@@ -53,12 +53,12 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
             return result if result else b""
 
         def write(data: bytes | bytearray, timeout: float | None = None) -> int:
-            ctx.serial_write(bytes(data))
+            ctx.serial.write(bytes(data))
             return len(data)
 
         def progress(task_index: int, name: str, sent: int, total: int) -> None:
             pct = (sent * 100 // total) if total else 0
-            ctx.status(f"  YMODEM: {name} {pct}% ({sent}/{total} bytes)")
+            ctx.io.status(f"  YMODEM: {name} {pct}% ({sent}/{total} bytes)")
 
         modem = ModemSocket(read, write, protocol_type=ProtocolType.YMODEM)
         ok = modem.send(paths, callback=progress)
@@ -67,7 +67,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg="YMODEM send cancelled.")
         if ok:
             names = ", ".join(Path(p).name for p in paths)
-            ctx.result(f"YMODEM send complete: {names} ({total_size} bytes)")
+            ctx.io.result(f"YMODEM send complete: {names} ({total_size} bytes)")
             return CmdResult.ok(value=names)
         return CmdResult.fail(msg="YMODEM send failed.")
 
@@ -92,13 +92,13 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     if not out_dir.is_dir():
         return CmdResult.fail(msg=f"Directory not found: {out_dir}")
 
-    ctx.write(f"  YMODEM recv: waiting for data -> {out_dir} -- Esc to cancel")
+    ctx.io.write(f"  YMODEM recv: waiting for data -> {out_dir} -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:
         cancel.clear()
-    with ctx.serial_io():
-        ctx.serial_drain()
+    with ctx.serial.io():
+        ctx.serial.drain()
         reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
@@ -106,12 +106,12 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
             return result if result else b""
 
         def write(data: bytes | bytearray, timeout: float | None = None) -> int:
-            ctx.serial_write(bytes(data))
+            ctx.serial.write(bytes(data))
             return len(data)
 
         def progress(task_index: int, name: str, received: int, total: int) -> None:
             pct = (received * 100 // total) if total else 0
-            ctx.status(f"  YMODEM: {name} {pct}% ({received}/{total} bytes)")
+            ctx.io.status(f"  YMODEM: {name} {pct}% ({received}/{total} bytes)")
 
         modem = ModemSocket(read, write, protocol_type=ProtocolType.YMODEM)
         ok = modem.recv(str(out_dir), callback=progress)
@@ -119,7 +119,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         if cancel and cancel.is_set():
             return CmdResult.fail(msg="YMODEM recv cancelled.")
         if ok:
-            ctx.result(f"YMODEM recv complete -> {out_dir}")
+            ctx.io.result(f"YMODEM recv complete -> {out_dir}")
             return CmdResult.ok(value=str(out_dir))
         return CmdResult.fail(msg="YMODEM recv failed.")
 

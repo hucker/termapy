@@ -41,7 +41,7 @@ def _flag_toggle(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
     else:
         flags[flag_name] = val
     state = "on" if flags.get(flag_name) else "off"
-    ctx.result(state)
+    ctx.io.result(state)
     return CmdResult.ok(value=state)
 
 
@@ -69,12 +69,12 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """
     if not args:
         return CmdResult.fail(msg="Usage: /term.send <text>")
-    if not ctx.is_connected():
+    if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
     encoding = ctx.cfg.get("encoding", "utf-8")
     line_ending = ctx.cfg.get("line_ending", "\r")
     try:
-        ctx.serial_write((args + line_ending).encode(encoding))
+        ctx.serial.write((args + line_ending).encode(encoding))
     # Plugin handlers can be called from many hosts; OSError covers
     # the file-descriptor / IO classes and pyserial.SerialException
     # is a subclass of Exception. Match dispatch_full's legacy catch.
@@ -93,7 +93,7 @@ def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
     arg = args.strip()
     if not arg:
         current = flags.get("output_level", "normal")
-        ctx.result(current)
+        ctx.io.result(current)
         return CmdResult.ok(value=current)
     level = parse_output_level(arg)
     if level is None:
@@ -101,7 +101,7 @@ def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
             msg=f"Unknown level: {arg} (use {'/'.join(OUTPUT_LEVELS)})"
         )
     flags["output_level"] = level
-    ctx.result(level)
+    ctx.io.result(level)
     return CmdResult.ok(value=level)
 
 
@@ -111,7 +111,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
     if "term.verbose" not in warned:
         warned["term.verbose"] = True
         p = ctx.engine.prefix
-        ctx.write(
+        ctx.io.write(
             f"  Note: {p}term.verbose is legacy; use "
             f"{p}term.output (verbose|normal).",
             "yellow",
@@ -158,7 +158,7 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
     new = (not current) if val is None else val
     ctx.engine.apply_cfg(key, new)
     state = "on" if new else "off"
-    ctx.result(state)
+    ctx.io.result(state)
     return CmdResult.ok(value=state)
 
 
@@ -183,10 +183,10 @@ def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
         current = ctx.cfg.get("encoding", "utf-8")
-        ctx.result(current)
+        ctx.io.result(current)
         return CmdResult.ok(value=current)
     ctx.engine.apply_cfg("encoding", name)
-    ctx.result(name)
+    ctx.io.result(name)
     return CmdResult.ok(value=name)
 
 
@@ -253,14 +253,14 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
         rows.append(("full_table", "(missing -- reinstall termapy)"))
 
     for line in format_kv_lines(rows):
-        ctx.write_markup(line)
+        ctx.io.write_markup(line)
     # Update hint targets end users (PyPI installs) -- the bundled
     # data refreshes on each termapy release, so upgrading is the
     # right path for newer entries.  Maintainers update via
     # scripts/refresh_usb_ids.py during release prep, but that's a
     # repo-level workflow, not exposed to package users.
-    ctx.write_markup("")
-    ctx.write_markup(
+    ctx.io.write_markup("")
+    ctx.io.write_markup(
         "  [dim]To update:[/]   upgrade termapy (e.g. "
         "[cyan]uv tool upgrade termapy[/] or [cyan]pip install -U termapy[/])"
     )
@@ -283,7 +283,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     text = args.strip()
     if not text:
         return CmdResult.fail(msg=f"Usage: {ctx.engine.prefix}term.log <text>")
-    ctx.log("#", text)
+    ctx.io.log("#", text)
     return CmdResult.ok()
 
 
@@ -306,7 +306,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
     ]
     for line in format_kv_lines(rows):
-        ctx.write_markup(line)
+        ctx.io.write_markup(line)
     return CmdResult.ok()
 
 

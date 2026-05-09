@@ -125,11 +125,11 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
     echo = sections.get("echo", "off").lower() == "on"
 
     try:
-        filename = resolve_seq_filename(filename, ctx.cap_dir)
+        filename = resolve_seq_filename(filename, ctx.fs.cap_dir)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(filename, ctx.cap_dir)
+    path = _resolve_path(filename, ctx.fs.cap_dir)
 
     started = ctx.engine.start_capture(
         path=path,
@@ -187,11 +187,11 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     cmd = sections.get("cmd", "")
 
     try:
-        filename = resolve_seq_filename(filename, ctx.cap_dir)
+        filename = resolve_seq_filename(filename, ctx.fs.cap_dir)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(filename, ctx.cap_dir)
+    path = _resolve_path(filename, ctx.fs.cap_dir)
 
     started = ctx.engine.start_capture(
         path=path,
@@ -202,7 +202,7 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     )
 
     if started and cmd:
-        ctx.serial_drain()
+        ctx.serial.drain()
         ctx.dispatch(cmd)
     return CmdResult.ok()
 
@@ -296,11 +296,11 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
             )
 
     try:
-        filename = resolve_seq_filename(filename, ctx.cap_dir)
+        filename = resolve_seq_filename(filename, ctx.fs.cap_dir)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(filename, ctx.cap_dir)
+    path = _resolve_path(filename, ctx.fs.cap_dir)
 
     started = ctx.engine.start_capture(
         path=path,
@@ -316,7 +316,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     )
 
     if started and cmd:
-        ctx.serial_drain()
+        ctx.serial.drain()
         ctx.dispatch(cmd)
     return CmdResult.ok()
 
@@ -458,7 +458,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         name = sections["file"]
         p = Path(name)
         if not p.is_absolute():
-            p = ctx.cap_dir / name
+            p = ctx.fs.cap_dir / name
         ext = ".csv" if fmt == "csv" else ".jsonl"
         if p.suffix.lower() not in (".csv", ".json", ".jsonl"):
             p = p.with_suffix(ext)
@@ -497,12 +497,12 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             result = ctx.dispatch(silent)
             raw = result.value if result.success else ""
         else:
-            if not ctx.is_connected():
+            if not ctx.serial.is_connected():
                 return ""
-            with ctx.serial_io():
-                ctx.serial_drain()
-                ctx.serial_send(cmd)
-                response = ctx.serial_read_raw(timeout_ms=timeout_ms)
+            with ctx.serial.io():
+                ctx.serial.drain()
+                ctx.serial.send(cmd)
+                response = ctx.serial.read_raw(timeout_ms=timeout_ms)
             raw = response.decode(encoding, errors="replace") if response else ""
         return extract(raw)
 
@@ -528,7 +528,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             fh.flush()
 
     # Header line to the terminal
-    ctx.write("  " + "  ".join(
+    ctx.io.write("  " + "  ".join(
         getattr(name, align)(w) for name, w, align in header_cols
     ))
 
@@ -580,7 +580,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                 fh.flush()
 
             # Echo to terminal (matching header alignment)
-            ctx.write("  " + "  ".join(line_parts))
+            ctx.io.write("  " + "  ".join(line_parts))
 
             samples_written += 1
 
@@ -604,9 +604,9 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=aborted_msg)
 
     if path is not None:
-        ctx.write(f"Poll complete: {path} ({samples_written} samples)", "green")
+        ctx.io.write(f"Poll complete: {path} ({samples_written} samples)", "green")
         return CmdResult.ok(value=str(path))
-    ctx.write(f"Poll complete ({samples_written} samples)", "green")
+    ctx.io.write(f"Poll complete ({samples_written} samples)", "green")
     return CmdResult.ok(value=str(samples_written))
 
 
@@ -625,7 +625,7 @@ def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     """Run a command and show TX/RX bytes as inline hex + repr.
 
-    Wraps the command in ``ctx.rx_observer()`` / ``ctx.tx_observer()``
+    Wraps the command in ``ctx.serial.rx_observer()`` / ``ctx.serial.tx_observer()``
     so the bytes that flow during the dispatch are captured both ways.
     Emits two lines: one for TX, one for RX.  Each line shows the byte
     count, the hex-spaced bytes, and a Python ``repr()`` of the
@@ -675,7 +675,7 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     def cap_tx(data: bytes) -> None:
         tx.extend(data)
 
-    with ctx.rx_observer(cap_rx), ctx.tx_observer(cap_tx):
+    with ctx.serial.rx_observer(cap_rx), ctx.serial.tx_observer(cap_tx):
         ctx.dispatch(cmd)
         # Settle on idle-gap: wait until rx has been quiet for wait_gap_s.
         # Hard-capped at 5s so a chatty device can't hang us forever.
@@ -696,15 +696,15 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     # that empty envelope is itself the diagnostic, and a "Warning: no
     # wire traffic" header explains what to look at.
     if not tx and not rx:
-        ctx.write("  Warning: no wire traffic", "yellow")
+        ctx.io.write("  Warning: no wire traffic", "yellow")
     # Hex-spaced bytes paired with a Python repr() of the decoded
     # text on the same line so escape sequences for non-printing
     # bytes (\\r, \\n, \\x00, \\x1b) are visible.
-    ctx.write_markup(
+    ctx.io.write_markup(
         f"  [yellow]TX ({len(tx):3d}):[/] "
         f"{bytes(tx).hex(' ')}  [dim]{tx_decoded!r}[/]",
     )
-    ctx.write_markup(
+    ctx.io.write_markup(
         f"  [cyan]RX ({len(rx):3d}):[/] "
         f"{bytes(rx).hex(' ')}  [dim]{rx_decoded!r}[/]",
     )

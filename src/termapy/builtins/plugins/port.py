@@ -26,11 +26,11 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
     msgs, effects = result
     for text, color in msgs:
         if "[/]" in text:
-            ctx.write_markup(text)
+            ctx.io.write_markup(text)
         elif color:
-            ctx.write(text, color)
+            ctx.io.write(text, color)
         else:
-            ctx.write(text)
+            ctx.io.write(text)
     if effects:
         ctx.engine.apply_port_effects(effects)
 
@@ -65,7 +65,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
     if err:
-        ctx.write(err, "red")
+        ctx.io.write(err, "red")
         return CmdResult.fail(msg=err)
     # Apply all optional settings to config before connecting so the
     # port opens with the requested settings.  Each branch is a no-op
@@ -120,28 +120,28 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
                 f"For chip info on {arg!r}, use /port.chip {arg}"
             )
         )
-    _apply(ctx, port_control.port_info(ctx.cfg, ctx.port()))
+    _apply(ctx, port_control.port_info(ctx.cfg, ctx.serial.port()))
     return CmdResult.ok()
 
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
-    _apply(ctx, port_control.set_mode(ctx.port(), ctx.cfg, args))
+    _apply(ctx, port_control.set_mode(ctx.serial.port(), ctx.cfg, args))
     return CmdResult.ok()
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
-    _apply(ctx, port_control.get_set_flow(ctx.port(), ctx.cfg, args))
+    _apply(ctx, port_control.get_set_flow(ctx.serial.port(), ctx.cfg, args))
     return CmdResult.ok()
 
 
 def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
-    _apply(ctx, port_control.send_break(ctx.port(), args))
+    _apply(ctx, port_control.send_break(ctx.serial.port(), args))
     return CmdResult.ok()
 
 
 def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
     current = ctx.cfg.get("port", "") or ""
-    connected = current if ctx.is_connected() else ""
+    connected = current if ctx.serial.is_connected() else ""
     _apply(ctx, port_control.chip_info(args, current, connected))
     return CmdResult.ok()
 
@@ -168,7 +168,7 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
     rows.sort(key=lambda row: (row[0], row[1]))
 
     if not rows:
-        ctx.write(f"No chips match '{args.strip()}'.", "yellow")
+        ctx.io.write(f"No chips match '{args.strip()}'.", "yellow")
         return CmdResult.ok(value="Count=0")
 
     # Compute column widths from actual data so nothing truncates.
@@ -179,15 +179,15 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
         f"{'VID:PID':9}  {'CHIP MODEL':{model_w}}  "
         f"{'SPEED':5}  {'MAX BAUD':>{baud_w}}"
     )
-    ctx.write(header)
-    ctx.write("-" * len(header))
+    ctx.io.write(header)
+    ctx.io.write("-" * len(header))
     for vid, pid, info in rows:
-        ctx.write(
+        ctx.io.write(
             f"{vid:04X}:{pid:04X}  {info.model:{model_w}}  "
             f"{info.speed:5}  {info.max_baud:>{baud_w},}"
         )
     count_line = f"Count={len(rows)}"
-    ctx.write(count_line, "dim")
+    ctx.io.write(count_line, "dim")
     return CmdResult.ok(value=count_line)
 
 
@@ -200,7 +200,7 @@ def _make_chip_field_handler(field: str):
 
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         current = ctx.cfg.get("port", "") or ""
-        connected = current if ctx.is_connected() else ""
+        connected = current if ctx.serial.is_connected() else ""
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value
@@ -230,7 +230,7 @@ def _read_value(result: port_control.Result) -> str:
 
 def _make_prop_handler(key: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        result = port_control.get_set_prop(ctx.port(), ctx.cfg, key, args)
+        result = port_control.get_set_prop(ctx.serial.port(), ctx.cfg, key, args)
         _apply(ctx, result)
         # Only return value on read (no args); set returns prose not useful as value
         value = _read_value(result) if not args.strip() else ""
@@ -241,7 +241,7 @@ def _make_prop_handler(key: str):
 
 def _make_hw_handler(line: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        result = port_control.get_set_hw_line(ctx.port(), line, args)
+        result = port_control.get_set_hw_line(ctx.serial.port(), line, args)
         _apply(ctx, result)
         value = _read_value(result) if not args.strip() else ""
         return CmdResult.ok(value=value)
@@ -252,7 +252,7 @@ def _make_hw_handler(line: str):
 def _make_signal_handler(signal: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Signals are always read-only; extract value from the single msg
-        result = port_control.read_signal(ctx.port(), signal, args)
+        result = port_control.read_signal(ctx.serial.port(), signal, args)
         _apply(ctx, result)
         return CmdResult.ok(value=_read_value(result))
 
@@ -343,7 +343,7 @@ def _port_hw_line_long_help(line: str, direction: str):
         # ctx.port is a callable returning a port-or-None, and
         # getattr(..., default) can't raise -- there's no real failure
         # mode here to catch.  A simple None-check suffices.
-        p = ctx.port()
+        p = ctx.serial.port()
         value = getattr(p, line, "?") if p is not None else "?"
         if value is None:
             value = "?"

@@ -301,13 +301,15 @@ class TestTermUsbDbHandler:
 
     def test_handler_writes_expected_fields(self):
         # Arrange
-        from termapy.builtins.plugins.term import _handler_usb_db
-        from termapy.plugins import PluginContext
+        from termapy.builtins.commands.term import _handler_usb_db
+        from termapy.plugins import IOHandle, PluginContext
 
         out: list[str] = []
         ctx = PluginContext(
-            write=lambda t, c=None: out.append(t),
-            write_markup=lambda t: out.append(t),
+            io=IOHandle(
+                write=lambda t, c=None: out.append(t),
+                write_markup=lambda t: out.append(t),
+            ),
         )
 
         # Act
@@ -334,13 +336,16 @@ class TestTermUsbDbHandler:
         read it via .quiet/.silent and use the integer programmatically.
         """
         # Arrange
-        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy.builtins.commands.term import _handler_usb_db
         from termapy._usb_vendor_full import USB_VENDORS_FULL
         from termapy.plugins import PluginContext
 
+        from termapy.plugins import IOHandle
         ctx = PluginContext(
-            write=lambda t, c=None: None,
-            write_markup=lambda t: None,
+            io=IOHandle(
+                write=lambda t, c=None: None,
+                write_markup=lambda t: None,
+            ),
         )
 
         # Act
@@ -367,12 +372,15 @@ class TestTermUsbDbHandler:
 
         monkeypatch.setattr(urllib.request, "urlopen", _trap)
 
-        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy.builtins.commands.term import _handler_usb_db
         from termapy.plugins import PluginContext
 
+        from termapy.plugins import IOHandle
         ctx = PluginContext(
-            write=lambda t, c=None: None,
-            write_markup=lambda t: None,
+            io=IOHandle(
+                write=lambda t, c=None: None,
+                write_markup=lambda t: None,
+            ),
         )
 
         # Act -- if the handler ever calls urlopen, this raises.

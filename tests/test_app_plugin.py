@@ -2,12 +2,12 @@
 
 Surface under test:
 
-- /app.explore         open the app folder(s) via ctx.open_file
+- /app.explore         open the app folder(s) via ctx.fs.open_file
 - /app.state           print state.json path
 - /app.state.dump      print state.json contents
 - /app.config          print config.json path
 - /app.config.dump     print config.json contents
-- /app.config.edit     create-if-missing + open config.json via ctx.open_file
+- /app.config.edit     create-if-missing + open config.json via ctx.fs.open_file
 
 No bare /app handler -- the top-level Command has handler=None.
 """
@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.builtins.plugins import app as app_plugin
+from termapy.builtins.commands import app as app_plugin
 
 
 # -- Fixtures ----------------------------------------------------------------
@@ -36,11 +36,35 @@ def pin_app_dirs(monkeypatch, tmp_path):
 
 
 class _CtxRecorder:
-    """Tiny PluginContext stand-in that records write/open_file calls."""
+    """Tiny PluginContext stand-in that records write/open_file calls.
+
+    Wraps a real :class:`PluginContext` so the namespaced handles
+    (``ctx.io.write``, ``ctx.fs.open_file``) work transparently.
+    Exposes ``self.lines`` (write-output capture) and ``self.open_file``
+    (a MagicMock for assertion convenience) directly on the recorder.
+    """
 
     def __init__(self):
+        from termapy.plugins import (
+            CapabilitySet,
+            FilesystemHandle,
+            IOHandle,
+            PluginContext,
+        )
+
         self.lines: list[str] = []
         self.open_file = MagicMock()
+        self._ctx = PluginContext(
+            io=IOHandle(write=lambda text, color=None: self.lines.append(text)),
+            fs=FilesystemHandle(_open_file_impl=self.open_file),
+            capabilities=CapabilitySet(gui_apps=True),
+        )
+
+    def __getattr__(self, name):
+        # Forward any other attribute access (cfg, io, fs, ...) to the
+        # underlying real PluginContext.  Direct attributes on self
+        # (lines, open_file, _ctx) take precedence via normal lookup.
+        return getattr(self._ctx, name)
 
     def write(self, text: str) -> None:
         self.lines.append(text)

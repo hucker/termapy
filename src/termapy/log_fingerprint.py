@@ -92,13 +92,13 @@ def _serial_snapshot(ctx: PluginContext) -> list[str]:
     lines: list[str] = []
     ser = None
     try:
-        ser = ctx.port()  # type: ignore[operator]
+        ser = ctx.serial.port()  # type: ignore[operator]
     except Exception:
         ser = None
 
     connected = False
     try:
-        connected = bool(ctx.is_connected())  # type: ignore[operator]
+        connected = bool(ctx.serial.is_connected())  # type: ignore[operator]
     except Exception:
         pass
 
@@ -209,15 +209,15 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     ]
 
     for line in lines:
-        ctx.log("#", line)
+        ctx.io.log("#", line)
 
     # Brief confirmation on screen; full content is in the log.
-    ctx.write(f"  Fingerprint written to log ({len(lines)} lines).", "green")
+    ctx.io.write(f"  Fingerprint written to log ({len(lines)} lines).", "green")
 
     if show:
-        ctx.write("")
+        ctx.io.write("")
         for line in lines:
-            ctx.output(line)
+            ctx.io.output(line)
 
     return CmdResult.ok(value=str(len(lines)))
 

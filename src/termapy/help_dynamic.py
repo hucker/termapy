@@ -82,11 +82,11 @@ def folder_dir(ctx: _Ctx, kind: str) -> Path | None:
     exposed on ``ctx`` (older contexts, tests, etc.).
 
     ``kind`` is the name in ``folders.FOLDER_NAMES``:
-        ``run`` → ``ctx.scripts_dir``
-        ``proto`` → ``ctx.proto_dir``
-        ``ss`` → ``ctx.ss_dir``
-        ``cap`` → ``ctx.cap_dir``
-        ``prof`` → ``ctx.prof_dir``
+        ``run`` → ``ctx.fs.scripts_dir``
+        ``proto`` → ``ctx.fs.proto_dir``
+        ``ss`` → ``ctx.fs.ss_dir``
+        ``cap`` → ``ctx.fs.cap_dir``
+        ``prof`` → ``ctx.fs.prof_dir``
         ``viz`` / ``plugin`` → derived from the active cfg data dir
     """
     direct = {
@@ -98,7 +98,12 @@ def folder_dir(ctx: _Ctx, kind: str) -> Path | None:
     }
     attr = direct.get(kind)
     if attr:
-        d = getattr(ctx, attr, None)
+        # Read via ctx.fs handle.  Fall back to direct ctx attribute for
+        # legacy test fakes that don't construct an FilesystemHandle.
+        fs = getattr(ctx, "fs", None)
+        d = getattr(fs, attr, None) if fs is not None else None
+        if d is None:
+            d = getattr(ctx, attr, None)
         return Path(d) if d else None
     # viz/ and plugin/ aren't exposed directly; derive from config_path.
     cfg_path = getattr(ctx, "config_path", "") or ""
@@ -142,6 +147,16 @@ def folder_line(ctx: _Ctx, kind: str, noun: str | None = None) -> str:
 # Port helpers -- read live pyserial state safely.
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _serial_attr(ctx: _Ctx, name: str) -> Any:
+    """Look up a name on ctx.serial, falling back to ctx (for test fakes)."""
+    serial = getattr(ctx, "serial", None)
+    if serial is not None:
+        val = getattr(serial, name, None)
+        if val is not None:
+            return val
+    return getattr(ctx, name, None)
+
+
 def port_setting(ctx: _Ctx, attr: str) -> Any:
     """Return a live attribute from the pyserial port, or ``None`` if closed.
 
@@ -149,7 +164,7 @@ def port_setting(ctx: _Ctx, attr: str) -> Any:
     ``"bytesize"``, ``"parity"``, ``"stopbits"``).  Returns ``None``
     when ``ctx`` doesn't expose ``port`` or the port isn't open.
     """
-    port_fn = getattr(ctx, "port", None)
+    port_fn = _serial_attr(ctx, "port")
     if port_fn is None:
         return None
     p = port_fn()
@@ -165,10 +180,10 @@ def port_status(ctx: _Ctx) -> str:
     Intended as the top-of-DESCRIPTION line for ``/port`` and any
     subcommand whose value only has meaning while connected.
     """
-    is_connected = getattr(ctx, "is_connected", None)
+    is_connected = _serial_attr(ctx, "is_connected")
     if is_connected is None or not is_connected():
         return green("Not connected")
-    port_fn = getattr(ctx, "port", None)
+    port_fn = _serial_attr(ctx, "port")
     p = port_fn() if port_fn else None
     if p is None:
         return green("Not connected")

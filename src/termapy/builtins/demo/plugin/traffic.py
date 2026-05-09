@@ -1,8 +1,9 @@
 """Demo plugin: a /traffic.* family for inspecting bytes on the wire.
 
-A working example of the ``ctx.rx_observer()`` and ``ctx.tx_observer()``
-context managers.  Demonstrates four real debugging tools any plugin
-author would find useful when working with an unfamiliar serial device:
+A working example of the ``ctx.serial.rx_observer()`` and
+``ctx.serial.tx_observer()`` context managers.  Demonstrates four
+real debugging tools any plugin author would find useful when working
+with an unfamiliar serial device:
 
   /traffic.count <cmd>            - run a command, count bytes both ways
   /traffic.hexdump <file> [dur]   - tee timestamped hex of all I/O
@@ -57,10 +58,10 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
     def count_tx(data: bytes) -> None:
         tx_count[0] += len(data)
 
-    with ctx.rx_observer(count_rx), ctx.tx_observer(count_tx):
+    with ctx.serial.rx_observer(count_rx), ctx.serial.tx_observer(count_tx):
         ctx.dispatch(args)
 
-    ctx.write(
+    ctx.io.write(
         f"  TX: [yellow]{tx_count[0]}[/]  "
         f"RX: [cyan]{rx_count[0]}[/]  bytes",
     )
@@ -100,8 +101,8 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
                 f.flush()
             return cb
 
-        with ctx.rx_observer(tee("RX")), ctx.tx_observer(tee("TX")):
-            ctx.write(f"  Hex dump -> {out_path} for {duration_s:.1f}s")
+        with ctx.serial.rx_observer(tee("RX")), ctx.serial.tx_observer(tee("TX")):
+            ctx.io.write(f"  Hex dump -> {out_path} for {duration_s:.1f}s")
             time.sleep(duration_s)
 
     return CmdResult.ok(value={"path": str(out_path), "duration_s": duration_s})
@@ -126,19 +127,19 @@ def _handler_rate(ctx: PluginContext, args: str) -> CmdResult:
     tx_count = [0]
 
     with (
-        ctx.rx_observer(lambda d: rx_count.__setitem__(0, rx_count[0] + len(d))),
-        ctx.tx_observer(lambda d: tx_count.__setitem__(0, tx_count[0] + len(d))),
+        ctx.serial.rx_observer(lambda d: rx_count.__setitem__(0, rx_count[0] + len(d))),
+        ctx.serial.tx_observer(lambda d: tx_count.__setitem__(0, tx_count[0] + len(d))),
     ):
-        ctx.write(f"  Sampling for {duration_s:.1f}s...")
+        ctx.io.write(f"  Sampling for {duration_s:.1f}s...")
         time.sleep(duration_s)
 
     rx_rate = rx_count[0] / duration_s
     tx_rate = tx_count[0] / duration_s
-    ctx.write(
+    ctx.io.write(
         f"  TX: [yellow]{tx_count[0]}[/] bytes "
         f"([yellow]{tx_rate:.1f}[/] B/s)",
     )
-    ctx.write(
+    ctx.io.write(
         f"  RX: [cyan]{rx_count[0]}[/] bytes "
         f"([cyan]{rx_rate:.1f}[/] B/s)",
     )
@@ -183,7 +184,7 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
         if pattern in buf:
             found.set()
 
-    with ctx.rx_observer(watch):
+    with ctx.serial.rx_observer(watch):
         if not found.wait(timeout=timeout_s):
             return CmdResult.fail(
                 msg=f"Timeout ({timeout_s:.1f}s) waiting for {pattern_hex}",
@@ -193,7 +194,7 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
     # Find the offset of the match within the captured buffer so the LLM
     # can see how much "noise" preceded it.
     offset = bytes(buf).find(pattern)
-    ctx.write(
+    ctx.io.write(
         f"  Matched [green]{pattern_hex}[/] at offset "
         f"[bold]{offset}[/] (after {len(buf) - len(pattern) - offset} "
         f"trailing bytes captured)",
@@ -228,7 +229,7 @@ Examples:
   {prefix}traffic.snoop FF55 timeout=2s    - wait for sync sequence
 
 This is a demo plugin -- read the source for the canonical pattern
-(``with ctx.rx_observer(cb): ...`` / ``with ctx.tx_observer(cb): ...``)
+(``with ctx.serial.rx_observer(cb): ...`` / ``with ctx.serial.tx_observer(cb): ...``)
 that any new RX/TX-watching plugin should follow."""
 
 

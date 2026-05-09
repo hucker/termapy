@@ -10,11 +10,12 @@ trigger import of Textual, Rich, prompt-toolkit, or any other UI
 framework.  Users who run ``termapy --ports`` shouldn't pay the ~300ms
 + ~40MB load cost of Textual for a command that only calls pyserial.
 
-The TUI-mode runner (``_run_tui_mode`` in ``app.py``) and the CLI-mode
-runner (``_run_cli_mode`` in ``app.py``) are imported **lazily**,
-inside the dispatch branch that actually needs them.  ``app.py``'s
-module-level ``from textual import ...`` only runs when the user has
-actually asked for interactive mode.
+The TUI-mode runner (``_run_tui_mode`` in ``app.py``) is imported
+**lazily**, inside the TUI dispatch branch.  ``app.py``'s module-level
+``from textual import ...`` only runs when the user has actually asked
+for the TUI.  The CLI-mode runner (``_run_cli_mode`` in ``cli.py``)
+is Textual-free and lives outside ``app.py`` so a CLI invocation
+never pulls Textual into the import graph.
 """
 
 from __future__ import annotations
@@ -364,10 +365,11 @@ def main() -> None:
         # REPL form for that.
         args.no_color = True
 
-    # Mode switching loop -- CLI or TUI.  Both paths pull from
-    # termapy.app which imports Textual; this is where Textual
-    # finally loads in the import graph.
-    from termapy.app import _run_cli_mode, _run_tui_mode
+    # Mode switching loop -- CLI or TUI.  ``_run_cli_mode`` lives in
+    # ``cli.py`` (Textual-free); ``_run_tui_mode`` lives in ``app.py``
+    # and is imported lazily below so CLI-only invocations never pay
+    # the Textual import cost.
+    from termapy.cli import _run_cli_mode
     from termapy.config import load_config
     from termapy.config_resolve import find_config, resolve_config
 
@@ -404,6 +406,8 @@ def main() -> None:
         if mode == "cli":
             result = _run_cli_mode(args)
         elif mode == "tui":
+            from termapy.app import _run_tui_mode
+
             result = _run_tui_mode(args)
         else:
             break

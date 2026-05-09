@@ -18,7 +18,7 @@ Phase 3 deliverable.  When ``termapy --mcp [config]`` runs:
 - ``--mcp-verbose`` mirrors log events to stderr in real time for
   dev observability.  Stderr is safe; only stdout is wire-sacred.
 - A per-call output buffer (contextvars.ContextVar) collects every
-  ``ctx.write`` / ``ctx.write_markup`` invocation so ``run_command``
+  ``ctx.io.write`` / ``ctx.io.write_markup`` invocation so ``run_command``
   can ship them back as ``output_lines`` in the response.
 - An asyncio lock serializes all ``run_command`` invocations.  The
   REPL engine is single-threaded by design; SerialEngine has one
@@ -140,7 +140,7 @@ class MCPHost(TerminalHost):
         )
 
         # Var/cfg interpolation, matching CLITerminal.
-        from termapy.builtins.plugins.var import (
+        from termapy.builtins.commands.var import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
@@ -290,10 +290,10 @@ class MCPHost(TerminalHost):
         engine_api = self._build_engine_api()
         self.ctx = self._build_plugin_context(engine_api)
         # MCP-specific UI no-ops (no screen, no toast, no clear).
-        self.ctx.notify = lambda text, **kw: None
-        self.ctx.clear_screen = lambda: None
-        self.ctx.exit_app = lambda: None
-        self.ctx.get_screen_text = lambda: ""
+        self.ctx.io.notify = lambda text, **kw: None
+        self.ctx.io.clear_screen = lambda: None
+        self.ctx.ui.exit_app = lambda: None
+        self.ctx.ui.get_screen_text = lambda: ""
         # Wire wait_for_match to the engine's serial-line predicate
         # waiter so /expect can block on serial input.  Each
         # run_command runs in a worker thread (asyncio executor); the
@@ -569,7 +569,7 @@ def _build_server(host: MCPHost) -> Any:
     @server.resource("termapy://capture/{filename}")
     def capture_resource(filename: str) -> str:
         """Read a capture artifact from cap_dir.  Path-traversal guarded."""
-        cap_dir = Path(host.ctx.cap_dir).resolve()
+        cap_dir = Path(host.ctx.fs.cap_dir).resolve()
         target = (cap_dir / filename).resolve()
         if not target.is_relative_to(cap_dir):
             raise ValueError(f"Path traversal blocked: {filename!r}")
@@ -909,7 +909,7 @@ async def _run_command_async(
         # Per-call buffer in a contextvar so the sync write/log path
         # picks it up without parameter threading.
         token = _buffer.set([])
-        cap_before = _snapshot_cap_dir(Path(self.ctx.cap_dir))
+        cap_before = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
         line = command.strip()
         # Append --<level> flag so the engine's universal level pre-pass
         # routes the call at the desired loudness.  "normal" is the
@@ -963,8 +963,8 @@ async def _run_command_async(
             output_lines = _buffer.get() or []
             _buffer.reset(token)
 
-        cap_after = _snapshot_cap_dir(Path(self.ctx.cap_dir))
-        artifacts = _new_artifacts(cap_before, cap_after, Path(self.ctx.cap_dir))
+        cap_after = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
+        artifacts = _new_artifacts(cap_before, cap_after, Path(self.ctx.fs.cap_dir))
 
         # Track for device_state resource.  ISO 8601 timestamp matches
         # the spec's "<at>" field; UTC with explicit Z avoids TZ surprises.

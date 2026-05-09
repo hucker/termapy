@@ -4,7 +4,7 @@ For how termapy was built (and the role LLM tooling played), see [On AI assistan
 
 ## Core idea
 
-Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `/grep`, `/proto`, etc.) are regular plugins loaded from `builtins/plugins/`. The same `Command` + `PluginContext` API that implements the core REPL is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device-specific tools. No compilation or registration required.
+Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `/grep`, `/proto`, etc.) are regular plugins loaded from `builtins/commands/`. The same `Command` + `PluginContext` API that implements the core REPL is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device-specific tools. No compilation or registration required.
 
 ## Module structure
 
@@ -124,7 +124,7 @@ Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` 
 ### Loading order (later overrides earlier)
 
 ```text
-1. builtins/plugins/         - 22 built-in commands (shipped with termapy)
+1. builtins/commands/         - 22 built-in commands (shipped with termapy)
 2. termapy_cfg/plugins/      - user plugins (all configs on this machine)
 3. termapy_cfg/<name>/plugins/ - per-config plugins (one config only)
 4. App hooks (app.py/cli.py) - commands needing frontend access (ss, run, delay, etc.)

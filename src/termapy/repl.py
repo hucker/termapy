@@ -28,6 +28,7 @@ from termapy.plugins import (
     DirectiveResult,
     LifecycleHook,
     LongHelp,
+    MissingCapability,
     PluginContext,
     PluginInfo,
     TransformInfo,
@@ -268,7 +269,11 @@ class ReplEngine:
         self._recent_lines: deque[str] = deque(maxlen=100)
 
         # Plugin context - set by app.py after mount via set_context()
-        self.ctx = PluginContext(write=write)
+        # Bootstrap with a minimal IOHandle wired to the constructor's
+        # write callable; the host replaces this whole ctx via
+        # ``set_context()`` once it builds the real one.
+        from termapy.plugins.handles.io import IOHandle
+        self.ctx = PluginContext(io=IOHandle(write=write))
 
         # Unified plugin registry - all commands live here
         self._plugins: dict[str, PluginInfo] = {}
@@ -601,7 +606,7 @@ class ReplEngine:
                         "elapsed_s": 0.0,
                         "result": "",
                     }
-                    self.ctx.write_markup(_json.dumps(envelope))
+                    self.ctx.io.write_markup(_json.dumps(envelope))
                     return CmdResult.fail(msg=err_msg, value=envelope)
 
         # Symmetric request-side echo: in request_mode, the JSON
@@ -612,7 +617,7 @@ class ReplEngine:
         # is what the user sees, not the raw input string.  dispatch_full
         # skips its legacy plain-text echo when request_mode is on, so
         # this is the sole echo path in that mode.
-        self.ctx.write_markup(_json.dumps({"cmd": command}))
+        self.ctx.io.write_markup(_json.dumps({"cmd": command}))
 
         encoding = self.cfg.get("encoding", "utf-8")
         line_ending = self.cfg.get("line_ending", "\r")
@@ -623,10 +628,10 @@ class ReplEngine:
         error = ""
         text = ""
         try:
-            with self.ctx.serial_io():
-                self.ctx.serial_drain()
-                self.ctx.serial_write(payload)
-                response = self.ctx.serial_read_raw(timeout_ms=timeout_ms)
+            with self.ctx.serial.io():
+                self.ctx.serial.drain()
+                self.ctx.serial.write(payload)
+                response = self.ctx.serial.read_raw(timeout_ms=timeout_ms)
             text = response.decode(encoding, errors="replace").strip()
         except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
             error = f"Send error: {exc}"
@@ -640,7 +645,7 @@ class ReplEngine:
             "elapsed_s": round(elapsed, 4),
             "result": text,
         }
-        self.ctx.write_markup(_json.dumps(envelope))
+        self.ctx.io.write_markup(_json.dumps(envelope))
         if success:
             result = CmdResult.ok(value=envelope)
         else:
@@ -700,7 +705,7 @@ class ReplEngine:
         """Fire every registered lifecycle hook matching *name* in load order.
 
         Exceptions are caught per-hook so one bad plugin cannot prevent
-        later hooks from running.  Errors surface through ``ctx.status``
+        later hooks from running.  Errors surface through ``ctx.io.status``
         so they are visible without crashing the app.
 
         Args:
@@ -716,7 +721,7 @@ class ReplEngine:
             try:
                 hook.handler(self.ctx)
             except BoundaryException as e:
-                self.ctx.status(f"Lifecycle hook {hook.plugin}:{name} failed: {e}")
+                self.ctx.io.status(f"Lifecycle hook {hook.plugin}:{name} failed: {e}")
 
     def run_directives(self, line: str) -> DirectiveResult:
         """Run all directives in load order against a raw input line.
@@ -880,7 +885,7 @@ class ReplEngine:
             return CmdResult.fail(msg=result.payload)
 
         # Shared echo using echo_input_fmt for both REPL and serial
-        from termapy.builtins.plugins.var import expand_vars
+        from termapy.builtins.commands.var import expand_vars
 
         def _echo_cmd(text: str) -> None:
             fmt = expand_vars(self.cfg.get("echo_input_fmt", "> {cmd}"))
@@ -933,9 +938,9 @@ class ReplEngine:
         # handler.  Hosts (CLITerminal, MCPHost) wire both to the same
         # SerialPort so this is a no-op in production; tests that pass a
         # mock serial_write to dispatch_full now reach the handler too.
-        saved_serial_write = self.ctx.serial_write
+        saved_serial_write = self.ctx.serial.write
         if serial_write is not None:
-            self.ctx.serial_write = serial_write
+            self.ctx.serial.write = serial_write
         try:
             # When request_mode is on, run the bare command through the
             # request/response executor and emit a JSON envelope.  In
@@ -944,11 +949,11 @@ class ReplEngine:
             # hook only sees commands the profile didn't claim.  In
             # TUI/CLI there's no profile executor on this path, so
             # request_mode applies to every bare command.
-            if self.cfg.get("request_mode") and self.ctx.serial_write is not None:
+            if self.cfg.get("request_mode") and self.ctx.serial.write is not None:
                 return self._exec_request_mode(cmd)
             return self.dispatch(f"term.send {cmd}")
         finally:
-            self.ctx.serial_write = saved_serial_write
+            self.ctx.serial.write = saved_serial_write
 
     # -- REPL dispatch ---------------------------------------------------------
 
@@ -1040,23 +1045,30 @@ class ReplEngine:
             try:
                 t0 = time.perf_counter()
                 if self.ctx.output_level == "silent":
-                    saved_write = self.ctx.write
-                    saved_write_markup = self.ctx.write_markup
-                    self.ctx.write = lambda text, color=None: None
-                    self.ctx.write_markup = lambda text: None
+                    saved_write = self.ctx.io.write
+                    saved_write_markup = self.ctx.io.write_markup
+                    self.ctx.io.write = lambda text, color=None: None
+                    self.ctx.io.write_markup = lambda text: None
                     try:
                         result = plugin.handler(self.ctx, args)
                     finally:
-                        self.ctx.write = saved_write
-                        self.ctx.write_markup = saved_write_markup
+                        self.ctx.io.write = saved_write
+                        self.ctx.io.write_markup = saved_write_markup
                 else:
                     result = plugin.handler(self.ctx, args)
                 if result is None:
                     result = CmdResult.ok()
                 result.elapsed_s = time.perf_counter() - t0
+            # MissingCapability is the structural backstop for
+            # "handler called a capability-gated handle method but didn't
+            # declare the capability in Command.needs".  Surface it with
+            # the handle's own clear message rather than wrapping it as
+            # a generic plugin error.
+            except MissingCapability as e:
+                result = CmdResult.fail(msg=str(e))
             # Plugin handlers are third-party code and can raise
-            # anything.  BoundaryException signals the reviewed broad
-            # catch; the failure ships back in a CmdResult.
+            # anything else.  BoundaryException signals the reviewed
+            # broad catch; the failure ships back in a CmdResult.
             except BoundaryException as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
             finally:
@@ -1202,7 +1214,7 @@ class ReplEngine:
             # on_script_start fires for the outermost script only.  The seq
             # plugin clears counters and refreshes {starttime} from its hook.
             self.fire_lifecycle("on_script_start")
-        self.ctx.status(f"Running script: {filename}")
+        self.ctx.io.status(f"Running script: {filename}")
         return path, CmdResult.ok()
 
     # -- Script blocking command handlers ----------------------------------------
@@ -1245,7 +1257,7 @@ class ReplEngine:
     def _script_confirm(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /confirm in scripts - show dialog, block on background thread."""
         message = args.strip() or "Continue?"
-        if not self.ctx.confirm(message):
+        if not self.ctx.ui.confirm(message):
             sctx.w("Script cancelled by user.")
             self._script_stop.set()
         return CmdResult.ok()
@@ -1334,7 +1346,7 @@ class ReplEngine:
             name, _, args = cmd.partition(" ")
             handler = self._BLOCKING_COMMANDS.get(name.lower())
             if handler:
-                self.ctx.log(">", stripped)
+                self.ctx.io.log(">", stripped)
                 t0 = time.perf_counter()
                 result = handler(self, name.lower(), args, sctx)
                 result.elapsed_s = time.perf_counter() - t0
@@ -1349,8 +1361,8 @@ class ReplEngine:
         else:
             if stripped.startswith(sctx.prefix):
                 cmd_result = self.dispatch(stripped[len(sctx.prefix) :].strip())
-            elif self.ctx.is_connected():
-                self.ctx.serial_write(
+            elif self.ctx.serial.is_connected():
+                self.ctx.serial.write(
                     (stripped + self.cfg.get("line_ending", "\r")).encode(
                         self.cfg.get("encoding", "utf-8")
                     )
@@ -1372,7 +1384,7 @@ class ReplEngine:
             import serial as _serial
 
             try:
-                self.ctx.serial_wait_idle()
+                self.ctx.serial.wait_idle()
             except (_serial.SerialException, OSError, AttributeError):
                 time.sleep(0.1)
         return result
@@ -1547,10 +1559,11 @@ class ReplEngine:
         dynamic_fields: dict[str, bool] = {}
         if self.in_script:
             dynamic_fields["block_until"] = True
-        # ctx.is_connected may be absent on a minimal test fake.
+        # ctx.serial.is_connected may be absent on a minimal test fake.
         # getattr with a default is forgiving without hiding bugs in
         # a real is_connected() implementation.
-        is_connected = getattr(self.ctx, "is_connected", None)
+        serial = getattr(self.ctx, "serial", None)
+        is_connected = getattr(serial, "is_connected", None) if serial is not None else None
         if is_connected is not None and is_connected():
             dynamic_fields["serial_connected"] = True
         if dynamic_fields:

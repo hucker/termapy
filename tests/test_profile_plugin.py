@@ -37,13 +37,13 @@ def env(tmp_path):
     host = MCPHost(cfg, str(config_path), verbose=False)
     host.ctx.ns("flags")["output_level"] = "verbose"
     output: list = []
-    orig_write = host.ctx.write
+    orig_write = host.ctx.io.write
 
     def captured_write(text, color=""):
         output.append((text, color))
         orig_write(text, color)
 
-    host.ctx.write = captured_write
+    host.ctx.io.write = captured_write
     return host.repl, host.ctx, output
 
 

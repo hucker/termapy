@@ -23,7 +23,8 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from termapy.capture import CaptureEngine
-from termapy.config import open_serial
+from termapy.config import CONFIG_LOAD_ERRORS, cfg_dir, load_config, open_serial
+from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
@@ -189,7 +190,7 @@ class CLITerminal(TerminalHost):
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
 
-        from termapy.builtins.plugins.var import (
+        from termapy.builtins.commands.var import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
@@ -254,10 +255,10 @@ class CLITerminal(TerminalHost):
 
         self.ctx = self._build_plugin_context(engine_api)
         # CLI-specific callbacks
-        self.ctx.notify = lambda text, **kw: self.write(f"[notice] {text}")
-        self.ctx.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
-        self.ctx.exit_app = lambda: None
-        self.ctx.get_screen_text = lambda: ""
+        self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
+        self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
+        self.ctx.ui.exit_app = lambda: None
+        self.ctx.ui.get_screen_text = lambda: ""
         # CLI provides interactive (a human at a terminal -- including
         # over SSH) and gui_apps when a local desktop is available.  No
         # TUI features (dialogs, screen capture, status bar, toast
@@ -379,7 +380,7 @@ class CLITerminal(TerminalHost):
             "clr",
             "",
             "Clear the terminal screen (alias for {prefix}cls).",
-            lambda ctx, args: (ctx.clear_screen(), CmdResult.ok())[-1],
+            lambda ctx, args: (ctx.io.clear_screen(), CmdResult.ok())[-1],
             source="app",
             needs=CapabilitySet(interactive=True),
         )
@@ -550,13 +551,13 @@ class CLITerminal(TerminalHost):
 
     def _hook_run_help(self, ctx, args: str) -> CmdResult:
         """Same as /help run, plus an AVAILABLE RUN FILES list."""
-        from termapy.builtins.plugins.help import (
+        from termapy.builtins.commands.help import (
             _show_command_help,
             append_files_section,
         )
 
         result = _show_command_help(ctx, "run")
-        scripts_dir = ctx.scripts_dir
+        scripts_dir = ctx.fs.scripts_dir
         files = (
             sorted(f.name for f in scripts_dir.glob("*.run"))
             if scripts_dir.is_dir() else []
@@ -670,12 +671,12 @@ class CLITerminal(TerminalHost):
 
         force = "--force" in args.lower()
         try:
-            ctx.status("Setting up demo files...")
+            ctx.io.status("Setting up demo files...")
             config_path = str(setup_demo_config(cfg_dir(), force=force))
         except OSError as e:
             return CmdResult.fail(msg=f"Demo setup failed: {e}")
 
-        ctx.status("Loading demo config...")
+        ctx.io.status("Loading demo config...")
         result = self._switch_to_cfg_path(config_path)
         if not result.success:
             return result
@@ -845,7 +846,7 @@ class CLITerminal(TerminalHost):
         Bare device text is dispatched asynchronously: ``ctx.dispatch``
         returns after writing TX bytes, but the device's response
         arrives later via the background reader thread.  We watch the
-        reader directly via ``ctx.rx_observer``: every chunk of
+        reader directly via ``ctx.serial.rx_observer``: every chunk of
         received bytes resets a "last arrival" clock, and we exit
         once the rx stream has been quiet for ``_EXEC_IDLE_GAP_S``
         (default 500ms).  Capped at ``_EXEC_MAX_WAIT_S`` (60s) so a
@@ -872,7 +873,7 @@ class CLITerminal(TerminalHost):
             last_arrival[0] = _time.monotonic()
 
         try:
-            with self.ctx.rx_observer(_bump_last_rx):
+            with self.ctx.serial.rx_observer(_bump_last_rx):
                 result = self.ctx.dispatch(command)
                 deadline = _time.monotonic() + self._EXEC_MAX_WAIT_S
                 while _time.monotonic() < deadline:
@@ -921,7 +922,7 @@ class CLITerminal(TerminalHost):
         def _loop() -> None:
             while True:
                 try:
-                    from termapy.builtins.plugins.var import expand_vars
+                    from termapy.builtins.commands.var import expand_vars
 
                     prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
                     s = self._session
@@ -1088,3 +1089,98 @@ class CLITerminal(TerminalHost):
             return ports[0].device if ports else ""
         except Exception:
             return ""
+
+
+def _run_cli_mode(args) -> str | None:
+    """Run in CLI mode - plain text terminal, no TUI.
+
+    Lives in ``cli.py`` (not ``app.py``) so that selecting CLI mode does
+    not transitively import Textual.  Invoked by ``entry.main()``.
+
+    Returns:
+        Mode to switch to ("tui") or None for normal exit.
+    """
+    run_script = getattr(args, "run", None)
+    exec_cmd = getattr(args, "exec_cmd", None)
+
+    # If a positional arg is a .run file, treat it as --run
+    if args.config and args.config.endswith(".run") and not run_script:
+        run_script = args.config
+        args.config = None
+
+    if args.demo:
+        from termapy.config import setup_demo_config
+
+        config_path = str(setup_demo_config(cfg_dir(), force=True))
+    elif run_script and not args.config:
+        # Infer config from the .run file's location
+        config_path = infer_config_from_run_file(run_script)
+        if not config_path:
+            print(
+                f"termapy: cannot infer config from {Path(run_script).resolve()}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    elif args.config:
+        config_path = resolve_config(args.config)
+        if config_path is None:
+            print(
+                f"termapy: config not found: {Path(args.config).resolve()}",
+                file=sys.stderr,
+            )
+            print(
+                "  Use --demo to create a demo config, or specify a .cfg file.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    else:
+        path, _ = find_config()
+        if not path:
+            # Zero-config CLI: no config file anywhere.  Start the REPL
+            # with an in-memory DEFAULT_CFG and let the user pick a port
+            # interactively via /port.connect.  This replaces the previous
+            # "no config found -- exit" behaviour for interactive use.
+            # --run without an inferrable config still errors (handled
+            # above), since scripting without a config is ambiguous.
+            from termapy.defaults import DEFAULT_CFG
+
+            cfg = dict(DEFAULT_CFG)
+            cli = CLITerminal(
+                cfg,
+                config_path="",
+                no_color=args.no_color,
+                run_script=run_script,
+                exec_cmd=exec_cmd,
+                term_width=getattr(args, "term_width", None),
+                zero_config=True,
+                output_level=getattr(args, "output_level", None),
+            )
+            result = cli.run()
+            if exec_cmd:
+                sys.exit(cli._exec_exit_code)
+            if result:
+                args.config = cli.config_path
+            return result
+        config_path = path
+
+    try:
+        cfg = load_config(config_path)
+    except CONFIG_LOAD_ERRORS as e:
+        print(f"termapy: failed to load config: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    cli = CLITerminal(
+        cfg,
+        config_path,
+        no_color=args.no_color,
+        run_script=run_script,
+        exec_cmd=exec_cmd,
+        term_width=getattr(args, "term_width", None),
+        output_level=getattr(args, "output_level", None),
+    )
+    result = cli.run()
+    if exec_cmd:
+        sys.exit(cli._exec_exit_code)
+    if result:
+        args.config = cli.config_path
+    return result

@@ -33,12 +33,12 @@ def repl_env(tmp_path):
         apply_cfg=engine._apply_cfg,
         coerce_type=ReplEngine._coerce_type,
     )
+    from termapy.plugins import IOHandle
     ctx = PluginContext(
-        write=write,
-        write_markup=write,
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
+        io=IOHandle(write=write, write_markup=write),
     )
     engine.set_context(ctx)
     return engine, cfg, config_path, output

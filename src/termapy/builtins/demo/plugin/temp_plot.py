@@ -24,7 +24,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -40,9 +40,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for serial I/O and output.
         args: Number of samples (default 20).
     """
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
-
     try:
         count = int(args.strip()) if args.strip() else 20
         if count < 1 or count > 200:
@@ -54,13 +51,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     line_ending = ctx.cfg.get("line_ending", "\r")
     readings: list[float] = []
 
-    ctx.write(f"Sampling {count} temperatures...", "dim")
+    ctx.io.write(f"Sampling {count} temperatures...", "dim")
 
-    with ctx.serial_io():
+    with ctx.serial.io():
         for _ in range(count):
-            ctx.serial_drain()
-            ctx.serial_write(f"AT+TEMP{line_ending}".encode(encoding))
-            raw = ctx.serial_read_raw()
+            ctx.serial.drain()
+            ctx.serial.write(f"AT+TEMP{line_ending}".encode(encoding))
+            raw = ctx.serial.read_raw()
             text = raw.decode(encoding, errors="replace").strip()
 
             # Parse "+TEMP: 23.4C" -> 23.4
@@ -90,8 +87,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         idx = int((v - lo) / span * (len(bars) - 1))
         spark += bars[idx]
 
-    ctx.write_markup(f"  [cyan]{spark}[/]")
-    ctx.write(
+    ctx.io.write_markup(f"  [cyan]{spark}[/]")
+    ctx.io.write(
         f"  {len(readings)} samples: "
         f"min={lo:.1f}°C  max={hi:.1f}°C  avg={avg:.1f}°C"
     )
@@ -113,4 +110,5 @@ Send AT+TEMP to the device repeatedly and visualize the results.
 This plugin was generated with an LLM using the PluginContext API.
 See the source code for the prompt and pattern.""",
     handler=_handler,
+    needs=CapabilitySet(serial_connected=True),
 )

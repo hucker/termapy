@@ -1,5 +1,5 @@
-"""Exception-safety + behavior tests for ``ctx.rx_observer()`` and
-``ctx.tx_observer()`` context managers.
+"""Exception-safety + behavior tests for ``ctx.serial.rx_observer()`` and
+``ctx.serial.tx_observer()`` context managers.
 
 The whole point of routing observer registration through the context
 managers (rather than bare ``ctx.add_rx_observer``/``ctx.remove_rx_observer``
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from termapy.plugins import PluginContext
+from termapy.plugins import IOHandle, PluginContext, SerialHandle
 
 
 # ── Shared fixture: PluginContext wired to in-memory observer lists ────────
@@ -56,11 +56,13 @@ def ctx_with_registry():
         reg.remove_calls += 1
 
     ctx = PluginContext(
-        write=lambda *a, **k: None,
-        _add_rx_observer=add_rx,
-        _remove_rx_observer=remove_rx,
-        _add_tx_observer=add_tx,
-        _remove_tx_observer=remove_tx,
+        io=IOHandle(write=lambda *a, **k: None),
+        serial=SerialHandle(
+            _add_rx_observer=add_rx,
+            _remove_rx_observer=remove_rx,
+            _add_tx_observer=add_tx,
+            _remove_tx_observer=remove_tx,
+        ),
     )
     return ctx, reg
 
@@ -75,7 +77,7 @@ class TestRxObserverContextManager:
         cb = lambda data: None  # noqa: E731 -- one-line callback for tests
 
         # Act
-        with ctx.rx_observer(cb):
+        with ctx.serial.rx_observer(cb):
             assert cb in reg.rx, "registered on enter"
             assert reg.add_calls == 1, "exactly one add"
             assert reg.remove_calls == 0, "no remove yet"
@@ -92,7 +94,7 @@ class TestRxObserverContextManager:
 
         # Act -- raise inside the block; the with-statement must propagate
         with pytest.raises(ValueError):
-            with ctx.rx_observer(cb):
+            with ctx.serial.rx_observer(cb):
                 assert cb in reg.rx, "registered before exception"
                 raise ValueError("simulated handler failure")
 
@@ -108,9 +110,9 @@ class TestRxObserverContextManager:
         inner = lambda data: None  # noqa: E731
 
         # Act
-        with ctx.rx_observer(outer):
+        with ctx.serial.rx_observer(outer):
             assert reg.rx == [outer], "outer registered"
-            with ctx.rx_observer(inner):
+            with ctx.serial.rx_observer(inner):
                 assert reg.rx == [outer, inner], "both registered"
             # Inner block exited; only outer should remain.
             assert reg.rx == [outer], "inner removed; outer stays"
@@ -128,8 +130,8 @@ class TestRxObserverContextManager:
 
         # Act
         with pytest.raises(RuntimeError):
-            with ctx.rx_observer(outer):
-                with ctx.rx_observer(inner):
+            with ctx.serial.rx_observer(outer):
+                with ctx.serial.rx_observer(inner):
                     pass
                 # Inner already removed; outer raises.
                 raise RuntimeError("late failure")
@@ -148,7 +150,7 @@ class TestTxObserverContextManager:
         cb = lambda data: None  # noqa: E731
 
         # Act
-        with ctx.tx_observer(cb):
+        with ctx.serial.tx_observer(cb):
             assert cb in reg.tx, "registered on enter"
 
         # Assert
@@ -161,7 +163,7 @@ class TestTxObserverContextManager:
 
         # Act
         with pytest.raises(RuntimeError):
-            with ctx.tx_observer(cb):
+            with ctx.serial.tx_observer(cb):
                 raise RuntimeError("boom")
 
         # Assert
@@ -174,7 +176,7 @@ class TestTxObserverContextManager:
         tx_cb = lambda data: None  # noqa: E731
 
         # Act
-        with ctx.rx_observer(rx_cb), ctx.tx_observer(tx_cb):
+        with ctx.serial.rx_observer(rx_cb), ctx.serial.tx_observer(tx_cb):
             assert reg.rx == [rx_cb], "rx tracked separately"
             assert reg.tx == [tx_cb], "tx tracked separately"
 
@@ -195,37 +197,37 @@ class TestObserverApiNotPublic:
 
     def test_no_public_add_rx_observer(self):
         # Arrange / Act
-        ctx = PluginContext(write=lambda *a, **k: None)
+        ctx = PluginContext(io=IOHandle(write=lambda *a, **k: None))
 
-        # Assert -- the public-named callback is not on PluginContext.
-        assert not hasattr(ctx, "add_rx_observer"), (
-            "ctx.add_rx_observer is private; use ctx.rx_observer(cb) instead"
+        # Assert -- the public-named callback is not on SerialHandle.
+        assert not hasattr(ctx.serial, "add_rx_observer"), (
+            "ctx.serial.add_rx_observer is private; use ctx.serial.rx_observer(cb) instead"
         )
-        assert not hasattr(ctx, "remove_rx_observer"), (
-            "ctx.remove_rx_observer is private; rx_observer's __exit__ "
+        assert not hasattr(ctx.serial, "remove_rx_observer"), (
+            "ctx.serial.remove_rx_observer is private; rx_observer's __exit__ "
             "handles unregistration"
         )
 
     def test_no_public_add_tx_observer(self):
         # Arrange / Act
-        ctx = PluginContext(write=lambda *a, **k: None)
+        ctx = PluginContext(io=IOHandle(write=lambda *a, **k: None))
 
         # Assert
-        assert not hasattr(ctx, "add_tx_observer"), (
-            "ctx.add_tx_observer is private; use ctx.tx_observer(cb) instead"
+        assert not hasattr(ctx.serial, "add_tx_observer"), (
+            "ctx.serial.add_tx_observer is private; use ctx.serial.tx_observer(cb) instead"
         )
-        assert not hasattr(ctx, "remove_tx_observer"), (
-            "ctx.remove_tx_observer is private; tx_observer's __exit__ "
+        assert not hasattr(ctx.serial, "remove_tx_observer"), (
+            "ctx.serial.remove_tx_observer is private; tx_observer's __exit__ "
             "handles unregistration"
         )
 
     def test_underscore_versions_exist_for_internal_use(self):
         # Arrange / Act -- the context managers need to reach the engine
         # somehow; the underscore fields are how.
-        ctx = PluginContext(write=lambda *a, **k: None)
+        ctx = PluginContext(io=IOHandle(write=lambda *a, **k: None))
 
         # Assert
-        assert hasattr(ctx, "_add_rx_observer"), "private hook exists"
-        assert hasattr(ctx, "_remove_rx_observer"), "private hook exists"
-        assert hasattr(ctx, "_add_tx_observer"), "private hook exists"
-        assert hasattr(ctx, "_remove_tx_observer"), "private hook exists"
+        assert hasattr(ctx.serial, "_add_rx_observer"), "private hook exists"
+        assert hasattr(ctx.serial, "_remove_rx_observer"), "private hook exists"
+        assert hasattr(ctx.serial, "_add_tx_observer"), "private hook exists"
+        assert hasattr(ctx.serial, "_remove_tx_observer"), "private hook exists"

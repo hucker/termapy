@@ -45,12 +45,15 @@ def engine(tmp_path):
     engine_api = EngineAPI(
         plugins=eng._plugins,
     )
+    from termapy.plugins import IOHandle
     ctx = PluginContext(
-        write=lambda t, c=None: output.append((t, c)),
-        write_markup=lambda t: output.append((t, None)),
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
+        io=IOHandle(
+            write=lambda t, c=None: output.append((t, c)),
+            write_markup=lambda t: output.append((t, None)),
+        ),
     )
     eng.set_context(ctx)
     # Seed the `flags` namespace (would be done by app.py._build_context).
@@ -297,7 +300,7 @@ class TestBuildCommandsExtraFields:
 
     def test_build_reads_long_help_and_flags(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _build_commands
+        from termapy.builtins.commands.include import _build_commands
         cmd_dict = {
             "AT+LED": {
                 "help": "LED",
@@ -319,7 +322,7 @@ class TestBuildCommandsExtraFields:
     def test_build_ignores_non_string_long_help(self) -> None:
         """A device emitting a non-string long_help shouldn't break include."""
         # Arrange
-        from termapy.builtins.plugins.include import _build_commands
+        from termapy.builtins.commands.include import _build_commands
         cmd_dict = {"X": {"help": "h", "long_help": {"oops": "object"}}}
 
         # Act
@@ -331,7 +334,7 @@ class TestBuildCommandsExtraFields:
     def test_build_ignores_malformed_flags(self) -> None:
         """Non-dict or non-string values in flags are dropped, not fatal."""
         # Arrange
-        from termapy.builtins.plugins.include import _build_commands
+        from termapy.builtins.commands.include import _build_commands
         cmd_dict = {
             "A": {"help": "h", "flags": ["not", "a", "dict"]},
             "B": {"help": "h", "flags": {"--ok": "good", "--bad": 123}},
@@ -348,7 +351,7 @@ class TestBuildCommandsExtraFields:
     def test_roundtrip_preserves_full_entry(self) -> None:
         """JSON -> TargetCommand -> JSON preserves every populated field."""
         # Arrange
-        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        from termapy.builtins.commands.include import _build_commands, _to_json_dict
         original = {
             "X": {
                 "help": "h",
@@ -368,7 +371,7 @@ class TestBuildCommandsExtraFields:
     def test_roundtrip_old_shape_adds_no_fields(self) -> None:
         """An entry with only help + args round-trips without spurious keys."""
         # Arrange
-        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        from termapy.builtins.commands.include import _build_commands, _to_json_dict
         original = {"AT": {"help": "Connection test", "args": ""}}
 
         # Act
@@ -388,7 +391,7 @@ class TestIsNewer:
 
     def test_new_none_is_never_newer(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _is_newer
+        from termapy.builtins.commands.include import _is_newer
         # Act / Assert
         assert _is_newer(None, "1.0.0") is False, \
             "missing new version never wins"
@@ -398,14 +401,14 @@ class TestIsNewer:
     def test_cached_none_makes_new_win(self) -> None:
         """When the cache has no recorded version, any new version is newer."""
         # Arrange
-        from termapy.builtins.plugins.include import _is_newer
+        from termapy.builtins.commands.include import _is_newer
         # Act / Assert -- first time a device starts publishing version
         assert _is_newer("1.0.0", None) is True, \
             "new wins when cache has no version"
 
     def test_semver_ordering(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _is_newer
+        from termapy.builtins.commands.include import _is_newer
         # Act / Assert
         assert _is_newer("1.4.0", "1.3.9") is True, \
             "patch bump is newer"
@@ -416,14 +419,14 @@ class TestIsNewer:
 
     def test_equal_is_not_newer(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _is_newer
+        from termapy.builtins.commands.include import _is_newer
         # Act / Assert
         assert _is_newer("1.4.0", "1.4.0") is False, \
             "equal versions do not overwrite"
 
     def test_older_is_not_newer(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _is_newer
+        from termapy.builtins.commands.include import _is_newer
         # Act / Assert
         assert _is_newer("1.0.0", "1.4.0") is False, \
             "downgrades do not overwrite"
@@ -431,7 +434,7 @@ class TestIsNewer:
     def test_unparseable_falls_back_to_inequality(self) -> None:
         """Non-PEP-440 strings (e.g. git hashes) compare by equality."""
         # Arrange
-        from termapy.builtins.plugins.include import _is_newer
+        from termapy.builtins.commands.include import _is_newer
         # Act / Assert
         assert _is_newer("a3f2c91", "b9d40aa") is True, \
             "different hash strings treated as newer"
@@ -447,7 +450,7 @@ class TestVersionRoundTrip:
 
     def test_to_json_dict_omits_version_when_absent(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        from termapy.builtins.commands.include import _build_commands, _to_json_dict
         original = {"AT": {"help": "h", "args": ""}}
 
         # Act
@@ -459,7 +462,7 @@ class TestVersionRoundTrip:
 
     def test_to_json_dict_emits_version_when_given(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _build_commands, _to_json_dict
+        from termapy.builtins.commands.include import _build_commands, _to_json_dict
         commands = _build_commands({"AT": {"help": "h"}})
 
         # Act
@@ -471,7 +474,7 @@ class TestVersionRoundTrip:
 
     def test_extract_version_handles_missing_or_malformed(self) -> None:
         # Arrange
-        from termapy.builtins.plugins.include import _extract_version
+        from termapy.builtins.commands.include import _extract_version
         # Act / Assert
         assert _extract_version({}) is None, \
             "absent version returns None"
@@ -496,16 +499,16 @@ class TestIncludeVersionGate:
 
     def _run_fetch(self, engine, device_json: dict, *, force: bool = False):
         """Mock _read_json and call _fetch_and_include, return (result, output)."""
-        from termapy.builtins.plugins import include
+        from termapy.builtins.commands import include
         eng, output = engine
         original = include._read_json
         include._read_json = lambda ctx, tms: device_json  # ty: ignore[invalid-assignment]
         try:
             # Pretend we're connected so the gate evaluates.
-            eng.ctx.is_connected = lambda: True
-            eng.ctx.serial_io = lambda: _NullContext()
-            eng.ctx.serial_drain = lambda: 0
-            eng.ctx.serial_send = lambda text: None
+            eng.ctx.serial.is_connected = lambda: True
+            eng.ctx.serial.io = lambda: _NullContext()
+            eng.ctx.serial.drain = lambda: 0
+            eng.ctx.serial.send = lambda text: None
             output.clear()
             result = include._fetch_and_include(
                 eng.ctx, "AT+HELP.JSON", 100, force=force,
@@ -648,7 +651,7 @@ class TestIncludeVersionGate:
 
 
 class _NullContext:
-    """Tiny stand-in for ctx.serial_io()'s context manager in tests."""
+    """Tiny stand-in for ctx.serial.io()'s context manager in tests."""
     def __enter__(self): return self
     def __exit__(self, *a): return False
 
@@ -1010,15 +1013,15 @@ class TestIncludeAndProfileSeparation:
 
     def _run_fetch(self, engine, device_json: dict, *, force: bool = False):
         """Mock _read_json and call _fetch_and_include, return result."""
-        from termapy.builtins.plugins import include
+        from termapy.builtins.commands import include
         eng, output = engine
         original = include._read_json
         include._read_json = lambda ctx, tms: device_json  # ty: ignore[invalid-assignment]
         try:
-            eng.ctx.is_connected = lambda: True
-            eng.ctx.serial_io = lambda: _NullContext()
-            eng.ctx.serial_drain = lambda: 0
-            eng.ctx.serial_send = lambda text: None
+            eng.ctx.serial.is_connected = lambda: True
+            eng.ctx.serial.io = lambda: _NullContext()
+            eng.ctx.serial.drain = lambda: 0
+            eng.ctx.serial.send = lambda text: None
             output.clear()
             result = include._fetch_and_include(
                 eng.ctx, "AT+HELP.JSON", 100, force=force,

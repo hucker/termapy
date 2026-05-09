@@ -320,7 +320,7 @@ class TestCaptureArtifacts:
         # Arrange — manually write a file into cap_dir to simulate a
         # capture without needing a serial port (capture commands
         # require a connected device).
-        cap_dir = Path(host.ctx.cap_dir)
+        cap_dir = Path(host.ctx.fs.cap_dir)
         cap_dir.mkdir(parents=True, exist_ok=True)
 
         # Act — run a help-like command, then create a file post-snapshot.
@@ -459,7 +459,7 @@ class TestDeviceStateResource:
 
         from termapy.mcp.catalog import build_device_state
 
-        cap_dir = Path(host.ctx.cap_dir)
+        cap_dir = Path(host.ctx.fs.cap_dir)
         cap_dir.mkdir(parents=True, exist_ok=True)
         (cap_dir / "smoke.txt").write_text("hi", encoding="utf-8")
         # Act
@@ -484,7 +484,7 @@ class TestCaptureResourceSecurity:
         # the FastMCP decorator (which wraps the function).  The
         # implementation lives in mcp/server.py's _build_server.
         # Equivalent guard is exercised here directly.
-        cap_dir = Path(host.ctx.cap_dir).resolve()
+        cap_dir = Path(host.ctx.fs.cap_dir).resolve()
 
         def read(filename: str) -> str:
             target = (cap_dir / filename).resolve()

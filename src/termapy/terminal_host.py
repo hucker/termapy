@@ -239,7 +239,7 @@ class TerminalHost:
             coerce_type=ReplEngine._coerce_type,
             dispatch=self.repl.dispatch,
             # set_proto_active intentionally not exposed -- the bare flag
-            # setter is private; ``ctx.serial_io()`` is the public path.
+            # setter is private; ``ctx.serial.io()`` is the public path.
             # TUI override installs a real modal launcher.  In non-TUI
             # environments the capability gate (tui_mode) fails /proto.debug
             # dispatch before this is called, so the no-op default is fine.
@@ -260,54 +260,74 @@ class TerminalHost:
         """Build a PluginContext with the callbacks shared by all frontends.
 
         Subclasses should call ``super()._build_plugin_context(api)`` then
-        replace any frontend-specific fields before calling
+        replace any frontend-specific fields on the appropriate handle
+        (``ctx.io.write = self._status``, etc.) before calling
         ``repl.set_context()``.
         """
-        ctx = PluginContext(
+        from termapy.plugins.handles.fs import FilesystemHandle
+        from termapy.plugins.handles.io import IOHandle
+        from termapy.plugins.handles.serial import SerialHandle
+        from termapy.plugins.handles.ui import UIHandle
+
+        io = IOHandle(
             write=self.status,
             write_markup=self.write_markup,
             log=self._log,
-            cfg=self.cfg,
-            config_path=self.config_path,
-            engine=engine_api,
-            # Serial
+        )
+
+        serial = SerialHandle(
             is_connected=lambda: self.engine.is_connected,
-            # Oneshot: True when --run / --exec is in effect.  Plugins
-            # use this to suppress chatter that would corrupt captured
-            # stdout.  Defaults to False; CLITerminal overrides via a
-            # property that consults run_script / exec_cmd.
-            is_oneshot=lambda: getattr(self, "is_oneshot", False),
-            serial_write=self._serial_write,
-            serial_send=self._serial_send,
-            serial_claim=lambda: setattr(self.engine, "serial_claimed", True),
-            serial_release=lambda: setattr(self.engine, "serial_claimed", False),
-            # Underscore-prefixed: ``ctx.rx_observer(cb)`` and
-            # ``ctx.tx_observer(cb)`` context managers are the public
-            # path; bare register/unregister stays private so plugin
-            # code can't leak observers on exception.
+            port=lambda: self.engine.port_obj if self.engine.is_connected else None,
+            write=self._serial_write,
+            send=self._serial_send,
+            read_raw=self._serial_read_raw,
+            drain=self._drain_rx_queue,
+            wait_idle=lambda timeout_ms=100, max_wait_s=3.0: (
+                self._wait_for_idle(timeout_ms, max_wait_s)
+            ),
+            claim=lambda: setattr(self.engine, "serial_claimed", True),
+            release=lambda: setattr(self.engine, "serial_claimed", False),
+            # Underscore-prefixed: ``ctx.serial.rx_observer(cb)`` and
+            # ``ctx.serial.tx_observer(cb)`` context managers are the
+            # public path; bare register/unregister stays private so
+            # plugin code can't leak observers on exception.
             _add_rx_observer=self.engine.add_rx_observer,
             _remove_rx_observer=self.engine.remove_rx_observer,
             _add_tx_observer=self.engine.add_tx_observer,
             _remove_tx_observer=self.engine.remove_tx_observer,
-            # Dispatch / confirmation
-            dispatch=lambda cmd: self._dispatch(cmd),
-            confirm=lambda msg: self._confirm(msg),
-            # Filesystem directories
+        )
+
+        fs = FilesystemHandle(
             ss_dir=self.repl.ss_dir,
             scripts_dir=self.repl.scripts_dir,
             proto_dir=self.repl.proto_dir,
             cap_dir=self.repl.cap_dir,
             prof_dir=self.repl.prof_dir,
-            # Shared UI
-            open_file=lambda path: open_with_system(str(path)),
+            _open_file_impl=lambda path: open_with_system(str(path)),
         )
-        # Serial port helpers - shared by TUI and CLI
-        ctx.port = lambda: self.engine.port_obj if self.engine.is_connected else None
-        ctx.serial_read_raw = self._serial_read_raw
-        ctx.serial_drain = self._drain_rx_queue
-        ctx.serial_wait_idle = lambda timeout_ms=100, max_wait_s=3.0: (
-            self._wait_for_idle(timeout_ms, max_wait_s)
+
+        ui = UIHandle(
+            _confirm_impl=lambda msg: self._confirm(msg),
+            # TUI subclass overrides _notify_impl, _status_bar_impl, etc.
         )
+
+        ctx = PluginContext(
+            cfg=self.cfg,
+            config_path=self.config_path,
+            engine=engine_api,
+            io=io,
+            serial=serial,
+            fs=fs,
+            ui=ui,
+            dispatch=lambda cmd: self._dispatch(cmd),
+            # is_oneshot: True when --run / --exec is in effect.  Plugins
+            # use this to suppress chatter that would corrupt captured
+            # stdout.  Defaults to False; CLITerminal overrides via a
+            # property that consults run_script / exec_cmd.
+            is_oneshot=lambda: getattr(self, "is_oneshot", False),
+        )
+        # PluginContext.__post_init__ wires output_level_fn and
+        # capabilities into the handles automatically.
         return ctx
 
     def _init_flags(self, echo: bool = True) -> None:

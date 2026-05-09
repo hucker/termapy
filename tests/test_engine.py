@@ -258,13 +258,17 @@ class TestRunScript:
         output = []
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
         serial_writes = []
+        from termapy.plugins import IOHandle, SerialHandle
+
         ctx = PluginContext(
-            write=lambda t, c=None: output.append((t, c)),
             cfg=cfg,
             config_path=str(config_path),
-            is_connected=lambda: connected,
-            serial_write=lambda data: serial_writes.append(data),
-            serial_wait_idle=lambda: None,
+            io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+            serial=SerialHandle(
+                is_connected=lambda: connected,
+                write=lambda data: serial_writes.append(data),
+                wait_idle=lambda **kw: None,
+            ),
         )
         eng.set_context(ctx)
         # Seed the `flags` namespace (would be done by app.py._build_context).
@@ -581,12 +585,16 @@ class TestDispatchFull:
         serial_writes = []
         raw_writes = []
 
+        from termapy.plugins import IOHandle, SerialHandle
+
         ctx = PluginContext(
-            write=lambda t, c=None: output.append((t, c)),
             cfg=cfg,
             config_path=str(config_path),
-            is_connected=lambda: True,
-            serial_write=lambda data: serial_writes.append(data),
+            io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+            serial=SerialHandle(
+                is_connected=lambda: True,
+                write=lambda data: serial_writes.append(data),
+            ),
         )
         eng.set_context(ctx)
         # Seed the `flags` namespace (would be done by app.py._build_context).
@@ -681,7 +689,7 @@ class TestDispatchFull:
     def test_serial_write_error(self, dispatch_env):
         # Arrange — bare-line input goes through /term.send via dispatch_full
         # fallthrough.  dispatch_full bridges its serial_write callback to
-        # ctx.serial_write for the duration of the call, so passing a bad
+        # ctx.serial.write for the duration of the call, so passing a bad
         # serial_write here exercises the handler's error path.  The error
         # comes back via CmdResult.fail and dispatch displays it through
         # the engine's write callback (output), not the _status callback.
@@ -936,11 +944,15 @@ class TestDispatchFlags:
 
         output = []
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+        from termapy.plugins import IOHandle
+
         ctx = PluginContext(
-            write=lambda t, c=None: output.append((t, c)),
-            write_markup=lambda t: output.append((t, "markup")),
             cfg=cfg,
             config_path=str(config_path),
+            io=IOHandle(
+                write=lambda t, c=None: output.append((t, c)),
+                write_markup=lambda t: output.append((t, "markup")),
+            ),
         )
         eng.set_context(ctx)
 
@@ -1067,11 +1079,15 @@ class TestDispatchCapabilities:
 
         output = []
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+        from termapy.plugins import IOHandle
+
         ctx = PluginContext(
-            write=lambda t, c=None: output.append((t, c)),
-            write_markup=lambda t: output.append((t, "markup")),
             cfg=cfg,
             config_path=str(config_path),
+            io=IOHandle(
+                write=lambda t, c=None: output.append((t, c)),
+                write_markup=lambda t: output.append((t, "markup")),
+            ),
         )
         eng.set_context(ctx)
         return eng, ctx, output

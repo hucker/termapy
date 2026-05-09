@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from termapy.builtins.plugins.proto import (
+from termapy.builtins.commands.proto import (
     _dedupe_catalogue_aliases,
     _find_in_ascii,
     _find_in_binary,

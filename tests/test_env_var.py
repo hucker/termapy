@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from termapy.builtins.plugins.env_var import (
+from termapy.builtins.commands.env_var import (
     _ENV,
     _cli_transform,
     _handler_list,
@@ -113,7 +113,8 @@ class TestEnvCommands:
     def _ctx(self):
         """Create a minimal PluginContext that captures output."""
         output = []
-        return PluginContext(write=lambda t, c=None: output.append((t, c))), output
+        from termapy.plugins import IOHandle
+        return PluginContext(io=IOHandle(write=lambda t, c=None: output.append((t, c)))), output
 
     def test_set_adds_to_snapshot(self):
         # Arrange

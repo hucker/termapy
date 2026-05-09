@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -28,11 +28,12 @@ Send an AT command to the device, read the response, and display it.
 
 This is a demo plugin - read the source to learn how to write your own.
 Key concepts demonstrated:
-  • serial_io() context manager  (suppress terminal display during I/O)
-  • serial_drain / serial_write / serial_read_raw  (the I/O cycle)
-  • reading cfg for encoding and line_ending
-  • checking is_connected before I/O
-  • formatted output with colors"""
+  • ctx.serial.io()   context manager  (suppress terminal display during I/O)
+  • ctx.serial.drain / send / read_raw  (the I/O cycle)
+  • reading ctx.cfg for encoding and line_ending
+  • declaring needs=CapabilitySet(serial_connected=True) so dispatch
+    refuses the command when no port is open
+  • formatted output via ctx.io.write with colors"""
 
 
 def _send_cmd(ctx: PluginContext, command: str) -> str | None:
@@ -53,14 +54,14 @@ def _send_cmd(ctx: PluginContext, command: str) -> str | None:
     line_ending = ctx.cfg.get("line_ending", "\r")
 
     # 1. Drain - discard any stale bytes sitting in the receive buffer
-    ctx.serial_drain()
+    ctx.serial.drain()
 
     # 2. Write - send the command with the configured line ending
     payload = (command + line_ending).encode(encoding)
-    ctx.serial_write(payload)
+    ctx.serial.write(payload)
 
     # 3. Read - wait for the device to reply (up to 1 second)
-    raw = ctx.serial_read_raw(timeout_ms=1000)
+    raw = ctx.serial.read_raw(timeout_ms=1000)
     if not raw:
         return None
 
@@ -82,18 +83,18 @@ def _survey(ctx: PluginContext) -> None:
         ("Temperature", "AT+TEMP"),
         ("Status", "AT+STATUS"),
     ]
-    ctx.write("── device survey ──")
+    ctx.io.write("── device survey ──")
     for label, cmd in queries:
         resp = _send_cmd(ctx, cmd)
         if resp is None:
-            ctx.write(f"  {label}: (no response)", "red")
+            ctx.io.write(f"  {label}: (no response)", "red")
         else:
             # Multi-line responses get indented under the label
             lines = resp.splitlines()
-            ctx.write(f"  {label}: {lines[0]}")
+            ctx.io.write(f"  {label}: {lines[0]}")
             for line in lines[1:]:
-                ctx.write(f"    {line}")
-    ctx.write("── end survey ──")
+                ctx.io.write(f"    {line}")
+    ctx.io.write("── end survey ──")
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -104,19 +105,17 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     With an argument, sends that as a single command.
 
     This handler demonstrates the essential plugin I/O pattern:
-    wrap serial I/O in ``serial_io()`` so the terminal reader doesn't
-    consume your responses, do your I/O, then display results.
+    wrap serial I/O in ``ctx.serial.io()`` so the terminal reader
+    doesn't consume your responses, do your I/O, then display
+    results.
 
     Args:
         ctx: Plugin context for serial I/O, config, and output.
         args: Optional AT command to send. Empty = run full survey.
     """
-    if not ctx.is_connected():
-        return CmdResult.fail(msg="Not connected.")
-
-    # serial_io() suppresses terminal display and guarantees cleanup,
+    # ctx.serial.io() suppresses terminal display and guarantees cleanup,
     # even if an exception occurs inside the block.
-    with ctx.serial_io():
+    with ctx.serial.io():
         command = args.strip()
         if not command:
             _survey(ctx)
@@ -125,10 +124,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Single command mode
         resp = _send_cmd(ctx, command)
         if resp is None:
-            ctx.write(f"{command}: (no response)", "red")
+            ctx.io.write(f"{command}: (no response)", "red")
         else:
             for line in resp.splitlines():
-                ctx.write(f"  {line}")
+                ctx.io.write(f"  {line}")
 
     return CmdResult.ok()
 
@@ -140,4 +139,5 @@ COMMAND = Command(
     args="{command}",
     long_help=_LONG_HELP,
     handler=_handler,
+    needs=CapabilitySet(serial_connected=True),
 )

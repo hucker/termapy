@@ -952,7 +952,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _setup_vars(self) -> None:
         """Set launch/context variables for plugin use."""
-        from termapy.builtins.plugins.var import (
+        from termapy.builtins.commands.var import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
@@ -983,24 +983,24 @@ class SerialTerminal(TerminalHost, App):
 
         ctx = self._build_plugin_context(engine)
         # TUI-specific PluginContext overrides
-        ctx.write = self._status
-        ctx.write_markup = self._write_output_markup
-        ctx.log = self._log_line
-        ctx.serial_wait_for_data = lambda timeout_ms=250: (
+        ctx.io.write = self._status
+        ctx.io.write_markup = self._write_output_markup
+        ctx.io.log = self._log_line
+        ctx.serial.wait_for_data = lambda timeout_ms=250: (
             self._engine.serial_port.wait_for_data(timeout_ms)
             if self._engine.serial_port
             else False
         )
         ctx.wait_for_match = self.repl.wait_for_match
-        ctx.status_bar = self._set_status_bar
+        ctx.io.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
-        ctx.notify = lambda text, **kw: self._on_main(self.notify, text, **kw)
-        ctx.clear_screen = lambda: self._on_main(self._clear_output)
-        ctx.save_screenshot = lambda *a, **kw: self._on_main(
+        ctx.io.notify = lambda text, **kw: self._on_main(self.notify, text, **kw)
+        ctx.io.clear_screen = lambda: self._on_main(self._clear_output)
+        ctx.ui._save_screenshot_impl = lambda *a, **kw: self._on_main(
             self.save_screenshot, *a, **kw
         )
-        ctx.get_screen_text = lambda: self._on_main(self._get_screen_text)
-        ctx.exit_app = lambda: self._on_main(self.exit)
+        ctx.ui.get_screen_text = lambda: self._on_main(self._get_screen_text)
+        ctx.ui.exit_app = lambda: self._on_main(self.exit)
         # TUI environment capabilities.  See CapabilitySet for the full
         # vocabulary.  block_until is NOT set here -- it's provided
         # dynamically by the script runner (see _effective_capabilities).
@@ -1291,15 +1291,15 @@ class SerialTerminal(TerminalHost, App):
             needs=CapabilitySet(gui_apps=True),
         )
         # Re-register folder subcommands (wiped by /edit override)
-        from termapy.builtins.plugins.edit import (
+        from termapy.builtins.commands.edit import (
             _make_edit_handler,
             _make_list_handler,
             _make_explore_handler,
         )
 
         for folder, get_dir, ext, pat in (
-            ("run", lambda ctx: ctx.scripts_dir, ".run", "*.run"),
-            ("proto", lambda ctx: ctx.proto_dir, ".pro", "*.pro"),
+            ("run", lambda ctx: ctx.fs.scripts_dir, ".run", "*.run"),
+            ("proto", lambda ctx: ctx.fs.proto_dir, ".pro", "*.pro"),
             (
                 "plugin",
                 lambda ctx: Path(ctx.config_path).parent / "plugin"
@@ -1761,10 +1761,10 @@ class SerialTerminal(TerminalHost, App):
         self.history = self._load_history()
         self._history_idx = -1
         self.repl.ctx.config_path = path
-        self.repl.ctx.ss_dir = self.repl.ss_dir
-        self.repl.ctx.scripts_dir = self.repl.scripts_dir
-        self.repl.ctx.proto_dir = self.repl.proto_dir
-        self.repl.ctx.cap_dir = self.repl.cap_dir
+        self.repl.ctx.fs.ss_dir = self.repl.ss_dir
+        self.repl.ctx.fs.scripts_dir = self.repl.scripts_dir
+        self.repl.ctx.fs.proto_dir = self.repl.proto_dir
+        self.repl.ctx.fs.cap_dir = self.repl.cap_dir
         self._reload_config_plugins(path)
         self._update_title()
         self._apply_border_color()
@@ -1811,7 +1811,7 @@ class SerialTerminal(TerminalHost, App):
             if not source and result.plugins:
                 source = result.plugins[0].source
             where = f" from {source}" if source else ""
-            self.repl.ctx.status(
+            self.repl.ctx.io.status(
                 f"Loaded {len(loaded)} plugin(s){where}: " + ", ".join(loaded),
             )
         for name in result.skipped:
@@ -1841,7 +1841,7 @@ class SerialTerminal(TerminalHost, App):
         for name in to_remove:
             del self.repl._plugins[name]
         if to_remove:
-            self.repl.ctx.status(
+            self.repl.ctx.io.status(
                 f"Unloaded {len(to_remove)} plugin(s): " + ", ".join(to_remove),
             )
         cfg_name = Path(config_path).stem
@@ -3455,7 +3455,7 @@ class SerialTerminal(TerminalHost, App):
             return
         action = result[0]
         if action == "run":
-            from termapy.builtins.plugins.var import clear_vars, set_start_time_vars
+            from termapy.builtins.commands.var import clear_vars, set_start_time_vars
 
             clear_vars()
             set_start_time_vars()
@@ -3667,13 +3667,13 @@ class SerialTerminal(TerminalHost, App):
 
     def _hook_run_help(self, ctx, args: str) -> CmdResult:
         """Same as /help run, plus an AVAILABLE RUN FILES list."""
-        from termapy.builtins.plugins.help import (
+        from termapy.builtins.commands.help import (
             _show_command_help,
             append_files_section,
         )
 
         result = _show_command_help(ctx, "run")
-        scripts_dir = ctx.scripts_dir
+        scripts_dir = ctx.fs.scripts_dir
         files = (
             sorted(f.name for f in scripts_dir.glob("*.run"))
             if scripts_dir.is_dir() else []
@@ -3715,7 +3715,7 @@ class SerialTerminal(TerminalHost, App):
 
         line = args.strip()
         if not line:
-            ctx.write("Usage: /run.profile.cmd <command>", "red")
+            ctx.io.write("Usage: /run.profile.cmd <command>", "red")
             return CmdResult.fail(msg="Usage: /run.profile.cmd <command>")
         prefix = cmd_prefix(self.cfg)
         if not line.startswith(prefix) and "." in line.split()[0]:
@@ -3742,14 +3742,14 @@ class SerialTerminal(TerminalHost, App):
         """Open the newest .prof file in the system viewer."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.write("No config loaded.", "red")
+            ctx.io.write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
         if not profs:
-            ctx.output("No profile files found.")
+            ctx.io.output("No profile files found.")
             return CmdResult.fail(msg="No profile files found.")
         newest = profs[-1]
-        ctx.write(f"Opening {newest.name}")
+        ctx.io.write(f"Opening {newest.name}")
         open_with_system(str(newest))
         return CmdResult.ok()
 
@@ -3757,25 +3757,25 @@ class SerialTerminal(TerminalHost, App):
         """Print newest (or named) profile to the terminal."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.write("No config loaded.", "red")
+            ctx.io.write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         name = args.strip()
         if name:
             path = prof_dir / name
             if not path.exists():
-                ctx.write(f"File not found: {name}", "red")
+                ctx.io.write(f"File not found: {name}", "red")
                 return CmdResult.fail(msg=f"File not found: {name}")
         else:
             profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
             if not profs:
-                ctx.output("No profile files found.")
+                ctx.io.output("No profile files found.")
                 return CmdResult.fail(msg="No profile files found.")
             path = profs[-1]
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
-                ctx.output(line)
+                ctx.io.output(line)
         except OSError as e:
-            ctx.write(f"Read error: {e}", "red")
+            ctx.io.write(f"Read error: {e}", "red")
             return CmdResult.fail(msg=f"Read error: {e}")
         return CmdResult.ok()
 
@@ -3783,7 +3783,7 @@ class SerialTerminal(TerminalHost, App):
         """Open the prof/ directory in file explorer."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.write("No config loaded.", "red")
+            ctx.io.write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         prof_dir.mkdir(exist_ok=True)
         open_with_system(str(prof_dir))
@@ -3793,17 +3793,17 @@ class SerialTerminal(TerminalHost, App):
         """List .prof files."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.write("No config loaded.", "red")
+            ctx.io.write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         if not prof_dir.exists():
-            ctx.output("  (no profile files)")
+            ctx.io.output("  (no profile files)")
             return CmdResult.ok()
         profs = sorted(prof_dir.glob("*.csv"))
         if not profs:
-            ctx.output("  (no profile files)")
+            ctx.io.output("  (no profile files)")
             return CmdResult.ok()
         for f in profs:
-            ctx.write(f"  {f.name}")
+            ctx.io.write(f"  {f.name}")
         return CmdResult.ok()
 
     def _hook_cfg_load(self, ctx, args: str) -> CmdResult:
@@ -3845,11 +3845,11 @@ class SerialTerminal(TerminalHost, App):
         """List .run files in the run/ directory."""
         d = self.repl.scripts_dir
         if not d.exists():
-            ctx.output("  (no run/ directory)")
+            ctx.io.output("  (no run/ directory)")
             return CmdResult.ok()
         files = sorted(d.glob("*.run"))
         if not files:
-            ctx.output("  (no .run files)")
+            ctx.io.output("  (no .run files)")
             return CmdResult.ok()
         for f in files:
             self.repl.write(f"  {f.name}")
@@ -4000,100 +4000,6 @@ def _reset_terminal() -> None:
         subprocess.run(["stty", "sane"], timeout=1, capture_output=True)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
-
-
-def _run_cli_mode(args) -> str | None:
-    """Run in CLI mode - plain text terminal, no TUI.
-
-    Returns:
-        Mode to switch to ("tui") or None for normal exit.
-    """
-    from termapy.cli import CLITerminal
-
-    run_script = getattr(args, "run", None)
-    exec_cmd = getattr(args, "exec_cmd", None)
-
-    # If a positional arg is a .run file, treat it as --run
-    if args.config and args.config.endswith(".run") and not run_script:
-        run_script = args.config
-        args.config = None
-
-    if args.demo:
-        from termapy.config import setup_demo_config
-
-        config_path = str(setup_demo_config(cfg_dir(), force=True))
-    elif run_script and not args.config:
-        # Infer config from the .run file's location
-        config_path = _infer_config_from_run_file(run_script)
-        if not config_path:
-            print(
-                f"termapy: cannot infer config from {Path(run_script).resolve()}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-    elif args.config:
-        config_path = _resolve_config(args.config)
-        if config_path is None:
-            print(
-                f"termapy: config not found: {Path(args.config).resolve()}",
-                file=sys.stderr,
-            )
-            print(
-                "  Use --demo to create a demo config, or specify a .cfg file.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-    else:
-        path, _ = _find_config()
-        if not path:
-            # Zero-config CLI: no config file anywhere.  Start the REPL
-            # with an in-memory DEFAULT_CFG and let the user pick a port
-            # interactively via /port.connect.  This replaces the previous
-            # "no config found -- exit" behaviour for interactive use.
-            # --run without an inferrable config still errors (handled
-            # above), since scripting without a config is ambiguous.
-            from termapy.defaults import DEFAULT_CFG
-
-            cfg = dict(DEFAULT_CFG)
-            cli = CLITerminal(
-                cfg,
-                config_path="",
-                no_color=args.no_color,
-                run_script=run_script,
-                exec_cmd=exec_cmd,
-                term_width=getattr(args, "term_width", None),
-                zero_config=True,
-                output_level=getattr(args, "output_level", None),
-            )
-            result = cli.run()
-            if exec_cmd:
-                sys.exit(cli._exec_exit_code)
-            if result:
-                args.config = cli.config_path
-            return result
-        config_path = path
-
-    try:
-        cfg = load_config(config_path)
-    except CONFIG_LOAD_ERRORS as e:
-        print(f"termapy: failed to load config: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    cli = CLITerminal(
-        cfg,
-        config_path,
-        no_color=args.no_color,
-        run_script=run_script,
-        exec_cmd=exec_cmd,
-        term_width=getattr(args, "term_width", None),
-        output_level=getattr(args, "output_level", None),
-    )
-    result = cli.run()
-    if exec_cmd:
-        sys.exit(cli._exec_exit_code)
-    if result:
-        args.config = cli.config_path
-    return result
 
 
 def _run_proto_headless(args) -> None:

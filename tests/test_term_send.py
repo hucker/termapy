@@ -43,13 +43,16 @@ def env(tmp_path):
     output: list[tuple[str, str | None]] = []
     eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
 
+    from termapy.plugins import IOHandle, SerialHandle
     serial_writes: list[bytes] = []
     ctx = PluginContext(
-        write=lambda t, c=None: output.append((t, c)),
         cfg=cfg,
         config_path=str(config_path),
-        is_connected=lambda: True,
-        serial_write=lambda data: serial_writes.append(data),
+        io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+        serial=SerialHandle(
+            is_connected=lambda: True,
+            write=lambda data: serial_writes.append(data),
+        ),
     )
     eng.set_context(ctx)
     flags = ctx.ns("flags")
@@ -134,12 +137,15 @@ class TestTermSendErrors:
         output: list = []
         eng2 = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
         writes: list[bytes] = []
+        from termapy.plugins import IOHandle, SerialHandle
         ctx2 = PluginContext(
-            write=lambda t, c=None: output.append((t, c)),
             cfg=cfg,
             config_path=str(config_path),
-            is_connected=lambda: False,
-            serial_write=lambda data: writes.append(data),
+            io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+            serial=SerialHandle(
+                is_connected=lambda: False,
+                write=lambda data: writes.append(data),
+            ),
         )
         eng2.set_context(ctx2)
         ctx2.ns("flags")["echo"] = True
@@ -158,7 +164,7 @@ class TestTermSendErrors:
         def boom(_data: bytes) -> None:
             raise OSError("port closed")
 
-        ctx.serial_write = boom
+        ctx.serial.write = boom
         # Act
         result = eng.dispatch("term.send AT+VER")
         # Assert
@@ -197,7 +203,7 @@ class TestByteEquivalence:
         # Now do the same via explicit /term.send dispatch on a fresh fixture
         # (we can't reuse env's writes — they share the list with ctx).
         writes_b: list[bytes] = []
-        eng_a.ctx.serial_write = lambda data: writes_b.append(data)
+        eng_a.ctx.serial.write = lambda data: writes_b.append(data)
         eng_a.dispatch(f"term.send {text}")
         explicit_bytes = list(writes_b)
         # Assert

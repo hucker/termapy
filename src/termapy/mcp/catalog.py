@@ -168,10 +168,10 @@ def build_device_state(
     from pathlib import Path
 
     # Port state.
-    port_obj = ctx.port() if ctx.is_connected() else None
+    port_obj = ctx.serial.port() if ctx.serial.is_connected() else None
     port_info: dict[str, Any] = {
         "name": ctx.cfg.get("port", ""),
-        "open": ctx.is_connected(),
+        "open": ctx.serial.is_connected(),
     }
     if port_obj is not None:
         baud = getattr(port_obj, "baudrate", None)
@@ -208,7 +208,7 @@ def build_device_state(
 
     # Capture artifacts (live read of cap_dir).
     captures: list[dict[str, Any]] = []
-    cap_dir = Path(ctx.cap_dir) if ctx.cap_dir else None
+    cap_dir = Path(ctx.fs.cap_dir) if ctx.fs.cap_dir else None
     if cap_dir and cap_dir.exists():
         for p in sorted(cap_dir.iterdir()):
             if p.is_file():

@@ -22,7 +22,7 @@ Good plugin ideas:
 - Protocol decoders
 - Automation tools (test sequences, calibration routines)
 
-If your plugin is generally useful, open a PR to include it in `builtins/plugins/`.
+If your plugin is generally useful, open a PR to include it in `builtins/commands/`.
 
 ## Code contributions
 
@@ -38,7 +38,7 @@ If your plugin is generally useful, open a PR to include it in `builtins/plugins
 
 - Google-style docstrings and type hints
 - Pure functions in `scripting.py` and `plugins.py` - no Textual/pyserial imports
-- New commands go in `builtins/plugins/` unless they need Textual
+- New commands go in `builtins/commands/` unless they need Textual
 - Plugin files end with a `COMMAND` dict
 - OS-independent paths: use `pathlib.Path`, never split on `/` or `\\`
 - No Unicode in output strings - use ASCII only (hyphens, not em dashes)

@@ -1,0 +1,508 @@
+"""Built-in plugin: user-defined variables with $(NAME) syntax."""
+
+from __future__ import annotations
+
+import re
+from datetime import datetime
+from typing import TYPE_CHECKING, Callable
+
+from termapy.help_dynamic import compose, green
+from termapy.plugins import CmdResult, Command, Directive, DirectiveResult, Transform
+
+if TYPE_CHECKING:
+    from termapy.plugins import PluginContext
+
+# Module-level variable storage - cleared on script start.
+_VARS: dict[str, str] = {}
+
+# Match $(NAME) or $(NAME.SUB) - letters, digits, underscore, dots
+_VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)")
+
+# Match $(NAME) = value assignment (with or without spaces around =)
+_VAR_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*(.+)$")
+
+# Match $(NAME) <- value capture (run value as command, store result)
+_VAR_CAPTURE_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*<-\s*(.+)$")
+
+# Match bare $NAME = value (old syntax) for helpful warning
+_BARE_ASSIGN_RE = re.compile(r"^\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*.*$")
+
+# Match $(NAME) = (with no value) for error
+_EMPTY_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*$")
+
+# Match $(NAME) <- (with no value) for error
+_EMPTY_CAPTURE_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*<-\s*$")
+
+# Match optional $(NAME) or bare NAME wrapper for user input stripping
+_STRIP_WRAPPER_RE = re.compile(r"^\$\((.+)\)$")
+
+
+def clear_vars() -> None:
+    """Clear all user variables."""
+    _VARS.clear()
+
+
+def set_start_time_vars() -> None:
+    """Set $(SESSION_DATE), $(SESSION_TIME), and $(SESSION_DATETIME).
+
+    Called once when a top-level script starts (Scripts button / Run menu).
+    These are NOT reset by interactive ``/run`` calls so they reflect
+    the original start time of the session.
+    """
+    now = datetime.now()
+    _VARS["SESSION_DATE"] = now.strftime("%Y-%m-%d")
+    _VARS["SESSION_TIME"] = now.strftime("%H:%M:%S")
+    _VARS["SESSION_DATETIME"] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def rewrite_assignment(line: str) -> str | None:
+    """Rewrite ``$(VAR) = value`` into ``var.set VAR value``.
+
+    Called very early in dispatch, before the REPL/serial decision.
+    Returns the rewritten REPL command string, or None if the line
+    is not a variable assignment.
+
+    Args:
+        line: Raw input line.
+
+    Returns:
+        Rewritten command for REPL dispatch, or None.
+    """
+    m = _VAR_ASSIGN_RE.match(line)
+    if m:
+        return f"var.set {m.group(1)} {m.group(2)}"
+    return None
+
+
+def rewrite_capture(line: str) -> str | None:
+    """Rewrite ``$(VAR) <- command`` into ``var.capture VAR command``.
+
+    The command may be a REPL command (starts with ``/``) or a device
+    command (sent to serial).  The captured result becomes the variable's
+    value.
+
+    Args:
+        line: Raw input line.
+
+    Returns:
+        Rewritten command for REPL dispatch, or None.
+    """
+    m = _VAR_CAPTURE_RE.match(line)
+    if m:
+        return f"var.capture {m.group(1)} {m.group(2)}"
+    return None
+
+
+def check_bare_dollar(line: str) -> str | None:
+    """Check for bare ``$NAME = value`` and return a warning message.
+
+    Args:
+        line: Raw input line.
+
+    Returns:
+        Warning string if bare syntax detected, or None.
+    """
+    m = _BARE_ASSIGN_RE.match(line)
+    if m:
+        name = m.group(1)
+        return f"Did you mean $({name}) = ...?  Variables use $(NAME) syntax."
+    return None
+
+
+# Launch-time variables - frozen when the module loads (app start).
+_LAUNCH_TIME = datetime.now()
+_LAUNCH_VARS: dict[str, str] = {
+    "LAUNCH_DATE": _LAUNCH_TIME.strftime("%Y-%m-%d"),
+    "LAUNCH_TIME": _LAUNCH_TIME.strftime("%H:%M:%S"),
+    "LAUNCH_DATETIME": _LAUNCH_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+    "FRONT_END": "unknown",
+}
+
+
+def set_launch_var(name: str, value: str) -> None:
+    """Set a launch-time variable (called by app.py/cli.py at startup)."""
+    _LAUNCH_VARS[name] = value
+
+
+def register_cfg_vars(
+    get_config_path: Callable[[], str],
+    get_cfg: Callable[[], dict],
+    get_log_path: Callable[[], str],
+) -> None:
+    """Register all CFG.* context variables.
+
+    Called by app.py and cli.py after config is loaded.
+
+    Args:
+        get_config_path: Returns the current config file path.
+        get_cfg: Returns the current config dict.
+        get_log_path: Returns the current log file path.
+    """
+    from pathlib import Path
+    from termapy.config import connection_string
+
+    def _resolve_cfg() -> Path:
+        return Path(get_config_path()).resolve() if get_config_path() else Path(".")
+
+    set_context_var("CFG.DIR", lambda: str(_resolve_cfg().parent))
+    set_context_var("CFG.FILE", lambda: str(_resolve_cfg()))
+    set_context_var("CFG.RUN_DIR", lambda: str(_resolve_cfg().parent / "run"))
+    set_context_var("CFG.PROTO_DIR", lambda: str(_resolve_cfg().parent / "proto"))
+    set_context_var("CFG.PLUGIN_DIR", lambda: str(_resolve_cfg().parent / "plugin"))
+    set_context_var("CFG.SS_DIR", lambda: str(_resolve_cfg().parent / "ss"))
+    set_context_var("CFG.CAP_DIR", lambda: str(_resolve_cfg().parent / "cap"))
+    set_context_var("CFG.PROF_DIR", lambda: str(_resolve_cfg().parent / "prof"))
+    set_context_var("CFG.VIZ_DIR", lambda: str(_resolve_cfg().parent / "viz"))
+    set_context_var("CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else "")
+    set_context_var("CFG.PORT", lambda: get_cfg().get("port", ""))
+    set_context_var("CFG.BAUD", lambda: str(get_cfg().get("baud_rate", "")))
+    set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
+    set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
+
+# Dynamic built-in variables - resolved at expansion time.
+_DYNAMIC_VARS: dict[str, str] = {
+    "DATE": "%Y-%m-%d",
+    "TIME": "%H:%M:%S",
+    "DATETIME": "%Y-%m-%d %H:%M:%S",
+}
+
+# Context variables - resolved via callable at expansion time.
+_CONTEXT_VARS: dict[str, Callable[[], str]] = {}
+
+
+def set_context_var(name: str, fn: Callable[[], str]) -> None:
+    """Register a context variable resolved by callable at expansion time."""
+    _CONTEXT_VARS[name] = fn
+
+
+_ESCAPE_SENTINEL = "\x00"
+
+
+def expand_vars(text: str) -> str:
+    """Expand $(NAME) references in a string.
+
+    Resolution order:
+    1. User-defined variables in ``_VARS``
+    2. Dynamic built-ins (``$(DATE)``, ``$(TIME)``, ``$(DATETIME)``) - current clock
+    3. Unknown names are left as literal ``$(NAME)``
+
+    Use ``\\$`` to escape a literal ``$`` (e.g. ``\\$(PORT)`` -> ``$(PORT)``).
+
+    Args:
+        text: String potentially containing $(NAME) references.
+
+    Returns:
+        String with known variables expanded.
+    """
+    # Swap \$ -> sentinel so the regex doesn't see it as a var reference
+    text = text.replace("\\$", _ESCAPE_SENTINEL)
+
+    def _replace(m: re.Match) -> str:
+        name = m.group(1)
+        val = _VARS.get(name)
+        if val is not None:
+            return val
+        val = _LAUNCH_VARS.get(name)
+        if val is not None:
+            return val
+        fmt = _DYNAMIC_VARS.get(name)
+        if fmt is not None:
+            return datetime.now().strftime(fmt)
+        ctx_fn = _CONTEXT_VARS.get(name)
+        if ctx_fn is not None:
+            return ctx_fn()
+        return m.group(0)
+
+    text = _VAR_REF_RE.sub(_replace, text)
+    # Restore sentinel -> literal $
+    return text.replace(_ESCAPE_SENTINEL, "$")
+
+
+# -- Handlers ----------------------------------------------------------------
+
+
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    """List all defined variables, or show one by name.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Optional variable name to show.
+    """
+    raw = args.strip()
+    m = _STRIP_WRAPPER_RE.match(raw)
+    name = m.group(1) if m else raw
+    if name:
+        val = _VARS.get(name)
+        if val is None:
+            val = _LAUNCH_VARS.get(name)
+        if val is None:
+            fmt = _DYNAMIC_VARS.get(name)
+            if fmt is not None:
+                val = datetime.now().strftime(fmt)
+        if val is None:
+            ctx_fn = _CONTEXT_VARS.get(name)
+            if ctx_fn is not None:
+                val = ctx_fn()
+        if val is not None:
+            ctx.io.write_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
+            return CmdResult.ok(value=str(val))
+        else:
+            ctx.io.write(f"  $({name}) - not defined", "red")
+        return CmdResult.ok()
+    if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS and not _CONTEXT_VARS:
+        ctx.io.output("  (no variables defined)")
+        return CmdResult.ok()
+    for k in sorted(_VARS):
+        ctx.io.write_markup(f"  [cyan]$({k})[/] = [green]{_VARS[k]}[/]")
+    for k in sorted(_LAUNCH_VARS):
+        ctx.io.write_markup(f"  [cyan]$({k})[/] = [green]{_LAUNCH_VARS[k]}[/]  [dim](launch)[/]")
+    now = datetime.now()
+    for k, fmt in sorted(_DYNAMIC_VARS.items()):
+        ctx.io.write_markup(f"  [cyan]$({k})[/] = [green]{now.strftime(fmt)}[/]  [dim](dynamic)[/]")
+    for k in sorted(_CONTEXT_VARS):
+        ctx.io.write_markup(f"  [cyan]$({k})[/] = [green]{_CONTEXT_VARS[k]()}[/]  [dim](context)[/]")
+    return CmdResult.ok()
+
+
+def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
+    """Set a user variable.
+
+    Args:
+        ctx: Plugin context for output.
+        args: ``"NAME value"`` string (both required).
+    """
+    parts = args.strip().split(None, 1)
+    if len(parts) < 2:
+        return CmdResult.fail(msg="Usage: /var.set <NAME> <value>")
+    m = _STRIP_WRAPPER_RE.match(parts[0])
+    name = m.group(1) if m else parts[0]
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
+    value = parts[1]
+    _VARS[name] = value
+    ctx.io.write_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
+    return CmdResult.ok()
+
+
+def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
+    """Capture command output into a user variable.
+
+    If the command starts with the REPL prefix (e.g. ``/port.baud_rate``),
+    dispatch it and use ``CmdResult.value``.  Otherwise treat it as a
+    device command: send to serial and capture the response.
+
+    Args:
+        ctx: Plugin context.
+        args: ``"NAME command"`` string.
+    """
+    parts = args.strip().split(None, 1)
+    if len(parts) < 2:
+        return CmdResult.fail(msg="Usage: /var.capture <NAME> <command>")
+    m = _STRIP_WRAPPER_RE.match(parts[0])
+    name = m.group(1) if m else parts[0]
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
+    cmd = parts[1]
+    prefix = ctx.engine.prefix
+    if cmd.startswith(prefix):
+        # REPL command: dispatch with .silent suffix to suppress terminal
+        # output, then use CmdResult.value.  The user doesn't want to see
+        # the inner command's output -- only the variable assignment.
+        parts_cmd = cmd.split(None, 1)
+        silent_cmd = parts_cmd[0] + ".silent"
+        if len(parts_cmd) > 1:
+            silent_cmd += " " + parts_cmd[1]
+        result = ctx.dispatch(silent_cmd)
+        if not result.success:
+            return CmdResult.fail(msg=result.error or f"Command failed: {cmd}")
+        value = result.value
+    else:
+        # Device command: send to serial and capture response
+        if not ctx.serial.is_connected():
+            return CmdResult.fail(msg="Not connected.")
+        encoding = ctx.cfg.get("encoding", "utf-8")
+        with ctx.serial.io():
+            ctx.serial.drain()
+            ctx.serial.send(cmd)
+            response = ctx.serial.read_raw(timeout_ms=1000)
+        if not response:
+            return CmdResult.fail(msg=f"No response from device: {cmd}")
+        value = response.decode(encoding, errors="replace").strip()
+    _VARS[name] = value
+    ctx.io.write_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
+    return CmdResult.ok(value=value)
+
+
+def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
+    """Clear all user variables.
+
+    Args:
+        ctx: Plugin context for output.
+        args: Unused.
+    """
+    count = len(_VARS)
+    _VARS.clear()
+    ctx.io.write(f"Cleared {count} variable(s).", "green")
+    return CmdResult.ok()
+
+
+# ── Dynamic long_help ─────────────────────────────────────────────────────────
+
+
+def _var_state_line(ctx: PluginContext) -> str:
+    """Green one-liner: current user + launch + context var counts."""
+    # ctx is unused -- vars live in module-level storage, same across all
+    # PluginContexts within a session. Signature matches the dynamic
+    # long_help contract.
+    _ = ctx
+    user = len(_VARS)
+    launch = len(_LAUNCH_VARS)
+    dyn = len(_DYNAMIC_VARS)
+    ctxv = len(_CONTEXT_VARS)
+    return green(
+        f"Currently defined: {user} user, {launch} launch, "
+        f"{dyn} dynamic, {ctxv} context"
+    )
+
+
+_VAR_PROSE = """\
+User-defined variables use $(NAME) syntax (case-sensitive).
+
+Setting variables (no {prefix} prefix needed):
+  $(PORT) = COM7                - store literal value
+  $(BAUD) <- {prefix}port.baud_rate    - capture REPL command output
+  $(TEMP) <- AT+TEMP            - capture device response
+
+Using variables in commands:
+  {prefix}print $(PORT)
+  AT+PORT=$(PORT)
+
+Commands:
+  {prefix}var                   - list all variables
+  {prefix}var PORT              - show one variable (bare name or $(PORT))
+  {prefix}var.list              - list all variables (alias of bare {prefix}var)
+  {prefix}var.set PORT val      - set a variable (literal string)
+  {prefix}var.capture NAME cmd  - run cmd and store its result as NAME
+  {prefix}var.clear             - clear all variables
+
+Dynamic variables (current clock at point of use):
+  $(DATE)              - current date (YYYY-MM-DD)
+  $(TIME)              - current time (HH:MM:SS)
+  $(DATETIME)          - current date and time
+
+Launch variables (frozen when the app starts):
+  $(LAUNCH_DATE)       - app start date
+  $(LAUNCH_TIME)       - app start time
+  $(LAUNCH_DATETIME)   - app start date and time
+
+Session variables (set once per script launch, frozen):
+  $(SESSION_DATE)      - script start date
+  $(SESSION_TIME)      - script start time
+  $(SESSION_DATETIME)  - script start date and time
+
+Config variables (resolved paths from current config):
+  $(CFG)               - config name (e.g. demo)
+  $(CFG.DIR)           - config directory (resolved)
+  $(CFG.FILE)          - config file path (resolved)
+  $(CFG.LOG_FILE)      - log file path (resolved)
+  $(CFG.RUN_DIR)       - scripts directory
+  $(CFG.PROTO_DIR)     - protocol test directory
+  $(CFG.PLUGIN_DIR)    - plugin directory
+  $(CFG.SS_DIR)        - screenshot directory
+  $(CFG.CAP_DIR)       - capture directory
+  $(CFG.PROF_DIR)      - profile directory
+  $(CFG.VIZ_DIR)       - visualizer directory
+  $(CFG.PORT)          - serial port name
+  $(CFG.BAUD)          - baud rate
+  $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
+  $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
+
+Escaping (when your data contains literal $):
+  \\$(PORT)           - literal $(PORT) (not expanded)
+  {prefix}raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
+
+Scope: variables persist for the session. They are cleared
+automatically when a script is launched from the Scripts button
+or the Run menu, but NOT when {prefix}run is typed interactively.
+Use {prefix}var.clear to reset manually."""
+
+
+def _var_long_help(ctx: PluginContext) -> str:
+    return compose(_var_state_line(ctx), _VAR_PROSE)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="var",
+    args="{name}",
+    help="List user variables, or show one by name.",
+    long_help=_var_long_help,
+    handler=_handler_list,
+    raw_args=True,
+    sub_commands={
+        "list": Command(
+            args="{name}",
+            help="List user variables, or show one by name.",
+            long_help=_var_state_line,
+            handler=_handler_list,
+            raw_args=True,
+        ),
+        "set": Command(
+            args="<NAME> <value>",
+            help="Set a user variable to a literal value.",
+            long_help=_var_state_line,
+            handler=_handler_set,
+            raw_args=True,
+        ),
+        "capture": Command(
+            args="<NAME> <command>",
+            help="Capture command output into a user variable.",
+            long_help=_var_state_line,
+            handler=_handler_capture,
+            raw_args=True,
+        ),
+        "clear": Command(
+            help="Clear all user variables.",
+            long_help=_var_state_line,
+            handler=_handler_clear,
+            raw_args=True,
+        ),
+    },
+)
+
+TRANSFORM = Transform(
+    name="var",
+    help="Expand $(NAME) placeholders from user-defined variables.",
+    repl=expand_vars,
+    serial=expand_vars,
+)
+
+
+def _directive_var_assign(line: str) -> DirectiveResult | None:
+    """Handle $(VAR) = value, $(VAR) <- command, and related syntax errors."""
+    # Capture syntax: $(VAR) <- command
+    captured = rewrite_capture(line)
+    if captured is not None:
+        return DirectiveResult("rewrite", captured)
+    m = _EMPTY_CAPTURE_RE.match(line)
+    if m:
+        return DirectiveResult("error", f"$({m.group(1)}) <- requires a command.")
+    # Literal assignment: $(VAR) = value
+    rewritten = rewrite_assignment(line)
+    if rewritten is not None:
+        return DirectiveResult("rewrite", rewritten)
+    m = _EMPTY_ASSIGN_RE.match(line)
+    if m:
+        return DirectiveResult("error", f"$({m.group(1)}) = requires a value.")
+    warning = check_bare_dollar(line)
+    if warning is not None:
+        return DirectiveResult("warn", warning)
+    return None
+
+
+DIRECTIVE = Directive(
+    name="var_assign",
+    help="Assign user variables with $(NAME) = value syntax.",
+    pattern="$(NAME) = value",
+    handler=_directive_var_assign,
+)

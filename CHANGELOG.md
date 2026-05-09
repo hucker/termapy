@@ -23,6 +23,38 @@
 
 ### Changed
 
+- **``PluginContext`` namespaced capability handles (breaking for
+  external plugins)** -- the old flat ``ctx`` surface (~50 fields like
+  ``ctx.write``, ``ctx.serial_io``, ``ctx.cap_dir``, ``ctx.notify``) is
+  replaced by five capability-domain handles: ``ctx.io``, ``ctx.serial``,
+  ``ctx.fs``, ``ctx.ui``, and ``ctx.engine``.  Plugin authors now write
+  ``ctx.io.write(...)``, ``ctx.serial.io()``, ``ctx.fs.cap_dir``,
+  ``ctx.ui.confirm(...)``, etc.  Plugin author surface drops from ~50
+  visible names to 12.  TUI-only methods on ``ctx.ui`` raise
+  ``MissingCapability`` when called from CLI without declaring the
+  matching capability on ``Command.needs``, replacing today's silent
+  no-ops with hard failures.  See [Writing
+  Plugins](src/termapy/help/writing-plugins.md) for the new shape.
+
+- **``plugins.py`` split into ``plugins/`` package** -- the
+  ~1700-line monolith becomes a 12-file package with clear domains:
+  ``context.py`` (PluginContext), ``command.py`` (Command, CmdResult,
+  Transform, Directive), ``capabilities.py`` (CapabilitySet,
+  MissingCapability), ``loader.py`` (discovery), ``output_levels.py``
+  (silent/quiet/normal/verbose), and ``handles/`` (the five capability
+  handles).  All public re-exports preserved at ``termapy.plugins``.
+
+- **``builtins/plugins/`` renamed to ``builtins/commands/``** -- removes
+  the long-standing confusion between the framework package
+  (``src/termapy/plugins/``) and the directory of built-in command
+  modules.  37 command files moved.  No user-facing change.
+
+- **CLI mode no longer loads Textual** -- ``_run_cli_mode`` moved from
+  ``app.py`` to ``cli.py``, and ``_run_tui_mode`` is now lazy-imported
+  from ``entry.py`` only when the user picks TUI.  ``termapy --cli -e
+  "/help"`` previously pulled in 144 textual modules (~370ms of import
+  time); now it loads zero.
+
 - **``--cli`` argparse help text** -- now reads "Use plain-text mode
   instead of the TUI (interactive REPL by default; pair with --run
   or --exec for one-shot)" so the interactive-REPL semantics are

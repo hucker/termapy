@@ -101,7 +101,7 @@ Supports function codes 0x03 (read holding registers) and 0x06
 `probe.py` is the best starting template for plugins that send and parse a single
 device response.  `traffic.py` is the template for plugins that need to *watch*
 the byte stream without disrupting normal operation -- it demonstrates the
-``ctx.rx_observer()`` / ``ctx.tx_observer()`` context managers (see
+``ctx.serial.rx_observer()`` / ``ctx.serial.tx_observer()`` context managers (see
 [Writing Plugins](writing-plugins.md) for the full pattern).
 
 ### `/traffic.*` subcommands

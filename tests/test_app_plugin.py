@@ -2,12 +2,12 @@
 
 Surface under test:
 
-- /app.explore         open the app folder(s) via ctx.open_file
+- /app.explore         open the app folder(s) via ctx.fs.open_file
 - /app.state           print state.json path
 - /app.state.dump      print state.json contents
 - /app.config          print config.json path
 - /app.config.dump     print config.json contents
-- /app.config.edit     create-if-missing + open config.json via ctx.open_file
+- /app.config.edit     create-if-missing + open config.json via ctx.fs.open_file
 
 No bare /app handler -- the top-level Command has handler=None.
 """
@@ -45,13 +45,18 @@ class _CtxRecorder:
     """
 
     def __init__(self):
-        from termapy.plugins import CapabilitySet, PluginContext
+        from termapy.plugins import (
+            CapabilitySet,
+            FilesystemHandle,
+            IOHandle,
+            PluginContext,
+        )
 
         self.lines: list[str] = []
         self.open_file = MagicMock()
         self._ctx = PluginContext(
-            write=lambda text, color=None: self.lines.append(text),
-            open_file=self.open_file,
+            io=IOHandle(write=lambda text, color=None: self.lines.append(text)),
+            fs=FilesystemHandle(_open_file_impl=self.open_file),
             capabilities=CapabilitySet(gui_apps=True),
         )
 

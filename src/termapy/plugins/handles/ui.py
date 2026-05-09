@@ -1,52 +1,60 @@
 """UIHandle -- TUI-strict operations that require the right environment.
 
-Reachable as ``ctx.ui.*``.  Every method here checks a capability
-and raises :class:`MissingCapability` if the host can't actually
-deliver it.  The contrast with :class:`IOHandle`:
+Reachable as ``ctx.ui.*``.  Every gated method here checks a
+capability and raises :class:`MissingCapability` if the host can't
+actually deliver it -- contrast with :class:`IOHandle` which provides
+always-works fallbacks for ``notify`` / ``status_bar`` /
+``clear_screen``.
 
-  - ``ctx.io.notify("hi")`` always works (CLI prints ``[notice] hi``;
-    TUI shows a toast).  Use this when you want the user to see
-    something and don't care which sink delivers it.
-  - ``ctx.ui.notify("hi")`` raises in CLI; only succeeds in TUI.
-    Use this when "this MUST be a real toast" matters -- for
-    example, a dialog command that's meaningful only in TUI.
-
-Plugins that call ``ctx.ui.*`` should declare the corresponding
-capability in their ``Command(needs=CapabilitySet(...))`` so the
-dispatcher can refuse to run them in unsupported environments
-*before* the handler code runs.  Without a declaration, the gate
-fires at the call site as a backstop.
+Self-contained dataclass: every operation is a callable field that
+the host wires at construction time.  Capability gating reads from
+the ``capabilities`` field (a snapshot of the host's CapabilitySet,
+populated by ``PluginContext.__post_init__``).
 
 Method-to-capability map:
 
-  - ``confirm``           -> ``confirm_dialog``  (also implies ``block_until``)
+  - ``confirm``           -> ``confirm_dialog`` (also implies ``block_until``)
   - ``notify``            -> ``ui_notify``
   - ``status_bar``        -> ``status_bar``
   - ``clear_screen``      -> ``tui_mode``
   - ``screenshot``        -> ``screen_capture``
   - ``get_screen_text``   -> ``screen_capture``
-  - ``exit_app``          -> ``tui_mode``
+  - ``exit_app``          -> (not gated; underlying impl is a clean
+                              exit in TUI and a no-op in CLI/MCP, so
+                              always safe to call.  Commands that
+                              genuinely need TUI still gate via
+                              ``Command.needs=CapabilitySet(interactive=True)``)
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import Callable
 
-from termapy.plugins.capabilities import MissingCapability
-
-if TYPE_CHECKING:
-    from termapy.plugins.context import PluginContext
+from termapy.plugins.capabilities import CapabilitySet, MissingCapability
 
 
+@dataclass
 class UIHandle:
     """TUI-strict operations: confirm dialog, notifications, screenshots, exit."""
 
-    def __init__(self, ctx: "PluginContext") -> None:
-        self._ctx = ctx
+    # Backing callables.  Defaults are no-ops; hosts wire concrete
+    # implementations.
+    _confirm_impl: Callable = lambda message: False
+    _notify_impl: Callable = lambda text, **kw: None
+    _status_bar_impl: Callable = lambda text, timeout=5.0: None
+    _clear_screen_impl: Callable = lambda: None
+    _save_screenshot_impl: Callable = lambda path: None
+    _get_screen_text_impl: Callable = lambda: ""
+    _exit_app_impl: Callable = lambda: None
+
+    # Capability snapshot for the gates.  PluginContext sets this in
+    # __post_init__ to its own CapabilitySet.
+    capabilities: CapabilitySet = field(default_factory=CapabilitySet)
 
     def _require(self, flag: str, method: str) -> None:
         """Raise MissingCapability if the host doesn't provide ``flag``."""
-        if not getattr(self._ctx.capabilities, flag, False):
+        if not getattr(self.capabilities, flag, False):
             raise MissingCapability(
                 f"ctx.ui.{method} requires {flag} capability; "
                 f"declare needs=CapabilitySet({flag}=True) on your Command"
@@ -65,7 +73,7 @@ class UIHandle:
                 ``confirm_dialog``.
         """
         self._require("confirm_dialog", "confirm")
-        return self._ctx.confirm(message)
+        return self._confirm_impl(message)
 
     # ── Toast / status bar / clear screen (TUI-strict variants) ──────
 
@@ -77,7 +85,7 @@ class UIHandle:
                 ``ui_notify``.
         """
         self._require("ui_notify", "notify")
-        self._ctx.notify(text, **kw)
+        self._notify_impl(text, **kw)
 
     def status_bar(self, text: str, timeout: float = 5.0) -> None:
         """Set transient text in the bottom status line.
@@ -87,7 +95,7 @@ class UIHandle:
                 ``status_bar``.
         """
         self._require("status_bar", "status_bar")
-        self._ctx.status_bar(text, timeout)
+        self._status_bar_impl(text, timeout)
 
     def clear_screen(self) -> None:
         """Clear the TUI's scrollback and reset the line counter.
@@ -97,7 +105,7 @@ class UIHandle:
                 ``tui_mode``.
         """
         self._require("tui_mode", "clear_screen")
-        self._ctx.clear_screen()
+        self._clear_screen_impl()
 
     # ── Screen capture ───────────────────────────────────────────────
 
@@ -109,7 +117,7 @@ class UIHandle:
                 ``screen_capture``.
         """
         self._require("screen_capture", "screenshot")
-        self._ctx.save_screenshot(path)
+        self._save_screenshot_impl(path)
 
     def get_screen_text(self) -> str:
         """Return all visible TUI output as plain text.
@@ -119,7 +127,7 @@ class UIHandle:
                 ``screen_capture``.
         """
         self._require("screen_capture", "get_screen_text")
-        return self._ctx.get_screen_text()
+        return self._get_screen_text_impl()
 
     # ── App lifecycle ────────────────────────────────────────────────
 
@@ -127,10 +135,10 @@ class UIHandle:
         """Exit the app.  No-op in CLI mode (the REPL loop handles ``/exit``).
 
         Not capability-gated at the handle level: the underlying
-        ``ctx.exit_app`` is a no-op in CLI/MCP and a clean shutdown in
-        TUI, so it's always safe to call.  Commands that genuinely
-        need TUI semantics (e.g. ``/exit``) still declare
+        impl is a no-op in CLI/MCP and a clean shutdown in TUI, so
+        it's always safe to call.  Commands that genuinely need TUI
+        semantics (e.g. ``/exit``) still declare
         ``needs=CapabilitySet(interactive=True)`` to keep the command
         out of MCP and other non-interactive environments.
         """
-        self._ctx.exit_app()
+        self._exit_app_impl()

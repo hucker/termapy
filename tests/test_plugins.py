@@ -480,15 +480,18 @@ COMMAND = Command(name="plain", help="No transforms.", handler=_handler)
 class TestSerialIo:
     def test_calls_claim_and_release(self):
         # Arrange
+        from termapy.plugins import IOHandle, SerialHandle
         calls = []
         ctx = PluginContext(
-            write=lambda t, c=None: None,
-            serial_claim=lambda: calls.append("claim"),
-            serial_release=lambda: calls.append("release"),
+            io=IOHandle(write=lambda t, c=None: None),
+            serial=SerialHandle(
+                claim=lambda: calls.append("claim"),
+                release=lambda: calls.append("release"),
+            ),
         )
 
         # Act
-        with ctx.serial_io():
+        with ctx.serial.io():
             calls.append("body")
 
         # Assert
@@ -496,16 +499,19 @@ class TestSerialIo:
 
     def test_releases_on_exception(self):
         # Arrange
+        from termapy.plugins import IOHandle, SerialHandle
         calls = []
         ctx = PluginContext(
-            write=lambda t, c=None: None,
-            serial_claim=lambda: calls.append("claim"),
-            serial_release=lambda: calls.append("release"),
+            io=IOHandle(write=lambda t, c=None: None),
+            serial=SerialHandle(
+                claim=lambda: calls.append("claim"),
+                release=lambda: calls.append("release"),
+            ),
         )
 
         # Act
         with pytest.raises(ValueError):
-            with ctx.serial_io():
+            with ctx.serial.io():
                 raise ValueError("boom")
 
         # Assert
@@ -516,7 +522,8 @@ class TestNamespaces:
     """Tests for ctx.ns() - the session-scoped namespace primitive."""
 
     def _ctx(self):
-        return PluginContext(write=lambda t, c=None: None)
+        from termapy.plugins import IOHandle
+        return PluginContext(io=IOHandle(write=lambda t, c=None: None))
 
     def test_lazy_creation_returns_empty_dict(self):
         # Arrange
@@ -899,7 +906,8 @@ class TestPluginContextPluginCfg:
         # Arrange
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
-        ctx = PluginContext(write=lambda *a, **kw: None, config_path=str(cfg_path))
+        from termapy.plugins import IOHandle
+        ctx = PluginContext(io=IOHandle(write=lambda *a, **kw: None), config_path=str(cfg_path))
 
         # Act
         pcfg = ctx.plugin_cfg("myplugin")
@@ -912,7 +920,8 @@ class TestPluginContextPluginCfg:
         # Arrange
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
-        ctx = PluginContext(write=lambda *a, **kw: None, config_path=str(cfg_path))
+        from termapy.plugins import IOHandle
+        ctx = PluginContext(io=IOHandle(write=lambda *a, **kw: None), config_path=str(cfg_path))
 
         # Act
         pcfg1 = ctx.plugin_cfg("myplugin")
@@ -923,7 +932,8 @@ class TestPluginContextPluginCfg:
 
     def test_raises_without_config_path(self):
         # Arrange
-        ctx = PluginContext(write=lambda *a, **kw: None, config_path="")
+        from termapy.plugins import IOHandle
+        ctx = PluginContext(io=IOHandle(write=lambda *a, **kw: None), config_path="")
 
         # Act / Assert
         import pytest

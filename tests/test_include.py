@@ -45,12 +45,15 @@ def engine(tmp_path):
     engine_api = EngineAPI(
         plugins=eng._plugins,
     )
+    from termapy.plugins import IOHandle
     ctx = PluginContext(
-        write=lambda t, c=None: output.append((t, c)),
-        write_markup=lambda t: output.append((t, None)),
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
+        io=IOHandle(
+            write=lambda t, c=None: output.append((t, c)),
+            write_markup=lambda t: output.append((t, None)),
+        ),
     )
     eng.set_context(ctx)
     # Seed the `flags` namespace (would be done by app.py._build_context).
@@ -502,10 +505,10 @@ class TestIncludeVersionGate:
         include._read_json = lambda ctx, tms: device_json  # ty: ignore[invalid-assignment]
         try:
             # Pretend we're connected so the gate evaluates.
-            eng.ctx.is_connected = lambda: True
-            eng.ctx.serial_io = lambda: _NullContext()
-            eng.ctx.serial_drain = lambda: 0
-            eng.ctx.serial_send = lambda text: None
+            eng.ctx.serial.is_connected = lambda: True
+            eng.ctx.serial.io = lambda: _NullContext()
+            eng.ctx.serial.drain = lambda: 0
+            eng.ctx.serial.send = lambda text: None
             output.clear()
             result = include._fetch_and_include(
                 eng.ctx, "AT+HELP.JSON", 100, force=force,
@@ -648,7 +651,7 @@ class TestIncludeVersionGate:
 
 
 class _NullContext:
-    """Tiny stand-in for ctx.serial_io()'s context manager in tests."""
+    """Tiny stand-in for ctx.serial.io()'s context manager in tests."""
     def __enter__(self): return self
     def __exit__(self, *a): return False
 
@@ -1015,10 +1018,10 @@ class TestIncludeAndProfileSeparation:
         original = include._read_json
         include._read_json = lambda ctx, tms: device_json  # ty: ignore[invalid-assignment]
         try:
-            eng.ctx.is_connected = lambda: True
-            eng.ctx.serial_io = lambda: _NullContext()
-            eng.ctx.serial_drain = lambda: 0
-            eng.ctx.serial_send = lambda text: None
+            eng.ctx.serial.is_connected = lambda: True
+            eng.ctx.serial.io = lambda: _NullContext()
+            eng.ctx.serial.drain = lambda: 0
+            eng.ctx.serial.send = lambda text: None
             output.clear()
             result = include._fetch_and_include(
                 eng.ctx, "AT+HELP.JSON", 100, force=force,

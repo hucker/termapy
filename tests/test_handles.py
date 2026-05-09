@@ -1,12 +1,22 @@
-"""Phase 1 dual-API verification tests.
+"""Tests for the namespaced PluginContext handles.
 
-While the namespaced handles are added alongside the flat fields, both
-APIs must produce the same observable behaviour.  These tests verify
-that ``ctx.io.write`` and ``ctx.write``, ``ctx.serial.io()`` and
-``ctx.serial_io()``, etc., all reach the same backing callables.
+After Phase 3, ``PluginContext`` has no flat fields -- every
+host-provided callable lives on its capability-domain handle
+(``ctx.io``, ``ctx.serial``, ``ctx.fs``, ``ctx.ui``, ``ctx.engine``).
+These tests verify that:
 
-Phase 3 will remove the flat fields and this test file is deleted at
-that point (its purpose is bounded to the transitional period).
+  - Every PluginContext gets the 5 handles by default (no None).
+  - Hosts can wire callables into a handle and they reach the right
+    namespace.
+  - Capability-gated methods on UIHandle and FilesystemHandle raise
+    :class:`MissingCapability` when the host's CapabilitySet doesn't
+    advertise the required flag.
+  - PluginContext.__post_init__ correctly threads the capabilities
+    snapshot into ``ctx.fs`` and ``ctx.ui`` so the gates fire on
+    the right CapabilitySet.
+  - IOHandle.result/output/status route through the live
+    ``ctx.output_level`` so per-call ``--silent`` / ``cmd.quiet``
+    overrides take effect.
 """
 
 from __future__ import annotations
@@ -34,9 +44,11 @@ def ctx_with_capture():
     log = []
 
     ctx = PluginContext(
-        write=lambda text, color="dim": output.append((text, color)),
-        write_markup=lambda text: markup.append(text),
-        log=lambda prefix, text: log.append((prefix, text)),
+        io=IOHandle(
+            write=lambda text, color="dim": output.append((text, color)),
+            write_markup=lambda text: markup.append(text),
+            log=lambda prefix, text: log.append((prefix, text)),
+        ),
         capabilities=CapabilitySet(
             confirm_dialog=True,
             ui_notify=True,
@@ -51,29 +63,14 @@ def ctx_with_capture():
 
 
 class TestHandlesAreAttached:
-    """Every PluginContext gets handles automatically via __post_init__."""
+    """Every PluginContext gets default handles even with no kwargs."""
 
-    def test_io_handle_attached(self, ctx_with_capture):
-        # Arrange / Act
-        ctx, _, _, _ = ctx_with_capture
-
-        # Assert
-        assert isinstance(ctx.io, IOHandle), "ctx.io is an IOHandle instance"
-
-    def test_serial_handle_attached(self, ctx_with_capture):
-        ctx, _, _, _ = ctx_with_capture
+    def test_default_handles_are_real_instances(self):
+        ctx = PluginContext()
+        assert isinstance(ctx.io, IOHandle), "ctx.io is an IOHandle"
         assert isinstance(ctx.serial, SerialHandle), "ctx.serial is a SerialHandle"
-
-    def test_fs_handle_attached(self, ctx_with_capture):
-        ctx, _, _, _ = ctx_with_capture
         assert isinstance(ctx.fs, FilesystemHandle), "ctx.fs is a FilesystemHandle"
-
-    def test_ui_handle_attached(self, ctx_with_capture):
-        ctx, _, _, _ = ctx_with_capture
         assert isinstance(ctx.ui, UIHandle), "ctx.ui is a UIHandle"
-
-    def test_engine_handle_attached(self, ctx_with_capture):
-        ctx, _, _, _ = ctx_with_capture
         assert isinstance(ctx.engine, EngineHandle), "ctx.engine is an EngineHandle"
 
     def test_engine_api_alias_preserved(self):
@@ -83,38 +80,32 @@ class TestHandlesAreAttached:
         assert actual == expected, "EngineAPI alias points to EngineHandle"
 
 
-class TestIOHandleDualAPI:
-    """ctx.io.* and ctx.* produce the same observable output."""
+class TestIOHandle:
+    """IOHandle delegates to wired callables and respects output level."""
 
-    def test_io_write_equals_flat_write(self, ctx_with_capture):
-        # Arrange
+    def test_write_delegates_to_wired_callable(self, ctx_with_capture):
         ctx, output, _, _ = ctx_with_capture
-
-        # Act
-        ctx.io.write("via handle", "green")
-        ctx.write("via flat", "red")
-
-        # Assert
+        ctx.io.write("hello", "green")
         actual = output
-        expected = [("via handle", "green"), ("via flat", "red")]
-        assert actual == expected, "both APIs hit the same write callable"
+        expected = [("hello", "green")]
+        assert actual == expected, "write goes to the wired callable"
 
-    def test_io_log_equals_flat_log(self, ctx_with_capture):
-        ctx, _, _, log = ctx_with_capture
-        ctx.io.log(">", "out")
-        ctx.log("<", "in")
-        actual = log
-        expected = [(">", "out"), ("<", "in")]
-        assert actual == expected, "log delegates through the same callable"
-
-    def test_io_write_markup_delegates(self, ctx_with_capture):
+    def test_write_markup_delegates(self, ctx_with_capture):
         ctx, _, markup, _ = ctx_with_capture
         ctx.io.write_markup("[bold]hi[/]")
         actual = markup
         expected = ["[bold]hi[/]"]
-        assert actual == expected, "write_markup goes through the same callable"
+        assert actual == expected, "write_markup goes to the wired callable"
 
-    def test_io_result_routes_via_output_level(self, ctx_with_capture):
+    def test_log_delegates(self, ctx_with_capture):
+        ctx, _, _, log = ctx_with_capture
+        ctx.io.log(">", "out")
+        ctx.io.log("<", "in")
+        actual = log
+        expected = [(">", "out"), ("<", "in")]
+        assert actual == expected, "log goes to the wired callable"
+
+    def test_result_routes_via_output_level(self, ctx_with_capture):
         # Arrange -- output_level=quiet means result() shows
         ctx, output, _, _ = ctx_with_capture
         ctx.ns("flags")["output_level"] = "quiet"
@@ -125,189 +116,200 @@ class TestIOHandleDualAPI:
         # Assert
         actual = output
         expected = [("ok", "green")]
-        assert actual == expected, "result delegates to ctx.result which respects output_level"
+        assert actual == expected, "result writes when level >= quiet"
+
+    def test_result_suppressed_at_silent_level(self, ctx_with_capture):
+        ctx, output, _, _ = ctx_with_capture
+        ctx.ns("flags")["output_level"] = "silent"
+        ctx.io.result("hidden")
+        actual = output
+        expected = []
+        assert actual == expected, "result is suppressed at silent"
+
+    def test_status_only_at_verbose(self, ctx_with_capture):
+        ctx, output, _, _ = ctx_with_capture
+        # quiet/normal: hidden
+        ctx.ns("flags")["output_level"] = "normal"
+        ctx.io.status("normal-hidden")
+        # verbose: shown
+        ctx.ns("flags")["output_level"] = "verbose"
+        ctx.io.status("verbose-shown")
+        actual = output
+        expected = [("verbose-shown", "dim")]
+        assert actual == expected, "status only fires at verbose"
+
+    def test_per_call_level_override(self, ctx_with_capture):
+        ctx, output, _, _ = ctx_with_capture
+        # Global level: silent.  Per-call override: normal.
+        ctx.ns("flags")["output_level"] = "silent"
+        ctx._call_level = "normal"
+        ctx.io.result("via-override", "green")
+        actual = output
+        expected = [("via-override", "green")]
+        assert actual == expected, "per-call _call_level wins over global"
 
 
-class TestSerialHandleDualAPI:
-    """ctx.serial.* and ctx.serial_* delegate to the same callables."""
+class TestSerialHandle:
+    """SerialHandle delegates to wired callables and provides ctx managers."""
 
-    def test_serial_write_delegates(self):
-        # Arrange
+    def test_send_delegates(self):
         sent = []
         ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            serial_write=lambda data: sent.append(data),
+            serial=SerialHandle(send=lambda text: sent.append(text)),
         )
-
-        # Act
-        ctx.serial.write(b"AT+VER\r")
-        ctx.serial_write(b"AT+INFO\r")
-
-        # Assert
+        ctx.serial.send("AT+VER\r")
         actual = sent
-        expected = [b"AT+VER\r", b"AT+INFO\r"]
-        assert actual == expected, "both forms reach the same backing serial_write"
+        expected = ["AT+VER\r"]
+        assert actual == expected, "send goes to the wired callable"
 
-    def test_serial_io_delegates(self):
-        # Arrange
+    def test_io_context_manager_calls_claim_and_release(self):
         events = []
         ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            serial_claim=lambda: events.append("claim"),
-            serial_release=lambda: events.append("release"),
+            serial=SerialHandle(
+                claim=lambda: events.append("claim"),
+                release=lambda: events.append("release"),
+            ),
         )
-
-        # Act -- both context managers should claim/release identically
         with ctx.serial.io():
-            events.append("inside-handle")
-        with ctx.serial_io():
-            events.append("inside-flat")
-
-        # Assert
+            events.append("inside")
         actual = events
-        expected = [
-            "claim", "inside-handle", "release",
-            "claim", "inside-flat", "release",
-        ]
-        assert actual == expected, "ctx.serial.io() and ctx.serial_io() are equivalent"
+        expected = ["claim", "inside", "release"]
+        assert actual == expected, "io() claims, yields, releases"
 
-    def test_serial_is_connected_delegates(self):
-        # Arrange
+    def test_io_releases_on_exception(self):
+        events = []
         ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            is_connected=lambda: True,
+            serial=SerialHandle(
+                claim=lambda: events.append("claim"),
+                release=lambda: events.append("release"),
+            ),
         )
+        with pytest.raises(RuntimeError):
+            with ctx.serial.io():
+                events.append("inside")
+                raise RuntimeError("boom")
+        actual = events
+        expected = ["claim", "inside", "release"]
+        assert actual == expected, "release fires even on exception"
 
-        # Act / Assert
-        actual_handle = ctx.serial.is_connected()
-        actual_flat = ctx.is_connected()
-        assert actual_handle is True, "handle reports True"
-        assert actual_flat is True, "flat reports True"
+    def test_rx_observer_register_and_release(self):
+        registered = []
+        ctx = PluginContext(
+            serial=SerialHandle(
+                _add_rx_observer=lambda cb: registered.append(("add", cb)),
+                _remove_rx_observer=lambda cb: registered.append(("remove", cb)),
+            ),
+        )
+        cb = lambda data: None
+        with ctx.serial.rx_observer(cb):
+            assert registered == [("add", cb)], "added on enter"
+        actual = registered
+        expected = [("add", cb), ("remove", cb)]
+        assert actual == expected, "removed on exit"
 
 
-class TestFilesystemHandleDualAPI:
-    """ctx.fs.<dir> matches ctx.<dir>; open_file is gated by gui_apps."""
+class TestFilesystemHandle:
+    """FilesystemHandle exposes paths and gates open_file on gui_apps."""
 
-    def test_directory_paths_match(self, tmp_path):
-        # Arrange
+    def test_directory_paths_round_trip(self, tmp_path):
         cap = tmp_path / "cap"
         scripts = tmp_path / "scripts"
         ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            cap_dir=cap,
-            scripts_dir=scripts,
+            fs=FilesystemHandle(cap_dir=cap, scripts_dir=scripts),
         )
-
-        # Assert
-        actual_cap_handle = ctx.fs.cap_dir
-        actual_scripts_handle = ctx.fs.scripts_dir
-        assert actual_cap_handle is cap, "ctx.fs.cap_dir is the same Path"
-        assert actual_scripts_handle is scripts, "ctx.fs.scripts_dir is the same Path"
-        assert ctx.fs.cap_dir is ctx.cap_dir, "handle and flat are the same Path"
+        actual_cap = ctx.fs.cap_dir
+        actual_scripts = ctx.fs.scripts_dir
+        assert actual_cap is cap, "cap_dir round-trips through the handle"
+        assert actual_scripts is scripts, "scripts_dir round-trips through the handle"
 
     def test_open_file_raises_without_gui_apps(self):
-        # Arrange -- default capabilities have gui_apps=False
         opened = []
         ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            open_file=lambda path: opened.append(path),
+            fs=FilesystemHandle(_open_file_impl=lambda path: opened.append(path)),
             capabilities=CapabilitySet(),  # no gui_apps
         )
-
-        # Act / Assert
         with pytest.raises(MissingCapability) as excinfo:
             ctx.fs.open_file("/tmp/foo")
         assert "gui_apps" in str(excinfo.value), "error names the missing capability"
         assert opened == [], "underlying open_file was not called"
 
     def test_open_file_works_with_gui_apps(self):
-        # Arrange
         opened = []
         ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            open_file=lambda path: opened.append(path),
+            fs=FilesystemHandle(_open_file_impl=lambda path: opened.append(path)),
             capabilities=CapabilitySet(gui_apps=True),
         )
-
-        # Act
         ctx.fs.open_file("/tmp/foo")
-
-        # Assert
         actual = opened
         expected = ["/tmp/foo"]
-        assert actual == expected, "gated method called the underlying open_file"
+        assert actual == expected, "gated method called the underlying impl"
 
 
 class TestUIHandleGating:
-    """Every UIHandle method raises MissingCapability without the right flag."""
+    """Every gated UIHandle method raises MissingCapability without the right flag."""
 
     def test_confirm_raises_without_capability(self):
-        ctx = PluginContext(write=lambda *a, **kw: None)
+        ctx = PluginContext()
         with pytest.raises(MissingCapability) as excinfo:
             ctx.ui.confirm("Are you sure?")
         assert "confirm_dialog" in str(excinfo.value), "names the capability"
 
     def test_notify_raises_without_capability(self):
-        ctx = PluginContext(write=lambda *a, **kw: None)
+        ctx = PluginContext()
         with pytest.raises(MissingCapability) as excinfo:
             ctx.ui.notify("hi")
         assert "ui_notify" in str(excinfo.value), "names the capability"
 
     def test_screenshot_raises_without_capability(self):
-        ctx = PluginContext(write=lambda *a, **kw: None)
+        ctx = PluginContext()
         with pytest.raises(MissingCapability) as excinfo:
             ctx.ui.screenshot("/tmp/x.png")
         assert "screen_capture" in str(excinfo.value), "names the capability"
 
-    def test_exit_app_is_no_op_when_unsupported(self):
-        # ctx.ui.exit_app intentionally is NOT gated -- the underlying
-        # ctx.exit_app is a no-op in CLI/MCP and a real exit in TUI.
-        # Plugins gate via Command.needs=CapabilitySet(interactive=True)
-        # at the dispatcher level instead.
+    def test_exit_app_is_not_gated(self):
+        # ctx.ui.exit_app is intentionally NOT gated -- the underlying
+        # impl is a no-op in CLI/MCP and a real exit in TUI.  Plugins
+        # gate via Command.needs=CapabilitySet(interactive=True) at the
+        # dispatcher level instead.
         called = []
-        ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            exit_app=lambda: called.append(True),
-        )
+        ctx = PluginContext(ui=UIHandle(_exit_app_impl=lambda: called.append(True)))
         ctx.ui.exit_app()
         actual = called
         expected = [True]
         assert actual == expected, "exit_app calls through unconditionally"
 
     def test_gated_method_works_with_capability(self):
-        # Arrange
         confirms = []
         ctx = PluginContext(
-            write=lambda *a, **kw: None,
-            confirm=lambda msg: confirms.append(msg) or True,
+            ui=UIHandle(_confirm_impl=lambda msg: confirms.append(msg) or True),
             capabilities=CapabilitySet(confirm_dialog=True),
         )
-
-        # Act
         result = ctx.ui.confirm("Delete?")
-
-        # Assert
         assert result is True, "gated method returned the underlying value"
         assert confirms == ["Delete?"], "underlying confirm was called with the message"
 
 
-class TestPostConstructionOverridesFlowThrough:
-    """Handles read ctx attrs live; post-construction overrides take effect."""
+class TestPostInitWiring:
+    """PluginContext.__post_init__ threads ctx state into handles."""
 
-    def test_io_write_picks_up_overridden_callable(self):
-        # Arrange -- mimics TUI's post-construction override pattern
-        first = []
-        ctx = PluginContext(write=lambda t, c=None: first.append((t, c)))
+    def test_io_output_level_fn_reads_ctx_level(self):
+        # Build a ctx where io's output_level_fn should reflect ctx.output_level
+        ctx = PluginContext()
+        ctx.ns("flags")["output_level"] = "verbose"
+        actual = ctx.io.output_level_fn()
+        expected = "verbose"
+        assert actual == expected, "io reads the live ctx output_level"
 
-        # Override after construction (this is what app.py does)
-        second = []
-        ctx.write = lambda t, c=None: second.append((t, c))
+    def test_fs_capabilities_match_ctx_capabilities(self):
+        caps = CapabilitySet(gui_apps=True)
+        ctx = PluginContext(capabilities=caps)
+        actual = ctx.fs.capabilities
+        expected = caps
+        assert actual == expected, "fs capabilities snapshot matches ctx"
 
-        # Act
-        ctx.io.write("after override", "blue")
-
-        # Assert
-        actual_first = first
-        actual_second = second
-        assert actual_first == [], "first sink not used after override"
-        assert actual_second == [("after override", "blue")], "handle picked up override"
+    def test_ui_capabilities_match_ctx_capabilities(self):
+        caps = CapabilitySet(confirm_dialog=True)
+        ctx = PluginContext(capabilities=caps)
+        actual = ctx.ui.capabilities
+        expected = caps
+        assert actual == expected, "ui capabilities snapshot matches ctx"

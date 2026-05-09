@@ -1,7 +1,7 @@
-"""Exception-safety tests for the ``ctx.serial_io()`` context manager.
+"""Exception-safety tests for the ``ctx.serial.io()`` context manager.
 
 The whole point of routing every synchronous serial-read path through
-``with ctx.serial_io():`` (rather than bare ``engine.serial_claimed = True``
+``with ctx.serial.io():`` (rather than bare ``engine.serial_claimed = True``
 calls) is that the port releases on every exit path -- including when
 the body raises.  These tests pin that property explicitly so a future
 refactor can't quietly break it.
@@ -17,7 +17,9 @@ import pytest
 from termapy.plugins import (
     CapabilitySet,
     EngineAPI,
+    IOHandle,
     PluginContext,
+    SerialHandle,
 )
 from termapy.repl import ReplEngine
 
@@ -79,14 +81,15 @@ def ctx_with_tracker(tmp_path):
         tracker.releases += 1
 
     ctx = PluginContext(
-        write=lambda t, c=None: None,
-        write_markup=lambda t: None,
         cfg=cfg,
         config_path=str(config_path),
         engine=api,
         capabilities=CapabilitySet(serial_connected=True),
-        serial_claim=_claim,
-        serial_release=_release,
+        io=IOHandle(
+            write=lambda t, c=None: None,
+            write_markup=lambda t: None,
+        ),
+        serial=SerialHandle(claim=_claim, release=_release),
     )
     return ctx, tracker
 
@@ -100,7 +103,7 @@ class TestSerialIoContextManagerSafety:
         ctx, tracker = ctx_with_tracker
 
         # Act
-        with ctx.serial_io():
+        with ctx.serial.io():
             assert tracker.claimed, "claim happened on enter"
 
         # Assert -- balanced after normal exit
@@ -114,7 +117,7 @@ class TestSerialIoContextManagerSafety:
 
         # Act -- raise inside the block; the with-statement must propagate
         with pytest.raises(ValueError):
-            with ctx.serial_io():
+            with ctx.serial.io():
                 assert tracker.claimed, "claim happened before exception"
                 raise ValueError("simulated send failure")
 
@@ -129,8 +132,8 @@ class TestSerialIoContextManagerSafety:
         ctx, tracker = ctx_with_tracker
 
         # Act
-        with ctx.serial_io():
-            with ctx.serial_io():
+        with ctx.serial.io():
+            with ctx.serial.io():
                 pass
             # Inner block has released by now; outer is still claimed.
             assert tracker.releases == 1, "inner released"
@@ -150,8 +153,8 @@ class TestSerialIoContextManagerSafety:
 
         # Act
         with pytest.raises(RuntimeError):
-            with ctx.serial_io():
-                with ctx.serial_io():
+            with ctx.serial.io():
+                with ctx.serial.io():
                     pass
                 # Inner already released; now outer raises.
                 raise RuntimeError("late failure")
@@ -164,7 +167,7 @@ class TestSerialIoContextManagerSafety:
 
 class TestEngineApiBareApiUnreachable:
     """The bare ``set_proto_active`` callback was removed from EngineAPI to
-    force plugins through ``ctx.serial_io()``.  Verify the field doesn't
+    force plugins through ``ctx.serial.io()``.  Verify the field doesn't
     exist on the dataclass so any plugin trying to call it gets
     AttributeError instead of silently working.
     """
@@ -175,7 +178,7 @@ class TestEngineApiBareApiUnreachable:
 
         # Assert
         assert not hasattr(api, "set_proto_active"), (
-            "set_proto_active is removed; plugins must use ctx.serial_io()"
+            "set_proto_active is removed; plugins must use ctx.serial.io()"
         )
         assert not hasattr(api, "set_serial_claimed"), (
             "set_serial_claimed is also not exposed -- the renamed bare API "

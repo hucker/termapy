@@ -55,8 +55,9 @@ class TestParseOutputLevel:
 @pytest.fixture
 def ctx_with_writes():
     """PluginContext that captures writes."""
+    from termapy.plugins import IOHandle
     writes: list[tuple[str, str | None]] = []
-    ctx = PluginContext(write=lambda text, color=None: writes.append((text, color)))
+    ctx = PluginContext(io=IOHandle(write=lambda text, color=None: writes.append((text, color))))
     return ctx, writes
 
 
@@ -79,9 +80,9 @@ class TestChannelGating:
         ctx.ns("flags")["output_level"] = level
 
         # Act
-        ctx.result("ANSWER")
-        ctx.output("DATA")
-        ctx.status("CHATTER")
+        ctx.io.result("ANSWER")
+        ctx.io.output("DATA")
+        ctx.io.status("CHATTER")
 
         # Assert
         texts = [t for t, _ in writes]
@@ -99,7 +100,7 @@ class TestChannelGating:
         ctx._call_level = "verbose"
 
         # Act
-        ctx.status("CHATTER")
+        ctx.io.status("CHATTER")
 
         # Assert -- per-call override wins.
         texts = [t for t, _ in writes]
@@ -167,9 +168,9 @@ def eng_with_test_command(tmp_path):
     eng.ctx.ns("flags")["output_level"] = "normal"  # default
 
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        ctx.result("R")
-        ctx.output("O")
-        ctx.status("S")
+        ctx.io.result("R")
+        ctx.io.output("O")
+        ctx.io.status("S")
         return CmdResult.ok(value="VALUE")
 
     cmd = Command(name="probe", help="test", handler=_handler)

@@ -13,12 +13,15 @@ def send_env():
     output = []
     tx_bytes = []
 
+    from termapy.plugins import IOHandle, SerialHandle
     ctx = PluginContext(
-        write=lambda text, color=None: output.append((text, color)),
-        is_connected=lambda: True,
-        serial_write=lambda data: tx_bytes.append(data),
-        serial_read_raw=lambda timeout_ms=1000, frame_gap_ms=0: b"",
         engine=EngineAPI(),
+        io=IOHandle(write=lambda text, color=None: output.append((text, color))),
+        serial=SerialHandle(
+            is_connected=lambda: True,
+            write=lambda data: tx_bytes.append(data),
+            read_raw=lambda timeout_ms=1000, frame_gap_ms=0: b"",
+        ),
     )
     # Seed the `flags` namespace (would be done by app.py._build_context).
     flags = ctx.ns("flags")

@@ -5,26 +5,34 @@ notifications, status bar, screen-clear.  These are the universally
 available output sinks; the TUI-strict variants of ``notify`` /
 ``status_bar`` / ``clear_screen`` live on :class:`UIHandle`.
 
-The handle is a thin façade over :class:`PluginContext`'s flat fields.
-Each method delegates to the corresponding ``ctx.<name>`` callable so
-post-construction overrides (TUI's ``ctx.write = self._status``) are
-picked up live.
+Self-contained dataclass: every operation is a callable field that
+the host wires at construction time.  The level-routed methods
+(``result``, ``output``, ``status``) read the current output level
+via ``output_level_fn`` -- a callable supplied at construction (or
+set by ``PluginContext.__post_init__``) that returns the current
+level.  This is how IOHandle stays self-contained while still
+respecting the verbose/quiet/silent dial.
 
-This handle is **not** capability-gated -- the underlying capabilities
-(``terminal_output`` for ``write``, etc.) are baseline-True and every
-shipped environment provides them.  A restricted environment that
-opted out of ``terminal_output`` would be gated at dispatch time, not
-at handle-method time.
+This handle is **not** capability-gated.  ``terminal_output`` is
+baseline-True and every shipped environment provides it; the
+dispatcher's ``Command.needs.satisfied_by`` check is sufficient.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import Callable
 
-if TYPE_CHECKING:
-    from termapy.plugins.context import PluginContext
+from termapy.plugins.output_levels import (
+    DEFAULT_OUTPUT_LEVEL,
+    OUTPUT_LEVEL_RANK,
+    OUTPUT_MIN_RANK,
+    RESULT_MIN_RANK,
+    STATUS_MIN_RANK,
+)
 
 
+@dataclass
 class IOHandle:
     """Output operations: write/markup/log/result/output/status/notify/status_bar/clear_screen.
 
@@ -35,75 +43,40 @@ class IOHandle:
     environment can't actually deliver them.
     """
 
-    def __init__(self, ctx: "PluginContext") -> None:
-        self._ctx = ctx
-
     # ── Plain-text output (universal) ────────────────────────────────
-    #
-    # Handle methods are transparent pass-throughs to the underlying
-    # ctx callables.  Default-arg handling: if the caller didn't pass
-    # an optional arg, the handle doesn't pass it either, so the
-    # backing lambda's own default applies.  This matters for tests
-    # that capture (text, color) and want the lambda's default color
-    # rather than a handle-imposed one.
+    write: Callable = lambda text, color="dim": None
+    write_markup: Callable = lambda text: None
+    log: Callable = lambda prefix, text: None
 
-    def write(self, text: str, color=None) -> None:
-        """Write text to the terminal.  Color is a Rich color name."""
-        if color is None:
-            self._ctx.write(text)
-        else:
-            self._ctx.write(text, color)
+    # ── Always-works fallbacks for TUI features ──────────────────────
+    notify: Callable = lambda text, **kw: None
+    status_bar: Callable = lambda text, timeout=5.0: None
+    clear_screen: Callable = lambda: None
 
-    def write_markup(self, text: str) -> None:
-        """Write Rich markup text (supports ``[bold red]...[/]``)."""
-        self._ctx.write_markup(text)
+    # ── Output-level routing ─────────────────────────────────────────
+    # Returns the current output level.  PluginContext sets this in
+    # __post_init__ to a closure over its own ``output_level``
+    # property so per-call overrides via ``cmd.quiet`` / ``cmd
+    # --silent`` flow through.
+    output_level_fn: Callable = lambda: DEFAULT_OUTPUT_LEVEL
 
-    def log(self, prefix: str, text: str) -> None:
-        """Append a timestamped line to the session log.
+    def _shows(self, min_rank: int) -> bool:
+        rank = OUTPUT_LEVEL_RANK.get(
+            self.output_level_fn(), OUTPUT_LEVEL_RANK[DEFAULT_OUTPUT_LEVEL]
+        )
+        return rank >= min_rank
 
-        Prefix is ``">"`` for TX, ``"<"`` for RX, ``"#"`` for status.
-        Independent of screen output -- always logged regardless of
-        echo settings.
-        """
-        self._ctx.log(prefix, text)
-
-    # ── Output-level routing (verbose-aware) ─────────────────────────
-
-    def result(self, text: str, color=None) -> None:
+    def result(self, text: str, color: str = "green") -> None:
         """Write a command result (single-line answer).  Shown at quiet+."""
-        if color is None:
-            self._ctx.result(text)
-        else:
-            self._ctx.result(text, color)
+        if self._shows(RESULT_MIN_RANK):
+            self.write(text, color)
 
-    def output(self, text: str, color=None) -> None:
+    def output(self, text: str, color: str = "dim") -> None:
         """Write data output (listings, dumps, file contents).  Shown at normal+."""
-        if color is None:
-            self._ctx.output(text)
-        else:
-            self._ctx.output(text, color)
+        if self._shows(OUTPUT_MIN_RANK):
+            self.write(text, color)
 
     def status(self, text: str) -> None:
         """Write a status/progress message.  Shown only at verbose."""
-        self._ctx.status(text)
-
-    # ── Always-works fallbacks for TUI features ──────────────────────
-    # In CLI mode these print plain text; in TUI mode they show the
-    # real toast / status bar / clear-screen.  Either way they always
-    # produce something visible.  Plugins that need a guaranteed real
-    # toast (or a hard refusal in CLI) use ``ctx.ui.notify`` instead.
-
-    def notify(self, text: str, **kw) -> None:
-        """Show a notification.  Real toast in TUI; ``[notice] text`` in CLI."""
-        self._ctx.notify(text, **kw)
-
-    def status_bar(self, text: str, timeout=None) -> None:
-        """Set transient text in the status bar.  No-op in CLI."""
-        if timeout is None:
-            self._ctx.status_bar(text)
-        else:
-            self._ctx.status_bar(text, timeout)
-
-    def clear_screen(self) -> None:
-        """Clear the terminal output.  TUI: clear scrollback; CLI: ANSI clear."""
-        self._ctx.clear_screen()
+        if self._shows(STATUS_MIN_RANK):
+            self.write(text, "dim")

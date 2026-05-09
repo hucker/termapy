@@ -41,12 +41,13 @@ def repl_env(tmp_path):
     def write_markup(text):
         output.append((text, "markup"))
 
+    from termapy.plugins import IOHandle
+
     ctx = PluginContext(
-        write=write,
-        write_markup=write_markup,
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
+        io=IOHandle(write=write, write_markup=write_markup),
         # Test fixture publishes every capability so command-by-command
         # tests can exercise any handler.  Specific capability-gate tests
         # use their own restricted ctx (see test_engine.TestDispatchCapabilities).
@@ -1276,10 +1277,8 @@ normal line"""
 
 class TestGrep:
     def _set_screen_text(self, engine, text):
-        """Set get_screen_text on the engine's context."""
-        engine.ctx = engine.ctx.__class__(
-            **{**engine.ctx.__dict__, "get_screen_text": lambda: text}
-        )
+        """Set the get_screen_text impl on the engine's UIHandle."""
+        engine.ctx.ui._get_screen_text_impl = lambda: text
 
     def test_grep_no_args(self, repl_env):
         engine, _, _, output = repl_env
@@ -1389,7 +1388,7 @@ class TestCls:
         # Arrange
         engine, _, _, output = repl_env
         cleared = []
-        engine.ctx.clear_screen = lambda: cleared.append(True)
+        engine.ctx.io.clear_screen = lambda: cleared.append(True)
 
         # Act
         engine.dispatch("cls")
@@ -1555,8 +1554,8 @@ class TestCapArgParsing:
 class TestCapWire:
     """Verify the wrap-and-show-hex handler.
 
-    The handler registers RX/TX observers via ``ctx.rx_observer()`` /
-    ``ctx.tx_observer()``, dispatches the wrapped command, and emits
+    The handler registers RX/TX observers via ``ctx.serial.rx_observer()`` /
+    ``ctx.serial.tx_observer()``, dispatches the wrapped command, and emits
     a two-line hex+repr envelope.  Tests inject fake observer hooks
     so we control exactly which bytes "flow" during the dispatch.
     """
@@ -1569,12 +1568,12 @@ class TestCapWire:
         """
         rx_callbacks: list = []
         tx_callbacks: list = []
-        ctx._add_rx_observer = rx_callbacks.append
-        ctx._remove_rx_observer = (
+        ctx.serial._add_rx_observer = rx_callbacks.append
+        ctx.serial._remove_rx_observer = (
             lambda cb: rx_callbacks.remove(cb) if cb in rx_callbacks else None
         )
-        ctx._add_tx_observer = tx_callbacks.append
-        ctx._remove_tx_observer = (
+        ctx.serial._add_tx_observer = tx_callbacks.append
+        ctx.serial._remove_tx_observer = (
             lambda cb: tx_callbacks.remove(cb) if cb in tx_callbacks else None
         )
         return rx_callbacks, tx_callbacks
@@ -1796,7 +1795,7 @@ class TestCapStructHandler:
             captures.append(kw) or True
         )
         engine.ctx.dispatch = lambda cmd: dispatched.append(cmd)
-        engine.ctx.serial_drain = lambda: None
+        engine.ctx.serial.drain = lambda: None
 
         # Act
         engine.dispatch("cap.struct data.csv fmt=Val:U1-2 records=50 cmd=AT+DUMP 50")
@@ -1836,7 +1835,7 @@ class TestExit:
         # Arrange
         engine, _, _, output = repl_env
         exited = []
-        engine.ctx.exit_app = lambda: exited.append(True)
+        engine.ctx.ui.exit_app = lambda: exited.append(True)
 
         # Act
         engine.dispatch("exit")
@@ -1852,7 +1851,7 @@ class TestConfirm:
     def test_confirm_yes_continues(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine.ctx.confirm = lambda msg: True  # user clicks Yes
+        engine.ctx.ui.confirm = lambda msg: True  # user clicks Yes
 
         # Act
         engine.dispatch("confirm Are you sure?")
@@ -1863,7 +1862,7 @@ class TestConfirm:
     def test_confirm_cancel_stops_script(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
-        engine.ctx.confirm = lambda msg: False  # user clicks Cancel
+        engine.ctx.ui.confirm = lambda msg: False  # user clicks Cancel
 
         # Act
         engine.dispatch("confirm Are you sure?")
@@ -1876,7 +1875,7 @@ class TestConfirm:
         # Arrange
         engine, _, _, output = repl_env
         messages = []
-        engine.ctx.confirm = lambda msg: (messages.append(msg) or True)
+        engine.ctx.ui.confirm = lambda msg: (messages.append(msg) or True)
 
         # Act
         engine.dispatch("confirm")
@@ -1888,7 +1887,7 @@ class TestConfirm:
         # Arrange
         engine, _, _, output = repl_env
         messages = []
-        engine.ctx.confirm = lambda msg: (messages.append(msg) or True)
+        engine.ctx.ui.confirm = lambda msg: (messages.append(msg) or True)
 
         # Act
         engine.dispatch("confirm Deploy to production?")

@@ -891,8 +891,8 @@ class ProtoDebugScreen(ModalScreen[None]):
         line_ending = ctx.cfg.get("line_ending", "\r")
         enc = ctx.cfg.get("encoding", "utf-8")
         for cmd_text in cmds:
-            ctx.serial_write((cmd_text + line_ending).encode(enc))
-            ctx.serial_read_raw(1000, self._script.frame_gap_ms)
+            ctx.serial.write((cmd_text + line_ending).encode(enc))
+            ctx.serial.read_raw(1000, self._script.frame_gap_ms)
 
     def _execute_one(self, tc: TestCase) -> bool:
         """Execute a single send/receive cycle for a test case.
@@ -909,11 +909,11 @@ class ProtoDebugScreen(ModalScreen[None]):
         ctx = self._ctx
         script = self._script
 
-        ctx.serial_drain()
-        ctx.serial_write(tc.send_data)
+        ctx.serial.drain()
+        ctx.serial.write(tc.send_data)
 
         t0 = time.monotonic()
-        response = ctx.serial_read_raw(tc.timeout_ms, script.frame_gap_ms)
+        response = ctx.serial.read_raw(tc.timeout_ms, script.frame_gap_ms)
         elapsed_ms = (time.monotonic() - t0) * 1000
 
         if script.strip_ansi:
@@ -1130,7 +1130,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             # Test runner executes user .pro scripts -- any underlying
             # command handler or protocol step can raise anything.
             # Report in the test log and let the finally clean up.
-            # The serial-port release is handled by the ctx.serial_io()
+            # The serial-port release is handled by the ctx.serial.io()
             # context manager wrapping the test loop, so no defensive
             # flag flip is needed here.
             self._log(f"Test runner error: {e}")
@@ -1166,12 +1166,12 @@ class ProtoDebugScreen(ModalScreen[None]):
                 f"{label}: done ({len(cmds)} commands)", "dim")
         except RuntimeError:
             # call_from_thread fails during app shutdown - exit silently.
-            # Serial-port release is handled by the ctx.serial_io() context
+            # Serial-port release is handled by the ctx.serial.io() context
             # manager; no defensive flag flip needed.
             pass
         except BoundaryException as e:
             # Setup/teardown commands from the .pro script go through
             # the same user-code path as the main test runner; a broken
             # step reports to the log.  Serial-port release is handled
-            # by the ctx.serial_io() context manager.
+            # by the ctx.serial.io() context manager.
             self._log(f"Command runner error: {e}")

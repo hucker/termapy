@@ -193,11 +193,11 @@ class TestBuildPluginContext:
         host.engine.serial_port = MagicMock()
 
         # Act
-        ctx.serial_write(b"\x01\x02")
+        ctx.serial.write(b"\x01\x02")
 
         # Assert
         host.engine.serial_port.write.assert_called_once_with(b"\x01\x02"), \
-            "serial_write delegates through host"
+            "serial.write delegates through host"
 
     def test_directories_wired(self, host):
         # Arrange
@@ -207,11 +207,11 @@ class TestBuildPluginContext:
         ctx = host._build_plugin_context(api)
 
         # Assert
-        assert ctx.ss_dir == host.repl.ss_dir, "ss_dir matches repl"
-        assert ctx.scripts_dir == host.repl.scripts_dir, "scripts_dir matches repl"
-        assert ctx.proto_dir == host.repl.proto_dir, "proto_dir matches repl"
-        assert ctx.cap_dir == host.repl.cap_dir, "cap_dir matches repl"
-        assert ctx.prof_dir == host.repl.prof_dir, "prof_dir matches repl"
+        assert ctx.fs.ss_dir == host.repl.ss_dir, "ss_dir matches repl"
+        assert ctx.fs.scripts_dir == host.repl.scripts_dir, "scripts_dir matches repl"
+        assert ctx.fs.proto_dir == host.repl.proto_dir, "proto_dir matches repl"
+        assert ctx.fs.cap_dir == host.repl.cap_dir, "cap_dir matches repl"
+        assert ctx.fs.prof_dir == host.repl.prof_dir, "prof_dir matches repl"
 
     def test_is_connected_wired(self, host):
         # Arrange
@@ -220,18 +220,21 @@ class TestBuildPluginContext:
         host.engine.is_connected = True
 
         # Act
-        actual = ctx.is_connected()
+        actual = ctx.serial.is_connected()
 
         # Assert
         assert actual is True, "is_connected reflects engine state"
 
     def test_confirm_wired(self, host):
-        # Arrange
+        # Arrange -- TUI capability is needed for ctx.ui.confirm
         api = host._build_engine_api()
         ctx = host._build_plugin_context(api)
+        from termapy.plugins import CapabilitySet
+        ctx.capabilities = CapabilitySet(confirm_dialog=True)
+        ctx.ui.capabilities = ctx.capabilities
 
         # Act
-        actual = ctx.confirm("proceed?")
+        actual = ctx.ui.confirm("proceed?")
 
         # Assert
         assert actual is True, "confirm delegates to host._confirm (returns True in stub)"

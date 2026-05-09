@@ -39,11 +39,12 @@ def env(tmp_path):
         (config_path.parent / sub).mkdir(exist_ok=True)
     output: list = []
     eng = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+    from termapy.plugins import IOHandle, SerialHandle
     ctx = PluginContext(
-        write=lambda t, c=None: output.append((t, c)),
         cfg=cfg,
         config_path=str(config_path),
-        is_connected=lambda: True,
+        io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+        serial=SerialHandle(is_connected=lambda: True),
         wait_for_match=eng.wait_for_match,
     )
     ctx.capabilities = CapabilitySet(block_until=True)
@@ -66,11 +67,12 @@ class TestCapabilityGate:
         for sub in ("plugin", "ss", "run"):
             (config_path.parent / sub).mkdir(exist_ok=True)
         eng = ReplEngine(cfg, str(config_path), lambda t, c=None: None)
+        from termapy.plugins import IOHandle, SerialHandle
         ctx = PluginContext(
-            write=lambda t, c=None: None,
             cfg=cfg,
             config_path=str(config_path),
-            is_connected=lambda: True,
+            io=IOHandle(write=lambda t, c=None: None),
+            serial=SerialHandle(is_connected=lambda: True),
         )
         ctx.capabilities = CapabilitySet()  # NO block_until
         eng.set_context(ctx)

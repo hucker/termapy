@@ -254,10 +254,10 @@ class CLITerminal(TerminalHost):
 
         self.ctx = self._build_plugin_context(engine_api)
         # CLI-specific callbacks
-        self.ctx.notify = lambda text, **kw: self.write(f"[notice] {text}")
-        self.ctx.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
-        self.ctx.exit_app = lambda: None
-        self.ctx.get_screen_text = lambda: ""
+        self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
+        self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
+        self.ctx.ui.exit_app = lambda: None
+        self.ctx.ui.get_screen_text = lambda: ""
         # CLI provides interactive (a human at a terminal -- including
         # over SSH) and gui_apps when a local desktop is available.  No
         # TUI features (dialogs, screen capture, status bar, toast
@@ -379,7 +379,7 @@ class CLITerminal(TerminalHost):
             "clr",
             "",
             "Clear the terminal screen (alias for {prefix}cls).",
-            lambda ctx, args: (ctx.clear_screen(), CmdResult.ok())[-1],
+            lambda ctx, args: (ctx.io.clear_screen(), CmdResult.ok())[-1],
             source="app",
             needs=CapabilitySet(interactive=True),
         )
@@ -556,7 +556,7 @@ class CLITerminal(TerminalHost):
         )
 
         result = _show_command_help(ctx, "run")
-        scripts_dir = ctx.scripts_dir
+        scripts_dir = ctx.fs.scripts_dir
         files = (
             sorted(f.name for f in scripts_dir.glob("*.run"))
             if scripts_dir.is_dir() else []
@@ -670,12 +670,12 @@ class CLITerminal(TerminalHost):
 
         force = "--force" in args.lower()
         try:
-            ctx.status("Setting up demo files...")
+            ctx.io.status("Setting up demo files...")
             config_path = str(setup_demo_config(cfg_dir(), force=force))
         except OSError as e:
             return CmdResult.fail(msg=f"Demo setup failed: {e}")
 
-        ctx.status("Loading demo config...")
+        ctx.io.status("Loading demo config...")
         result = self._switch_to_cfg_path(config_path)
         if not result.success:
             return result
@@ -845,7 +845,7 @@ class CLITerminal(TerminalHost):
         Bare device text is dispatched asynchronously: ``ctx.dispatch``
         returns after writing TX bytes, but the device's response
         arrives later via the background reader thread.  We watch the
-        reader directly via ``ctx.rx_observer``: every chunk of
+        reader directly via ``ctx.serial.rx_observer``: every chunk of
         received bytes resets a "last arrival" clock, and we exit
         once the rx stream has been quiet for ``_EXEC_IDLE_GAP_S``
         (default 500ms).  Capped at ``_EXEC_MAX_WAIT_S`` (60s) so a
@@ -872,7 +872,7 @@ class CLITerminal(TerminalHost):
             last_arrival[0] = _time.monotonic()
 
         try:
-            with self.ctx.rx_observer(_bump_last_rx):
+            with self.ctx.serial.rx_observer(_bump_last_rx):
                 result = self.ctx.dispatch(command)
                 deadline = _time.monotonic() + self._EXEC_MAX_WAIT_S
                 while _time.monotonic() < deadline:

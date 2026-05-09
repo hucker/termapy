@@ -57,12 +57,12 @@ def repl_env(tmp_path):
         coerce_type=ReplEngine._coerce_type,
         dispatch=engine.dispatch,
     )
+    from termapy.plugins import IOHandle
     ctx = PluginContext(
-        write=write,
-        write_markup=write_markup,
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
+        io=IOHandle(write=write, write_markup=write_markup),
         capabilities=CapabilitySet(
             interactive=True, gui_apps=True, serial_connected=True,
         ),
@@ -151,11 +151,11 @@ class _FakeSerial:
 
 def _wire_fake_serial(ctx, fake):
     """Replace ctx serial callbacks with the fake's methods."""
-    ctx.serial_claim = fake.claim
-    ctx.serial_release = fake.release
-    ctx.serial_drain = fake.drain
-    ctx.serial_write = fake.write
-    ctx.serial_read_raw = fake.read_raw
+    ctx.serial.claim = fake.claim
+    ctx.serial.release = fake.release
+    ctx.serial.drain = fake.drain
+    ctx.serial.write = fake.write
+    ctx.serial.read_raw = fake.read_raw
 
 
 class TestExecRequestMode:
@@ -272,8 +272,8 @@ class TestDispatchFullRequestMode:
         assert cfg.get("request_mode") is False, "precondition"
 
         captured: list[bytes] = []
-        ctx.serial_write = captured.append
-        ctx.is_connected = lambda: True  # /term.send self-checks this
+        ctx.serial.write = captured.append
+        ctx.serial.is_connected = lambda: True  # /term.send self-checks this
 
         # Act
         engine.dispatch_full(
@@ -542,7 +542,7 @@ class TestDispatchFullEchoGating:
         engine, ctx, cfg, output, markup = repl_env
         cfg["echo_input"] = True
         cfg["request_mode"] = False
-        ctx.is_connected = lambda: True
+        ctx.serial.is_connected = lambda: True
         captured: list[bytes] = []
         legacy_echos: list[str] = []
 

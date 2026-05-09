@@ -229,7 +229,7 @@ Examples:
   {prefix}traffic.snoop FF55 timeout=2s    - wait for sync sequence
 
 This is a demo plugin -- read the source for the canonical pattern
-(``with ctx.rx_observer(cb): ...`` / ``with ctx.tx_observer(cb): ...``)
+(``with ctx.serial.rx_observer(cb): ...`` / ``with ctx.serial.tx_observer(cb): ...``)
 that any new RX/TX-watching plugin should follow."""
 
 

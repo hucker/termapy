@@ -60,7 +60,7 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
     paths = {app_state_dir(), app_config_dir()}
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)
-        ctx.open_file(path)
+        ctx.fs.open_file(path)
     return CmdResult.ok()
 
 
@@ -83,15 +83,15 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
             continue
         files = sorted(f for f in path.iterdir() if f.is_file())
         if not files:
-            ctx.output(f"  {path}/ (empty)")
+            ctx.io.output(f"  {path}/ (empty)")
             any_shown = True
             continue
-        ctx.write(f"  {path}/")
+        ctx.io.write(f"  {path}/")
         for f in files:
-            ctx.write(f"    {f.name}")
+            ctx.io.write(f"    {f.name}")
         any_shown = True
     if not any_shown:
-        ctx.output("  (no app folder yet)")
+        ctx.io.output("  (no app folder yet)")
     return CmdResult.ok()
 
 
@@ -101,7 +101,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_state(ctx: PluginContext, args: str) -> CmdResult:
     """Print the path to ``state.json``."""
     path = str(app_state_file())
-    ctx.write(path)
+    ctx.io.write(path)
     return CmdResult.ok(value=path)
 
 
@@ -112,7 +112,7 @@ def _handler_state_dump(ctx: PluginContext, args: str) -> CmdResult:
     """
     state = load_app_state()
     payload = json.dumps(state, indent=4)
-    ctx.write(payload)
+    ctx.io.write(payload)
     return CmdResult.ok(value=payload)
 
 
@@ -130,7 +130,7 @@ def _handler_state_edit(ctx: PluginContext, args: str) -> CmdResult:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
         path.write_text("{}\n", encoding="utf-8")
-    ctx.open_file(path)
+    ctx.fs.open_file(path)
     return CmdResult.ok()
 
 
@@ -140,7 +140,7 @@ def _handler_state_edit(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_config(ctx: PluginContext, args: str) -> CmdResult:
     """Print the path to ``config.json``."""
     path = str(app_config_file())
-    ctx.write(path)
+    ctx.io.write(path)
     return CmdResult.ok(value=path)
 
 
@@ -152,7 +152,7 @@ def _handler_config_dump(ctx: PluginContext, args: str) -> CmdResult:
     """
     cfg = load_app_config()
     payload = json.dumps(cfg, indent=4)
-    ctx.write(payload)
+    ctx.io.write(payload)
     return CmdResult.ok(value=payload)
 
 
@@ -166,7 +166,7 @@ def _handler_config_edit(ctx: PluginContext, args: str) -> CmdResult:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
         path.write_text("{}\n", encoding="utf-8")
-    ctx.open_file(path)
+    ctx.fs.open_file(path)
     return CmdResult.ok()
 
 

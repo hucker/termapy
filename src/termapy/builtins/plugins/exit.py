@@ -17,7 +17,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context with exit_app callback.
         args: Ignored.
     """
-    ctx.exit_app()
+    ctx.ui.exit_app()
     return CmdResult.ok()
 
 

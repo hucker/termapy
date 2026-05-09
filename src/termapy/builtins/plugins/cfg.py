@@ -44,7 +44,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # /cfg key - show value
     if len(parts) == 1:
         val = ctx.cfg[key]
-        ctx.result(str(val))
+        ctx.io.result(str(val))
         return CmdResult.ok(value=str(val))
     # /cfg key value - validate and delegate for confirmation
     value_str = parts[1]
@@ -54,7 +54,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Type error: {e}")
     old_val = ctx.cfg[key]
     if new_val == old_val:
-        ctx.output(f"{key} is already {old_val!r}")
+        ctx.io.output(f"{key} is already {old_val!r}")
         return CmdResult.ok()
     if ctx.engine.save_cfg:
         ctx.engine.save_cfg(key, new_val)
@@ -100,11 +100,11 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     d = cfg_dir()
     files = sorted(d.glob("*/*.cfg"))
     if not files:
-        ctx.output("  (no config files)")
+        ctx.io.output("  (no config files)")
         return CmdResult.ok()
     for f in files:
         marker = " *" if str(f) == ctx.config_path else ""
-        ctx.write(f"  {f.parent.name}/{f.name}{marker}")
+        ctx.io.write(f"  {f.parent.name}/{f.name}{marker}")
     return CmdResult.ok()
 
 
@@ -162,7 +162,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     """
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
-    ctx.open_file(Path(ctx.config_path))
+    ctx.fs.open_file(Path(ctx.config_path))
     return CmdResult.ok()
 
 
@@ -306,7 +306,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         global_names = _names(global_plugins_dir(), "*.py")
         colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
 
-        ctx.write_markup(colored_tree)
+        ctx.io.write_markup(colored_tree)
 
         # Build markdown report
         cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
@@ -415,7 +415,7 @@ COMMAND = Command(
         "dump": Command(
             help="Print current config as JSON to the terminal.",
             handler=lambda ctx, args: (
-                ctx.output(json.dumps(dict(ctx.cfg), indent=4)),
+                ctx.io.output(json.dumps(dict(ctx.cfg), indent=4)),
                 CmdResult.ok(),
             )[-1],
         ),

@@ -36,11 +36,30 @@ def pin_app_dirs(monkeypatch, tmp_path):
 
 
 class _CtxRecorder:
-    """Tiny PluginContext stand-in that records write/open_file calls."""
+    """Tiny PluginContext stand-in that records write/open_file calls.
+
+    Wraps a real :class:`PluginContext` so the namespaced handles
+    (``ctx.io.write``, ``ctx.fs.open_file``) work transparently.
+    Exposes ``self.lines`` (write-output capture) and ``self.open_file``
+    (a MagicMock for assertion convenience) directly on the recorder.
+    """
 
     def __init__(self):
+        from termapy.plugins import CapabilitySet, PluginContext
+
         self.lines: list[str] = []
         self.open_file = MagicMock()
+        self._ctx = PluginContext(
+            write=lambda text, color=None: self.lines.append(text),
+            open_file=self.open_file,
+            capabilities=CapabilitySet(gui_apps=True),
+        )
+
+    def __getattr__(self, name):
+        # Forward any other attribute access (cfg, io, fs, ...) to the
+        # underlying real PluginContext.  Direct attributes on self
+        # (lines, open_file, _ctx) take precedence via normal lookup.
+        return getattr(self._ctx, name)
 
     def write(self, text: str) -> None:
         self.lines.append(text)

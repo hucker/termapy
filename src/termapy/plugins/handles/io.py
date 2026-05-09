@@ -39,10 +39,20 @@ class IOHandle:
         self._ctx = ctx
 
     # ── Plain-text output (universal) ────────────────────────────────
+    #
+    # Handle methods are transparent pass-throughs to the underlying
+    # ctx callables.  Default-arg handling: if the caller didn't pass
+    # an optional arg, the handle doesn't pass it either, so the
+    # backing lambda's own default applies.  This matters for tests
+    # that capture (text, color) and want the lambda's default color
+    # rather than a handle-imposed one.
 
-    def write(self, text: str, color: str = "dim") -> None:
+    def write(self, text: str, color=None) -> None:
         """Write text to the terminal.  Color is a Rich color name."""
-        self._ctx.write(text, color)
+        if color is None:
+            self._ctx.write(text)
+        else:
+            self._ctx.write(text, color)
 
     def write_markup(self, text: str) -> None:
         """Write Rich markup text (supports ``[bold red]...[/]``)."""
@@ -59,13 +69,19 @@ class IOHandle:
 
     # ── Output-level routing (verbose-aware) ─────────────────────────
 
-    def result(self, text: str, color: str = "green") -> None:
+    def result(self, text: str, color=None) -> None:
         """Write a command result (single-line answer).  Shown at quiet+."""
-        self._ctx.result(text, color)
+        if color is None:
+            self._ctx.result(text)
+        else:
+            self._ctx.result(text, color)
 
-    def output(self, text: str, color: str = "dim") -> None:
+    def output(self, text: str, color=None) -> None:
         """Write data output (listings, dumps, file contents).  Shown at normal+."""
-        self._ctx.output(text, color)
+        if color is None:
+            self._ctx.output(text)
+        else:
+            self._ctx.output(text, color)
 
     def status(self, text: str) -> None:
         """Write a status/progress message.  Shown only at verbose."""
@@ -81,9 +97,12 @@ class IOHandle:
         """Show a notification.  Real toast in TUI; ``[notice] text`` in CLI."""
         self._ctx.notify(text, **kw)
 
-    def status_bar(self, text: str, timeout: float = 5.0) -> None:
+    def status_bar(self, text: str, timeout=None) -> None:
         """Set transient text in the status bar.  No-op in CLI."""
-        self._ctx.status_bar(text, timeout)
+        if timeout is None:
+            self._ctx.status_bar(text)
+        else:
+            self._ctx.status_bar(text, timeout)
 
     def clear_screen(self) -> None:
         """Clear the terminal output.  TUI: clear scrollback; CLI: ANSI clear."""

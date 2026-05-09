@@ -21,7 +21,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     except PackageNotFoundError:
         ver = "unknown"
     ver_str = f"termapy v{ver}"
-    ctx.result(ver_str)
+    ctx.io.result(ver_str)
     return CmdResult.ok(value=ver_str)
 
 

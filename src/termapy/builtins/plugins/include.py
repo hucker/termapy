@@ -307,7 +307,7 @@ def _read_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
     deadline = time.monotonic() + timeout_ms / 1000.0
     while time.monotonic() < deadline:
         remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
-        chunk = ctx.serial_read_raw(timeout_ms=remaining_ms)
+        chunk = ctx.serial.read_raw(timeout_ms=remaining_ms)
         if not chunk:
             break
         buf += chunk
@@ -337,12 +337,12 @@ def _fetch_and_include(
     "what version do we currently have" -- the in-memory ns can be
     empty on a fresh process even when a cache exists on disk.
     """
-    if not ctx.is_connected():
+    if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
 
-    with ctx.serial_io():
-        ctx.serial_drain()
-        ctx.serial_send(cmd)
+    with ctx.serial.io():
+        ctx.serial.drain()
+        ctx.serial.send(cmd)
         data = _read_json(ctx, timeout_ms)
 
     if data is None:
@@ -358,7 +358,7 @@ def _fetch_and_include(
     commands = _build_commands(cmd_dict)
     skipped = len(cmd_dict) - len(commands)
     if skipped:
-        ctx.status(f"  Skipped {skipped} entries missing 'help' field")
+        ctx.io.status(f"  Skipped {skipped} entries missing 'help' field")
 
     if not commands:
         return CmdResult.fail(msg="Include: JSON contained no valid commands.")
@@ -376,7 +376,7 @@ def _fetch_and_include(
                 target.clear()
                 target.update(cached_commands)
                 _set_version(ctx, cached_version)
-                ctx.result(
+                ctx.io.result(
                     f"Included {len(cached_commands)} device commands "
                     f"(cache kept, version {cached_version or '?'} "
                     f">= fetched {new_version or '?'})."
@@ -389,7 +389,7 @@ def _fetch_and_include(
     _set_version(ctx, new_version)
     _save_cache(ctx, commands, new_version)
     tag = f" (v{new_version})" if new_version else ""
-    ctx.result(f"Included {len(commands)} device commands{tag}.")
+    ctx.io.result(f"Included {len(commands)} device commands{tag}.")
     return CmdResult.ok(value=str(len(commands)))
 
 
@@ -422,7 +422,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # 1. Memory cache
     existing = ctx.ns("target_commands")
     if existing:
-        ctx.result(f"{len(existing)} device commands (cached).")
+        ctx.io.result(f"{len(existing)} device commands (cached).")
         return CmdResult.ok(value=str(len(existing)))
 
     # 2. Disk cache
@@ -432,7 +432,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         existing.update(commands)
         _set_version(ctx, version)
         tag = f" (v{version})" if version else ""
-        ctx.result(
+        ctx.io.result(
             f"Included {len(commands)} device commands (from cache{tag})."
         )
         return CmdResult.ok(value=str(len(commands)))
@@ -462,11 +462,11 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     """
     target = ctx.ns("target_commands")
     if not target:
-        ctx.result("No target commands included.")
+        ctx.io.result("No target commands included.")
         return CmdResult.ok()
     payload = _to_json_dict(target, _get_version(ctx))
     for line in json.dumps(payload, indent=2).splitlines():
-        ctx.output(f"  {line}")
+        ctx.io.output(f"  {line}")
     return CmdResult.ok()
 
 
@@ -484,7 +484,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
         _cache_path(ctx).unlink(missing_ok=True)
     except OSError:
         pass
-    ctx.result("Target commands cleared.")
+    ctx.io.result("Target commands cleared.")
     return CmdResult.ok()
 
 
@@ -492,13 +492,13 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List currently included target commands."""
     target = ctx.ns("target_commands")
     if not target:
-        ctx.result("No target commands included.")
+        ctx.io.result("No target commands included.")
         return CmdResult.ok()
     for name in sorted(target):
         tc = target[name]
         arg_str = f" {tc.args}" if tc.args else ""
-        ctx.output(f"  {name}{arg_str} -- {tc.help}")
-    ctx.result(f"{len(target)} target commands.")
+        ctx.io.output(f"  {name}{arg_str} -- {tc.help}")
+    ctx.io.result(f"{len(target)} target commands.")
     return CmdResult.ok(value=str(len(target)))
 
 

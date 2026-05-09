@@ -33,7 +33,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     except OSError as e:
         return CmdResult.fail(msg=f"Could not read acknowledgments: {e}")
     for line in text.splitlines():
-        ctx.output(line)
+        ctx.io.output(line)
     return CmdResult.ok()
 
 

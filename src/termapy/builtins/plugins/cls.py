@@ -17,7 +17,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context with clear_screen callback.
         args: Ignored.
     """
-    ctx.clear_screen()
+    ctx.io.clear_screen()
     return CmdResult.ok()
 
 

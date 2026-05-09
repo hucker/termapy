@@ -93,7 +93,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if stopped:
         if ev is not None:
             ev.clear()
-        ctx.result(f"Repeat stopped after {ran}/{count} iterations.")
+        ctx.io.result(f"Repeat stopped after {ran}/{count} iterations.")
         return CmdResult.ok()
 
     return CmdResult.ok()

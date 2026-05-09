@@ -6,7 +6,7 @@ same subcommands: edit by name, list files, open folder.
 
 In the TUI, hooks override /edit, /edit.cfg, /edit.run, and
 /edit.proto to use Textual modal editors. Everything else (list,
-explore, log, info) works the same in both frontends via ctx.open_file().
+explore, log, info) works the same in both frontends via ctx.fs.open_file().
 """
 
 from __future__ import annotations
@@ -32,8 +32,8 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
     Checks run/, proto/, plugin/ dirs by prefix or extension.
     """
     dir_map = {
-        "run": (ctx.scripts_dir, ".run"),
-        "proto": (ctx.proto_dir, ".pro"),
+        "run": (ctx.fs.scripts_dir, ".run"),
+        "proto": (ctx.fs.proto_dir, ".pro"),
     }
     parts = Path(name).parts
     if len(parts) == 2:
@@ -44,9 +44,9 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
 
     ext = Path(name).suffix.lower()
     _folder_dirs = {
-        "run": ctx.scripts_dir,
-        "proto": ctx.proto_dir,
-        "plugin": ctx.scripts_dir.parent / "plugin",
+        "run": ctx.fs.scripts_dir,
+        "proto": ctx.fs.proto_dir,
+        "plugin": ctx.fs.scripts_dir.parent / "plugin",
     }
     base = _folder_dirs.get(EXT_TO_FOLDER.get(ext, ""))
     if base:
@@ -65,14 +65,14 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     path = _resolve_file(ctx, name)
     if path is None:
         return CmdResult.fail(msg=f"File not found: {name}")
-    ctx.open_file(path)
+    ctx.fs.open_file(path)
     return CmdResult.ok()
 
 
 def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
-    ctx.open_file(Path(ctx.config_path))
+    ctx.fs.open_file(Path(ctx.config_path))
     return CmdResult.ok()
 
 
@@ -81,9 +81,9 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
     configured = ctx.cfg.get("log_file", "")
     if configured:
-        ctx.open_file(Path(configured).resolve())
+        ctx.fs.open_file(Path(configured).resolve())
     else:
-        ctx.open_file(Path(cfg_log_path(ctx.config_path)))
+        ctx.fs.open_file(Path(cfg_log_path(ctx.config_path)))
     return CmdResult.ok()
 
 
@@ -93,7 +93,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     stem = Path(ctx.config_path).stem
     path = Path(ctx.config_path).parent / f"{stem}.md"
     if path.exists():
-        ctx.open_file(path)
+        ctx.fs.open_file(path)
         return CmdResult.ok()
     else:
         return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
@@ -114,7 +114,7 @@ def _make_edit_handler(get_dir, ext, pattern):
         path = folder / name
         if not path.exists():
             return CmdResult.fail(msg=f"File not found: {name}")
-        ctx.open_file(path)
+        ctx.fs.open_file(path)
         return CmdResult.ok()
     return handler
 
@@ -124,15 +124,15 @@ def _make_list_handler(get_dir, pattern):
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         if not folder.is_dir():
-            ctx.output("  (no directory)")
+            ctx.io.output("  (no directory)")
             return CmdResult.ok()
         files = sorted(folder.glob(pattern))
         if not files:
-            ctx.output("  (empty)")
+            ctx.io.output("  (empty)")
             return CmdResult.ok()
-        ctx.output("  Available file(s):")
+        ctx.io.output("  Available file(s):")
         for f in files:
-            ctx.write(f"    {f.name}")
+            ctx.io.write(f"    {f.name}")
         return CmdResult.ok()
     return handler
 
@@ -142,7 +142,7 @@ def _make_explore_handler(get_dir):
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         folder.mkdir(parents=True, exist_ok=True)
-        ctx.open_file(folder)
+        ctx.fs.open_file(folder)
         return CmdResult.ok()
     return handler
 
@@ -191,11 +191,11 @@ COMMAND = Command(
     needs=CapabilitySet(gui_apps=True),
     sub_commands={
         "run": _build_folder_sub(
-            lambda ctx: ctx.scripts_dir, ".run", "*.run",
+            lambda ctx: ctx.fs.scripts_dir, ".run", "*.run",
             kind="run", noun="script",
         ),
         "proto": _build_folder_sub(
-            lambda ctx: ctx.proto_dir, ".pro", "*.pro",
+            lambda ctx: ctx.fs.proto_dir, ".pro", "*.pro",
             kind="proto", noun="script",
         ),
         "plugin": _build_folder_sub(

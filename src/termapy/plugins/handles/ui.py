@@ -124,11 +124,13 @@ class UIHandle:
     # ── App lifecycle ────────────────────────────────────────────────
 
     def exit_app(self) -> None:
-        """Exit the TUI cleanly.
+        """Exit the app.  No-op in CLI mode (the REPL loop handles ``/exit``).
 
-        Raises:
-            MissingCapability: if the environment doesn't provide
-                ``tui_mode``.
+        Not capability-gated at the handle level: the underlying
+        ``ctx.exit_app`` is a no-op in CLI/MCP and a clean shutdown in
+        TUI, so it's always safe to call.  Commands that genuinely
+        need TUI semantics (e.g. ``/exit``) still declare
+        ``needs=CapabilitySet(interactive=True)`` to keep the command
+        out of MCP and other non-interactive environments.
         """
-        self._require("tui_mode", "exit_app")
         self._ctx.exit_app()

@@ -29,27 +29,27 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
         return CmdResult.fail(msg=f"Ping: {e}")
     times: list[float] = []
     for i in range(count):
-        with ctx.serial_io():
-            ctx.serial_drain()
+        with ctx.serial.io():
+            ctx.serial.drain()
             start = time.perf_counter()
-            ctx.serial_send(cmd)
-            response = ctx.serial_read_raw(timeout_ms=timeout_ms)
+            ctx.serial.send(cmd)
+            response = ctx.serial.read_raw(timeout_ms=timeout_ms)
             ms = (time.perf_counter() - start) * 1000
         times.append(ms)
         if response:
-            ctx.write(f"{cmd} -- {ms:.0f}ms", "green")
+            ctx.io.write(f"{cmd} -- {ms:.0f}ms", "green")
             if not quiet:
                 text = response.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace").strip()
                 if text:
-                    ctx.output(f"  {text}")
+                    ctx.io.output(f"  {text}")
         else:
-            ctx.write(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
+            ctx.io.write(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
     if count > 1:
         avg = sum(times) / len(times)
         lo = min(times)
         hi = max(times)
         result_text = f"{count} pings: avg={avg:.0f}ms min={lo:.0f}ms max={hi:.0f}ms"
-        ctx.result(result_text)
+        ctx.io.result(result_text)
         return CmdResult.ok(value=result_text)
     if count == 1 and times:
         ms = times[0]

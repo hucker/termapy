@@ -55,7 +55,7 @@ def _handler_catalog(ctx: PluginContext, args: str) -> CmdResult:
 
         text = json.dumps(build_catalog(ctx), indent=None, sort_keys=False)
     for line in text.splitlines():
-        ctx.output(line)
+        ctx.io.output(line)
     return CmdResult.ok(value=text)
 
 
@@ -109,12 +109,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     )
 
     # Port state.
-    is_connected = ctx.is_connected()
+    is_connected = ctx.serial.is_connected()
     port_state = "connected" if is_connected else "disconnected"
     port_name = ctx.cfg.get("port", "(none)")
 
     # Capture artifacts.
-    cap_dir = Path(ctx.cap_dir)
+    cap_dir = Path(ctx.fs.cap_dir)
     cap_count = sum(1 for _ in cap_dir.iterdir()) if cap_dir.exists() else 0
 
     # Destructive-command audit: count entries flagged safety=destructive
@@ -160,11 +160,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
                if profile_disabled else " (all enabled)"),
         ))
     for line in format_kv_lines(rows):
-        ctx.write_markup(line)
+        ctx.io.write_markup(line)
     # Discoverability hint: many users will reach for /mcp.info first when
     # learning the MCP surface; point them at the human-readable view.
     prefix = ctx.engine.prefix
-    ctx.write_markup(
+    ctx.io.write_markup(
         f"  [dim](Use {prefix}help --mcp for the human-readable command "
         f"list, {prefix}mcp.catalog for raw JSON.)[/]"
     )
@@ -213,7 +213,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
             )
         )
     open_with_system(str(path))
-    ctx.write(f"  Opening {path.name}", "green")
+    ctx.io.write(f"  Opening {path.name}", "green")
     return CmdResult.ok(value=str(path))
 
 
@@ -253,7 +253,7 @@ def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
         lines = lines[-n:]
 
     for line in lines:
-        ctx.output(line)
+        ctx.io.output(line)
     return CmdResult.ok(value=str(len(lines)))
 
 
@@ -267,7 +267,7 @@ def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
     """
     path = _mcp_log_path(ctx)
     marker = "" if path.exists() else "  (not yet created)"
-    ctx.write(f"{path}{marker}")
+    ctx.io.write(f"{path}{marker}")
     return CmdResult.ok(value=str(path))
 
 

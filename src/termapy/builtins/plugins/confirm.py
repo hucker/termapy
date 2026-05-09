@@ -22,8 +22,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Message text to display in the dialog.
     """
     message = args.strip() or "Continue?"
-    if not ctx.confirm(message):
-        ctx.write("Cancelled.", "yellow")
+    if not ctx.ui.confirm(message):
+        ctx.io.write("Cancelled.", "yellow")
         ctx.engine.script_stop()
     return CmdResult.ok()
 

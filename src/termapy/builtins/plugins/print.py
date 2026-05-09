@@ -20,7 +20,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Text to print.
     """
-    ctx.write(args)
+    ctx.io.write(args)
     return CmdResult.ok()
 
 
@@ -35,7 +35,7 @@ def _handler_rich(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Rich markup text to render.
     """
-    ctx.write_markup(args)
+    ctx.io.write_markup(args)
     return CmdResult.ok()
 
 

@@ -62,7 +62,7 @@ def _handler_verbose(ctx: PluginContext, args: str) -> CmdResult:
     if "verbose" not in warned:
         warned["verbose"] = True
         p = ctx.engine.prefix
-        ctx.write(
+        ctx.io.write(
             f"  Note: {p}verbose is legacy; use {p}term.output "
             f"(verbose|normal).",
             "yellow",

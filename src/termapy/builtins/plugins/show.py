@@ -19,7 +19,7 @@ def _show_file(ctx: PluginContext, path: Path) -> None:
         path: Absolute or relative path to the file.
     """
     if not path.exists():
-        ctx.write(f"File not found: {path}", "red")
+        ctx.io.write(f"File not found: {path}", "red")
         return
     # OSError covers file-locked / permission-denied / disappeared
     # between the exists() check and here; UnicodeDecodeError means
@@ -27,12 +27,12 @@ def _show_file(ctx: PluginContext, path: Path) -> None:
     # conditions worth a friendly message.  Anything else is a bug.
     try:
         text = path.read_text(encoding="utf-8")
-        ctx.write(f"--- {path} ---")
+        ctx.io.write(f"--- {path} ---")
         for line in text.splitlines():
-            ctx.write(line)
-        ctx.write("--- end ---")
+            ctx.io.write(line)
+        ctx.io.write("--- end ---")
     except (OSError, UnicodeDecodeError) as e:
-        ctx.write(f"Error reading {path}: {e}", "red")
+        ctx.io.write(f"Error reading {path}: {e}", "red")
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

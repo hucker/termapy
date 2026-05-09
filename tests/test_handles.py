@@ -259,11 +259,20 @@ class TestUIHandleGating:
             ctx.ui.screenshot("/tmp/x.png")
         assert "screen_capture" in str(excinfo.value), "names the capability"
 
-    def test_exit_app_raises_without_capability(self):
-        ctx = PluginContext(write=lambda *a, **kw: None)
-        with pytest.raises(MissingCapability) as excinfo:
-            ctx.ui.exit_app()
-        assert "tui_mode" in str(excinfo.value), "names the capability"
+    def test_exit_app_is_no_op_when_unsupported(self):
+        # ctx.ui.exit_app intentionally is NOT gated -- the underlying
+        # ctx.exit_app is a no-op in CLI/MCP and a real exit in TUI.
+        # Plugins gate via Command.needs=CapabilitySet(interactive=True)
+        # at the dispatcher level instead.
+        called = []
+        ctx = PluginContext(
+            write=lambda *a, **kw: None,
+            exit_app=lambda: called.append(True),
+        )
+        ctx.ui.exit_app()
+        actual = called
+        expected = [True]
+        assert actual == expected, "exit_app calls through unconditionally"
 
     def test_gated_method_works_with_capability(self):
         # Arrange

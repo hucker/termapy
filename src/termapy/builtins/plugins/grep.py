@@ -35,7 +35,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     max_matches = ctx.cfg.get("max_grep_lines", 100)
     prefix = cmd_prefix(ctx.cfg)
     grep_cmd = f"{prefix}grep"
-    text = ctx.get_screen_text()
+    text = ctx.ui.get_screen_text()
     if not text:
         return CmdResult.fail(msg="Grep not available: no scrollback in CLI mode")
     lines = text.splitlines()
@@ -57,17 +57,17 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         if rx.search(line) and not _is_grep_noise(line)
     ]
     if not matches:
-        ctx.write(f"  grep: '{pattern}' - no matches")
+        ctx.io.write(f"  grep: '{pattern}' - no matches")
         return CmdResult.ok(value="0")
     total = len(matches)
     shown = matches[:max_matches]
     if total > max_matches:
-        ctx.write(f"  grep: '{pattern}' - showing first {max_matches} of {total} matches")
+        ctx.io.write(f"  grep: '{pattern}' - showing first {max_matches} of {total} matches")
     else:
-        ctx.write(f"  grep: '{pattern}' - {total} match(es)")
+        ctx.io.write(f"  grep: '{pattern}' - {total} match(es)")
     for lineno, line in shown:
         clean = _ANSI_RE.sub("", line)
-        ctx.write(f"  grep: {lineno:>5} | {clean}")
+        ctx.io.write(f"  grep: {lineno:>5} | {clean}")
     return CmdResult.ok(value=str(total))
 
 

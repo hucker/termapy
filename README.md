@@ -933,7 +933,7 @@ from termapy.plugins import Command, PluginContext
 
 def _handler(ctx: PluginContext, args: str):
     name = args.strip() or "world"
-    ctx.write(f"Hello, {name}!")
+    ctx.io.write(f"Hello, {name}!")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
@@ -960,10 +960,10 @@ Use `sub_commands` for related operations. Users invoke them with dot notation (
 from termapy.plugins import Command
 
 def _run(ctx, args):
-    ctx.write(f"Running {args}...")
+    ctx.io.write(f"Running {args}...")
 
 def _status(ctx, args):
-    ctx.write("All good.")
+    ctx.io.write("All good.")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
@@ -983,31 +983,50 @@ The user types `/tool.run myfile` or `/tool.status`.
 <details>
 <summary>PluginContext API</summary>
 
-The `ctx` object passed to every handler:
+The `ctx` object passed to every handler is a thin shell over **five capability handles**, each owning one domain:
 
-| Method / Attribute          | Description                                                        |
-| --------------------------- | ------------------------------------------------------------------ |
-| `ctx.write(text, color)`    | Print to the terminal (color is optional)                          |
-| `ctx.write_markup(text)`    | Print Rich markup text (e.g. `[bold red]Warning![/]`)              |
-| `ctx.cfg`                   | Current config dict (read-only access)                             |
-| `ctx.config_path`           | Path to the current `.cfg` config file                             |
-| `ctx.port()`                | The raw pyserial object, or `None` when disconnected               |
-| `ctx.is_connected()`        | Check if the serial port is open                                   |
-| `ctx.log(prefix, text)`     | Write to session log: `">"` TX, `"<"` RX, `"#"` status             |
-| `ctx.serial_write(data)`    | Send bytes to the serial port (auto-logged as TX to session log)   |
-| `ctx.serial_wait_idle()`    | Wait until serial output settles                                   |
-| `ctx.serial_read_raw()`     | Read raw bytes with timeout framing (returns `bytes`)              |
-| `ctx.serial_io()`           | Context manager for exclusive serial I/O (`with ctx.serial_io():`) |
-| `ctx.ss_dir`                | Screenshot directory (`Path`)                                      |
-| `ctx.scripts_dir`           | Scripts directory (`Path`)                                         |
-| `ctx.confirm(message)`      | Show Yes/Cancel dialog, return `bool` (scripts only)               |
-| `ctx.notify(text)`          | Show a toast notification                                          |
-| `ctx.clear_screen()`        | Clear the terminal output                                          |
-| `ctx.save_screenshot(path)` | Save an SVG screenshot to a file                                   |
-| `ctx.get_screen_text()`     | Get terminal content as plain text                                 |
-| `ctx.open_file(path)`       | Open a file or folder in the system viewer/editor                  |
+| Member                              | Description                                                       |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `ctx.cfg`                           | Current config (read-only mapping)                                |
+| `ctx.config_path`                   | Path to the current `.cfg` config file                            |
+| `ctx.io.write(text, color)`         | Print to the terminal (color is optional)                         |
+| `ctx.io.write_markup(text)`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)             |
+| `ctx.io.result(value)`              | Set scriptable return value (used by silent/quiet output levels)  |
+| `ctx.io.notify(text)`               | Always-works fallback notification (toast in TUI, plain in CLI)   |
+| `ctx.io.log(prefix, text)`          | Write to session log: `">"` TX, `"<"` RX, `"#"` status            |
+| `ctx.serial.is_connected`           | Bool: serial port is open                                         |
+| `ctx.serial.port`                   | The raw pyserial object, or `None` when disconnected              |
+| `ctx.serial.write(data)`            | Send bytes to the serial port (auto-logged as TX)                 |
+| `ctx.serial.read_raw(timeout_ms)`   | Read raw bytes with timeout framing (returns `bytes`)             |
+| `ctx.serial.drain()`                | Drain pending RX data                                             |
+| `ctx.serial.wait_idle()`            | Wait until serial output settles                                  |
+| `ctx.serial.io()`                   | Context manager for exclusive serial I/O                          |
+| `ctx.serial.rx_observer()`          | Context manager: passive RX byte tap                              |
+| `ctx.serial.tx_observer()`          | Context manager: passive TX byte tap                              |
+| `ctx.fs.ss_dir`                     | Screenshot directory (`Path`)                                     |
+| `ctx.fs.scripts_dir`                | Scripts directory (`Path`)                                        |
+| `ctx.fs.proto_dir`                  | Proto-test directory (`Path`)                                     |
+| `ctx.fs.cap_dir`                    | Capture-output directory (`Path`)                                 |
+| `ctx.fs.open_file(path)`            | Open in system viewer/editor (gated on `gui_apps` capability)     |
+| `ctx.ui.confirm(message)`           | Yes/Cancel dialog (TUI-only; declare `confirm_dialog` capability) |
+| `ctx.ui.notify(text)`               | TUI-strict notification (declare `ui_notify`)                     |
+| `ctx.ui.clear_screen()`             | Clear the terminal output (declare `tui_mode`)                    |
+| `ctx.ui.screenshot(path)`           | Save an SVG screenshot (declare `screen_capture`)                 |
+| `ctx.dispatch(cmd)`                 | Re-route a command through the full pipeline                      |
+| `ctx.ns(name)`                      | Get/create a session-scoped state dict                            |
+| `ctx.plugin_cfg(name)`              | Get a per-plugin persistent config dict                           |
 
-There is also `ctx.engine` which exposes internal engine state (sequence counters, echo, config save, etc.). This is used by built-in commands and may change between versions, so external plugins should avoid it.
+**Capability gating.** Methods on `ctx.ui` and `ctx.fs.open_file` are gated on `CapabilitySet` flags. Calling a gated method without declaring the capability raises `MissingCapability`, which the dispatcher converts to `CmdResult.fail`. Declare what your command needs:
+
+```python
+COMMAND = Command(
+    name="ask", help="Prompt user.",
+    needs=CapabilitySet(confirm_dialog=True),  # refuse to dispatch in CLI
+    handler=_handler,
+)
+```
+
+There is also `ctx.engine` which exposes internal engine state (sequence counters, config save, capture, etc.). This is used by built-in commands and may change between versions, so external plugins should avoid it.
 
 </details>
 
@@ -1021,7 +1040,7 @@ See `examples/plugins/` for working examples:
 - **timestamp.py:** print the current date/time
 - **ping.py:** send a command and measure response time
 
-More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.rx_observer()` / `ctx.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
+More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.serial.rx_observer()` / `ctx.serial.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
 
 </details>
 
@@ -1177,31 +1196,31 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 1993 tests, 67% overall</summary>
+<summary><strong>Test coverage</strong> - 2386 tests, 70% overall</summary>
 
-1993 tests across 52 test files. Run with `uv run pytest`.
+2386 tests across 73 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 
-| Module             | Coverage | Test file                            |
-| ------------------ | -------- | ------------------------------------ |
-| `defaults.py`      | 97%      | `test_defaults.py`                   |
-| `scripting.py`     | 97%      | `test_scripting.py`                  |
-| `migration.py`     | 98%      | `test_migration.py`                  |
-| `plugins.py`       | 94%      | `test_plugins.py`                    |
-| `capture.py`       | 92%      | `test_capture.py`                    |
-| `serial_engine.py` | 93%      | `test_serial_engine.py`              |
-| `serial_port.py`   | 92%      | `test_serial_port.py`                |
-| `protocol.py`      | 89%      | `test_protocol.py`                   |
-| `config.py`        | 87%      | `test_app_config.py`                 |
-| `port_control.py`  | 80%      | `test_port_control.py`               |
-| `repl.py`          | 72%      | `test_engine.py`, `test_repl_cfg.py` |
-| `demo.py`          | 73%      | `test_demo.py`                       |
-| `cli.py`           | 53%      | `test_cli.py`                        |
+| Module                    | Coverage | Test file                            |
+| ------------------------- | -------- | ------------------------------------ |
+| `migration.py`            | 98%      | `test_migration.py`                  |
+| `plugins/` (package)      | 98%      | `test_plugins.py`, `test_handles.py` |
+| `defaults.py`             | 97%      | `test_defaults.py`                   |
+| `capture.py`              | 92%      | `test_capture.py`                    |
+| `protocol.py`             | 90%      | `test_protocol.py`                   |
+| `serial_engine.py`        | 90%      | `test_serial_engine.py`              |
+| `repl.py`                 | 89%      | `test_engine.py`, `test_repl_cfg.py` |
+| `serial_port.py`          | 87%      | `test_serial_port.py`                |
+| `scripting.py`            | 86%      | `test_scripting.py`                  |
+| `config.py`               | 82%      | `test_app_config.py`                 |
+| `demo.py`                 | 80%      | `test_demo.py`                       |
+| `port_control.py`         | 75%      | `test_port_control.py`               |
+| `cli.py`                  | 40%      | `test_cli.py`                        |
 
-**Built-in plugins:** 15 of 18 plugins tested via mock `PluginContext` in `test_builtins.py`.
+**Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~4250 lines), `proto_debug.py` (~1200 lines), and `dialogs.py` (~1650 lines) are Textual UI and tested manually. The 67% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code:** `app.py` (~4218 lines), `proto_debug.py` (~1177 lines), and `dialogs.py` (~1661 lines) are Textual UI and tested manually. The 70% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>
 

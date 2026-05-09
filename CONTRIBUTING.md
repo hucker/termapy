@@ -17,6 +17,7 @@ uv run pytest              # run tests
 The easiest way to contribute is to write a plugin. Drop a `.py` file in a folder and it becomes a command. See the [Writing Plugins](src/termapy/help/writing-plugins.md) guide for the full API.
 
 Good plugin ideas:
+
 - Device-specific command wrappers (Modbus polling, SCPI instruments, GPS loggers)
 - Data visualization (charts, gauges, dashboards)
 - Protocol decoders
@@ -37,7 +38,7 @@ If your plugin is generally useful, open a PR to include it in `builtins/command
 ### Code style
 
 - Google-style docstrings and type hints
-- Pure functions in `scripting.py` and `plugins.py` - no Textual/pyserial imports
+- Pure functions in `scripting.py` and the `plugins/` package - no Textual/pyserial imports
 - New commands go in `builtins/commands/` unless they need Textual
 - Plugin files end with a `COMMAND` dict
 - OS-independent paths: use `pathlib.Path`, never split on `/` or `\\`
@@ -52,7 +53,8 @@ If your plugin is generally useful, open a PR to include it in `builtins/command
 
 ## Reporting issues
 
-Open an issue at https://github.com/hucker/termapy/issues with:
+Open an issue at <https://github.com/hucker/termapy/issues> with:
+
 - What you expected
 - What happened
 - Steps to reproduce

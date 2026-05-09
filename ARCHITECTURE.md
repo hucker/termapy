@@ -10,28 +10,36 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py               # (4264 lines) Textual TUI - UI, modals, app hooks
-├── cli.py               # (981 lines)  Plain-text CLI frontend - CLITerminal class
-├── serial_engine.py     # (558 lines)  Serial connection lifecycle, reader loop orchestrator
-├── serial_port.py       # (302 lines)  Serial I/O wrapper + SerialReader data processor
+├── app.py               # (4218 lines) Textual TUI - UI, modals, app hooks
+├── cli.py               # (1186 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
+├── entry.py             #              CLI argument parsing and mode dispatch (Textual-free)
+├── serial_engine.py     # (566 lines)  Serial connection lifecycle, reader loop orchestrator
+├── serial_port.py       # (306 lines)  Serial I/O wrapper + SerialReader data processor
 ├── capture.py           # (336 lines)  Capture state machine - text, binary, format spec
 ├── dialogs.py           # (1661 lines) Modal screens - config editor, pickers, confirm
-├── proto_debug.py       # (1180 lines) Interactive protocol debug screen
+├── proto_debug.py       # (1177 lines) Interactive protocol debug screen
 ├── protocol.py          # (1479 lines) Protocol parsing, format specs, CRC, visualizers
-├── demo.py              # (1586 lines) Simulated device for --demo mode (FakeSerial)
-├── repl.py              # (1299 lines) REPL engine - dispatch, scripting, transforms
-├── plugins.py           # (1446 lines) Plugin system - Command, PluginContext, loading
-├── help_dynamic.py      # (245 lines)  Reusable helpers for callable long_help
-├── config.py            # (648 lines)  Config dirs, loading, validation, migration trigger
-├── port_control.py      # (1404 lines)  Pure serial port control functions - no Textual
+├── demo.py              # (1688 lines) Simulated device for --demo mode (FakeSerial)
+├── repl.py              # (1571 lines) REPL engine - dispatch, scripting, transforms
+├── plugins/             # (2242 lines) Plugin system - capability-handle architecture
+│   ├── context.py       # (346 lines)  PluginContext dataclass + ns/plugin_cfg/dispatch
+│   ├── command.py       # (521 lines)  Command, CmdResult, Transform, Directive
+│   ├── capabilities.py  # (308 lines)  CapabilitySet, MissingCapability
+│   ├── loader.py        # (305 lines)  Plugin discovery, COMMAND validation
+│   ├── output_levels.py # (95 lines)   Silent/quiet/normal/verbose constants + ordering
+│   └── handles/         # (525 lines)  IOHandle, SerialHandle, FilesystemHandle, UIHandle, EngineHandle
+├── terminal_host.py     #              Shared base for TUI and CLI - builds PluginContext
+├── help_dynamic.py      # (258 lines)  Reusable helpers for callable long_help
+├── config.py            # (652 lines)  Config dirs, loading, validation, migration trigger
+├── port_control.py      # (1452 lines) Pure serial port control functions - no Textual
 ├── proto_runner.py      # (287 lines)  Protocol test script runner
 ├── scripting.py         # (278 lines)  Pure functions - templates, duration parsing, ANSI
-├── migration.py         # (239 lines)  Config schema migration chain (v1->v8)
-├── defaults.py          # (467 lines)  DEFAULT_CFG, templates
-├── help/                #              Markdown help pages (source for MkDocs)
-├── html/                #              Generated HTML help (MkDocs Material output)
+├── migration.py         # (239 lines)  Config schema migration chain
+├── defaults.py          # (487 lines)  DEFAULT_CFG, templates
+├── help/                #              Markdown help pages (source for HTML build)
+├── html/                #              Generated HTML help
 ├── builtins/
-│   ├── plugins/         #              24 built-in REPL command plugins
+│   ├── commands/        #              37 built-in REPL command plugins
 │   ├── viz/             #              Built-in packet visualizers (hex, text)
 │   ├── crc/             #              Built-in CRC plugins (sum8, sum16)
 │   └── demo/            #              Demo config, scripts, proto files, plugins
@@ -68,23 +76,37 @@ The subcommand tree is flattened at registration into dotted names (`cfg.auto`, 
 
 ### PluginContext
 
-Every handler receives a `PluginContext`, the stable API boundary between plugins and the app:
+Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **capability handles**, each owning one domain:
 
 ```text
-Output:          ctx.write(), ctx.write_markup(), ctx.notify()
-Config:          ctx.cfg, ctx.config_path
-Serial port:     ctx.port() - raw pyserial object (or None)
-                 ctx.is_connected()
-Serial I/O:     ctx.serial_write(), ctx.serial_read_raw(), ctx.serial_drain()
-                 ctx.serial_wait_idle(), ctx.serial_io() (context manager)
-Filesystem:      ctx.ss_dir, ctx.scripts_dir, ctx.proto_dir, ctx.cap_dir
-Interaction:     ctx.confirm(), ctx.clear_screen(), ctx.open_file()
-Dispatch:        ctx.dispatch() - route a command through the full pipeline
-Namespaces:     ctx.ns(name) - session-scoped state (see below)
-Engine:          ctx.engine - internal/unstable API for built-ins
+ctx.cfg, ctx.config_path                      # plain config (read-only mapping + path)
+ctx.io.write(), ctx.io.write_markup()         # output to user (terminal, log)
+ctx.io.result(), ctx.io.output(), ctx.io.status()
+ctx.io.notify(), ctx.io.status_bar()          # always-works fallbacks (no capability gate)
+ctx.io.log()                                  # session log
+ctx.serial.is_connected, ctx.serial.port      # serial state
+ctx.serial.write(), ctx.serial.read_raw()     # serial I/O primitives
+ctx.serial.drain(), ctx.serial.wait_idle()
+ctx.serial.io() (context manager)             # acquire serial for synchronous read
+ctx.serial.rx_observer(), ctx.serial.tx_observer()  # passive byte taps
+ctx.fs.ss_dir, ctx.fs.scripts_dir, ctx.fs.proto_dir, ctx.fs.cap_dir
+ctx.fs.open_file()                            # gated by gui_apps capability
+ctx.ui.confirm(), ctx.ui.notify()             # TUI-strict; raise MissingCapability in CLI
+ctx.ui.clear_screen(), ctx.ui.exit_app(), ctx.ui.screenshot()
+ctx.engine                                    # internal/unstable SPI for built-ins
+ctx.dispatch(cmd)                             # re-route a command through the pipeline
+ctx.wait_for_match(predicate, timeout)        # block until serial matches (gated)
+ctx.ns(name)                                  # session-scoped state dict (see below)
+ctx.plugin_cfg(name)                          # per-plugin persistent config
 ```
 
-External plugins use `PluginContext` only. `EngineAPI` is internal and may change.
+**12 visible names** on `ctx`, down from ~50 flat fields. The split is by responsibility, not by syntax: each handle owns one capability domain a reader can hold in their head.
+
+**Capability gating.** Some handle methods are gated on `CapabilitySet` flags. `ctx.ui.confirm()` requires `confirm_dialog`; `ctx.fs.open_file()` requires `gui_apps`; `ctx.wait_for_match()` requires `block_until`. Calling a gated method in an environment that didn't grant the capability raises `MissingCapability`, which the dispatcher converts to `CmdResult.fail`. Commands declare what they need with `Command(needs=CapabilitySet(...))`; the dispatcher refuses to invoke a handler whose `needs` aren't satisfied, so most capability mismatches fail loudly *before* the handler runs.
+
+**Two-tier output.** `ctx.io.notify()` and `ctx.io.status_bar()` are the always-works fallbacks (toast in TUI, plain print in CLI). `ctx.ui.notify()` and `ctx.ui.status_bar()` are TUI-strict variants that require the matching capability. Plugin authors pick by intent: "just communicate" → `ctx.io`, "I need a real toast" → `ctx.ui`.
+
+External plugins use `PluginContext` only. `ctx.engine` is the intentional escape hatch for built-ins that need internal SPI (capture, proto debug, modem transfers); its surface may change.
 
 #### Namespaces (`ctx.ns()`)
 
@@ -124,7 +146,7 @@ Example use: the `seq` plugin (below) owns its counter state in `ctx.ns("seq")` 
 ### Loading order (later overrides earlier)
 
 ```text
-1. builtins/commands/         - 22 built-in commands (shipped with termapy)
+1. builtins/commands/         - 37 built-in commands (shipped with termapy)
 2. termapy_cfg/plugins/      - user plugins (all configs on this machine)
 3. termapy_cfg/<name>/plugins/ - per-config plugins (one config only)
 4. App hooks (app.py/cli.py) - commands needing frontend access (ss, run, delay, etc.)
@@ -166,7 +188,7 @@ A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, and/
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:
-    ctx.write("Hello!")
+    ctx.io.write("Hello!")
 
 def on_app_start(ctx: PluginContext) -> None:
     ctx.ns("hello")["greeting"] = "Hello!"
@@ -225,16 +247,17 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 │  • Script runner with nested /run support        │
 │  • fire_lifecycle() - run on_*_start/stop hooks  │
 ├──────────────────────────────────────────────────┤
-│  plugins.py - Plugin System                      │
-│  • Command - declares name, args, handler, subs  │
-│  • Transform - post-routing text rewriters       │
-│  • Directive / DirectiveResult - pre-routing     │
-│  • LifecycleHook - on_app/script_start/stop      │
-│  • PluginContext - stable API for all plugins    │
-│  • ctx.ns(name) - session-scoped state dicts     │
-│  • PluginInfo - flattened metadata + handler     │
-│  • EngineAPI - Textual/threading/serial handles  │
-│  • load_plugins_from_dir() - file discovery      │
+│  plugins/ - Plugin System (package)              │
+│  • command.py: Command, CmdResult, Transform,    │
+│      Directive, DirectiveResult, LifecycleHook   │
+│  • context.py: PluginContext + ns/plugin_cfg/    │
+│      dispatch/wait_for_match                     │
+│  • capabilities.py: CapabilitySet,               │
+│      MissingCapability                           │
+│  • handles/{io,serial,fs,ui,engine}.py:          │
+│      capability-domain handles attached to ctx   │
+│  • loader.py: load_plugins_from_dir, validation  │
+│  • output_levels.py: silent/quiet/normal/verbose │
 ├──────────────────────────────────────────────────┤
 │  protocol.py - Protocol Engine                   │
 │  • Format spec language (H, U, I, S, F, B, CRC)  │
@@ -256,13 +279,13 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 
 `termapy --cli` runs a plain-text terminal without Textual. It shares the same `ReplEngine`, `SerialEngine`, `PluginContext`, and all built-in plugins. The difference is how the frontend wires `PluginContext` callbacks:
 
-| Callback          | TUI (app.py)                 | CLI (cli.py)                  |
-| ----------------- | ---------------------------- | ----------------------------- |
-| `ctx.write()`     | `RichLog.write(Text(...))`   | `Rich Console.print()`        |
-| `ctx.confirm()`   | Modal dialog + `event.wait()`| `input()` prompt              |
-| `ctx.open_file()` | `open_with_system()`         | `open_with_system()`          |
-| `ctx.port()`      | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
-| `/delay`          | `set_timer()` (non-blocking) | `time.sleep()` + progress bar |
+| Callback             | TUI (app.py)                 | CLI (cli.py)                  |
+| -------------------- | ---------------------------- | ----------------------------- |
+| `ctx.io.write()`     | `RichLog.write(Text(...))`   | `Rich Console.print()`        |
+| `ctx.ui.confirm()`   | Modal dialog + `event.wait()`| `input()` prompt              |
+| `ctx.fs.open_file()` | `open_with_system()`         | `open_with_system()`          |
+| `ctx.serial.port`    | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
+| `/delay`             | `set_timer()` (non-blocking) | `time.sleep()` + progress bar |
 
 CLI-specific features: readline tab completion, shared command history, `/color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer), no `/edit.cfg` (no config editor modal).
 
@@ -366,36 +389,51 @@ termapy_cfg/
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread. `post_message` is used for script lifecycle events (thread-safe).
 
-## Built-in plugins (22 files)
+## Built-in plugins (37 files)
 
-| Plugin       | Command            | Purpose                                           |
-| ------------ | ------------------ | ------------------------------------------------- |
-| cap.py       | /cap               | Unified data capture (text, bin, struct, hex)     |
-| cfg.py       | /cfg               | Config values, info, explore, per-folder file ops |
-| cls.py       | /cls               | Clear terminal                                    |
-| confirm.py   | /confirm           | Yes/Cancel dialog (scripts)                       |
-| echo.py      | /echo              | Toggle command echo                               |
-| edit.py      | /edit              | Open project files (scripts, proto, plugins, cfg) |
-| env_var.py   | /env               | Environment variable management                   |
-| eol.py       | /show_line_endings | Toggle line ending markers                        |
-| exit.py      | /exit              | Quit the app                                      |
-| grep.py      | /grep              | Search scrollback (TUI only)                      |
-| help.py      | /help              | Colorized command listing and help                |
-| os_cmd.py    | /os                | Run shell commands                                |
-| port.py      | /port              | Serial port control (17 subcommands)              |
-| print.py     | /print             | Print to terminal                                 |
-| proto.py     | /proto             | Binary protocol tools                             |
-| run_edit.py  | /run.edit          | Open .run scripts in system editor                |
-| seq.py       | /seq               | Sequence counters                                 |
-| show.py      | /show              | Display files                                     |
-| ss.py        | /ss                | Screenshots (TUI only, stub in CLI)               |
-| stop.py      | /stop              | Abort running script                              |
-| var.py       | /var               | User variables                                    |
-| ver.py       | /ver               | Show termapy version                              |
+| Plugin             | Command       | Purpose                                            |
+| ------------------ | ------------- | -------------------------------------------------- |
+| app.py             | /app          | App-wide state and config (state.json, config.json)|
+| cap.py             | /cap          | Unified data capture (text, bin, struct, hex)      |
+| cfg.py             | /cfg          | Config values, info, explore, per-folder file ops  |
+| cls.py             | /cls          | Clear terminal                                     |
+| confirm.py         | /confirm      | Yes/Cancel dialog (scripts)                        |
+| credits.py         | /credits      | Third-party attributions                           |
+| echo.py            | /echo         | Toggle command echo                                |
+| edit.py            | /edit         | Open project files (scripts, proto, plugins, cfg)  |
+| env_var.py         | /env          | Environment variable management                    |
+| eol.py             | /eol          | Toggle line ending markers                         |
+| exit.py            | /exit         | Quit the app                                       |
+| grep.py            | /grep         | Search scrollback (TUI only)                       |
+| help.py            | /help         | Colorized command listing and help                 |
+| include.py         | /include      | Include device command help from JSON              |
+| line_no.py         | /line_no      | Toggle line numbers in terminal output             |
+| mcp.py             | /mcp          | MCP catalog and status                             |
+| os_cmd.py          | /os           | Run shell commands                                 |
+| ping.py            | /ping         | Send command, measure response time                |
+| plugin_folder.py   | /plugin       | Plugin-folder tools (list, explore, show, dump)    |
+| port.py            | /port         | Serial port control                                |
+| print.py           | /print        | Print to terminal                                  |
+| profile_cmd.py     | /profile      | Device profile commands (MCP profile schema)       |
+| proto.py           | /proto        | Binary protocol tools                              |
+| repeat.py          | /repeat       | Repeat a command N times with optional delay       |
+| run_edit.py        | /run.edit     | Open .run scripts in system editor                 |
+| search.py          | /search       | Deep-search every command's metadata               |
+| seq.py             | /seq          | Sequence counters                                  |
+| show.py            | /show         | Display files                                      |
+| ss.py              | /ss           | Screenshots (TUI only, stub in CLI)                |
+| stop.py            | /stop         | Abort running script                               |
+| term.py            | /term         | Terminal display / session toggles                 |
+| var.py             | /var          | User variables                                     |
+| ver.py             | /ver          | Show termapy version                               |
+| verbose.py         | /verbose      | Output-level toggle (silent/quiet/normal/verbose)  |
+| xfer.py            | /xfer         | File transfer settings                             |
+| xmodem_xfer.py     | /xmodem       | XMODEM file transfer                               |
+| ymodem_xfer.py     | /ymodem       | YMODEM file transfer (batch, 1K blocks)            |
 
 ## Test coverage
 
-52 test files, 1993 tests, 67% overall coverage:
+73 test files, 2386 tests:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |

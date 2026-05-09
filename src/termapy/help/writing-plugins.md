@@ -51,7 +51,7 @@ from termapy.plugins import Command, PluginContext
 def _handler(ctx: PluginContext, args: str):
     """Called when the user types /hello."""
     name = args.strip() or "world"
-    ctx.write(f"Hello, {name}!")
+    ctx.io.write(f"Hello, {name}!")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
@@ -65,6 +65,70 @@ COMMAND = Command(
 The `COMMAND` object must be defined after all the functions it references.
 `Termapy` looks for this specific name. If your file doesn't have a
 `COMMAND` object, it is silently skipped.
+
+## The PluginContext shape
+
+The `ctx` object is a thin shell over **five capability handles**, each
+owning one domain. Plugin authors see 12 visible names on `ctx`:
+
+```python
+def _handler(ctx, args):
+    if not ctx.cfg.get("encoding"):           # plain config (read-only)
+        ...
+    ctx.io.write("Hello", "green")            # output to user
+    ctx.io.result(value)                      # scriptable return value
+
+    with ctx.serial.io():                     # claim serial for sync read
+        ctx.serial.write(b"AT\r")
+        resp = ctx.serial.read_raw()
+
+    csv_path = ctx.fs.cap_dir / "out.csv"     # filesystem paths
+    ctx.fs.open_file(csv_path)                # open in system viewer
+
+    ctx.ui.confirm("Sure?")                   # TUI-only dialog (gated)
+
+    ctx.dispatch("/var.set X 5")              # re-route a command
+    ctx.ns("my_plugin")["counter"] += 1       # session-scoped storage
+
+    return CmdResult.ok(value=...)
+```
+
+The five handles:
+
+- `ctx.io` -- write to user (terminal, log, fallback notifications)
+- `ctx.serial` -- read/write the serial port, observe bytes
+- `ctx.fs` -- per-config directories and file opening
+- `ctx.ui` -- TUI-only operations (dialogs, screenshots); raises in CLI
+- `ctx.engine` -- internal SPI for built-ins; external plugins should avoid it
+
+### Capability gating
+
+Some handle methods are gated on `CapabilitySet` flags. Calling a gated
+method without declaring the capability raises `MissingCapability`,
+which the dispatcher converts to `CmdResult.fail`. The fix is to declare
+what your command needs:
+
+```python
+COMMAND = Command(
+    name="ask", help="Prompt user.",
+    needs=CapabilitySet(confirm_dialog=True),  # refuse to dispatch in CLI
+    handler=_handler,
+)
+```
+
+The dispatcher refuses to invoke a handler whose `needs` aren't satisfied,
+so most capability mismatches fail loudly *before* the handler runs.
+
+Gated methods today:
+
+- `ctx.fs.open_file` -- requires `gui_apps` (no-op in headless/SSH)
+- `ctx.ui.confirm` -- requires `confirm_dialog` (implies `block_until`)
+- `ctx.ui.notify` -- requires `ui_notify` (use `ctx.io.notify` for the
+  always-works fallback)
+- `ctx.ui.clear_screen` -- requires `tui_mode` (use `ctx.io.clear_screen`)
+- `ctx.ui.screenshot` -- requires `screen_capture` (no fallback)
+- `ctx.ui.exit_app` -- requires `tui_mode`
+- `ctx.wait_for_match` -- requires `block_until`
 
 ## Returning scriptable values
 
@@ -80,7 +144,7 @@ Scripts run in quiet mode read the `value` field; without it they get nothing.
 ```python
 def _handler(ctx: PluginContext, args: str):
     temp = read_temperature()
-    ctx.write(f"Temperature: {temp}C")
+    ctx.io.write(f"Temperature: {temp}C")
     return CmdResult.ok(value=str(temp))
 ```
 
@@ -181,78 +245,119 @@ Most plugins follow this pattern: send a command, read the response, do somethin
 
 ```python
 def _handler(ctx: PluginContext, args: str):
-    if not ctx.is_connected():
-        ctx.write("Not connected.", "red")
-        return
+    if not ctx.serial.is_connected():
+        ctx.io.write("Not connected.", "red")
+        return CmdResult.fail(msg="Not connected.")
 
     encoding = ctx.cfg.get("encoding", "utf-8")
     line_ending = ctx.cfg.get("line_ending", "\r")
 
-    with ctx.serial_io():           # suppress terminal, claim serial
-        ctx.serial_drain()          # discard stale bytes
-        ctx.serial_write(f"YOUR_COMMAND{line_ending}".encode(encoding))
-        raw = ctx.serial_read_raw() # read response with timeout
+    with ctx.serial.io():                # suppress terminal, claim serial
+        ctx.serial.drain()               # discard stale bytes
+        ctx.serial.write(f"YOUR_COMMAND{line_ending}".encode(encoding))
+        raw = ctx.serial.read_raw()      # read response with timeout
         text = raw.decode(encoding, errors="replace").strip()
 
-    ctx.write(text)
+    ctx.io.write(text)
+    return CmdResult.ok(value=text)
 ```
 
 Key points:
 
-- `serial_io()` suppresses the normal terminal display during I/O
-- `serial_drain()` clears any leftover bytes before your command
-- `serial_write()` sends raw bytes; you add the line ending
-- `serial_read_raw()` waits for a complete response (timeout-based framing)
+- `ctx.serial.io()` suppresses the normal terminal display during I/O
+- `ctx.serial.drain()` clears any leftover bytes before your command
+- `ctx.serial.write()` sends raw bytes; you add the line ending
+- `ctx.serial.read_raw()` waits for a complete response (timeout-based framing)
+
+Even cleaner: declare the connection requirement on `Command` and let
+the dispatcher gate the call:
+
+```python
+COMMAND = Command(
+    name="hello", help="Say hello to the device.",
+    needs=CapabilitySet(serial_connected=True),
+    handler=_handler,
+)
+```
+
+The handler then doesn't need to check `is_connected` -- the dispatcher
+returns `Not connected.` automatically when the port is down.
 
 ## PluginContext API reference
 
-### Output
+### Output (`ctx.io`)
 
 | Method | Description |
 | --- | --- |
-| `ctx.write(text, color)` | Print to terminal. Color: `"red"`, `"green"`, `"cyan"`, `"dim"`, etc. |
-| `ctx.write_markup(text)` | Print Rich markup (e.g. `[bold red]Warning![/]`) |
-| `ctx.notify(text)` | Show a toast notification |
-| `ctx.clear_screen()` | Clear the terminal |
+| `ctx.io.write(text, color)` | Print to terminal. Color: `"red"`, `"green"`, `"cyan"`, `"dim"`, etc. |
+| `ctx.io.write_markup(text)` | Print Rich markup (e.g. `[bold red]Warning![/]`) |
+| `ctx.io.result(value)` | Set scriptable return value (silent/quiet output levels) |
+| `ctx.io.output(text)` | Print suppressed in `silent`/`quiet` (use for header/summary lines) |
+| `ctx.io.status(text)` | Print suppressed in `silent` only (use for transient progress) |
+| `ctx.io.notify(text)` | Always-works notification (toast in TUI, plain print in CLI) |
+| `ctx.io.status_bar(text)` | Always-works status-bar update |
+| `ctx.io.clear_screen()` | Always-works screen clear |
+| `ctx.io.log(prefix, text)` | Write to session log (`">"` TX, `"<"` RX, `"#"` status) |
 
 ### Config
 
-| Method | Description |
+| Member | Description |
 | --- | --- |
-| `ctx.cfg` | Read-only config dict |
+| `ctx.cfg` | Read-only config mapping |
 | `ctx.config_path` | Path to the `.cfg` file |
 | `ctx.cfg.get("key", default)` | Read a config value |
 
-### Serial port
+### Serial port (`ctx.serial`)
 
-| Method | Description |
+| Member | Description |
 | --- | --- |
-| `ctx.port()` | The raw pyserial object, or `None` when disconnected |
-| `ctx.is_connected()` | True if the serial port is open |
-| `ctx.serial_io()` | Context manager for exclusive serial access |
-| `ctx.serial_drain()` | Discard stale bytes in the receive buffer |
-| `ctx.serial_write(data)` | Send raw bytes (no line ending added) |
-| `ctx.serial_read_raw()` | Read response bytes with timeout framing |
-| `ctx.serial_wait_idle()` | Wait for ~400ms of silence |
+| `ctx.serial.is_connected()` | Returns `True` if the serial port is open |
+| `ctx.serial.port()` | The raw pyserial object, or `None` when disconnected |
+| `ctx.serial.io()` | Context manager for exclusive serial access |
+| `ctx.serial.drain()` | Discard stale bytes in the receive buffer |
+| `ctx.serial.write(data)` | Send raw bytes (no line ending added) |
+| `ctx.serial.read_raw(timeout_ms)` | Read response bytes with timeout framing |
+| `ctx.serial.wait_idle(timeout_ms)` | Wait for serial output to settle |
+| `ctx.serial.wait_for_data(timeout_ms)` | Block until at least one byte arrives |
+| `ctx.serial.rx_observer(cb)` | Context manager: passive RX byte tap |
+| `ctx.serial.tx_observer(cb)` | Context manager: passive TX byte tap |
 
-### Filesystem
+### Filesystem (`ctx.fs`)
 
-| Method | Description |
+| Member | Description |
 | --- | --- |
-| `ctx.ss_dir` | Screenshots directory (Path) |
-| `ctx.scripts_dir` | Scripts directory (Path) |
-| `ctx.proto_dir` | Protocol test scripts directory (Path) |
-| `ctx.cap_dir` | Captures directory (Path) |
-| `ctx.prof_dir` | Profile output directory (Path) |
+| `ctx.fs.ss_dir` | Screenshots directory (Path) |
+| `ctx.fs.scripts_dir` | Scripts directory (Path) |
+| `ctx.fs.proto_dir` | Protocol test scripts directory (Path) |
+| `ctx.fs.cap_dir` | Captures directory (Path) |
+| `ctx.fs.prof_dir` | Profile output directory (Path) |
+| `ctx.fs.open_file(path)` | Open in system viewer/editor (gated on `gui_apps`) |
 
-### Other
+### TUI-only (`ctx.ui`)
 
-| Method | Description |
+These raise `MissingCapability` when called from CLI without declaring
+the matching capability on `Command.needs`.
+
+| Member | Capability gate |
 | --- | --- |
-| `ctx.dispatch(cmd)` | Run a REPL or serial command |
-| `ctx.confirm(message)` | Yes/Cancel dialog → bool (background thread only) |
-| `ctx.open_file(path)` | Open a file or folder in the system viewer/editor |
-| `ctx.log(prefix, text)` | Write to session log (`">"` TX, `"<"` RX, `"#"` status) |
+| `ctx.ui.confirm(message)` | `confirm_dialog` (implies `block_until`) |
+| `ctx.ui.notify(text)` | `ui_notify` |
+| `ctx.ui.status_bar(text)` | `status_bar` |
+| `ctx.ui.clear_screen()` | `tui_mode` |
+| `ctx.ui.screenshot(path)` | `screen_capture` |
+| `ctx.ui.get_screen_text()` | `screen_capture` |
+| `ctx.ui.exit_app()` | `tui_mode` |
+
+### Top-level
+
+| Member | Description |
+| --- | --- |
+| `ctx.dispatch(cmd)` | Run a REPL or serial command through the full pipeline |
+| `ctx.wait_for_match(predicate, timeout)` | Block until serial matches (gated on `block_until`) |
+| `ctx.ns(name)` | Get/create a session-scoped state dict |
+| `ctx.plugin_cfg(name)` | Get a per-plugin persistent config dict |
+| `ctx.is_oneshot()` | True when running under `--exec` (one-shot CLI mode) |
+| `ctx.engine` | Internal SPI for built-ins; external plugins should avoid |
 
 ## Subcommands
 
@@ -276,14 +381,14 @@ The demo config ships with four plugins of increasing complexity:
 - **cmd.py:** minimal. Wraps a single AT command in a custom name.
 - **probe.py:** intermediate. Send/receive cycle with formatted output, good starting template.
 - **temp_plot.py:** advanced. Repeated sampling, response parsing, ASCII sparkline visualization.
-- **traffic.py:** advanced. RX/TX byte tap (`/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`); demonstrates `ctx.rx_observer()` / `ctx.tx_observer()` context managers for passive monitoring without disrupting the normal pipeline.
+- **traffic.py:** advanced. RX/TX byte tap (`/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`); demonstrates `ctx.serial.rx_observer()` / `ctx.serial.tx_observer()` context managers for passive monitoring without disrupting the normal pipeline.
 
 `temp_plot.py` is the best example for plugins that *send and parse* a single
 device response.  It shows:
 
-- Checking connection before I/O
+- Declaring `needs=CapabilitySet(serial_connected=True)` for connection gating
 - Reading config for encoding and line ending
-- Using `serial_io()` for a multi-read loop
+- Using `ctx.serial.io()` for a multi-read loop
 - Parsing numeric values from device responses
 - Handling edge cases (no data, invalid count)
 - Rendering results with Rich markup
@@ -291,9 +396,9 @@ device response.  It shows:
 `traffic.py` is the best example for plugins that *watch* the byte stream
 without disrupting normal operation.  It shows:
 
-- Using `ctx.rx_observer(cb)` and `ctx.tx_observer(cb)` as the canonical
-  passive-tap pattern -- observers are released on every exit path
-  including exceptions, no try/finally needed
+- Using `ctx.serial.rx_observer(cb)` and `ctx.serial.tx_observer(cb)` as
+  the canonical passive-tap pattern -- observers are released on every
+  exit path including exceptions, no try/finally needed
 - Coordinating an observer with a `threading.Event` for "wait for X"
   semantics (the snoop subcommand)
 - Letting normal device output continue flowing through the pipeline

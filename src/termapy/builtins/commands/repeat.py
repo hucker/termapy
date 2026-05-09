@@ -67,7 +67,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     var_name = kw.get("var", "REPEAT_N")
 
-    from termapy.builtins.plugins.var import _VARS
+    from termapy.builtins.commands.var import _VARS
 
     ev = getattr(ctx.engine, "script_stop_event", None)
     if ev is not None:

@@ -301,7 +301,7 @@ class TestTermUsbDbHandler:
 
     def test_handler_writes_expected_fields(self):
         # Arrange
-        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy.builtins.commands.term import _handler_usb_db
         from termapy.plugins import IOHandle, PluginContext
 
         out: list[str] = []
@@ -336,7 +336,7 @@ class TestTermUsbDbHandler:
         read it via .quiet/.silent and use the integer programmatically.
         """
         # Arrange
-        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy.builtins.commands.term import _handler_usb_db
         from termapy._usb_vendor_full import USB_VENDORS_FULL
         from termapy.plugins import PluginContext
 
@@ -372,7 +372,7 @@ class TestTermUsbDbHandler:
 
         monkeypatch.setattr(urllib.request, "urlopen", _trap)
 
-        from termapy.builtins.plugins.term import _handler_usb_db
+        from termapy.builtins.commands.term import _handler_usb_db
         from termapy.plugins import PluginContext
 
         from termapy.plugins import IOHandle

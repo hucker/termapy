@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from termapy.builtins.plugins.var import (
+from termapy.builtins.commands.var import (
     _VARS,
     _VAR_REF_RE,
     check_bare_dollar,

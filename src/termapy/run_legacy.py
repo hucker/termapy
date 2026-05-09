@@ -5,7 +5,7 @@ been renamed (``/echo`` -> ``/term.echo``, ``/show_line_endings`` ->
 ``/term.line_endings``, ...), and either reports the hits or rewrites
 the file with ``--fix``.
 
-Lives at ``termapy.run_legacy`` (outside ``builtins/plugins/``) rather
+Lives at ``termapy.run_legacy`` (outside ``builtins/commands/``) rather
 than as an auto-loaded plugin because ``/run`` is registered as an
 app-level hook in both CLI and TUI, and ``register_hook("run", ...)``
 wipes every ``run.*`` plugin entry.  Keeping the handler as a plain

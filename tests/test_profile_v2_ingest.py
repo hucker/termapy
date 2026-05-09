@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from termapy.builtins.plugins.include import (
+from termapy.builtins.commands.include import (
     _build_commands,
     _to_json_dict,
 )

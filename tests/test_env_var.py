@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from termapy.builtins.plugins.env_var import (
+from termapy.builtins.commands.env_var import (
     _ENV,
     _cli_transform,
     _handler_list,

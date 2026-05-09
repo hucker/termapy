@@ -189,7 +189,7 @@ class CLITerminal(TerminalHost):
         )
         self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
 
-        from termapy.builtins.plugins.var import (
+        from termapy.builtins.commands.var import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
@@ -550,7 +550,7 @@ class CLITerminal(TerminalHost):
 
     def _hook_run_help(self, ctx, args: str) -> CmdResult:
         """Same as /help run, plus an AVAILABLE RUN FILES list."""
-        from termapy.builtins.plugins.help import (
+        from termapy.builtins.commands.help import (
             _show_command_help,
             append_files_section,
         )
@@ -921,7 +921,7 @@ class CLITerminal(TerminalHost):
         def _loop() -> None:
             while True:
                 try:
-                    from termapy.builtins.plugins.var import expand_vars
+                    from termapy.builtins.commands.var import expand_vars
 
                     prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
                     s = self._session

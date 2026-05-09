@@ -18,7 +18,7 @@ from termapy.run_legacy import _scan_line
 # Import the legacy forwarder plugins so their module-level
 # LEGACY_COMMANDS / LEGACY_REWRITES registrations run.  In production
 # this happens via the plugin loader at startup.
-import termapy.builtins.plugins.verbose  # noqa: F401
+import termapy.builtins.commands.verbose  # noqa: F401
 
 
 # ── Scanner: simple renames ───────────────────────────────────────────────────

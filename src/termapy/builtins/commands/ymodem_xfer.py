@@ -13,7 +13,7 @@ from termapy.plugins import CapabilitySet, CmdResult, Command
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-from termapy.builtins.plugins.xmodem_xfer import (
+from termapy.builtins.commands.xmodem_xfer import (
     QueueByteReader,
     _get_xfer_root,
     _resolve_path,

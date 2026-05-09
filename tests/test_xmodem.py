@@ -8,7 +8,7 @@ import time
 import pytest
 from termapy.vendor.xmodem import XMODEM
 
-from termapy.builtins.plugins.xmodem_xfer import QueueByteReader
+from termapy.builtins.commands.xmodem_xfer import QueueByteReader
 from termapy.demo import FakeSerial, _xmodem_crc16
 
 

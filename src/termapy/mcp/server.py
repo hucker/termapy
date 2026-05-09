@@ -140,7 +140,7 @@ class MCPHost(TerminalHost):
         )
 
         # Var/cfg interpolation, matching CLITerminal.
-        from termapy.builtins.plugins.var import (
+        from termapy.builtins.commands.var import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,

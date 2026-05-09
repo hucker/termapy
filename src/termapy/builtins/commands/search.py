@@ -24,7 +24,7 @@ from termapy.plugins import (
 
 # Reuse only the thin rendering helpers from the help plugin. Everything
 # search-specific (grammar, field extraction, highlighter) lives below.
-from termapy.builtins.plugins.help import (
+from termapy.builtins.commands.help import (
     _canonical_flags,
     _color_args,
     _underline,

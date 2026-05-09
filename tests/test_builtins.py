@@ -1453,7 +1453,7 @@ class TestCapArgParsing:
     """Test cap.py keyword extraction - pure function, no serial needed."""
 
     def test_extract_keywords_basic(self):
-        from termapy.builtins.plugins.cap import _extract_keyword_sections
+        from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
         result = _extract_keyword_sections(
@@ -1467,7 +1467,7 @@ class TestCapArgParsing:
         assert result["cmd"] == "AT+BINDUMP u16 50"
 
     def test_extract_keywords_mode(self):
-        from termapy.builtins.plugins.cap import _extract_keyword_sections
+        from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
         result = _extract_keyword_sections("out.txt timeout=5s mode=append echo=on")
@@ -1478,7 +1478,7 @@ class TestCapArgParsing:
         assert result["echo"] == "on"
 
     def test_extract_keywords_no_cmd(self):
-        from termapy.builtins.plugins.cap import _extract_keyword_sections
+        from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
         result = _extract_keyword_sections("data.bin bytes=256")
@@ -1488,7 +1488,7 @@ class TestCapArgParsing:
         assert result["bytes"] == "256"
 
     def test_extract_keywords_fmt_multiword(self):
-        from termapy.builtins.plugins.cap import _extract_keyword_sections
+        from termapy.builtins.commands.cap import _extract_keyword_sections
 
         # Act
         result = _extract_keyword_sections(
@@ -1537,7 +1537,7 @@ class TestCapArgParsing:
         engine.dispatch("cap.stop")
 
     def test_parse_mode(self):
-        from termapy.builtins.plugins.cap import _parse_mode
+        from termapy.builtins.commands.cap import _parse_mode
 
         # Assert
         assert _parse_mode({"mode": "new"}) == "w"
@@ -2043,7 +2043,7 @@ class TestRepeat:
 
     def test_sets_iteration_variable(self, repl_env):
         # Arrange
-        from termapy.builtins.plugins.var import _VARS
+        from termapy.builtins.commands.var import _VARS
 
         engine, _, _, output = repl_env
         seen_values = []
@@ -2057,7 +2057,7 @@ class TestRepeat:
 
     def test_custom_variable_name(self, repl_env):
         # Arrange
-        from termapy.builtins.plugins.var import _VARS
+        from termapy.builtins.commands.var import _VARS
 
         engine, _, _, output = repl_env
         seen_values = []
@@ -2071,7 +2071,7 @@ class TestRepeat:
 
     def test_variable_cleaned_up(self, repl_env):
         # Arrange
-        from termapy.builtins.plugins.var import _VARS
+        from termapy.builtins.commands.var import _VARS
 
         engine, _, _, output = repl_env
         engine.ctx.dispatch = lambda cmd: None
@@ -2084,7 +2084,7 @@ class TestRepeat:
 
     def test_variable_cleaned_up_on_error(self, repl_env):
         # Arrange
-        from termapy.builtins.plugins.var import _VARS
+        from termapy.builtins.commands.var import _VARS
 
         engine, _, _, output = repl_env
 

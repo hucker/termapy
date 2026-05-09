@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.builtins.plugins import app as app_plugin
+from termapy.builtins.commands import app as app_plugin
 
 
 # -- Fixtures ----------------------------------------------------------------

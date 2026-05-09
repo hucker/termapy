@@ -1087,7 +1087,7 @@ def _proto_root_handler(ctx: PluginContext, args: str) -> CmdResult:
 
 def _proto_help_handler(ctx: PluginContext, args: str) -> CmdResult:
     """Same as /help proto, plus an AVAILABLE PROTO FILES list."""
-    from termapy.builtins.plugins.help import (
+    from termapy.builtins.commands.help import (
         _show_command_help,
         append_files_section,
     )

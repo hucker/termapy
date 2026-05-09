@@ -952,7 +952,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _setup_vars(self) -> None:
         """Set launch/context variables for plugin use."""
-        from termapy.builtins.plugins.var import (
+        from termapy.builtins.commands.var import (
             register_cfg_vars,
             set_context_var,
             set_launch_var,
@@ -1291,7 +1291,7 @@ class SerialTerminal(TerminalHost, App):
             needs=CapabilitySet(gui_apps=True),
         )
         # Re-register folder subcommands (wiped by /edit override)
-        from termapy.builtins.plugins.edit import (
+        from termapy.builtins.commands.edit import (
             _make_edit_handler,
             _make_list_handler,
             _make_explore_handler,
@@ -3455,7 +3455,7 @@ class SerialTerminal(TerminalHost, App):
             return
         action = result[0]
         if action == "run":
-            from termapy.builtins.plugins.var import clear_vars, set_start_time_vars
+            from termapy.builtins.commands.var import clear_vars, set_start_time_vars
 
             clear_vars()
             set_start_time_vars()
@@ -3667,7 +3667,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _hook_run_help(self, ctx, args: str) -> CmdResult:
         """Same as /help run, plus an AVAILABLE RUN FILES list."""
-        from termapy.builtins.plugins.help import (
+        from termapy.builtins.commands.help import (
             _show_command_help,
             append_files_section,
         )

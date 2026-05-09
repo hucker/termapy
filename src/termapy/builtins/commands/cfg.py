@@ -168,7 +168,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     """Same as ``/help cfg``, plus an AVAILABLE CONFIGS file list."""
-    from termapy.builtins.plugins.help import (
+    from termapy.builtins.commands.help import (
         _show_command_help,
         append_files_section,
     )

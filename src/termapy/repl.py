@@ -885,7 +885,7 @@ class ReplEngine:
             return CmdResult.fail(msg=result.payload)
 
         # Shared echo using echo_input_fmt for both REPL and serial
-        from termapy.builtins.plugins.var import expand_vars
+        from termapy.builtins.commands.var import expand_vars
 
         def _echo_cmd(text: str) -> None:
             fmt = expand_vars(self.cfg.get("echo_input_fmt", "> {cmd}"))

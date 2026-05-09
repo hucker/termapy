@@ -34,10 +34,11 @@ from termapy.plugins.command import (
 
 
 def builtins_dir() -> Path:
-    """Return the path to the built-in plugins directory shipped with termapy."""
-    # __file__ is .../termapy/plugins/loader.py; built-ins live at
-    # .../termapy/builtins/plugins/, so step up one and across.
-    return Path(__file__).parent.parent / "builtins" / "plugins"
+    """Return the path to the built-in commands directory shipped with termapy."""
+    # __file__ is .../termapy/plugins/loader.py; built-in command files
+    # live at .../termapy/builtins/commands/.  (The ``plugins/`` package
+    # next to this file is the plugin-author API, not the commands.)
+    return Path(__file__).parent.parent / "builtins" / "commands"
 
 
 def _clean_stale_pyc(folder: Path) -> None:
@@ -129,10 +130,10 @@ def _load_plugin_file(
         Tuple of (PluginInfo list, TransformInfo list, DirectiveInfo list,
         LifecycleHook list).
     """
-    # Derive the package name if this is a builtin plugin, so the module
+    # Derive the package name if this is a builtin command, so the module
     # is registered under both the dynamic name and the package path.
     # This prevents duplicate module state when app.py/cli.py imports
-    # builtins via the package path (e.g. termapy.builtins.plugins.var).
+    # builtins via the package path (e.g. termapy.builtins.commands.var).
     module_name = f"termapy_plugin_{path.stem}"
     pkg_name = None
     try:

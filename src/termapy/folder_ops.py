@@ -61,11 +61,11 @@ def _make_list_handler(folder: str, pattern: str):
             return CmdResult.fail(msg="No config loaded.")
         files = _names(data_dir, pattern)
         if not files:
-            ctx.output(f"  {folder}/ (empty)")
+            ctx.io.output(f"  {folder}/ (empty)")
             return CmdResult.ok()
-        ctx.write(f"  {folder}/")
+        ctx.io.write(f"  {folder}/")
         for fname in files:
-            ctx.write(f"    {fname}")
+            ctx.io.write(f"    {fname}")
         return CmdResult.ok()
 
     return handler
@@ -92,17 +92,17 @@ def _make_show_handler(folder: str, pattern: str):
         if data_dir is None:
             return CmdResult.fail(msg="No config loaded.")
         if not data_dir.exists():
-            ctx.output(f"  {folder}/ is empty.")
+            ctx.io.output(f"  {folder}/ is empty.")
             return CmdResult.ok()
         if pattern == "*":
             files = [f for f in data_dir.glob(pattern) if f.is_file()]
         else:
             files = list(data_dir.glob(pattern))
         if not files:
-            ctx.output(f"  {folder}/ is empty.")
+            ctx.io.output(f"  {folder}/ is empty.")
             return CmdResult.ok()
         newest = max(files, key=lambda f: f.stat().st_mtime)
-        ctx.write(f"Opening {newest.name}")
+        ctx.io.write(f"Opening {newest.name}")
         open_with_system(str(newest))
         return CmdResult.ok()
 
@@ -123,19 +123,19 @@ def _make_dump_handler(folder: str, pattern: str):
                 return CmdResult.fail(msg=f"File not found: {name}")
         else:
             if not data_dir.exists():
-                ctx.output(f"  {folder}/ is empty.")
+                ctx.io.output(f"  {folder}/ is empty.")
                 return CmdResult.ok()
             if pattern == "*":
                 files = [f for f in data_dir.glob(pattern) if f.is_file()]
             else:
                 files = list(data_dir.glob(pattern))
             if not files:
-                ctx.output(f"  {folder}/ is empty.")
+                ctx.io.output(f"  {folder}/ is empty.")
                 return CmdResult.ok()
             path = max(files, key=lambda f: f.stat().st_mtime)
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
-                ctx.output(line)
+                ctx.io.output(line)
         except OSError as e:
             return CmdResult.fail(msg=f"Read error: {e}")
         return CmdResult.ok()
@@ -151,18 +151,18 @@ def _make_clear_handler(folder: str, pattern: str):
         if data_dir is None:
             return CmdResult.fail(msg="No config loaded.")
         if not data_dir.exists():
-            ctx.output(f"  {folder}/ is already empty.")
+            ctx.io.output(f"  {folder}/ is already empty.")
             return CmdResult.ok()
         if pattern == "*":
             files = [f for f in data_dir.glob(pattern) if f.is_file()]
         else:
             files = list(data_dir.glob(pattern))
         if not files:
-            ctx.output(f"  {folder}/ is already empty.")
+            ctx.io.output(f"  {folder}/ is already empty.")
             return CmdResult.ok()
         for f in files:
             f.unlink()
-        ctx.write(f"  Deleted {len(files)} file(s) from {folder}/.")
+        ctx.io.write(f"  Deleted {len(files)} file(s) from {folder}/.")
         return CmdResult.ok()
 
     return handler

@@ -39,7 +39,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not Path(path).exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
     open_with_system(path)
-    ctx.write(f"  Opening {Path(path).name}", "green")
+    ctx.io.write(f"  Opening {Path(path).name}", "green")
     return CmdResult.ok(value=path)
 
 

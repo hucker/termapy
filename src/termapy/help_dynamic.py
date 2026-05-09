@@ -82,11 +82,11 @@ def folder_dir(ctx: _Ctx, kind: str) -> Path | None:
     exposed on ``ctx`` (older contexts, tests, etc.).
 
     ``kind`` is the name in ``folders.FOLDER_NAMES``:
-        ``run`` → ``ctx.scripts_dir``
-        ``proto`` → ``ctx.proto_dir``
-        ``ss`` → ``ctx.ss_dir``
-        ``cap`` → ``ctx.cap_dir``
-        ``prof`` → ``ctx.prof_dir``
+        ``run`` → ``ctx.fs.scripts_dir``
+        ``proto`` → ``ctx.fs.proto_dir``
+        ``ss`` → ``ctx.fs.ss_dir``
+        ``cap`` → ``ctx.fs.cap_dir``
+        ``prof`` → ``ctx.fs.prof_dir``
         ``viz`` / ``plugin`` → derived from the active cfg data dir
     """
     direct = {

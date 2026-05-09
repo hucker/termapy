@@ -84,7 +84,7 @@ def _resolve_script(ctx: PluginContext, name: str) -> Path | None:
         return None
     if not raw.endswith(".run") and not Path(raw).suffix:
         raw += ".run"
-    candidate = Path(ctx.scripts_dir) / raw
+    candidate = Path(ctx.fs.scripts_dir) / raw
     if candidate.is_file():
         return candidate
     cwd_candidate = Path.cwd() / raw
@@ -105,7 +105,7 @@ def _scan_one_file(
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as e:
-        ctx.write(f"  {path.name}: read error: {e}", "red")
+        ctx.io.write(f"  {path.name}: read error: {e}", "red")
         return 0
 
     lines = text.splitlines(keepends=True)
@@ -128,34 +128,34 @@ def _scan_one_file(
             hits.append((i, old, new, body))
 
     if not hits:
-        ctx.write(f"  {path.name}: no legacy commands found.", "green")
+        ctx.io.write(f"  {path.name}: no legacy commands found.", "green")
         return 0
 
     if fix_mode:
         try:
             path.write_text("".join(rewritten_lines), encoding="utf-8")
         except OSError as e:
-            ctx.write(f"  {path.name}: write error: {e}", "red")
+            ctx.io.write(f"  {path.name}: write error: {e}", "red")
             return 0
-        ctx.write(f"  {path.name}: rewrote {len(hits)} line(s).", "green")
+        ctx.io.write(f"  {path.name}: rewrote {len(hits)} line(s).", "green")
         for lineno, old, new, _original in hits:
-            ctx.write_markup(
+            ctx.io.write_markup(
                 f"    line {lineno}: [yellow]{prefix}{old}[/] -> "
                 f"[green]{prefix}{new}[/]"
             )
         return len(hits)
 
-    ctx.write(
+    ctx.io.write(
         f"  {path.name}: {len(hits)} legacy command(s) found "
         f"(run with --fix to rewrite):",
         "yellow",
     )
     for lineno, old, new, original in hits:
-        ctx.write_markup(
+        ctx.io.write_markup(
             f"    line {lineno}: [yellow]{prefix}{old}[/] -> "
             f"[green]{prefix}{new}[/]"
         )
-        ctx.write(f"      {original}", "dim")
+        ctx.io.write(f"      {original}", "dim")
     return len(hits)
 
 
@@ -176,12 +176,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     # ``*`` scans every .run file in the config's scripts directory.
     if name == "*":
-        scripts_dir = Path(ctx.scripts_dir)
+        scripts_dir = Path(ctx.fs.scripts_dir)
         if not scripts_dir.is_dir():
             return CmdResult.fail(msg=f"Scripts directory not found: {scripts_dir}")
         paths = sorted(scripts_dir.glob("*.run"))
         if not paths:
-            ctx.write(f"  No .run files in {scripts_dir}.", "yellow")
+            ctx.io.write(f"  No .run files in {scripts_dir}.", "yellow")
             return CmdResult.ok(value="0")
         total_hits = 0
         total_files_with_hits = 0
@@ -190,9 +190,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             total_hits += hits
             if hits:
                 total_files_with_hits += 1
-        ctx.write("")
+        ctx.io.write("")
         verb = "rewrote" if fix_mode else "found"
-        ctx.write(
+        ctx.io.write(
             f"  Summary: {verb} {total_hits} legacy command(s) "
             f"across {total_files_with_hits}/{len(paths)} file(s).",
             "green" if fix_mode else "yellow",

@@ -61,7 +61,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         lines = lines[-n:]
 
     for line in lines:
-        ctx.output(line)
+        ctx.io.output(line)
     return CmdResult.ok(value=str(len(lines)))
 
 

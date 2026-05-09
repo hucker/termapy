@@ -28,6 +28,7 @@ from termapy.plugins import (
     DirectiveResult,
     LifecycleHook,
     LongHelp,
+    MissingCapability,
     PluginContext,
     PluginInfo,
     TransformInfo,
@@ -1054,9 +1055,16 @@ class ReplEngine:
                 if result is None:
                     result = CmdResult.ok()
                 result.elapsed_s = time.perf_counter() - t0
+            # MissingCapability is the structural backstop for
+            # "handler called a capability-gated handle method but didn't
+            # declare the capability in Command.needs".  Surface it with
+            # the handle's own clear message rather than wrapping it as
+            # a generic plugin error.
+            except MissingCapability as e:
+                result = CmdResult.fail(msg=str(e))
             # Plugin handlers are third-party code and can raise
-            # anything.  BoundaryException signals the reviewed broad
-            # catch; the failure ships back in a CmdResult.
+            # anything else.  BoundaryException signals the reviewed
+            # broad catch; the failure ships back in a CmdResult.
             except BoundaryException as e:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
             finally:

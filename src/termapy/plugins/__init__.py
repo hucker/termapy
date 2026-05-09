@@ -54,6 +54,7 @@ internals are split across :mod:`.context`, :mod:`.command`,
 from termapy.plugins.capabilities import (
     CapabilitySet,
     ENVIRONMENTS,
+    MissingCapability,
     detect_gui_apps,
 )
 from termapy.plugins.command import (
@@ -76,13 +77,20 @@ from termapy.plugins.command import (
 )
 from termapy.plugins.context import (
     DEFAULT_OUTPUT_LEVEL,
-    EngineAPI,
     LEVEL_FLAGS,
     OUTPUT_LEVELS,
     PluginConfig,
     PluginContext,
     format_kv_lines,
     parse_output_level,
+)
+from termapy.plugins.handles import (
+    EngineAPI,
+    EngineHandle,
+    FilesystemHandle,
+    IOHandle,
+    SerialHandle,
+    UIHandle,
 )
 from termapy.plugins.loader import (
     builtins_dir,
@@ -94,6 +102,7 @@ __all__ = [
     # Capabilities
     "CapabilitySet",
     "ENVIRONMENTS",
+    "MissingCapability",
     "detect_gui_apps",
     # Command + return types + helpers
     "BoundaryException",
@@ -112,15 +121,21 @@ __all__ = [
     "TransformInfo",
     "interpolate_help",
     "resolve_long_help",
-    # Context + engine + config
+    # Context + config + output-level utilities
     "DEFAULT_OUTPUT_LEVEL",
-    "EngineAPI",
     "LEVEL_FLAGS",
     "OUTPUT_LEVELS",
     "PluginConfig",
     "PluginContext",
     "format_kv_lines",
     "parse_output_level",
+    # Capability-domain handles (also re-exports EngineAPI for back-compat)
+    "EngineAPI",
+    "EngineHandle",
+    "FilesystemHandle",
+    "IOHandle",
+    "SerialHandle",
+    "UIHandle",
     # Loader
     "builtins_dir",
     "load_plugins_from_dir",

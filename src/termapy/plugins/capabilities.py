@@ -41,6 +41,24 @@ import sys
 from dataclasses import dataclass, fields
 
 
+class MissingCapability(Exception):
+    """Raised when a handle method is invoked without the required capability.
+
+    Handle methods on capability-gated namespaces (e.g. ``ctx.ui.confirm``,
+    ``ctx.fs.open_file``) check the host's ``CapabilitySet`` and raise this
+    exception if the required flag is not provided.
+
+    The dispatcher's existing capability gate at ``ReplEngine.dispatch_full()``
+    catches the common case (a command declared ``needs=CapabilitySet(...)``
+    that the environment can't satisfy) before the handler runs.  This
+    exception is the backstop: a command that didn't declare the right
+    needs but called a gated method anyway.
+
+    Caught at the dispatcher's boundary-exception handler and converted to
+    ``CmdResult.fail``, so a misbehaving plugin can't crash the host.
+    """
+
+
 @dataclass(frozen=True)
 class CapabilitySet:
     """Declarative set of environment capabilities.

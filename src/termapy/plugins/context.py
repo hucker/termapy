@@ -23,10 +23,16 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, TYPE_CHECKING
 
-from termapy.defaults import DEFAULT_CMD_PREFIX
 from termapy.plugins.capabilities import CapabilitySet
+from termapy.plugins.handles.engine import EngineAPI, EngineHandle
+
+if TYPE_CHECKING:
+    from termapy.plugins.handles.fs import FilesystemHandle
+    from termapy.plugins.handles.io import IOHandle
+    from termapy.plugins.handles.serial import SerialHandle
+    from termapy.plugins.handles.ui import UIHandle
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,67 +123,6 @@ def format_kv_lines(
         f"{indent}[{label_color}]{label:<{width}}[/]: {value}"
         for label, value in rows
     ]
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EngineAPI: privileged escape hatch for built-in plugins
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@dataclass
-class EngineAPI:
-    """Privileged escape hatch exposed to built-in plugins only.
-
-    Holds Textual, threading, and pyserial handles that are genuinely
-    frontend-specific and cannot be generified: the plugin registry,
-    config apply hooks, port connect/disconnect, capture lifecycle,
-    proto debug screen, the raw RX queue, cancel/stop events, etc.
-
-    For session state (flags, counters, target commands, per-plugin
-    scratch space) use ``ctx.ns()`` instead.  That is the supported API
-    for both built-in and external plugins.  Anything that could live in
-    a plain dict has been migrated off ``EngineAPI`` on purpose -- what's
-    left is the set of things that must remain frontend-coupled.
-
-    Access from built-in plugins via ``ctx.engine``.  External plugins
-    should not use this; it is unstable and may change between versions.
-    """
-
-    prefix: str = DEFAULT_CMD_PREFIX
-    plugins: dict = field(default_factory=dict)
-    in_script: Callable = lambda: False
-    script_stop: Callable = lambda: None
-    # Internal dispatch: run a REPL command through the plugin pipeline
-    # (capability gates, flag parsing, etc.) without the serial-output
-    # sugar that ``ctx.dispatch`` adds via dispatch_full.  Used by legacy
-    # forwarders (/echo -> /term.echo) where going back out to
-    # dispatch_full would misinterpret the un-prefixed target as a
-    # serial command.
-    dispatch: Callable = lambda _line: None
-    save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
-    apply_cfg: Callable = lambda key, val: None
-    coerce_type: Callable = lambda val, existing: val
-    open_proto_debug: Callable = lambda path, script: None
-    start_capture: Callable = lambda **kw: None
-    stop_capture: Callable = lambda: None
-    directives: list = field(default_factory=list)
-    connect: Callable = lambda port=None: None
-    disconnect: Callable = lambda: None
-    update_port: Callable = lambda name: None
-    apply_port_effects: Callable = lambda effects: None
-    # Load a named config file, disconnecting + reconnecting as needed.
-    # Name is resolved via config_resolve.resolve_config, so a bare
-    # "myproj" or a full path both work.  Returns a ``CmdResult`` so
-    # the caller can surface success/failure via their frontend.
-    load_config: Callable = lambda name: None
-    rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
-    xfer_cancel: Any = None  # threading.Event - set by Escape to cancel transfers
-    script_stop_event: Any = None  # threading.Event - set by /stop to abort scripts
-    # Open the picker/dialog associated with a top-level command name
-    # ("cfg", "run", "proto").  TUI installs this in _register_tui_hooks;
-    # CLI leaves it None so plugin handlers fall through to their existing
-    # bare-args behaviour (JSON dump, script list, long-help, etc.).
-    open_picker: Callable | None = None  # (name: str) -> CmdResult
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -461,6 +406,50 @@ class PluginContext:
 
     # Plugin config cache - keyed by plugin name, lazy-loaded from disk.
     _plugin_cfgs: dict[str, PluginConfig] = field(default_factory=dict)
+
+    # ── Capability-domain handles (properties, not fields) ────────────────────
+    #
+    # ``ctx.io`` / ``ctx.serial`` / ``ctx.fs`` / ``ctx.ui`` are namespaced
+    # views of the flat fields above, exposed as properties so they are
+    # NOT part of the dataclass field set.  This matters because some
+    # tests clone a context via ``ctx.__class__(**ctx.__dict__)``; making
+    # the handles dataclass fields would break that pattern.
+    #
+    # Each handle is built on access; the handle holds a ``self`` ref and
+    # delegates to ``ctx.<flat>`` so post-construction overrides
+    # (``ctx.write = self._status``) flow through live.
+    #
+    # During the dual-API transition both forms are valid and reach the
+    # same backing callable:
+    #   ctx.write("hi", "red")        # flat field
+    #   ctx.io.write("hi", "red")     # handle method
+    #
+    # Phase 3 of the refactor removes the flat fields; only the handles
+    # will remain.
+
+    @property
+    def io(self) -> "IOHandle":
+        """Output operations: write/markup/log/result/output/status/notify/status_bar/clear_screen."""
+        from termapy.plugins.handles.io import IOHandle
+        return IOHandle(self)
+
+    @property
+    def serial(self) -> "SerialHandle":
+        """Serial I/O: send/write/read_raw/drain/io()/rx_observer/tx_observer."""
+        from termapy.plugins.handles.serial import SerialHandle
+        return SerialHandle(self)
+
+    @property
+    def fs(self) -> "FilesystemHandle":
+        """Per-config directories + ``open_file`` (gated by ``gui_apps``)."""
+        from termapy.plugins.handles.fs import FilesystemHandle
+        return FilesystemHandle(self)
+
+    @property
+    def ui(self) -> "UIHandle":
+        """TUI-strict ops: confirm, screenshot, exit_app, ... (capability-gated)."""
+        from termapy.plugins.handles.ui import UIHandle
+        return UIHandle(self)
 
     # -- Namespaces ------------------------------------------------------------
 

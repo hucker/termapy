@@ -948,16 +948,23 @@ class CLITerminal(TerminalHost):
         if self.cfg.get("device_json_cmd", "") and not self.is_oneshot:
             self._dispatch(self.repl.cmd("include"))
 
-        # Run on_connect_cmd (same as TUI does after connecting)
-        auto_cmd = self.cfg.get("on_connect_cmd", "")
-        if auto_cmd and not self.is_oneshot:
-            parts = auto_cmd.replace("\\n", "\n").split("\n")
-            for cmd in parts:
-                cmd = cmd.strip()
-                if cmd:
-                    self._dispatch(cmd)
-                    if self.engine.is_connected and self.engine.serial_port:
-                        self.engine.serial_port.wait_for_idle()
+        # Run on_connect_cmd (same as TUI does after connecting), then
+        # the CLI-only cli_on_connect_cmd for any extras specific to
+        # the plain-text frontend.
+        connect_cmd_sources = [
+            self.cfg.get("on_connect_cmd", ""),
+            self.cfg.get("cli_on_connect_cmd", ""),
+        ]
+        if not self.is_oneshot:
+            for source in connect_cmd_sources:
+                if not source:
+                    continue
+                for cmd in source.replace("\\n", "\n").split("\n"):
+                    cmd = cmd.strip()
+                    if cmd:
+                        self._dispatch(cmd)
+                        if self.engine.is_connected and self.engine.serial_port:
+                            self.engine.serial_port.wait_for_idle()
 
         if self.run_script:
             self._run_script_mode(self.run_script)

@@ -101,11 +101,14 @@ class MCPHost(TerminalHost):
         self._xfer_cancel = threading.Event()
         self._reader_thread: threading.Thread | None = None
 
-        # Resolve mcp/ state directory and ensure it exists.
-        self._mcp_dir = self._resolve_mcp_dir()
-        self._mcp_dir.mkdir(parents=True, exist_ok=True)
-        self._log_path = self._mcp_dir / "session.log"
+        # Resolve mcp/ state directory and log path -- both follow the
+        # cfg, per termapy convention.  When no cfg is loaded (zero-config
+        # slot waiting for /cfg.load), both are None and file logging is
+        # suppressed; stderr tee under --mcp-verbose still works.
+        self._mcp_dir: Path | None = None
+        self._log_path: Path | None = None
         self._log_lock = threading.Lock()
+        self._refresh_log_paths()
 
         # device_state tracking (served by termapy://device_state.json).
         # Updated by run_command_async after each dispatch.  expect_history
@@ -163,18 +166,46 @@ class MCPHost(TerminalHost):
 
     # -- mcp/ state directory --------------------------------------------------
 
-    def _resolve_mcp_dir(self) -> Path:
-        """Return the per-config mcp/ state directory.
+    def _resolve_mcp_dir(self) -> Path | None:
+        """Return the per-config mcp/ state directory, or None if no cfg.
 
         Lives under the same parent as the config file so logs and
-        cached profiles travel with the config.  For zero-config
-        sessions (no config_path), falls back to cwd/mcp.
+        cached profiles travel with the config -- termapy's standard
+        convention.  When the slot has no cfg loaded yet, returns None
+        and the caller suppresses file logging (stderr tee still works
+        under ``--mcp-verbose``).
         """
         if self.config_path:
             return Path(self.config_path).parent / "mcp"
-        return Path.cwd() / "mcp"
+        return None
+
+    def _refresh_log_paths(self) -> None:
+        """Recompute ``_mcp_dir`` and ``_log_path`` from ``config_path``.
+
+        Called at construction and after each ``/cfg.load`` (via
+        ``_switch_to_cfg_path``) so a slot's log routes to the active
+        cfg's ``mcp/`` directory.  Idempotent: safe to call any time.
+        """
+        self._mcp_dir = self._resolve_mcp_dir()
+        if self._mcp_dir is not None:
+            self._mcp_dir.mkdir(parents=True, exist_ok=True)
+            self._log_path = self._mcp_dir / "session.log"
+        else:
+            self._log_path = None
 
     # -- TerminalHost overrides -----------------------------------------------
+
+    def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
+        """Switch cfg, then re-route the session log to the new cfg's mcp/.
+
+        Termapy's convention is "logs live with the cfg."  When a slot
+        receives ``/cfg.load <name>`` and rebinds, our session log must
+        follow into the new cfg's ``mcp/`` directory.
+        """
+        result = super()._switch_to_cfg_path(config_path)
+        if result.success:
+            self._refresh_log_paths()
+        return result
 
     def write(self, text: str, color: str = "") -> None:
         """Capture into the active per-call buffer; log; tee to stderr if verbose."""
@@ -208,19 +239,25 @@ class MCPHost(TerminalHost):
         NEVER writes to stdout -- stdout is the MCP wire.  Asserts at
         runtime that no log path resolves to ``sys.stdout`` so a future
         misconfiguration fails fast.
+
+        When ``_log_path`` is None (zero-config slot, no cfg loaded
+        yet), file logging is suppressed and only the stderr tee
+        applies.  Once ``/cfg.load`` runs, ``_refresh_log_paths`` wires
+        the file logger to the new cfg's ``mcp/`` directory.
         """
-        # Defensive: ensure the log file isn't aliased to stdout.  In
-        # normal operation log_path is a regular file under cap_dir; the
-        # check here is cheap insurance.
-        assert self._log_path != Path("/dev/stdout"), (
-            "MCP session log MUST NOT alias stdout (would corrupt protocol)"
-        )
         with self._log_lock:
-            try:
-                with self._log_path.open("a", encoding="utf-8") as f:
-                    f.write(line.rstrip("\n") + "\n")
-            except OSError:
-                pass  # logging is non-critical
+            if self._log_path is not None:
+                # Defensive: ensure the log file isn't aliased to stdout.
+                # In normal operation log_path is a regular file under
+                # the cfg's mcp/ dir; the check here is cheap insurance.
+                assert self._log_path != Path("/dev/stdout"), (
+                    "MCP session log MUST NOT alias stdout (would corrupt protocol)"
+                )
+                try:
+                    with self._log_path.open("a", encoding="utf-8") as f:
+                        f.write(line.rstrip("\n") + "\n")
+                except OSError:
+                    pass  # logging is non-critical
             if self.verbose:
                 print(line.rstrip("\n"), file=sys.stderr, flush=True)
 

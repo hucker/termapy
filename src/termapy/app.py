@@ -1459,6 +1459,9 @@ class SerialTerminal(TerminalHost, App):
         auto_cmd = self.cfg.get("on_connect_cmd", "")
         if auto_cmd:
             connect_cmds.extend(auto_cmd.replace("\\n", "\n").split("\n"))
+        tui_cmd = self.cfg.get("tui_on_connect_cmd", "")
+        if tui_cmd:
+            connect_cmds.extend(tui_cmd.replace("\\n", "\n").split("\n"))
         if connect_cmds:
             self._run_lines(connect_cmds, delay=0.2)
 

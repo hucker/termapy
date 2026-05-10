@@ -403,6 +403,7 @@ class MCPHost(TerminalHost):
         super()._on_connected(message)
         self._on_connect_auto_load_profile(self.ctx)
         self._on_connect_auto_include(self.ctx)
+        self._on_connect_run_commands(self.ctx)
         self._on_connect_banner_watch(self.ctx)
 
     def _clear_device_state(self) -> None:
@@ -482,6 +483,54 @@ class MCPHost(TerminalHost):
             return
         if not result.success:
             self._log_line(f"! auto-include: {result.error}")
+
+    def _on_connect_run_commands(self, ctx: PluginContext) -> None:
+        """Fire ``on_connect_cmd`` then ``mcp_on_connect_cmd`` after connect.
+
+        Closes a latent bug: pre-v15 MCP never ran ``on_connect_cmd``
+        at all (TUI/CLI did, but MCP's ``_on_connected`` override
+        silently skipped the universal key).  Now MCP fires both the
+        universal key (for cfgs that genuinely want a command run on
+        every frontend) and ``mcp_on_connect_cmd`` (for MCP-only
+        device setup like ``echo off``).
+
+        The v14->v15 migration moves any pre-existing ``on_connect_cmd``
+        value into the per-mode interactive keys, so an upgrade does
+        NOT silently start firing TUI/CLI-authored commands in MCP.
+        Net effect for upgraded cfgs: same as before (nothing fires
+        in MCP) until the user opts in by setting ``mcp_on_connect_cmd``
+        or moving content back to the universal key.
+
+        Errors are non-fatal: a misbehaving device-setup command logs
+        a warning but doesn't block the connect.
+        """
+        sources: list[tuple[str, str]] = [
+            (ctx.cfg.get("on_connect_cmd", ""), "on_connect_cmd"),
+            (ctx.cfg.get("mcp_on_connect_cmd", ""), "mcp_on_connect_cmd"),
+        ]
+        for source, label in sources:
+            if not source:
+                continue
+            for cmd in source.replace("\\n", "\n").split("\n"):
+                cmd = cmd.strip()
+                if not cmd:
+                    continue
+                self._log_line(f"$ {cmd}  ({label})")
+                try:
+                    result = self.repl.dispatch_full(
+                        cmd,
+                        log=self._log,
+                        echo_markup=self.write_markup,
+                        status=self.status,
+                        serial_write=self._serial_write,
+                        serial_write_raw=self._serial_write_raw,
+                        is_connected=lambda: self.engine.is_connected,
+                    )
+                except Exception as exc:  # noqa: BLE001 -- boundary
+                    self._log_line(f"! {label} ({cmd!r}) failed: {exc}")
+                    continue
+                if not result.success:
+                    self._log_line(f"! {label} ({cmd!r}): {result.error}")
 
     def _on_connect_banner_watch(self, ctx: PluginContext) -> None:
         """Spawn a 2-second watcher for the active profile's startup banner.

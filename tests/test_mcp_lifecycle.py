@@ -526,3 +526,105 @@ class TestAutoLoadProfileOnConnect:
 def host_target_count(host: MCPHost) -> int:
     """Return the count of target_commands the host has loaded."""
     return len(host.ctx.ns("target_commands"))
+
+
+class TestOnConnectCmd:
+    """``on_connect_cmd`` and ``mcp_on_connect_cmd`` firing in MCP mode.
+
+    Pre-v15 MCP had a latent bug: ``on_connect_cmd`` was never fired
+    on connect (TUI/CLI did fire it).  v15 fixes that AND adds
+    ``mcp_on_connect_cmd`` for MCP-only device-setup commands.
+    """
+
+    def _make_host(self, tmp_path, **cfg_overrides) -> MCPHost:
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = "DEMO"
+        cfg["line_ending"] = "\r\n"
+        cfg["auto_include_on_connect"] = False  # don't pollute log with /include
+        cfg["device_json_cmd"] = ""
+        cfg.update(cfg_overrides)
+        config_path = tmp_path / "cfg" / "test.cfg"
+        config_path.parent.mkdir(exist_ok=True)
+        config_path.write_text(json.dumps(cfg))
+        for sub in ("plugin", "ss", "run", "cap"):
+            (config_path.parent / sub).mkdir(exist_ok=True)
+        return MCPHost(cfg, str(config_path), verbose=False)
+
+    def test_on_connect_cmd_fires_in_mcp(self, tmp_path):
+        """v15 closes the latent bug: on_connect_cmd now fires in MCP."""
+        # Arrange
+        h = self._make_host(tmp_path, on_connect_cmd="/ver")
+
+        # Act
+        try:
+            h._connect()
+            time.sleep(0.2)
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+        # Assert
+        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
+        assert "$ /ver  (on_connect_cmd)" in log, \
+            f"universal on_connect_cmd fires in MCP, log was:\n{log}"
+
+    def test_mcp_on_connect_cmd_fires_in_mcp(self, tmp_path):
+        """mcp_on_connect_cmd is the MCP-only device-setup hook."""
+        # Arrange
+        h = self._make_host(tmp_path, mcp_on_connect_cmd="/ver")
+
+        # Act
+        try:
+            h._connect()
+            time.sleep(0.2)
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+        # Assert
+        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
+        assert "$ /ver  (mcp_on_connect_cmd)" in log, \
+            f"mcp_on_connect_cmd fires in MCP, log was:\n{log}"
+
+    def test_universal_runs_before_mcp_only(self, tmp_path):
+        """Ordering: on_connect_cmd first, then mcp_on_connect_cmd."""
+        # Arrange
+        h = self._make_host(
+            tmp_path,
+            on_connect_cmd="/cls",            # silly but distinguishable
+            mcp_on_connect_cmd="/ver",
+        )
+
+        # Act
+        try:
+            h._connect()
+            time.sleep(0.2)
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+        # Assert
+        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
+        cls_idx = log.find("$ /cls  (on_connect_cmd)")
+        ver_idx = log.find("$ /ver  (mcp_on_connect_cmd)")
+        assert cls_idx >= 0, f"universal cmd logged, log was:\n{log}"
+        assert ver_idx >= 0, f"mcp-only cmd logged, log was:\n{log}"
+        assert cls_idx < ver_idx, "universal fires before mcp-only"
+
+    def test_empty_keys_are_noops(self, tmp_path):
+        """No on-connect commands logged when both keys are empty."""
+        # Arrange
+        h = self._make_host(tmp_path, on_connect_cmd="", mcp_on_connect_cmd="")
+
+        # Act
+        try:
+            h._connect()
+            time.sleep(0.2)
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+        # Assert
+        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
+        assert "(on_connect_cmd)" not in log, "no universal cmd ran"
+        assert "(mcp_on_connect_cmd)" not in log, "no mcp-only cmd ran"

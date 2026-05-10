@@ -156,7 +156,14 @@ def test_v3_to_v4_renames_config_keys():
     assert result["stop_bits"] == 2, "stopbits renamed"
     assert result["auto_connect"] is True, "autoconnect renamed"
     assert result["auto_reconnect"] is True, "autoreconnect renamed"
-    assert result["on_connect_cmd"] == "ATZ", "autoconnect_cmd renamed (via v4+v6)"
+    # autoconnect_cmd was renamed to on_connect_cmd in v4+v6, then v14->v15
+    # split that universal value into per-mode TUI/CLI keys (clearing the
+    # universal so MCP doesn't silently fire interactive-only commands).
+    assert result["tui_on_connect_cmd"] == "ATZ", \
+        "autoconnect_cmd renamed and migrated to tui_on_connect_cmd in v15"
+    assert result["cli_on_connect_cmd"] == "ATZ", \
+        "autoconnect_cmd renamed and migrated to cli_on_connect_cmd in v15"
+    assert result["on_connect_cmd"] == "", "universal on_connect_cmd cleared in v15"
     assert "baudrate" not in result, "old key baudrate removed"
     assert "bytesize" not in result, "old key bytesize removed"
     assert "stopbits" not in result, "old key stopbits removed"
@@ -187,7 +194,13 @@ def test_v5_to_v6_renames_config_keys():
     # Assert - new keys present with old values
     assert result["echo_input"] is True, "echo_cmd renamed"
     assert result["echo_input_fmt"] == "[purple]> {cmd}[/]", "echo_cmd_fmt renamed"
-    assert result["on_connect_cmd"] == "ATZ", "auto_connect_cmd renamed"
+    # v6 renamed auto_connect_cmd -> on_connect_cmd; v15 then split its
+    # value into per-mode interactive keys.
+    assert result["tui_on_connect_cmd"] == "ATZ", \
+        "auto_connect_cmd renamed; v15 migrated value to tui_on_connect_cmd"
+    assert result["cli_on_connect_cmd"] == "ATZ", \
+        "auto_connect_cmd renamed; v15 migrated value to cli_on_connect_cmd"
+    assert result["on_connect_cmd"] == "", "universal cleared in v15"
     assert result["cmd_delay_ms"] == 100, "inter_cmd_delay_ms renamed"
     assert result["show_line_endings"] is True, "show_eol renamed"
     assert result["show_traceback"] is True, "exception_traceback renamed"
@@ -317,3 +330,58 @@ def test_v11_to_v12_preserves_existing_custom_baud():
     # Assert
     assert result["custom_baud"] is True, "existing custom_baud preserved"
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
+def test_v14_to_v15_moves_on_connect_cmd_to_per_mode_keys():
+    """Migration v14->v15 preserves TUI/CLI behavior by moving the
+    existing on_connect_cmd into per-mode interactive keys, leaving
+    MCP a clean slate."""
+    # Arrange
+    cfg = {"config_version": 14, "port": "COM4", "on_connect_cmd": "AT+VER"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["on_connect_cmd"] == "", "universal cleared"
+    assert result["tui_on_connect_cmd"] == "AT+VER", "TUI keeps the old behavior"
+    assert result["cli_on_connect_cmd"] == "AT+VER", "CLI keeps the old behavior"
+    assert result["mcp_on_connect_cmd"] == "", "MCP gets a clean slate"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, \
+        "version advanced to current"
+
+
+def test_v14_to_v15_empty_on_connect_cmd():
+    """Cfg with no on_connect_cmd content gets all four keys empty."""
+    # Arrange
+    cfg = {"config_version": 14, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["on_connect_cmd"] == "", "universal stays empty"
+    assert result["tui_on_connect_cmd"] == "", "TUI empty"
+    assert result["cli_on_connect_cmd"] == "", "CLI empty"
+    assert result["mcp_on_connect_cmd"] == "", "MCP empty"
+
+
+def test_v14_to_v15_preserves_explicit_per_mode_keys():
+    """If a hand-edited cfg already has per-mode keys, don't clobber them."""
+    # Arrange
+    cfg = {
+        "config_version": 14,
+        "port": "COM4",
+        "on_connect_cmd": "AT+VER",
+        "mcp_on_connect_cmd": "echo off",  # user pre-set this
+    }
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["mcp_on_connect_cmd"] == "echo off", \
+        "user-set mcp_on_connect_cmd preserved (setdefault skipped overwrite)"
+    assert result["tui_on_connect_cmd"] == "AT+VER", "TUI gets migrated value"
+    assert result["cli_on_connect_cmd"] == "AT+VER", "CLI gets migrated value"
+    assert result["on_connect_cmd"] == "", "universal cleared regardless"

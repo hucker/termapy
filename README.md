@@ -488,7 +488,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 14,
+    "config_version": 15,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -514,6 +514,9 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "auto_connect": false,
     "auto_reconnect": false,
     "on_connect_cmd": "",
+    "tui_on_connect_cmd": "",
+    "cli_on_connect_cmd": "",
+    "mcp_on_connect_cmd": "",
     "line_ending": "\r",
     "send_bare_enter": false,
     "echo_input": false,

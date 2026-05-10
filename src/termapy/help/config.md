@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 14,
+    "config_version": 15,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -63,6 +63,9 @@ Here is an example config for a device called `iot_device`:
     "auto_connect": true,
     "auto_reconnect": true,
     "on_connect_cmd": "status\nhelp",
+    "tui_on_connect_cmd": "",
+    "cli_on_connect_cmd": "",
+    "mcp_on_connect_cmd": "",
     "line_ending": "\r",
     "send_bare_enter": false,
     "echo_input": true,
@@ -117,7 +120,10 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `send_bare_enter`        | `false`               | Send line ending on empty Enter (for "press enter to continue" prompts)                     |
 | `auto_connect`           | `false`               | Connect automatically when the app starts                                                   |
 | `auto_reconnect`         | `false`               | Retry connection every 2.5s if the port drops or fails to open                              |
-| `on_connect_cmd`         | ` `                   | Commands to send after connecting, separated by `\n`                                        |
+| `on_connect_cmd`         | ` `                   | Commands to send after connecting (all frontends), separated by `\n`                        |
+| `tui_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in TUI mode (after `on_connect_cmd`)                |
+| `cli_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`)                |
+| `mcp_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in MCP mode. Common: `echo off` to silence device   |
 | `auto_include_on_connect`| `true`                | If `device_json_cmd` is set, auto-run `/include` after a successful connect (MCP mode)      |
 | `profile_path`           | ` `                   | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention     |
 | `echo_input`             | `false`               | Show sent commands in the terminal output                                                   |

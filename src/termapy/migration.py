@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 14
+CURRENT_CONFIG_VERSION = 15
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -215,6 +215,34 @@ def _migrate_v13_to_v14(cfg: dict) -> dict:
 
 
 MIGRATIONS[13] = _migrate_v13_to_v14
+
+
+def _migrate_v14_to_v15(cfg: dict) -> dict:
+    """Add per-mode on_connect_cmd keys; preserve existing interactive behavior.
+
+    Pre-v15, ``on_connect_cmd`` fired only in TUI/CLI -- MCP had a
+    latent bug that silently skipped it.  v15 fixes that bug AND
+    introduces ``tui_/cli_/mcp_on_connect_cmd`` for per-mode setup.
+
+    A naive add-with-empty-defaults migration would silently start
+    firing the universal command in MCP for every existing cfg --
+    running interactive-only commands the user never authored for
+    the LLM context.
+
+    Instead: move the existing universal value into the per-mode
+    interactive keys (preserving exact pre-v15 behavior in TUI/CLI)
+    and clear the universal so MCP gets a clean slate the user fills
+    in deliberately via mcp_on_connect_cmd.
+    """
+    existing = cfg.get("on_connect_cmd", "")
+    cfg.setdefault("tui_on_connect_cmd", existing)
+    cfg.setdefault("cli_on_connect_cmd", existing)
+    cfg.setdefault("mcp_on_connect_cmd", "")
+    cfg["on_connect_cmd"] = ""
+    return cfg
+
+
+MIGRATIONS[14] = _migrate_v14_to_v15
 
 
 def migrate_config(cfg: dict) -> dict:

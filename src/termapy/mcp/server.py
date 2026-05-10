@@ -195,17 +195,10 @@ class MCPHost(TerminalHost):
 
     # -- TerminalHost overrides -----------------------------------------------
 
-    def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
-        """Switch cfg, then re-route the session log to the new cfg's mcp/.
-
-        Termapy's convention is "logs live with the cfg."  When a slot
-        receives ``/cfg.load <name>`` and rebinds, our session log must
-        follow into the new cfg's ``mcp/`` directory.
-        """
-        result = super()._switch_to_cfg_path(config_path)
-        if result.success:
-            self._refresh_log_paths()
-        return result
+    # Note: ``_setup_context`` runs ``_refresh_log_paths`` (see below).
+    # ``_setup_context`` is invoked by ``_switch_to_cfg_path`` BEFORE the
+    # auto-connect, so on-connect log entries (echo off, mcp_on_connect_cmd)
+    # land in the new cfg's mcp/ directory rather than the old one.
 
     def write(self, text: str, color: str = "") -> None:
         """Capture into the active per-call buffer; log; tee to stderr if verbose."""
@@ -323,7 +316,16 @@ class MCPHost(TerminalHost):
     # -- Context setup ---------------------------------------------------------
 
     def _setup_context(self) -> None:
-        """Build PluginContext with MCP-specific overrides."""
+        """Build PluginContext with MCP-specific overrides.
+
+        Also refreshes log paths -- ``_setup_context`` runs whenever
+        the active cfg changes (construction, /cfg.load), and our log
+        files live with the cfg.  Refreshing here means on-connect
+        commands that fire AFTER context setup but BEFORE
+        ``_switch_to_cfg_path`` returns get logged into the *new*
+        cfg's mcp/ directory, not the old one.
+        """
+        self._refresh_log_paths()
         engine_api = self._build_engine_api()
         self.ctx = self._build_plugin_context(engine_api)
         # MCP-specific UI no-ops (no screen, no toast, no clear).

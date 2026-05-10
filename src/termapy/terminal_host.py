@@ -497,9 +497,14 @@ class TerminalHost:
         self.repl.fire_lifecycle("on_config_load")
         # auto_connect lives in the newly-loaded cfg -- if the user's
         # saved config wants the port opened on start, honour it here.
-        if cfg.get("auto_connect") and self.engine.connect():
-            self.repl.fire_lifecycle("on_connect")
-            self._start_reader()
+        # Use self._connect() (not engine.connect() inline) so the full
+        # connect lifecycle fires: on_connect lifecycle hook, reader
+        # thread start, AND ``_on_connected()``.  The latter is where
+        # MCPHost runs auto-load-profile, auto-include, on_connect_cmd,
+        # mcp_on_connect_cmd, and the banner watcher.  Inlining
+        # ``engine.connect()`` here used to silently skip all of those.
+        if cfg.get("auto_connect"):
+            self._connect()
         return CmdResult.ok(value=config_path)
 
     # -- Capture helpers ------------------------------------------------------

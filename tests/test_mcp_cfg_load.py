@@ -128,3 +128,64 @@ class TestMcpCfgLoad:
         actual = result.value
         expected = str(cfg_b)
         assert actual == expected, "result.value is the loaded cfg path"
+
+
+class TestZeroConfigMcpHost:
+    """Slot-pool case: ``termapy --mcp`` with no cfg starts cleanly,
+    suppresses file logging, and routes logs to the cfg's mcp/ once
+    /cfg.load runs.
+    """
+
+    @pytest.fixture
+    def zero_host(self, tmp_path, monkeypatch):
+        # Arrange - point cfg_dir at tmp_path and seed two cfgs
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+        _make_cfg_dir(tmp_path, "alpha")
+        _make_cfg_dir(tmp_path, "beta")
+        # MCPHost with no cfg loaded (mimics zero-config slot startup)
+        from termapy.defaults import DEFAULT_CFG
+
+        cfg = dict(DEFAULT_CFG)
+        return MCPHost(cfg, "", verbose=False)
+
+    def test_starts_with_no_log_path(self, zero_host):
+        # Assert
+        assert zero_host._log_path is None, "no log path before cfg.load"
+        assert zero_host._mcp_dir is None, "no mcp dir before cfg.load"
+
+    def test_log_line_no_op_without_cfg(self, zero_host):
+        # Act - should not raise even with _log_path=None
+        zero_host._log_line("startup message")
+
+        # Assert (no exception is the test; nothing to file-check)
+
+    def test_load_routes_log_to_cfg_dir(self, zero_host, tmp_path):
+        # Arrange - confirm starting state
+        assert zero_host._log_path is None, "starts unbound"
+
+        # Act
+        zero_host._load_config("alpha")
+
+        # Assert
+        actual_log = zero_host._log_path
+        expected_parent = tmp_path / "alpha" / "mcp"
+        assert actual_log is not None, "log path now set"
+        assert actual_log.parent == expected_parent, \
+            f"log lives under cfg's mcp/, got: {actual_log}"
+
+    def test_switch_re_routes_log(self, zero_host, tmp_path):
+        # Arrange - load alpha first
+        zero_host._load_config("alpha")
+        first_log = zero_host._log_path
+        assert first_log is not None and "alpha" in str(first_log), \
+            "alpha log path"
+
+        # Act - switch to beta
+        zero_host._load_config("beta")
+
+        # Assert
+        actual_log = zero_host._log_path
+        assert "beta" in str(actual_log), \
+            f"log re-routed to beta cfg, got: {actual_log}"
+        assert "alpha" not in str(actual_log), \
+            "old alpha log path cleared"

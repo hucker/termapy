@@ -120,10 +120,9 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     replaces the in-memory config, and reconnects if the new cfg has
     ``auto_connect: true``.
 
-    Most useful in ``--cli`` zero-config mode to jump into a real
-    project without restarting termapy.  The TUI has the port picker
-    and Cfg dialog for the same job and does not support this
-    subcommand.
+    Available in CLI, TUI, and MCP frontends.  Particularly useful in
+    MCP mode where the model can hot-swap between device configs
+    without spawning a new server process for each one.
 
     Args:
         ctx: Plugin context (uses ``ctx.engine.load_config``).
@@ -398,7 +397,7 @@ COMMAND = Command(
         ),
         "load": Command(
             args="<name>",
-            help="Load a different config in this session (CLI mode).",
+            help="Load a different config in this session (hot-swap).",
             handler=_handler_load,
         ),
         "info": Command(

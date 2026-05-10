@@ -14,7 +14,8 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.config import open_with_system
+from termapy.config import load_config, open_with_system
+from termapy.config_resolve import resolve_config
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CmdResult, EngineAPI, PluginContext
 from termapy.serial_port import eol_label
@@ -448,17 +449,58 @@ class TerminalHost:
     # -- Config switching -----------------------------------------------------
 
     def _load_config(self, name: str) -> CmdResult:
-        """Resolve a config name and switch to it (frontend override point).
+        """Resolve a config name and switch to it.
 
-        The default implementation returns a failure so frontends that
-        don't implement in-session config switching (currently the
-        TUI, which has dialog-based switching) surface a clear
-        "not supported here" message rather than silently doing
-        nothing.  The CLI overrides this with a working implementation.
+        Default implementation: resolve the user-supplied name (bare,
+        relative, or absolute) via the same chain as the ``[config]``
+        positional CLI arg, then call ``_switch_to_cfg_path``.  Works in
+        any headless frontend (CLI, MCP) that has the standard engine /
+        repl / capture trio.  Subclasses with dialog-based pickers
+        (the TUI) override this to surface a frontend-appropriate
+        message.
         """
-        return CmdResult.fail(
-            msg="Config switching is not available in this frontend."
-        )
+        path = resolve_config(name)
+        if path is None:
+            return CmdResult.fail(
+                msg=f"No config matching {name!r}. "
+                f"Try {self.prefix}cfg.list to list available."
+            )
+        result = self._switch_to_cfg_path(path)
+        if result.success:
+            self.status(f"Loaded config: {Path(path).stem}", "green")
+        return result
+
+    def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
+        """Disconnect, replace the in-memory cfg, and reconnect.
+
+        Shared machinery used by ``_load_config`` and ``--demo`` setup.
+        Caller is responsible for resolving a user-facing name into a
+        concrete path (and any cfg-creation side effects).
+
+        Returns ``CmdResult.ok(value=path)`` on success.  OSError or JSON
+        decode error becomes ``CmdResult.fail(msg=...)`` so the caller
+        can surface the failure through its frontend without unwinding
+        the exception.
+        """
+        try:
+            cfg = load_config(config_path)
+        except (OSError, ValueError) as e:
+            return CmdResult.fail(msg=f"Cannot load config: {e}")
+
+        if self.engine.is_connected:
+            self.repl.fire_lifecycle("on_disconnect")
+            self.engine.disconnect()
+        self.repl.replace_cfg(cfg, config_path)
+        self.config_path = config_path
+        self.cfg = cfg
+        self._setup_context()
+        self.repl.fire_lifecycle("on_config_load")
+        # auto_connect lives in the newly-loaded cfg -- if the user's
+        # saved config wants the port opened on start, honour it here.
+        if cfg.get("auto_connect") and self.engine.connect():
+            self.repl.fire_lifecycle("on_connect")
+            self._start_reader()
+        return CmdResult.ok(value=config_path)
 
     # -- Capture helpers ------------------------------------------------------
 

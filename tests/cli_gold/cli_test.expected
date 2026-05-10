@@ -442,7 +442,7 @@ SUBCOMMANDS
   /cfg.help       Show /cfg help.
   /cfg.info       Show project summary.
   /cfg.list       List all config files.
-  /cfg.load       Load a different config in this session (CLI mode).
+  /cfg.load       Load a different config in this session (hot-swap).
   /cfg.show       Open the current config file in the system viewer.
 demo> /help proto.crc
 NAME

@@ -1086,6 +1086,24 @@ async def _run_command_async(
         # legacy empty-string default -- never stringify dicts.
         value: Any = result.value if result.value not in (None, "") else ""
 
+        # If value is a self-describing envelope (carries cmd/success/
+        # error/elapsed_s itself, as /term.request produces), don't
+        # duplicate those keys at the outer wire level -- the model
+        # already has them in value.  Plain commands (whose value is
+        # raw data, not a full envelope) get the standard outer wrap
+        # so cmd/success/error/elapsed_s are still discoverable.
+        is_self_describing = (
+            isinstance(value, dict)
+            and "cmd" in value
+            and "success" in value
+            and "error" in value
+        )
+        if is_self_describing:
+            return {
+                "value": value,
+                "output_lines": output_lines,
+                "captured_artifacts": artifacts,
+            }
         return {
             "cmd": command,
             "success": bool(result.success),

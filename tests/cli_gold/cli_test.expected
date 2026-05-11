@@ -98,7 +98,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 15,
+    "config_version": 16,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -137,6 +137,7 @@ demo> /cfg.dump
     "show_line_numbers": false,
     "hex_mode": false,
     "request_mode": false,
+    "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
     "file_xfer_root": "",
     "cfg_enabled": true,
     "run_enabled": true,

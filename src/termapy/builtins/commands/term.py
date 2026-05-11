@@ -171,6 +171,66 @@ def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
+    """Toggle request_mode and optionally set the error-detection regex.
+
+    Examples:
+        /term.request                  query current state
+        /term.request on               enable; reset err pattern to cfg default
+        /term.request off              disable
+        /term.request on err=^FAILED   enable + session-override the err pattern
+        /term.request err=             disable error detection (session only)
+        /term.request err=^FOO         set err pattern (session only)
+
+    The persistent default lives in ``cfg.request_err_pattern``.  The
+    ``err=`` token sets a **session-only** override stored in
+    ``ctx.ns("flags")["request_err_pattern_override"]``; ``/term.request
+    on`` without an ``err=`` clears that override so error detection
+    returns to the cfg default.  This way "disable, then re-enable"
+    actually re-enables.
+    """
+    state_token = None
+    err_token = None  # None means "not specified"; "" means "user said err="
+    for token in args.split():
+        if token in ("on", "off"):
+            state_token = token
+        elif token.startswith("err="):
+            err_token = token[len("err="):]
+        else:
+            return CmdResult.fail(
+                msg=f"Unknown token: {token} (use on, off, or err=<regex>)"
+            )
+
+    flags = ctx.ns("flags")
+
+    if err_token is not None:
+        # Explicit session override (including "" to disable detection)
+        flags["request_err_pattern_override"] = err_token
+        if err_token:
+            ctx.io.write(
+                f"request_err_pattern = {err_token!r}  (session)", "green"
+            )
+        else:
+            ctx.io.write(
+                "request_err_pattern cleared -- error detection disabled  (session)",
+                "yellow",
+            )
+    elif state_token == "on":
+        # /term.request on (no err=) -> drop any session override so the
+        # cfg default takes effect again.  Symmetric with how /term.request
+        # off doesn't preserve a "previous" request_mode state -- 'on'
+        # is a reset.
+        if flags.pop("request_err_pattern_override", None) is not None:
+            ctx.io.write(
+                "request_err_pattern reset to cfg default  (session override cleared)",
+                "dim",
+            )
+
+    if state_token is not None:
+        return _cfg_toggle(ctx, state_token, "request_mode")
+    # No state arg: still report state if err was changed, else query.
+    if err_token is not None:
+        current = bool(ctx.cfg.get("request_mode", False))
+        return CmdResult.ok(value="on" if current else "off")
     return _cfg_toggle(ctx, args, "request_mode")
 
 

@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 15
+CURRENT_CONFIG_VERSION = 16
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -243,6 +243,21 @@ def _migrate_v14_to_v15(cfg: dict) -> dict:
 
 
 MIGRATIONS[14] = _migrate_v14_to_v15
+
+
+def _migrate_v15_to_v16(cfg: dict) -> dict:
+    """Add request_err_pattern cfg key (default matches ERROR/ERR/FAULT).
+
+    Used by request_mode (``/term.request on``) to detect device-side
+    errors in the response text.  When the response matches the regex,
+    the envelope reports success=false with the text as the error.
+    Empty string disables error detection.
+    """
+    cfg.setdefault("request_err_pattern", r"(?i)^(ERROR|ERR|FAULT)\b")
+    return cfg
+
+
+MIGRATIONS[15] = _migrate_v15_to_v16
 
 
 def migrate_config(cfg: dict) -> dict:

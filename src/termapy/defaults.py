@@ -284,7 +284,9 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "line_ending": (
         "Appended to each sent command.",
-        r'Valid: "\r" (CR), "\r\n" (CRLF), "\n" (LF)',
+        r'CR/LF/NUL/ETX/EOT bytes only: "", "\r" (CR), "\n" (LF), '
+        r'"\r\n" (CRLF), "\n\r" (LFCR), "\0" (NUL), '
+        r'"\u0003" (ETX), "\u0004" (EOT), or any combination.',
     ),
     "cmd_delay_ms": (
         "Delay in ms between commands in multi-command input.",

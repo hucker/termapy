@@ -121,6 +121,15 @@ class MCPHost(TerminalHost):
         # Banner-watch state, populated by _on_connect_banner_watch.
         self._banner_seen: bool = False
         self._banner_text: str = ""
+        # Thread-safe gate: set while a run_command call is in flight.
+        # The reader thread checks this in on_lines to suppress async-
+        # event recording for bytes that are about to be consumed by
+        # the synchronous request_response read inside the call.
+        # Without this flag, profile-mapped responses get duplicated
+        # (once as value.<group>, once as an async_event line).  The
+        # _buffer contextvar isn't sufficient because the reader
+        # thread runs in a different context that pre-dates the call.
+        self._call_active: threading.Event = threading.Event()
 
         # Engines (mirroring CLITerminal construction).
         self.capture = CaptureEngine(
@@ -280,17 +289,26 @@ class MCPHost(TerminalHost):
 
         def on_lines(lines: list[str]) -> None:
             # Inbound serial bytes -> feed the engine's expect-watcher
-            # ring buffer (so /expect sees them), log, and -- when
-            # we're inside a run_command -- append to the buffer so
-            # Claude sees them in the response.  Outside run_command
-            # (e.g. async events between calls), append to async_events
-            # so they survive into the next device_state read.
+            # ring buffer (so /expect sees them and request_response can
+            # consume them), log, and route to the right sink:
+            #   1. ``_buffer`` contextvar set -- we're inside a run_command
+            #      on the same thread; append to output_lines.
+            #   2. ``_call_active`` event set -- worker thread is mid-call;
+            #      the bytes are about to be consumed synchronously by
+            #      request_response (the profile path).  Suppress async
+            #      recording so command responses don't duplicate as
+            #      async_events.
+            #   3. Otherwise -- truly between calls; record as async event.
             self.repl.feed_lines(lines)
             buf = _buffer.get()
             for line in lines:
                 self._log_line(f"< {line}")
                 if buf is not None:
                     buf.append({"level": "rx", "text": line, "color": ""})
+                elif self._call_active.is_set():
+                    # Call in progress in another thread; the synchronous
+                    # reader will consume this line.  Don't double-record.
+                    pass
                 else:
                     self._record_async_event(line, source="between_calls")
 
@@ -997,6 +1015,12 @@ async def _run_command_async(
         # Per-call buffer in a contextvar so the sync write/log path
         # picks it up without parameter threading.
         token = _buffer.set([])
+        # Cross-thread call-active flag: the reader thread checks this
+        # to suppress async-event recording for bytes that are about to
+        # be consumed by the synchronous request_response read.  Without
+        # it, profile-mapped responses would duplicate: once as
+        # ``value.<group>``, once as an entry in ``async_events``.
+        self._call_active.set()
         cap_before = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
         line = command.strip()
         # Output-level routing: set ctx._call_level directly for the
@@ -1061,6 +1085,10 @@ async def _run_command_async(
         finally:
             output_lines = _buffer.get() or []
             _buffer.reset(token)
+            # Clear the cross-thread call-active flag.  Any bytes that
+            # arrive AFTER this point go back into the async_events
+            # pipeline -- they're genuinely unsolicited.
+            self._call_active.clear()
 
         cap_after = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
         artifacts = _new_artifacts(cap_before, cap_after, Path(self.ctx.fs.cap_dir))

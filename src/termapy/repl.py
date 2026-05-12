@@ -583,6 +583,15 @@ class ReplEngine:
         import json as _json
         import time as _time
 
+        # MCP envelope-duplication gate: in MCP the model already has
+        # the full envelope in ``CmdResult.value`` (lifted into the
+        # response's ``value`` field by run_command_async).  Rendering
+        # the same envelope through the output channel would put it
+        # into ``output_lines`` too -- the exact duplication we set out
+        # to avoid.  Computed once and reused below.
+        from termapy.builtins.commands.var import _LAUNCH_VARS as _lvars
+        _is_mcp = _lvars.get("FRONT_END") == "mcp"
+
         # Symmetric input: unwrap {"cmd": "..."} into the cmd value.
         cmd_text = command.strip()
         if cmd_text.startswith("{") and cmd_text.endswith("}"):
@@ -605,12 +614,17 @@ class ReplEngine:
                         "elapsed_s": 0.0,
                         "result": "",
                     }
-                    self.ctx.io._write_markup(_json.dumps(envelope))
+                    if not _is_mcp:
+                        self.ctx.io.result_markup(_json.dumps(envelope))
                     return CmdResult.fail(msg=err_msg, value=envelope)
 
         # Symmetric request-side echo: render the canonical post-unwrap
-        # form so TUI/CLI scrollback shows what was sent.
-        self.ctx.io._write_markup(_json.dumps({"cmd": command}))
+        # form so TUI/CLI scrollback shows what was sent.  Routed
+        # through output_markup so it gates at normal+ (silent and
+        # quiet suppress it), and MCP's session default of "quiet"
+        # naturally keeps output_lines clean -- no FRONT_END gate
+        # needed for this one.
+        self.ctx.io.output_markup(_json.dumps({"cmd": command}))
 
         encoding = self.cfg.get("encoding", "utf-8")
         line_ending = self.cfg.get("line_ending", "\r")
@@ -655,25 +669,22 @@ class ReplEngine:
                     if _re.search(pattern, text):
                         error = text
                 except _re.error:
-                    # Malformed regex: don't crash the dispatch.
-                    # Surface a status so the user sees it.
-                    self.ctx.io._write(
+                    # Malformed regex: don't crash the dispatch.  Surface
+                    # it through ``output`` so the user sees their cfg
+                    # mistake at normal+; silent/quiet still suppress.
+                    self.ctx.io.output(
                         f"request_err_pattern regex error: {pattern!r}",
                         "yellow",
                     )
 
         # ONE envelope is the canonical /term.request shape, returned
-        # in CmdResult.value.  In TUI/CLI it's ALSO rendered to
-        # write_markup for scrollback visibility -- the human reading
-        # the terminal wants the protocol view.  In MCP the model
-        # already has the envelope in value (and the outer wire response
-        # is shaped to not duplicate cmd/success/error -- see
-        # run_command_async).  Rendering to write_markup ALSO in MCP
-        # would put the envelope text into output_lines, creating the
-        # exact same duplication.  Gate the display render.
-        from termapy.builtins.commands.var import _LAUNCH_VARS as _lvars
-        _is_mcp = _lvars.get("FRONT_END") == "mcp"
-
+        # in CmdResult.value.  In TUI/CLI it's ALSO rendered through
+        # ``result_markup`` for scrollback visibility -- it IS the
+        # command's answer, gated at quiet+ so --silent suppresses it.
+        # In MCP the model already has the envelope in value (lifted
+        # by run_command_async); rendering it here too would put the
+        # same JSON into ``output_lines``, the duplication we set out
+        # to avoid.  _is_mcp was computed at the top of this function.
         success = not error
         envelope = {
             "cmd": command,
@@ -686,7 +697,7 @@ class ReplEngine:
             "result": "" if error else text,
         }
         if not _is_mcp:
-            self.ctx.io._write_markup(_json.dumps(envelope))
+            self.ctx.io.result_markup(_json.dumps(envelope))
 
         if error:
             result = CmdResult.fail(msg=error, value=envelope)

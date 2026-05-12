@@ -15,13 +15,13 @@ from termapy.scripting import parse_keywords
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     kw = parse_keywords(args, {"cmd"}, rest_keyword="cmd")
     cmd = kw.get("cmd", "AT")
-    if not ctx.is_connected():
+    if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
     start = time.perf_counter()
-    ctx.serial_send(cmd)
-    ctx.serial_wait_idle(timeout_ms=500)
+    ctx.serial.send(cmd)
+    ctx.serial.wait_idle(timeout_ms=500)
     ms = (time.perf_counter() - start) * 1000
-    ctx.write(f"{cmd} -- {ms:.0f}ms", "green")
+    ctx.io.output(f"{cmd} -- {ms:.0f}ms", "green")
     return CmdResult.ok()
 
 

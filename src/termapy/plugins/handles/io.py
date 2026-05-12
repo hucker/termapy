@@ -80,6 +80,10 @@ class IOHandle:
         )
         return rank >= min_rank
 
+    # Plain-text channels.  Use these for unstructured text + a single
+    # color.  The text is rendered literally (no Rich markup parsing),
+    # so it's safe for content containing ``[`` / ``]`` characters.
+
     def result(self, text: str, color: str = "green") -> None:
         """Write a command result (single-line answer).  Shown at quiet+."""
         if self._shows(RESULT_MIN_RANK):
@@ -94,3 +98,22 @@ class IOHandle:
         """Write a status/progress message.  Shown only at verbose."""
         if self._shows(STATUS_MIN_RANK):
             self._write(text, "dim")
+
+    # Markup channels.  Use these when ``text`` contains Rich markup
+    # tags like ``[red]error[/]`` that should be parsed and rendered.
+    # Same level gating as the plain-text channels.
+
+    def result_markup(self, text: str) -> None:
+        """Write a markup-formatted command result.  Shown at quiet+."""
+        if self._shows(RESULT_MIN_RANK):
+            self._write_markup(text)
+
+    def output_markup(self, text: str) -> None:
+        """Write markup-formatted data output.  Shown at normal+."""
+        if self._shows(OUTPUT_MIN_RANK):
+            self._write_markup(text)
+
+    def status_markup(self, text: str) -> None:
+        """Write a markup-formatted status message.  Shown only at verbose."""
+        if self._shows(STATUS_MIN_RANK):
+            self._write_markup(text)

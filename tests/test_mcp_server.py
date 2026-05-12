@@ -242,8 +242,12 @@ class TestRunCommandHappy:
         assert isinstance(result["elapsed_s"], float), "elapsed timing recorded"
 
     def test_help_produces_output_lines(self, host):
-        # Arrange / Act
-        result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
+        # Arrange / Act -- use "verbose" so output() is unambiguously
+        # above the gate.  MCP's session default is "quiet" and /help
+        # routes through output_markup (rank >= normal), so at "quiet"
+        # /help is intentionally silent.  "verbose" exercises the
+        # capture path.
+        result = asyncio.run(host.run_command_async("/help", "verbose", 5.0))
         # Assert
         assert len(result["output_lines"]) > 0, (
             "/help emits output captured by buffer"
@@ -345,15 +349,17 @@ class TestCaptureArtifacts:
 
 class TestOutputBufferLevels:
     def test_text_and_markup_entries_distinguished(self, host):
-        # Arrange / Act — /help uses ctx.output (markup-rendered)
-        result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
+        # Arrange / Act -- /help uses ctx.io.output_markup; run at
+        # "verbose" so the OUTPUT_MIN_RANK gate passes (MCP session
+        # default is "quiet").
+        result = asyncio.run(host.run_command_async("/help", "verbose", 5.0))
         # Assert
         levels = {entry["level"] for entry in result["output_lines"]}
         assert "markup" in levels, "/help emits markup"
 
     def test_each_buffer_entry_has_required_fields(self, host):
-        # Arrange / Act
-        result = asyncio.run(host.run_command_async("/help", "normal", 5.0))
+        # Arrange / Act -- "verbose" ensures output_lines is non-empty.
+        result = asyncio.run(host.run_command_async("/help", "verbose", 5.0))
         # Assert
         for entry in result["output_lines"]:
             assert "level" in entry, "level field"

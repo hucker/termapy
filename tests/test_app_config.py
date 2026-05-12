@@ -428,6 +428,49 @@ class TestMigrateJsonToCfg:
         # Assert
         assert (sub / "baz.cfg").exists(), ".cfg still exists"
 
+    def test_only_exact_name_json_is_recognized(self, tmp_path):
+        """Regression: the migration must ONLY recognize <name>/<name>.json.
+
+        Termapy's naming invariant is that a config file is exactly
+        ``<folder>/<folder>.cfg`` -- nothing else.  Earlier the migration
+        globbed ``*/*.json`` and renamed any ``.json`` it found, which
+        silently corrupted profile files (``<name>.profile.json`` ->
+        ``<name>.profile.cfg``) every time the host started.  This test
+        drops several plausible filenames in a fixture folder and
+        asserts only the exact-match cfg file is touched.
+        """
+        # Arrange -- folder with one real cfg file and several others
+        # that share the .json extension but are NOT config files.
+        sub = tmp_path / "device_x"
+        sub.mkdir()
+        (sub / "device_x.json").write_text('{"port": "COM1"}')   # the cfg
+        (sub / "device_x.profile.json").write_text('{"v": 2}')    # profile
+        (sub / "device_x.schema.json").write_text('{"$ref": ""}')  # future schema
+        (sub / "ad_hoc.json").write_text('{"misc": true}')        # user's drop
+
+        # Act
+        migrate_json_to_cfg(tmp_path)
+
+        # Assert -- only the exact-match cfg file got renamed.
+        actual_cfg = (sub / "device_x.cfg").exists()
+        actual_json_gone = not (sub / "device_x.json").exists()
+        actual_profile = (sub / "device_x.profile.json").exists()
+        actual_schema = (sub / "device_x.schema.json").exists()
+        actual_adhoc = (sub / "ad_hoc.json").exists()
+        no_bogus_cfg = not (sub / "device_x.profile.cfg").exists()
+        assert actual_cfg, "device_x.json -> device_x.cfg (the cfg file)"
+        assert actual_json_gone, "original device_x.json removed"
+        assert actual_profile, (
+            "device_x.profile.json must NOT be migrated -- it's a profile, "
+            "not a cfg file (this is the bug the test guards against)"
+        )
+        assert actual_schema, "device_x.schema.json must NOT be migrated"
+        assert actual_adhoc, "ad_hoc.json must NOT be migrated"
+        assert no_bogus_cfg, (
+            "no bogus <name>.profile.cfg file -- migration must not "
+            "produce filenames that violate the strict naming convention"
+        )
+
 
 # -- validate_config: serial port setting validation --------------------------
 

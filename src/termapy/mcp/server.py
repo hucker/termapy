@@ -1097,6 +1097,15 @@ async def _run_command_async(
         # legacy empty-string default -- never stringify dicts.
         value: Any = result.value if result.value not in (None, "") else ""
 
+        # Deliver async events exactly once.  Lines that arrived between
+        # MCP calls (or were drained by _dispatch_via_profile pre-send)
+        # accumulated on self._async_events.  Snapshot + clear here so
+        # the LLM sees them in this response and the next response
+        # starts with an empty buffer.  device_state.json keeps the
+        # cumulative view for callers who want the full history.
+        pending_async = list(self._async_events)
+        self._async_events.clear()
+
         # If value is a self-describing envelope (carries cmd/success/
         # error/elapsed_s itself, as /term.request produces), don't
         # duplicate those keys at the outer wire level -- the model
@@ -1114,6 +1123,7 @@ async def _run_command_async(
                 "value": value,
                 "output_lines": output_lines,
                 "captured_artifacts": artifacts,
+                "async_events": pending_async,
             }
         return {
             "cmd": command,
@@ -1123,6 +1133,7 @@ async def _run_command_async(
             "elapsed_s": float(result.elapsed_s or 0.0),
             "output_lines": output_lines,
             "captured_artifacts": artifacts,
+            "async_events": pending_async,
         }
 
 

@@ -1,20 +1,30 @@
-"""Example plugin: serial traffic monitor.
+"""Example plugin: live serial traffic monitor.
 
-Displays a running TX/RX byte count in the status bar whenever data
-flows.  Demonstrates the RX/TX observer API and the status bar API.
+Displays running TX/RX byte counts in the status bar at the bottom
+of the screen while monitoring is on.  Demonstrates:
 
-To use: copy this file to termapy_cfg/plugin/ (global) or
-termapy_cfg/<config>/plugin/ (per-config).
+  - The ``ctx.serial.rx_observer()`` / ``ctx.serial.tx_observer()``
+    context managers (the only public observer API).
+  - Holding the observer context open from a background thread so
+    the persistent on/off pattern works without leaking observers
+    (the with-block guarantees release on /traffic off).
+  - ``ctx.io.status_bar()`` for non-scrollback status display.
 
-Usage:
-    /traffic            Show current counts
-    /traffic on         Start monitoring
-    /traffic off        Stop monitoring
-    /traffic.reset      Reset counters to zero
+To use: copy this file to ``termapy_cfg/plugin/`` (global) or
+``termapy_cfg/<config>/plugin/`` (per-config).
+
+Usage::
+
+    /traffic            Show current counts (and on/off status).
+    /traffic on         Start monitoring -- status bar updates live.
+    /traffic off        Stop monitoring and clear the status bar.
+    /traffic.reset      Reset the counters to zero.
 """
 
 from __future__ import annotations
 
+import threading
+import time
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command
@@ -31,12 +41,12 @@ def _state(ctx: PluginContext) -> dict:
     if "tx_bytes" not in ns:
         ns["tx_bytes"] = 0
         ns["rx_bytes"] = 0
-        ns["active"] = False
+        ns["thread"] = None
+        ns["stop_event"] = None
     return ns
 
 
-def _format_count(n: int) -> str:
-    """Format a byte count with commas."""
+def _format(n: int) -> str:
     if n < 1024:
         return f"{n}"
     if n < 1024 * 1024:
@@ -44,97 +54,101 @@ def _format_count(n: int) -> str:
     return f"{n:,} ({n / (1024 * 1024):.1f} MB)"
 
 
-def _update_status(ctx: PluginContext) -> None:
-    """Push current counts to the status bar."""
-    ns = _state(ctx)
-    tx = _format_count(ns["tx_bytes"])
-    rx = _format_count(ns["rx_bytes"])
-    ctx.status_bar(f"TX:{tx}  RX:{rx}", timeout=10.0)
+def _watcher(ctx: PluginContext, ns: dict, stop_event: threading.Event) -> None:
+    """Background thread: hold the observer context open and update the bar."""
+
+    def on_rx(data: bytes) -> None:
+        ns["rx_bytes"] += len(data)
+
+    def on_tx(data: bytes) -> None:
+        ns["tx_bytes"] += len(data)
+
+    with (
+        ctx.serial.rx_observer(on_rx),
+        ctx.serial.tx_observer(on_tx),
+    ):
+        while not stop_event.is_set():
+            stop_event.wait(timeout=0.5)
+            # status_bar refresh is fast and idempotent; called from
+            # the worker so the main thread isn't pulled in on every
+            # byte.
+            try:
+                ctx.io.status_bar(
+                    f"TX:{_format(ns['tx_bytes'])}  "
+                    f"RX:{_format(ns['rx_bytes'])}",
+                    timeout=2.0,
+                )
+            except Exception:  # noqa: BLE001 -- never crash a background thread
+                pass
 
 
-def _on_rx(ctx: PluginContext, data: bytes) -> None:
-    """RX observer callback."""
-    ns = _state(ctx)
-    ns["rx_bytes"] += len(data)
-    _update_status(ctx)
-
-
-def _on_tx(ctx: PluginContext, data: bytes) -> None:
-    """TX observer callback."""
-    ns = _state(ctx)
-    ns["tx_bytes"] += len(data)
-    _update_status(ctx)
+def _is_active(ns: dict) -> bool:
+    t = ns.get("thread")
+    return t is not None and t.is_alive()
 
 
 def _start(ctx: PluginContext) -> None:
-    """Register observers and start monitoring."""
     ns = _state(ctx)
-    if ns["active"]:
+    if _is_active(ns):
         return
-    # Create bound callbacks and store references for removal
-    ns["_rx_cb"] = lambda data: _on_rx(ctx, data)
-    ns["_tx_cb"] = lambda data: _on_tx(ctx, data)
-    ctx.add_rx_observer(ns["_rx_cb"])
-    ctx.add_tx_observer(ns["_tx_cb"])
-    ns["active"] = True
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=_watcher, args=(ctx, ns, stop_event), daemon=True,
+    )
+    ns["stop_event"] = stop_event
+    ns["thread"] = thread
+    thread.start()
 
 
 def _stop(ctx: PluginContext) -> None:
-    """Unregister observers and stop monitoring."""
     ns = _state(ctx)
-    if not ns["active"]:
+    if not _is_active(ns):
         return
-    ctx.remove_rx_observer(ns["_rx_cb"])
-    ctx.remove_tx_observer(ns["_tx_cb"])
-    ns["active"] = False
-    ctx.status_bar("")
-
-
-# ── Handlers ────────────────────────────────────────────────────────────────
+    ns["stop_event"].set()
+    # Give the thread a moment to exit the with-block and release observers.
+    ns["thread"].join(timeout=1.0)
+    ns["thread"] = None
+    ns["stop_event"] = None
+    ctx.io.status_bar("")  # clear the bar
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
-    """Show counts, or turn monitoring on/off."""
-    arg = args.strip().lower()
+    """Show counts, or start / stop monitoring."""
     ns = _state(ctx)
+    arg = args.strip().lower()
 
     if arg == "on":
         _start(ctx)
-        ctx.write("Traffic monitor enabled.", "green")
-        return CmdResult.ok()
-
+        return CmdResult.ok(value="on")
     if arg == "off":
         _stop(ctx)
-        ctx.write("Traffic monitor disabled.", "green")
-        return CmdResult.ok()
-
+        return CmdResult.ok(value="off")
     if not arg:
-        tx = _format_count(ns["tx_bytes"])
-        rx = _format_count(ns["rx_bytes"])
-        status = "on" if ns["active"] else "off"
-        ctx.write(f"  TX: {tx}  RX: {rx}  ({status})")
-        return CmdResult.ok()
-
-    ctx.write("Usage: /traffic [on|off]", "yellow")
-    return CmdResult.ok()
+        state = "on" if _is_active(ns) else "off"
+        ctx.io.result(
+            f"TX: {_format(ns['tx_bytes'])}  "
+            f"RX: {_format(ns['rx_bytes'])}  ({state})"
+        )
+        return CmdResult.ok(
+            value={"tx_bytes": ns["tx_bytes"], "rx_bytes": ns["rx_bytes"],
+                   "active": _is_active(ns)},
+        )
+    return CmdResult.fail(msg="Usage: /traffic [on|off]")
 
 
 def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
-    """Reset byte counters."""
+    """Reset byte counters to zero."""
     ns = _state(ctx)
     ns["tx_bytes"] = 0
     ns["rx_bytes"] = 0
-    ctx.write("Traffic counters reset.", "green")
-    if ns["active"]:
-        _update_status(ctx)
-    return CmdResult.ok()
+    return CmdResult.ok(value="reset")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="traffic",
     args="{on|off}",
-    help="Serial traffic monitor with live byte counts in status bar.",
+    help="Live serial traffic monitor (status bar shows TX/RX byte counts).",
     handler=_handler_root,
     sub_commands={
         "reset": Command(

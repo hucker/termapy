@@ -12,11 +12,11 @@ from termapy.plugins import CmdResult, Command
 
 def _handler(ctx, args):
     cmd = args.strip() or "AT"
-    if not ctx.is_connected():
+    if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
-    ctx.write(f"> {cmd}", "purple")
-    ctx.serial_send(cmd)
-    ctx.serial_wait_idle()
+    ctx.io.output(f"> {cmd}", "purple")
+    ctx.serial.send(cmd)
+    ctx.serial.wait_idle()
     return CmdResult.ok()
 
 

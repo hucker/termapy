@@ -483,7 +483,7 @@ class TestSerialIo:
         from termapy.plugins import IOHandle, SerialHandle
         calls = []
         ctx = PluginContext(
-            io=IOHandle(write=lambda t, c=None: None),
+            io=IOHandle(_write=lambda t, c=None: None),
             serial=SerialHandle(
                 claim=lambda: calls.append("claim"),
                 release=lambda: calls.append("release"),
@@ -502,7 +502,7 @@ class TestSerialIo:
         from termapy.plugins import IOHandle, SerialHandle
         calls = []
         ctx = PluginContext(
-            io=IOHandle(write=lambda t, c=None: None),
+            io=IOHandle(_write=lambda t, c=None: None),
             serial=SerialHandle(
                 claim=lambda: calls.append("claim"),
                 release=lambda: calls.append("release"),
@@ -523,7 +523,7 @@ class TestNamespaces:
 
     def _ctx(self):
         from termapy.plugins import IOHandle
-        return PluginContext(io=IOHandle(write=lambda t, c=None: None))
+        return PluginContext(io=IOHandle(_write=lambda t, c=None: None))
 
     def test_lazy_creation_returns_empty_dict(self):
         # Arrange
@@ -907,7 +907,7 @@ class TestPluginContextPluginCfg:
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
         from termapy.plugins import IOHandle
-        ctx = PluginContext(io=IOHandle(write=lambda *a, **kw: None), config_path=str(cfg_path))
+        ctx = PluginContext(io=IOHandle(_write=lambda *a, **kw: None), config_path=str(cfg_path))
 
         # Act
         pcfg = ctx.plugin_cfg("myplugin")
@@ -921,7 +921,7 @@ class TestPluginContextPluginCfg:
         cfg_path = tmp_path / "test.cfg"
         cfg_path.write_text("{}", encoding="utf-8")
         from termapy.plugins import IOHandle
-        ctx = PluginContext(io=IOHandle(write=lambda *a, **kw: None), config_path=str(cfg_path))
+        ctx = PluginContext(io=IOHandle(_write=lambda *a, **kw: None), config_path=str(cfg_path))
 
         # Act
         pcfg1 = ctx.plugin_cfg("myplugin")
@@ -933,7 +933,7 @@ class TestPluginContextPluginCfg:
     def test_raises_without_config_path(self):
         # Arrange
         from termapy.plugins import IOHandle
-        ctx = PluginContext(io=IOHandle(write=lambda *a, **kw: None), config_path="")
+        ctx = PluginContext(io=IOHandle(_write=lambda *a, **kw: None), config_path="")
 
         # Act / Assert
         import pytest

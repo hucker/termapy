@@ -307,8 +307,8 @@ class TestTermUsbDbHandler:
         out: list[str] = []
         ctx = PluginContext(
             io=IOHandle(
-                write=lambda t, c=None: out.append(t),
-                write_markup=lambda t: out.append(t),
+                _write=lambda t, c=None: out.append(t),
+                _write_markup=lambda t: out.append(t),
             ),
         )
 
@@ -343,8 +343,8 @@ class TestTermUsbDbHandler:
         from termapy.plugins import IOHandle
         ctx = PluginContext(
             io=IOHandle(
-                write=lambda t, c=None: None,
-                write_markup=lambda t: None,
+                _write=lambda t, c=None: None,
+                _write_markup=lambda t: None,
             ),
         )
 
@@ -378,8 +378,8 @@ class TestTermUsbDbHandler:
         from termapy.plugins import IOHandle
         ctx = PluginContext(
             io=IOHandle(
-                write=lambda t, c=None: None,
-                write_markup=lambda t: None,
+                _write=lambda t, c=None: None,
+                _write_markup=lambda t: None,
             ),
         )
 

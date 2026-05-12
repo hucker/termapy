@@ -212,10 +212,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.log("#", line)
 
     # Brief confirmation on screen; full content is in the log.
-    ctx.io.write(f"  Fingerprint written to log ({len(lines)} lines).", "green")
+    ctx.io._write(f"  Fingerprint written to log ({len(lines)} lines).", "green")
 
     if show:
-        ctx.io.write("")
+        ctx.io._write("")
         for line in lines:
             ctx.io.output(line)
 

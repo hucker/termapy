@@ -293,13 +293,13 @@ def _make_interior_handler(
 
     def _handler(ctx, args: str) -> None:
         prefix = ctx.engine.prefix
-        ctx.io.write(f"Subcommands of {prefix}{full_name}:")
+        ctx.io._write(f"Subcommands of {prefix}{full_name}:")
         plugins = ctx.engine.plugins
         for child_name in children:
             child = plugins.get(child_name)
             if child:
                 arg_str = f" {child.args}" if child.args else ""
                 help_text = interpolate_help(child.help, prefix)
-                ctx.io.write(f"  {prefix}{child_name}{arg_str} - {help_text}")
+                ctx.io._write(f"  {prefix}{child_name}{arg_str} - {help_text}")
 
     return _handler

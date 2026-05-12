@@ -10,7 +10,7 @@ from termapy.plugins import Command
 
 def _handler(ctx, args):
     name = args.strip() or "world"
-    ctx.write(f"Hello, {name}!")
+    ctx.io.result(f"Hello, {name}!")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

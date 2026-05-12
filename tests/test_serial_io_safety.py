@@ -86,8 +86,8 @@ def ctx_with_tracker(tmp_path):
         engine=api,
         capabilities=CapabilitySet(serial_connected=True),
         io=IOHandle(
-            write=lambda t, c=None: None,
-            write_markup=lambda t: None,
+            _write=lambda t, c=None: None,
+            _write_markup=lambda t: None,
         ),
         serial=SerialHandle(claim=_claim, release=_release),
     )

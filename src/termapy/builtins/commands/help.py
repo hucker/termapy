@@ -115,15 +115,15 @@ def _write_docstring(ctx: PluginContext, docstring: str) -> None:
     for i, line in enumerate(lines):
         text = line.rstrip()
         if i == 0 and has_summary:
-            ctx.io.write_markup(_TITLE_FMT.format(text=text))
+            ctx.io.output_markup(_TITLE_FMT.format(text=text))
         elif (m := _LABEL_RE.match(text)):
-            ctx.io.write_markup(_LABEL_FMT.format(
+            ctx.io.output_markup(_LABEL_FMT.format(
                 indent=m.group(1),
                 label=m.group(2) + m.group(3),
                 rest=m.group(4).rstrip(),
             ))
         else:
-            ctx.io.write(f"  {text}")
+            ctx.io.output(f"  {text}")
 
 
 # ── Flag + capability rendering ──────────────────────────────────────────────
@@ -266,64 +266,64 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     plugins = ctx.engine.plugins
 
     # NAME ────────────────────────────────────────────────────────────────────
-    ctx.io.write_markup(_SECTION_FMT.format(text="NAME"))
+    ctx.io.output_markup(_SECTION_FMT.format(text="NAME"))
     help_line = interpolate_help(plugin.help, prefix)
-    ctx.io.write_markup(f"  [{_CMD}]{prefix}{name}[/] - {help_line}")
+    ctx.io.output_markup(f"  [{_CMD}]{prefix}{name}[/] - {help_line}")
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     if plugin.args:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="SYNOPSIS"))
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="SYNOPSIS"))
         args_colored = _color_args(plugin.args)
-        ctx.io.write_markup(f"  [{_CMD}]{prefix}{name}[/] {args_colored}")
+        ctx.io.output_markup(f"  [{_CMD}]{prefix}{name}[/] {args_colored}")
 
     # DESCRIPTION ─────────────────────────────────────────────────────────────
     # Developer mode shows the handler's Python docstring instead.
     if dev_mode:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="DESCRIPTION (developer)"))
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="DESCRIPTION (developer)"))
         docstring = getattr(plugin.handler, "__doc__", None)
         if docstring:
             _write_docstring(ctx, docstring)
         else:
-            ctx.io.write("  (no docstring)")
+            ctx.io.output("  (no docstring)")
     else:
         # long_help may be a str or a callable(ctx) -> str. resolve_long_help
         # normalizes, catching any exception from a dynamic callable so that
         # /help rendering never itself fails.
         lh = resolve_long_help(plugin, ctx)
         if lh:
-            ctx.io.write_markup("")
-            ctx.io.write_markup(_SECTION_FMT.format(text="DESCRIPTION"))
+            ctx.io.output_markup("")
+            ctx.io.output_markup(_SECTION_FMT.format(text="DESCRIPTION"))
             # ctx.write auto-indents; use write_markup with explicit indent
             # so markup in long_help passes through.
             for line in lh.strip().splitlines():
-                ctx.io.write_markup(f"  {line}")
+                ctx.io.output_markup(f"  {line}")
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     rows = _canonical_flags(plugin)
     if rows:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="FLAGS"))
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="FLAGS"))
         for canonical, aliases, desc in rows:
             names = ", ".join([canonical, *aliases])
-            ctx.io.write_markup(f"  [{_OPT}]{names}[/] - {desc}")
+            ctx.io.output_markup(f"  [{_OPT}]{names}[/] - {desc}")
 
     # REQUIRES ────────────────────────────────────────────────────────────────
     required = _required_capability_rows(plugin.needs)
     if required:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="REQUIRES"))
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="REQUIRES"))
         for cap_name, hint in required:
-            ctx.io.write_markup(f"  [{_OPT}]{cap_name}[/] - [{_SEP}]{hint}[/]")
+            ctx.io.output_markup(f"  [{_OPT}]{cap_name}[/] - [{_SEP}]{hint}[/]")
 
     # AVAILABLE ───────────────────────────────────────────────────────────────
     # Symmetric "where does this run" matrix across all known environments.
     # Derived from comparing plugin.needs against ENVIRONMENTS -- single
     # source of truth, no per-host special casing.  Future hosts get a
     # column for free by adding an entry to ENVIRONMENTS in plugins.py.
-    ctx.io.write_markup("")
-    ctx.io.write_markup(_SECTION_FMT.format(text="AVAILABLE"))
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_SECTION_FMT.format(text="AVAILABLE"))
     cells: list[str] = []
     missing_by_env: dict[str, list[str]] = {}
     for env_name, env_caps in ENVIRONMENTS.items():
@@ -333,7 +333,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             missing_by_env[env_name] = missing
         else:
             cells.append(f"[{_OPT}]{env_name}: yes[/]")
-    ctx.io.write_markup("  " + "   ".join(cells))
+    ctx.io.output_markup("  " + "   ".join(cells))
     if missing_by_env:
         # Group identical missing-capability sets so the explanation stays compact.
         # ``frozenset`` keys de-duplicate envs with the same gate.
@@ -348,7 +348,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             # environment doesn't supply it.  "MCP does not provide:
             # gui_apps" reads correctly either way.
             notes.append(f"{envs} does not provide: {caps}")
-        ctx.io.write_markup(f"  [{_SEP}]({'; '.join(notes)})[/]")
+        ctx.io.output_markup(f"  [{_SEP}]({'; '.join(notes)})[/]")
 
     # SUBCOMMANDS ─────────────────────────────────────────────────────────────
     # Clean name + one-liner, no args column. This is the fix for the
@@ -360,24 +360,24 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             if n in plugins and not plugins[n].hidden
         ]
         if children:
-            ctx.io.write_markup("")
-            ctx.io.write_markup(_SECTION_FMT.format(text="SUBCOMMANDS"))
+            ctx.io.output_markup("")
+            ctx.io.output_markup(_SECTION_FMT.format(text="SUBCOMMANDS"))
             cmd_w = _compute_cmd_w([n for n, _ in children], prefix)
             for child_name, child in children:
-                ctx.io.write_markup(_landscape_row(prefix, child_name, child, cmd_w))
+                ctx.io.output_markup(_landscape_row(prefix, child_name, child, cmd_w))
 
     # SEE ALSO ────────────────────────────────────────────────────────────────
     see = _siblings_for_see_also(name, plugins)
     if see:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="SEE ALSO"))
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="SEE ALSO"))
         refs = ", ".join(f"[{_CMD}]{prefix}{n}[/]" for n in see)
-        ctx.io.write_markup(f"  {refs}")
+        ctx.io.output_markup(f"  {refs}")
 
     # Source annotation for non-built-in plugins (preserved from old renderer).
     if plugin.source not in ("built-in", "app"):
-        ctx.io.write_markup("")
-        ctx.io.write_markup(f"  [{_SRC}](source: {plugin.source})[/]")
+        ctx.io.output_markup("")
+        ctx.io.output_markup(f"  [{_SRC}](source: {plugin.source})[/]")
 
 
 def _render_target_man_page(ctx: PluginContext, tc) -> None:
@@ -393,35 +393,35 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
     tree, and no sibling relationships in termapy's registry.
     """
     # NAME ────────────────────────────────────────────────────────────────────
-    ctx.io.write_markup(_SECTION_FMT.format(text="NAME"))
-    ctx.io.write_markup(f"  [{_CMD}]{tc.name}[/] - {tc.help}")
+    ctx.io.output_markup(_SECTION_FMT.format(text="NAME"))
+    ctx.io.output_markup(f"  [{_CMD}]{tc.name}[/] - {tc.help}")
 
     # SYNOPSIS ────────────────────────────────────────────────────────────────
     if tc.args:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="SYNOPSIS"))
-        ctx.io.write_markup(f"  [{_CMD}]{tc.name}[/] {_color_args(tc.args)}")
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="SYNOPSIS"))
+        ctx.io.output_markup(f"  [{_CMD}]{tc.name}[/] {_color_args(tc.args)}")
 
     # DESCRIPTION ─────────────────────────────────────────────────────────────
     if tc.long_help:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="DESCRIPTION"))
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="DESCRIPTION"))
         for line in tc.long_help.strip().splitlines():
-            ctx.io.write_markup(f"  {line}")
+            ctx.io.output_markup(f"  {line}")
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     # _canonical_flags is duck-typed on a `.flags` attribute, so it works
     # for TargetCommand unchanged.
     rows = _canonical_flags(tc)
     if rows:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(_SECTION_FMT.format(text="FLAGS"))
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="FLAGS"))
         for canonical, aliases, desc in rows:
             names = ", ".join([canonical, *aliases])
-            ctx.io.write_markup(f"  [{_OPT}]{names}[/] - {desc}")
+            ctx.io.output_markup(f"  [{_OPT}]{names}[/] - {desc}")
 
-    ctx.io.write_markup("")
-    ctx.io.write_markup(f"  [{_SRC}](source: target device)[/]")
+    ctx.io.output_markup("")
+    ctx.io.output_markup(f"  [{_SRC}](source: target device)[/]")
 
 
 # ── Candidate list rendering ─────────────────────────────────────────────────
@@ -437,13 +437,13 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     prefix = ctx.engine.prefix
     plugins = ctx.engine.plugins
     words = [w for w in term.split() if w]
-    ctx.io.write_markup(
+    ctx.io.output_markup(
         f"Candidates matching [{_CMD}]{_underline(term, words)}[/]:"
     )
     cmd_w = _compute_cmd_w(names, prefix)
     for name in names:
         plugin = plugins[name]
-        ctx.io.write_markup(
+        ctx.io.output_markup(
             _landscape_row(prefix, name, plugin, cmd_w, needles=words)
         )
 
@@ -475,10 +475,10 @@ def append_files_section(
     """
     from termapy.tree_render import FileTree
 
-    ctx.io.write_markup("")
-    ctx.io.write_markup(_SECTION_FMT.format(text=title))
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_SECTION_FMT.format(text=title))
     if not files:
-        ctx.io.write_markup("  (none)")
+        ctx.io.output_markup("  (none)")
         return
 
     # Group "dir/file" entries under their first component; entries
@@ -498,7 +498,7 @@ def append_files_section(
         + [(f, []) for f in loose]
     )
     for line in FileTree(sections, indent="  ").render():
-        ctx.io.write_markup(line)
+        ctx.io.output_markup(line)
 
 
 # ── Main /help lookup ────────────────────────────────────────────────────────
@@ -631,49 +631,49 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             1 for n, p in all_plugins.items()
             if "." not in n and not getattr(p, "hidden", False)
         )
-        ctx.io.write_markup(
+        ctx.io.output_markup(
             f"[{_SEP}]-- MCP-visible only ({shown} of {total} top-level) --[/]"
         )
-        ctx.io.write_markup("")
+        ctx.io.output_markup("")
 
     sorted_sources = sorted(groups, key=lambda s: _SOURCE_ORDER.get(s, 3))
     first = True
     for source in sorted_sources:
         label = _SOURCE_LABELS.get(source, f"{source} Plugins")
         if not first:
-            ctx.io.write_markup("")
+            ctx.io.output_markup("")
         first = False
-        ctx.io.write_markup(f"[{_SEP}]-- {label} --[/]")
+        ctx.io.output_markup(f"[{_SEP}]-- {label} --[/]")
         for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
-            ctx.io.write_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
 
     if directives:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(f"[{_SEP}]-- Directives --[/]")
+        ctx.io.output_markup("")
+        ctx.io.output_markup(f"[{_SEP}]-- Directives --[/]")
         for d in directives:
             cmd_col = _pad(f"  [{_CMD}]{d.name}[/]", cmd_w + 2)
-            ctx.io.write_markup(f"{cmd_col}  {d.help}")
+            ctx.io.output_markup(f"{cmd_col}  {d.help}")
 
     if script_only:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
+        ctx.io.output_markup("")
+        ctx.io.output_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
         for cmd_name, plugin in sorted(script_only, key=lambda x: x[0]):
-            ctx.io.write_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
 
     scripts_dir = ctx.fs.scripts_dir
     if scripts_dir.is_dir():
         scripts = sorted(scripts_dir.glob("*.run"))
         if scripts:
-            ctx.io.write_markup("")
+            ctx.io.output_markup("")
             _render_scripts(ctx, scripts, prefix, cmd_w)
 
     if ctx.ns("target_commands"):
-        ctx.io.write_markup("")
+        ctx.io.output_markup("")
         _render_target(ctx, cmd_w)
 
     # Footer: teach the two other modes. Single dim line, always emitted.
-    ctx.io.write_markup("")
-    ctx.io.write_markup(
+    ctx.io.output_markup("")
+    ctx.io.output_markup(
         f"[{_SEP}]Use {prefix}help <term> to find a command, "
         f"{prefix}search <word> for a deep search.[/]"
     )
@@ -706,12 +706,12 @@ def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
     names = list(target_cmds)
     if cmd_w is None:
         cmd_w = _compute_cmd_w(names, "")
-    ctx.io.write_markup(f"[{_SEP}]-- Target Device --[/]")
+    ctx.io.output_markup(f"[{_SEP}]-- Target Device --[/]")
     for cmd_name in sorted(names):
         tc = target_cmds[cmd_name]
         cmd_col = _pad(f"  [{_CMD}]{tc.name}[/]", cmd_w + 2)
         args_col = f" {_color_args(tc.args)}" if tc.args else ""
-        ctx.io.write_markup(f"{cmd_col}{args_col}  {tc.help}")
+        ctx.io.output_markup(f"{cmd_col}{args_col}  {tc.help}")
 
 
 def _script_description(path: Path) -> str:
@@ -739,12 +739,12 @@ def _script_description(path: Path) -> str:
 def _render_scripts(ctx: PluginContext, scripts: list, prefix: str,
                     cmd_w: int = _MAX_CMD_COL) -> None:
     """Render the scripts table with matched column width."""
-    ctx.io.write_markup(f"[{_SEP}]-- Scripts --[/]")
+    ctx.io.output_markup(f"[{_SEP}]-- Scripts --[/]")
     for path in scripts:
         name = path.stem
         desc = _script_description(path)
         cmd_col = _pad(f"  [{_CMD}]{prefix}run {name}[/]", cmd_w + 2)
-        ctx.io.write_markup(f"{cmd_col}  {desc}")
+        ctx.io.output_markup(f"{cmd_col}  {desc}")
 
 
 def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
@@ -807,18 +807,18 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
     for source in sorted_sources:
         label = _SOURCE_LABELS.get(source, f"{source} Plugins")
         if not first:
-            ctx.io.write_markup("")
+            ctx.io.output_markup("")
         first = False
-        ctx.io.write_markup(f"[{_SEP}]-- {label} --[/]")
+        ctx.io.output_markup(f"[{_SEP}]-- {label} --[/]")
         for cmd_name, plugin in sorted(groups[source], key=lambda x: x[0]):
-            ctx.io.write_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
             total += 1
 
     if script_only:
-        ctx.io.write_markup("")
-        ctx.io.write_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
+        ctx.io.output_markup("")
+        ctx.io.output_markup(f"[{_SEP}]-- Script Commands (.run files only) --[/]")
         for cmd_name, plugin in sorted(script_only, key=lambda x: x[0]):
-            ctx.io.write_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
+            ctx.io.output_markup(_landscape_row(prefix, cmd_name, plugin, cmd_w))
             total += 1
 
     ctx.io.result(f"{total} commands.")

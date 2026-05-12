@@ -251,13 +251,13 @@ def _render_hit(ctx: PluginContext, prefix: str, name: str, plugin,
     arg_str = f" {args_colored}" if args_colored else ""
     shown_prefix = "" if is_target else prefix
     target_tag = f"  [{_SEP}](target)[/]" if is_target else ""
-    ctx.io.write_markup(
+    ctx.io.output_markup(
         f"[{_CMD}]{shown_prefix}{header_name}[/]{arg_str} - {header_help}{target_tag}"
     )
     for label, text, span in hit_fields:
         if label in ("name", "help", "args"):
             continue
-        ctx.io.write_markup(f"  [{_SEP}]({label})[/] {_highlight(text, span)}")
+        ctx.io.output_markup(f"  [{_SEP}]({label})[/] {_highlight(text, span)}")
 
 
 # ── Handler ──────────────────────────────────────────────────────────────────

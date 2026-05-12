@@ -5,6 +5,16 @@ notifications, status bar, screen-clear.  These are the universally
 available output sinks; the TUI-strict variants of ``notify`` /
 ``status_bar`` / ``clear_screen`` live on :class:`UIHandle`.
 
+**Handler-facing API:** plugin handlers should call ``result(text)``,
+``output(text)``, or ``status(text)`` -- the three semantic channels
+that respect the ``silent``/``quiet``/``normal``/``verbose`` level
+dial.  Errors flow through ``CmdResult.fail(msg=...)`` and the
+dispatcher paints the red line.  The lower-level ``_write`` /
+``_write_markup`` primitives bypass level gating and are reserved
+for engine-internal use (dispatcher red-line prints, the silent-
+mode shim).  A CI grep guard fails the build if a builtin calls
+either of the underscored primitives directly.
+
 Self-contained dataclass: every operation is a callable field that
 the host wires at construction time.  The level-routed methods
 (``result``, ``output``, ``status``) read the current output level
@@ -43,9 +53,13 @@ class IOHandle:
     environment can't actually deliver them.
     """
 
-    # ── Plain-text output (universal) ────────────────────────────────
-    write: Callable = lambda text, color="dim": None
-    write_markup: Callable = lambda text: None
+    # ── Plain-text output (engine-internal primitives) ───────────────
+    # Underscore signals "private to engine/dispatcher use."  Handler
+    # code should not call these directly -- use ``result``/``output``/
+    # ``status`` instead.  A CI grep guard enforces this in
+    # ``src/termapy/builtins/``.
+    _write: Callable = lambda text, color="dim": None
+    _write_markup: Callable = lambda text: None
     log: Callable = lambda prefix, text: None
 
     # ── Always-works fallbacks for TUI features ──────────────────────
@@ -66,17 +80,40 @@ class IOHandle:
         )
         return rank >= min_rank
 
+    # Plain-text channels.  Use these for unstructured text + a single
+    # color.  The text is rendered literally (no Rich markup parsing),
+    # so it's safe for content containing ``[`` / ``]`` characters.
+
     def result(self, text: str, color: str = "green") -> None:
         """Write a command result (single-line answer).  Shown at quiet+."""
         if self._shows(RESULT_MIN_RANK):
-            self.write(text, color)
+            self._write(text, color)
 
     def output(self, text: str, color: str = "dim") -> None:
         """Write data output (listings, dumps, file contents).  Shown at normal+."""
         if self._shows(OUTPUT_MIN_RANK):
-            self.write(text, color)
+            self._write(text, color)
 
     def status(self, text: str) -> None:
         """Write a status/progress message.  Shown only at verbose."""
         if self._shows(STATUS_MIN_RANK):
-            self.write(text, "dim")
+            self._write(text, "dim")
+
+    # Markup channels.  Use these when ``text`` contains Rich markup
+    # tags like ``[red]error[/]`` that should be parsed and rendered.
+    # Same level gating as the plain-text channels.
+
+    def result_markup(self, text: str) -> None:
+        """Write a markup-formatted command result.  Shown at quiet+."""
+        if self._shows(RESULT_MIN_RANK):
+            self._write_markup(text)
+
+    def output_markup(self, text: str) -> None:
+        """Write markup-formatted data output.  Shown at normal+."""
+        if self._shows(OUTPUT_MIN_RANK):
+            self._write_markup(text)
+
+    def status_markup(self, text: str) -> None:
+        """Write a markup-formatted status message.  Shown only at verbose."""
+        if self._shows(STATUS_MIN_RANK):
+            self._write_markup(text)

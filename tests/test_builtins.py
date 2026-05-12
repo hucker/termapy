@@ -57,7 +57,7 @@ def repl_env(tmp_path, monkeypatch):
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
-        io=IOHandle(write=write, write_markup=write_markup),
+        io=IOHandle(_write=write, _write_markup=write_markup),
         # Test fixture publishes every capability so command-by-command
         # tests can exercise any handler.  Specific capability-gate tests
         # use their own restricted ctx (see test_engine.TestDispatchCapabilities).
@@ -135,12 +135,16 @@ class TestPrint:
     def test_print_text(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("print Hello, world!")
-        assert ("Hello, world!", None) in output, "text printed verbatim"
+        # Post-cleanup /print routes through ctx.io.output which passes
+        # color="dim" by default (the OUTPUT channel's design color).
+        actual_texts = [text for text, _ in output]
+        assert "Hello, world!" in actual_texts, "text printed verbatim"
 
     def test_print_empty(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("print")
-        assert ("", None) in output, "empty string printed"
+        actual_texts = [text for text, _ in output]
+        assert "" in actual_texts, "empty string printed"
 
 
 # -- /seq -----------------------------------------------------------------

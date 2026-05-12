@@ -56,7 +56,7 @@ def ctx_with_registry():
         reg.remove_calls += 1
 
     ctx = PluginContext(
-        io=IOHandle(write=lambda *a, **k: None),
+        io=IOHandle(_write=lambda *a, **k: None),
         serial=SerialHandle(
             _add_rx_observer=add_rx,
             _remove_rx_observer=remove_rx,
@@ -197,7 +197,7 @@ class TestObserverApiNotPublic:
 
     def test_no_public_add_rx_observer(self):
         # Arrange / Act
-        ctx = PluginContext(io=IOHandle(write=lambda *a, **k: None))
+        ctx = PluginContext(io=IOHandle(_write=lambda *a, **k: None))
 
         # Assert -- the public-named callback is not on SerialHandle.
         assert not hasattr(ctx.serial, "add_rx_observer"), (
@@ -210,7 +210,7 @@ class TestObserverApiNotPublic:
 
     def test_no_public_add_tx_observer(self):
         # Arrange / Act
-        ctx = PluginContext(io=IOHandle(write=lambda *a, **k: None))
+        ctx = PluginContext(io=IOHandle(_write=lambda *a, **k: None))
 
         # Assert
         assert not hasattr(ctx.serial, "add_tx_observer"), (
@@ -224,7 +224,7 @@ class TestObserverApiNotPublic:
     def test_underscore_versions_exist_for_internal_use(self):
         # Arrange / Act -- the context managers need to reach the engine
         # somehow; the underscore fields are how.
-        ctx = PluginContext(io=IOHandle(write=lambda *a, **k: None))
+        ctx = PluginContext(io=IOHandle(_write=lambda *a, **k: None))
 
         # Assert
         assert hasattr(ctx.serial, "_add_rx_observer"), "private hook exists"

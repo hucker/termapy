@@ -262,7 +262,7 @@ class TerminalHost:
 
         Subclasses should call ``super()._build_plugin_context(api)`` then
         replace any frontend-specific fields on the appropriate handle
-        (``ctx.io.write = self._status``, etc.) before calling
+        (``ctx.io._write = self._status``, etc.) before calling
         ``repl.set_context()``.
         """
         from termapy.plugins.handles.fs import FilesystemHandle
@@ -271,8 +271,8 @@ class TerminalHost:
         from termapy.plugins.handles.ui import UIHandle
 
         io = IOHandle(
-            write=self.status,
-            write_markup=self.write_markup,
+            _write=self.status,
+            _write_markup=self.write_markup,
             log=self._log,
         )
 

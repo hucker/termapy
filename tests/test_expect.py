@@ -43,7 +43,7 @@ def env(tmp_path):
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
-        io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+        io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
         serial=SerialHandle(is_connected=lambda: True),
         wait_for_match=eng.wait_for_match,
     )
@@ -71,7 +71,7 @@ class TestCapabilityGate:
         ctx = PluginContext(
             cfg=cfg,
             config_path=str(config_path),
-            io=IOHandle(write=lambda t, c=None: None),
+            io=IOHandle(_write=lambda t, c=None: None),
             serial=SerialHandle(is_connected=lambda: True),
         )
         ctx.capabilities = CapabilitySet()  # NO block_until

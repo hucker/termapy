@@ -132,7 +132,7 @@ def _make_list_handler(get_dir, pattern):
             return CmdResult.ok()
         ctx.io.output("  Available file(s):")
         for f in files:
-            ctx.io.write(f"    {f.name}")
+            ctx.io.output(f"    {f.name}")
         return CmdResult.ok()
     return handler
 

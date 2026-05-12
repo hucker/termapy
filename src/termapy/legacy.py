@@ -71,7 +71,7 @@ def make_forwarder(old_name: str, new_name: str) -> Callable:
         if old_name not in warned:
             warned[old_name] = True
             p = ctx.engine.prefix
-            ctx.io.write(
+            ctx.io._write(
                 f"  Note: {p}{old_name} is legacy; use {p}{new_name}.",
                 "yellow",
             )

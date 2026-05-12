@@ -51,8 +51,8 @@ def engine(tmp_path):
         config_path=str(config_path),
         engine=engine_api,
         io=IOHandle(
-            write=lambda t, c=None: output.append((t, c)),
-            write_markup=lambda t: output.append((t, None)),
+            _write=lambda t, c=None: output.append((t, c)),
+            _write_markup=lambda t: output.append((t, None)),
         ),
     )
     eng.set_context(ctx)

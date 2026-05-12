@@ -18,7 +18,7 @@ Phase 3 deliverable.  When ``termapy --mcp [config]`` runs:
 - ``--mcp-verbose`` mirrors log events to stderr in real time for
   dev observability.  Stderr is safe; only stdout is wire-sacred.
 - A per-call output buffer (contextvars.ContextVar) collects every
-  ``ctx.io.write`` / ``ctx.io.write_markup`` invocation so ``run_command``
+  ``ctx.io._write`` / ``ctx.io._write_markup`` invocation so ``run_command``
   can ship them back as ``output_lines`` in the response.
 - An asyncio lock serializes all ``run_command`` invocations.  The
   REPL engine is single-threaded by design; SerialEngine has one
@@ -999,11 +999,13 @@ async def _run_command_async(
         token = _buffer.set([])
         cap_before = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
         line = command.strip()
-        # Append --<level> flag so the engine's universal level pre-pass
-        # routes the call at the desired loudness.  "normal" is the
-        # default; skip the suffix to avoid pointless flag-parsing.
-        if level != "normal":
-            line = f"{line} --{level}"
+        # Output-level routing: set ctx._call_level directly for the
+        # duration of this dispatch.  Earlier this path appended a
+        # ``--<level>`` flag to ``line`` -- but for bare device commands
+        # the engine's level pre-pass only fires in ``dispatch()`` (the
+        # prefix path), so the flag leaked through ``_term_send_or_request``
+        # to the serial wire.  Keep level metadata-only: set it on the
+        # PluginContext slot, never touches command_text.
 
         try:
             # Run the (synchronous) dispatch in a thread so we can apply
@@ -1017,26 +1019,35 @@ async def _run_command_async(
 
             def _run_sync() -> CmdResult:
                 self._log_line(f"$ {command}  ({level})")
-                # Profile-aware path: bare device commands that match a
-                # loaded profile entry get sent + parsed per the
-                # response schema, returning a typed value.  Returns
-                # None for slash commands, unmapped bare lines, or no
-                # active profile -- fall through to dispatch_full's
-                # literal-write behavior.
-                profiled = _dispatch_via_profile(self, line, confirm=confirm)
-                if profiled is not None:
-                    return profiled
-                # Use dispatch_full so /raw bypass + directive layer
-                # + the /term.send fallthrough all behave normally.
-                return self.repl.dispatch_full(
-                    line,
-                    log=self._log,
-                    echo_markup=self.write_markup,
-                    status=self.status,
-                    serial_write=self._serial_write,
-                    serial_write_raw=self._serial_write_raw,
-                    is_connected=lambda: self.engine.is_connected,
-                )
+                # Apply the per-call output level via ctx slot (replaces
+                # the old --<level> text append).  Save/restore matches
+                # the pattern in ReplEngine.dispatch.
+                saved_call_level = self.ctx._call_level
+                if level != "normal":
+                    self.ctx._call_level = level
+                try:
+                    # Profile-aware path: bare device commands that
+                    # match a loaded profile entry get sent + parsed
+                    # per the response schema, returning a typed value.
+                    # Returns None for slash commands, unmapped bare
+                    # lines, or no active profile -- fall through to
+                    # dispatch_full's literal-write behavior.
+                    profiled = _dispatch_via_profile(self, line, confirm=confirm)
+                    if profiled is not None:
+                        return profiled
+                    # Use dispatch_full so /raw bypass + directive layer
+                    # + the /term.send fallthrough all behave normally.
+                    return self.repl.dispatch_full(
+                        line,
+                        log=self._log,
+                        echo_markup=self.write_markup,
+                        status=self.status,
+                        serial_write=self._serial_write,
+                        serial_write_raw=self._serial_write_raw,
+                        is_connected=lambda: self.engine.is_connected,
+                    )
+                finally:
+                    self.ctx._call_level = saved_call_level
 
             ctx_snapshot = contextvars.copy_context()
             with ThreadPoolExecutor(max_workers=1) as ex:

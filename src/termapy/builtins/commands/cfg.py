@@ -104,7 +104,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok()
     for f in files:
         marker = " *" if str(f) == ctx.config_path else ""
-        ctx.io.write(f"  {f.parent.name}/{f.name}{marker}")
+        ctx.io.output(f"  {f.parent.name}/{f.name}{marker}")
     return CmdResult.ok()
 
 
@@ -305,7 +305,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         global_names = _names(global_plugins_dir(), "*.py")
         colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
 
-        ctx.io.write_markup(colored_tree)
+        ctx.io.output_markup(colored_tree)
 
         # Build markdown report
         cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}

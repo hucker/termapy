@@ -10,7 +10,7 @@ from termapy.plugins import Command
 
 def _handler(ctx, args):
     fmt = "%Y-%m-%d %H:%M:%S"
-    ctx.write(f"{datetime.now().strftime(fmt)}", "green")
+    ctx.io.output(f"{datetime.now().strftime(fmt)}", "green")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

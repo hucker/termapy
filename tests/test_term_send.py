@@ -48,7 +48,7 @@ def env(tmp_path):
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
-        io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+        io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
         serial=SerialHandle(
             is_connected=lambda: True,
             write=lambda data: serial_writes.append(data),
@@ -141,7 +141,7 @@ class TestTermSendErrors:
         ctx2 = PluginContext(
             cfg=cfg,
             config_path=str(config_path),
-            io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
             serial=SerialHandle(
                 is_connected=lambda: False,
                 write=lambda data: writes.append(data),

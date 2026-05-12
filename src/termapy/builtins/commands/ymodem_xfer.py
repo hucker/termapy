@@ -39,7 +39,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         paths.append(str(path))
 
     total_size = sum(Path(p).stat().st_size for p in paths)
-    ctx.io.write(f"  YMODEM send: {len(paths)} file(s), {total_size} bytes -- Esc to cancel")
+    ctx.io.output(f"  YMODEM send: {len(paths)} file(s), {total_size} bytes -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:
@@ -92,7 +92,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     if not out_dir.is_dir():
         return CmdResult.fail(msg=f"Directory not found: {out_dir}")
 
-    ctx.io.write(f"  YMODEM recv: waiting for data -> {out_dir} -- Esc to cancel")
+    ctx.io.output(f"  YMODEM recv: waiting for data -> {out_dir} -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:

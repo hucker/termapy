@@ -90,7 +90,7 @@ def _auto_load(ctx: PluginContext):
     except OSError:
         return None
     _set_map(ctx, mf)
-    ctx.write(f"Auto-loaded {len(mf)} symbols from {resolved.name}", "dim")
+    ctx.io.output(f"Auto-loaded {len(mf)} symbols from {resolved.name}", "dim")
     return mf
 
 
@@ -127,7 +127,7 @@ def _check_reload(ctx: PluginContext):
     except OSError:
         return
     _set_map(ctx, new_mf)
-    ctx.write(f"Reloaded {len(new_mf)} symbols (file changed)", "dim")
+    ctx.io.output(f"Reloaded {len(new_mf)} symbols (file changed)", "dim")
 
 
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
@@ -137,11 +137,11 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     arg = args.strip()
     if not arg:
         prefix = ctx.engine.prefix
-        ctx.write(f"Usage: {prefix}map 0xFFFF | {prefix}map.search main")
-        ctx.write(f"  {prefix}map.path <path>   -- set map file (remembered)")
-        ctx.write(f"  {prefix}map.load {{path}}  -- load/reload map file")
+        ctx.io.output(f"Usage: {prefix}map 0xFFFF | {prefix}map.search main")
+        ctx.io.output(f"  {prefix}map.path <path>   -- set map file (remembered)")
+        ctx.io.output(f"  {prefix}map.load {{path}}  -- load/reload map file")
         resolved = _resolve_map_path(ctx)
-        ctx.write(f"  Current: {resolved or '(none)'}")
+        ctx.io.output(f"  Current: {resolved or '(none)'}")
         return CmdResult.ok()
 
     _check_reload(ctx)
@@ -149,17 +149,17 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     if mf is None:
         mf = _auto_load(ctx)
     if mf is None:
-        ctx.write("No map file loaded. Use /map.load <path>", "yellow")
+        ctx.io.output("No map file loaded. Use /map.load <path>", "yellow")
         return CmdResult.fail(msg="No map file loaded")
 
     addr = pic_map.parse_address(arg)
     if addr is not None:
         sym = mf.lookup(addr)
         if sym is None:
-            ctx.write(f"0x{addr:08X}  -- no symbol found", "yellow")
+            ctx.io.output(f"0x{addr:08X}  -- no symbol found", "yellow")
             return CmdResult.ok()
         text = pic_map.format_symbol(sym, addr)
-        ctx.write(f"  {text}")
+        ctx.io.output(f"  {text}")
         return CmdResult.ok(value=sym.name)
 
     # Not an address -- treat as a name search.
@@ -167,14 +167,14 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     exact = [s for s in mf.symbols if s.name == arg]
     if exact:
         for sym in exact:
-            ctx.write(f"  {pic_map.format_symbol(sym)}")
+            ctx.io.output(f"  {pic_map.format_symbol(sym)}")
         return CmdResult.ok(value=exact[0].name)
     matches = mf.search(arg)
     if not matches:
-        ctx.write(f"No symbol matching '{arg}'", "yellow")
+        ctx.io.output(f"No symbol matching '{arg}'", "yellow")
         return CmdResult.ok()
     for sym in matches:
-        ctx.write(f"  {pic_map.format_symbol(sym)}")
+        ctx.io.output(f"  {pic_map.format_symbol(sym)}")
     return CmdResult.ok(value=matches[0].name)
 
 
@@ -209,7 +209,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     stats = mf.stats()
     total = len(mf)
     parts = [f"{v} {k}" for k, v in sorted(stats.items())]
-    ctx.write(f"Loaded {total} symbols ({', '.join(parts)})", "green")
+    ctx.io.output(f"Loaded {total} symbols ({', '.join(parts)})", "green")
     return CmdResult.ok(value=str(total))
 
 
@@ -224,9 +224,9 @@ def _handler_path(ctx: PluginContext, args: str) -> CmdResult:
         if saved:
             exists = Path(saved).exists()
             status = "" if exists else " (file not found)"
-            ctx.write(f"  {saved}{status}")
+            ctx.io.output(f"  {saved}{status}")
         else:
-            ctx.write("  No map path configured. Use /map.path <path>")
+            ctx.io.output("  No map path configured. Use /map.path <path>")
         return CmdResult.ok(value=saved)
 
     # Set path
@@ -247,7 +247,7 @@ def _handler_path(ctx: PluginContext, args: str) -> CmdResult:
     except OSError as e:
         return CmdResult.fail(msg=f"Path saved but cannot read: {e}")
     _set_map(ctx, mf)
-    ctx.write(f"Map path saved. Loaded {len(mf)} symbols from {resolved.name}", "green")
+    ctx.io.output(f"Map path saved. Loaded {len(mf)} symbols from {resolved.name}", "green")
     return CmdResult.ok()
 
 
@@ -257,17 +257,17 @@ def _handler_path_clear(ctx: PluginContext, args: str) -> CmdResult:
     pcfg.pop("map_path", None)
     pcfg.save()
     _set_map(ctx, None)
-    ctx.write("Map path cleared.", "green")
+    ctx.io.output("Map path cleared.", "green")
     return CmdResult.ok()
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
     """Unload the current map file."""
     if _get_map(ctx) is None:
-        ctx.write("No map file loaded.", "yellow")
+        ctx.io.output("No map file loaded.", "yellow")
         return CmdResult.ok()
     _set_map(ctx, None)
-    ctx.write("Map file unloaded.", "green")
+    ctx.io.output("Map file unloaded.", "green")
     return CmdResult.ok()
 
 
@@ -277,7 +277,7 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
 
     pattern = args.strip()
     if not pattern:
-        ctx.write("Usage: /map.search <pattern>", "yellow")
+        ctx.io.output("Usage: /map.search <pattern>", "yellow")
         return CmdResult.fail(msg="No pattern given")
 
     _check_reload(ctx)
@@ -285,23 +285,23 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
     if mf is None:
         mf = _auto_load(ctx)
     if mf is None:
-        ctx.write("No map file loaded. Use /map.load <path>", "yellow")
+        ctx.io.output("No map file loaded. Use /map.load <path>", "yellow")
         return CmdResult.fail(msg="No map file loaded")
 
     # Exact match takes priority over substring hits
     exact = [s for s in mf.symbols if s.name == pattern]
     if exact:
         for sym in exact:
-            ctx.write(f"  {pic_map.format_symbol(sym)}")
+            ctx.io.output(f"  {pic_map.format_symbol(sym)}")
         return CmdResult.ok(value=exact[0].name)
 
     matches = mf.search(pattern)
     if not matches:
-        ctx.write(f"No symbols matching '{pattern}'", "yellow")
+        ctx.io.output(f"No symbols matching '{pattern}'", "yellow")
         return CmdResult.ok()
 
     for sym in matches:
-        ctx.write(f"  {pic_map.format_symbol(sym)}")
+        ctx.io.output(f"  {pic_map.format_symbol(sym)}")
     return CmdResult.ok(value=matches[0].name)
 
 
@@ -312,12 +312,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     if mf is None:
         mf = _auto_load(ctx)
     if mf is None:
-        ctx.write("No map file loaded.", "yellow")
+        ctx.io.output("No map file loaded.", "yellow")
         return CmdResult.ok()
 
     w = 10
-    ctx.write(f"  {'File':>{w}}: {mf.path or '(unknown)'}")
-    ctx.write(f"  {'Symbols':>{w}}: {len(mf)}")
+    ctx.io.output(f"  {'File':>{w}}: {mf.path or '(unknown)'}")
+    ctx.io.output(f"  {'Symbols':>{w}}: {len(mf)}")
     stats = mf.stats()
     label = {
         "text": "code",
@@ -329,11 +329,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     for section in ("text", "rodata", "data", "bss", "global"):
         count = stats.get(section, 0)
         if count:
-            ctx.write(f"  {label.get(section, section):>{w}}: {count}")
+            ctx.io.output(f"  {label.get(section, section):>{w}}: {count}")
     if mf.symbols:
         first = mf.symbols[0]
         last = mf.symbols[-1]
-        ctx.write(f"  {'Range':>{w}}: 0x{first.addr:08X} - 0x{last.end:08X}")
+        ctx.io.output(f"  {'Range':>{w}}: 0x{first.addr:08X} - 0x{last.end:08X}")
     return CmdResult.ok()
 
 

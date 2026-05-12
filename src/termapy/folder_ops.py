@@ -63,9 +63,9 @@ def _make_list_handler(folder: str, pattern: str):
         if not files:
             ctx.io.output(f"  {folder}/ (empty)")
             return CmdResult.ok()
-        ctx.io.write(f"  {folder}/")
+        ctx.io._write(f"  {folder}/")
         for fname in files:
-            ctx.io.write(f"    {fname}")
+            ctx.io._write(f"    {fname}")
         return CmdResult.ok()
 
     return handler
@@ -102,7 +102,7 @@ def _make_show_handler(folder: str, pattern: str):
             ctx.io.output(f"  {folder}/ is empty.")
             return CmdResult.ok()
         newest = max(files, key=lambda f: f.stat().st_mtime)
-        ctx.io.write(f"Opening {newest.name}")
+        ctx.io._write(f"Opening {newest.name}")
         open_with_system(str(newest))
         return CmdResult.ok()
 
@@ -162,7 +162,7 @@ def _make_clear_handler(folder: str, pattern: str):
             return CmdResult.ok()
         for f in files:
             f.unlink()
-        ctx.io.write(f"  Deleted {len(files)} file(s) from {folder}/.")
+        ctx.io._write(f"  Deleted {len(files)} file(s) from {folder}/.")
         return CmdResult.ok()
 
     return handler

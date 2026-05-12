@@ -17,8 +17,8 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
     """Output messages and apply side effects from a port_control function.
 
     Lines that carry Rich markup (detected by the close tag ``[/]``)
-    route through ``ctx.io.write_markup`` so embedded colors render.
-    Other lines keep the legacy ``(text, color)`` write path.  This
+    route through ``ctx.io.output_markup`` so embedded colors render.
+    Other lines keep the ``(text, color)`` ``ctx.io.output`` path.  This
     lets info-style commands use the shared ``format_kv_lines()``
     helper alongside older message-bearing functions in the same
     Result without breaking either.
@@ -26,11 +26,11 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
     msgs, effects = result
     for text, color in msgs:
         if "[/]" in text:
-            ctx.io.write_markup(text)
+            ctx.io.output_markup(text)
         elif color:
-            ctx.io.write(text, color)
+            ctx.io.output(text, color)
         else:
-            ctx.io.write(text)
+            ctx.io.output(text)
     if effects:
         ctx.engine.apply_port_effects(effects)
 
@@ -65,7 +65,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
     if err:
-        ctx.io.write(err, "red")
+        ctx.io.output(err, "red")
         return CmdResult.fail(msg=err)
     # Apply all optional settings to config before connecting so the
     # port opens with the requested settings.  Each branch is a no-op
@@ -168,7 +168,7 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
     rows.sort(key=lambda row: (row[0], row[1]))
 
     if not rows:
-        ctx.io.write(f"No chips match '{args.strip()}'.", "yellow")
+        ctx.io.output(f"No chips match '{args.strip()}'.", "yellow")
         return CmdResult.ok(value="Count=0")
 
     # Compute column widths from actual data so nothing truncates.
@@ -179,15 +179,15 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
         f"{'VID:PID':9}  {'CHIP MODEL':{model_w}}  "
         f"{'SPEED':5}  {'MAX BAUD':>{baud_w}}"
     )
-    ctx.io.write(header)
-    ctx.io.write("-" * len(header))
+    ctx.io.output(header)
+    ctx.io.output("-" * len(header))
     for vid, pid, info in rows:
-        ctx.io.write(
+        ctx.io.output(
             f"{vid:04X}:{pid:04X}  {info.model:{model_w}}  "
             f"{info.speed:5}  {info.max_baud:>{baud_w},}"
         )
     count_line = f"Count={len(rows)}"
-    ctx.io.write(count_line, "dim")
+    ctx.io.output(count_line, "dim")
     return CmdResult.ok(value=count_line)
 
 

@@ -160,11 +160,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
                if profile_disabled else " (all enabled)"),
         ))
     for line in format_kv_lines(rows):
-        ctx.io.write_markup(line)
+        ctx.io.output_markup(line)
     # Discoverability hint: many users will reach for /mcp.info first when
     # learning the MCP surface; point them at the human-readable view.
     prefix = ctx.engine.prefix
-    ctx.io.write_markup(
+    ctx.io.output_markup(
         f"  [dim](Use {prefix}help --mcp for the human-readable command "
         f"list, {prefix}mcp.catalog for raw JSON.)[/]"
     )
@@ -213,7 +213,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
             )
         )
     open_with_system(str(path))
-    ctx.io.write(f"  Opening {path.name}", "green")
+    ctx.io.output(f"  Opening {path.name}", "green")
     return CmdResult.ok(value=str(path))
 
 
@@ -267,7 +267,7 @@ def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
     """
     path = _mcp_log_path(ctx)
     marker = "" if path.exists() else "  (not yet created)"
-    ctx.io.write(f"{path}{marker}")
+    ctx.io.output(f"{path}{marker}")
     return CmdResult.ok(value=str(path))
 
 

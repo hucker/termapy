@@ -535,15 +535,18 @@ class TestStaleArchival:
         _reply_after_send(host, ["OK"])
         # Act
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
-        # Assert
+        # Assert -- pre_send_drain archives stale recent-lines into the
+        # async_events stream, which run_command_async delivers in the
+        # response (and clears the host buffer for next-call delivery).
         assert result["success"] is True, "command itself succeeds"
         archived = [
-            e for e in host._async_events if e.get("source") == "pre_send_drain"
+            e for e in result["async_events"]
+            if e.get("source") == "pre_send_drain"
         ]
         actual_lines = [e["line"] for e in archived]
         expected_lines = ["leftover_1", "leftover_2"]
         assert actual_lines == expected_lines, (
-            "stale recent-lines moved to async_events with pre_send_drain source"
+            "stale recent-lines delivered as async_events with pre_send_drain source"
         )
 
 

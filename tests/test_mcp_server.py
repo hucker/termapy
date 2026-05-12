@@ -368,6 +368,66 @@ class TestOutputBufferLevels:
             assert isinstance(entry["text"], str), "text is str"
 
 
+# ── Async events delivery (push model) ──────────────────────────────────────
+
+
+class TestAsyncEventsDelivery:
+    """``async_events`` is included in every run_command response and
+    delivered exactly once -- after attaching, the host's buffer is
+    cleared so the next response starts empty.  ``device_state.json``
+    keeps the cumulative view for callers who need history."""
+
+    def test_async_events_field_always_present(self, host):
+        # Arrange / Act -- no async events recorded.
+        result = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
+        # Assert
+        assert "async_events" in result, "async_events field present"
+        assert result["async_events"] == [], "empty list when no async events"
+
+    def test_async_events_field_present_in_self_describing_response(self, host):
+        # Arrange -- record an async event; dispatch a /term.request-style
+        # command that returns a self-describing envelope (the run_command
+        # outer wrap collapses to {value, output_lines, captured_artifacts,
+        # async_events}).
+        host._record_async_event("orphan_line", source="between_calls")
+        # Act -- the catalog command doesn't matter; we just need ANY
+        # call to trigger delivery.  /help is the safest no-side-effects.
+        result = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
+        # Assert
+        assert "async_events" in result, (
+            "async_events present in any run_command shape"
+        )
+
+    def test_pending_event_delivered_on_next_call(self, host):
+        # Arrange -- record an async event between calls.
+        host._record_async_event("<START-UP>", source="between_calls")
+        host._record_async_event("  banner line", source="between_calls")
+        # Act
+        result = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
+        # Assert -- async events are dicts with ``line``/``source``/``at``.
+        actual_lines = [e["line"] for e in result["async_events"]]
+        expected_lines = ["<START-UP>", "  banner line"]
+        assert actual_lines == expected_lines, (
+            "pending async events delivered in next response"
+        )
+
+    def test_async_events_cleared_after_delivery(self, host):
+        # Arrange -- record an event, dispatch once to consume it.
+        host._record_async_event("first_event", source="between_calls")
+        first = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
+        # Act -- second call WITHOUT recording anything new.
+        second = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
+        # Assert -- deliver-exactly-once: first call carried the event,
+        # second call sees an empty list.
+        first_lines = [e["line"] for e in first["async_events"]]
+        assert first_lines == ["first_event"], (
+            "first call carries the recorded event"
+        )
+        assert second["async_events"] == [], (
+            "second call's async_events is empty (deliver-exactly-once)"
+        )
+
+
 # ── Catalog parity (resource vs /mcp.catalog REPL) ──────────────────────────
 
 

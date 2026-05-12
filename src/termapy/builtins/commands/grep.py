@@ -57,17 +57,17 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         if rx.search(line) and not _is_grep_noise(line)
     ]
     if not matches:
-        ctx.io._write(f"  grep: '{pattern}' - no matches")
+        ctx.io.output(f"  grep: '{pattern}' - no matches")
         return CmdResult.ok(value="0")
     total = len(matches)
     shown = matches[:max_matches]
     if total > max_matches:
-        ctx.io._write(f"  grep: '{pattern}' - showing first {max_matches} of {total} matches")
+        ctx.io.output(f"  grep: '{pattern}' - showing first {max_matches} of {total} matches")
     else:
-        ctx.io._write(f"  grep: '{pattern}' - {total} match(es)")
+        ctx.io.output(f"  grep: '{pattern}' - {total} match(es)")
     for lineno, line in shown:
         clean = _ANSI_RE.sub("", line)
-        ctx.io._write(f"  grep: {lineno:>5} | {clean}")
+        ctx.io.output(f"  grep: {lineno:>5} | {clean}")
     return CmdResult.ok(value=str(total))
 
 

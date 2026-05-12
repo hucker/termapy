@@ -67,19 +67,19 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
                        if fnmatch.fnmatch(k, pattern)}
             if matches:
                 for k in sorted(matches):
-                    ctx.io._write(f"  {k}={matches[k]}")
+                    ctx.io.output(f"  {k}={matches[k]}")
             else:
                 return CmdResult.fail(msg=f"No variables matching: {pattern}")
             return CmdResult.ok()
         val = _ENV.get(pattern)
         if val is not None:
-            ctx.io._write(f"  {pattern}={val}")
+            ctx.io.output(f"  {pattern}={val}")
             return CmdResult.ok(value=val)
         else:
             return CmdResult.fail(msg=f"Environment variable not set: {pattern}")
-    ctx.io._write(f"Environment snapshot ({len(_ENV)} vars):")
+    ctx.io.output(f"Environment snapshot ({len(_ENV)} vars):")
     for k in sorted(_ENV):
-        ctx.io._write(f"  {k}={_ENV[k]}")
+        ctx.io.output(f"  {k}={_ENV[k]}")
     return CmdResult.ok()
 
 
@@ -100,7 +100,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Usage: /env.set <name> <value>")
     name, value = parts
     _ENV[name] = value
-    ctx.io._write(f"  {name}={value}", "green")
+    ctx.io.output(f"  {name}={value}", "green")
     return CmdResult.ok()
 
 
@@ -117,7 +117,7 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
     """
     _ENV.clear()
     _ENV.update(os.environ)
-    ctx.io._write(f"Environment reloaded ({len(_ENV)} vars).", "green")
+    ctx.io.output(f"Environment reloaded ({len(_ENV)} vars).", "green")
     return CmdResult.ok()
 
 

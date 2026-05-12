@@ -24,8 +24,17 @@ from termapy.repl import ReplEngine
 
 
 @pytest.fixture
-def repl_env(tmp_path):
-    """A ReplEngine wired enough for /term.request + bare-command dispatch."""
+def repl_env(tmp_path, monkeypatch):
+    """A ReplEngine wired enough for /term.request + bare-command dispatch.
+
+    Resets launch_vars so FRONT_END from prior MCP-host tests doesn't
+    bleed in and trigger the MCP-mode write_markup gate in
+    _exec_request_mode.
+    """
+    from termapy.builtins.commands import var as _var_mod
+    monkeypatch.setattr(_var_mod, "_LAUNCH_VARS", dict(_var_mod._LAUNCH_VARS))
+    _var_mod._LAUNCH_VARS.pop("FRONT_END", None)
+
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
@@ -168,7 +177,8 @@ class TestExecRequestMode:
         # Act
         result = engine._exec_request_mode("get_voltage")
 
-        # Assert -- write happened with line ending; envelope correct
+        # Assert -- one envelope is the canonical shape; same content
+        # in CmdResult.value AND rendered to write_markup
         assert fake.writes == [b"get_voltage\r"], "command + line ending sent"
         assert fake.claimed is True, "serial port claimed (suppresses display)"
         assert fake.released is True, "serial port released after"
@@ -189,8 +199,7 @@ class TestExecRequestMode:
         engine._exec_request_mode("AT+VER")
 
         # Assert -- two markup lines: request envelope, then response.
-        # Both parse as JSON.  Request envelope is exactly {cmd}; the
-        # response envelope adds success/error/elapsed_s/result.
+        # Both parse as JSON.  Same envelope shape is also in CmdResult.value.
         assert len(markup) == 2, "request + response envelopes emitted"
         request_envelope = json.loads(markup[0])
         response_envelope = json.loads(markup[1])
@@ -230,7 +239,7 @@ class TestExecRequestMode:
         # Act
         result = engine._exec_request_mode("noisy_silence")
 
-        # Assert -- envelope still emitted; success=True (send happened); result=""
+        # Assert -- envelope still emitted; success=True; result=""
         envelope = result.value
         assert envelope["success"] is True, "send succeeded; no exception"
         assert envelope["result"] == "", "empty bytes -> empty result"
@@ -247,7 +256,8 @@ class TestExecRequestMode:
         result = engine._exec_request_mode("name?")
 
         # Assert
-        assert result.value["result"] == "café", "latin-1 decoded correctly"
+        envelope = result.value
+        assert envelope["result"] == "café", "latin-1 decoded correctly"
 
     def test_strip_trims_whitespace_in_result(self, repl_env):
         # Arrange -- response has leading/trailing whitespace + line endings
@@ -259,7 +269,272 @@ class TestExecRequestMode:
         result = engine._exec_request_mode("get_voltage")
 
         # Assert -- whitespace trimmed
-        assert result.value["result"] == "5.5", "result stripped"
+        envelope = result.value
+        assert envelope["result"] == "5.5", "result stripped"
+
+
+class TestDeviceErrorDetection:
+    """request_err_pattern detects device-side error responses."""
+
+    def test_default_pattern_matches_err_prefix(self, repl_env):
+        # Arrange
+        engine, ctx, cfg, _, markup = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        fake = _FakeSerial(response=b"ERR: unknown command: foo")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("foo")
+
+        # Assert -- CmdResult.fail with device error promoted to envelope
+        assert result.success is False, "device error -> CmdResult.fail"
+        envelope = result.value
+        assert envelope["success"] is False, "envelope success=False"
+        assert envelope["error"] == "ERR: unknown command: foo", \
+            "envelope error is device text"
+        assert envelope["result"] == "", \
+            "envelope result empty (text moved to error)"
+
+    def test_default_pattern_matches_error_prefix(self, repl_env):
+        # Arrange
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        fake = _FakeSerial(response=b"ERROR: timeout")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("ping")
+
+        # Assert
+        assert result.success is False, "ERROR prefix detected"
+        assert "timeout" in result.error, "error message captured"
+
+    def test_default_pattern_matches_fault_prefix(self, repl_env):
+        # Arrange
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        fake = _FakeSerial(response=b"FAULT 17: overcurrent")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("status")
+
+        # Assert
+        assert result.success is False, "FAULT prefix detected"
+
+    def test_default_pattern_case_insensitive(self, repl_env):
+        # Arrange -- lowercase also matches
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        fake = _FakeSerial(response=b"err: lowercase too")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("test")
+
+        # Assert
+        assert result.success is False, "case-insensitive match"
+
+    def test_ok_response_not_flagged(self, repl_env):
+        # Arrange -- normal response shouldn't trip the pattern
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        fake = _FakeSerial(response=b"OK\r\nresult: 42")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("ping")
+
+        # Assert
+        assert result.success is True, "OK response is not an error"
+        envelope = result.value
+        assert "OK" in envelope["result"], "response captured normally"
+
+    def test_word_boundary_avoids_false_positives(self, repl_env):
+        # Arrange -- a response starting with "ERRATIC" shouldn't trip
+        # the "ERR" alternative (word boundary required).
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        fake = _FakeSerial(response=b"ERRATIC behavior reported")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("diag")
+
+        # Assert -- not flagged as error (ERRATIC != ERR + word boundary)
+        assert result.success is True, "word boundary prevents false positive"
+
+    def test_empty_pattern_disables_detection(self, repl_env):
+        # Arrange -- even an ERR-prefixed response is treated as normal
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = ""
+        fake = _FakeSerial(response=b"ERR: foo")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("bar")
+
+        # Assert -- detection disabled; treated as normal text response
+        assert result.success is True, "empty pattern disables detection"
+        envelope = result.value
+        assert envelope["result"] == "ERR: foo", "treated as text"
+        assert envelope["error"] == "", "no error claimed"
+
+    def test_custom_pattern_override(self, repl_env):
+        # Arrange -- user provided a different error convention
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"^FAILED"
+        fake = _FakeSerial(response=b"FAILED: bad")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("test")
+
+        # Assert
+        assert result.success is False, "custom pattern matches FAILED"
+        envelope = result.value
+        assert envelope["error"] == "FAILED: bad", "error captured"
+        assert envelope["result"] == "", "result empty when errored"
+
+    def test_malformed_pattern_does_not_crash(self, repl_env):
+        # Arrange -- broken regex (unclosed bracket) shouldn't crash
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"[unclosed"
+        fake = _FakeSerial(response=b"OK")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("ping")
+
+        # Assert -- treated as success (no detection) instead of crashing
+        assert result.success is True, "malformed regex falls back to success"
+        envelope = result.value
+        assert envelope["result"] == "OK"
+
+    def test_device_error_display_envelope_shows_error(self, repl_env):
+        # Arrange -- check the scrollback display reflects the device error
+        engine, ctx, cfg, _, markup = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        fake = _FakeSerial(response=b"ERR: unknown command")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        engine._exec_request_mode("foo")
+
+        # Assert -- TUI/CLI scrollback envelope shows success=false,
+        # error=device text, empty result (no duplication)
+        response_envelope = json.loads(markup[1])
+        assert response_envelope["success"] is False, "display success=false"
+        assert response_envelope["error"] == "ERR: unknown command", \
+            "display error is device text"
+        assert response_envelope["result"] == "", \
+            "display result empty when device errored"
+
+    def test_session_override_takes_precedence_over_cfg(self, repl_env):
+        # Arrange -- cfg has the standard default; session override is
+        # set to "" (disabled).  An ERR response should NOT be flagged.
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+        ctx.ns("flags")["request_err_pattern_override"] = ""
+        fake = _FakeSerial(response=b"ERR: foo")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("bar")
+
+        # Assert -- session override (empty -> disable) beats cfg default
+        assert result.success is True, "session override disables detection"
+        envelope = result.value
+        assert envelope["result"] == "ERR: foo", "treated as normal text"
+        assert envelope["error"] == "", "no error claimed"
+
+    def test_session_override_can_set_custom_pattern(self, repl_env):
+        # Arrange -- cfg says no detection (empty); session sets ^FAIL
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = ""
+        ctx.ns("flags")["request_err_pattern_override"] = r"^FAIL"
+        fake = _FakeSerial(response=b"FAIL: nope")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("test")
+
+        # Assert -- session override wins; FAIL prefix detected
+        assert result.success is False, "session override matches FAIL"
+        envelope = result.value
+        assert envelope["error"] == "FAIL: nope"
+        assert envelope["result"] == ""
+
+
+class TestTermRequestCommand:
+    """The ``/term.request`` REPL command -- on/off + err=<regex> arg."""
+
+    def test_off_then_on_resets_err_override(self, repl_env):
+        # Arrange -- the user-facing scenario from the design discussion:
+        # disable err detection temporarily, then re-enable with
+        # /term.request on.  Expected: the off->on cycle clears the
+        # session override so detection returns to cfg default.
+        # The user does NOT need to remember the default regex.
+        from termapy.builtins.commands.term import _handler_request
+
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+
+        # User disables detection mid-session
+        _handler_request(ctx, "err=")
+        assert ctx.ns("flags").get("request_err_pattern_override") == "", \
+            "override set to empty (disabled)"
+
+        # User toggles off then on
+        _handler_request(ctx, "off")
+        _handler_request(ctx, "on")
+
+        # Assert -- override cleared; cfg default is back in effect
+        assert "request_err_pattern_override" not in ctx.ns("flags"), \
+            "/term.request on cleared the session override"
+
+    def test_on_with_err_arg_sets_session_override(self, repl_env):
+        # Arrange
+        from termapy.builtins.commands.term import _handler_request
+
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_err_pattern"] = r"(?i)^(ERROR|ERR|FAULT)\b"
+
+        # Act
+        _handler_request(ctx, "on err=^CRITICAL")
+
+        # Assert -- mode on, override set to the user's pattern
+        assert cfg["request_mode"] is True, "request_mode enabled"
+        actual = ctx.ns("flags")["request_err_pattern_override"]
+        assert actual == "^CRITICAL", "session override set to user pattern"
+
+    def test_err_arg_alone_does_not_toggle_mode(self, repl_env):
+        # Arrange -- request_mode starts off
+        from termapy.builtins.commands.term import _handler_request
+
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["request_mode"] = False
+
+        # Act
+        _handler_request(ctx, "err=^FOO")
+
+        # Assert -- override set but mode unchanged
+        assert cfg["request_mode"] is False, \
+            "err= alone does not flip request_mode"
+        assert ctx.ns("flags")["request_err_pattern_override"] == "^FOO"
+
+    def test_unknown_token_fails(self, repl_env):
+        # Arrange
+        from termapy.builtins.commands.term import _handler_request
+
+        engine, ctx, cfg, _, _ = repl_env
+
+        # Act
+        result = _handler_request(ctx, "asdf")
+
+        # Assert
+        assert result.success is False, "unknown token rejected"
+        assert "Unknown token" in result.error
 
 
 # ── dispatch_full integration: bare line + request_mode -> envelope ────────
@@ -300,7 +575,8 @@ class TestDispatchFullRequestMode:
             is_connected=lambda: True,
         )
 
-        # Assert -- request + response envelopes rendered; response in value
+        # Assert -- same envelope is the canonical shape; rendered to
+        # write_markup AND returned in CmdResult.value.
         assert len(markup) == 2, "request + response envelopes rendered"
         request_envelope = json.loads(markup[0])
         response_envelope = json.loads(markup[1])

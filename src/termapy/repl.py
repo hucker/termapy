@@ -553,38 +553,37 @@ class ReplEngine:
         return collected
 
     def _exec_request_mode(self, command: str) -> CmdResult:
-        """Send a bare device command and emit a JSON-envelope response.
+        """Send a bare device command and return its response as JSON.
 
-        Used when ``cfg["request_mode"]`` is true.  Mirrors ``/ping``'s
-        byte-oriented pattern: claim the serial port (suppressing raw
-        terminal display), drain, send, read until the response settles,
-        decode.  Wraps the response in an envelope rendered to the
-        terminal as a single line and returned in ``CmdResult.value``::
+        Used when ``cfg["request_mode"]`` is true -- ``/term.request on``.
+        The rule is dead simple:
 
-            {"cmd": "...", "success": bool, "error": "...",
-             "elapsed_s": float, "result": "<response text>"}
+        - JSON-native device responds with JSON  → ``value`` is the
+          parsed JSON, passed through directly.
+        - Text device responds with plain text   → ``value`` is
+          ``{"result": "<stripped text>"}``.
 
-        Input is symmetric: a JSON object with a string ``cmd`` field is
-        unwrapped, so callers can send either plain text
+        That's it.  No duplicated ``cmd/success/error/elapsed_s`` --
+        those live in the outer ``CmdResult`` (and the outer MCP
+        envelope when running ``--mcp``).  ``elapsed_s`` is on
+        ``CmdResult`` itself, accessible to all callers.
+
+        Input is symmetric: a JSON object with a string ``cmd`` field
+        is unwrapped, so callers can send either plain text
         (``get_voltage``) or JSON ({"cmd":"get_voltage"}).  Malformed
-        JSON or JSON without a ``cmd`` key falls back to plain-text send
-        for graceful behavior; the only hard failure is JSON with a
-        ``cmd`` field set to a non-string or empty value.
+        JSON or JSON without a ``cmd`` key falls back to plain-text
+        send; only an explicit ``cmd`` field with a non-string/empty
+        value hard-errors.
 
         In MCP mode the profile executor runs upstream of this hook
-        (``mcp/server.py:_dispatch_via_profile``) and short-circuits for
-        profile-mapped commands.  In TUI/CLI there's no executor on this
-        path, so request_mode applies to every bare command.
+        (``mcp/server.py:_dispatch_via_profile``) and short-circuits
+        for profile-mapped commands.  In TUI/CLI there's no executor
+        on this path, so request_mode applies to every bare command.
         """
         import json as _json
         import time as _time
 
         # Symmetric input: unwrap {"cmd": "..."} into the cmd value.
-        # Graceful for non-JSON, non-dict, and dict-without-cmd inputs --
-        # they all fall through to plain-text send.  An explicit cmd
-        # field with a bad value (None / empty / non-string) is the one
-        # hard error; do not send because the user clearly meant JSON
-        # but got it wrong.
         cmd_text = command.strip()
         if cmd_text.startswith("{") and cmd_text.endswith("}"):
             try:
@@ -609,14 +608,8 @@ class ReplEngine:
                     self.ctx.io.write_markup(_json.dumps(envelope))
                     return CmdResult.fail(msg=err_msg, value=envelope)
 
-        # Symmetric request-side echo: in request_mode, the JSON
-        # conversation IS the visible state -- both directions always
-        # render, regardless of echo_input.  echo_input is a plain-text
-        # ergonomic knob; in request_mode the protocol view replaces it.
-        # Always rendered AFTER unwrap so the canonical post-unwrap form
-        # is what the user sees, not the raw input string.  dispatch_full
-        # skips its legacy plain-text echo when request_mode is on, so
-        # this is the sole echo path in that mode.
+        # Symmetric request-side echo: render the canonical post-unwrap
+        # form so TUI/CLI scrollback shows what was sent.
         self.ctx.io.write_markup(_json.dumps({"cmd": command}))
 
         encoding = self.cfg.get("encoding", "utf-8")
@@ -637,19 +630,68 @@ class ReplEngine:
             error = f"Send error: {exc}"
         elapsed = _time.perf_counter() - t0
 
+        # Detect device-side errors via the configured regex.  ``error``
+        # is already populated for send failures (caught above); only
+        # check the pattern when the send succeeded and we got text.
+        #
+        # Resolution order:
+        #   1. Session override from ctx.ns("flags") (set by
+        #      ``/term.request err=...``).  Wins when present, including
+        #      "" which explicitly disables detection.
+        #   2. cfg.request_err_pattern (persistent default).
+        #
+        # ``/term.request on`` (no err=) clears the session override, so
+        # the cycle off -> on always re-enables cfg-default detection.
+        if not error and text:
+            flags = self.ctx.ns("flags")
+            if "request_err_pattern_override" in flags:
+                pattern = flags["request_err_pattern_override"]
+            else:
+                pattern = self.cfg.get("request_err_pattern", "")
+            if pattern:
+                import re as _re
+
+                try:
+                    if _re.search(pattern, text):
+                        error = text
+                except _re.error:
+                    # Malformed regex: don't crash the dispatch.
+                    # Surface a status so the user sees it.
+                    self.ctx.io.write(
+                        f"request_err_pattern regex error: {pattern!r}",
+                        "yellow",
+                    )
+
+        # ONE envelope is the canonical /term.request shape, returned
+        # in CmdResult.value.  In TUI/CLI it's ALSO rendered to
+        # write_markup for scrollback visibility -- the human reading
+        # the terminal wants the protocol view.  In MCP the model
+        # already has the envelope in value (and the outer wire response
+        # is shaped to not duplicate cmd/success/error -- see
+        # run_command_async).  Rendering to write_markup ALSO in MCP
+        # would put the envelope text into output_lines, creating the
+        # exact same duplication.  Gate the display render.
+        from termapy.builtins.commands.var import _LAUNCH_VARS as _lvars
+        _is_mcp = _lvars.get("FRONT_END") == "mcp"
+
         success = not error
         envelope = {
             "cmd": command,
             "success": success,
             "error": error,
             "elapsed_s": round(elapsed, 4),
-            "result": text,
+            # When a device error was detected, the text *is* the error
+            # message.  Keep result empty so the reader (human or model)
+            # doesn't see the same string in two fields.
+            "result": "" if error else text,
         }
-        self.ctx.io.write_markup(_json.dumps(envelope))
-        if success:
-            result = CmdResult.ok(value=envelope)
-        else:
+        if not _is_mcp:
+            self.ctx.io.write_markup(_json.dumps(envelope))
+
+        if error:
             result = CmdResult.fail(msg=error, value=envelope)
+        else:
+            result = CmdResult.ok(value=envelope)
         result.elapsed_s = elapsed
         return result
 

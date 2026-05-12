@@ -23,7 +23,7 @@ from termapy.config import (
     migrate_json_to_cfg,
     open_with_system,
 )
-from termapy.defaults import PROTO_TEMPLATE, SCRIPT_TEMPLATE
+from termapy.defaults import DEFAULT_CFG, PROTO_TEMPLATE, SCRIPT_TEMPLATE
 
 # Shared CSS for modal dialog buttons
 _MODAL_BTN_CSS = """
@@ -143,16 +143,18 @@ class ConfigEditor(ModalScreen[tuple | None]):
         "parity": {"N", "E", "O", "M", "S"},
         "stop_bits": {1, 1.5, 2},
         "flow_control": {"none", "rtscts", "xonxoff", "manual"},
+        "default_ui": {"tui", "cli"},
     }
+    # Derived from DEFAULT_CFG so adding a new bool/int key to defaults
+    # automatically picks up validation here -- no parallel list to drift.
+    # "enabled" is added explicitly because it lives nested inside
+    # custom_buttons rather than at the top level of DEFAULT_CFG.
     _BOOL_KEYS = {
-        "auto_connect", "auto_reconnect", "send_bare_enter",
-        "echo_input", "show_timestamps", "show_line_endings",
-        "show_traceback", "config_read_only", "os_cmd_enabled",
-        "enabled", "custom_baud",
-    }
+        k for k, v in DEFAULT_CFG.items() if isinstance(v, bool)
+    } | {"enabled"}
     _INT_KEYS = {
-        "max_lines", "cmd_delay_ms", "max_grep_lines",
-        "proto_frame_gap_ms",
+        k for k, v in DEFAULT_CFG.items()
+        if isinstance(v, int) and not isinstance(v, bool)
     }
     _STANDARD_BAUDS = {
         300, 1200, 2400, 4800, 9600, 19200, 38400, 57600,
@@ -253,14 +255,29 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     error = "[red]must be positive[/]"
             except (json.JSONDecodeError, ValueError):
                 error = "[red]must be an integer[/]"
+        elif key == "line_ending":
+            # Decode escape sequences via JSON, then require the result
+            # to contain only CR/LF/NUL/ETX/EOT bytes (any combination).
+            # Rejects junk like "abc" or "CRAP" that the green-default
+            # would otherwise pass through.
+            try:
+                parsed = json.loads(raw_val.strip())
+            except (json.JSONDecodeError, ValueError):
+                parsed = val
+            if (not isinstance(parsed, str)
+                    or not all(c in "\r\n\0\x03\x04" for c in parsed)):
+                error = (
+                    r'[red]must be CR/LF/NUL/ETX/EOT bytes only '
+                    r'(e.g. "", "\r", "\n", "\r\n", "\0", '
+                    r'"\u0003" (ETX), "\u0004" (EOT))[/]'
+                )
         if error:
             return f"[red]{key} = {val}[/]", error
-        # Green = actively validated and passed. Dim = no validation rule.
-        validated = (key in self._BOOL_KEYS or key in self._VALID_VALUES
-                     or key in ("baud_rate", "port") or key in self._INT_KEYS)
-        if validated:
-            return f"[green]{key} = {val}[/]", ""
-        return f"[dim]{key} = {val}[/]", ""
+        # Reached only for known keys (CFG_HELP entry exists) with no
+        # error.  Either explicitly validated above (bool/int/enum/
+        # port/baud) or a free-form string with no validation rule --
+        # both render green to signal "recognized field, value OK".
+        return f"[green]{key} = {val}[/]", ""
 
     def _update_help(self) -> None:
         """Update the help text based on the current cursor line."""

@@ -11,8 +11,18 @@ from termapy.repl import ReplEngine
 
 
 @pytest.fixture
-def repl_env(tmp_path):
-    """Create a ReplEngine with a temp config file and capture output."""
+def repl_env(tmp_path, monkeypatch):
+    """Create a ReplEngine with a temp config file and capture output.
+
+    Resets the launch_var state so tests don't see FRONT_END=mcp left
+    over from a sibling MCP test file in the same session.  The repl_env
+    fixture targets non-MCP REPL behavior; bleed-through caused several
+    intermittent failures while iterating on /term.request.
+    """
+    from termapy.builtins.commands import var as _var_mod
+    monkeypatch.setattr(_var_mod, "_LAUNCH_VARS", dict(_var_mod._LAUNCH_VARS))
+    _var_mod._LAUNCH_VARS.pop("FRONT_END", None)
+
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,

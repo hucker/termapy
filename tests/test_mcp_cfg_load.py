@@ -10,6 +10,7 @@ the fix promotes the working machinery from ``CLITerminal`` up to
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -189,3 +190,94 @@ class TestZeroConfigMcpHost:
             f"log re-routed to beta cfg, got: {actual_log}"
         assert "alpha" not in str(actual_log), \
             "old alpha log path cleared"
+
+
+class TestCfgLoadFiresOnConnected:
+    """Regression: /cfg.load auto-connect must call _on_connected().
+
+    Pre-fix bug: _switch_to_cfg_path inlined ``engine.connect()`` and
+    fired the on_connect lifecycle hook but did NOT call
+    ``self._on_connected()`` -- so MCPHost's overrides
+    (``_on_connect_auto_load_profile``, ``_on_connect_auto_include``,
+    ``_on_connect_run_commands``, ``_on_connect_banner_watch``) were
+    silently skipped on cfg-load reconnects.  Symptom: setting
+    ``mcp_on_connect_cmd: "echo off"`` in a cfg had no effect on a
+    /cfg.load reconnect.
+
+    Fix: replace the inline connect block with ``self._connect()`` so
+    the same lifecycle that fires on a fresh /port.connect also fires
+    on a /cfg.load that auto-connects.
+    """
+
+    def _make_cfg(self, parent, name, **overrides):
+        from termapy.defaults import DEFAULT_CFG
+
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = "DEMO"
+        cfg["line_ending"] = "\r\n"
+        cfg["auto_connect"] = True
+        cfg["auto_include_on_connect"] = False  # don't pollute the log
+        cfg["device_json_cmd"] = ""
+        cfg.update(overrides)
+        cfg_path = parent / name / f"{name}.cfg"
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg_path.write_text(json.dumps(cfg))
+        for sub in ("plugin", "ss", "run", "cap"):
+            (cfg_path.parent / sub).mkdir(exist_ok=True)
+        return cfg_path
+
+    def test_cfg_load_fires_mcp_on_connect_cmd(self, tmp_path, monkeypatch):
+        # Arrange - cfg with mcp_on_connect_cmd set, monkeypatched cfg_dir
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+        cfg_path = self._make_cfg(
+            tmp_path, "target", mcp_on_connect_cmd="/ver"
+        )
+
+        # Build host on a different cfg with no on-connect cmds
+        unrelated = self._make_cfg(tmp_path, "unrelated")
+        cfg = json.loads(unrelated.read_text())
+        h = MCPHost(cfg, str(unrelated), verbose=False)
+
+        # Act - /cfg.load to the target cfg, which auto-connects
+        try:
+            h._connect()  # initial connect
+            time.sleep(0.1)
+            result = h._load_config("target")
+            time.sleep(0.2)  # let on_connect fire
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+        # Assert
+        assert result.success, f"cfg.load succeeded: {result.error}"
+        # Log path now points at the target cfg's mcp/ dir
+        assert h._log_path is not None, "log path set after switch"
+        log = h._log_path.read_text(encoding="utf-8")
+        assert "$ /ver  (mcp_on_connect_cmd)" in log, (
+            f"mcp_on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
+        )
+
+    def test_cfg_load_fires_on_connect_cmd(self, tmp_path, monkeypatch):
+        """Same regression for the universal on_connect_cmd."""
+        # Arrange
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+        self._make_cfg(tmp_path, "target", on_connect_cmd="/ver")
+        unrelated = self._make_cfg(tmp_path, "unrelated")
+        cfg = json.loads(unrelated.read_text())
+        h = MCPHost(cfg, str(unrelated), verbose=False)
+
+        # Act
+        try:
+            h._connect()
+            time.sleep(0.1)
+            h._load_config("target")
+            time.sleep(0.2)
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+        # Assert
+        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
+        assert "$ /ver  (on_connect_cmd)" in log, (
+            f"on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
+        )

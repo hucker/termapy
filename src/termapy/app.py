@@ -282,6 +282,7 @@ class SerialTerminal(TerminalHost, App):
     }
     #title-bar #btn-exit {
         background: crimson;
+        text-style: bold;
     }
     #title-bar > Button:first-of-type {
         margin-left: 0;

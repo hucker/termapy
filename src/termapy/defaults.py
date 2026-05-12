@@ -91,6 +91,7 @@ DEFAULT_CFG = {
     "show_line_numbers": False,
     "hex_mode": False,
     "request_mode": False,
+    "request_err_pattern": r"(?i)^(ERROR|ERR|FAULT)\b",
     "max_grep_lines": 100,
     # File transfer
     "file_xfer_root": "",
@@ -283,7 +284,9 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "line_ending": (
         "Appended to each sent command.",
-        r'Valid: "\r" (CR), "\r\n" (CRLF), "\n" (LF)',
+        r'CR/LF/NUL/ETX/EOT bytes only: "", "\r" (CR), "\n" (LF), '
+        r'"\r\n" (CRLF), "\n\r" (LFCR), "\0" (NUL), '
+        r'"\u0003" (ETX), "\u0004" (EOT), or any combination.',
     ),
     "cmd_delay_ms": (
         "Delay in ms between commands in multi-command input.",
@@ -377,6 +380,15 @@ CFG_HELP: dict[str, tuple] = {
         "Also accepts JSON-shape input ({\"cmd\":\"...\"}) so callers can "
         "stay symmetric. Profile-mapped commands keep their declared "
         "response.format (more-specific wins).",
+    ),
+    "request_err_pattern": (
+        "Regex applied to request_mode response text to detect "
+        "device-side errors.",
+        r"When the response matches, success=false and the text becomes "
+        r"the envelope's error.  Default: (?i)^(ERROR|ERR|FAULT)\b "
+        r"(matches 'ERR:', 'ERROR ', 'FAULT', case-insensitive).  Empty "
+        r"string disables error detection.  Override per-session via "
+        r"/term.request on err=<regex>.",
     ),
     "max_grep_lines": (
         "Maximum lines shown by /grep.",

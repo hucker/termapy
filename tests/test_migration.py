@@ -385,3 +385,52 @@ def test_v14_to_v15_preserves_explicit_per_mode_keys():
     assert result["tui_on_connect_cmd"] == "AT+VER", "TUI gets migrated value"
     assert result["cli_on_connect_cmd"] == "AT+VER", "CLI gets migrated value"
     assert result["on_connect_cmd"] == "", "universal cleared regardless"
+
+
+def test_v15_to_v16_adds_request_err_pattern():
+    """Migration v15->v16 adds request_err_pattern with sensible default."""
+    # Arrange
+    cfg = {"config_version": 15, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    actual = result["request_err_pattern"]
+    expected = r"(?i)^(ERROR|ERR|FAULT)\b"
+    assert actual == expected, "default matches ERROR/ERR/FAULT, case-insensitive"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, \
+        "version advanced to current"
+
+
+def test_v15_to_v16_preserves_explicit_request_err_pattern():
+    """User-set request_err_pattern is not overwritten by the migration."""
+    # Arrange
+    cfg = {
+        "config_version": 15,
+        "port": "COM4",
+        "request_err_pattern": r"^FAIL",
+    }
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["request_err_pattern"] == r"^FAIL", \
+        "explicit user value preserved"
+
+
+def test_v15_to_v16_empty_request_err_pattern_preserved():
+    """Empty string (user disabled error detection) survives migration."""
+    # Arrange
+    cfg = {
+        "config_version": 15,
+        "port": "COM4",
+        "request_err_pattern": "",  # explicit disable
+    }
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["request_err_pattern"] == "", "empty disable preserved"

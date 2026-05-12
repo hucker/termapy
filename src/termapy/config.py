@@ -96,17 +96,42 @@ def cfg_dir() -> Path:
 
 
 def migrate_json_to_cfg(directory: Path) -> None:
-    """Rename any *.json config files to *.cfg (one-time migration).
+    """One-time migration: rename ``<name>/<name>.json`` to ``<name>/<name>.cfg``.
 
-    Safe to call repeatedly - skips if the .cfg file already exists.
+    Termapy's config-file naming invariant is strict: a config lives at
+    ``<folder>/<folder>.cfg`` and *only* that filename is a config.  This
+    migration recognizes exactly ONE old filename pattern -- the same
+    shape with ``.json`` -- and renames it to the new extension.
+
+    Any other ``.json`` file inside a config folder is by definition NOT
+    a config and is left strictly alone.  In particular:
+
+      - ``<folder>/<folder>.profile.json``  (v2 device profile)
+      - ``<folder>/<folder>.schema.json``   (future schema-side data)
+      - any ad-hoc ``.json`` a user dropped in the folder
+
+    must survive this migration unchanged.  The earlier implementation
+    used a permissive ``*/*.json`` glob and chewed on any ``.json`` it
+    found, which silently corrupted profiles every time the host
+    started.  This version uses an exact-name lookup: no globs, no
+    pattern matching, no inference.
+
+    Safe to call repeatedly: if the ``.cfg`` already exists, no rename
+    happens.
 
     Args:
-        directory: The config root directory to scan (e.g. termapy_cfg/).
+        directory: The config root directory to scan (e.g. ``termapy_cfg/``).
     """
-    for json_file in directory.glob("*/*.json"):
-        cfg_file = json_file.with_suffix(".cfg")
-        if not cfg_file.exists():
-            json_file.rename(cfg_file)
+    for subdir in directory.iterdir():
+        if not subdir.is_dir():
+            continue
+        # The ONE filename this migration recognizes.  Exact match, not
+        # a glob.  Any other .json file in subdir is unknown to this
+        # migration and must be left alone.
+        candidate = subdir / f"{subdir.name}.json"
+        target = subdir / f"{subdir.name}.cfg"
+        if candidate.exists() and not target.exists():
+            candidate.rename(target)
 
 
 def cfg_data_dir(config_path: str) -> Path:

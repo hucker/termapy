@@ -57,7 +57,7 @@ def ctx_with_writes():
     """PluginContext that captures writes."""
     from termapy.plugins import IOHandle
     writes: list[tuple[str, str | None]] = []
-    ctx = PluginContext(io=IOHandle(write=lambda text, color=None: writes.append((text, color))))
+    ctx = PluginContext(io=IOHandle(_write=lambda text, color=None: writes.append((text, color))))
     return ctx, writes
 
 

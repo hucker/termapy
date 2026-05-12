@@ -49,9 +49,9 @@ def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
         n = len(profile.get("commands", {})) if isinstance(profile, dict) else 0
         ctx.io.result(f"Valid profile.  {n} commands.", "green")
         return CmdResult.ok(value=str(n))
-    ctx.io.write(f"  Profile has {len(result.errors)} error(s):", "red")
+    ctx.io._write(f"  Profile has {len(result.errors)} error(s):", "red")
     for err in result.errors:
-        ctx.io.write(f"    - {err}", "yellow")
+        ctx.io._write(f"    - {err}", "yellow")
     return CmdResult.fail(msg=f"{len(result.errors)} validation error(s)")
 
 
@@ -85,12 +85,12 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
 
     result = validate_profile(profile)
     if not result.ok:
-        ctx.io.write(
+        ctx.io._write(
             f"  Profile has {len(result.errors)} schema error(s); refusing to load:",
             "red",
         )
         for err in result.errors:
-            ctx.io.write(f"    - {err}", "yellow")
+            ctx.io._write(f"    - {err}", "yellow")
         return CmdResult.fail(msg=f"{len(result.errors)} validation error(s)")
 
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
@@ -106,7 +106,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     changes = apply_profile_transport(transport, ctx.engine.apply_cfg)
     serial_changed = [k for k in changes if k in SERIAL_LEVEL_TRANSPORT_KEYS]
     if serial_changed and ctx.serial.is_connected():
-        ctx.io.write(
+        ctx.io._write(
             "  note: serial-level params changed ("
             + ", ".join(serial_changed)
             + ") -- reconnect to take effect.",

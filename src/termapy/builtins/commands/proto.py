@@ -52,13 +52,13 @@ def _display_bytes(
         hex_str = format_hex(data)
         smart_str = format_smart(data)
         if hex_str == smart_str:
-            ctx.io.write(f"  {direction}: {hex_str}", color)
+            ctx.io._write(f"  {direction}: {hex_str}", color)
         else:
-            ctx.io.write(f"  {direction}: {hex_str}  {smart_str}", color)
+            ctx.io._write(f"  {direction}: {hex_str}  {smart_str}", color)
     else:
-        ctx.io.write(f"  {direction} {len(data)} bytes:", color)
+        ctx.io._write(f"  {direction} {len(data)} bytes:", color)
         for line in format_hex_dump(data):
-            ctx.io.write(f"    {line}")
+            ctx.io._write(f"    {line}")
 
 
 def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
@@ -79,7 +79,7 @@ def _resolve_proto_file(ctx: PluginContext, filename: str) -> Path | None:
         if alt.exists():
             path = alt
         else:
-            ctx.io.write(f"File not found: {filename}", "red")
+            ctx.io._write(f"File not found: {filename}", "red")
             if ctx.fs.proto_dir != Path("."):
                 ctx.io.output(f"  (also checked {ctx.fs.proto_dir})")
             return None
@@ -117,10 +117,10 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
         ctx.serial.drain()
 
         script_name = script.name or path.name
-        ctx.io.write(f"{'─' * 40}")
-        ctx.io.write(f"  {script_name}", "bold underline bright_white")
+        ctx.io._write(f"{'─' * 40}")
+        ctx.io._write(f"  {script_name}", "bold underline bright_white")
         ctx.io.output(f"  {path.name} - {len(script.tests)} tests")
-        ctx.io.write(f"{'─' * 40}")
+        ctx.io._write(f"{'─' * 40}")
 
         frame_gap = script.frame_gap_ms
 
@@ -137,8 +137,8 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
             for cmd_text in tc.setup:
                 _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
 
-            ctx.io.write(f"[PROTO] {tc.name}")
-            ctx.io.write(f"  TX:       {format_spaced(tc.send_data, tc.binary)}", "cyan")
+            ctx.io._write(f"[PROTO] {tc.name}")
+            ctx.io._write(f"  TX:       {format_spaced(tc.send_data, tc.binary)}", "cyan")
             ctx.serial.drain()
             ctx.serial.write(tc.send_data)
 
@@ -150,19 +150,19 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
 
             ctx.io.output(f"  Expected: {format_spaced(tc.expect_data, tc.binary)}")
             if response:
-                ctx.io.write(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
+                ctx.io._write(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
                 if match_response(tc.expect_data, response, tc.expect_mask):
-                    ctx.io.write(
+                    ctx.io._write(
                         f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
                         "bright_green",
                     )
                     pass_count += 1
                 else:
-                    ctx.io.write("  FAIL", "red")
+                    ctx.io._write("  FAIL", "red")
                     fail_count += 1
             else:
-                ctx.io.write(f"  Actual:   (timeout after {tc.timeout_ms}ms)", "red")
-                ctx.io.write("  FAIL", "red")
+                ctx.io._write(f"  Actual:   (timeout after {tc.timeout_ms}ms)", "red")
+                ctx.io._write("  FAIL", "red")
                 fail_count += 1
 
         # Run teardown commands
@@ -174,9 +174,9 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
     total = pass_count + fail_count
     if total > 0:
         color = "bold bright_green" if fail_count == 0 else "bold red"
-        ctx.io.write(f"{'─' * 40}")
-        ctx.io.write(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
-        ctx.io.write(f"{'─' * 40}")
+        ctx.io._write(f"{'─' * 40}")
+        ctx.io._write(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
+        ctx.io._write(f"{'─' * 40}")
 
 
 def _run_flat_script(
@@ -198,10 +198,10 @@ def _run_flat_script(
         ctx.serial.drain()
 
         script_name = settings.get("name") or path.name
-        ctx.io.write(f"{'─' * 40}")
-        ctx.io.write(f"  {script_name}", "bold underline bright_white")
+        ctx.io._write(f"{'─' * 40}")
+        ctx.io._write(f"  {script_name}", "bold underline bright_white")
         ctx.io.output(f"  {path.name} - {len(steps)} steps")
-        ctx.io.write(f"{'─' * 40}")
+        ctx.io._write(f"{'─' * 40}")
 
         pass_count = 0
         fail_count = 0
@@ -233,8 +233,8 @@ def _run_flat_script(
                 ctx.serial.drain()
                 step_num += 1
                 label = step.label or f"Step {step_num}"
-                ctx.io.write(f"[PROTO] {label}")
-                ctx.io.write(f"  TX:       {format_spaced(step.data, step.binary)}", "cyan")
+                ctx.io._write(f"[PROTO] {label}")
+                ctx.io._write(f"  TX:       {format_spaced(step.data, step.binary)}", "cyan")
                 ctx.serial.write(step.data)
 
             elif step.action == "expect":
@@ -242,7 +242,7 @@ def _run_flat_script(
                     pass
                 else:
                     step_num += 1
-                    ctx.io.write(f"[PROTO] {step.label}")
+                    ctx.io._write(f"[PROTO] {step.label}")
 
                 t0 = time.monotonic()
                 response = ctx.serial.read_raw(step.timeout_ms, frame_gap)
@@ -252,21 +252,21 @@ def _run_flat_script(
 
                 ctx.io.output(f"  Expected: {format_spaced(step.data, step.binary)}")
                 if response:
-                    ctx.io.write(
+                    ctx.io._write(
                         f"  Actual:   {format_spaced(response, step.binary)}", "yellow"
                     )
                     if match_response(step.data, response, step.mask):
-                        ctx.io.write(
+                        ctx.io._write(
                             f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
                             "bright_green",
                         )
                         pass_count += 1
                     else:
-                        ctx.io.write("  FAIL", "red")
+                        ctx.io._write("  FAIL", "red")
                         fail_count += 1
                 else:
-                    ctx.io.write(f"  Actual:   (timeout after {step.timeout_ms}ms)", "red")
-                    ctx.io.write("  FAIL", "red")
+                    ctx.io._write(f"  Actual:   (timeout after {step.timeout_ms}ms)", "red")
+                    ctx.io._write("  FAIL", "red")
                     fail_count += 1
 
     # Summary (after the with-block; serial port is released)
@@ -274,9 +274,9 @@ def _run_flat_script(
     total = pass_count + fail_count
     if total > 0:
         color = "bold bright_green" if fail_count == 0 else "bold red"
-        ctx.io.write(f"{'─' * 40}")
-        ctx.io.write(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
-        ctx.io.write(f"{'─' * 40}")
+        ctx.io._write(f"{'─' * 40}")
+        ctx.io._write(f"  Results: {pass_count}/{total} PASS ({elapsed_s:.3f}s)", color)
+        ctx.io._write(f"{'─' * 40}")
 
 
 # ---- Leaf handlers ---------------------------------------------------------
@@ -397,7 +397,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     if algo is not None and ctx.output_level == "verbose":
         endian_label = "BE" if big_endian else "LE"
         mode_label = "ascii" if ascii_crc else "bin"
-        ctx.io.write(
+        ctx.io._write(
             f"  CRC: {algo.name} = 0x{crc_value:0{algo.width * 2}X}"
             f" ({endian_label}, {mode_label})"
         )
@@ -426,7 +426,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                             parts.append(f"[dim][~{s * 1000:.0f}ms][/]")
                         else:
                             parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
-                ctx.io.write_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
+                ctx.io._write_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
             else:
                 _display_bytes(ctx, "TX", all_data, binary=True)
 
@@ -442,9 +442,9 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     if response:
         _display_bytes(ctx, "RX", response, binary=True)
         if ctx.output_level == "verbose":
-            ctx.io.write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
+            ctx.io._write(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
-        ctx.io.write("  RX: (no response)", "red")
+        ctx.io._write("  RX: (no response)", "red")
     return CmdResult.ok()
 
 
@@ -527,14 +527,14 @@ def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
     arg = args.strip().lower()
     if arg == "on":
         flags["hex_mode"] = True
-        ctx.io.write("Hex display mode enabled.", "bright_green")
+        ctx.io._write("Hex display mode enabled.", "bright_green")
     elif arg == "off":
         flags["hex_mode"] = False
-        ctx.io.write("Hex display mode disabled.", "bright_green")
+        ctx.io._write("Hex display mode disabled.", "bright_green")
     else:
         flags["hex_mode"] = not flags["hex_mode"]
         state = "enabled" if flags["hex_mode"] else "disabled"
-        ctx.io.write(f"Hex display mode {state}.", "bright_green")
+        ctx.io._write(f"Hex display mode {state}.", "bright_green")
     return CmdResult.ok()
 
 
@@ -549,8 +549,8 @@ def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
     """
     hex_mode = ctx.ns("flags")["hex_mode"]
     connected = ctx.serial.is_connected()
-    ctx.io.write(f"Hex mode: {'on' if hex_mode else 'off'}")
-    ctx.io.write(f"Connected: {'yes' if connected else 'no'}")
+    ctx.io._write(f"Hex mode: {'on' if hex_mode else 'off'}")
+    ctx.io._write(f"Connected: {'yes' if connected else 'no'}")
     return CmdResult.ok()
 
 
@@ -584,14 +584,14 @@ def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
         groups.setdefault(width, []).append(name)
 
     for width in sorted(groups):
-        ctx.io.write(f"  CRC-{width} ({len(groups[width])} algorithms):", "bold")
+        ctx.io._write(f"  CRC-{width} ({len(groups[width])} algorithms):", "bold")
         for name in groups[width]:
             entry = CRC_CATALOGUE.get(name)
             desc = entry.get("desc", "") if entry else "(plugin)"
             ctx.io.output(f"    {name:<30s} {desc}")
 
     total = sum(len(g) for g in groups.values())
-    ctx.io.write(f"  {total} algorithms available")
+    ctx.io._write(f"  {total} algorithms available")
     return CmdResult.ok()
 
 
@@ -615,18 +615,18 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
         registry = get_crc_registry()
         if name in registry:
             alg = registry[name]
-            ctx.io.write(f"  {name} (plugin, {alg.width * 8}-bit)")
-            ctx.io.write("  No catalogue parameters - loaded from plugin file.")
+            ctx.io._write(f"  {name} (plugin, {alg.width * 8}-bit)")
+            ctx.io._write("  No catalogue parameters - loaded from plugin file.")
             return CmdResult.ok()
-        ctx.io.write(f"Use '{p}proto.crc.list' to see available algorithms.")
+        ctx.io._write(f"Use '{p}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     w = entry["width"]
     hex_w = w // 4
-    ctx.io.write(f"  {name}", "bold")
+    ctx.io._write(f"  {name}", "bold")
     desc = entry.get("desc", "")
     if desc:
-        ctx.io.write(f"  {desc}")
+        ctx.io._write(f"  {desc}")
     spec = (
         f"CRC:{name}" if w == 8
         else f"CRC:{name}_le  or  CRC:{name}_be"
@@ -642,7 +642,7 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
         ("Spec",   spec),
     ]
     for line in format_kv_lines(rows):
-        ctx.io.write_markup(line)
+        ctx.io._write_markup(line)
     return CmdResult.ok()
 
 
@@ -689,7 +689,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     alg = registry.get(name)
     if alg is None:
         p = ctx.engine.prefix
-        ctx.io.write(f"Use '{p}proto.crc.list' to see available algorithms.")
+        ctx.io._write(f"Use '{p}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     # No data provided - use the standard check string "123456789"
@@ -725,23 +725,23 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     crc_le = " ".join(f"{b:02X}" for b in reversed(crc_bytes))
     crc_be = " ".join(f"{b:02X}" for b in crc_bytes)
 
-    ctx.io.write(f"  Algorithm: {name}")
+    ctx.io._write(f"  Algorithm: {name}")
     if file_path is not None:
-        ctx.io.write(f"  Source:    file '{file_path}'")
-        ctx.io.write(f"  Size:      {len(data)} bytes")
+        ctx.io._write(f"  Source:    file '{file_path}'")
+        ctx.io._write(f"  Size:      {len(data)} bytes")
     elif is_hex:
         data_hex = " ".join(f"{b:02X}" for b in data)
-        ctx.io.write(f"  Data:      {data_hex}  ({len(data)} bytes)")
+        ctx.io._write(f"  Data:      {data_hex}  ({len(data)} bytes)")
     else:
-        ctx.io.write(
+        ctx.io._write(
             f"  Data:      {data_str!r}  ({len(data_str)} chars, " f"{len(data)} bytes)"
         )
-    ctx.io.write(f"  CRC:       {crc_hex}")
+    ctx.io._write(f"  CRC:       {crc_hex}")
     if alg.width > 1:
-        ctx.io.write(f"  Bytes LE:  {crc_le}")
-        ctx.io.write(f"  Bytes BE:  {crc_be}")
+        ctx.io._write(f"  Bytes LE:  {crc_le}")
+        ctx.io._write(f"  Bytes BE:  {crc_be}")
     else:
-        ctx.io.write(f"  Byte:      {crc_be}")
+        ctx.io._write(f"  Byte:      {crc_be}")
 
     # In check mode, verify against the catalogue's expected value
     if check_mode:
@@ -749,12 +749,12 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
         if entry and "check" in entry:
             expected = entry["check"]
             if crc_val == expected:
-                ctx.io.write(
+                ctx.io._write(
                     f"  Check:     PASS - matches expected " f"0x{expected:0{hex_w}X}",
                     "green",
                 )
             else:
-                ctx.io.write(
+                ctx.io._write(
                     f"  Check:     FAIL - expected " f"0x{expected:0{hex_w}X}",
                     "red",
                 )
@@ -784,13 +784,13 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     code = gen(name, table=use_table)
     if code is None:
         p = ctx.engine.prefix
-        ctx.io.write(
+        ctx.io._write(
             f"Unknown algorithm: {name}. Use {p}proto.crc.list to see available.", "red"
         )
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     for line in code.split("\n"):
-        ctx.io.write_markup(f"  [green]{line}[/]")
+        ctx.io._write_markup(f"  [green]{line}[/]")
     return CmdResult.ok()
 
 
@@ -984,22 +984,22 @@ def _render_find_matches(
 ) -> CmdResult:
     """Render the find results to the terminal."""
     if not matches:
-        ctx.io.write("  No matches found.", "red")
-        ctx.io.write("  Packet may use a non-standard algorithm, a CRC field")
-        ctx.io.write("  that is not trailing, or be too short to identify.")
+        ctx.io._write("  No matches found.", "red")
+        ctx.io._write("  Packet may use a non-standard algorithm, a CRC field")
+        ctx.io._write("  that is not trailing, or be too short to identify.")
         return CmdResult.ok()
     collapsed = _dedupe_catalogue_aliases(matches)
     if len(collapsed) == 1:
-        ctx.io.write("  1 match:", "green")
+        ctx.io._write("  1 match:", "green")
     else:
-        ctx.io.write(f"  {len(collapsed)} matches:", "yellow")
+        ctx.io._write(f"  {len(collapsed)} matches:", "yellow")
     p = ctx.engine.prefix
     for name, w, endian, data_len, expected, aliases in collapsed:
         hex_w = w * 2
         width_bits = w * 8
         endian_str = "" if endian == "-" else f"  endian={endian}"
         alias_str = f"  (aka {', '.join(aliases)})" if aliases else ""
-        ctx.io.write_markup(
+        ctx.io._write_markup(
             f"  [cyan]{name}[/]{alias_str}  "
             f"width={width_bits}  field=last{w}  "
             f"expected=0x{expected:0{hex_w}X}{endian_str}  "
@@ -1007,23 +1007,23 @@ def _render_find_matches(
         )
     if len(collapsed) == 1:
         name = collapsed[0][0]
-        ctx.io.write("")
-        ctx.io.write(
+        ctx.io._write("")
+        ctx.io._write(
             f"  Generate source: {p}proto.crc.c {name}  "
             f"(or .python / .rust)",
             "dim",
         )
     if len(collapsed) > 1:
-        ctx.io.write("")
-        ctx.io.write(
+        ctx.io._write("")
+        ctx.io._write(
             "  Multiple matches usually means the packet is too short to",
             "dim",
         )
-        ctx.io.write(
+        ctx.io._write(
             "  disambiguate.  Capture a second packet with a different CRC",
             "dim",
         )
-        ctx.io.write(
+        ctx.io._write(
             "  and intersect the match sets to narrow down.",
             "dim",
         )

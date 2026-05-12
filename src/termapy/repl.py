@@ -273,7 +273,7 @@ class ReplEngine:
         # write callable; the host replaces this whole ctx via
         # ``set_context()`` once it builds the real one.
         from termapy.plugins.handles.io import IOHandle
-        self.ctx = PluginContext(io=IOHandle(write=write))
+        self.ctx = PluginContext(io=IOHandle(_write=write))
 
         # Unified plugin registry - all commands live here
         self._plugins: dict[str, PluginInfo] = {}
@@ -605,12 +605,12 @@ class ReplEngine:
                         "elapsed_s": 0.0,
                         "result": "",
                     }
-                    self.ctx.io.write_markup(_json.dumps(envelope))
+                    self.ctx.io._write_markup(_json.dumps(envelope))
                     return CmdResult.fail(msg=err_msg, value=envelope)
 
         # Symmetric request-side echo: render the canonical post-unwrap
         # form so TUI/CLI scrollback shows what was sent.
-        self.ctx.io.write_markup(_json.dumps({"cmd": command}))
+        self.ctx.io._write_markup(_json.dumps({"cmd": command}))
 
         encoding = self.cfg.get("encoding", "utf-8")
         line_ending = self.cfg.get("line_ending", "\r")
@@ -657,7 +657,7 @@ class ReplEngine:
                 except _re.error:
                     # Malformed regex: don't crash the dispatch.
                     # Surface a status so the user sees it.
-                    self.ctx.io.write(
+                    self.ctx.io._write(
                         f"request_err_pattern regex error: {pattern!r}",
                         "yellow",
                     )
@@ -686,7 +686,7 @@ class ReplEngine:
             "result": "" if error else text,
         }
         if not _is_mcp:
-            self.ctx.io.write_markup(_json.dumps(envelope))
+            self.ctx.io._write_markup(_json.dumps(envelope))
 
         if error:
             result = CmdResult.fail(msg=error, value=envelope)
@@ -954,6 +954,17 @@ class ReplEngine:
         #    literal-bytes primitive; transforms + connect-check live in
         #    this fallthrough only -- /term.send (called directly) gets
         #    predictable literal-bytes semantics for LLMs and scripts.
+        #
+        # Strip universal level flags (--silent/--quiet/--normal/--verbose)
+        # BEFORE transforms/serial-send so the flag never reaches the
+        # device.  The prefix path strips inside dispatch(); the bare path
+        # had no equivalent until this line, so flags leaked onto the
+        # wire for bare device commands in request_mode.  Save/restore
+        # _call_level so the override is scoped to this one dispatch.
+        cmd, bare_level = _strip_level_flags(cmd)
+        saved_bare_call_level = self.ctx._call_level
+        if bare_level is not None:
+            self.ctx._call_level = bare_level
         if self.has_serial_transforms:
             try:
                 cmd = self.transform_serial(cmd)
@@ -996,6 +1007,7 @@ class ReplEngine:
             return self.dispatch(f"term.send {cmd}")
         finally:
             self.ctx.serial.write = saved_serial_write
+            self.ctx._call_level = saved_bare_call_level
 
     # -- REPL dispatch ---------------------------------------------------------
 
@@ -1087,15 +1099,15 @@ class ReplEngine:
             try:
                 t0 = time.perf_counter()
                 if self.ctx.output_level == "silent":
-                    saved_write = self.ctx.io.write
-                    saved_write_markup = self.ctx.io.write_markup
-                    self.ctx.io.write = lambda text, color=None: None
-                    self.ctx.io.write_markup = lambda text: None
+                    saved_write = self.ctx.io._write
+                    saved_write_markup = self.ctx.io._write_markup
+                    self.ctx.io._write = lambda text, color=None: None
+                    self.ctx.io._write_markup = lambda text: None
                     try:
                         result = plugin.handler(self.ctx, args)
                     finally:
-                        self.ctx.io.write = saved_write
-                        self.ctx.io.write_markup = saved_write_markup
+                        self.ctx.io._write = saved_write
+                        self.ctx.io._write_markup = saved_write_markup
                 else:
                     result = plugin.handler(self.ctx, args)
                 if result is None:

@@ -45,8 +45,8 @@ def ctx_with_capture():
 
     ctx = PluginContext(
         io=IOHandle(
-            write=lambda text, color="dim": output.append((text, color)),
-            write_markup=lambda text: markup.append(text),
+            _write=lambda text, color="dim": output.append((text, color)),
+            _write_markup=lambda text: markup.append(text),
             log=lambda prefix, text: log.append((prefix, text)),
         ),
         capabilities=CapabilitySet(
@@ -85,14 +85,14 @@ class TestIOHandle:
 
     def test_write_delegates_to_wired_callable(self, ctx_with_capture):
         ctx, output, _, _ = ctx_with_capture
-        ctx.io.write("hello", "green")
+        ctx.io._write("hello", "green")
         actual = output
         expected = [("hello", "green")]
         assert actual == expected, "write goes to the wired callable"
 
     def test_write_markup_delegates(self, ctx_with_capture):
         ctx, _, markup, _ = ctx_with_capture
-        ctx.io.write_markup("[bold]hi[/]")
+        ctx.io._write_markup("[bold]hi[/]")
         actual = markup
         expected = ["[bold]hi[/]"]
         assert actual == expected, "write_markup goes to the wired callable"

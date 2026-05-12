@@ -39,7 +39,7 @@ class _CtxRecorder:
     """Tiny PluginContext stand-in that records write/open_file calls.
 
     Wraps a real :class:`PluginContext` so the namespaced handles
-    (``ctx.io.write``, ``ctx.fs.open_file``) work transparently.
+    (``ctx.io._write``, ``ctx.fs.open_file``) work transparently.
     Exposes ``self.lines`` (write-output capture) and ``self.open_file``
     (a MagicMock for assertion convenience) directly on the recorder.
     """
@@ -55,7 +55,7 @@ class _CtxRecorder:
         self.lines: list[str] = []
         self.open_file = MagicMock()
         self._ctx = PluginContext(
-            io=IOHandle(write=lambda text, color=None: self.lines.append(text)),
+            io=IOHandle(_write=lambda text, color=None: self.lines.append(text)),
             fs=FilesystemHandle(_open_file_impl=self.open_file),
             capabilities=CapabilitySet(gui_apps=True),
         )

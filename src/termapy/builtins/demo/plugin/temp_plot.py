@@ -51,7 +51,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     line_ending = ctx.cfg.get("line_ending", "\r")
     readings: list[float] = []
 
-    ctx.io.write(f"Sampling {count} temperatures...", "dim")
+    ctx.io._write(f"Sampling {count} temperatures...", "dim")
 
     with ctx.serial.io():
         for _ in range(count):
@@ -87,8 +87,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         idx = int((v - lo) / span * (len(bars) - 1))
         spark += bars[idx]
 
-    ctx.io.write_markup(f"  [cyan]{spark}[/]")
-    ctx.io.write(
+    ctx.io._write_markup(f"  [cyan]{spark}[/]")
+    ctx.io._write(
         f"  {len(readings)} samples: "
         f"min={lo:.1f}°C  max={hi:.1f}°C  avg={avg:.1f}°C"
     )

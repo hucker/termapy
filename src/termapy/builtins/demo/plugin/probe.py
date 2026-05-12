@@ -33,7 +33,7 @@ Key concepts demonstrated:
   • reading ctx.cfg for encoding and line_ending
   • declaring needs=CapabilitySet(serial_connected=True) so dispatch
     refuses the command when no port is open
-  • formatted output via ctx.io.write with colors"""
+  • formatted output via ctx.io._write with colors"""
 
 
 def _send_cmd(ctx: PluginContext, command: str) -> str | None:
@@ -83,18 +83,18 @@ def _survey(ctx: PluginContext) -> None:
         ("Temperature", "AT+TEMP"),
         ("Status", "AT+STATUS"),
     ]
-    ctx.io.write("── device survey ──")
+    ctx.io._write("── device survey ──")
     for label, cmd in queries:
         resp = _send_cmd(ctx, cmd)
         if resp is None:
-            ctx.io.write(f"  {label}: (no response)", "red")
+            ctx.io._write(f"  {label}: (no response)", "red")
         else:
             # Multi-line responses get indented under the label
             lines = resp.splitlines()
-            ctx.io.write(f"  {label}: {lines[0]}")
+            ctx.io._write(f"  {label}: {lines[0]}")
             for line in lines[1:]:
-                ctx.io.write(f"    {line}")
-    ctx.io.write("── end survey ──")
+                ctx.io._write(f"    {line}")
+    ctx.io._write("── end survey ──")
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -124,10 +124,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Single command mode
         resp = _send_cmd(ctx, command)
         if resp is None:
-            ctx.io.write(f"{command}: (no response)", "red")
+            ctx.io._write(f"{command}: (no response)", "red")
         else:
             for line in resp.splitlines():
-                ctx.io.write(f"  {line}")
+                ctx.io._write(f"  {line}")
 
     return CmdResult.ok()
 

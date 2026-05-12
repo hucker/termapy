@@ -38,7 +38,7 @@ def repl_env(tmp_path):
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
-        io=IOHandle(write=write, write_markup=write),
+        io=IOHandle(_write=write, _write_markup=write),
     )
     engine.set_context(ctx)
     return engine, cfg, config_path, output

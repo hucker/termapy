@@ -37,13 +37,13 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
             ms = (time.perf_counter() - start) * 1000
         times.append(ms)
         if response:
-            ctx.io.write(f"{cmd} -- {ms:.0f}ms", "green")
+            ctx.io._write(f"{cmd} -- {ms:.0f}ms", "green")
             if not quiet:
                 text = response.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace").strip()
                 if text:
                     ctx.io.output(f"  {text}")
         else:
-            ctx.io.write(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
+            ctx.io._write(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
     if count > 1:
         avg = sum(times) / len(times)
         lo = min(times)

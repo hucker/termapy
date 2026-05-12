@@ -16,7 +16,7 @@ def send_env():
     from termapy.plugins import IOHandle, SerialHandle
     ctx = PluginContext(
         engine=EngineAPI(),
-        io=IOHandle(write=lambda text, color=None: output.append((text, color))),
+        io=IOHandle(_write=lambda text, color=None: output.append((text, color))),
         serial=SerialHandle(
             is_connected=lambda: True,
             write=lambda data: tx_bytes.append(data),

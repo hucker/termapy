@@ -258,7 +258,7 @@ class PluginContext:
             def _handler(ctx, args):
                 store = ctx.ns("myplugin")
                 store["requests_sent"] = store.get("requests_sent", 0) + 1
-                ctx.io.write(f"sent {store['requests_sent']} requests")
+                ctx.io._write(f"sent {store['requests_sent']} requests")
 
         Args:
             name: Namespace identifier.  Created empty on first access.

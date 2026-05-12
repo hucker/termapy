@@ -57,7 +57,7 @@ def repl_env(tmp_path, monkeypatch):
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
-        io=IOHandle(write=write, write_markup=write_markup),
+        io=IOHandle(_write=write, _write_markup=write_markup),
         # Test fixture publishes every capability so command-by-command
         # tests can exercise any handler.  Specific capability-gate tests
         # use their own restricted ctx (see test_engine.TestDispatchCapabilities).

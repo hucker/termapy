@@ -55,7 +55,7 @@ def parse_output_level(s: str) -> str | None:
 #   - Optional per-row color baked into the value via Rich markup.
 #
 # Adding a new info command?  Build ``[(label, value), ...]``, call
-# ``format_kv_lines()``, write each line via ``ctx.io.write_markup()``.  Don't
+# ``format_kv_lines()``, write each line via ``ctx.io._write_markup()``.  Don't
 # roll your own padding -- consistency across info commands matters.
 
 
@@ -68,7 +68,7 @@ def format_kv_lines(
 
     Pads labels to the widest in the set and adds a colon-space
     separator between label and value.  Returns a list of markup
-    strings ready to pass to ``ctx.io.write_markup()``.
+    strings ready to pass to ``ctx.io._write_markup()``.
 
     Per-row coloring of the *value* is the caller's responsibility:
     embed Rich markup directly in the value string (e.g.

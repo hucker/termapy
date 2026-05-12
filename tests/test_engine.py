@@ -263,7 +263,7 @@ class TestRunScript:
         ctx = PluginContext(
             cfg=cfg,
             config_path=str(config_path),
-            io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
             serial=SerialHandle(
                 is_connected=lambda: connected,
                 write=lambda data: serial_writes.append(data),
@@ -590,7 +590,7 @@ class TestDispatchFull:
         ctx = PluginContext(
             cfg=cfg,
             config_path=str(config_path),
-            io=IOHandle(write=lambda t, c=None: output.append((t, c))),
+            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
             serial=SerialHandle(
                 is_connected=lambda: True,
                 write=lambda data: serial_writes.append(data),
@@ -950,8 +950,8 @@ class TestDispatchFlags:
             cfg=cfg,
             config_path=str(config_path),
             io=IOHandle(
-                write=lambda t, c=None: output.append((t, c)),
-                write_markup=lambda t: output.append((t, "markup")),
+                _write=lambda t, c=None: output.append((t, c)),
+                _write_markup=lambda t: output.append((t, "markup")),
             ),
         )
         eng.set_context(ctx)
@@ -1085,8 +1085,8 @@ class TestDispatchCapabilities:
             cfg=cfg,
             config_path=str(config_path),
             io=IOHandle(
-                write=lambda t, c=None: output.append((t, c)),
-                write_markup=lambda t: output.append((t, "markup")),
+                _write=lambda t, c=None: output.append((t, c)),
+                _write_markup=lambda t: output.append((t, "markup")),
             ),
         )
         eng.set_context(ctx)

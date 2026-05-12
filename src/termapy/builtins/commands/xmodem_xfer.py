@@ -110,7 +110,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"File not found: {path}")
 
     file_size = path.stat().st_size
-    ctx.io.write(f"  XMODEM send: {path.name} ({file_size} bytes) -- Esc to cancel")
+    ctx.io._write(f"  XMODEM send: {path.name} ({file_size} bytes) -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:
@@ -155,7 +155,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=str(e))
 
     path = _resolve_path(filename, _get_xfer_root(ctx))
-    ctx.io.write(f"  XMODEM recv: waiting for data -> {path} -- Esc to cancel")
+    ctx.io._write(f"  XMODEM recv: waiting for data -> {path} -- Esc to cancel")
 
     cancel = ctx.engine.xfer_cancel
     if cancel:

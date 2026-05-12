@@ -71,7 +71,7 @@ def repl_env(tmp_path, monkeypatch):
         cfg=cfg,
         config_path=str(config_path),
         engine=engine_api,
-        io=IOHandle(write=write, write_markup=write_markup),
+        io=IOHandle(_write=write, _write_markup=write_markup),
         capabilities=CapabilitySet(
             interactive=True, gui_apps=True, serial_connected=True,
         ),

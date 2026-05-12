@@ -42,8 +42,8 @@ def env(tmp_path):
     # Capture both write and write_markup so info-style handlers that
     # use format_kv_lines (which routes through write_markup) are
     # observable to assertions.
-    orig_write = host.ctx.io.write
-    orig_write_markup = host.ctx.io.write_markup
+    orig_write = host.ctx.io._write
+    orig_write_markup = host.ctx.io._write_markup
 
     def captured_write(text, color=""):
         output.append((text, color))
@@ -53,8 +53,8 @@ def env(tmp_path):
         output.append((text, "markup"))
         orig_write_markup(text)
 
-    host.ctx.io.write = captured_write
-    host.ctx.io.write_markup = captured_write_markup
+    host.ctx.io._write = captured_write
+    host.ctx.io._write_markup = captured_write_markup
     return host.repl, host.ctx, output
 
 

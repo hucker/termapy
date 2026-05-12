@@ -984,8 +984,8 @@ class SerialTerminal(TerminalHost, App):
 
         ctx = self._build_plugin_context(engine)
         # TUI-specific PluginContext overrides
-        ctx.io.write = self._status
-        ctx.io.write_markup = self._write_output_markup
+        ctx.io._write = self._status
+        ctx.io._write_markup = self._write_output_markup
         ctx.io.log = self._log_line
         ctx.serial.wait_for_data = lambda timeout_ms=250: (
             self._engine.serial_port.wait_for_data(timeout_ms)
@@ -3719,7 +3719,7 @@ class SerialTerminal(TerminalHost, App):
 
         line = args.strip()
         if not line:
-            ctx.io.write("Usage: /run.profile.cmd <command>", "red")
+            ctx.io._write("Usage: /run.profile.cmd <command>", "red")
             return CmdResult.fail(msg="Usage: /run.profile.cmd <command>")
         prefix = cmd_prefix(self.cfg)
         if not line.startswith(prefix) and "." in line.split()[0]:
@@ -3746,14 +3746,14 @@ class SerialTerminal(TerminalHost, App):
         """Open the newest .prof file in the system viewer."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.io.write("No config loaded.", "red")
+            ctx.io._write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
         if not profs:
             ctx.io.output("No profile files found.")
             return CmdResult.fail(msg="No profile files found.")
         newest = profs[-1]
-        ctx.io.write(f"Opening {newest.name}")
+        ctx.io._write(f"Opening {newest.name}")
         open_with_system(str(newest))
         return CmdResult.ok()
 
@@ -3761,13 +3761,13 @@ class SerialTerminal(TerminalHost, App):
         """Print newest (or named) profile to the terminal."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.io.write("No config loaded.", "red")
+            ctx.io._write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         name = args.strip()
         if name:
             path = prof_dir / name
             if not path.exists():
-                ctx.io.write(f"File not found: {name}", "red")
+                ctx.io._write(f"File not found: {name}", "red")
                 return CmdResult.fail(msg=f"File not found: {name}")
         else:
             profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
@@ -3779,7 +3779,7 @@ class SerialTerminal(TerminalHost, App):
             for line in path.read_text(encoding="utf-8").splitlines():
                 ctx.io.output(line)
         except OSError as e:
-            ctx.io.write(f"Read error: {e}", "red")
+            ctx.io._write(f"Read error: {e}", "red")
             return CmdResult.fail(msg=f"Read error: {e}")
         return CmdResult.ok()
 
@@ -3787,7 +3787,7 @@ class SerialTerminal(TerminalHost, App):
         """Open the prof/ directory in file explorer."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.io.write("No config loaded.", "red")
+            ctx.io._write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         prof_dir.mkdir(exist_ok=True)
         open_with_system(str(prof_dir))
@@ -3797,7 +3797,7 @@ class SerialTerminal(TerminalHost, App):
         """List .prof files."""
         prof_dir = self._prof_dir()
         if not prof_dir:
-            ctx.io.write("No config loaded.", "red")
+            ctx.io._write("No config loaded.", "red")
             return CmdResult.fail(msg="No config loaded.")
         if not prof_dir.exists():
             ctx.io.output("  (no profile files)")
@@ -3807,7 +3807,7 @@ class SerialTerminal(TerminalHost, App):
             ctx.io.output("  (no profile files)")
             return CmdResult.ok()
         for f in profs:
-            ctx.io.write(f"  {f.name}")
+            ctx.io._write(f"  {f.name}")
         return CmdResult.ok()
 
     def _hook_cfg_load(self, ctx, args: str) -> CmdResult:

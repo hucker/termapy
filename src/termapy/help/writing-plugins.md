@@ -51,7 +51,7 @@ from termapy.plugins import Command, PluginContext
 def _handler(ctx: PluginContext, args: str):
     """Called when the user types /hello."""
     name = args.strip() or "world"
-    ctx.io.write(f"Hello, {name}!")
+    ctx.io.result(f"Hello, {name}!")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
@@ -75,8 +75,9 @@ owning one domain. Plugin authors see 12 visible names on `ctx`:
 def _handler(ctx, args):
     if not ctx.cfg.get("encoding"):           # plain config (read-only)
         ...
-    ctx.io.write("Hello", "green")            # output to user
-    ctx.io.result(value)                      # scriptable return value
+    ctx.io.result("Hello", "green")           # final answer (quiet+)
+    ctx.io.output("listing line")             # bulk data (normal+)
+    ctx.io.status("loading...")               # progress chatter (verbose only)
 
     with ctx.serial.io():                     # claim serial for sync read
         ctx.serial.write(b"AT\r")
@@ -144,7 +145,7 @@ Scripts run in quiet mode read the `value` field; without it they get nothing.
 ```python
 def _handler(ctx: PluginContext, args: str):
     temp = read_temperature()
-    ctx.io.write(f"Temperature: {temp}C")
+    ctx.io.result(f"Temperature: {temp}C")
     return CmdResult.ok(value=str(temp))
 ```
 
@@ -246,7 +247,6 @@ Most plugins follow this pattern: send a command, read the response, do somethin
 ```python
 def _handler(ctx: PluginContext, args: str):
     if not ctx.serial.is_connected():
-        ctx.io.write("Not connected.", "red")
         return CmdResult.fail(msg="Not connected.")
 
     encoding = ctx.cfg.get("encoding", "utf-8")
@@ -258,7 +258,7 @@ def _handler(ctx: PluginContext, args: str):
         raw = ctx.serial.read_raw()      # read response with timeout
         text = raw.decode(encoding, errors="replace").strip()
 
-    ctx.io.write(text)
+    ctx.io.result(text)
     return CmdResult.ok(value=text)
 ```
 
@@ -287,17 +287,33 @@ returns `Not connected.` automatically when the port is down.
 
 ### Output (`ctx.io`)
 
-| Method | Description |
-| --- | --- |
-| `ctx.io.write(text, color)` | Print to terminal. Color: `"red"`, `"green"`, `"cyan"`, `"dim"`, etc. |
-| `ctx.io.write_markup(text)` | Print Rich markup (e.g. `[bold red]Warning![/]`) |
-| `ctx.io.result(value)` | Set scriptable return value (silent/quiet output levels) |
-| `ctx.io.output(text)` | Print suppressed in `silent`/`quiet` (use for header/summary lines) |
-| `ctx.io.status(text)` | Print suppressed in `silent` only (use for transient progress) |
-| `ctx.io.notify(text)` | Always-works notification (toast in TUI, plain print in CLI) |
-| `ctx.io.status_bar(text)` | Always-works status-bar update |
-| `ctx.io.clear_screen()` | Always-works screen clear |
-| `ctx.io.log(prefix, text)` | Write to session log (`">"` TX, `"<"` RX, `"#"` status) |
+All handler output flows through three semantic channels gated by the
+session's output level (`silent`/`quiet`/`normal`/`verbose`).  Use the
+plain methods for unstructured text (with optional color) and the
+`_markup` variants when the text contains Rich markup tags like
+`[bold red]Warning![/]`.
+
+| Method | Shown at | Use for |
+| --- | --- | --- |
+| `ctx.io.result(text, color)` | quiet+ | The command's final answer (single line). |
+| `ctx.io.output(text, color)` | normal+ | Bulk data: listings, dumps, file contents. |
+| `ctx.io.status(text)` | verbose only | Progress chatter, debug-y notes. |
+| `ctx.io.result_markup(text)` | quiet+ | Like `result()` but text is Rich markup. |
+| `ctx.io.output_markup(text)` | normal+ | Like `output()` but text is Rich markup. |
+| `ctx.io.status_markup(text)` | verbose only | Like `status()` but text is Rich markup. |
+| `ctx.io.notify(text)` | always | Notification (toast in TUI, plain print in CLI). |
+| `ctx.io.status_bar(text)` | always | Status-bar update (auto-no-op in CLI/MCP). |
+| `ctx.io.clear_screen()` | always | Screen clear (auto-no-op outside TUI). |
+| `ctx.io.log(prefix, text)` | always | Session log (`">"` TX, `"<"` RX, `"#"` status). |
+
+**Errors** flow through `return CmdResult.fail(msg=...)` -- the dispatcher
+paints the red error line.  Do not write red error text via the output
+channels.
+
+**Forbidden in handler code**: `ctx.io._write` and `ctx.io._write_markup`
+(the underscore-prefixed primitives that bypass level gating) are
+engine-internal.  A CI grep guard fails the build if a builtin calls
+either directly.
 
 ### Config
 

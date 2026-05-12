@@ -80,8 +80,9 @@ Every handler receives a `PluginContext`, the stable API boundary between plugin
 
 ```text
 ctx.cfg, ctx.config_path                      # plain config (read-only mapping + path)
-ctx.io.write(), ctx.io.write_markup()         # output to user (terminal, log)
-ctx.io.result(), ctx.io.output(), ctx.io.status()
+ctx.io.result(), ctx.io.output(), ctx.io.status()        # level-gated text channels
+ctx.io.result_markup(), ctx.io.output_markup(),          # level-gated Rich-markup variants
+    ctx.io.status_markup()
 ctx.io.notify(), ctx.io.status_bar()          # always-works fallbacks (no capability gate)
 ctx.io.log()                                  # session log
 ctx.serial.is_connected, ctx.serial.port      # serial state
@@ -188,7 +189,7 @@ A plugin file may export any of: a `COMMAND`, a `TRANSFORM`, a `DIRECTIVE`, and/
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> None:
-    ctx.io.write("Hello!")
+    ctx.io.result("Hello!")
 
 def on_app_start(ctx: PluginContext) -> None:
     ctx.ns("hello")["greeting"] = "Hello!"
@@ -281,7 +282,7 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 
 | Callback             | TUI (app.py)                 | CLI (cli.py)                  |
 | -------------------- | ---------------------------- | ----------------------------- |
-| `ctx.io.write()`     | `RichLog.write(Text(...))`   | `Rich Console.print()`        |
+| `ctx.io._write()`    | `RichLog.write(Text(...))`   | `Rich Console.print()`        |
 | `ctx.ui.confirm()`   | Modal dialog + `event.wait()`| `input()` prompt              |
 | `ctx.fs.open_file()` | `open_with_system()`         | `open_with_system()`          |
 | `ctx.serial.port`    | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |

@@ -937,7 +937,7 @@ from termapy.plugins import Command, PluginContext
 
 def _handler(ctx: PluginContext, args: str):
     name = args.strip() or "world"
-    ctx.io.write(f"Hello, {name}!")
+    ctx.io.result(f"Hello, {name}!")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
@@ -964,10 +964,10 @@ Use `sub_commands` for related operations. Users invoke them with dot notation (
 from termapy.plugins import Command
 
 def _run(ctx, args):
-    ctx.io.write(f"Running {args}...")
+    ctx.io.status(f"Running {args}...")
 
 def _status(ctx, args):
-    ctx.io.write("All good.")
+    ctx.io.result("All good.")
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
@@ -993,9 +993,12 @@ The `ctx` object passed to every handler is a thin shell over **five capability 
 | ----------------------------------- | ----------------------------------------------------------------- |
 | `ctx.cfg`                           | Current config (read-only mapping)                                |
 | `ctx.config_path`                   | Path to the current `.cfg` config file                            |
-| `ctx.io.write(text, color)`         | Print to the terminal (color is optional)                         |
-| `ctx.io.write_markup(text)`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)             |
-| `ctx.io.result(value)`              | Set scriptable return value (used by silent/quiet output levels)  |
+| `ctx.io.result(text, color)`        | The command's answer; shown at quiet+ (suppressed at silent)      |
+| `ctx.io.output(text, color)`        | Bulk data: listings, dumps; shown at normal+                      |
+| `ctx.io.status(text)`               | Progress chatter; shown only at verbose                           |
+| `ctx.io.result_markup(text)`        | Like `result` but text is Rich markup (`[red]X[/]`)               |
+| `ctx.io.output_markup(text)`        | Like `output` but text is Rich markup                             |
+| `ctx.io.status_markup(text)`        | Like `status` but text is Rich markup                             |
 | `ctx.io.notify(text)`               | Always-works fallback notification (toast in TUI, plain in CLI)   |
 | `ctx.io.log(prefix, text)`          | Write to session log: `">"` TX, `"<"` RX, `"#"` status            |
 | `ctx.serial.is_connected`           | Bool: serial port is open                                         |

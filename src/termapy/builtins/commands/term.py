@@ -111,7 +111,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
     if "term.verbose" not in warned:
         warned["term.verbose"] = True
         p = ctx.engine.prefix
-        ctx.io._write(
+        ctx.io.output(
             f"  Note: {p}term.verbose is legacy; use "
             f"{p}term.output (verbose|normal).",
             "yellow",
@@ -206,11 +206,11 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         # Explicit session override (including "" to disable detection)
         flags["request_err_pattern_override"] = err_token
         if err_token:
-            ctx.io._write(
+            ctx.io.output(
                 f"request_err_pattern = {err_token!r}  (session)", "green"
             )
         else:
-            ctx.io._write(
+            ctx.io.output(
                 "request_err_pattern cleared -- error detection disabled  (session)",
                 "yellow",
             )
@@ -220,7 +220,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         # off doesn't preserve a "previous" request_mode state -- 'on'
         # is a reset.
         if flags.pop("request_err_pattern_override", None) is not None:
-            ctx.io._write(
+            ctx.io.output(
                 "request_err_pattern reset to cfg default  (session override cleared)",
                 "dim",
             )
@@ -313,14 +313,14 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
         rows.append(("full_table", "(missing -- reinstall termapy)"))
 
     for line in format_kv_lines(rows):
-        ctx.io._write_markup(line)
+        ctx.io.output_markup(line)
     # Update hint targets end users (PyPI installs) -- the bundled
     # data refreshes on each termapy release, so upgrading is the
     # right path for newer entries.  Maintainers update via
     # scripts/refresh_usb_ids.py during release prep, but that's a
     # repo-level workflow, not exposed to package users.
-    ctx.io._write_markup("")
-    ctx.io._write_markup(
+    ctx.io.output_markup("")
+    ctx.io.output_markup(
         "  [dim]To update:[/]   upgrade termapy (e.g. "
         "[cyan]uv tool upgrade termapy[/] or [cyan]pip install -U termapy[/])"
     )
@@ -366,7 +366,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
     ]
     for line in format_kv_lines(rows):
-        ctx.io._write_markup(line)
+        ctx.io.output_markup(line)
     return CmdResult.ok()
 
 

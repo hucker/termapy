@@ -34,9 +34,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             args, shell=True, capture_output=True, text=True, timeout=10
         )
         for line in result.stdout.splitlines():
-            ctx.io._write(line, "white")
+            ctx.io.output(line, "white")
         for line in result.stderr.splitlines():
-            ctx.io._write(line, "red")
+            ctx.io.output(line, "red")
     except subprocess.TimeoutExpired:
         return CmdResult.fail(msg="Command timed out (10s limit)")
     return CmdResult.ok()

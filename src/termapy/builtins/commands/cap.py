@@ -528,7 +528,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             fh.flush()
 
     # Header line to the terminal
-    ctx.io._write("  " + "  ".join(
+    ctx.io.output("  " + "  ".join(
         getattr(name, align)(w) for name, w, align in header_cols
     ))
 
@@ -580,7 +580,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                 fh.flush()
 
             # Echo to terminal (matching header alignment)
-            ctx.io._write("  " + "  ".join(line_parts))
+            ctx.io.output("  " + "  ".join(line_parts))
 
             samples_written += 1
 
@@ -604,9 +604,9 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=aborted_msg)
 
     if path is not None:
-        ctx.io._write(f"Poll complete: {path} ({samples_written} samples)", "green")
+        ctx.io.output(f"Poll complete: {path} ({samples_written} samples)", "green")
         return CmdResult.ok(value=str(path))
-    ctx.io._write(f"Poll complete ({samples_written} samples)", "green")
+    ctx.io.output(f"Poll complete ({samples_written} samples)", "green")
     return CmdResult.ok(value=str(samples_written))
 
 
@@ -696,15 +696,15 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     # that empty envelope is itself the diagnostic, and a "Warning: no
     # wire traffic" header explains what to look at.
     if not tx and not rx:
-        ctx.io._write("  Warning: no wire traffic", "yellow")
+        ctx.io.output("  Warning: no wire traffic", "yellow")
     # Hex-spaced bytes paired with a Python repr() of the decoded
     # text on the same line so escape sequences for non-printing
     # bytes (\\r, \\n, \\x00, \\x1b) are visible.
-    ctx.io._write_markup(
+    ctx.io.output_markup(
         f"  [yellow]TX ({len(tx):3d}):[/] "
         f"{bytes(tx).hex(' ')}  [dim]{tx_decoded!r}[/]",
     )
-    ctx.io._write_markup(
+    ctx.io.output_markup(
         f"  [cyan]RX ({len(rx):3d}):[/] "
         f"{bytes(rx).hex(' ')}  [dim]{rx_decoded!r}[/]",
     )

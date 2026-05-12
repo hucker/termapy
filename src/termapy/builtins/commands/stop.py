@@ -23,9 +23,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """
     if ctx.engine.in_script():
         ctx.engine.script_stop()
-        ctx.io._write("Stopping script...")
+        ctx.io.output("Stopping script...")
     else:
-        ctx.io._write("No script running.")
+        ctx.io.output("No script running.")
     return CmdResult.ok()
 
 

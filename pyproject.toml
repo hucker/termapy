@@ -64,6 +64,7 @@ include = [
     "src/termapy/*.json",
     "src/termapy/help/*.md",
     "src/termapy/html/**",
+    "src/termapy/profile/*.json",
     "src/termapy/builtins/demo/**",
 ]
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from termapy.profile_types import (
+from termapy.profile import (
     BUILTINS,
     ProfileTypeError,
     TypeDef,

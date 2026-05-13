@@ -898,7 +898,7 @@ def _dispatch_via_profile(
     # to a structured failure before any bytes hit the wire.
     typed_args = spec.get("typed_args") or []
     if typed_args and bound:
-        from termapy.profile_types import TypeRegistry as _TypeRegistry
+        from termapy.profile import TypeRegistry as _TypeRegistry
 
         reg = _TypeRegistry.from_profile(profile)
         for ta in typed_args:

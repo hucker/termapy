@@ -844,7 +844,7 @@ def _dispatch_via_profile(
     from termapy.request_response import request_response
     from termapy.response_parsers import parse_response
 
-    name, spec, _bound = match
+    name, spec, bound = match
 
     # Disabled-by-author gate.  ``enabled: false`` means "the engineer
     # has not audited this entry; do NOT run it."  We REFUSE rather
@@ -890,6 +890,43 @@ def _dispatch_via_profile(
             },
         )
         return result
+
+    # Typed-arg validation via the profile-local type registry.  Runs
+    # after the disabled and destructive gates so those refusals win
+    # over a "bad argument" message for a command the caller has no
+    # business invoking.  Bound args that fail validation short-circuit
+    # to a structured failure before any bytes hit the wire.
+    typed_args = spec.get("typed_args") or []
+    if typed_args and bound:
+        from termapy.profile_types import TypeRegistry as _TypeRegistry
+
+        reg = _TypeRegistry.from_profile(profile)
+        for ta in typed_args:
+            if not isinstance(ta, dict):
+                continue
+            arg_name = ta.get("name")
+            arg_type = ta.get("type")
+            if not arg_name or not arg_type or arg_name not in bound:
+                continue
+            outcome = reg.validate(arg_type, bound[arg_name])
+            if not outcome.ok:
+                return CmdResult.fail(
+                    msg=(
+                        f"Arg {arg_name!r} invalid for {name!r}: "
+                        f"{outcome.error}"
+                    ),
+                    value={
+                        "arg": arg_name,
+                        "type": arg_type,
+                        "value": bound[arg_name],
+                        "command": name,
+                    },
+                )
+            # Stash the normalized form for future send-template
+            # re-rendering.  Today the wire still uses the raw match
+            # text inside command_text; this just preserves the
+            # coerced value for downstream tooling.
+            bound[arg_name] = outcome.value
 
     transport = profile.get("transport") or {}
     encoding = transport.get("encoding", "utf-8")

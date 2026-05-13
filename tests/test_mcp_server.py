@@ -90,6 +90,84 @@ class TestCatalog:
         # Assert
         assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
+    def test_catalog_emits_types_block_when_profile_declares_types(self, host):
+        # Arrange -- seed an active profile with a types block.
+        ns = host.ctx.ns("active_profile")
+        ns.clear()
+        ns.update({
+            "profile_version": 2,
+            "types": {
+                "onoff": {"kind": "enum", "values": ["on", "off"]},
+                "percent": {"kind": "int_range", "min": 0, "max": 100},
+            },
+            "commands": {},
+        })
+        # Act
+        cat = build_catalog(host.ctx)
+        # Assert
+        types_out = cat.get("types") or {}
+        assert "onoff" in types_out, "onoff type surfaced in catalog"
+        assert types_out["onoff"]["kind"] == "enum", "kind preserved"
+        assert types_out["onoff"]["values"] == ["on", "off"], "values preserved"
+        assert types_out["percent"]["min"] == 0, "int_range min preserved"
+        assert types_out["percent"]["max"] == 100, "int_range max preserved"
+
+    def test_catalog_types_block_empty_when_no_profile_types(self, host):
+        # Arrange / Act -- no profile loaded.
+        cat = build_catalog(host.ctx)
+        # Assert
+        assert cat.get("types") == {}, "no types block -> empty dict in catalog"
+
+    def test_target_typed_args_get_inlined_type_info(self, host):
+        # Arrange -- profile declares a type, target command references it.
+        from termapy.plugins import TargetCommand
+
+        ns = host.ctx.ns("active_profile")
+        ns.clear()
+        ns.update({
+            "profile_version": 2,
+            "types": {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            "commands": {},
+        })
+        target = host.ctx.ns("target_commands")
+        target["SET"] = TargetCommand(
+            name="SET", help="Set state.",
+            typed_args=[{"name": "state", "type": "onoff", "required": True}],
+        )
+        # Act
+        cat = build_catalog(host.ctx)
+        # Assert
+        set_entry = next(
+            e for e in cat["target_commands"] if e["name"] == "SET"
+        )
+        ta = set_entry["typed_args"][0]
+        assert ta["name"] == "state", "original typed_arg fields preserved"
+        assert ta["type"] == "onoff", "type name preserved"
+        info = ta.get("type_info") or {}
+        assert info.get("kind") == "enum", "type_info carries kind"
+        assert info.get("values") == ["on", "off"], (
+            "type_info carries the contract inline"
+        )
+
+    def test_target_typed_args_builtin_resolves_to_builtin(self, host):
+        # Arrange -- typed_arg using a builtin gets a builtin-shaped type_info.
+        from termapy.plugins import TargetCommand
+
+        target = host.ctx.ns("target_commands")
+        target["ECHO"] = TargetCommand(
+            name="ECHO", help="Echo.",
+            typed_args=[{"name": "msg", "type": "str", "required": True}],
+        )
+        # Act
+        cat = build_catalog(host.ctx)
+        # Assert
+        echo = next(e for e in cat["target_commands"] if e["name"] == "ECHO")
+        ta = echo["typed_args"][0]
+        info = ta.get("type_info") or {}
+        assert info.get("kind") == "builtin", (
+            "builtin types resolve to kind=builtin in catalog"
+        )
+
     def test_catalog_filters_disabled_target_commands(self, host):
         # Arrange -- seed two target commands, one disabled
         from termapy.plugins import TargetCommand

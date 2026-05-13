@@ -17,6 +17,7 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 from termapy.plugins import CapabilitySet, resolve_long_help
+from termapy.profile import TypeRegistry, typedef_to_catalog
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext, PluginInfo
@@ -75,6 +76,24 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
             continue
         cmd_list.append(_command_descriptor(plugin, ctx))
 
+    # Profile blocks come from a future "active profile" namespace; v1
+    # leaves them empty until /profile.load lands in Phase 4.  Schema
+    # consumers (Claude, codegen) treat absent or empty as "not set."
+    active_profile = ctx.ns("active_profile")
+    if not isinstance(active_profile, dict):
+        active_profile = {}
+
+    # Profile-local types: build the registry once, attach inline
+    # type_info to each typed_arg so the LLM doesn't have to cross-
+    # reference the top-level 'types' block to know what a typed arg
+    # accepts.  The 'types' block is also emitted verbatim so an LLM
+    # that prefers reading the contract once and reusing it can do so.
+    type_registry = TypeRegistry.from_profile(active_profile)
+    types_block: dict[str, Any] = {
+        name: typedef_to_catalog(td)
+        for name, td in type_registry.all().items()
+    }
+
     target_commands = []
     target_meta = ctx.ns("target_meta")
     target_ns = ctx.ns("target_commands")
@@ -85,17 +104,10 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         # human supervisor) but the bot doesn't see them.  Default
         # True keeps existing curated/v2-published manifests visible.
         target_commands = [
-            _target_descriptor(target_ns[n])
+            _target_descriptor(target_ns[n], type_registry)
             for n in sorted(target_ns)
             if getattr(target_ns[n], "enabled", True)
         ]
-
-    # Profile blocks come from a future "active profile" namespace; v1
-    # leaves them empty until /profile.load lands in Phase 4.  Schema
-    # consumers (Claude, codegen) treat absent or empty as "not set."
-    active_profile = ctx.ns("active_profile")
-    if not isinstance(active_profile, dict):
-        active_profile = {}
 
     return {
         "schema": CATALOG_SCHEMA_VERSION,
@@ -106,6 +118,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         "device": active_profile.get("device", {}),
         "transport": active_profile.get("transport", {}),
         "error_detection": active_profile.get("error_detection", {}),
+        "types": types_block,
         "commands": cmd_list,
         "target_commands": target_commands,
         "target_meta": dict(target_meta) if isinstance(target_meta, dict) else {},
@@ -273,8 +286,18 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     }
 
 
-def _target_descriptor(target: Any) -> dict[str, Any]:
-    """Convert a TargetCommand (device-imported help) into a catalog entry."""
+def _target_descriptor(
+    target: Any, type_registry: TypeRegistry | None = None,
+) -> dict[str, Any]:
+    """Convert a TargetCommand (device-imported help) into a catalog entry.
+
+    When ``type_registry`` is provided, each entry in ``typed_args``
+    gets an inline ``type_info`` field carrying the kind-shaped
+    description of the referenced type (enum values, range bounds,
+    pattern source, etc.).  This lets the LLM read the contract per
+    arg without cross-referencing the top-level ``types`` block.
+    Builtin types resolve to ``{"kind": "builtin"}``.
+    """
     out: dict[str, Any] = {
         "name": getattr(target, "name", ""),
         "args": getattr(target, "args", ""),
@@ -285,7 +308,19 @@ def _target_descriptor(target: Any) -> dict[str, Any]:
     # v2 fields (from Phase 2): only include when present (non-default).
     typed_args = getattr(target, "typed_args", None)
     if typed_args:
-        out["typed_args"] = list(typed_args)
+        enriched: list[dict[str, Any]] = []
+        for ta in typed_args:
+            if isinstance(ta, dict):
+                entry = dict(ta)
+                if type_registry is not None:
+                    type_name = entry.get("type", "")
+                    td = type_registry.resolve(type_name) if type_name else None
+                    if td is not None:
+                        entry["type_info"] = typedef_to_catalog(td)
+                enriched.append(entry)
+            else:
+                enriched.append(ta)
+        out["typed_args"] = enriched
     send_template = getattr(target, "send_template", "")
     if send_template:
         out["send_template"] = send_template

@@ -148,9 +148,73 @@ If omitted, the command is sent verbatim.
 ### `typed_args` (array, optional)
 
 Structured argument schema used by codegen tools.  Each entry:
-`{"name": "...", "type": "str|int|float|bool", "required": true,
-"help": "...", "enum": [...], "min": ..., "max": ...}`.  Only emitted
-when authoring for codegen consumption.
+`{"name": "...", "type": "<builtin or custom name>", "required": true,
+"help": "...", "enum": [...], "min": ..., "max": ...}`.
+
+`type` accepts either a **builtin** (`int`, `float`, `bool`, `hex`,
+`str`) or a **custom name declared in the profile's top-level `types`
+block** (see below).  When the MCP dispatcher binds a `typed_args`
+entry, the validator runs before the request hits the wire — bad
+values short-circuit to a structured failure naming the rejected
+value, the violated constraint, and the canonical command name.
+
+## Profile-local types
+
+A v2 profile may declare a top-level `types` block — a map of named
+user-defined types referenced by `typed_args[i].type`.  This is how a
+device declares its own argument vocabulary (e.g. one device's
+lenient bool of `on/off/true/false/yes/no/1/0/high/low` vs. another's
+strict `0/1`) without forking the schema.
+
+The five builtins always resolve directly; custom names cannot
+shadow them (`bool`, `int`, etc. are reserved).  Six `kind` values
+are recognized:
+
+| `kind` | Required fields | Behavior |
+| --- | --- | --- |
+| `enum` | `values` (array) | Exact-match against the list; values stringified for compare |
+| `int_range` | `min`, `max` | Coerce to int; check `min ≤ v ≤ max` |
+| `float_range` | `min`, `max` | Coerce to float; same bounds check |
+| `str_length` | `min_len` and/or `max_len` | Coerce to str; check length against bounds |
+| `pattern` | `regex` | `re.fullmatch(regex, value)` — anchored both ends |
+| `format_spec` | `spec` | Parsed via the protocol format-spec language; validator is a pass-through stub today |
+
+Example:
+
+```json
+{
+  "types": {
+    "onoff":    {"kind": "enum", "values": ["on", "off", "true", "false", "yes", "no", "1", "0"]},
+    "baud":     {"kind": "enum", "values": [9600, 19200, 38400, 57600, 115200]},
+    "percent":  {"kind": "int_range", "min": 0, "max": 100},
+    "voltage":  {"kind": "float_range", "min": 0.0, "max": 5.0},
+    "nickname": {"kind": "str_length", "min_len": 1, "max_len": 16},
+    "duration": {"kind": "pattern", "regex": "^\\d+(us|ms|s)$"},
+    "byte":     {"kind": "format_spec", "spec": "Val:H1"}
+  },
+  "commands": {
+    "ECHO":    {"help": "Toggle echo.", "typed_args": [{"name": "state", "type": "onoff"}]},
+    "SETBAUD": {"help": "Change baud.",  "typed_args": [{"name": "rate",  "type": "baud"}]},
+    "SETDUTY": {"help": "Duty cycle.",   "typed_args": [{"name": "pct",   "type": "percent"}]}
+  }
+}
+```
+
+Notes:
+
+- **`format_spec` is a wired-up stub.**  The schema accepts it and the
+  registry parses the `spec` string via the same format-spec parser
+  used by `/proto.*` (see the protocol-testing guide).  The validator
+  is currently a pass-through — calls succeed without checking
+  individual bytes — so authors can declare binary-field types today
+  and the byte-level enforcement lands when needed.
+- **Case is significant.**  Enum members match exactly.  If a device
+  accepts both `ON` and `on`, list both explicitly.
+- **No `types` block ⇒ no behavior change.**  Existing profiles using
+  only builtin `typed_args.type` values keep working identically.
+- The catalog emits the `types` block verbatim and inlines a
+  `type_info` field on each `typed_args` entry so an LLM reading the
+  catalog sees the full contract per arg without cross-referencing.
 
 ## Top-level blocks
 

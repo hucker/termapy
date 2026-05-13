@@ -1,0 +1,103 @@
+{
+  "profile_version": 2,
+  "profile_revision": "1.0.0",
+  "profile_date": "2026-05-12",
+
+  "device": {
+    "name": "Typed Modem (profile-local types fixture)",
+    "vendor": "Reference",
+    "startup_banner": "^READY$",
+    "prompt": ""
+  },
+
+  "transport": {
+    "protocol": "text",
+    "baud_rate": 115200,
+    "byte_size": 8,
+    "parity": "N",
+    "stop_bits": 1,
+    "flow_control": "none",
+    "line_ending_send": "\r\n",
+    "line_ending_recv": "\r\n",
+    "encoding": "ascii",
+    "echo": true,
+    "inter_command_delay_ms": 20,
+    "default_response_timeout_ms": 1000
+  },
+
+  "types": {
+    "bool":     {"kind": "enum", "values": ["on", "off", "true", "false", "yes", "no", "1", "0"], "help": "Lenient bool: device accepts any of these forms."},
+    "baud":     {"kind": "enum", "values": [9600, 19200, 38400, 57600, 115200], "help": "Supported baud rates."},
+    "percent":  {"kind": "int_range", "min": 0, "max": 100, "help": "0..100 inclusive."},
+    "voltage":  {"kind": "float_range", "min": 0.0, "max": 5.0, "help": "Volts, 0.0..5.0."},
+    "nickname": {"kind": "str_length", "min_len": 1, "max_len": 8, "help": "Device label, 1..8 chars."},
+    "duration": {"kind": "pattern", "regex": "^\\d+(us|ms|s)$", "help": "Number followed by us/ms/s."},
+    "byte":     {"kind": "format_spec", "spec": "Val:H1", "help": "Single hex byte field (stub: not yet validated)."}
+  },
+
+  "commands": {
+    "ECHO": {
+      "help": "Toggle command echo.",
+      "send_template": "ECHO {state}",
+      "typed_args": [
+        {"name": "state", "type": "bool", "required": true, "help": "Echo on/off (lenient bool)."}
+      ],
+      "safety": "readonly",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    },
+    "SET_BAUD": {
+      "help": "Change baud rate (requires reconnect).",
+      "send_template": "SET_BAUD {rate}",
+      "typed_args": [
+        {"name": "rate", "type": "baud", "required": true, "help": "Target baud rate (must be one of the supported values)."}
+      ],
+      "safety": "destructive",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 500}
+    },
+    "SET_DUTY": {
+      "help": "Set PWM duty cycle.",
+      "send_template": "SET_DUTY {pct}",
+      "typed_args": [
+        {"name": "pct", "type": "percent", "required": true, "help": "Duty cycle in percent."}
+      ],
+      "safety": "readonly",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    },
+    "SET_VOLTAGE": {
+      "help": "Set output voltage.",
+      "send_template": "SET_V {v}",
+      "typed_args": [
+        {"name": "v", "type": "voltage", "required": true, "help": "Output voltage."}
+      ],
+      "safety": "readonly",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    },
+    "SET_NAME": {
+      "help": "Set device nickname.",
+      "send_template": "SET_NAME {label}",
+      "typed_args": [
+        {"name": "label", "type": "nickname", "required": true, "help": "Nickname (1..8 chars)."}
+      ],
+      "safety": "readonly",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    },
+    "SLEEP": {
+      "help": "Sleep for a duration.",
+      "send_template": "SLEEP {dur}",
+      "typed_args": [
+        {"name": "dur", "type": "duration", "required": true, "help": "Duration like '500ms' or '5s'."}
+      ],
+      "safety": "readonly",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    },
+    "WRITE_BYTE": {
+      "help": "Write a raw byte (format_spec stub).",
+      "send_template": "WB {b}",
+      "typed_args": [
+        {"name": "b", "type": "byte", "required": true, "help": "Single byte value."}
+      ],
+      "safety": "destructive",
+      "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}
+    }
+  }
+}

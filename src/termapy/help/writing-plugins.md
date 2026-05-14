@@ -288,6 +288,39 @@ COMMAND = Command(
 The handler then doesn't need to check `is_connected` -- the dispatcher
 returns `Not connected.` automatically when the port is down.
 
+## Useful library imports
+
+Beyond `termapy.plugins`, three pyserial-adjacent subpackages are
+available for plugins that need typed device contracts, binary
+protocol parsing, or USB chip lookup.  Each is self-contained
+(no Textual / no engine deps) and re-exported via its package's
+`__init__`:
+
+```python
+# Device profile schema, loader, type registry (validate typed args,
+# resolve profile-local types, walk a v2 profile dict).
+from termapy.profile import (
+    TypeRegistry, load_profile, validate_profile, profile_command_view,
+)
+
+# Binary protocol toolkit (format-spec parser, CRC catalog, .pro runner,
+# visualizer loader).  See protocol-testing.md for the format-spec
+# language and serial-tools.md for the CRC catalogue.
+from termapy.protocol import (
+    parse_format_spec, apply_format, FrameCollector, get_crc_registry,
+)
+
+# USB lookup tables (VID -> vendor, VID:PID -> chip + max baud,
+# manufacturer-string -> short alias).  Pure data + lookup helpers;
+# pyserial gives you the VID/PID/manufacturer, these add value on top.
+from termapy.usb import chip, vendor_for, mfg
+```
+
+Each subpackage's `__init__.py` carries a library-usage docstring
+with a worked example.  Treat them as importable libraries: a plugin
+that crunches binary frames doesn't need to vendor a CRC catalogue
+itself.
+
 ## PluginContext API reference
 
 ### Output (`ctx.io`)

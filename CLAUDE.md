@@ -137,13 +137,29 @@ uv run termapy --cfg-dir . # use cwd for configs
 - Do NOT rebuild HTML help in feature commits — it adds noise to diffs
 - HTML help rebuild should be a separate commit before release versions
 - Run tox, pytest, coverage review
+- **`uv run ruff check src/termapy/ tests/` must be 0** (release_prep refuses to cut a release otherwise)
+- **`uvx ty check src/termapy/` must be 0** (same gate; the README badge tracks this and turns yellow/red on regression)
 
 ## Release
 
 Two-stage automation in `scripts/`. From clean main:
 
-1. `python scripts/release_prep.py <version>` -- cuts `release/v<version>`, bumps `pyproject.toml` and `mkdocs.yml`, refreshes `uv.lock`, updates line/test counts in `ARCHITECTURE.md` and `README.md`, inserts a CHANGELOG stub, runs `pytest` and `tox`, builds HTML with `uvx zensical build`, makes two commits (HTML rebuild, then `Release v<version>`).
+1. `python scripts/release_prep.py <version>` -- cuts `release/v<version>`, bumps `pyproject.toml` and `mkdocs.yml`, refreshes `uv.lock`, refreshes line/test/coverage/ty counts in `ARCHITECTURE.md` and `README.md` (including the ty + coverage badges), inserts a CHANGELOG stub, runs `pytest` and `tox`, builds HTML with `uvx zensical build`, makes two commits (HTML rebuild, then `Release v<version>`).
 2. Manual review: edit `CHANGELOG.md` to replace the TODO stub with a user-facing summary, then `git commit --amend --no-edit`.
 3. `python scripts/release_publish.py --yes` -- merges release branch to main with `--no-ff`, tags `v<version>`, pushes main + tag + release branch, creates the GitHub release with notes pulled from CHANGELOG.
+
+Hard gates (step 1 aborts):
+
+- ruff and ty must both report zero issues
+- `main` must be in sync with `origin/main`
+- tag `v<version>` must not already exist
+
+Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
+
+- test count (`pytest --collect-only`)
+- coverage percent (parsed from `pytest --cov` `TOTAL` line)
+- ty diagnostic count + badge color
+- ARCHITECTURE.md per-module line counts
+- rounded UI line counts in README ("app.py ~4225 lines, ...")
 
 No RC versions, no leading `v` in the version arg, never run from anywhere but main. Scripts are stdlib-only and fail loud. See script docstrings for details.

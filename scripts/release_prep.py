@@ -157,6 +157,63 @@ def count_ty_issues() -> int:
     return 0  # unreachable, satisfies type checker
 
 
+def count_ruff_issues() -> int:
+    """Total ruff issues from `uv run ruff check src/termapy/ tests/`.
+
+    ``ruff check`` exits 1 when it finds issues; pass ``check=False``
+    and parse the output regardless.  A clean project prints
+    ``All checks passed!``.
+    """
+    out = run_out(
+        ["uv", "run", "ruff", "check", "src/termapy/", "tests/"],
+        check=False,
+    )
+    if "All checks passed!" in out:
+        return 0
+    m = re.search(r"Found (\d+) errors?", out)
+    if m:
+        return int(m.group(1))
+    die("could not parse ruff issue count from `ruff check` output")
+    return 0  # unreachable, satisfies type checker
+
+
+def measure_coverage_percent() -> int:
+    """Total coverage percent from ``pytest --cov``.
+
+    Runs a fresh quick pytest with the default ``-v --cov=termapy
+    --cov-report=term-missing`` addopts (from pyproject), parses the
+    ``TOTAL ... N%`` line at the end of the cov summary, and returns
+    the integer percent.  The release commit substitutes this number
+    into README.md so the figure can't silently drift.
+    """
+    out = run_out(["uv", "run", "pytest", "-q"])
+    # The coverage terminal report ends with:
+    #     TOTAL                       9562    1834    81%
+    m = re.search(r"^TOTAL\s+\d+\s+\d+\s+(\d+)%", out, re.MULTILINE)
+    if m:
+        return int(m.group(1))
+    die("could not parse coverage percent from pytest --cov output")
+    return 0  # unreachable, satisfies type checker
+
+
+def assert_zero_lint() -> None:
+    """Hard-fail the release if ruff or ty has any issues.
+
+    The release process treats both at zero as a precondition, not a
+    "nice to have."  Surfaces the count and aborts so the user fixes
+    the source on a chore branch and re-runs release_prep -- rather
+    than baking the regression into a published version.
+    """
+    ruff = count_ruff_issues()
+    ty = count_ty_issues()
+    if ruff or ty:
+        die(
+            f"refusing to release with lint issues: "
+            f"ruff={ruff}, ty={ty}.  Fix on a chore branch first."
+        )
+    ok(f"lint clean (ruff=0, ty=0)")
+
+
 def ty_badge_color(count: int) -> str:
     """Return the shields.io color name for a given ty issue count.
 
@@ -166,6 +223,20 @@ def ty_badge_color(count: int) -> str:
     if count < 10:
         return "brightgreen"
     if count < 20:
+        return "yellow"
+    return "red"
+
+
+def coverage_badge_color(percent: int) -> str:
+    """Return the shields.io color name for a coverage percentage.
+
+    Thresholds chosen to give visible "you're slipping" feedback as
+    coverage drops below the project's typical 70-80% band: 80+ green,
+    65-79 yellow, below 65 red.
+    """
+    if percent >= 80:
+        return "brightgreen"
+    if percent >= 65:
         return "yellow"
     return "red"
 
@@ -229,23 +300,34 @@ def update_architecture_md(test_count: int) -> None:
     ok(f"ARCHITECTURE.md updated ({updated} line counts, test count={test_count})")
 
 
-def update_readme_md(test_count: int, ty_count: int) -> None:
-    """Update test count, ty badge, and rounded UI line counts in README.md."""
+def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
+    """Update test count, ty + coverage badges, and rounded UI line counts."""
     path = REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8")
     test_files = count_test_files()
 
-    # README uses two places for the count: the <details> summary and the
-    # body line right below it.
+    # README uses two places for the test-coverage summary: the
+    # <details> summary line and the body line right below it.  Both
+    # the test count and the overall % get refreshed each release so
+    # the README can't silently drift from the actual figure.
     text = re.sub(
         r"<strong>Test coverage</strong> - \d+ tests, \d+% overall",
-        f"<strong>Test coverage</strong> - {test_count} tests, 67% overall",
+        f"<strong>Test coverage</strong> - {test_count} tests, {cov_percent}% overall",
         text,
         count=1,
     )
     text = re.sub(
         r"\d+ tests across \d+ test files\.",
         f"{test_count} tests across {test_files} test files.",
+        text,
+        count=1,
+    )
+    # The discussion paragraph below the test-count line references the
+    # same overall figure ("The N% overall figure reflects...") -- keep
+    # both in sync.
+    text = re.sub(
+        r"The \d+% overall figure",
+        f"The {cov_percent}% overall figure",
         text,
         count=1,
     )
@@ -256,6 +338,17 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
     text = re.sub(
         r"badge/ty-\d+%20issues-[a-z]+",
         f"badge/ty-{ty_count}%20issues-{color}",
+        text,
+        count=1,
+    )
+
+    # Coverage badge in the "Built with:" row.  Drives the displayed
+    # percent from pytest --cov output; coverage_badge_color() picks
+    # green/yellow/red so a drop is visible at a glance.
+    cov_color = coverage_badge_color(cov_percent)
+    text = re.sub(
+        r"badge/coverage-[^-]+-[a-z]+",
+        f"badge/coverage-{cov_percent}%25-{cov_color}",
         text,
         count=1,
     )
@@ -279,6 +372,7 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
     path.write_text(text, encoding="utf-8")
     ok(
         f"README.md updated (tests={test_count}, ty={ty_count} ({color}), "
+        f"coverage={cov_percent}% ({cov_color}), "
         f"app.py~{app_lines}, dialogs/~{dialogs_lines})"
     )
 
@@ -594,6 +688,7 @@ def main() -> None:
     assert_clean_tree()
     assert_main_in_sync_with_origin()
     assert_tag_does_not_exist(version)
+    assert_zero_lint()
     ok("git state is clean and ready")
 
     step(2, "Cutting release branch...")
@@ -604,11 +699,12 @@ def main() -> None:
     bump_mkdocs(version)
     refresh_uv_lock()
 
-    step(4, "Updating doc counts (test count, ty count, line counts)...")
+    step(4, "Updating doc counts (test count, ty count, coverage, line counts)...")
     test_count = count_tests()
     ty_count = count_ty_issues()
+    cov_percent = measure_coverage_percent()
     update_architecture_md(test_count)
-    update_readme_md(test_count, ty_count)
+    update_readme_md(test_count, ty_count, cov_percent)
 
     step(5, "Updating config examples in docs...")
     from update_doc_configs import update_doc_configs

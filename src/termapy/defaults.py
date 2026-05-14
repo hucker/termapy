@@ -55,6 +55,7 @@ DEFAULT_CFG = {
     "device_json_cmd": "",
     "auto_include_on_connect": True,
     "profile_path": "",
+    "validate_typed_args": False,
     # Serial
     "port": "",
     "baud_rate": 115200,
@@ -426,6 +427,14 @@ CFG_HELP: dict[str, tuple] = {
     "profile_path": (
         "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",
         'Valid: file path (e.g. "termapy_cfg/myrig/myrig.profile.json"), or empty.',
+    ),
+    "validate_typed_args": (
+        "When on, the CLI validates bare-command typed_args against the active "
+        "profile's type registry before writing to the wire (mirrors the MCP "
+        "behavior).  Default off keeps raw access -- device errors are the "
+        "source of truth.  Turn on when iterating on a profile to surface bad "
+        "values without a serial round-trip.",
+        "Valid: true, false.",
     ),
     # Title-bar buttons
     "cfg_enabled": (

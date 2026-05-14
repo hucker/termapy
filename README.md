@@ -502,6 +502,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "device_json_cmd": "",
     "auto_include_on_connect": true,
     "profile_path": "",
+    "validate_typed_args": false,
     "port": "COM4",
     "baud_rate": 115200,
     "custom_baud": false,

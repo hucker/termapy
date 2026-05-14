@@ -462,7 +462,7 @@ class FakeSerial:
             # Schema version lets /include compare against its cache and
             # keep whichever is newer.  Bump this when the demo's command
             # set changes in a way users should pick up automatically.
-            "version": "2.1.0",
+            "version": "2.2.0",
             "profile_version": 2,
             "transport": {
                 "protocol": "text",
@@ -478,6 +478,16 @@ class FakeSerial:
                 # `OK` reply that happens to contain the word "error" later
                 # (it won't, but defensively) doesn't get hijacked.
                 "pattern": r"^ERROR(?::\s*(?P<message>.+))?$",
+            },
+            # Profile-local types: device publishes its argument vocabulary
+            # so a consumer (LLM, codegen, /profile.load) gets the precise
+            # contract instead of having to read each command's inline enum.
+            "types": {
+                "onoff": {
+                    "kind": "enum",
+                    "values": ["on", "off"],
+                    "help": "LED state: on or off.",
+                },
             },
             "commands": {
                 "AT": {
@@ -560,8 +570,8 @@ class FakeSerial:
                     "send_template": "AT+LED {state}",
                     "typed_args": [
                         {
-                            "name": "state", "type": "str", "required": True,
-                            "help": "LED state.", "enum": ["on", "off"],
+                            "name": "state", "type": "onoff", "required": True,
+                            "help": "LED state.",
                         }
                     ],
                     "long_help": (

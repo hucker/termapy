@@ -33,7 +33,7 @@ from typing import Any
 
 # Schema location, exported so callers (validators, REPL plugins,
 # external tools) can load it without hardcoding the path.
-SCHEMA_PATH = Path(__file__).parent / "profile.schema.json"
+SCHEMA_PATH = Path(__file__).parent / "schema.json"
 
 
 # ── Loading and saving ──────────────────────────────────────────────────────

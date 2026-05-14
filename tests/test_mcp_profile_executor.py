@@ -257,8 +257,9 @@ class TestJsonFormat:
 
 
 class TestNoneFormat:
-    def test_fire_and_forget_returns_sent_marker(self, host):
-        # Arrange — no reply scheduled; format=none means we don't wait
+    def test_no_reply_succeeds_with_sent_marker(self, host):
+        # Arrange — no reply scheduled; format=none waits briefly to
+        # verify silence and then succeeds when nothing arrives.
         _load_profile(host, _profile_with({
             "RESET": {
                 "help": "Reset; no reply.",
@@ -269,9 +270,71 @@ class TestNoneFormat:
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert
         actual = result["value"]
-        assert result["success"] is True, "fire-and-forget succeeds without waiting"
+        assert result["success"] is True, "silence verified -> success"
         assert actual == {"sent": True, "cmd": "RESET"}, "sent-marker shape"
         assert host._sent == [b"RESET\r\n"], "bytes still went out"
+
+    def test_unexpected_reply_fails_the_contract(self, host):
+        # Arrange -- profile says no reply, but the device sends one.
+        # This is the misconfiguration we want to surface.
+        _load_profile(host, _profile_with({
+            "RESET": {
+                "help": "Reset; no reply.",
+                "response": {"format": "none", "timeout_ms": 200},
+            },
+        }))
+        _reply_after_send(host, ["OOPS unexpected"])
+        # Act
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
+        # Assert
+        value = result["value"]
+        assert result["success"] is False, "contract violation fails"
+        assert "Expected no response" in result["error"], (
+            "error names the violated contract"
+        )
+        assert isinstance(value, dict), "structured failure value"
+        assert value["command"] == "RESET", "command name surfaced"
+        assert "OOPS unexpected" in value["unexpected_output"], (
+            "rejected output surfaced for the LLM"
+        )
+
+    def test_timeout_zero_opts_out_of_silence_check(self, host):
+        # Arrange -- explicit timeout_ms: 0 disables the wait, restoring
+        # true fire-and-forget for authors who want it.
+        _load_profile(host, _profile_with({
+            "RESET": {
+                "help": "Hard fire-and-forget.",
+                "response": {"format": "none", "timeout_ms": 0},
+            },
+        }))
+        # Schedule a reply -- it should be IGNORED because we don't wait.
+        _reply_after_send(host, ["this should not be checked"])
+        # Act
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
+        # Assert -- success even though the device emits something.
+        assert result["success"] is True, (
+            "timeout_ms=0 opts out of the silence verification"
+        )
+        assert result["value"] == {"sent": True, "cmd": "RESET"}, (
+            "sent-marker still returned"
+        )
+
+    def test_whitespace_only_reply_does_not_fail(self, host):
+        # Arrange -- some devices emit a bare newline as idle artifact.
+        # That shouldn't break a format=none contract.
+        _load_profile(host, _profile_with({
+            "RESET": {
+                "help": "Reset; bare newline tolerated.",
+                "response": {"format": "none", "timeout_ms": 200},
+            },
+        }))
+        _reply_after_send(host, ["", "   ", ""])
+        # Act
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
+        # Assert
+        assert result["success"] is True, (
+            "whitespace-only output is not a contract violation"
+        )
 
 
 # ── Error detection ─────────────────────────────────────────────────────────
@@ -569,3 +632,153 @@ class TestSendTemplate:
         # Assert
         assert result["success"] is True, "send_template entry matched"
         assert host._sent == [b"AT+LED=on\r\n"], "literal text sent through"
+
+
+# ── Profile-local typed-arg validation ──────────────────────────────────────
+
+
+class TestTypedArgValidation:
+    """Bound args are validated against the profile's type registry
+    before reaching the wire.  Bad values short-circuit to a structured
+    failure; good values pass through unchanged."""
+
+    def _profile_with_types(self, types: dict, command: dict) -> dict:
+        # Helper -- attach a types block to the standard profile.
+        p = _profile_with({"SET": command})
+        p["types"] = types
+        return p
+
+    def test_valid_custom_enum_passes_through(self, host):
+        # Arrange -- enum-kind type with two members.
+        _load_profile(host, self._profile_with_types(
+            {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            {
+                "help": "Set state.",
+                "send_template": "SET {state}",
+                "typed_args": [
+                    {"name": "state", "type": "onoff", "required": True}
+                ],
+                "response": {
+                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                },
+            },
+        ))
+        _reply_after_send(host, ["OK"])
+        # Act
+        result = asyncio.run(host.run_command_async("SET on", "normal", 5.0))
+        # Assert
+        assert result["success"] is True, "valid enum value passes"
+        assert host._sent == [b"SET on\r\n"], "wire bytes unchanged"
+
+    def test_invalid_enum_blocks_before_wire(self, host):
+        # Arrange
+        _load_profile(host, self._profile_with_types(
+            {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            {
+                "help": "Set state.",
+                "send_template": "SET {state}",
+                "typed_args": [
+                    {"name": "state", "type": "onoff", "required": True}
+                ],
+                "response": {
+                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                },
+            },
+        ))
+        # Act -- 'banana' is not a member of {on,off}.
+        result = asyncio.run(host.run_command_async("SET banana", "normal", 5.0))
+        # Assert
+        assert result["success"] is False, "invalid enum value fails"
+        assert "banana" in result["error"], "error names rejected value"
+        assert host._sent == [], "no bytes sent -- short-circuited"
+
+    def test_invalid_int_range_blocks_before_wire(self, host):
+        # Arrange
+        _load_profile(host, self._profile_with_types(
+            {"percent": {"kind": "int_range", "min": 0, "max": 100}},
+            {
+                "help": "Set duty cycle.",
+                "send_template": "DUTY {pct}",
+                "typed_args": [
+                    {"name": "pct", "type": "percent", "required": True}
+                ],
+                "response": {
+                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                },
+            },
+        ))
+        # Act -- 150 is out of [0,100].
+        result = asyncio.run(host.run_command_async("DUTY 150", "normal", 5.0))
+        # Assert
+        assert result["success"] is False, "out-of-range value fails"
+        assert "maximum" in result["error"], "error names the violated bound"
+        assert host._sent == [], "no bytes sent -- short-circuited"
+
+    def test_unknown_type_name_blocks_before_wire(self, host):
+        # Arrange -- typed_arg.type names a type that isn't declared.
+        _load_profile(host, _profile_with({
+            "SET": {
+                "help": "Set thing.",
+                "send_template": "SET {x}",
+                "typed_args": [
+                    {"name": "x", "type": "no_such_type", "required": True}
+                ],
+                "response": {
+                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                },
+            },
+        }))
+        # Act
+        result = asyncio.run(host.run_command_async("SET hi", "normal", 5.0))
+        # Assert
+        assert result["success"] is False, "unknown type name fails"
+        assert "unknown type" in result["error"].lower(), (
+            "error names the missing-type case"
+        )
+        assert host._sent == [], "no bytes sent -- short-circuited"
+
+    def test_builtin_type_still_works(self, host):
+        # Arrange -- typed_arg uses 'str' builtin; no types block needed.
+        _load_profile(host, _profile_with({
+            "ECHO": {
+                "help": "Echo a string.",
+                "send_template": "ECHO {msg}",
+                "typed_args": [
+                    {"name": "msg", "type": "str", "required": True}
+                ],
+                "response": {
+                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                },
+            },
+        }))
+        _reply_after_send(host, ["OK"])
+        # Act
+        result = asyncio.run(host.run_command_async("ECHO hi", "normal", 5.0))
+        # Assert -- str builtin accepts anything.
+        assert result["success"] is True, "builtin str passes"
+        assert host._sent == [b"ECHO hi\r\n"], "wire bytes unchanged"
+
+    def test_failure_carries_structured_value(self, host):
+        # Arrange
+        _load_profile(host, self._profile_with_types(
+            {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            {
+                "help": "Set state.",
+                "send_template": "SET {state}",
+                "typed_args": [
+                    {"name": "state", "type": "onoff", "required": True}
+                ],
+                "response": {
+                    "format": "literal", "pattern": "OK", "timeout_ms": 200,
+                },
+            },
+        ))
+        # Act
+        result = asyncio.run(host.run_command_async("SET banana", "normal", 5.0))
+        # Assert -- the LLM gets the rejected value/type back in `value`.
+        value = result["value"]
+        assert isinstance(value, dict), "structured failure carries a value dict"
+        assert value["arg"] == "state", "arg name surfaced"
+        assert value["type"] == "onoff", "type name surfaced"
+        assert value["value"] == "banana", "rejected value surfaced"
+        assert value["command"] == "SET", "canonical command name surfaced"

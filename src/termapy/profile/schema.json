@@ -145,6 +145,11 @@
       "description": "Command catalog. Keys are command names as the device expects them.",
       "type": "object",
       "additionalProperties": {"$ref": "#/$defs/command"}
+    },
+    "types": {
+      "description": "Profile-local named types referenced by typed_args[i].type. Each key is a custom type name (must not collide with the builtin set: int, float, bool, hex, str). The value is a structured type definition keyed by 'kind'. Absent or empty = backward-compatible: typed_args fall back to the five builtin types only.",
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/type_def"}
     }
   },
   "$defs": {
@@ -217,8 +222,9 @@
       "properties": {
         "name": {"type": "string"},
         "type": {
+          "description": "Either a builtin (int, float, bool, hex, str) or a key in the profile's top-level 'types' block. The validator resolves builtins first, then falls through to user-defined types.",
           "type": "string",
-          "enum": ["int", "float", "bool", "hex", "str"]
+          "minLength": 1
         },
         "required": {"type": "boolean"},
         "default": {},
@@ -226,11 +232,47 @@
         "min": {"type": "number"},
         "max": {"type": "number"},
         "enum": {
-          "description": "Allowed values for str-typed args.",
+          "description": "Legacy inline shortcut: allowed values for str-typed args. Prefer the top-level 'types' block with kind='enum' for new profiles.",
           "type": "array",
           "items": {"type": "string"}
         }
       }
+    },
+    "type_def": {
+      "description": "A profile-local user-defined type, referenced by name from typed_args[i].type. Discriminated by 'kind'.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "description": "Discriminator. enum=closed list of allowed values. int_range/float_range=numeric bounds. str_length=string length bounds. pattern=regex fullmatch. format_spec=protocol.parse_format_spec language (validator is a stub today; schema accepts it and the registry caches parsed columns -- the wired-up 20% hook).",
+          "type": "string",
+          "enum": ["enum", "int_range", "float_range", "str_length", "pattern", "format_spec"]
+        },
+        "help": {"type": "string"},
+        "values": {
+          "description": "enum kind: allowed values (string/number/bool; stringified for match).",
+          "type": "array",
+          "items": {"type": ["string", "number", "boolean"]}
+        },
+        "min": {"type": "number"},
+        "max": {"type": "number"},
+        "min_len": {"type": "integer", "minimum": 0},
+        "max_len": {"type": "integer", "minimum": 0},
+        "regex": {"type": "string"},
+        "spec": {
+          "description": "format_spec kind: a protocol-format-spec string like 'Val:H1' or 'Slave:H1 Func:H2'. Parsed at registry build via protocol.parse_format_spec; full byte-level validation is a TODO.",
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "enum"}}}, "then": {"required": ["values"]}},
+        {"if": {"properties": {"kind": {"const": "int_range"}}}, "then": {"required": ["min", "max"]}},
+        {"if": {"properties": {"kind": {"const": "float_range"}}}, "then": {"required": ["min", "max"]}},
+        {"if": {"properties": {"kind": {"const": "str_length"}}}, "then": {"anyOf": [{"required": ["min_len"]}, {"required": ["max_len"]}]}},
+        {"if": {"properties": {"kind": {"const": "pattern"}}}, "then": {"required": ["regex"]}},
+        {"if": {"properties": {"kind": {"const": "format_spec"}}}, "then": {"required": ["spec"]}}
+      ]
     },
     "response": {
       "description": "How to interpret the device's response. The four patterns + none.",

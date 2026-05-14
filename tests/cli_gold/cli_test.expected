@@ -138,6 +138,7 @@ demo> /cfg.dump
     "hex_mode": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+    "validate_typed_args": false,
     "file_xfer_root": "",
     "cfg_enabled": true,
     "run_enabled": true,

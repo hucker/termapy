@@ -29,6 +29,7 @@ REFERENCE_PROFILES = [
     "at_modem.profile.json",
     "register_psu.profile.json",
     "smart_sensor.profile.json",
+    "typed_modem.profile.json",
 ]
 
 
@@ -264,6 +265,129 @@ class TestBuiltinValidator:
         result = validate_profile(profile)
         # Assert
         assert result.ok is True, "minimal profile validates"
+
+
+# ── types block (profile-local user-defined types) ──────────────────────────
+
+
+class TestTypesBlockSchema:
+    def test_empty_types_block_validates(self):
+        # Arrange
+        profile = {"commands": {}, "types": {}}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is True, "empty types block is valid"
+
+    def test_all_six_kinds_validate(self):
+        # Arrange — one of each kind, minimally well-formed.
+        profile = {
+            "commands": {},
+            "types": {
+                "a": {"kind": "enum", "values": ["x"]},
+                "b": {"kind": "int_range", "min": 0, "max": 10},
+                "c": {"kind": "float_range", "min": 0.0, "max": 1.0},
+                "d": {"kind": "str_length", "min_len": 1, "max_len": 4},
+                "e": {"kind": "pattern", "regex": "^x$"},
+                "f": {"kind": "format_spec", "spec": "Val:H1"},
+            },
+        }
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is True, (
+            f"all six kinds should validate; errors: {result.errors}"
+        )
+
+    def test_unknown_kind_fails(self):
+        # Arrange
+        profile = {"commands": {}, "types": {"x": {"kind": "totally_made_up"}}}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is False, "unknown kind is rejected"
+        assert any("kind" in e for e in result.errors), "error names kind"
+
+    def test_enum_without_values_fails(self):
+        # Arrange — schema requires `values` when kind=enum.
+        profile = {"commands": {}, "types": {"x": {"kind": "enum"}}}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is False, "enum without values is invalid"
+
+    def test_int_range_without_min_fails(self):
+        # Arrange
+        profile = {"commands": {}, "types": {"x": {"kind": "int_range", "max": 10}}}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is False, "int_range requires both min and max"
+
+    def test_pattern_without_regex_fails(self):
+        # Arrange
+        profile = {"commands": {}, "types": {"x": {"kind": "pattern"}}}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is False, "pattern requires regex"
+
+    def test_str_length_with_only_max_len_validates(self):
+        # Arrange — anyOf: at least one of min_len / max_len.
+        profile = {"commands": {}, "types": {
+            "n": {"kind": "str_length", "max_len": 16},
+        }}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is True, (
+            f"str_length with only max_len is valid; errors: {result.errors}"
+        )
+
+    def test_str_length_with_neither_bound_fails(self):
+        # Arrange
+        profile = {"commands": {}, "types": {"n": {"kind": "str_length"}}}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is False, "str_length requires at least one bound"
+
+    def test_typed_arg_type_accepts_custom_name(self):
+        # Arrange — relaxed enum lets typed_arg.type reference a custom type.
+        profile = {
+            "types": {"speed": {"kind": "enum", "values": ["slow", "fast"]}},
+            "commands": {
+                "MOVE": {
+                    "help": "Move at a speed.",
+                    "typed_args": [
+                        {"name": "rate", "type": "speed", "required": True}
+                    ],
+                }
+            },
+        }
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is True, (
+            f"custom type name allowed; errors: {result.errors}"
+        )
+
+    def test_typed_arg_type_still_accepts_builtins(self):
+        # Arrange — backward compat: existing profiles use builtin names.
+        profile = {
+            "commands": {
+                "AT": {
+                    "help": "Test.",
+                    "typed_args": [
+                        {"name": "pin", "type": "str", "required": True}
+                    ],
+                }
+            }
+        }
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is True, "builtins still accepted in typed_arg.type"
 
 
 # ── precedence comparator ───────────────────────────────────────────────────

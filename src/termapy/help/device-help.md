@@ -21,8 +21,10 @@ executor's typed-arg validation, transport rules, error detection,
 
 Once loaded, the active profile can be saved to disk with
 `/profile.save`; the default path is `<cfg_dir>/<cfg_name>.profile.json`
-so the next connect picks it up automatically via `profile_path`'s
-file-existence check.  That promotes a device-fetched profile to a
+so the next connect picks it up automatically via the `profile_path`
+cfg key (see [config.md](config.md)) -- that key resolves to the
+default path when unset, so the saved file is found without any
+extra configuration.  Promotes a device-fetched profile to a
 checked-in file you can hand-edit.
 
 ## JSON format

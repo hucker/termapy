@@ -94,7 +94,7 @@ families (Modbus, XMODEM, CCITT, USB, and more).
 
 REPL commands:
 
-- `/proto.crc.list` - show all 62 algorithms
+- `/proto.crc.list` - show all 64 algorithms
 - `/proto.crc.list *modbus*` - filter by pattern
 - `/proto.crc.info crc16-modbus` - show algorithm parameters
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC

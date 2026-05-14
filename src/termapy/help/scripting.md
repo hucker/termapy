@@ -29,7 +29,7 @@ and a name field. Scripts are saved with a `.run` extension in the per-config
 | `/expect.regex match=<pattern> {timeout=<dur>} {quiet=on}` | Same but pattern is a regex. |
 | `/confirm {message}` | Show Yes/Cancel dialog. Cancelling stops the script. |
 | `/run <script>` | Run a nested script (max 5 levels deep) |
-| `/run.profile <script>` | Run nested script with per-command timing |
+| `/run.profile <script>` | Run nested script with per-line timing |
 
 Keywords use `key=value` syntax (spaces around `=` are OK). `match=` must be
 last -- everything after it is the pattern.

@@ -200,24 +200,24 @@ class TestVendorLookupCurated:
 
     def test_curated_short_form_used(self):
         # Arrange + Act
-        from termapy.usb_vendor import vendor_for
+        from termapy.usb import vendor_for
 
         # Assert -- curated table maps 0x0403 to the short "FTDI",
         # not the canonical "Future Technology Devices International, Ltd".
         assert vendor_for(0x0403) == "FTDI", "curated short form wins"
 
     def test_curated_silabs(self):
-        from termapy.usb_vendor import vendor_for
+        from termapy.usb import vendor_for
 
         assert vendor_for(0x10C4) == "Silicon Labs", "SiLabs curated"
 
     def test_curated_microchip(self):
-        from termapy.usb_vendor import vendor_for
+        from termapy.usb import vendor_for
 
         assert vendor_for(0x04D8) == "Microchip", "Microchip curated"
 
     def test_none_input(self):
-        from termapy.usb_vendor import vendor_for
+        from termapy.usb import vendor_for
 
         assert vendor_for(None) is None, "None VID returns None"
 
@@ -230,7 +230,7 @@ class TestVendorLookupFallback:
         # curated USB_VENDORS table.  Cypress's older USB controllers
         # use 0x04B4 (curated; "Cypress"); Logitech 0x046D is curated.
         # Try a vendor we don't curate but is well-known: Yubico (0x1050).
-        from termapy.usb_vendor import vendor_for, USB_VENDORS
+        from termapy.usb import vendor_for, USB_VENDORS
 
         assert 0x1050 not in USB_VENDORS, "fixture pre-condition: 0x1050 uncurated"
 
@@ -244,7 +244,7 @@ class TestVendorLookupFallback:
         )
 
     def test_truly_unknown_vid_returns_none(self):
-        from termapy.usb_vendor import vendor_for
+        from termapy.usb import vendor_for
 
         # Pick a VID very unlikely to be in either table.
         actual = vendor_for(0xFFFE)
@@ -254,8 +254,8 @@ class TestVendorLookupFallback:
         """Sanity: the bundled full table should be substantially larger
         than the curated one.
         """
-        from termapy._usb_vendor_full import USB_VENDORS_FULL
-        from termapy.usb_vendor import USB_VENDORS
+        from termapy.usb._vendors_full import USB_VENDORS_FULL
+        from termapy.usb import USB_VENDORS
 
         actual = len(USB_VENDORS_FULL)
         assert actual > 1000, (
@@ -273,7 +273,7 @@ class TestGeneratedMetadata:
     """The generator emits constants for /term.usb_db introspection."""
 
     def test_generated_date_present(self):
-        from termapy import _usb_vendor_full
+        from termapy.usb import _vendors_full as _usb_vendor_full
 
         actual = _usb_vendor_full.GENERATED_DATE
         # ISO date format: YYYY-MM-DD.
@@ -284,7 +284,7 @@ class TestGeneratedMetadata:
         )
 
     def test_source_url_present(self):
-        from termapy import _usb_vendor_full
+        from termapy.usb import _vendors_full as _usb_vendor_full
 
         actual = _usb_vendor_full.SOURCE_URL
         assert "usb.ids" in actual, (
@@ -337,7 +337,7 @@ class TestTermUsbDbHandler:
         """
         # Arrange
         from termapy.builtins.commands.term import _handler_usb_db
-        from termapy._usb_vendor_full import USB_VENDORS_FULL
+        from termapy.usb._vendors_full import USB_VENDORS_FULL
         from termapy.plugins import PluginContext
 
         from termapy.plugins import IOHandle

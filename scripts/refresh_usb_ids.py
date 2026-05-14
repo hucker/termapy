@@ -1,7 +1,7 @@
 """Refresh termapy's bundled USB vendor table from upstream usb.ids.
 
 Reads the canonical USB ID Repository file from linux-usb.org (or a
-local copy) and emits ``src/termapy/_usb_vendor_full.py`` -- a Python
+local copy) and emits ``src/termapy/usb/_vendors_full.py`` -- a Python
 module containing a single ``USB_VENDORS_FULL: dict[int, str]``
 mapping every assigned USB Vendor ID to its canonical vendor name.
 
@@ -54,7 +54,7 @@ FALLBACK_SOURCE = "http://www.linux-usb.org/usb.ids"
 
 # Repo paths.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_PATH = REPO_ROOT / "src" / "termapy" / "_usb_vendor_full.py"
+OUTPUT_PATH = REPO_ROOT / "src" / "termapy" / "usb" / "_vendors_full.py"
 
 
 def fetch(source: str) -> str:
@@ -124,10 +124,10 @@ def emit_python_module(vendors: dict[int, str], source_url: str) -> str:
         f"Generated: {today}\n"
         f"Entries:   {len(vendors)}\n"
         "\n"
-        "Used as a fallback by ``termapy.usb_vendor.vendor_for()`` when a\n"
-        "VID isn't present in the curated ``USB_VENDORS`` short-form\n"
-        "table.  Names here are the canonical USB-IF assignments and may\n"
-        "be long; ``usb_mfg.mfg()`` handles narrow-column display.\n"
+        "Used as a fallback by ``termapy.usb.vendor_for()`` when a VID\n"
+        "isn't present in the curated ``USB_VENDORS`` short-form table.\n"
+        "Names here are the canonical USB-IF assignments and may be long;\n"
+        "``termapy.usb.mfg()`` handles narrow-column display.\n"
         '"""\n'
         "\n"
         "from __future__ import annotations\n"

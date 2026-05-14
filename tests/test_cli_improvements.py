@@ -627,7 +627,7 @@ class TestVendorLookup:
 
     def test_vendor_from_vid(self):
         # Arrange + Act
-        from termapy.usb_vendor import vendor_for
+        from termapy.usb import vendor_for
 
         # Assert
         assert vendor_for(0x0403) == "FTDI", "FTDI VID resolves"
@@ -636,7 +636,7 @@ class TestVendorLookup:
 
     def test_vendor_unknown_vid_returns_none(self):
         # Arrange + Act
-        from termapy.usb_vendor import vendor_for
+        from termapy.usb import vendor_for
 
         # Assert
         assert vendor_for(0xDEAD) is None, "unknown VID -> None"

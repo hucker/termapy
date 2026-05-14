@@ -19,7 +19,7 @@ from typing import Any, Mapping
 
 import re
 
-from termapy import usb_serial_chips, usb_vendor
+from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 from termapy.defaults import (
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -705,8 +705,8 @@ def _facts_from_port_info(
         # Silicon vendor by VID -- independent of the descriptor / INF
         # string in facts.manufacturer.  Populated even when the (VID,
         # PID) pair isn't in the chip table.
-        facts.vendor = usb_vendor.vendor_for(p.vid)
-        chip = usb_serial_chips.chip(p.vid, p.pid)
+        facts.vendor = _usb_vendor_for(p.vid)
+        chip = _usb_chip(p.vid, p.pid)
         if chip:
             facts.model = chip.model
             if chip.speed == "full":

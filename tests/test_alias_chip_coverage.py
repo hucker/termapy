@@ -13,7 +13,7 @@ they'll need to add an alias entry *and* a row here, or this file
 fails.
 """
 
-from termapy.usb_mfg import mfg
+from termapy.usb import mfg
 
 
 class TestAliasCoverageOfChipTable:

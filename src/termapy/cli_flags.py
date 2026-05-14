@@ -133,7 +133,7 @@ def _facts_to_json_record(facts) -> dict:
     # All three are exposed so engineers can see the full picture --
     # they often agree, and when they disagree the disagreement is
     # diagnostic information.
-    from termapy.usb_mfg import mfg as _mfg_alias
+    from termapy.usb import mfg as _mfg_alias
     raw_mfg = facts.manufacturer
     return {
         "device": facts.device,
@@ -381,7 +381,7 @@ def _format_state_line(marker: str, facts) -> str:
     rows, and ``~`` change rows.  ``marker`` should be a single char:
     ``' '`` (no event), ``'+'``, ``'-'``, or ``'~'``.
     """
-    from termapy.usb_mfg import mfg as _mfg_alias
+    from termapy.usb import mfg as _mfg_alias
 
     ts = datetime.now().strftime("%H:%M:%S")
     state = _state_of(facts)
@@ -492,7 +492,7 @@ def run_chips(args: argparse.Namespace) -> None:
     Exits 0 even on no matches; a zero-match filter is a legitimate
     query, not an error.
     """
-    from termapy.usb_serial_chips import USB_SERIAL_CHIPS
+    from termapy.usb import USB_SERIAL_CHIPS
 
     needle = (args.chips or "").strip().lower()
     if needle == "*":

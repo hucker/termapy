@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy import port_control, usb_serial_chips
+from termapy import port_control
+from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.legacy import make_forwarder
 from termapy.plugins import CmdResult, Command
@@ -160,8 +161,8 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
     ``$(COUNT) <- /port.chip.list ftdi``.
     """
     needle = args.strip().lower()
-    rows: list[tuple[int, int, usb_serial_chips.ChipInfo]] = []
-    for (vid, pid), info in usb_serial_chips.USB_SERIAL_CHIPS.items():
+    rows: list[tuple[int, int, ChipInfo]] = []
+    for (vid, pid), info in USB_SERIAL_CHIPS.items():
         if needle and needle not in info.model.lower():
             continue
         rows.append((vid, pid, info))

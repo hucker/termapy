@@ -285,14 +285,14 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
     read it via .quiet/.silent.
     """
     from termapy.plugins import format_kv_lines
-    from termapy.usb_vendor import USB_VENDORS
+    from termapy.usb import USB_VENDORS
 
     rows: list[tuple[str, str]] = [
         ("curated", str(len(USB_VENDORS))),
     ]
     full_count = 0
     try:
-        from termapy import _usb_vendor_full as _full
+        from termapy.usb import _vendors_full as _full
 
         full_count = len(_full.USB_VENDORS_FULL)
         rows.append(("full_table", str(full_count)))

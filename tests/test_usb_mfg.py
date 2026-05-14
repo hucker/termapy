@@ -1,6 +1,6 @@
-"""Tests for termapy.usb_mfg -- USB manufacturer alias folding."""
+"""Tests for termapy.usb.aliases -- USB manufacturer alias folding."""
 
-from termapy.usb_mfg import MANUFACTURER_ALIASES, VendorAlias, mfg
+from termapy.usb import MANUFACTURER_ALIASES, VendorAlias, mfg
 
 
 class TestMfg:

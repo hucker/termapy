@@ -1,6 +1,6 @@
-"""Tests for termapy.usb_serial_chips -- VID:PID -> ChipInfo lookup."""
+"""Tests for termapy.usb.chips -- VID:PID -> ChipInfo lookup."""
 
-from termapy.usb_serial_chips import USB_SERIAL_CHIPS, ChipInfo, chip
+from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, chip
 
 
 class TestChipLookup:

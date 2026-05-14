@@ -4,9 +4,7 @@ Curated lookup table of USB-to-serial bridge chips and USB-native
 serial devices.  For a given VID:PID, returns the chip's full model
 name, USB speed class, and datasheet-maximum baud rate.
 
-Internal to termapy today.  Designed so the data set can be extracted
-into a standalone pyserial-adjacent library with minimal churn --
-each entry is a ``ChipInfo`` dataclass, so adding new fields (e.g.
+Each entry is a ``ChipInfo`` dataclass, so adding new fields (e.g.
 ``max_buffer_size``, ``driver_required``) is purely additive.
 
 Scope note: this table is USB-serial-specific on purpose.  A chip is
@@ -14,7 +12,7 @@ included when it shows up as a COM port on some OS (FTDI bridges,
 USB-native CDC devices, USB-JTAG with a VCP endpoint, etc.).
 Non-serial USB devices belong elsewhere.
 
-The companion module ``usb_mfg`` holds the manufacturer-string alias
+The companion module ``aliases`` holds the manufacturer-string alias
 table and ``mfg()`` display helper.
 """
 

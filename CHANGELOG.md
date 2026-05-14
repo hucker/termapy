@@ -1,5 +1,107 @@
 # Changelog
 
+## 0.65.0 (2026-05-14)
+
+### Headline: profile-local typed args
+
+Device profiles can now declare a top-level `types` block that
+`typed_args[i].type` references by name.  Six kinds in the first cut:
+`enum`, `int_range`, `float_range`, `str_length`, `pattern`, and a
+`format_spec` stub wired to the protocol-format-spec language for
+future binary-arg validation.  Five builtins (`int`, `float`, `bool`,
+`hex`, `str`) remain available without declaration; custom names
+cannot shadow them.  The MCP dispatcher validates bound `typed_args`
+against the active profile's type registry before bytes hit the wire
+-- bad values short-circuit to a structured failure naming the arg,
+type, value, and command.  The catalog inlines a `type_info` field
+per typed_arg so an LLM reading `termapy://commands.json` sees the
+full contract without cross-referencing the top-level block.
+
+### V2-only profile path: `/profile.load` absorbs `/include`
+
+`/include` and its companion family (`/include.reload`,
+`/include.list`, `/include.dump`, `/include.clear`) are retired.
+`/profile.load` grows three new shapes that replace them:
+
+- `/profile.load <path>` -- load from file (existing).
+- `/profile.load cmd=<command>` -- fetch a v2 profile JSON from the
+  connected device, install as the active profile.  Replaces
+  `/include cmd=...`.
+- `/profile.load` (no args) -- reload current source (file or cmd,
+  whichever was last used).
+- New: `/profile.save [<path>]` -- write the active profile to disk
+  (default `<cfg_dir>/<cfg_name>.profile.json` so the next connect
+  auto-loads it).  Warns when every command has `enabled: false`.
+- New: `/profile.unload` -- clear the active profile.
+
+The active profile is now the single source of truth for device
+commands; the catalog reads from `active_profile.commands`.  Schema
+is `profile_version: const 2` (v1 retired).
+
+**Auto-migration**: cfgs with `auto_include_on_connect: true` AND
+`device_json_cmd: <cmd>` get rewritten on first load to set
+`mcp_on_connect_cmd: "/profile.load cmd=<cmd>"` so existing
+auto-fetch behavior is preserved with zero manual intervention.
+
+### MCP server hardening
+
+- `format: "none"` is now **verify-silence**: the executor waits a
+  short window (default 100 ms) and fails the call with a structured
+  `unexpected_output` payload if the device replies anyway.  Catches
+  stale profiles and firmware regressions instead of silently
+  dropping bytes.  Override with `response.timeout_ms`; opt out
+  entirely with `timeout_ms: 0`.
+- `async_events` field included in every `run_command` response
+  (push delivery; no more polling for unsolicited device events).
+- `/profile.info` shows per-field cfg-vs-profile transport drift
+  so silent-override confusion is visible at a glance.
+
+### CLI / TUI
+
+- New cfg flag `validate_typed_args` (default false) opts into
+  CLI-side typed-arg validation, mirroring MCP semantics.  Off keeps
+  raw access (device errors are the source of truth); on catches
+  bad values before the wire.
+- Disconnect banner now names the port: `Disconnected: COM4`
+  mirroring `Connected: COM4 ...`.
+- `cfg_data_dir()` refuses to live-activate a cfg path inside the
+  installed termapy package (no more accidental source-tree pollution
+  from `termapy --cfg src/termapy/builtins/demo/demo.cfg`).
+
+### Internals reorganized into library-shaped subpackages
+
+Three top-level grab-bags became self-contained subpackages with
+public-API re-exports.  No consumer code changes (existing imports
+keep working via re-exports); the new layout positions each
+subpackage as a viable standalone PyPI release when ready:
+
+- `termapy.profile` -- schema, loader, type registry, matcher.
+- `termapy.protocol` -- format-spec parser, CRC catalog (64
+  algorithms) + codegen, .pro runner, visualizer loader.
+- `termapy.usb` -- USB lookup tables (manufacturer alias, VID/PID
+  -> chip info, VID -> vendor name + ~3,400-entry fallback).
+- `termapy.dialogs` -- monolithic `dialogs.py` split per-class.
+
+### Migration
+
+- `config_version` bumped 16 -> 17.  Drops `auto_include_on_connect`
+  and `device_json_cmd`, optionally rewriting them into
+  `mcp_on_connect_cmd`.  Both retired keys land in `DEPRECATED_CFG`
+  with helpful messages for hand-edited cfgs.
+- `migrate_json_to_cfg` tightened to strict exact-name match
+  (`<dir>/<dir>.json`) so profile files aren't renamed during
+  migration.
+
+### Other polish
+
+- `FolderSpec` defaults flipped to the common case so FOLDERS lists
+  declare only exceptions.
+- Demo's `AT+HELP.JSON` publishes a `types` block, demonstrating
+  the new contract end-to-end.
+- Authoring guide gains a "Drafting a profile with an AI" section.
+- ARCHITECTURE.md fully refreshed to reflect post-refactor tree;
+  release scripts updated to handle subpackage line counts.
+
 ## Unreleased
 
 ### Added

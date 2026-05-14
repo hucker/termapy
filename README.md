@@ -1,6 +1,6 @@
 # termapy
 
-**Project Status:** [![CI](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/hucker/termapy/graph/badge.svg)](https://codecov.io/gh/hucker/termapy) [![ty](https://img.shields.io/badge/ty-0%20issues-brightgreen)](https://github.com/astral-sh/ty) ![license](https://img.shields.io/badge/license-MIT-green) [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hucker.github.io/termapy/)
+**Project Status:** [![CI](https://github.com/hucker/termapy/actions/workflows/tests.yml/badge.svg)](https://github.com/hucker/termapy/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/hucker/termapy/graph/badge.svg)](https://codecov.io/gh/hucker/termapy) [![ty](https://img.shields.io/badge/ty-23%20issues-red)](https://github.com/astral-sh/ty) ![license](https://img.shields.io/badge/license-MIT-green) [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hucker.github.io/termapy/)
 
 **Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
 
@@ -1201,9 +1201,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2386 tests, 70% overall</summary>
+<summary><strong>Test coverage</strong> - 2445 tests, 67% overall</summary>
 
-2386 tests across 73 test files. Run with `uv run pytest`.
+2445 tests across 74 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 
@@ -1225,7 +1225,7 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~4225 lines), `proto_debug.py` (~1178 lines), and `dialogs/` (~1965 lines) are Textual UI and tested manually. The 70% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code:** `app.py` (~4200 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~1950 lines) are Textual UI and tested manually. The 70% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>
 

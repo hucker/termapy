@@ -10,74 +10,74 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 
 ```text
 src/termapy/
-├── app.py                  # (4225 lines) Textual TUI - UI, modals, app hooks
-├── cli.py                  # (1139 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
-├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
-├── serial_engine.py        # (566 lines)  Serial connection lifecycle, reader loop orchestrator
-├── serial_port.py          # (306 lines)  Serial I/O wrapper + SerialReader data processor
-├── capture.py              # (336 lines)  Capture state machine - text, binary, format spec
+├── builtins/
+│   ├── commands/           #              36 built-in REPL command plugins
+│   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
+│   ├── demo/               #              Demo config, scripts, proto files, plugins
+│   └── viz/                #              Built-in packet visualizers (hex, text)
 ├── dialogs/                # (1965 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
-│   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (~461 lines, the big one)
-│   ├── quick_setup.py      #   QuickSetup - first-run / new-config wizard
-│   ├── proto_editor.py     #   ProtoEditor - .pro file editor
-│   ├── script_editor.py    #   ScriptEditor - .run file editor
-│   ├── config_picker.py    #   ConfigPicker
-│   ├── proto_picker.py     #   ProtoPicker
-│   ├── script_picker.py    #   ScriptPicker
-│   ├── port_picker.py      #   PortPicker - serial port selection
-│   ├── name_picker.py      #   NamePicker
-│   ├── markdown_viewer.py  #   MarkdownViewer
-│   ├── update_available.py #   UpdateAvailableDialog
-│   ├── welcome_dialog.py   #   WelcomeDialog
 │   ├── cfg_confirm.py      #   CfgConfirm
-│   └── confirm_dialog.py   #   ConfirmDialog - Yes/Cancel
-├── proto_debug.py          # (1178 lines) Interactive protocol debug screen (Textual)
+│   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (~461 lines, the big one)
+│   ├── config_picker.py    #   ConfigPicker
+│   ├── confirm_dialog.py   #   ConfirmDialog - Yes/Cancel
+│   ├── markdown_viewer.py  #   MarkdownViewer
+│   ├── name_picker.py      #   NamePicker
+│   ├── port_picker.py      #   PortPicker - serial port selection
+│   ├── proto_editor.py     #   ProtoEditor - .pro file editor
+│   ├── proto_picker.py     #   ProtoPicker
+│   ├── quick_setup.py      #   QuickSetup - first-run / new-config wizard
+│   ├── script_editor.py    #   ScriptEditor - .run file editor
+│   ├── script_picker.py    #   ScriptPicker
+│   ├── update_available.py #   UpdateAvailableDialog
+│   └── welcome_dialog.py   #   WelcomeDialog
+├── help/                   #              Markdown help pages (source for HTML build)
+├── html/                   #              Generated HTML help
+├── mcp/                    # (1896 lines) MCP stdio server
+│   ├── catalog.py          #   JSON catalog + device-state resources
+│   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
+│   └── server.py           #   MCPHost - run_command, async events, lifecycle
+├── plugins/                # (2209 lines) Plugin system - capability-handle architecture
+│   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, EngineHandle
+│   ├── capabilities.py     #   CapabilitySet, MissingCapability
+│   ├── command.py          #   Command, CmdResult, Transform, Directive
+│   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
+│   ├── loader.py           #   Plugin discovery, COMMAND validation
+│   └── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
+├── profile/                # (1174 lines) v2 device-profile schema, loader, type registry
+│   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
+│   ├── matcher.py          #   match_profile_command, template_to_regex
+│   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
+│   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
 ├── protocol/               # (2755 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
 │   ├── crc.py              #   CRC catalogue (64 algorithms) + registry
 │   ├── crc_codegen.py      #   C / Python / Rust CRC codegen
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
-├── demo.py                 # (1698 lines) Simulated device for --demo mode (FakeSerial)
-├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
-├── repl.py                 # (1695 lines) REPL engine - dispatch, scripting, transforms
-├── plugins/                # (2209 lines) Plugin system - capability-handle architecture
-│   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
-│   ├── command.py          #   Command, CmdResult, Transform, Directive
-│   ├── capabilities.py     #   CapabilitySet, MissingCapability
-│   ├── loader.py           #   Plugin discovery, COMMAND validation
-│   ├── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
-│   └── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, EngineHandle
-├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
-├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
-├── config.py               # (712 lines)  Config dirs, loading, validation, migration trigger
-├── port_control.py         # (1452 lines) Pure serial port control functions - no Textual
-├── scripting.py            # (278 lines)  Pure functions - templates, duration parsing, ANSI
-├── migration.py            # (325 lines)  Config schema migration chain (v17)
-├── defaults.py             # (513 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
-├── mcp/                    # (1890 lines) MCP stdio server
-│   ├── server.py           #   MCPHost - run_command, async events, lifecycle
-│   ├── catalog.py          #   JSON catalog + device-state resources
-│   └── prompts.py          #   MCP prompts (draft_profile, etc.)
-├── profile/                # (1174 lines) v2 device-profile schema, loader, type registry
-│   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
-│   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
-│   ├── matcher.py          #   match_profile_command, template_to_regex
-│   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
 ├── usb/                    # (3913 lines) USB lookup tables (library-shaped)
+│   ├── _vendors_full.py    #   Generated USB-IF table (~3,400 entries, fallback)
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
-│   ├── vendors.py          #   VID -> canonical vendor name (curated short forms)
-│   └── _vendors_full.py    #   Generated USB-IF table (~3,400 entries, fallback)
-├── help/                   #              Markdown help pages (source for HTML build)
-├── html/                   #              Generated HTML help
-├── builtins/
-│   ├── commands/           #              36 built-in REPL command plugins
-│   ├── viz/                #              Built-in packet visualizers (hex, text)
-│   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
-│   └── demo/               #              Demo config, scripts, proto files, plugins
-└── help.md                 #              Legacy single-page help (bundled)
+│   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
+├── app.py                  # (4225 lines) Textual TUI - UI, modals, app hooks
+├── capture.py              # (336 lines)  Capture state machine - text, binary, format spec
+├── cli.py                  # (1139 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
+├── config.py               # (712 lines)  Config dirs, loading, validation, migration trigger
+├── defaults.py             # (513 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
+├── demo.py                 # (1698 lines) Simulated device for --demo mode (FakeSerial)
+├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
+├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
+├── help.md                 #              Legacy single-page help (bundled)
+├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
+├── migration.py            # (325 lines)  Config schema migration chain (v17)
+├── port_control.py         # (1452 lines) Pure serial port control functions - no Textual
+├── proto_debug.py          # (1178 lines) Interactive protocol debug screen (Textual)
+├── repl.py                 # (1695 lines) REPL engine - dispatch, scripting, transforms
+├── scripting.py            # (278 lines)  Pure functions - templates, duration parsing, ANSI
+├── serial_engine.py        # (566 lines)  Serial connection lifecycle, reader loop orchestrator
+├── serial_port.py          # (306 lines)  Serial I/O wrapper + SerialReader data processor
+└── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
 ```
 
 ## The plugin system

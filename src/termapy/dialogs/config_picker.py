@@ -7,26 +7,18 @@ the ``_common`` submodule for shared constants and helpers.
 
 from __future__ import annotations
 
-import json
-import re
-from pathlib import Path
 
-from rich.errors import MarkupError
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.css.query import NoMatches
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, OptionList, TextArea
+from textual.widgets import Button, OptionList
 from textual.widgets.option_list import Option
 
 from termapy.config import (
     cfg_dir,
-    cfg_path_for_name,
     migrate_json_to_cfg,
-    open_with_system,
 )
-from termapy.defaults import DEFAULT_CFG, PROTO_TEMPLATE, SCRIPT_TEMPLATE
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
 
 

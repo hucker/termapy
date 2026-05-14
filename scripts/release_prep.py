@@ -98,9 +98,23 @@ def refresh_uv_lock() -> None:
 
 
 def count_lines(rel_path: str) -> int:
+    """Total lines in a file, or sum across all .py files in a directory.
+
+    Several top-level modules became subpackages this cycle (dialogs/,
+    protocol/, plugins/) so callers may pass either a single file or
+    a directory path; directories are walked recursively and their
+    .py files are summed.  Skips ``__pycache__``.
+    """
     path = REPO_ROOT / rel_path
     if not path.exists():
         die(f"file not found for line count: {rel_path}")
+    if path.is_dir():
+        total = 0
+        for f in path.rglob("*.py"):
+            if "__pycache__" in str(f):
+                continue
+            total += len(f.read_text(encoding="utf-8").splitlines())
+        return total
     return len(path.read_text(encoding="utf-8").splitlines())
 
 
@@ -161,34 +175,41 @@ def update_architecture_md(test_count: int) -> None:
     path = REPO_ROOT / "ARCHITECTURE.md"
     text = path.read_text(encoding="utf-8")
 
-    # Files whose line counts ARCHITECTURE.md tracks. We try to keep this in
-    # sync with the tree diagram block.
+    # Files / packages whose line counts ARCHITECTURE.md tracks.  Keep
+    # in sync with the tree diagram block.  Directory entries are
+    # walked recursively by count_lines() and rendered with a trailing
+    # slash in ARCHITECTURE.md (e.g. ``├── dialogs/  # (1965 lines)``).
     tracked = [
         "src/termapy/app.py",
         "src/termapy/cli.py",
         "src/termapy/serial_engine.py",
         "src/termapy/serial_port.py",
         "src/termapy/capture.py",
-        "src/termapy/dialogs.py",
+        "src/termapy/dialogs",      # package (was dialogs.py)
         "src/termapy/proto_debug.py",
-        "src/termapy/protocol.py",
+        "src/termapy/protocol",     # package (was protocol.py + friends)
         "src/termapy/demo.py",
         "src/termapy/repl.py",
-        "src/termapy/plugins.py",
+        "src/termapy/plugins",      # package (was plugins.py)
         "src/termapy/config.py",
         "src/termapy/port_control.py",
-        "src/termapy/proto_runner.py",
         "src/termapy/scripting.py",
         "src/termapy/migration.py",
         "src/termapy/defaults.py",
+        "src/termapy/mcp",          # package
+        "src/termapy/profile",      # package
+        "src/termapy/usb",          # package
     ]
     updated = 0
     for rel in tracked:
         basename = Path(rel).name
         actual = count_lines(rel)
-        # Match `├── basename ... # (NNN lines) ...`
+        # Match either a file (``├── app.py    # (N lines)``) or a
+        # directory entry (``├── dialogs/  # (N lines)``).  The
+        # ``/?`` after the basename absorbs the trailing slash on
+        # package rows.
         pattern = re.compile(
-            rf"(├── {re.escape(basename)}\s+# \()\d+( lines\))"
+            rf"(├── {re.escape(basename)}/?\s+# \()\d+( lines\))"
         )
         new_text, n = pattern.subn(rf"\g<1>{actual}\g<2>", text, count=1)
         if n == 1:
@@ -245,11 +266,12 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
 
     app_lines = rounded("src/termapy/app.py")
     proto_debug_lines = rounded("src/termapy/proto_debug.py")
-    dialogs_lines = rounded("src/termapy/dialogs.py")
+    dialogs_lines = rounded("src/termapy/dialogs")  # was dialogs.py, now a package
 
+    # Match either the legacy ``dialogs.py`` mention or the new ``dialogs/``.
     text = re.sub(
-        r"`app\.py` \(~\d+ lines\), `proto_debug\.py` \(~\d+ lines\), and `dialogs\.py` \(~\d+ lines\)",
-        f"`app.py` (~{app_lines} lines), `proto_debug.py` (~{proto_debug_lines} lines), and `dialogs.py` (~{dialogs_lines} lines)",
+        r"`app\.py` \(~\d+ lines\), `proto_debug\.py` \(~\d+ lines\), and `dialogs(?:\.py|/)` \(~\d+ lines\)",
+        f"`app.py` (~{app_lines} lines), `proto_debug.py` (~{proto_debug_lines} lines), and `dialogs/` (~{dialogs_lines} lines)",
         text,
         count=1,
     )
@@ -257,7 +279,7 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
     path.write_text(text, encoding="utf-8")
     ok(
         f"README.md updated (tests={test_count}, ty={ty_count} ({color}), "
-        f"app.py~{app_lines}, dialogs.py~{dialogs_lines})"
+        f"app.py~{app_lines}, dialogs/~{dialogs_lines})"
     )
 
 

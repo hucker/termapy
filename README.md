@@ -1225,7 +1225,7 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~4218 lines), `proto_debug.py` (~1177 lines), and `dialogs.py` (~1661 lines) are Textual UI and tested manually. The 70% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code:** `app.py` (~4225 lines), `proto_debug.py` (~1178 lines), and `dialogs/` (~1965 lines) are Textual UI and tested manually. The 70% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>
 

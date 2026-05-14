@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.usb_mfg import mfg as _mfg_alias
+from termapy.usb import mfg as _mfg_alias
 
 if TYPE_CHECKING:
     from termapy.port_control import ChipFacts

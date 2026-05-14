@@ -9,10 +9,10 @@ Source:    https://raw.githubusercontent.com/usbids/usbids/master/usb.ids
 Generated: 2026-05-01
 Entries:   3427
 
-Used as a fallback by ``termapy.usb_vendor.vendor_for()`` when a
-VID isn't present in the curated ``USB_VENDORS`` short-form
-table.  Names here are the canonical USB-IF assignments and may
-be long; ``usb_mfg.mfg()`` handles narrow-column display.
+Used as a fallback by ``termapy.usb.vendor_for()`` when a VID
+isn't present in the curated ``USB_VENDORS`` short-form table.
+Names here are the canonical USB-IF assignments and may be long;
+``termapy.usb.mfg()`` handles narrow-column display.
 """
 
 from __future__ import annotations

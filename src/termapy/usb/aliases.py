@@ -4,15 +4,13 @@ Folds the free-form USB manufacturer string a device reports ("Silicon
 Labs" vs "Silicon Laboratories", "Microsoft" vs "Microsoft
 Corporation") to a compact alias suitable for a narrow UI column.
 
-Internal to termapy today.  Designed so the data set can be extracted
-into a standalone pyserial-adjacent library with minimal churn -- each
-entry is its own dataclass, so adding wider display tiers later
+Each entry is its own dataclass so adding wider display tiers later
 (``mfg16``, ``mfg_full``) is purely additive (new field with default).
 
 Scope note: this module is USB-generic.  The alias table could
 legitimately grow to cover non-serial USB devices (keyboards, drives,
 audio interfaces).  The serial-specific ``USB_SERIAL_CHIPS`` table
-lives separately in ``usb_serial_chips.py``.
+lives separately in the sibling ``chips`` module.
 
 Design rules:
 

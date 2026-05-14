@@ -1,14 +1,14 @@
 """USB Vendor ID -> silicon-vendor name lookup.
 
 A small curated table that translates a USB-IF-assigned VID to the
-silicon vendor that owns it.  Complements ``usb_serial_chips.py``
-(which is keyed on (VID, PID) pairs and gives chip model + speed +
-max baud) by answering "even if we don't recognize the specific
-chip, who made the silicon?"
+silicon vendor that owns it.  Complements ``chips.py`` (which is
+keyed on (VID, PID) pairs and gives chip model + speed + max baud)
+by answering "even if we don't recognize the specific chip, who
+made the silicon?"
 
-Distinct from ``usb_mfg.py``:
+Distinct from ``aliases.py``:
 
-  - ``usb_mfg.MANUFACTURER_ALIASES`` cleans up the *string the device
+  - ``aliases.MANUFACTURER_ALIASES`` cleans up the *string the device
     descriptor or driver INF reports* (e.g. "Future Technology
     Devices, Inc." -> "FTDI").  String input -> short display alias.
   - ``USB_VENDORS`` here is a pure VID lookup -- the descriptor / INF
@@ -21,7 +21,7 @@ belongs to Microchip).  Termapy exposes both so the user can see the
 mismatch.
 
 For narrow-column display, callers feed the canonical vendor name
-through ``usb_mfg.mfg()`` -- entries here use canonical names so the
+through ``aliases.mfg()`` -- entries here use canonical names so the
 existing alias table can collapse them ("Silicon Labs" -> "SiLabs",
 "Future Technology" -> "FTDI", etc.).
 
@@ -90,7 +90,7 @@ def vendor_for(vid: int | None) -> str | None:
        ~3,400 entries) -- canonical USB-IF assignments, used as a
        fallback for any VID the curated table doesn't cover.  Names
        here are full ("Future Technology Devices International, Ltd")
-       so callers run them through ``usb_mfg.mfg()`` for display.
+       so callers run them through ``aliases.mfg()`` for display.
 
     Args:
         vid: USB Vendor ID as an integer, or None.
@@ -98,7 +98,8 @@ def vendor_for(vid: int | None) -> str | None:
     Returns:
         Vendor name when the VID is recognized, None otherwise.
         Callers that want a column-friendly short form should pass the
-        result through ``usb_mfg.mfg()``.
+        result through ``aliases.mfg()`` (re-exported as
+        ``termapy.usb.mfg``).
     """
     if vid is None:
         return None
@@ -108,5 +109,5 @@ def vendor_for(vid: int | None) -> str | None:
     # Lazy import: pulls a 3,000-entry dict module.  ~30 ms at first
     # lookup; cached by Python's import system thereafter.  Keeps
     # cold-start fast for callers that only need the curated names.
-    from termapy._usb_vendor_full import USB_VENDORS_FULL
+    from termapy.usb._vendors_full import USB_VENDORS_FULL
     return USB_VENDORS_FULL.get(vid)

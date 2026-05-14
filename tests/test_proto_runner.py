@@ -7,15 +7,17 @@ from pathlib import Path
 import pytest
 
 from termapy.demo import FakeSerial
-from termapy.proto_runner import (
-    _bytes_to_hex,
-    _bytes_to_text,
-    _build_test_result,
-    _read_frame,
+from termapy.protocol import (
+    TestCase,
     expand_result_template,
     run_proto_tests,
 )
-from termapy.protocol import TestCase
+from termapy.protocol.runner import (  # private helpers; explicit submodule
+    _build_test_result,
+    _bytes_to_hex,
+    _bytes_to_text,
+    _read_frame,
+)
 
 
 # -- Helper formatting --------------------------------------------------------

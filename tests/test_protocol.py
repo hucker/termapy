@@ -24,16 +24,16 @@ from termapy.protocol import (
     parse_proto_script,
     parse_toml_script,
 )
-from termapy.protocol_crc import (
+from termapy.protocol import (
     CRC_CATALOGUE,
     CrcAlgorithm,
-    _generic_crc,
     builtins_crc_dir,
     get_crc_registry,
     load_crc_plugins,
     reset_crc_registry,
 )
-from termapy.protocol_viz import (
+from termapy.protocol.crc import _generic_crc  # private; explicit submodule
+from termapy.protocol import (
     builtins_viz_dir,
     load_visualizers_from_dir,
 )

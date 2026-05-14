@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from termapy.config import open_serial
-from termapy.protocol import (
+from termapy.protocol.core import (
     FrameCollector,
     TestCase,
     load_proto_script,

@@ -72,7 +72,7 @@ from termapy.plugins import (
     load_plugins_from_dir,
 )
 from termapy.proto_debug import ProtoDebugScreen
-from termapy.protocol_viz import builtins_viz_dir, load_visualizers_from_dir
+from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.capture import CaptureEngine, CaptureResult
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label
@@ -4011,7 +4011,7 @@ def _reset_terminal() -> None:
 
 def _run_proto_headless(args) -> None:
     """Run a .pro test script headlessly (no TUI) and write JSON results."""
-    from termapy.proto_runner import run_proto_tests
+    from termapy.protocol import run_proto_tests
 
     # Resolve config
     if args.demo:

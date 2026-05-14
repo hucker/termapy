@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from termapy.crc_codegen import generate_c, generate_python, generate_rust, GENERATORS
-from termapy.protocol_crc import CRC_CATALOGUE
+from termapy.protocol import generate_c, generate_python, generate_rust, GENERATORS
+from termapy.protocol import CRC_CATALOGUE
 
 
 # Standard check string used by the reveng catalogue

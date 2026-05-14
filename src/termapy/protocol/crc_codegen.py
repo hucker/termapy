@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from termapy.protocol_crc import CRC_CATALOGUE, _reflect
+from termapy.protocol.crc import CRC_CATALOGUE, _reflect
 
 
 def _func_name(algo_name: str) -> str:

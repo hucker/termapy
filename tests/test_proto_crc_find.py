@@ -26,7 +26,7 @@ from termapy.builtins.commands.proto import (
     _find_in_binary,
 )
 from termapy.defaults import DEFAULT_CFG
-from termapy.protocol_crc import CRC_CATALOGUE
+from termapy.protocol import CRC_CATALOGUE
 
 
 # ---------------------------------------------------------------------------

@@ -24,7 +24,8 @@ from textual.widgets import (
 
 from termapy.config import cfg_data_dir, open_with_system
 from termapy.plugins import BoundaryException
-from termapy.proto_runner import _build_test_result, expand_result_template
+from termapy.protocol import expand_result_template
+from termapy.protocol.runner import _build_test_result  # private
 from termapy.protocol import (
     DIFF_STYLES,
     ProtoScript,
@@ -37,7 +38,7 @@ from termapy.protocol import (
     parse_format_spec,
     strip_ansi,
 )
-from termapy.protocol_viz import VisualizerInfo
+from termapy.protocol import VisualizerInfo
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

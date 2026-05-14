@@ -13,8 +13,8 @@ the rules.
 Note: AI such as Claude Code can do a pretty good job of sending commands interactively
 without a profile at all, just looking at any help text or sample responses that you give it. It
 can work with fairly well with a small amount of trial and error.  However, if you are going
-to use AI to interact with your device on an ongoing basis it is worth it to invenst in creating
-a profile which reduces friction and gives you more robust control and better error handling 
+to use AI to interact with your device on an ongoing basis it is worth it to invest in creating
+a profile which reduces friction and gives you more robust control and better error handling
 because the LLM can understand the commands and the types.
 
 IF you have control over the device firmware, build a command that returns the json profile directly from the device.  

@@ -216,8 +216,6 @@ class TestCfgLoadFiresOnConnected:
         cfg["port"] = "DEMO"
         cfg["line_ending"] = "\r\n"
         cfg["auto_connect"] = True
-        cfg["auto_include_on_connect"] = False  # don't pollute the log
-        cfg["device_json_cmd"] = ""
         cfg.update(overrides)
         cfg_path = parent / name / f"{name}.cfg"
         cfg_path.parent.mkdir(parents=True, exist_ok=True)

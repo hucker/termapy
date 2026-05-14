@@ -465,5 +465,7 @@ The profile is just a JSON file; edit it freely.
 - `/profile.load <path>` — load a profile and apply transport rules.
 - `/profile.info` — inspect the active profile.
 - `/mcp.info` — see destructive count, enabled-vs-draft split.
-- `/include` — for devices that publish their own profile via a
-  command like `AT+HELP.JSON`.  The reverse direction of authoring.
+- `/profile.load cmd=<command>` — for devices that publish their own
+  profile via a wire command like `AT+HELP.JSON`.  Same destination
+  as the file path -- the active profile namespace -- so the rest of
+  the system is agnostic to where the JSON came from.

@@ -38,8 +38,9 @@ dependencies = [
     "tree-sitter-json>=0.24.0,<0.25; python_version >= '3.10'",
     "tree-sitter-toml>=0.6.0,<0.8; python_version >= '3.10'",
     "tree-sitter-bash>=0.23.0,<0.26; python_version >= '3.10'",
-    # Version comparison for /include's JSON "version" field -- lets a
-    # newer device schema overwrite an older cached one via PEP 440.
+    # PEP 440 version parsing for the update_check module (release-notification
+    # path).  Used to compare an installed termapy version against the latest
+    # PyPI release.
     "packaging>=24.0",
     # Cross-platform user state / config directory resolution (replaces
     # per-OS hand-rolled APPDATA / XDG handling for app-level state).

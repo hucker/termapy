@@ -488,7 +488,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 16,
+    "config_version": 17,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -499,8 +499,6 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "cli_completion": true,
     "config_read_only": false,
     "os_cmd_enabled": false,
-    "device_json_cmd": "",
-    "auto_include_on_connect": true,
     "profile_path": "",
     "validate_typed_args": false,
     "port": "COM4",
@@ -558,7 +556,6 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `auto_connect`       | `false`                | Connect to the port on startup                                                                           |
 | `auto_reconnect`     | `false`                | Retry every 2.5s if the port drops or fails to open (does not control startup)                           |
 | `on_connect_cmd`     | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
-| `auto_include_on_connect` | `true`            | When `device_json_cmd` is set, run `/include` automatically after a successful connect (MCP mode)        |
 | `profile_path`       | `""`                   | Explicit path to a v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention lookup |
 | `echo_input`         | `false`                | Echo sent commands locally                                                                               |
 | `echo_input_fmt`     | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
@@ -899,7 +896,7 @@ termapy --cli my_device --no-color   # strip ANSI color codes (REPL piping)
 `--cli` covers two shapes of non-TUI use:
 
 - **Interactive REPL** (the default): blocks on stdin, dispatches each line, exits on `/exit` or EOF.
-- **One-shot**: pair `--cli` with `--run <script>` (run a `.run` file and exit) or `-e "<command>"` (run one command and exit). Exit status reflects success (`0`) or failure (`1`); cfg-driven connect-time autorun (`device_json_cmd` auto-include, `on_connect_cmd`) is suppressed so piped/captured stdout contains only the user's output.
+- **One-shot**: pair `--cli` with `--run <script>` (run a `.run` file and exit) or `-e "<command>"` (run one command and exit). Exit status reflects success (`0`) or failure (`1`); cfg-driven connect-time autorun (`on_connect_cmd`) is suppressed so piped/captured stdout contains only the user's output.
 
 Passing a `.run` file to `--cli` automatically infers the config from the file's location and runs it. Passing a config name or path opens an interactive session.
 

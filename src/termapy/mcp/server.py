@@ -403,26 +403,27 @@ class MCPHost(TerminalHost):
             source="app",
         )
 
-        # auto-include + banner-watch fire from _on_connected (the
-        # TerminalHost override below).  We don't use the on_connect
-        # lifecycle hook for these because TerminalHost._connect
-        # fires the lifecycle BEFORE _start_reader() -- the reader
-        # thread isn't pumping yet, so /include can't read the
+        # Profile-load (file) + banner-watch + user on_connect_cmd fire
+        # from _on_connected (the TerminalHost override below).  We
+        # don't use the on_connect lifecycle hook for these because
+        # TerminalHost._connect fires the lifecycle BEFORE
+        # _start_reader() -- the reader thread isn't pumping yet, so
+        # any user-configured /profile.load cmd=... can't read the
         # device's reply.  _on_connected runs AFTER _start_reader.
 
     def _on_connected(self, message: str) -> None:
-        """Override: run post-reader-start hooks (auto-include, banner watch).
+        """Override: run post-reader-start hooks (profile load, banner watch).
 
         TerminalHost._connect fires the on_connect lifecycle BEFORE
         starting the reader thread, then calls _on_connected after.
-        Auto-include needs the reader pumping (it dispatches a serial
-        command and waits for a response), so it lives here.  Banner
-        watcher uses ctx.wait_for_match which also needs the reader's
-        feed_lines calls.
+        User on_connect_cmd entries (which may include
+        ``/profile.load cmd=...`` for device-fetched profiles) need
+        the reader pumping to read the device's reply, so they live
+        here.  Banner watcher uses ctx.wait_for_match which also
+        needs the reader's feed_lines calls.
         """
         super()._on_connected(message)
         self._on_connect_auto_load_profile(self.ctx)
-        self._on_connect_auto_include(self.ctx)
         self._on_connect_run_commands(self.ctx)
         self._on_connect_banner_watch(self.ctx)
 
@@ -482,27 +483,6 @@ class MCPHost(TerminalHost):
             return
         if not result.success:
             self._log_line(f"! auto-load profile: {result.error}")
-
-    def _on_connect_auto_include(self, ctx: PluginContext) -> None:
-        """Run ``/include`` after connect when configured.
-
-        Fires when ``cfg.auto_include_on_connect`` is True and
-        ``cfg.device_json_cmd`` is set.  Errors are non-fatal -- the
-        device may not actually serve a help-JSON command, in which
-        case the user/profile is the source of truth.
-        """
-        if not ctx.cfg.get("auto_include_on_connect", True):
-            return
-        if not ctx.cfg.get("device_json_cmd", ""):
-            return
-        self._log_line("$ /include  (auto-include on connect)")
-        try:
-            result = self.repl.dispatch("include")
-        except Exception as exc:  # noqa: BLE001 -- boundary
-            self._log_line(f"! auto-include failed: {exc}")
-            return
-        if not result.success:
-            self._log_line(f"! auto-include: {result.error}")
 
     def _on_connect_run_commands(self, ctx: PluginContext) -> None:
         """Fire ``on_connect_cmd`` then ``mcp_on_connect_cmd`` after connect.

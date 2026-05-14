@@ -171,19 +171,24 @@ so whatever it reads from `ctx.ns(...)` or `ctx.cfg` is live.
 
 ```python
 def _dynamic_long_help(ctx):
-    target = ctx.ns("target_commands")
-    if target:
-        state = f"Currently loaded: {len(target)} device command(s)."
+    profile = ctx.ns("active_profile") or {}
+    commands = profile.get("commands") or {}
+    if commands:
+        rev = profile.get("profile_revision") or "(none)"
+        state = (
+            f"Active profile: {len(commands)} device command(s) "
+            f"(rev {rev})."
+        )
     else:
-        state = "Currently loaded: none."
+        state = "No profile loaded."
     return f"""{state}
 
-Sends a command to the device and parses the JSON response to include
-command help. Use /include.reload to refresh."""
+Load a device profile with /profile.load <path>, or fetch one from
+the connected device with /profile.load cmd=<command>."""
 
 COMMAND = Command(
-    name="include",
-    help="Include device command help from JSON response.",
+    name="profile",
+    help="Device profile commands.",
     long_help=_dynamic_long_help,   # a function, not a string
     handler=_handler,
 )

@@ -385,11 +385,11 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
 
     Sections: NAME, SYNOPSIS (if args), DESCRIPTION (if long_help),
     FLAGS (if any).  The source line always reads "target device" so
-    users can see at a glance that a command came from /include rather
-    than a plugin.
+    users can see at a glance that a command came from the active
+    profile rather than a plugin.
 
     There is intentionally no REQUIRES, SUBCOMMANDS, or SEE ALSO --
-    target commands have no capability declarations, no subcommand
+    device commands have no capability declarations, no subcommand
     tree, and no sibling relationships in termapy's registry.
     """
     # NAME ────────────────────────────────────────────────────────────────────
@@ -411,7 +411,7 @@ def _render_target_man_page(ctx: PluginContext, tc) -> None:
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     # _canonical_flags is duck-typed on a `.flags` attribute, so it works
-    # for TargetCommand unchanged.
+    # for the profile-command view's SimpleNamespace unchanged.
     rows = _canonical_flags(tc)
     if rows:
         ctx.io.output_markup("")
@@ -525,8 +525,9 @@ def _show_command_help(ctx: PluginContext, name: str,
         _render_man_page(ctx, name, plugin, dev_mode=dev_mode)
         return CmdResult.ok()
 
-    # 2. Target device (help-only commands imported from a connected device).
-    tc = ctx.ns("target_commands").get(name)
+    # 2. Device command from the active profile.
+    from termapy.profile import profile_command_view
+    tc = profile_command_view(ctx.ns("active_profile")).get(name)
     if tc is not None:
         _render_target_man_page(ctx, tc)
         return CmdResult.ok()
@@ -563,7 +564,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Optional command name (or search term) to look up.
     """
     # Preserve case: plugin names are conventionally lowercase, but device
-    # commands brought in by /include (AT+INFO, $GPGGA) are usually upper.
+    # commands published in v2 profiles (AT+INFO, $GPGGA) are usually upper.
     # Matching exactly lets both kinds round-trip; users who mistype the
     # casing fall through to the forgiving candidate list, which does its
     # own case-insensitive matching internally.
@@ -667,7 +668,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.output_markup("")
             _render_scripts(ctx, scripts, prefix, cmd_w)
 
-    if ctx.ns("target_commands"):
+    from termapy.profile import profile_command_view
+    if profile_command_view(ctx.ns("active_profile")):
         ctx.io.output_markup("")
         _render_target(ctx, cmd_w)
 
@@ -684,10 +686,14 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
-    """Show only imported target device commands."""
-    target_cmds = ctx.ns("target_commands")
+    """Show only device commands from the active profile."""
+    from termapy.profile import profile_command_view
+    target_cmds = profile_command_view(ctx.ns("active_profile"))
     if not target_cmds:
-        ctx.io.result("No target commands included. Use /include first.")
+        ctx.io.result(
+            "No device commands available.  /profile.load <path> "
+            "or /profile.load cmd=<command> to load one."
+        )
         return CmdResult.ok()
     _render_target(ctx)
     ctx.io.result(f"{len(target_cmds)} device commands.")
@@ -695,14 +701,15 @@ def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
-    """Render the target device command table.
+    """Render the device command table from the active profile.
 
-    Target commands are help-only listings of a connected device's own
-    commands. Unlike REPL plugins, the user needs to see the args syntax
-    inline here because there's no separate ``/help <target>`` drill-down
-    for device commands.
+    Device commands are help-only listings of a connected device's own
+    commands.  Unlike REPL plugins, the user needs to see the args
+    syntax inline here because there's no separate ``/help <name>``
+    drill-down for device commands.
     """
-    target_cmds = ctx.ns("target_commands")
+    from termapy.profile import profile_command_view
+    target_cmds = profile_command_view(ctx.ns("active_profile"))
     names = list(target_cmds)
     if cmd_w is None:
         cmd_w = _compute_cmd_w(names, "")

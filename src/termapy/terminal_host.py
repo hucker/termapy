@@ -204,18 +204,17 @@ class TerminalHost:
     def _clear_device_state(self) -> None:
         """Wipe namespaces tied to the device that just disconnected.
 
-        ``active_profile`` and ``target_commands`` are per-device:
-        they describe the box on the wire, not the termapy session.
-        Carrying them across a disconnect produces a real bug -- the
-        next ``/port.connect <other>`` lands you on a new device with
-        the previous device's profile silently driving the MCP
-        executor and stale ``/help`` entries cluttering completion.
+        ``active_profile`` is per-device: it describes the box on the
+        wire, not the termapy session.  Carrying it across a disconnect
+        produces a real bug -- the next ``/port.connect <other>`` lands
+        you on a new device with the previous device's profile silently
+        driving the MCP executor and stale ``/help`` entries cluttering
+        completion.
 
         Subclasses with frontend-specific device state (e.g. MCPHost's
         banner-watch attrs) should extend this rather than override it.
         """
         self.ctx.ns("active_profile").clear()
-        self.ctx.ns("target_commands").clear()
 
     def _on_disconnected(self) -> None:
         """Called after disconnection.  Override for UI updates."""

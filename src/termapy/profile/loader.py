@@ -201,8 +201,8 @@ def _builtin_validate(profile: dict) -> ValidationResult:
         return ValidationResult(ok=False, errors=["root: profile must be an object"])
 
     pv = profile.get("profile_version")
-    if pv is not None and pv not in (1, 2):
-        errors.append(f"profile_version: expected 1 or 2, got {pv!r}")
+    if pv is not None and pv != 2:
+        errors.append(f"profile_version: expected 2, got {pv!r}")
 
     transport = profile.get("transport")
     if transport is not None:

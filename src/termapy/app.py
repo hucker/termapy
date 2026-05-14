@@ -647,8 +647,13 @@ class SerialTerminal(TerminalHost, App):
                 commands.append(f"{prefix}{name} {plugin.args}")
         for f in self._project_files():
             commands.append(f"{prefix}edit {f}")
-        for name in self.repl.ctx.ns("target_commands"):
-            commands.append(name)
+        # Device commands now live on the active profile; suggester
+        # surfaces them so the TUI completer offers them too.
+        active = self.repl.ctx.ns("active_profile")
+        profile_cmds = active.get("commands") if isinstance(active, dict) else None
+        if isinstance(profile_cmds, dict):
+            for name in profile_cmds:
+                commands.append(name)
         self._cached_commands = commands
         self._suggester.update(commands, self.history, prefix)
 
@@ -1455,8 +1460,6 @@ class SerialTerminal(TerminalHost, App):
         inp.focus()
         self._sync_hw_buttons()
         connect_cmds: list[str] = []
-        if self.cfg.get("device_json_cmd", ""):
-            connect_cmds.append(self.repl.cmd("include"))
         auto_cmd = self.cfg.get("on_connect_cmd", "")
         if auto_cmd:
             connect_cmds.extend(auto_cmd.replace("\\n", "\n").split("\n"))
@@ -1755,9 +1758,9 @@ class SerialTerminal(TerminalHost, App):
             )
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
-        if not cfg.get("device_json_cmd", ""):
-            self.repl.ctx.ns("target_commands").clear()
-            self._rebuild_suggester_commands()
+        # Cfg reload may swap the active profile out from under us; rebuild
+        # suggester commands so completion reflects the post-load state.
+        self._rebuild_suggester_commands()
         self.repl.ctx.ns("flags")["hex_mode"] = cfg.get("hex_mode", False)
         self._show_line_numbers = cfg.get("show_line_numbers", False)
         self.repl.replace_cfg(cfg, path)

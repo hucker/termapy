@@ -55,17 +55,20 @@ _SEP = "dim"
 
 
 def _indexable_commands(ctx: PluginContext) -> dict:
-    """Merged view of REPL plugins plus included target-device commands.
+    """Merged view of REPL plugins plus device commands from the active profile.
 
-    TargetCommand duck-types on the attributes search reads:
-    ``help``, ``args``, ``flags``, ``long_help``.  It has no ``handler``;
-    the ``--dev`` docstring branch in ``_field_text`` uses
-    ``getattr(..., None)`` and degrades cleanly to empty.
+    The active-profile view is built by ``profile_command_view`` which
+    yields ``SimpleNamespace`` objects exposing ``help``, ``args``,
+    ``flags``, ``long_help`` -- the four attributes search reads.
+    No ``handler`` attribute; the ``--dev`` docstring branch in
+    ``_field_text`` uses ``getattr(..., None)`` and degrades cleanly.
 
     Plugin names win on collision -- a REPL /command wearing the same
     spelling as a device command is the more specific hit.
     """
-    merged = dict(ctx.ns("target_commands"))
+    from termapy.profile import profile_command_view
+
+    merged = dict(profile_command_view(ctx.ns("active_profile")))
     merged.update(ctx.engine.plugins)
     return merged
 
@@ -300,7 +303,8 @@ def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
         return CmdResult.fail(msg=f"Invalid regex: {e}")
 
     indexable = _indexable_commands(ctx)
-    targets = ctx.ns("target_commands")
+    from termapy.profile import profile_command_view
+    targets = profile_command_view(ctx.ns("active_profile"))
     matches: list[str] = []
     rendered = 0
     truncated = False
@@ -328,7 +332,8 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
     """Literal-mode search: multi-term AND + `-exclude` grammar, context snippets."""
     positives, _ = _parse_search_terms(pattern)
     indexable = _indexable_commands(ctx)
-    targets = ctx.ns("target_commands")
+    from termapy.profile import profile_command_view
+    targets = profile_command_view(ctx.ns("active_profile"))
     matches = _fuzzy_matches(
         pattern, indexable, include_dev=include_dev, ctx=ctx,
     )

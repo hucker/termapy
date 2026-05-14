@@ -199,26 +199,6 @@ class TestCatalog:
             "disabled device command hidden from MCP catalog"
         )
 
-    def test_target_commands_ns_no_longer_surfaced(self, host):
-        # Arrange -- write to the legacy target_commands namespace (still
-        # populated by /include in this commit).
-        from termapy.plugins import TargetCommand
-
-        target = host.ctx.ns("target_commands")
-        target["LEGACY"] = TargetCommand(
-            name="LEGACY", help="from /include path", enabled=True,
-        )
-        # Act
-        cat = build_catalog(host.ctx)
-        # Assert -- LEGACY is NOT in device_commands (catalog sources
-        # only from active_profile.commands now).  /include's data is
-        # effectively invisible to the LLM after this commit.
-        assert "device_commands" in cat, "device_commands field present"
-        names = {e["name"] for e in cat["device_commands"]}
-        assert "LEGACY" not in names, (
-            "target_commands namespace is no longer surfaced (commit B)"
-        )
-
     def test_catalog_command_has_required_fields(self, host):
         # Arrange / Act
         cat = build_catalog(host.ctx)

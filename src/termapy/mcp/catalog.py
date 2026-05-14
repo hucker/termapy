@@ -94,13 +94,10 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         for name, td in type_registry.all().items()
     }
 
-    # Device commands now source from the active profile's commands dict
-    # (commit B of the v2-only refactor).  Profiles installed via
-    # /profile.load -- whether from a file or from a device fetch (cmd=)
-    # -- land in `active_profile.commands`; that's the one place the
-    # catalog reads from.  The legacy `target_commands` namespace
-    # (still populated by /include in this commit) is no longer
-    # surfaced -- commit C deletes /include entirely.
+    # Device commands source from the active profile's commands dict.
+    # Profiles installed via /profile.load -- whether from a file or
+    # from a device fetch (cmd=) -- land in `active_profile.commands`;
+    # that's the one place the catalog reads from.
     profile_commands = active_profile.get("commands") or {}
     device_commands: list[dict[str, Any]] = []
     if isinstance(profile_commands, dict) and profile_commands:
@@ -275,7 +272,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     needing to remember to combine it with the top-level ``prefix``
     field.  Disambiguation between termapy commands and device
     commands becomes literally visible: prefixed names are termapy
-    REPL commands, unprefixed entries in ``target_commands`` are
+    REPL commands, unprefixed entries in ``device_commands`` are
     device commands sent verbatim.
     """
     long_help_text = resolve_long_help(plugin, ctx)
@@ -299,10 +296,9 @@ def _device_descriptor_from_spec(
 ) -> dict[str, Any]:
     """Convert one entry from ``active_profile.commands`` into a catalog entry.
 
-    Replaces ``_target_descriptor`` for the v2-only catalog path: the
-    source is now the profile's commands dict (same shape the dispatch
-    executor reads), not a separate ``target_commands`` namespace of
-    ``TargetCommand`` dataclass instances.
+    The source is the profile's commands dict (same shape the dispatch
+    executor reads), so the catalog reflects exactly what a bare
+    invocation would dispatch.
 
     When ``type_registry`` is provided, each ``typed_args`` entry gets
     an inline ``type_info`` field with the kind-shaped description of
@@ -347,59 +343,6 @@ def _device_descriptor_from_spec(
     if rate_limit:
         out["rate_limit_hz"] = rate_limit
     timeout_ms = spec.get("timeout_ms", 0) or 0
-    if timeout_ms:
-        out["timeout_ms"] = timeout_ms
-    return out
-
-
-def _target_descriptor(
-    target: Any, type_registry: TypeRegistry | None = None,
-) -> dict[str, Any]:
-    """Convert a TargetCommand (device-imported help) into a catalog entry.
-
-    When ``type_registry`` is provided, each entry in ``typed_args``
-    gets an inline ``type_info`` field carrying the kind-shaped
-    description of the referenced type (enum values, range bounds,
-    pattern source, etc.).  This lets the LLM read the contract per
-    arg without cross-referencing the top-level ``types`` block.
-    Builtin types resolve to ``{"kind": "builtin"}``.
-    """
-    out: dict[str, Any] = {
-        "name": getattr(target, "name", ""),
-        "args": getattr(target, "args", ""),
-        "help": getattr(target, "help", ""),
-        "long_help": getattr(target, "long_help", ""),
-        "flags": dict(getattr(target, "flags", {}) or {}),
-    }
-    # v2 fields (from Phase 2): only include when present (non-default).
-    typed_args = getattr(target, "typed_args", None)
-    if typed_args:
-        enriched: list[dict[str, Any]] = []
-        for ta in typed_args:
-            if isinstance(ta, dict):
-                entry = dict(ta)
-                if type_registry is not None:
-                    type_name = entry.get("type", "")
-                    td = type_registry.resolve(type_name) if type_name else None
-                    if td is not None:
-                        entry["type_info"] = typedef_to_catalog(td)
-                enriched.append(entry)
-            else:
-                enriched.append(ta)
-        out["typed_args"] = enriched
-    send_template = getattr(target, "send_template", "")
-    if send_template:
-        out["send_template"] = send_template
-    response = getattr(target, "response", None)
-    if response:
-        out["response"] = dict(response)
-    safety = getattr(target, "safety", "safe")
-    if safety and safety != "safe":
-        out["safety"] = safety
-    rate_limit = getattr(target, "rate_limit_hz", 0.0)
-    if rate_limit:
-        out["rate_limit_hz"] = rate_limit
-    timeout_ms = getattr(target, "timeout_ms", 0)
     if timeout_ms:
         out["timeout_ms"] = timeout_ms
     return out

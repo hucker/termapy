@@ -69,9 +69,17 @@ def run(
     )
 
 
-def run_out(cmd: list[str], *, cwd: Path | None = None) -> str:
-    """Run a command and return its stdout, stripped. Fails loudly on nonzero."""
-    return run(cmd, capture=True, cwd=cwd).stdout.strip()
+def run_out(
+    cmd: list[str], *, cwd: Path | None = None, check: bool = True,
+) -> str:
+    """Run a command and return its stdout, stripped.
+
+    Defaults to failing loudly on nonzero exit.  Pass ``check=False`` for
+    tools whose convention is to exit nonzero when reporting findings
+    (e.g. ``ty check`` exits 1 when it has diagnostics to report, which
+    is the data we want to *count*, not crash on).
+    """
+    return run(cmd, capture=True, cwd=cwd, check=check).stdout.strip()
 
 
 # ── version validation ───────────────────────────────────────────────────────

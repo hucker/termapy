@@ -128,8 +128,12 @@ def count_ty_issues() -> int:
     Vendored code is excluded via [tool.ty.src] in pyproject.toml, so
     the count reflects only first-party files.  A clean project returns
     the literal string "All checks passed!" and we report 0.
+
+    ``ty check`` exits 1 when it finds diagnostics -- which is exactly
+    the data we want to count, not crash on -- so we pass
+    ``check=False`` and parse the output regardless of exit code.
     """
-    out = run_out(["uvx", "ty", "check", "src/termapy/"])
+    out = run_out(["uvx", "ty", "check", "src/termapy/"], check=False)
     if "All checks passed!" in out:
         return 0
     m = re.search(r"Found (\d+) diagnostics?", out)

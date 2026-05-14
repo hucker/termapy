@@ -330,7 +330,8 @@ class FakeSerialNDJSON:
         next thing the host sees is the post-reset banner.
         """
         cmd = req.get("cmd", "")
-        args = req.get("args") if isinstance(req.get("args"), dict) else {}
+        raw_args = req.get("args")
+        args: dict = raw_args if isinstance(raw_args, dict) else {}
         req_id = req.get("id")
 
         # Update the live uptime so /get_status sees a moving value.

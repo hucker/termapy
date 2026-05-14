@@ -75,11 +75,13 @@ from termapy.plugins.command import (
     resolve_long_help,
 )
 from termapy.plugins.context import (
+    PluginConfig,
+    PluginContext,
+)
+from termapy.plugins.output_levels import (
     DEFAULT_OUTPUT_LEVEL,
     LEVEL_FLAGS,
     OUTPUT_LEVELS,
-    PluginConfig,
-    PluginContext,
     format_kv_lines,
     parse_output_level,
 )

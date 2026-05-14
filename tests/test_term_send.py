@@ -241,14 +241,14 @@ def _load_test_profile(ctx) -> None:
     ns.update({
         "profile_version": 2,
         "types": {
-            "onoff": {"kind": "enum", "values": ["on", "off"]},
+            "on_off": {"kind": "enum", "values": ["on", "off"]},
         },
         "commands": {
             "ECHO": {
                 "help": "Toggle echo.",
                 "send_template": "ECHO {state}",
                 "typed_args": [
-                    {"name": "state", "type": "onoff", "required": True},
+                    {"name": "state", "type": "on_off", "required": True},
                 ],
             },
         },
@@ -262,7 +262,7 @@ class TestCliTypedArgValidation:
     truth.  When on, bad values short-circuit before the wire."""
 
     def test_off_by_default_passes_bytes_through(self, env):
-        # Arrange -- profile says ECHO takes onoff; cfg flag is off (default).
+        # Arrange -- profile says ECHO takes on_off; cfg flag is off (default).
         eng, ctx, _output, writes = env
         _load_test_profile(ctx)
         # Act -- send a value that would fail validation if checked.

@@ -97,7 +97,7 @@ class TestCatalog:
         ns.update({
             "profile_version": 2,
             "types": {
-                "onoff": {"kind": "enum", "values": ["on", "off"]},
+                "on_off": {"kind": "enum", "values": ["on", "off"]},
                 "percent": {"kind": "int_range", "min": 0, "max": 100},
             },
             "commands": {},
@@ -106,9 +106,9 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         # Assert
         types_out = cat.get("types") or {}
-        assert "onoff" in types_out, "onoff type surfaced in catalog"
-        assert types_out["onoff"]["kind"] == "enum", "kind preserved"
-        assert types_out["onoff"]["values"] == ["on", "off"], "values preserved"
+        assert "on_off" in types_out, "on_off type surfaced in catalog"
+        assert types_out["on_off"]["kind"] == "enum", "kind preserved"
+        assert types_out["on_off"]["values"] == ["on", "off"], "values preserved"
         assert types_out["percent"]["min"] == 0, "int_range min preserved"
         assert types_out["percent"]["max"] == 100, "int_range max preserved"
 
@@ -125,12 +125,12 @@ class TestCatalog:
         ns.clear()
         ns.update({
             "profile_version": 2,
-            "types": {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            "types": {"on_off": {"kind": "enum", "values": ["on", "off"]}},
             "commands": {
                 "SET": {
                     "help": "Set state.",
                     "typed_args": [
-                        {"name": "state", "type": "onoff", "required": True},
+                        {"name": "state", "type": "on_off", "required": True},
                     ],
                 },
             },
@@ -143,7 +143,7 @@ class TestCatalog:
         )
         ta = set_entry["typed_args"][0]
         assert ta["name"] == "state", "original typed_arg fields preserved"
-        assert ta["type"] == "onoff", "type name preserved"
+        assert ta["type"] == "on_off", "type name preserved"
         info = ta.get("type_info") or {}
         assert info.get("kind") == "enum", "type_info carries kind"
         assert info.get("values") == ["on", "off"], (

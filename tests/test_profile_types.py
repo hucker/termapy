@@ -15,9 +15,7 @@ import pytest
 from termapy.profile import (
     BUILTINS,
     ProfileTypeError,
-    TypeDef,
     TypeRegistry,
-    ValidationOutcome,
     schema_kinds,
     typedef_to_catalog,
 )
@@ -84,20 +82,20 @@ class TestRegistryConstruction:
 class TestEnumKind:
     def test_enum_accepts_member(self):
         # Arrange — custom name (not 'bool', which is a reserved builtin).
-        profile = {"types": {"onoff": {"kind": "enum", "values": ["on", "off"]}}}
+        profile = {"types": {"on_off": {"kind": "enum", "values": ["on", "off"]}}}
         reg = TypeRegistry.from_profile(profile)
         # Act
-        result = reg.validate("onoff", "on")
+        result = reg.validate("on_off", "on")
         # Assert
         assert result.ok, "member value passes"
         assert result.value == "on", "normalized to string"
 
     def test_enum_rejects_nonmember_with_helpful_error(self):
         # Arrange
-        profile = {"types": {"onoff": {"kind": "enum", "values": ["on", "off"]}}}
+        profile = {"types": {"on_off": {"kind": "enum", "values": ["on", "off"]}}}
         reg = TypeRegistry.from_profile(profile)
         # Act
-        result = reg.validate("onoff", "banana")
+        result = reg.validate("on_off", "banana")
         # Assert
         assert not result.ok, "non-member fails"
         assert "banana" in result.error, "error names the rejected value"
@@ -448,11 +446,11 @@ class TestBuiltinValidation:
 class TestCatalogRendering:
     def test_typedef_to_catalog_enum(self):
         # Arrange — non-shadowing custom name.
-        profile = {"types": {"onoff": {
+        profile = {"types": {"on_off": {
             "kind": "enum", "values": ["on", "off"], "help": "On/Off",
         }}}
         reg = TypeRegistry.from_profile(profile)
-        td = reg.resolve("onoff")
+        td = reg.resolve("on_off")
         # Act
         out = typedef_to_catalog(td)
         # Assert

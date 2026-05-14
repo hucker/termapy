@@ -259,8 +259,8 @@ class CLITerminal(TerminalHost):
         # CLI-specific callbacks
         self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
-        self.ctx.ui.exit_app = lambda: None
-        self.ctx.ui.get_screen_text = lambda: ""
+        self.ctx.ui._exit_app_impl = lambda: None
+        self.ctx.ui._get_screen_text_impl = lambda: ""
         # CLI provides interactive (a human at a terminal -- including
         # over SSH) and gui_apps when a local desktop is available.  No
         # TUI features (dialogs, screen capture, status bar, toast

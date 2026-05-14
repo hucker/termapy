@@ -98,7 +98,7 @@ class TestMcpDispatch:
         """
         # Arrange — only meaningful if the mcp SDK is importable.
         try:
-            import mcp  # noqa: F401
+            from mcp.server.fastmcp import FastMCP  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; nothing to dispatch")
         # Act — close stdin immediately so FastMCP sees EOF.
@@ -120,7 +120,7 @@ class TestMcpDispatch:
         """When the mcp SDK is missing, --mcp must give a clean install hint."""
         # Arrange — only meaningful when the SDK is NOT installed.
         try:
-            import mcp  # noqa: F401
+            from mcp.server.fastmcp import FastMCP  # noqa: F401
         except ImportError:
             pass
         else:
@@ -149,7 +149,7 @@ class TestMcpDispatch:
         """
         # Arrange — only when SDK installed.
         try:
-            import mcp  # noqa: F401
+            from mcp.server.fastmcp import FastMCP  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; verbose path unreachable")
         # Act — close stdin so the server shuts down quickly after the banner.

@@ -1183,8 +1183,14 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     tool + resources, then enters the FastMCP stdio loop.  Stdout is
     reserved for protocol frames; never ``print()`` to stdout.
     """
+    # Check the *actual* submodule the server needs.  A bare ``import
+    # mcp`` succeeds against any namespace package on sys.path (e.g. a
+    # stray ``mcp/`` folder in cwd from a prior session log), which would
+    # let the install hint be bypassed and crash later inside
+    # ``_build_server``.  Verifying ``mcp.server.fastmcp`` is what we'll
+    # actually import shuts that door.
     try:
-        import mcp  # noqa: F401
+        from mcp.server.fastmcp import FastMCP  # noqa: F401
     except ImportError:
         print(_INSTALL_HINT, file=sys.stderr)
         sys.exit(1)

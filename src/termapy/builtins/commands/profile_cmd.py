@@ -96,7 +96,24 @@ def _apply_profile(
         ns["__source_cmd"] = source_cmd
 
     transport = profile.get("transport") or {}
-    changes = apply_profile_transport(transport, ctx.engine.apply_cfg)
+    changes = apply_profile_transport(
+        transport, ctx.engine.apply_cfg, cfg_get=ctx.cfg.get,
+    )
+    # True divergences only -- fields the profile writes whose value
+    # actually disagreed with what the cfg held.  Skip None-old (cfg
+    # had nothing for the key) and equal-value cases.
+    divergences = [
+        (k, old, new) for k, (old, new) in sorted(changes.items())
+        if old is not None and old != new
+    ]
+    if divergences:
+        ctx.io.output(
+            "  note: profile overrode "
+            f"{len(divergences)} cfg field(s):",
+            "yellow",
+        )
+        for k, old, new in divergences:
+            ctx.io.output(f"    {k}: cfg={old!r} -> profile={new!r}", "yellow")
     serial_changed = [k for k in changes if k in SERIAL_LEVEL_TRANSPORT_KEYS]
     if serial_changed and ctx.serial.is_connected():
         ctx.io.output(
@@ -395,7 +412,52 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
     for line in format_kv_lines(rows):
         ctx.io.output(line)
+
+    # Divergence section: per-field comparison between active profile's
+    # transport block and the current cfg.  Anything that differs got
+    # mutated since the last /profile.load (typically via /cfg) and
+    # would revert if you reloaded the profile.
+    divergences = _transport_divergences(transport, ctx.cfg)
+    if divergences:
+        ctx.io.output("")
+        ctx.io.output("transport divergences (cfg differs from profile):", "yellow")
+        for cfg_key, profile_val, cfg_val in divergences:
+            ctx.io.output(
+                f"  {cfg_key}: profile={profile_val!r} cfg={cfg_val!r}",
+                "yellow",
+            )
+        ctx.io.output(
+            "  (next /profile.load will reset cfg to the profile values)",
+            "dim",
+        )
+
     return CmdResult.ok(value=str(cmd_count))
+
+
+def _transport_divergences(
+    transport: dict, cfg,
+) -> list[tuple[str, object, object]]:
+    """Return per-field (cfg_key, profile_val, cfg_val) tuples for transport
+    fields where the active profile and the current cfg disagree.
+
+    Skips fields the profile doesn't mention at all (no opinion =
+    nothing to diverge from).  Uses the same field map the loader
+    uses, so the row labels match what apply_profile_transport would
+    rewrite on the next load.
+    """
+    from termapy.profile.loader import _TRANSPORT_KEY_MAP
+
+    out: list[tuple[str, object, object]] = []
+    if not isinstance(transport, dict):
+        return out
+    for tkey, ckey in _TRANSPORT_KEY_MAP.items():
+        if tkey not in transport:
+            continue
+        profile_val = transport[tkey]
+        cfg_val = cfg.get(ckey)
+        if cfg_val != profile_val:
+            out.append((ckey, profile_val, cfg_val))
+    return out
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

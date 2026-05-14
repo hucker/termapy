@@ -403,3 +403,114 @@ class TestProfileLoadFromDevice:
         assert active.get("profile_revision") == "1.1.0", (
             "no-args reload re-ran the device fetch and picked up new payload"
         )
+
+
+# ── Transport divergence visibility ────────────────────────────────────────
+
+
+def _divergent_profile(tmp_path):
+    """Write a v2 profile whose transport differs from DEFAULT_CFG."""
+    p = tmp_path / "div.profile.json"
+    p.write_text(json.dumps({
+        "profile_version": 2,
+        "profile_revision": "1.0.0",
+        "transport": {
+            "protocol": "text",
+            "baud_rate": 9600,             # DEFAULT_CFG has 115200
+            "line_ending_send": "\n",      # DEFAULT_CFG has "\r"
+        },
+        "commands": {"AT": {"help": "Connection test."}},
+    }), encoding="utf-8")
+    return p
+
+
+class TestProfileLoadDivergenceWarning:
+    """On /profile.load, surface every cfg field the profile overrode
+    so the engineer sees what changed instead of having to spot it
+    later via /cfg.dump."""
+
+    def test_warning_lists_each_diverging_field(self, env, tmp_path):
+        # Arrange -- cfg has baud=115200, line_ending="\r" (defaults);
+        # profile asks for 9600 and "\n".
+        eng, ctx, output = env
+        path = _divergent_profile(tmp_path)
+        assert ctx.cfg.get("baud_rate") == 115200, "precondition: default baud"
+        output.clear()
+        # Act
+        eng.dispatch(f"profile.load {path}")
+        full = " ".join(t for t, _ in output)
+        # Assert -- warning mentions baud_rate AND line_ending, with
+        # both old and new values surfaced for each.
+        assert "overrode" in full.lower(), "override warning fired"
+        assert "baud_rate" in full, "baud_rate row present"
+        assert "115200" in full and "9600" in full, (
+            "both old and new baud values shown"
+        )
+        assert "line_ending" in full, "line_ending row present"
+
+    def test_no_warning_when_profile_matches_cfg(self, env, tmp_path):
+        # Arrange -- profile carries the SAME values as DEFAULT_CFG.
+        eng, _ctx, output = env
+        p = tmp_path / "match.profile.json"
+        p.write_text(json.dumps({
+            "profile_version": 2,
+            "transport": {
+                "baud_rate": 115200,         # DEFAULT_CFG default
+                "line_ending_send": "\r",    # DEFAULT_CFG default
+            },
+            "commands": {"AT": {"help": "Connection test."}},
+        }), encoding="utf-8")
+        output.clear()
+        # Act
+        eng.dispatch(f"profile.load {p}")
+        full = " ".join(t for t, _ in output)
+        # Assert -- no override warning (the values agree).
+        assert "override" not in full.lower(), (
+            "no warning when profile == cfg"
+        )
+
+
+class TestProfileInfoDivergence:
+    """After /profile.load, an engineer may /cfg something serial-level
+    away from the profile.  /profile.info should surface the gap so the
+    engineer remembers they're off-contract."""
+
+    # Distinct phrase the section uses; doesn't appear anywhere else in
+    # the codebase so we can grep for it without false positives from
+    # temp-path names or test-method names.
+    _SECTION_MARKER = "differs from profile"
+
+    def test_divergence_section_shown_when_cfg_drifted(self, env, tmp_path):
+        # Arrange -- load a profile, then change baud via the cfg engine.
+        eng, ctx, output = env
+        path = _divergent_profile(tmp_path)
+        eng.dispatch(f"profile.load {path}")
+        # Move cfg.baud away from the profile's 9600.
+        ctx.engine.apply_cfg("baud_rate", 38400)
+        output.clear()
+        # Act
+        eng.dispatch("profile.info")
+        full = " ".join(t for t, _ in output)
+        # Assert
+        assert self._SECTION_MARKER in full, (
+            "divergence section header surfaced"
+        )
+        assert "baud_rate" in full, "diverging field named"
+        assert "9600" in full and "38400" in full, (
+            "both profile and cfg values shown"
+        )
+
+    def test_no_divergence_section_when_cfg_matches(self, env, tmp_path):
+        # Arrange -- load a profile; do not mutate cfg after.
+        eng, _ctx, output = env
+        path = _divergent_profile(tmp_path)
+        eng.dispatch(f"profile.load {path}")
+        output.clear()
+        # Act
+        eng.dispatch("profile.info")
+        full = " ".join(t for t, _ in output)
+        # Assert -- no divergence section (cfg was just mutated by the
+        # load itself, so cfg == profile transport now).
+        assert self._SECTION_MARKER not in full, (
+            "no divergence section when cfg matches profile"
+        )

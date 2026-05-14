@@ -1,135 +1,103 @@
 # Device help integration
 
-If your target device can return a JSON description of its commands,
-termapy will include them and make them available in autocomplete
-and `/help` -- so the device feels integrated into the terminal.
+If your target device can publish a v2 profile JSON over the wire,
+termapy will load it and make every declared command available to the
+LLM (via MCP), to `/help`, and to the CLI/TUI completer.  The device
+feels integrated into the terminal because its full typed contract is
+right there alongside termapy's own commands.
 
 ## How it works
 
-1. You add a command to your firmware that returns a JSON object
-2. You set `device_json_cmd` in your termapy config to the command name
-3. On connect, termapy sends the command, parses the JSON, and
-   registers the device commands for suggestions and help
+1. Add a command to your firmware that returns a v2 profile JSON.
+2. Load it on demand: `/profile.load cmd=<command>`.
+3. Or auto-load on connect by adding that to `on_connect_cmd` (or
+   one of the per-mode variants `mcp_on_connect_cmd`,
+   `tui_on_connect_cmd`, `cli_on_connect_cmd`).
 
-The included commands are not REPL commands -- you type them as
-normal device commands. They just get autocomplete and show up in
-`/help` under the **Target Device** section.
+`/profile.load` installs the JSON as the active profile.  Everything
+that consults the active profile -- the MCP catalog, the dispatch
+executor's typed-arg validation, transport rules, error detection,
+`/help`, autocompletion -- sees the device's full contract.
 
-This also means your device doesn't need its own help command or
-help display logic. The JSON response is a lightweight data dump --
-termapy handles the formatting, searching, and display. One small
-JSON handler replaces a full help system on the device side.
+Once loaded, the active profile can be saved to disk with
+`/profile.save`; the default path is `<cfg_dir>/<cfg_name>.profile.json`
+so the next connect picks it up automatically via `profile_path`'s
+file-existence check.  That promotes a device-fetched profile to a
+checked-in file you can hand-edit.
 
 ## JSON format
 
-Your device command must return a JSON object with a `commands` key:
-
-```json
-{"commands": {"AT+INFO": {"help": "Device information", "args": ""}, "AT+LED": {"help": "Control LED", "args": "<on|off>"}}}
-```
-
-Each command entry has:
-
-- `help` (required) -- one-line description
-- `args` (optional) -- argument spec, defaults to empty
-- `long_help` (optional) -- multi-line prose shown in the DESCRIPTION
-  section of `/help <command>`. Plain text, no markup.
-- `flags` (optional) -- flag map, same shape as a plugin's `Command.flags`.
-  Keys are canonical flag names (e.g. `--table`) with a description
-  string value, or aliases (key = alias, value = canonical flag name).
-
-A richer entry looks like this:
+The device must return a v2 profile JSON object.  See
+[authoring-profiles.md](authoring-profiles.md) for the full schema;
+the minimum is:
 
 ```json
 {
-    "AT+LED": {
-        "help": "Control LED",
-        "args": "<on|off> {--blink}",
-        "long_help": "Drive the on-board status LED.\n\nExamples:\n  AT+LED on          - solid on\n  AT+LED on --blink  - blink at 2 Hz",
-        "flags": {
-            "--blink": "Blink at 2 Hz instead of solid on.",
-            "-b": "--blink"
-        }
+    "profile_version": 2,
+    "commands": {
+        "AT+INFO": {"help": "Device information"},
+        "AT+LED":  {"help": "Control LED", "args": "<on|off>"}
     }
 }
 ```
 
-`/help AT+LED` then renders NAME, SYNOPSIS, DESCRIPTION, and FLAGS in
-the same layout as a built-in plugin. `/search` also indexes these
-fields, so `/search blink` finds the device command by its flag
-description.
+Each command entry can carry:
 
-Only `help` is required -- entries with just `help` + `args` still
-work and render a short one-line form, so existing firmware that
-ships an older schema isn't affected.
+- `help` (required) -- one-line description.
+- `args` (optional) -- argument spec, for human display.
+- `long_help` (optional) -- multi-line prose for `/help <command>`.
+- `flags` (optional) -- flag map (canonical + alias entries).
+- `safety` (optional) -- `safe` / `readonly` / `mutable` / `destructive`.
+- `enabled` (optional, default true) -- audit gate.  Drafts emit false.
+- `send_template`, `typed_args`, `response` -- profile-aware
+  dispatch fields.  See the authoring guide for details.
 
-The JSON can be a single line or pretty-printed. Termapy scans the
+A device that publishes the full v2 contract gets typed-arg
+validation, structured response parsing, and the destructive-command
+confirmation gate for free.  A device that publishes only `help` +
+`args` still works -- termapy treats the profile as documentation
+without the executor's structured features.
+
+Optional top-level blocks the device may publish:
+
+- `profile_version`, `profile_revision`, `profile_date` -- metadata.
+- `transport` -- baud rate, line endings, encoding, default timeouts.
+  Applied to the live cfg on load (with a per-field divergence
+  warning if cfg and profile disagreed).
+- `error_detection` -- regex pattern that flags device-reported
+  errors in responses.
+- `types` -- profile-local type vocabulary (enum / int_range /
+  float_range / str_length / pattern / format_spec).  Referenced by
+  name from `typed_args[i].type`.
+
+The JSON can be a single line or pretty-printed.  Termapy scans the
 response for the first `{` and parses from there, so preamble text
 (echo, status messages) before the JSON is fine.
 
-## Schema versioning
-
-The top-level JSON may optionally carry a `version` string.  This is
-the **device's** schema version -- not termapy's -- so firmware can
-signal when the command set changes and termapy should refresh its
-cache.  Any string works (semver, date, build hash).
-
-```json
-{
-    "version": "1.4.0",
-    "commands": { "...": {} }
-}
-```
-
-On every include from the device, termapy compares the fetched
-`version` to the cached one:
-
-- **Strictly newer** (PEP 440 compare, or string inequality for
-  unparseable values) -> overwrite the cache.
-- **Equal, older, or missing on the new side** -> keep the cache.
-- **No cache on disk** -> always use the fetch (first-time case).
-
-`/include.reload` bypasses the gate and always overwrites, so users
-who want to force a refresh still have a lever.  The version is
-preserved through `/include.dump` so a dumped JSON is a valid
-drop-in for another device.
-
-## Config
-
-Set `device_json_cmd` in your `.cfg` file:
-
-```json
-{
-    "device_json_cmd": "AT+HELP.JSON",
-    "port": "$(env.MAIN_PORT|COM4)"
-}
-```
-
-When this is set, `/include` runs automatically on connect. The
-result is cached to `.target_menu.json` in your config folder so
-subsequent connects load instantly without querying the device.
-
 ## Commands
 
-| Command             | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| `/include`          | Include from cache or device (auto on connect)  |
-| `/include.reload`   | Force re-include from device, update cache      |
-| `/include.list`     | List included commands                          |
-| `/include.dump`     | Pretty-print the included JSON                  |
-| `/include.clear`    | Remove included commands and delete cache       |
-| `/help.target`      | Show only the target device commands            |
+| Command                       | Description                                                |
+| ----------------------------- | ---------------------------------------------------------- |
+| `/profile.load <path>`        | Load a profile from a file                                 |
+| `/profile.load cmd=<command>` | Fetch a profile from the device                            |
+| `/profile.load`               | Reload the current source (file or cmd)                    |
+| `/profile.save`               | Save active profile to `<cfg_dir>/<cfg_name>.profile.json` |
+| `/profile.save <path>`        | Save active profile to an explicit path                    |
+| `/profile.unload`             | Clear the active profile                                   |
+| `/profile.info`               | Show metadata of the active profile + cfg drift            |
+| `/profile.validate <path>`    | Schema-check a profile file                                |
+| `/help.target`                | List the active profile's device commands                  |
 
 ## Implementing on your device
 
-The simplest implementation: add a command that prints a JSON string
-to the serial port. For an AT command set, something like:
+The simplest implementation: have a command that prints a JSON string
+to the serial port.  For an AT command set, something like:
 
 ```c
 if (strcmp(cmd, "AT+HELP.JSON") == 0) {
-    printf("{\"commands\":{");
-    printf("\"AT+INFO\":{\"help\":\"Device info\",\"args\":\"\"},");
-    printf("\"AT+TEMP\":{\"help\":\"Read temperature\",\"args\":\"\"},");
+    printf("{\"profile_version\":2,\"commands\":{");
+    printf("\"AT+INFO\":{\"help\":\"Device info\"},");
+    printf("\"AT+TEMP\":{\"help\":\"Read temperature\"},");
     printf("\"AT+LED\":{\"help\":\"Control LED\",\"args\":\"<on|off>\"}");
     printf("}}\r\n");
 }
@@ -137,16 +105,27 @@ if (strcmp(cmd, "AT+HELP.JSON") == 0) {
 
 Or build it from your command table at runtime so it stays in sync.
 
-The JSON format has a top-level `commands` key to allow future
-expansion (device options, protocol settings, etc.) without breaking
-existing implementations.
+## Auto-load on connect
+
+If you want the profile to load automatically every time termapy
+connects, put the `/profile.load cmd=...` step in your cfg's
+`on_connect_cmd` (or the MCP-specific variant):
+
+```json
+{
+    "on_connect_cmd": "/profile.load cmd=AT+HELP.JSON",
+    "port": "$(env.MAIN_PORT|COM4)"
+}
+```
+
+Per-mode variants (`tui_on_connect_cmd`, `cli_on_connect_cmd`,
+`mcp_on_connect_cmd`) let you have different behavior per host.
 
 ## Demo
 
-![Target device help](img/doc_09_target_help.svg)
-
-The demo device includes `AT+HELP.JSON`. Run the demo and type
-`/help.target` to see it in action, or `/include.dump` to see the
-raw JSON.
+The bundled demo device publishes a v2 profile via `AT+HELP.JSON`.
+Run the demo, then `/profile.load cmd=AT+HELP.JSON` -- the device
+commands appear in `/help`, autocomplete, and (in MCP) the catalog
+with their full typed contract.
 
 ---

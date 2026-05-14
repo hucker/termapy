@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 16
+CURRENT_CONFIG_VERSION = 17
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -58,6 +58,15 @@ DEPRECATED_CFG: dict[str, str] = {
     "cap_endian": "removed in v8 (endianness now lives in the format spec)",
     # v13 -> v14: rename (IntelliSense is a Microsoft trademark)
     "cli_intellisense": "renamed to cli_completion in v14",
+    # v16 -> v17: /include retired in favor of /profile.load cmd=
+    "auto_include_on_connect": (
+        "removed in v17 (/include retired); use mcp_on_connect_cmd="
+        "\"/profile.load cmd=<command>\" instead"
+    ),
+    "device_json_cmd": (
+        "removed in v17 (/include retired); use /profile.load cmd=<command> "
+        "directly, or set mcp_on_connect_cmd to auto-fetch on connect"
+    ),
 }
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
@@ -258,6 +267,40 @@ def _migrate_v15_to_v16(cfg: dict) -> dict:
 
 
 MIGRATIONS[15] = _migrate_v15_to_v16
+
+
+def _migrate_v16_to_v17(cfg: dict) -> dict:
+    """Retire /include in favor of /profile.load cmd=<command>.
+
+    Two cfg keys are removed:
+
+      - ``device_json_cmd``: the command sent by /include to fetch the
+        device's JSON help/profile dump.
+      - ``auto_include_on_connect``: bool that auto-ran /include after a
+        successful connect when device_json_cmd was set.
+
+    Auto-fetch behavior is preserved when both keys were set in the
+    pre-migration cfg: the equivalent on-connect command is appended
+    to ``mcp_on_connect_cmd`` so the next MCP-mode connect performs
+    the same dump-and-install flow via the new path.  Users who only
+    set one of the keys (e.g. device_json_cmd without auto-include)
+    get the keys removed without a rewrite -- they were manual
+    /include callers and migrate to manual /profile.load callers.
+    """
+    auto = cfg.pop("auto_include_on_connect", None)
+    cmd = cfg.pop("device_json_cmd", "")
+    if auto and isinstance(cmd, str) and cmd.strip():
+        new_step = f"/profile.load cmd={cmd.strip()}"
+        existing = cfg.get("mcp_on_connect_cmd", "") or ""
+        # Avoid double-appending if the user already migrated by hand.
+        if new_step not in existing:
+            cfg["mcp_on_connect_cmd"] = (
+                f"{existing}\n{new_step}" if existing.strip() else new_step
+            )
+    return cfg
+
+
+MIGRATIONS[16] = _migrate_v16_to_v17
 
 
 def migrate_config(cfg: dict) -> dict:

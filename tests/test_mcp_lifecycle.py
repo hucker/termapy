@@ -1,8 +1,9 @@
-"""Tests for Phase 6 lifecycle: transport-apply, auto-include, banner watcher.
+"""Tests for MCP lifecycle: transport-apply, on-connect fetch, banner watcher.
 
 Three pieces:
-- /profile.load applies transport rules to live cfg.
-- on_connect fires auto-include when configured.
+- /profile.load applies transport rules to the live cfg.
+- on_connect_cmd entries fire after connect (used for the v2-only
+  device-fetch path: ``/profile.load cmd=<command>``).
 - on_connect spawns a banner watcher when the active profile declares one.
 
 Signal-handler tests are deliberately omitted: signal-driven shutdown
@@ -143,18 +144,20 @@ class TestProfileLoadAppliesTransport:
         )
 
 
-# ── auto_include_on_connect ─────────────────────────────────────────────────
+# ── /profile.load cmd= via on_connect_cmd ───────────────────────────────────
 
 
-class TestAutoIncludeOnConnect:
-    @pytest.fixture
-    def host(self, tmp_path):
+class TestOnConnectFetchProfile:
+    """The v2-only path: device-fetch on connect is composed via the
+    existing on_connect_cmd machinery, NOT a dedicated cfg flag.
+    Replaces the retired auto_include_on_connect / device_json_cmd pair."""
+
+    def test_on_connect_cmd_fetches_profile_from_device(self, tmp_path):
+        # Arrange -- DEMO answers AT+HELP.JSON with a v2 profile JSON.
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO"
-        # DEMO answers AT+HELP.JSON with a JSON catalog.
-        cfg["device_json_cmd"] = "AT+HELP.JSON"
-        cfg["auto_include_on_connect"] = True
         cfg["line_ending"] = "\r\n"
+        cfg["mcp_on_connect_cmd"] = "/profile.load cmd=AT+HELP.JSON"
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
@@ -163,59 +166,12 @@ class TestAutoIncludeOnConnect:
         h = MCPHost(cfg, str(config_path), verbose=False)
         try:
             h._connect()
-            time.sleep(0.3)  # let auto-include run
-            yield h
-        finally:
-            if h.engine.is_connected:
-                h._disconnect()
-
-    def test_auto_include_populates_target_commands(self, host):
-        # Arrange / Act — connection already happened in fixture
-        target = host.ctx.ns("target_commands")
-        # Assert -- DEMO's AT+HELP.JSON yields a non-empty catalog
-        assert len(target) > 0, (
-            "auto_include_on_connect populated target_commands"
-        )
-
-    def test_disabled_skips_auto_include(self, tmp_path):
-        # Arrange
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
-        cfg["device_json_cmd"] = "AT+HELP.JSON"
-        cfg["auto_include_on_connect"] = False
-        config_path = tmp_path / "cfg" / "test.cfg"
-        config_path.parent.mkdir()
-        config_path.write_text(json.dumps(cfg))
-        for sub in ("plugin", "ss", "run", "cap"):
-            (config_path.parent / sub).mkdir(exist_ok=True)
-        h = MCPHost(cfg, str(config_path), verbose=False)
-        try:
-            h._connect()
-            time.sleep(0.2)
-            # Act / Assert
-            assert host_target_count(h) == 0, "no auto-include when disabled"
-        finally:
-            if h.engine.is_connected:
-                h._disconnect()
-
-    def test_no_device_json_cmd_skips_auto_include(self, tmp_path):
-        # Arrange
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
-        cfg["device_json_cmd"] = ""
-        cfg["auto_include_on_connect"] = True
-        config_path = tmp_path / "cfg" / "test.cfg"
-        config_path.parent.mkdir()
-        config_path.write_text(json.dumps(cfg))
-        for sub in ("plugin", "ss", "run", "cap"):
-            (config_path.parent / sub).mkdir(exist_ok=True)
-        h = MCPHost(cfg, str(config_path), verbose=False)
-        try:
-            h._connect()
-            time.sleep(0.2)
-            # Act / Assert
-            assert host_target_count(h) == 0, (
-                "no device_json_cmd = no auto-include"
+            time.sleep(0.3)  # let on_connect_cmd run
+            # Assert -- active profile populated by the on_connect command
+            active = h.ctx.ns("active_profile")
+            commands = active.get("commands") or {}
+            assert len(commands) > 0, (
+                "/profile.load cmd= via mcp_on_connect_cmd populated active_profile"
             )
         finally:
             if h.engine.is_connected:
@@ -231,7 +187,6 @@ class TestBannerWatcher:
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO_JSON"
         cfg["line_ending"] = "\n"
-        cfg["device_json_cmd"] = ""  # don't trigger auto-include
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
@@ -290,18 +245,17 @@ class TestBannerWatcher:
 class TestDisconnectClearsDeviceState:
     """Disconnect wipes per-device namespaces and MCP-specific tracking.
 
-    Pinning the contract: after a disconnect, ``active_profile`` and
-    ``target_commands`` are empty, and the MCP host's banner/expect/
-    async-event/last-command attributes are reset.  Carrying any of
-    these across a port switch is the bug that motivated this whole
-    cleanup -- the next connect lands fresh.
+    Pinning the contract: after a disconnect, ``active_profile`` is
+    empty, and the MCP host's banner/expect/async-event/last-command
+    attributes are reset.  Carrying any of these across a port switch
+    is the bug that motivated this whole cleanup -- the next connect
+    lands fresh.
     """
 
     @pytest.fixture
     def host(self, tmp_path):
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO"
-        cfg["auto_include_on_connect"] = False  # focus the test
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
@@ -323,22 +277,6 @@ class TestDisconnectClearsDeviceState:
         assert actual_after == expected, (
             "active_profile wiped on disconnect (no leak to next device)"
         )
-
-    def test_target_commands_cleared_on_disconnect(self, host):
-        # Arrange -- connect and seed target_commands directly
-        from termapy.plugins import TargetCommand
-        host._connect()
-        host.ctx.ns("target_commands").update({
-            "AT+FOO": TargetCommand(name="AT+FOO", help="x"),
-        })
-        actual_before = len(host.ctx.ns("target_commands"))
-        assert actual_before == 1, "precondition: target_commands seeded"
-        # Act
-        host._disconnect()
-        # Assert
-        actual_after = host.ctx.ns("target_commands")
-        expected: dict = {}
-        assert actual_after == expected, "target_commands cleared on disconnect"
 
     def test_banner_state_cleared_on_disconnect(self, host):
         # Arrange -- simulate a banner observation, then disconnect
@@ -406,7 +344,6 @@ class TestAutoLoadProfileOnConnect:
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO"
         cfg["profile_path"] = str(profile)
-        cfg["auto_include_on_connect"] = False
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         h = MCPHost(cfg, str(config_path), verbose=False)
@@ -430,7 +367,6 @@ class TestAutoLoadProfileOnConnect:
         self._write_profile(profile)
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO"
-        cfg["auto_include_on_connect"] = False
         # profile_path empty -> falls back to convention
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
@@ -453,7 +389,6 @@ class TestAutoLoadProfileOnConnect:
         # Arrange -- no profile file at any expected location
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO"
-        cfg["auto_include_on_connect"] = False
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         h = MCPHost(cfg, str(config_path), verbose=False)
@@ -501,7 +436,6 @@ class TestAutoLoadProfileOnConnect:
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO"
         cfg["profile_path"] = str(explicit)  # explicit wins
-        cfg["auto_include_on_connect"] = False
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         h = MCPHost(cfg, str(config_path), verbose=False)
@@ -520,14 +454,6 @@ class TestAutoLoadProfileOnConnect:
                 h._disconnect()
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
-
-
-def host_target_count(host: MCPHost) -> int:
-    """Return the count of target_commands the host has loaded."""
-    return len(host.ctx.ns("target_commands"))
-
-
 class TestOnConnectCmd:
     """``on_connect_cmd`` and ``mcp_on_connect_cmd`` firing in MCP mode.
 
@@ -540,8 +466,6 @@ class TestOnConnectCmd:
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = "DEMO"
         cfg["line_ending"] = "\r\n"
-        cfg["auto_include_on_connect"] = False  # don't pollute log with /include
-        cfg["device_json_cmd"] = ""
         cfg.update(cfg_overrides)
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir(exist_ok=True)

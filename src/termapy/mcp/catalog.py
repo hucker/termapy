@@ -94,19 +94,23 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         for name, td in type_registry.all().items()
     }
 
-    target_commands = []
-    target_meta = ctx.ns("target_meta")
-    target_ns = ctx.ns("target_commands")
-    if isinstance(target_ns, dict) and target_ns:
-        # Filter out enabled=False entries so disabled commands never
-        # appear in the LLM-facing catalog.  Disabled entries still
-        # exist in target_commands (visible to /help <cmd> for the
-        # human supervisor) but the bot doesn't see them.  Default
-        # True keeps existing curated/v2-published manifests visible.
-        target_commands = [
-            _target_descriptor(target_ns[n], type_registry)
-            for n in sorted(target_ns)
-            if getattr(target_ns[n], "enabled", True)
+    # Device commands source from the active profile's commands dict.
+    # Profiles installed via /profile.load -- whether from a file or
+    # from a device fetch (cmd=) -- land in `active_profile.commands`;
+    # that's the one place the catalog reads from.
+    profile_commands = active_profile.get("commands") or {}
+    device_commands: list[dict[str, Any]] = []
+    if isinstance(profile_commands, dict) and profile_commands:
+        # Filter enabled=False so disabled entries never reach the
+        # LLM-facing catalog.  Default True keeps curated profiles
+        # without explicit enabled flags visible.
+        device_commands = [
+            _device_descriptor_from_spec(
+                name, profile_commands[name], type_registry,
+            )
+            for name in sorted(profile_commands)
+            if isinstance(profile_commands[name], dict)
+            and profile_commands[name].get("enabled", True) is not False
         ]
 
     return {
@@ -120,8 +124,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         "error_detection": active_profile.get("error_detection", {}),
         "types": types_block,
         "commands": cmd_list,
-        "target_commands": target_commands,
-        "target_meta": dict(target_meta) if isinstance(target_meta, dict) else {},
+        "device_commands": device_commands,
     }
 
 
@@ -269,7 +272,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     needing to remember to combine it with the top-level ``prefix``
     field.  Disambiguation between termapy commands and device
     commands becomes literally visible: prefixed names are termapy
-    REPL commands, unprefixed entries in ``target_commands`` are
+    REPL commands, unprefixed entries in ``device_commands`` are
     device commands sent verbatim.
     """
     long_help_text = resolve_long_help(plugin, ctx)
@@ -286,27 +289,30 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     }
 
 
-def _target_descriptor(
-    target: Any, type_registry: TypeRegistry | None = None,
+def _device_descriptor_from_spec(
+    name: str,
+    spec: dict[str, Any],
+    type_registry: TypeRegistry | None = None,
 ) -> dict[str, Any]:
-    """Convert a TargetCommand (device-imported help) into a catalog entry.
+    """Convert one entry from ``active_profile.commands`` into a catalog entry.
 
-    When ``type_registry`` is provided, each entry in ``typed_args``
-    gets an inline ``type_info`` field carrying the kind-shaped
-    description of the referenced type (enum values, range bounds,
-    pattern source, etc.).  This lets the LLM read the contract per
-    arg without cross-referencing the top-level ``types`` block.
+    The source is the profile's commands dict (same shape the dispatch
+    executor reads), so the catalog reflects exactly what a bare
+    invocation would dispatch.
+
+    When ``type_registry`` is provided, each ``typed_args`` entry gets
+    an inline ``type_info`` field with the kind-shaped description of
+    its referenced type (enum values, range bounds, pattern source...).
     Builtin types resolve to ``{"kind": "builtin"}``.
     """
     out: dict[str, Any] = {
-        "name": getattr(target, "name", ""),
-        "args": getattr(target, "args", ""),
-        "help": getattr(target, "help", ""),
-        "long_help": getattr(target, "long_help", ""),
-        "flags": dict(getattr(target, "flags", {}) or {}),
+        "name": name,
+        "args": spec.get("args", "") or "",
+        "help": spec.get("help", "") or "",
+        "long_help": spec.get("long_help", "") or "",
+        "flags": dict(spec.get("flags") or {}),
     }
-    # v2 fields (from Phase 2): only include when present (non-default).
-    typed_args = getattr(target, "typed_args", None)
+    typed_args = spec.get("typed_args")
     if typed_args:
         enriched: list[dict[str, Any]] = []
         for ta in typed_args:
@@ -314,26 +320,29 @@ def _target_descriptor(
                 entry = dict(ta)
                 if type_registry is not None:
                     type_name = entry.get("type", "")
-                    td = type_registry.resolve(type_name) if type_name else None
+                    td = (
+                        type_registry.resolve(type_name)
+                        if type_name else None
+                    )
                     if td is not None:
                         entry["type_info"] = typedef_to_catalog(td)
                 enriched.append(entry)
             else:
                 enriched.append(ta)
         out["typed_args"] = enriched
-    send_template = getattr(target, "send_template", "")
+    send_template = spec.get("send_template", "")
     if send_template:
         out["send_template"] = send_template
-    response = getattr(target, "response", None)
+    response = spec.get("response")
     if response:
         out["response"] = dict(response)
-    safety = getattr(target, "safety", "safe")
+    safety = spec.get("safety", "safe")
     if safety and safety != "safe":
         out["safety"] = safety
-    rate_limit = getattr(target, "rate_limit_hz", 0.0)
+    rate_limit = spec.get("rate_limit_hz", 0.0) or 0.0
     if rate_limit:
         out["rate_limit_hz"] = rate_limit
-    timeout_ms = getattr(target, "timeout_ms", 0)
+    timeout_ms = spec.get("timeout_ms", 0) or 0
     if timeout_ms:
         out["timeout_ms"] = timeout_ms
     return out

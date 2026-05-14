@@ -68,6 +68,9 @@ SDK / I/O / TUI surface):
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
+
 from termapy.profile.loader import (
     Profile,
     SCHEMA_PATH,
@@ -93,6 +96,43 @@ from termapy.profile.types import (
     typedef_to_catalog,
 )
 
+
+def profile_command_view(profile: dict[str, Any] | None) -> dict[str, SimpleNamespace]:
+    """Return ``{name: SimpleNamespace}`` for the profile's enabled commands.
+
+    Adapts the schema's dict shape for code paths (search, /help)
+    that expect attribute access on a per-command object.  The
+    returned ``SimpleNamespace`` exposes five attributes those call
+    sites read: ``name``, ``help``, ``args``, ``long_help``, ``flags``.
+
+    Commands with ``enabled: false`` are filtered out so disabled
+    drafts never surface in /help or search.  This matches the catalog
+    filter.
+
+    Library callers can use this to render a profile's commands in any
+    UI that expects "an object with these five attrs per command."
+    """
+    if not isinstance(profile, dict):
+        return {}
+    commands = profile.get("commands")
+    if not isinstance(commands, dict):
+        return {}
+    out: dict[str, SimpleNamespace] = {}
+    for name, spec in commands.items():
+        if not isinstance(spec, dict):
+            continue
+        if spec.get("enabled", True) is False:
+            continue
+        out[name] = SimpleNamespace(
+            name=name,
+            help=spec.get("help", "") or "",
+            args=spec.get("args", "") or "",
+            long_help=spec.get("long_help", "") or "",
+            flags=dict(spec.get("flags") or {}),
+        )
+    return out
+
+
 __all__ = [
     # loader
     "Profile",
@@ -115,4 +155,6 @@ __all__ = [
     "ValidationOutcome",
     "schema_kinds",
     "typedef_to_catalog",
+    # views
+    "profile_command_view",
 ]

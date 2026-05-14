@@ -92,7 +92,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     # Catalog metadata is host-independent (profile / device / transport
     # come from the active profile namespace, not capabilities).
     cat = build_catalog(ctx)
-    target_count = len(cat["target_commands"])
+    device_count = len(cat.get("device_commands", []))
     profile_rev = cat.get("profile_revision") or "(none)"
     profile_date = cat.get("profile_date") or "(none)"
     device_name = (cat.get("device") or {}).get("name", "(none)")
@@ -143,7 +143,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     rows = [
         ("port", f"{port_name} ({port_state})"),
         ("commands", str(cmd_count)),
-        ("target_commands", str(target_count)),
+        ("device_commands", str(device_count)),
         ("profile_revision", profile_rev),
         ("profile_date", profile_date),
         ("device", device_name),

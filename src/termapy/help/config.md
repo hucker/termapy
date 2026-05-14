@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 16,
+    "config_version": 17,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -48,8 +48,6 @@ Here is an example config for a device called `iot_device`:
     "cli_completion": true,
     "config_read_only": false,
     "os_cmd_enabled": false,
-    "device_json_cmd": "",
-    "auto_include_on_connect": true,
     "profile_path": "",
     "validate_typed_args": false,
     "port": "COM4",
@@ -126,7 +124,6 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `tui_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in TUI mode (after `on_connect_cmd`)                |
 | `cli_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`)                |
 | `mcp_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in MCP mode. Common: `echo off` to silence device   |
-| `auto_include_on_connect`| `true`                | If `device_json_cmd` is set, auto-run `/include` after a successful connect (MCP mode)      |
 | `profile_path`           | ` `                   | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention     |
 | `echo_input`             | `false`               | Show sent commands in the terminal output                                                   |
 | `echo_input_fmt`         | `[purple]> {cmd}[/]`  | Rich markup format for echoed commands                                                      |

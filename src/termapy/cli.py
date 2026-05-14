@@ -91,10 +91,12 @@ class _TermapyCompleter(Completer):
                     yield Completion(full, start_position=-len(line))
             return
 
-        # Device command completion
-        target_cmds = self._repl.ctx.ns("target_commands")
-        if target_cmds:
-            for name in sorted(target_cmds):
+        # Device command completion -- pulls from the active profile's
+        # commands dict.
+        active = self._repl.ctx.ns("active_profile")
+        profile_cmds = active.get("commands") if isinstance(active, dict) else None
+        if isinstance(profile_cmds, dict) and profile_cmds:
+            for name in sorted(profile_cmds):
                 if name.lower().startswith(line.lower()):
                     yield Completion(name, start_position=-len(line))
 
@@ -753,9 +755,9 @@ class CLITerminal(TerminalHost):
         """True for --run and --exec -- non-interactive, exits when done.
 
         Interactive modes (TUI, CLI REPL) run the cfg's connect-time
-        autorun (``device_json_cmd`` auto-include, ``on_connect_cmd``,
-        the help banner).  One-shot modes suppress those -- the user
-        expects only the script or exec'd command to produce output.
+        autorun (``on_connect_cmd``, the help banner).  One-shot modes
+        suppress those -- the user expects only the script or exec'd
+        command to produce output.
         """
         return bool(self.run_script or self.exec_cmd)
 
@@ -934,19 +936,15 @@ class CLITerminal(TerminalHost):
                 sys.exit(1)
 
         # Show hint before on_connect_cmd so it appears first.  All
-        # connect-time autorun (banner, device_json_cmd auto-include,
-        # on_connect_cmd) is gated on is_oneshot: interactive modes
-        # run them; --run and --exec suppress them so piped/captured
-        # stdout contains only the user's script or command output.
+        # connect-time autorun (banner, on_connect_cmd) is gated on
+        # is_oneshot: interactive modes run them; --run and --exec
+        # suppress them so piped/captured stdout contains only the
+        # user's script or command output.
         if not self.is_oneshot:
             self.write(
                 f"Type commands, {self.prefix}help for REPL commands, Ctrl+C to quit",
                 "dim",
             )
-
-        # Auto-import target commands if configured
-        if self.cfg.get("device_json_cmd", "") and not self.is_oneshot:
-            self._dispatch(self.repl.cmd("include"))
 
         # Run on_connect_cmd (same as TUI does after connecting), then
         # the CLI-only cli_on_connect_cmd for any extras specific to

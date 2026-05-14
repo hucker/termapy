@@ -322,9 +322,9 @@ termapy --cli cfg -e="start_system a=23 b=24"   # = form also works
 termapy --cli cfg -e start_system a=23 b=24     # WRONG: shell splits into 4 tokens
 ```
 
-**Suppressed chrome.** Connect-time autorun (`device_json_cmd`
-auto-include, `on_connect_cmd`, the help banner), the
-"`Connected: ...`" banner, and the input-echo prefix (`> AT+VER`)
+**Suppressed chrome.** Connect-time autorun (`on_connect_cmd`,
+the help banner), the "`Connected: ...`" banner, and the
+input-echo prefix (`> AT+VER`)
 are all suppressed in `--exec` -- captured stdout contains only the
 command's output.  `--exec` also implies `--no-color` so ANSI
 escapes never reach captured stdout.  If your one-shot needs init

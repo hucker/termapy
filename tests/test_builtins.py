@@ -685,37 +685,6 @@ class TestHelp:
         assert any("Current baud rate = 115200" in t for t in texts), \
             "dynamic state line reflects cfg value"
 
-    def test_help_include_reports_zero_included(self, repl_env):
-        """/help include opens with 'Currently included: none' when ns is empty."""
-        # Arrange
-        engine, _, _, output = repl_env
-
-        # Act
-        engine.dispatch("help include")
-
-        # Assert
-        texts = [t for t, _ in output]
-        assert any("Currently included: none" in t for t in texts), \
-            "empty target_commands ns reflected in help"
-
-    def test_help_include_reports_count_when_populated(self, repl_env):
-        """Populating ns('target_commands') updates /help include output."""
-        # Arrange
-        engine, _, _, output = repl_env
-        from termapy.plugins import TargetCommand
-        engine.ctx.ns("target_commands").update({
-            "X": TargetCommand(name="X", help="x", args=""),
-            "Y": TargetCommand(name="Y", help="y", args=""),
-        })
-
-        # Act
-        engine.dispatch("help include")
-
-        # Assert
-        texts = [t for t, _ in output]
-        assert any("2 device commands" in t for t in texts), \
-            "count reflects populated ns"
-
     def test_help_renders_flags_section(self, repl_env):
         """/help <cmd> shows a FLAGS section for commands that declare flags."""
         # Arrange

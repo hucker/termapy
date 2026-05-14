@@ -72,8 +72,9 @@ Each one below is a direct runtime dependency declared in
   editors.  Tree-sitter itself was started by **Max Brunsfeld** at
   GitHub; the grammar packages are community-maintained.
 - [**packaging**](https://packaging.pypa.io/) -- PEP 440 version
-  comparison used by ``/include`` for device command help JSON
-  versioning.  Maintained by the Python Packaging Authority (PyPA).
+  comparison used by the update-check module to compare an installed
+  termapy version against the latest PyPI release.  Maintained by
+  the Python Packaging Authority (PyPA).
 - [**platformdirs**](https://github.com/platformdirs/platformdirs)
   -- cross-platform user state / config directory resolution
   (community fork of the original ``appdirs`` by ActiveState).

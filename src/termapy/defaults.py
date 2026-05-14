@@ -52,8 +52,6 @@ DEFAULT_CFG = {
     "cli_completion": True,
     "config_read_only": False,
     "os_cmd_enabled": False,
-    "device_json_cmd": "",
-    "auto_include_on_connect": True,
     "profile_path": "",
     "validate_typed_args": False,
     # Serial
@@ -415,14 +413,6 @@ CFG_HELP: dict[str, tuple] = {
     "os_cmd_enabled": (
         "Allow /os to run shell commands.",
         "Valid: true, false. Security risk if enabled.",
-    ),
-    "device_json_cmd": (
-        "Command sent by /include to fetch device command help JSON.",
-        "Device command returning JSON. Empty = must specify cmd= arg.",
-    ),
-    "auto_include_on_connect": (
-        "Auto-run /include after a successful connect (when device_json_cmd is set).",
-        "Valid: true, false.",
     ),
     "profile_path": (
         "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",

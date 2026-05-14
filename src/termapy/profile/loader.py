@@ -115,14 +115,16 @@ SERIAL_LEVEL_TRANSPORT_KEYS: frozenset[str] = frozenset(
 def apply_profile_transport(
     transport: dict[str, Any],
     apply_cfg: Any,
+    cfg_get: Any = None,
 ) -> dict[str, tuple[Any, Any]]:
     """Apply a profile's ``transport`` block to the live config.
 
     Walks the recognized fields in ``transport`` and calls ``apply_cfg``
-    for each change.  ``apply_cfg`` is the engine's per-key updater
-    (see ``ReplEngine._apply_cfg``).  Returns a dict of changes
-    ``{cfg_key: (old, new)}`` so callers can warn about serial-level
-    params that need a reconnect.
+    for each.  ``apply_cfg`` is the engine's per-key updater (see
+    ``ReplEngine._apply_cfg``).  When ``cfg_get`` is supplied, the
+    returned dict carries the per-field ``(old, new)`` so callers can
+    surface true divergences (cfg said X, profile says Y).  Without it,
+    old is reported as ``None``.
 
     Termapy-level params (``line_ending``, ``encoding``,
     ``inter_command_delay_ms``) take effect immediately.  Serial-level
@@ -140,21 +142,25 @@ def apply_profile_transport(
         apply_cfg: Callable matching ``ReplEngine._apply_cfg`` signature
             ``(key: str, value: Any) -> None``.  Plugin handlers use
             ``ctx.engine.apply_cfg``.
+        cfg_get: Optional ``(key, default=None) -> value`` reader.  When
+            provided, the returned dict records the pre-load cfg value
+            so the caller can warn on actual divergence rather than on
+            "any field present in the profile."  Plugin handlers pass
+            ``ctx.cfg.get``.
 
     Returns:
-        ``{cfg_key: (old_value, new_value)}`` for every key that changed.
+        ``{cfg_key: (old_value, new_value)}`` for every key written.
+        When ``cfg_get`` is None, old_value is None.
     """
     if not isinstance(transport, dict):
         return {}
     changes: dict[str, tuple[Any, Any]] = {}
-    # apply_cfg's caller side maintains the cfg dict; we don't have it
-    # here, so we don't dedup against the current value.  A no-op
-    # apply_cfg is a cheap session log line in the worst case.
     for tkey, ckey in _TRANSPORT_KEY_MAP.items():
         if tkey in transport:
             new_val = transport[tkey]
+            old_val = cfg_get(ckey) if cfg_get is not None else None
             apply_cfg(ckey, new_val)
-            changes[ckey] = (None, new_val)
+            changes[ckey] = (old_val, new_val)
     return changes
 
 
@@ -195,8 +201,8 @@ def _builtin_validate(profile: dict) -> ValidationResult:
         return ValidationResult(ok=False, errors=["root: profile must be an object"])
 
     pv = profile.get("profile_version")
-    if pv is not None and pv not in (1, 2):
-        errors.append(f"profile_version: expected 1 or 2, got {pv!r}")
+    if pv is not None and pv != 2:
+        errors.append(f"profile_version: expected 2, got {pv!r}")
 
     transport = profile.get("transport")
     if transport is not None:

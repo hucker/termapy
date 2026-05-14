@@ -24,7 +24,6 @@ And a couple of small utilities:
 
   - ``interpolate_help`` -- ``{prefix}`` substitution in help strings.
   - ``resolve_long_help`` -- evaluate static or callable ``long_help``.
-  - ``TargetCommand`` -- help-only entries for device-imported commands.
 
 These shapes have no Textual or pyserial dependencies; they're pure data
 plus a couple of helpers.
@@ -449,73 +448,6 @@ def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:  # noqa:
     return interpolate_help(hp or "", ctx.engine.prefix)
 
 
-@dataclass
-class TargetCommand:
-    """Help-only command imported from a connected device.
-
-    These are NOT REPL commands -- they have no handler and no prefix.
-    They appear in help output and suggestions only.
-
-    ``long_help`` and ``flags`` mirror the corresponding fields on
-    ``PluginInfo`` so that ``/help <target>`` and ``/search`` can give
-    device commands the same first-class treatment as built-in plugins.
-    Both are optional -- a device JSON entry that supplies only
-    ``help`` + ``args`` (the old shape) still works unchanged.
-
-    **v2 profile fields** (``typed_args`` through ``subcommands``) are
-    optional metadata consumed by the MCP server and codegen tools.
-    All have defaults so v1 manifests round-trip unchanged: a manifest
-    with only ``help`` + ``args`` produces a TargetCommand whose v2
-    fields are at their defaults, and ``_to_json_dict`` omits them.
-
-    Attributes:
-        name: Command name as the device expects it (no / prefix).
-        help: One-line description.
-        args: Argument spec string (may be empty).
-        long_help: Optional extended prose rendered in the DESCRIPTION
-            section of ``/help <target>``. Plain string only -- no
-            callables -- because device-published help is data, not code.
-        flags: Optional flag map, same shape as ``Command.flags``.  Keys
-            are canonical flag names (e.g. ``--table``) or aliases
-            (key = alias, value = canonical name).  Rendered in the
-            FLAGS section of ``/help <target>``.
-        typed_args: v2.  Structured argument schemas: list of dicts
-            ``{name, type, required, default, help, min, max, enum}``.
-            Consumed by the MCP server (typed signatures) and codegen.
-        send_template: v2.  Python-format-style template for the
-            outbound bytes, e.g. ``"AT+VOLT={mv}"``.  Empty = use the
-            command name verbatim.  For NDJSON protocol, the bridge
-            JSON-serializes args instead of using the template.
-        response: v2.  Response shape descriptor: dict with ``format``
-            (none/literal/lines/regex/json), ``pattern``, ``types``,
-            ``terminator``, ``line_pattern``, ``line_types``,
-            ``timeout_ms``.  See ``response_parsers.parse_response``.
-        safety: v2.  Safety tier: ``"safe"`` (default), ``"readonly"``,
-            or ``"destructive"``.  ``destructive`` surfaces the MCP
-            ``annotations.destructiveHint=true`` so clients prompt for
-            confirmation.
-        rate_limit_hz: v2.  Bridge-enforced rate limit.  ``0.0`` = no
-            limit.
-        timeout_ms: v2.  Per-command outer timeout (overrides config
-            default).  ``0`` = use the default.
-        subcommands: v2.  Nested commands, same shape (recursive).
-    """
-
-    name: str
-    help: str
-    args: str = ""
-    long_help: str = ""
-    flags: dict[str, str] = field(default_factory=dict)
-    # v2 profile fields (all optional, all have v1-preserving defaults)
-    typed_args: list[dict] = field(default_factory=list)
-    send_template: str = ""
-    response: dict = field(default_factory=dict)
-    safety: str = "safe"
-    # ``enabled`` defaults True so existing curated profiles and device-
-    # self-published manifests stay exposed without an explicit opt-in.
-    # Profiles drafted from legacy help dumps (where the engineer hasn't
-    # audited each entry yet) explicitly emit enabled=False.
-    enabled: bool = True
-    rate_limit_hz: float = 0.0
-    timeout_ms: int = 0
-    subcommands: dict[str, "TargetCommand"] = field(default_factory=dict)
+# Device commands live in ``active_profile.commands`` (dicts in the
+# profile schema shape) and are rendered for /help and /search via
+# ``termapy.profile.profile_command_view``.

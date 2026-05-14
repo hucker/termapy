@@ -7,9 +7,9 @@
   "additionalProperties": true,
   "properties": {
     "profile_version": {
-      "description": "Schema version. 2 = v2 (top-level transport/device/error_detection blocks). Absent = treat as v1 (commands-only, backward compatible).",
+      "description": "Schema version.  Must be 2.  v1 (commands-only manifests) was retired alongside the /include plugin in the v2-only refactor; legacy v1 dumps must be converted to v2 profiles before loading.",
       "type": "integer",
-      "enum": [1, 2]
+      "const": 2
     },
     "profile_revision": {
       "description": "Per-profile semver revision (e.g. \"1.4.0\"). Used in precedence comparisons against device-fetched manifests. Absent = treat as 0.0.0.",

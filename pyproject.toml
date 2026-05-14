@@ -116,7 +116,7 @@ omit = [
     "src/termapy/__init__.py",
     "src/termapy/builtins/*.py",
     "src/termapy/app.py",
-    "src/termapy/dialogs.py",
+    "src/termapy/dialogs/*.py",
     "src/termapy/vendor/*",
 ]
 

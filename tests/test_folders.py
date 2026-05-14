@@ -26,10 +26,12 @@ class TestFolderSpec:
             spec.name = "other"  # ty: ignore[invalid-assignment]
 
     def test_defaults(self):
+        # Defaults represent the "standard browsable folder" case:
+        # user-facing, contents safe to inspect/export, NOT safe to wipe.
         spec = FolderSpec("test", "*.txt")
-        assert spec.clearable is False, "clearable default"
-        assert spec.showable is False, "showable default"
-        assert spec.dumpable is False, "dumpable default"
+        assert spec.clearable is False, "clearable default (destructive opt-in)"
+        assert spec.showable is True, "showable default (user-facing)"
+        assert spec.dumpable is True, "dumpable default (exportable)"
 
 
 class TestFolders:

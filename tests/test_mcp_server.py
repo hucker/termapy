@@ -57,7 +57,7 @@ class TestCatalog:
             "version",
             "prefix",
             "commands",
-            "target_commands",
+            "device_commands",
             "device",
             "transport",
             "error_detection",
@@ -118,27 +118,28 @@ class TestCatalog:
         # Assert
         assert cat.get("types") == {}, "no types block -> empty dict in catalog"
 
-    def test_target_typed_args_get_inlined_type_info(self, host):
-        # Arrange -- profile declares a type, target command references it.
-        from termapy.plugins import TargetCommand
-
+    def test_device_typed_args_get_inlined_type_info(self, host):
+        # Arrange -- profile declares a type AND a command using it.
+        # Commit B: device commands now source from active_profile.commands.
         ns = host.ctx.ns("active_profile")
         ns.clear()
         ns.update({
             "profile_version": 2,
             "types": {"onoff": {"kind": "enum", "values": ["on", "off"]}},
-            "commands": {},
+            "commands": {
+                "SET": {
+                    "help": "Set state.",
+                    "typed_args": [
+                        {"name": "state", "type": "onoff", "required": True},
+                    ],
+                },
+            },
         })
-        target = host.ctx.ns("target_commands")
-        target["SET"] = TargetCommand(
-            name="SET", help="Set state.",
-            typed_args=[{"name": "state", "type": "onoff", "required": True}],
-        )
         # Act
         cat = build_catalog(host.ctx)
         # Assert
         set_entry = next(
-            e for e in cat["target_commands"] if e["name"] == "SET"
+            e for e in cat["device_commands"] if e["name"] == "SET"
         )
         ta = set_entry["typed_args"][0]
         assert ta["name"] == "state", "original typed_arg fields preserved"
@@ -149,42 +150,73 @@ class TestCatalog:
             "type_info carries the contract inline"
         )
 
-    def test_target_typed_args_builtin_resolves_to_builtin(self, host):
+    def test_device_typed_args_builtin_resolves_to_builtin(self, host):
         # Arrange -- typed_arg using a builtin gets a builtin-shaped type_info.
-        from termapy.plugins import TargetCommand
-
-        target = host.ctx.ns("target_commands")
-        target["ECHO"] = TargetCommand(
-            name="ECHO", help="Echo.",
-            typed_args=[{"name": "msg", "type": "str", "required": True}],
-        )
+        ns = host.ctx.ns("active_profile")
+        ns.clear()
+        ns.update({
+            "profile_version": 2,
+            "commands": {
+                "ECHO": {
+                    "help": "Echo.",
+                    "typed_args": [
+                        {"name": "msg", "type": "str", "required": True},
+                    ],
+                },
+            },
+        })
         # Act
         cat = build_catalog(host.ctx)
         # Assert
-        echo = next(e for e in cat["target_commands"] if e["name"] == "ECHO")
+        echo = next(e for e in cat["device_commands"] if e["name"] == "ECHO")
         ta = echo["typed_args"][0]
         info = ta.get("type_info") or {}
         assert info.get("kind") == "builtin", (
             "builtin types resolve to kind=builtin in catalog"
         )
 
-    def test_catalog_filters_disabled_target_commands(self, host):
-        # Arrange -- seed two target commands, one disabled
-        from termapy.plugins import TargetCommand
-        target = host.ctx.ns("target_commands")
-        target["AT_OK"] = TargetCommand(
-            name="AT_OK", help="enabled command", enabled=True,
+    def test_catalog_filters_disabled_device_commands(self, host):
+        # Arrange -- two commands, one disabled.  Commit B: catalog
+        # reads from active_profile.commands, not target_commands ns.
+        ns = host.ctx.ns("active_profile")
+        ns.clear()
+        ns.update({
+            "profile_version": 2,
+            "commands": {
+                "AT_OK": {"help": "enabled command", "enabled": True},
+                "AT_DRAFT": {
+                    "help": "draft command pending review",
+                    "enabled": False,
+                },
+            },
+        })
+        # Act
+        cat = build_catalog(host.ctx)
+        names = {entry["name"] for entry in cat["device_commands"]}
+        # Assert -- LLM sees the enabled one only; disabled hidden
+        assert "AT_OK" in names, "enabled device command appears in catalog"
+        assert "AT_DRAFT" not in names, (
+            "disabled device command hidden from MCP catalog"
         )
-        target["AT_DRAFT"] = TargetCommand(
-            name="AT_DRAFT", help="draft command pending review", enabled=False,
+
+    def test_target_commands_ns_no_longer_surfaced(self, host):
+        # Arrange -- write to the legacy target_commands namespace (still
+        # populated by /include in this commit).
+        from termapy.plugins import TargetCommand
+
+        target = host.ctx.ns("target_commands")
+        target["LEGACY"] = TargetCommand(
+            name="LEGACY", help="from /include path", enabled=True,
         )
         # Act
         cat = build_catalog(host.ctx)
-        names = {entry["name"] for entry in cat["target_commands"]}
-        # Assert -- LLM sees the enabled one only; disabled hidden
-        assert "AT_OK" in names, "enabled target command appears in catalog"
-        assert "AT_DRAFT" not in names, (
-            "disabled target command hidden from MCP catalog"
+        # Assert -- LEGACY is NOT in device_commands (catalog sources
+        # only from active_profile.commands now).  /include's data is
+        # effectively invisible to the LLM after this commit.
+        assert "device_commands" in cat, "device_commands field present"
+        names = {e["name"] for e in cat["device_commands"]}
+        assert "LEGACY" not in names, (
+            "target_commands namespace is no longer surfaced (commit B)"
         )
 
     def test_catalog_command_has_required_fields(self, host):
@@ -521,14 +553,6 @@ class TestCatalogParity:
         b = catalog_json(host.ctx)
         # Assert
         assert a == b, "catalog generation is deterministic"
-
-    def test_catalog_includes_target_meta_namespace(self, host):
-        # Arrange — even if empty, the key should exist
-        cat = build_catalog(host.ctx)
-        # Assert
-        assert "target_meta" in cat, "target_meta key always present"
-        assert isinstance(cat["target_meta"], dict), "target_meta is dict"
-
 
 # ── device_state resource ───────────────────────────────────────────────────
 

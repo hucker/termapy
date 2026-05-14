@@ -94,19 +94,26 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         for name, td in type_registry.all().items()
     }
 
-    target_commands = []
-    target_meta = ctx.ns("target_meta")
-    target_ns = ctx.ns("target_commands")
-    if isinstance(target_ns, dict) and target_ns:
-        # Filter out enabled=False entries so disabled commands never
-        # appear in the LLM-facing catalog.  Disabled entries still
-        # exist in target_commands (visible to /help <cmd> for the
-        # human supervisor) but the bot doesn't see them.  Default
-        # True keeps existing curated/v2-published manifests visible.
-        target_commands = [
-            _target_descriptor(target_ns[n], type_registry)
-            for n in sorted(target_ns)
-            if getattr(target_ns[n], "enabled", True)
+    # Device commands now source from the active profile's commands dict
+    # (commit B of the v2-only refactor).  Profiles installed via
+    # /profile.load -- whether from a file or from a device fetch (cmd=)
+    # -- land in `active_profile.commands`; that's the one place the
+    # catalog reads from.  The legacy `target_commands` namespace
+    # (still populated by /include in this commit) is no longer
+    # surfaced -- commit C deletes /include entirely.
+    profile_commands = active_profile.get("commands") or {}
+    device_commands: list[dict[str, Any]] = []
+    if isinstance(profile_commands, dict) and profile_commands:
+        # Filter enabled=False so disabled entries never reach the
+        # LLM-facing catalog.  Default True keeps curated profiles
+        # without explicit enabled flags visible.
+        device_commands = [
+            _device_descriptor_from_spec(
+                name, profile_commands[name], type_registry,
+            )
+            for name in sorted(profile_commands)
+            if isinstance(profile_commands[name], dict)
+            and profile_commands[name].get("enabled", True) is not False
         ]
 
     return {
@@ -120,8 +127,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         "error_detection": active_profile.get("error_detection", {}),
         "types": types_block,
         "commands": cmd_list,
-        "target_commands": target_commands,
-        "target_meta": dict(target_meta) if isinstance(target_meta, dict) else {},
+        "device_commands": device_commands,
     }
 
 
@@ -284,6 +290,66 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
         "source": plugin.source or "built-in",
         "raw_args": bool(plugin.raw_args),
     }
+
+
+def _device_descriptor_from_spec(
+    name: str,
+    spec: dict[str, Any],
+    type_registry: TypeRegistry | None = None,
+) -> dict[str, Any]:
+    """Convert one entry from ``active_profile.commands`` into a catalog entry.
+
+    Replaces ``_target_descriptor`` for the v2-only catalog path: the
+    source is now the profile's commands dict (same shape the dispatch
+    executor reads), not a separate ``target_commands`` namespace of
+    ``TargetCommand`` dataclass instances.
+
+    When ``type_registry`` is provided, each ``typed_args`` entry gets
+    an inline ``type_info`` field with the kind-shaped description of
+    its referenced type (enum values, range bounds, pattern source...).
+    Builtin types resolve to ``{"kind": "builtin"}``.
+    """
+    out: dict[str, Any] = {
+        "name": name,
+        "args": spec.get("args", "") or "",
+        "help": spec.get("help", "") or "",
+        "long_help": spec.get("long_help", "") or "",
+        "flags": dict(spec.get("flags") or {}),
+    }
+    typed_args = spec.get("typed_args")
+    if typed_args:
+        enriched: list[dict[str, Any]] = []
+        for ta in typed_args:
+            if isinstance(ta, dict):
+                entry = dict(ta)
+                if type_registry is not None:
+                    type_name = entry.get("type", "")
+                    td = (
+                        type_registry.resolve(type_name)
+                        if type_name else None
+                    )
+                    if td is not None:
+                        entry["type_info"] = typedef_to_catalog(td)
+                enriched.append(entry)
+            else:
+                enriched.append(ta)
+        out["typed_args"] = enriched
+    send_template = spec.get("send_template", "")
+    if send_template:
+        out["send_template"] = send_template
+    response = spec.get("response")
+    if response:
+        out["response"] = dict(response)
+    safety = spec.get("safety", "safe")
+    if safety and safety != "safe":
+        out["safety"] = safety
+    rate_limit = spec.get("rate_limit_hz", 0.0) or 0.0
+    if rate_limit:
+        out["rate_limit_hz"] = rate_limit
+    timeout_ms = spec.get("timeout_ms", 0) or 0
+    if timeout_ms:
+        out["timeout_ms"] = timeout_ms
+    return out
 
 
 def _target_descriptor(

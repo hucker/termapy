@@ -287,7 +287,7 @@ def update_readme_md(test_count: int, ty_count: int) -> None:
 
 
 def refresh_usb_vendor_table() -> None:
-    """Pull latest upstream usb.ids and regenerate _usb_vendor_full.py.
+    """Pull latest upstream usb.ids and regenerate usb/_vendors_full.py.
 
     Idempotent -- if upstream hasn't changed since the last release,
     the regeneration produces byte-identical output and no diff lands
@@ -301,7 +301,7 @@ def refresh_usb_vendor_table() -> None:
         vendors keep their entries for ``lsusb`` backward-compat, and
         merges typically add notes rather than remove lines.  We
         compare the freshly-parsed count against the count baked into
-        the previous ``_usb_vendor_full.py`` and require the new value
+        the previous ``usb/_vendors_full.py`` and require the new value
         to be within a small tolerance below the old one (typo /
         dedup pass = OK; sudden 100-entry drop = format change or
         parser bug, abort).  First-time generation gets a floor check
@@ -314,7 +314,10 @@ def refresh_usb_vendor_table() -> None:
       - **Compilable Python.**  The generated module must parse and
         import cleanly.
     """
-    full_path = REPO_ROOT / "src" / "termapy" / "_usb_vendor_full.py"
+    # Was ``src/termapy/_usb_vendor_full.py`` before the v0.65 ``usb/``
+    # subpackage refactor; the generator (scripts/refresh_usb_ids.py)
+    # writes to the new location below.
+    full_path = REPO_ROOT / "src" / "termapy" / "usb" / "_vendors_full.py"
     # Capture the previous count from the generated module's header
     # (``Entries:   3427``).  Falls back to None if the file doesn't
     # exist yet or the header line is absent.
@@ -327,7 +330,7 @@ def refresh_usb_vendor_table() -> None:
     exec(compile(full_path.read_text(encoding="utf-8"), str(full_path), "exec"), ns)
     table = ns.get("USB_VENDORS_FULL")
     if not isinstance(table, dict):
-        die("_usb_vendor_full.py did not define USB_VENDORS_FULL as a dict")
+        die("usb/_vendors_full.py did not define USB_VENDORS_FULL as a dict")
 
     new_count = len(table)
     # Allow a tiny shrinkage (typo-fix / dedup pass).  Anything beyond

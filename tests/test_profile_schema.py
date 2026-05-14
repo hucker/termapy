@@ -271,6 +271,21 @@ class TestBuiltinValidator:
 
 
 class TestTypesBlockSchema:
+    """Schema-rejection tests for the v2 ``types`` block.
+
+    These assertions require the optional ``jsonschema`` package.  The
+    loader's ``_builtin_validate`` fallback only enforces the high-
+    leverage v1/v2 rules and doesn't know how to validate the
+    ``types``-block discriminated union, so these tests skip cleanly
+    when ``jsonschema`` isn't installed (tox envs that don't pull it
+    in, slim install profiles, etc.).
+    """
+
+    pytestmark = pytest.mark.skipif(
+        __import__("importlib.util", fromlist=[""]).find_spec("jsonschema") is None,
+        reason="strict types-block validation requires the optional jsonschema package",
+    )
+
     def test_empty_types_block_validates(self):
         # Arrange
         profile = {"commands": {}, "types": {}}

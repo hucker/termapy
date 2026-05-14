@@ -11,13 +11,32 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class FolderSpec:
-    """Definition of a per-config data folder."""
+    """Definition of a per-config data folder.
+
+    Defaults represent the common ("standard browsable folder") case:
+    user-facing, contents safe to inspect/export, NOT safe to wipe.
+    Override flags only when an entry departs from that shape.
+
+    Attributes:
+        name: Folder name under the cfg dir.
+        ext: File extension that identifies entries (``.run``, ``.py``,
+            ...).  Use ``"*"`` for mixed-content folders (``ss``, ``cap``).
+        clearable: True when ``/<name>.clear`` may safely wipe contents.
+            Default False -- destructive ops are explicit opt-in.
+        showable: True when the folder appears in user-facing listings
+            (``/help``, ``/cfg.info``, the title-bar buttons).  Default
+            True -- override to False for an internal/secret folder.
+        dumpable: True when ``/<name>.dump`` may export folder contents.
+            Default True -- override to False for folders whose contents
+            shouldn't leave the session (e.g. screenshots = binary
+            artifacts, not exportable as text).
+    """
 
     name: str
     ext: str
     clearable: bool = False
-    showable: bool = False
-    dumpable: bool = False
+    showable: bool = True
+    dumpable: bool = True
 
     @property
     def pattern(self) -> str:
@@ -25,16 +44,19 @@ class FolderSpec:
         return f"*{self.ext}" if self.ext != "*" else "*"
 
 
-# Per-config data folders -- the master list.
-# Everything else derives from this.
+# Per-config data folders -- the master list.  Everything else derives
+# from this.  Convention: a folder with no flags is a standard browsable
+# folder (showable + dumpable, not clearable).  Add ``clearable=True``
+# for folders safe to wipe; add ``dumpable=False`` when contents are
+# binary / shouldn't be exported.
 FOLDERS = [
-    FolderSpec("run", ".run", showable=True, dumpable=True),
-    FolderSpec("proto", ".pro", showable=True, dumpable=True),
-    FolderSpec("plugin", ".py", showable=True, dumpable=True),
-    FolderSpec("ss", "*", showable=True, clearable=True),
-    FolderSpec("viz", ".py", showable=True, dumpable=True),
-    FolderSpec("cap", "*", showable=True, dumpable=True, clearable=True),
-    FolderSpec("prof", ".csv", showable=True, dumpable=True, clearable=True),
+    FolderSpec("run",    ".run"),
+    FolderSpec("proto",  ".pro"),
+    FolderSpec("plugin", ".py"),
+    FolderSpec("ss",     "*",    clearable=True, dumpable=False),
+    FolderSpec("viz",    ".py"),
+    FolderSpec("cap",    "*",    clearable=True),
+    FolderSpec("prof",   ".csv", clearable=True),
 ]
 
 # -- Derived from FOLDERS (do not edit manually) ------------------------------

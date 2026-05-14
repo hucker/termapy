@@ -51,6 +51,7 @@ Here is an example config for a device called `iot_device`:
     "device_json_cmd": "",
     "auto_include_on_connect": true,
     "profile_path": "",
+    "validate_typed_args": false,
     "port": "COM4",
     "baud_rate": 115200,
     "custom_baud": false,

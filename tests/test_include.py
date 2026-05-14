@@ -20,10 +20,21 @@ def dev() -> FakeSerial:
 
 
 def _send_cmd(dev: FakeSerial, cmd: str) -> str:
-    """Send an ASCII command and return the response as a string."""
+    """Send an ASCII command and return the response as a string.
+
+    Drains the FakeSerial buffer in chunks so growth in the device's
+    AT+HELP.JSON payload (e.g. a new top-level ``types`` block) doesn't
+    silently truncate the response and break parsing.
+    """
     dev.write(cmd.encode() + b"\r")
     time.sleep(0.01)
-    return dev.read(4096).decode()
+    chunks: list[bytes] = []
+    while True:
+        chunk = dev.read(4096)
+        if not chunk:
+            break
+        chunks.append(chunk)
+    return b"".join(chunks).decode()
 
 
 @pytest.fixture

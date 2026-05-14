@@ -1,12 +1,16 @@
 {
   "profile_version": 2,
-  "profile_revision": "1.0.0",
-  "profile_date": "2026-05-02",
+  "profile_revision": "1.1.0",
+  "profile_date": "2026-05-12",
 
   "device": {
     "name": "Bassomatic v77 (text simulator)",
     "vendor": "termapy",
     "model": "DEMO"
+  },
+
+  "types": {
+    "onoff": {"kind": "enum", "values": ["on", "off"], "help": "LED state: on or off."}
   },
 
   "transport": {
@@ -88,8 +92,8 @@
       "help": "Set LED state.",
       "send_template": "AT+LED={state}",
       "typed_args": [
-        {"name": "state", "type": "str", "required": true,
-         "help": "LED state.", "enum": ["on", "off"]}
+        {"name": "state", "type": "onoff", "required": true,
+         "help": "LED state."}
       ],
       "safety": "mutable",
       "response": {"format": "literal", "pattern": "OK", "timeout_ms": 200}

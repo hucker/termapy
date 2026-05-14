@@ -749,59 +749,6 @@ def _new_artifacts(
 # ── Profile-aware request/response dispatch ────────────────────────────────
 
 
-def _template_to_regex(template: str) -> str:
-    """Turn an `AT+LED={state}` send_template into a match regex.
-
-    Each `{name}` placeholder becomes `(?P<name>.+?)`.  Surrounding
-    literals are escaped.  Anchored at both ends so partial matches
-    don't confuse lookup.
-    """
-    import re as _re
-
-    pattern_parts: list[str] = []
-    pos = 0
-    for m in _re.finditer(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", template):
-        pattern_parts.append(_re.escape(template[pos:m.start()]))
-        pattern_parts.append(f"(?P<{m.group(1)}>.+?)")
-        pos = m.end()
-    pattern_parts.append(_re.escape(template[pos:]))
-    return "^" + "".join(pattern_parts) + "$"
-
-
-def _match_profile_command(
-    text: str, commands: dict[str, dict],
-) -> tuple[str, dict, dict[str, str]] | None:
-    """Find the profile entry that ``text`` invokes, if any.
-
-    Lookup order:
-
-    1. Exact name match (the common case -- LLM types the literal
-       command name straight from /help).
-    2. Iterate entries with ``send_template`` and try to match
-       ``text`` against the template-derived regex.  The first hit
-       wins; profile authors shouldn't write overlapping templates.
-
-    Returns (canonical_name, command_dict, bound_args), or None.
-    """
-    import re as _re
-
-    if text in commands:
-        return text, commands[text], {}
-    for name, spec in commands.items():
-        if not isinstance(spec, dict):
-            continue
-        tmpl = spec.get("send_template", "")
-        if not tmpl:
-            continue
-        try:
-            m = _re.match(_template_to_regex(tmpl), text)
-        except _re.error:
-            continue
-        if m:
-            return name, spec, m.groupdict()
-    return None
-
-
 def _dispatch_via_profile(
     host: MCPHost, command_text: str, *, confirm: bool = False,
 ) -> CmdResult | None:
@@ -837,7 +784,9 @@ def _dispatch_via_profile(
     commands = profile.get("commands") or {}
     if not isinstance(commands, dict):
         return None
-    match = _match_profile_command(command_text, commands)
+    from termapy.profile import match_profile_command
+
+    match = match_profile_command(command_text, commands)
     if match is None:
         return None
 
@@ -934,23 +883,34 @@ def _dispatch_via_profile(
     raw_response = spec.get("response") or {}
     response = raw_response if isinstance(raw_response, dict) else {}
     fmt = response.get("format", "none")
-    timeout_s = float(
-        response.get(
-            "timeout_ms",
-            transport.get("default_response_timeout_ms", 1000),
-        )
-    ) / 1000.0
+    if fmt == "none":
+        # Verify-silence window: format=none doesn't mean "don't wait", it
+        # means "the contract says no reply -- wait briefly so unexpected
+        # output fails the contract instead of leaking into the next call's
+        # async_events.  100 ms is short enough that screen-clear / kick
+        # commands feel responsive, long enough to catch a stray echo or
+        # a regressed firmware.  Authors who genuinely want true fire-and-
+        # forget (no wait at all) opt out with response.timeout_ms: 0.
+        timeout_s = float(response.get("timeout_ms", 100)) / 1000.0
+    else:
+        timeout_s = float(
+            response.get(
+                "timeout_ms",
+                transport.get("default_response_timeout_ms", 1000),
+            )
+        ) / 1000.0
 
     # Drain -> send -> wait pipeline lives in request_response.py so the
     # generic json_mode fallthrough (repl.py) shares identical timing
     # semantics.  fmt branch maps to:
-    #   none   -> wait=False (fire-and-forget; drain+send only)
+    #   none   -> idle_gap=0.05; wait disabled only when timeout_ms=0
+    #             (fail on any unexpected reply within the wait window)
     #   lines  -> idle_gap=0.1, terminator from response.terminator
     #   else   -> idle_gap=0.05 (one-line responses settle fast)
     if fmt == "none":
-        wait = False
+        wait = timeout_s > 0
         terminator = ""
-        idle_gap_s = 0.05  # unused when wait=False
+        idle_gap_s = 0.05
     elif fmt == "lines":
         wait = True
         terminator = response.get("terminator", "")
@@ -1003,6 +963,31 @@ def _dispatch_via_profile(
                     return result
 
     if fmt == "none":
+        # Verify silence: the contract says "no reply"; if we got one,
+        # surface it as a contract violation so a stale profile or
+        # firmware regression gets caught instead of silently dropped.
+        # Whitespace-only lines don't count (some devices emit a bare
+        # newline as an idle artifact).
+        meaningful = [ln for ln in collected if ln.strip()]
+        if meaningful:
+            preview = meaningful[0]
+            extra = (
+                f" (+{len(meaningful) - 1} more line(s))"
+                if len(meaningful) > 1
+                else ""
+            )
+            result = CmdResult.fail(
+                msg=(
+                    f"Expected no response from {name!r}, got: "
+                    f"{preview!r}{extra}"
+                ),
+                value={
+                    "unexpected_output": meaningful,
+                    "command": name,
+                },
+            )
+            result.elapsed_s = elapsed
+            return result
         result = CmdResult.ok(value={"sent": True, "cmd": name})
         result.elapsed_s = elapsed
         return result

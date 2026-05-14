@@ -10,6 +10,16 @@ one by hand, and LLMs drafting one from a help dump.  It's the
 single source of truth for the schema, the safety taxonomy, and
 the rules.
 
+Note: AI such as Claude Code can do a pretty good job of sending commands interactively
+without a profile at all, just looking at any help text or sample responses that you give it. It
+can work with fairly well with a small amount of trial and error.  However, if you are going
+to use AI to interact with your device on an ongoing basis it is worth it to invenst in creating
+a profile which reduces friction and gives you more robust control and better error handling 
+because the LLM can understand the commands and the types.
+
+IF you have control over the device firmware, build a command that returns the json profile directly from the device.  
+This way users of your device can be up and running with AI control in a few minutes.
+
 ## File layout
 
 A profile is a JSON object with these top-level keys:
@@ -85,12 +95,12 @@ semantics, examples, or warnings.
 
 Four tiers, in order of increasing caution:
 
-| Tier          | Meaning                                            | Examples                          |
-|---------------|----------------------------------------------------|-----------------------------------|
-| `readonly`    | Pure observation; no state change                  | `bat`, `temp_c`, `version`, `info`|
-| `safe`        | Default; no enduring effect                        | `help`, `clr`                     |
-| `mutable`     | Changes device state but reversible                | `set_led on`, `baud 9600`         |
-| `destructive` | Irreversible / data-loss / requires confirmation   | `reset`, `factory_clear`, `erase` |
+| Tier          | Meaning                                          | Examples                           |
+| ------------- | ------------------------------------------------ | ---------------------------------- |
+| `readonly`    | Pure observation; no state change                | `bat`, `temp_c`, `version`, `info` |
+| `safe`        | Default; no enduring effect                      | `help`, `clr`                      |
+| `mutable`     | Changes device state but reversible              | `set_led on`, `baud 9600`          |
+| `destructive` | Irreversible / data-loss / requires confirmation | `reset`, `factory_clear`, `erase`  |
 
 **Only `destructive` triggers the MCP confirmation gate.**  The
 LLM cannot run a destructive command without explicit `confirm=true`
@@ -105,13 +115,13 @@ of `destructive`**.  Friction is recoverable; data loss isn't.
 
 Describes how to parse the device's reply.  Five formats:
 
-| `format`   | What it does                                                                 | Returned `value` shape          |
-|------------|------------------------------------------------------------------------------|---------------------------------|
-| `none`     | Fire-and-forget; don't wait for a reply                                      | `{"sent": true, "cmd": "..."}`  |
-| `literal`  | Reply must equal `pattern` exactly                                           | the string (or fail)            |
-| `regex`    | `re.search(pattern, response)` — named groups + `types` coerce to dict       | `{"celsius": 23.4, ...}`        |
-| `lines`    | Collect lines until `terminator` regex matches or idle gap                   | `["line1", "line2", ...]`       |
-| `json`     | Parse the full response as one JSON document                                 | the parsed value                |
+| `format`  | What it does                                                              | Returned `value` shape         |
+| --------- | ------------------------------------------------------------------------- | ------------------------------ |
+| `none`    | Verify silence: wait briefly (default 100 ms), fail if the device replies | `{"sent": true, "cmd": "..."}` |
+| `literal` | Reply must equal `pattern` exactly                                        | the string (or fail)           |
+| `regex`   | `re.search(pattern, response)` — named groups + `types` coerce to dict    | `{"celsius": 23.4, ...}`       |
+| `lines`   | Collect lines until `terminator` regex matches or idle gap                | `["line1", "line2", ...]`      |
+| `json`    | Parse the full response as one JSON document                              | the parsed value               |
 
 Common patterns:
 
@@ -120,7 +130,12 @@ Common patterns:
 - **Multi-line dump ending with `OK`:** `lines` with `terminator: "^OK$"`.
 - **Multi-line with no terminator:** `lines` (idle-gap collection).
 - **NDJSON device:** `json`.
-- **Side-effect command, no reply:** `none`.
+- **Side-effect command, no reply:** `none`.  The executor waits a
+  short window (default 100 ms, override with `timeout_ms`) and fails
+  the call if the device replies anyway — catching stale profiles and
+  firmware regressions instead of silently dropping the unexpected
+  bytes.  Whitespace-only replies are ignored.  Set `timeout_ms: 0`
+  to opt out of the silence check entirely (true fire-and-forget).
 
 ### `response.timeout_ms` (integer)
 
@@ -170,14 +185,14 @@ The five builtins always resolve directly; custom names cannot
 shadow them (`bool`, `int`, etc. are reserved).  Six `kind` values
 are recognized:
 
-| `kind` | Required fields | Behavior |
-| --- | --- | --- |
-| `enum` | `values` (array) | Exact-match against the list; values stringified for compare |
-| `int_range` | `min`, `max` | Coerce to int; check `min ≤ v ≤ max` |
-| `float_range` | `min`, `max` | Coerce to float; same bounds check |
-| `str_length` | `min_len` and/or `max_len` | Coerce to str; check length against bounds |
-| `pattern` | `regex` | `re.fullmatch(regex, value)` — anchored both ends |
-| `format_spec` | `spec` | Parsed via the protocol format-spec language; validator is a pass-through stub today |
+| `kind`        | Required fields            | Behavior                                                                             |
+| ------------- | -------------------------- | ------------------------------------------------------------------------------------ |
+| `enum`        | `values` (array)           | Exact-match against the list; values stringified for compare                         |
+| `int_range`   | `min`, `max`               | Coerce to int; check `min ≤ v ≤ max`                                                 |
+| `float_range` | `min`, `max`               | Coerce to float; same bounds check                                                   |
+| `str_length`  | `min_len` and/or `max_len` | Coerce to str; check length against bounds                                           |
+| `pattern`     | `regex`                    | `re.fullmatch(regex, value)` — anchored both ends                                    |
+| `format_spec` | `spec`                     | Parsed via the protocol format-spec language; validator is a pass-through stub today |
 
 Example:
 
@@ -267,9 +282,11 @@ When a user pastes a device help table and asks for a profile draft:
    text suggest slow operations: `reset`, `mfg`, `standby`, anything
    involving `flash`, `wait`, `erase`, `cal`.
 
-6. **Don't invent `response.pattern` or `types` without sample
-   responses.**  A wrong regex is worse than `format: lines`.  If
-   the user provides sample responses, *then* upgrade to `regex`.
+6. **Don't invent `response.pattern` or `response.types` without
+   sample responses.**  A wrong regex is worse than `format: lines`.
+   If the user provides sample responses, *then* upgrade to `regex`.
+   ("response.types" here means the per-group coercion map inside a
+   `response` block, NOT the top-level `types` block — see rule 10.)
 
 7. **Mark hazardous commands** even when not strictly destructive.
    GPIO writes, motor controls, RF transmits, fee-based API calls —
@@ -295,6 +312,134 @@ When a user pastes a device help table and asks for a profile draft:
 9. **Never set `enabled: true` in a draft**, even for commands that
    look obviously safe like `version`.  The user toggles each one
    themselves — that's the audit signature.
+
+10. **Promote repeated argument vocabularies into the top-level
+    `types` block.**  When you see the same vocabulary repeated across
+    commands — every toggle accepting on/off, several commands sharing
+    a `["1","2","tot"]` enum, multiple args matching `<digits>(us|ms|s)`
+    — declare the contract once at the top level and reference it by
+    name from each `typed_args` entry.  This gives the LLM a precise,
+    reusable vocabulary instead of forcing it to read every command's
+    inline enum.
+
+    Only declare values you can see in the help output — don't extend
+    the vocabulary speculatively.  Pick from the six kinds (`enum`,
+    `int_range`, `float_range`, `str_length`, `pattern`, `format_spec`;
+    see the "Profile-local types" section above).  Custom type names
+    must NOT collide with the five builtins (`int`, `float`, `bool`,
+    `hex`, `str`); pick a domain name like `onoff`, `channel`,
+    `duration`.
+
+    Skip dual-mode args — commands whose help text says "accepts a
+    bool OR a duration" must stay as builtin `str` (or `bool`) until
+    a union kind exists, or the validator will reject the second mode.
+
+## Drafting a profile with an AI
+
+Two flows, depending on whether you have termapy MCP available:
+
+### With MCP (recommended)
+
+The bundled `draft_profile` MCP prompt embeds this entire guide and
+adds critical drafting rules.  In Claude Desktop / VS Code MCP:
+
+1. Invoke the `draft_profile` prompt (the client UI lists available
+   prompts; pick this one).
+2. Paste your device help dump in the `help_output` field.  Optionally
+   add a startup banner, sample responses for a few high-value
+   commands, and any engineer notes ("RF transmits are billable, mark
+   destructive").
+3. The LLM reads this guide + your inputs and returns one JSON object
+   with `enabled: false` on every command.
+4. Save the draft to `<cfg>/<device>.profile.json` and proceed to the
+   engineer workflow below.
+
+### Without MCP (chat-only)
+
+Plain Claude / ChatGPT works fine.  Paste the prompt template below,
+then your inputs.  Edit the `device_name` line and any `(none)`
+placeholders.
+
+````text
+You are drafting a v2 device profile for termapy from artifacts I'm
+pasting below.  Follow the embedded authoring guide precisely.
+
+Critical rules (read the guide for full context):
+
+- Every command entry MUST have `enabled: false`.  No exceptions.
+- When unsure about safety, prefer `destructive`.  Friction is
+  recoverable; data loss isn't.
+- Default `response.format: "lines"` with `timeout_ms: 1000` unless
+  sample responses justify a stricter format.
+- Bump `timeout_ms` for slow commands (reset, mfg, flash, cal).
+- Promote repeated argument vocabularies into the top-level `types`
+  block.  Reference custom types by name from `typed_args[i].type`.
+- Don't invent commands, regex patterns, or type values you can't
+  see in the artifacts.
+- Add a top-level `_notes` block summarizing what was inferred and
+  flagging commands you couldn't classify with confidence.
+
+Return ONE JSON object matching the v2 profile schema, wrapped in a
+```json ... ``` code block.  After the code block, summarize: how
+many commands, how many you flagged as needing review, and any
+commands you couldn't classify.
+
+# Authoring guide
+
+<paste the contents of authoring-profiles.md here>
+
+# Inputs
+
+## Device name
+
+<device_name>
+
+## Help output
+
+```text
+<paste the device's `help` / `?` / `AT+HELP` output here>
+```
+
+## Startup banner
+
+```text
+<paste the banner the device prints at boot, or write "(none)">
+```
+
+## Sample responses
+
+```text
+<paste a few `cmd -> response` pairs for high-value commands, or "(none)">
+```
+
+## Engineer notes
+
+<free-form: anything the LLM should know that isn't in the artifacts,
+e.g. "the RF transmit command is billable", "this firmware is
+SB_0_8 dated 2026-05-01">
+````
+
+### Drafting from device source code
+
+If you have the firmware source (C, Rust, Python — anything), point
+the LLM at it instead of (or in addition to) a help dump.  Useful
+extras to ask the LLM to extract:
+
+- **Command dispatch table** for the canonical command list (look for
+  arrays of `{name, handler}` structs, sub-command routers, or a
+  central `if/else if (strcmp(arg, "x") == 0)` ladder).
+- **Argument parsers** for vocabulary — `parseBool`, `parseChannel`,
+  enum string tables.  These define the exact `types` block entries.
+- **`printf`/`puts` calls in command handlers** for response shape —
+  use these to draft `response.regex` patterns with confidence.
+- **Constants for timing** — `#define WDT_RESET_TIME_MS 5000` tells
+  you a precise `response.timeout_ms` for the reset command.
+
+Source-code drafts are typically more precise than help-dump drafts
+(you can see the actual parsers, not just the help string), but
+they're also longer to produce — the LLM has more to read.  For a
+device you already have a help dump from, prefer the help-dump flow;
+fall back to source when the help text is terse or ambiguous.
 
 ## Workflow for the engineer
 

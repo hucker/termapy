@@ -229,3 +229,130 @@ class TestCatalogPresence:
             "/term.send is registered as a known subcommand"
         )
         assert "Usage" in result.error, "fails with usage hint"
+
+
+# ── Opt-in CLI typed_args validation (cfg: validate_typed_args) ─────────────
+
+
+def _load_test_profile(ctx) -> None:
+    """Install a small typed profile into the active_profile namespace."""
+    ns = ctx.ns("active_profile")
+    ns.clear()
+    ns.update({
+        "profile_version": 2,
+        "types": {
+            "onoff": {"kind": "enum", "values": ["on", "off"]},
+        },
+        "commands": {
+            "ECHO": {
+                "help": "Toggle echo.",
+                "send_template": "ECHO {state}",
+                "typed_args": [
+                    {"name": "state", "type": "onoff", "required": True},
+                ],
+            },
+        },
+    })
+
+
+class TestCliTypedArgValidation:
+    """Opt-in: cfg flag ``validate_typed_args`` gates CLI typed-arg
+    validation on the bare-command dispatch path.  Off by default --
+    typists get raw access and the device's reply is the source of
+    truth.  When on, bad values short-circuit before the wire."""
+
+    def test_off_by_default_passes_bytes_through(self, env):
+        # Arrange -- profile says ECHO takes onoff; cfg flag is off (default).
+        eng, ctx, _output, writes = env
+        _load_test_profile(ctx)
+        # Act -- send a value that would fail validation if checked.
+        eng.dispatch_full(
+            "ECHO banana",
+            log=lambda d, t: None,
+            echo_markup=lambda t: None,
+            status=lambda t, c: None,
+            serial_write=writes.append,
+            is_connected=lambda: True,
+        )
+        # Assert -- bytes reach the wire; device error would be the truth.
+        assert writes == [b"ECHO banana\r"], (
+            "validate_typed_args off -> raw pass-through"
+        )
+
+    def test_on_blocks_bad_value_before_wire(self, env):
+        # Arrange -- enable the flag.
+        eng, ctx, _output, writes = env
+        ctx.cfg["validate_typed_args"] = True
+        _load_test_profile(ctx)
+        statuses: list[tuple[str, str]] = []
+        # Act
+        result = eng.dispatch_full(
+            "ECHO banana",
+            log=lambda d, t: None,
+            echo_markup=lambda t: None,
+            status=lambda t, c: statuses.append((t, c)),
+            serial_write=writes.append,
+            is_connected=lambda: True,
+        )
+        # Assert -- short-circuit, no bytes on wire, status reports the error.
+        assert result.success is False, "bad value fails"
+        assert writes == [], "no bytes sent when validation fails"
+        assert any("banana" in s and "ECHO" in s for s, _c in statuses), (
+            "status mentions the rejected value and the command"
+        )
+
+    def test_on_passes_good_value_to_wire(self, env):
+        # Arrange
+        eng, ctx, _output, writes = env
+        ctx.cfg["validate_typed_args"] = True
+        _load_test_profile(ctx)
+        # Act
+        eng.dispatch_full(
+            "ECHO on",
+            log=lambda d, t: None,
+            echo_markup=lambda t: None,
+            status=lambda t, c: None,
+            serial_write=writes.append,
+            is_connected=lambda: True,
+        )
+        # Assert
+        assert writes == [b"ECHO on\r"], (
+            "valid value reaches the wire unchanged"
+        )
+
+    def test_on_with_no_profile_loaded_passes_through(self, env):
+        # Arrange -- flag is on but no profile installed.
+        eng, ctx, _output, writes = env
+        ctx.cfg["validate_typed_args"] = True
+        # Act
+        eng.dispatch_full(
+            "anything goes",
+            log=lambda d, t: None,
+            echo_markup=lambda t: None,
+            status=lambda t, c: None,
+            serial_write=writes.append,
+            is_connected=lambda: True,
+        )
+        # Assert -- nothing to validate against; pass through.
+        assert writes == [b"anything goes\r"], (
+            "no profile loaded -> no gating, raw pass-through"
+        )
+
+    def test_on_with_unmatched_command_passes_through(self, env):
+        # Arrange -- profile has ECHO; user types something not in the profile.
+        eng, ctx, _output, writes = env
+        ctx.cfg["validate_typed_args"] = True
+        _load_test_profile(ctx)
+        # Act
+        eng.dispatch_full(
+            "UNRELATED",
+            log=lambda d, t: None,
+            echo_markup=lambda t: None,
+            status=lambda t, c: None,
+            serial_write=writes.append,
+            is_connected=lambda: True,
+        )
+        # Assert -- no profile match -> no validation -> raw pass-through.
+        assert writes == [b"UNRELATED\r"], (
+            "unmatched command -> validation skipped, bytes pass through"
+        )

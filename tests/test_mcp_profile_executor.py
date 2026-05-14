@@ -257,8 +257,9 @@ class TestJsonFormat:
 
 
 class TestNoneFormat:
-    def test_fire_and_forget_returns_sent_marker(self, host):
-        # Arrange — no reply scheduled; format=none means we don't wait
+    def test_no_reply_succeeds_with_sent_marker(self, host):
+        # Arrange — no reply scheduled; format=none waits briefly to
+        # verify silence and then succeeds when nothing arrives.
         _load_profile(host, _profile_with({
             "RESET": {
                 "help": "Reset; no reply.",
@@ -269,9 +270,71 @@ class TestNoneFormat:
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
         # Assert
         actual = result["value"]
-        assert result["success"] is True, "fire-and-forget succeeds without waiting"
+        assert result["success"] is True, "silence verified -> success"
         assert actual == {"sent": True, "cmd": "RESET"}, "sent-marker shape"
         assert host._sent == [b"RESET\r\n"], "bytes still went out"
+
+    def test_unexpected_reply_fails_the_contract(self, host):
+        # Arrange -- profile says no reply, but the device sends one.
+        # This is the misconfiguration we want to surface.
+        _load_profile(host, _profile_with({
+            "RESET": {
+                "help": "Reset; no reply.",
+                "response": {"format": "none", "timeout_ms": 200},
+            },
+        }))
+        _reply_after_send(host, ["OOPS unexpected"])
+        # Act
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
+        # Assert
+        value = result["value"]
+        assert result["success"] is False, "contract violation fails"
+        assert "Expected no response" in result["error"], (
+            "error names the violated contract"
+        )
+        assert isinstance(value, dict), "structured failure value"
+        assert value["command"] == "RESET", "command name surfaced"
+        assert "OOPS unexpected" in value["unexpected_output"], (
+            "rejected output surfaced for the LLM"
+        )
+
+    def test_timeout_zero_opts_out_of_silence_check(self, host):
+        # Arrange -- explicit timeout_ms: 0 disables the wait, restoring
+        # true fire-and-forget for authors who want it.
+        _load_profile(host, _profile_with({
+            "RESET": {
+                "help": "Hard fire-and-forget.",
+                "response": {"format": "none", "timeout_ms": 0},
+            },
+        }))
+        # Schedule a reply -- it should be IGNORED because we don't wait.
+        _reply_after_send(host, ["this should not be checked"])
+        # Act
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
+        # Assert -- success even though the device emits something.
+        assert result["success"] is True, (
+            "timeout_ms=0 opts out of the silence verification"
+        )
+        assert result["value"] == {"sent": True, "cmd": "RESET"}, (
+            "sent-marker still returned"
+        )
+
+    def test_whitespace_only_reply_does_not_fail(self, host):
+        # Arrange -- some devices emit a bare newline as idle artifact.
+        # That shouldn't break a format=none contract.
+        _load_profile(host, _profile_with({
+            "RESET": {
+                "help": "Reset; bare newline tolerated.",
+                "response": {"format": "none", "timeout_ms": 200},
+            },
+        }))
+        _reply_after_send(host, ["", "   ", ""])
+        # Act
+        result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
+        # Assert
+        assert result["success"] is True, (
+            "whitespace-only output is not a contract violation"
+        )
 
 
 # ── Error detection ─────────────────────────────────────────────────────────

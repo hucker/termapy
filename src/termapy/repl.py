@@ -868,6 +868,54 @@ class ReplEngine:
         plugin = self._plugins.get(name)
         return plugin.raw_args if plugin else False
 
+    def _validate_bare_typed_args(
+        self, cmd: str, _status: Callable[[str, str], None],
+    ) -> CmdResult | None:
+        """Validate bound typed_args for a bare device command.
+
+        Returns None to pass through (no profile match, no typed_args,
+        all values valid, or no profile loaded).  Returns a
+        ``CmdResult.fail`` when a value fails validation; the caller
+        short-circuits and does not write bytes to the wire.
+
+        Surfaces failures via the ``_status`` callback so the typist
+        sees the error in the terminal exactly as if the device had
+        replied with one.
+        """
+        profile = self.ctx.ns("active_profile")
+        if not isinstance(profile, dict) or not profile:
+            return None
+        commands = profile.get("commands") or {}
+        if not isinstance(commands, dict) or not commands:
+            return None
+
+        from termapy.profile import TypeRegistry, match_profile_command
+
+        match = match_profile_command(cmd, commands)
+        if match is None:
+            return None
+        name, spec, bound = match
+        typed_args = spec.get("typed_args") or []
+        if not typed_args or not bound:
+            return None
+
+        registry = TypeRegistry.from_profile(profile)
+        for ta in typed_args:
+            if not isinstance(ta, dict):
+                continue
+            arg_name = ta.get("name")
+            arg_type = ta.get("type")
+            if not arg_name or not arg_type or arg_name not in bound:
+                continue
+            outcome = registry.validate(arg_type, bound[arg_name])
+            if not outcome.ok:
+                msg = (
+                    f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}"
+                )
+                _status(msg, "red")
+                return CmdResult.fail(msg=msg)
+        return None
+
     # -- Full dispatch pipeline ------------------------------------------------
 
     def dispatch_full(
@@ -997,6 +1045,17 @@ class ReplEngine:
         if is_connected and not is_connected():
             _status("Not connected.", "red")
             return CmdResult.fail(msg="Not connected.")
+
+        # Opt-in typed-arg validation against the active profile.  Off by
+        # default so a typist gets raw wire access -- device errors are
+        # the source of truth.  Turn on (cfg key ``validate_typed_args``)
+        # to short-circuit bad args locally with the same vocabulary the
+        # MCP path uses.  Skips silently when no profile is loaded or
+        # the command isn't a profile entry.
+        if self.cfg.get("validate_typed_args"):
+            fail = self._validate_bare_typed_args(cmd, _status)
+            if fail is not None:
+                return fail
 
         # Bridge dispatch_full's serial_write callback into ctx for the
         # handler.  Hosts (CLITerminal, MCPHost) wire both to the same

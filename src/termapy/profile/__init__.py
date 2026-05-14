@@ -79,6 +79,10 @@ from termapy.profile.loader import (
     save_profile,
     validate_profile,
 )
+from termapy.profile.matcher import (
+    match_profile_command,
+    template_to_regex,
+)
 from termapy.profile.types import (
     BUILTINS,
     ProfileTypeError,
@@ -100,6 +104,9 @@ __all__ = [
     "precedence",
     "save_profile",
     "validate_profile",
+    # matcher
+    "match_profile_command",
+    "template_to_regex",
     # types
     "BUILTINS",
     "ProfileTypeError",

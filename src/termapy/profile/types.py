@@ -41,7 +41,7 @@ Prior art: this is a direct descendent of YANG's leaf-type declarations
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Any
 
 from termapy.response_parsers import _coerce as _coerce_builtin
@@ -489,7 +489,7 @@ def typedef_to_catalog(td: TypeDef) -> dict[str, Any]:
     minimal, kind-shaped description.  ``compiled_regex`` and other
     runtime-only fields are omitted.
     """
-    base = {"name": td.name, "kind": td.kind}
+    base: dict[str, Any] = {"name": td.name, "kind": td.kind}
     if td.help:
         base["help"] = td.help
     if td.kind == "enum":

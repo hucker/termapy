@@ -199,7 +199,7 @@ Example:
 ```json
 {
   "types": {
-    "onoff":    {"kind": "enum", "values": ["on", "off", "true", "false", "yes", "no", "1", "0"]},
+    "on_off":    {"kind": "enum", "values": ["on", "off", "true", "false", "yes", "no", "1", "0"]},
     "baud":     {"kind": "enum", "values": [9600, 19200, 38400, 57600, 115200]},
     "percent":  {"kind": "int_range", "min": 0, "max": 100},
     "voltage":  {"kind": "float_range", "min": 0.0, "max": 5.0},
@@ -208,7 +208,7 @@ Example:
     "byte":     {"kind": "format_spec", "spec": "Val:H1"}
   },
   "commands": {
-    "ECHO":    {"help": "Toggle echo.", "typed_args": [{"name": "state", "type": "onoff"}]},
+    "ECHO":    {"help": "Toggle echo.", "typed_args": [{"name": "state", "type": "on_off"}]},
     "SETBAUD": {"help": "Change baud.",  "typed_args": [{"name": "rate",  "type": "baud"}]},
     "SETDUTY": {"help": "Duty cycle.",   "typed_args": [{"name": "pct",   "type": "percent"}]}
   }
@@ -327,7 +327,7 @@ When a user pastes a device help table and asks for a profile draft:
     `int_range`, `float_range`, `str_length`, `pattern`, `format_spec`;
     see the "Profile-local types" section above).  Custom type names
     must NOT collide with the five builtins (`int`, `float`, `bool`,
-    `hex`, `str`); pick a domain name like `onoff`, `channel`,
+    `hex`, `str`); pick a domain name like `on_off`, `channel`,
     `duration`.
 
     Skip dual-mode args — commands whose help text says "accepts a

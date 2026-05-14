@@ -12,6 +12,8 @@ This module also hosts :func:`format_kv_lines`, the shared helper for
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 
 #: Canonical level names, ordered from quietest to loudest.
 OUTPUT_LEVELS: tuple[str, ...] = ("silent", "quiet", "normal", "verbose")
@@ -60,7 +62,7 @@ def parse_output_level(s: str) -> str | None:
 
 
 def format_kv_lines(
-    rows: "list[tuple[str, str]]",
+    rows: Sequence[tuple[str, str]],
     indent: str = "  ",
     label_color: str = "cyan",
 ) -> "list[str]":

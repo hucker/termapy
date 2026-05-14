@@ -227,9 +227,7 @@ class TestCfgLoadFiresOnConnected:
     def test_cfg_load_fires_mcp_on_connect_cmd(self, tmp_path, monkeypatch):
         # Arrange - cfg with mcp_on_connect_cmd set, monkeypatched cfg_dir
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
-        cfg_path = self._make_cfg(
-            tmp_path, "target", mcp_on_connect_cmd="/ver"
-        )
+        self._make_cfg(tmp_path, "target", mcp_on_connect_cmd="/ver")
 
         # Build host on a different cfg with no on-connect cmds
         unrelated = self._make_cfg(tmp_path, "unrelated")

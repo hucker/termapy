@@ -23,17 +23,13 @@ from types import MappingProxyType
 from typing import Any, Callable
 
 from termapy.plugins.capabilities import CapabilitySet
-from termapy.plugins.handles.engine import EngineAPI, EngineHandle
+from termapy.plugins.handles.engine import EngineAPI
 from termapy.plugins.handles.fs import FilesystemHandle
 from termapy.plugins.handles.io import IOHandle
 from termapy.plugins.handles.serial import SerialHandle
 from termapy.plugins.handles.ui import UIHandle
 from termapy.plugins.output_levels import (
     DEFAULT_OUTPUT_LEVEL,
-    LEVEL_FLAGS,
-    OUTPUT_LEVELS,
-    format_kv_lines,
-    parse_output_level,
 )
 
 

@@ -42,7 +42,6 @@ from termapy.config import (
 # entry.py / cli_flags.py can import from config_resolve directly.
 from termapy.config_resolve import (
     find_config as _find_config,
-    infer_config_from_run_file as _infer_config_from_run_file,
     resolve_config as _resolve_config,
 )
 from rich.text import Text
@@ -1005,8 +1004,8 @@ class SerialTerminal(TerminalHost, App):
         ctx.ui._save_screenshot_impl = lambda *a, **kw: self._on_main(
             self.save_screenshot, *a, **kw
         )
-        ctx.ui.get_screen_text = lambda: self._on_main(self._get_screen_text)
-        ctx.ui.exit_app = lambda: self._on_main(self.exit)
+        ctx.ui._get_screen_text_impl = lambda: self._on_main(self._get_screen_text)
+        ctx.ui._exit_app_impl = lambda: self._on_main(self.exit)
         # TUI environment capabilities.  See CapabilitySet for the full
         # vocabulary.  block_until is NOT set here -- it's provided
         # dynamically by the script runner (see _effective_capabilities).

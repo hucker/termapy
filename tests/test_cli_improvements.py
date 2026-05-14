@@ -17,7 +17,6 @@ import json
 import subprocess
 import sys
 from contextlib import redirect_stdout
-from unittest.mock import patch
 
 import pytest
 
@@ -308,7 +307,6 @@ class TestMultiAxisFilters:
 
     def test_invalid_vid_exits_2(self, fleet):
         # Arrange + Act
-        buf = io.StringIO()
         with pytest.raises(SystemExit) as exc:
             cli_flags.run_ports(_ports_args(json=True, vid="not-hex"))
 

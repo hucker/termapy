@@ -32,9 +32,12 @@ plus a couple of helpers.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
 
 from termapy.plugins.capabilities import CapabilitySet
+
+if TYPE_CHECKING:
+    from termapy.plugins.context import PluginContext
 
 
 # Type alias for the ``long_help`` field on Command and PluginInfo. A plugin
@@ -46,7 +49,7 @@ from termapy.plugins.capabilities import CapabilitySet
 # Uses the quoted string "PluginContext" because that class is defined in
 # the sibling ``context`` module; this module avoids importing context to
 # keep the import graph one-way.
-LongHelp = Union[str, Callable[["PluginContext"], str]]  # noqa: F821 -- forward string ref
+LongHelp = Union[str, Callable[["PluginContext"], str]]
 
 
 # Alias for ``Exception``, used at call sites where we deliberately
@@ -423,7 +426,7 @@ def interpolate_help(text: str, prefix: str) -> str:
     return text.replace("{prefix}", prefix)
 
 
-def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:  # noqa: F821 -- forward string ref
+def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
     """Return ``plugin.long_help`` as a prefix-interpolated string.
 
     Static strings pass through with ``{prefix}`` substituted.  Callables

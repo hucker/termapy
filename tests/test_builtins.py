@@ -1669,7 +1669,7 @@ class TestCapWire:
         # Act -- wrapping dispatch is the engine.dispatch that runs
         # /cap.wire; the handler's BoundaryException-protected layer
         # swallows the exception and returns a fail result.
-        result = engine.dispatch("cap.wire cmd=AT+CRASH")
+        engine.dispatch("cap.wire cmd=AT+CRASH")
 
         # Assert -- whatever the result, observers must have been
         # released.  This is the whole point of the with-block.

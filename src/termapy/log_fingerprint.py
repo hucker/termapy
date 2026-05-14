@@ -18,7 +18,6 @@ from __future__ import annotations
 import os
 import platform as _platform
 import socket
-import sys
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult
@@ -180,7 +179,6 @@ def _runtime_flags_snapshot(ctx: PluginContext) -> list[str]:
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Write a full session fingerprint to the session log."""
-    prefix = ctx.engine.prefix
     show = ctx.flag("--show")
 
     lines: list[str] = [

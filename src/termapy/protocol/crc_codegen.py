@@ -2,11 +2,21 @@
 
 Generates standalone CRC functions from catalogue parameters.
 Pure functions, no dependencies beyond protocol_crc.
+
+Note: the generated code is not optimized for speed or size; it's meant
+to be readable and straightforward, and to serve as a reference
+implementation for each algorithm.  For production use, consider using a
+well-vetted library like zlib, crcmod, or crc-anywhere instead.
+
+You may be inclined to just ask Claude to write these for you, but
+be aware that every crc algorithm created here comes with a test vector
+that this code is verified against.  If you ask Claude to write code
+for you make sure you check against the test vector to verify correctness.
+
 """
 
 # Allowing this makes code lineup nicely
 # ruff: noqa: F541  - f-strings without placeholders used for code alignment
-
 
 from __future__ import annotations
 
@@ -62,7 +72,9 @@ def _format_table_c(table: list[int], width: int, ctype: str) -> str:
     hex_w = (width + 3) // 4
     lines = [f"static const {ctype} crc_table[256] = {{"]
     for row in range(0, 256, 8):
-        vals = ", ".join(f"0x{table[i]:0{hex_w}X}" for i in range(row, min(row + 8, 256)))
+        vals = ", ".join(
+            f"0x{table[i]:0{hex_w}X}" for i in range(row, min(row + 8, 256))
+        )
         comma = "," if row + 8 < 256 else ""
         lines.append(f"    {vals}{comma}")
     lines.append("};")
@@ -74,7 +86,9 @@ def _format_table_python(table: list[int], width: int) -> str:
     hex_w = (width + 3) // 4
     lines = ["_TABLE = ("]
     for row in range(0, 256, 8):
-        vals = ", ".join(f"0x{table[i]:0{hex_w}X}" for i in range(row, min(row + 8, 256)))
+        vals = ", ".join(
+            f"0x{table[i]:0{hex_w}X}" for i in range(row, min(row + 8, 256))
+        )
         lines.append(f"    {vals},")
     lines.append(")")
     return "\n".join(lines)
@@ -85,7 +99,9 @@ def _format_table_rust(table: list[int], width: int, rtype: str) -> str:
     hex_w = (width + 3) // 4
     lines = [f"const CRC_TABLE: [{rtype}; 256] = ["]
     for row in range(0, 256, 8):
-        vals = ", ".join(f"0x{table[i]:0{hex_w}X}" for i in range(row, min(row + 8, 256)))
+        vals = ", ".join(
+            f"0x{table[i]:0{hex_w}X}" for i in range(row, min(row + 8, 256))
+        )
         lines.append(f"    {vals},")
     lines.append("];")
     return "\n".join(lines)
@@ -136,11 +152,15 @@ def generate_c(name: str, table: bool = False) -> str | None:
             ref_init = _reflect(init, w)
             lines.append(f"    {ctype} crc = {_hex(ref_init, w)};")
             lines.append("    for (size_t i = 0; i < len; i++)")
-            lines.append("        crc = crc_table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);")
+            lines.append(
+                "        crc = crc_table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);"
+            )
         else:
             lines.append(f"    {ctype} crc = {_hex(init, w)};")
             lines.append("    for (size_t i = 0; i < len; i++)")
-            lines.append(f"        crc = crc_table[((crc >> {w - 8}) ^ data[i]) & 0xFF] ^ (crc << 8) & {mask};")
+            lines.append(
+                f"        crc = crc_table[((crc >> {w - 8}) ^ data[i]) & 0xFF] ^ (crc << 8) & {mask};"
+            )
     elif refin:
         ref_poly = _reflect(poly, w)
         ref_init = _reflect(init, w)
@@ -230,7 +250,9 @@ def generate_python(name: str, table: bool = False) -> str | None:
         else:
             lines.append(f"    crc = {_hex(init, w)}")
             lines.append(f"    for byte in data:")
-            lines.append(f"        crc = _TABLE[((crc >> {w - 8}) ^ byte) & 0xFF] ^ (crc << 8) & {mask}")
+            lines.append(
+                f"        crc = _TABLE[((crc >> {w - 8}) ^ byte) & 0xFF] ^ (crc << 8) & {mask}"
+            )
     elif refin:
         ref_poly = _reflect(poly, w)
         ref_init = _reflect(init, w)
@@ -255,7 +277,9 @@ def generate_python(name: str, table: bool = False) -> str | None:
 
     if refout != refin:
         lines.append(f"    # reflect output")
-        lines.append(f"    crc = sum(((crc >> k) & 1) << ({w - 1} - k) for k in range({w}))")
+        lines.append(
+            f"    crc = sum(((crc >> k) & 1) << ({w - 1} - k) for k in range({w}))"
+        )
 
     if xorout:
         lines.append(f"    return crc ^ {_hex(xorout, w)}")
@@ -303,7 +327,7 @@ def generate_rust(name: str, table: bool = False) -> str | None:
         lines.append(_format_table_rust(tbl, w, rtype))
         lines.append("")
     lines.append(f"/// {name} - {desc}")
-    lines.append(f"/// check: crc(b\"123456789\") == {_hex(check, w)}")
+    lines.append(f'/// check: crc(b"123456789") == {_hex(check, w)}')
     lines.append(f"fn {fname}(data: &[u8]) -> {rtype} {{")
 
     if table:
@@ -311,12 +335,16 @@ def generate_rust(name: str, table: bool = False) -> str | None:
             ref_init = _reflect(init, w)
             lines.append(f"    let mut crc: {rtype} = {_hex(ref_init, w)};")
             lines.append(f"    for &byte in data {{")
-            lines.append(f"        crc = CRC_TABLE[(crc ^ byte as {rtype}) as usize & 0xFF] ^ (crc >> 8);")
+            lines.append(
+                f"        crc = CRC_TABLE[(crc ^ byte as {rtype}) as usize & 0xFF] ^ (crc >> 8);"
+            )
             lines.append(f"    }}")
         else:
             lines.append(f"    let mut crc: {rtype} = {_hex(init, w)};")
             lines.append(f"    for &byte in data {{")
-            lines.append(f"        crc = CRC_TABLE[((crc >> {w - 8}) ^ byte as {rtype}) as usize & 0xFF] ^ (crc << 8) & {mask};")
+            lines.append(
+                f"        crc = CRC_TABLE[((crc >> {w - 8}) ^ byte as {rtype}) as usize & 0xFF] ^ (crc << 8) & {mask};"
+            )
             lines.append(f"    }}")
     elif refin:
         ref_poly = _reflect(poly, w)

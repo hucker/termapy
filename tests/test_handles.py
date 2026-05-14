@@ -200,7 +200,9 @@ class TestSerialHandle:
                 _remove_rx_observer=lambda cb: registered.append(("remove", cb)),
             ),
         )
-        cb = lambda data: None
+        def cb(data):
+            return None
+
         with ctx.serial.rx_observer(cb):
             assert registered == [("add", cb)], "added on enter"
         actual = registered

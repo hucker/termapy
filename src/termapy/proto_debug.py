@@ -1051,7 +1051,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             total_fail = 0
             stopped = False
             t_start = time.monotonic()
-            with self._ctx.serial_io():
+            with self._ctx.serial.io():
                 for run_num in range(1, repeat + 1):
                     if repeat > 1:
                         self._log(f"--- Repeat {run_num}/{repeat} ---")
@@ -1158,7 +1158,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                 self._set_status,
                 f"{label}: running...", "bold yellow")
 
-            with self._ctx.serial_io():
+            with self._ctx.serial.io():
                 self._send_proto_cmds(cmds)
 
             self._log(f"{label}: done ({len(cmds)} commands)")

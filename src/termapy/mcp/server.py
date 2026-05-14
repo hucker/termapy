@@ -29,8 +29,6 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
-import json
-import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
@@ -40,8 +38,6 @@ from typing import TYPE_CHECKING, Any
 from termapy.capture import CaptureEngine
 from termapy.config import open_serial
 from termapy.mcp.catalog import (
-    build_catalog,
-    build_device_state,
     catalog_json,
     device_state_json,
 )
@@ -86,6 +82,11 @@ class MCPHost(TerminalHost):
     response) and to ``<cfg_dir>/mcp/session.log``.  Optionally tees
     log events to stderr when ``--mcp-verbose`` is set.
     """
+
+    # Lazily attached at module load (see assignment below the class +
+    # _serialize_lock helper).  Declared here so type checkers see them.
+    run_command_async: Any
+    _run_lock: asyncio.Lock | None = None
 
     def __init__(
         self,
@@ -349,8 +350,8 @@ class MCPHost(TerminalHost):
         # MCP-specific UI no-ops (no screen, no toast, no clear).
         self.ctx.io.notify = lambda text, **kw: None
         self.ctx.io.clear_screen = lambda: None
-        self.ctx.ui.exit_app = lambda: None
-        self.ctx.ui.get_screen_text = lambda: ""
+        self.ctx.ui._exit_app_impl = lambda: None
+        self.ctx.ui._get_screen_text_impl = lambda: ""
         # Wire wait_for_match to the engine's serial-line predicate
         # waiter so /expect can block on serial input.  Each
         # run_command runs in a worker thread (asyncio executor); the

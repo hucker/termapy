@@ -122,11 +122,11 @@ class UIHandle:
     def get_screen_text(self) -> str:
         """Return all visible TUI output as plain text.
 
-        Raises:
-            MissingCapability: if the environment doesn't provide
-                ``screen_capture``.
+        In environments without screen capture (CLI, MCP) hosts wire
+        the impl to return ``""``; ``/grep`` and similar handle that
+        as "no scrollback here."  Not gated, because callers expect
+        ``""`` as the no-op sentinel rather than ``MissingCapability``.
         """
-        self._require("screen_capture", "get_screen_text")
         return self._get_screen_text_impl()
 
     # ── App lifecycle ────────────────────────────────────────────────

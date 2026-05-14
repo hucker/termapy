@@ -105,8 +105,13 @@ class TerminalHost:
     repl: ReplEngine
     capture: CaptureEngine
     ctx: PluginContext
+    prefix: str
 
     # -- Override required (subclass must implement) --------------------------
+
+    def _setup_context(self) -> None:
+        """Build and assign ``self.ctx`` for this frontend.  Subclass must override."""
+        raise NotImplementedError
 
     def write(self, text: str, color: str = "") -> None:
         """Write text to the frontend output."""

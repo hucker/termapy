@@ -323,7 +323,7 @@ class TestProfileLoadFromDevice:
             "profile_version": 2,
             "profile_revision": "1.0.0",
             "transport": {"protocol": "text", "baud_rate": 115200},
-            "types": {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            "types": {"on_off": {"kind": "enum", "values": ["on", "off"]}},
             "commands": {"AT": {"help": "Connection test."}},
         })
         eng, ctx, _output = env
@@ -336,7 +336,7 @@ class TestProfileLoadFromDevice:
         assert active.get("transport", {}).get("baud_rate") == 115200, (
             "transport block installed (the gap /include couldn't bridge)"
         )
-        assert "onoff" in active.get("types", {}), (
+        assert "on_off" in active.get("types", {}), (
             "top-level types block installed"
         )
         assert "AT" in active.get("commands", {}), "commands installed"

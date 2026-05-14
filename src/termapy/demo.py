@@ -483,7 +483,7 @@ class FakeSerial:
             # so a consumer (LLM, codegen, /profile.load) gets the precise
             # contract instead of having to read each command's inline enum.
             "types": {
-                "onoff": {
+                "on_off": {
                     "kind": "enum",
                     "values": ["on", "off"],
                     "help": "LED state: on or off.",
@@ -570,7 +570,7 @@ class FakeSerial:
                     "send_template": "AT+LED {state}",
                     "typed_args": [
                         {
-                            "name": "state", "type": "onoff", "required": True,
+                            "name": "state", "type": "on_off", "required": True,
                             "help": "LED state.",
                         }
                     ],

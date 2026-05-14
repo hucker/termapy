@@ -10,7 +10,7 @@
   },
 
   "types": {
-    "onoff": {"kind": "enum", "values": ["on", "off"], "help": "LED state: on or off."}
+    "on_off": {"kind": "enum", "values": ["on", "off"], "help": "LED state: on or off."}
   },
 
   "transport": {
@@ -92,7 +92,7 @@
       "help": "Set LED state.",
       "send_template": "AT+LED={state}",
       "typed_args": [
-        {"name": "state", "type": "onoff", "required": true,
+        {"name": "state", "type": "on_off", "required": true,
          "help": "LED state."}
       ],
       "safety": "mutable",

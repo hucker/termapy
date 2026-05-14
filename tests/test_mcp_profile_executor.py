@@ -23,8 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-import time
-from pathlib import Path
 
 import pytest
 
@@ -651,12 +649,12 @@ class TestTypedArgValidation:
     def test_valid_custom_enum_passes_through(self, host):
         # Arrange -- enum-kind type with two members.
         _load_profile(host, self._profile_with_types(
-            {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            {"on_off": {"kind": "enum", "values": ["on", "off"]}},
             {
                 "help": "Set state.",
                 "send_template": "SET {state}",
                 "typed_args": [
-                    {"name": "state", "type": "onoff", "required": True}
+                    {"name": "state", "type": "on_off", "required": True}
                 ],
                 "response": {
                     "format": "literal", "pattern": "OK", "timeout_ms": 200,
@@ -673,12 +671,12 @@ class TestTypedArgValidation:
     def test_invalid_enum_blocks_before_wire(self, host):
         # Arrange
         _load_profile(host, self._profile_with_types(
-            {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            {"on_off": {"kind": "enum", "values": ["on", "off"]}},
             {
                 "help": "Set state.",
                 "send_template": "SET {state}",
                 "typed_args": [
-                    {"name": "state", "type": "onoff", "required": True}
+                    {"name": "state", "type": "on_off", "required": True}
                 ],
                 "response": {
                     "format": "literal", "pattern": "OK", "timeout_ms": 200,
@@ -761,12 +759,12 @@ class TestTypedArgValidation:
     def test_failure_carries_structured_value(self, host):
         # Arrange
         _load_profile(host, self._profile_with_types(
-            {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            {"on_off": {"kind": "enum", "values": ["on", "off"]}},
             {
                 "help": "Set state.",
                 "send_template": "SET {state}",
                 "typed_args": [
-                    {"name": "state", "type": "onoff", "required": True}
+                    {"name": "state", "type": "on_off", "required": True}
                 ],
                 "response": {
                     "format": "literal", "pattern": "OK", "timeout_ms": 200,
@@ -779,6 +777,6 @@ class TestTypedArgValidation:
         value = result["value"]
         assert isinstance(value, dict), "structured failure carries a value dict"
         assert value["arg"] == "state", "arg name surfaced"
-        assert value["type"] == "onoff", "type name surfaced"
+        assert value["type"] == "on_off", "type name surfaced"
         assert value["value"] == "banana", "rejected value surfaced"
         assert value["command"] == "SET", "canonical command name surfaced"

@@ -134,13 +134,48 @@ def migrate_json_to_cfg(directory: Path) -> None:
             candidate.rename(target)
 
 
+def _is_bundled_path(p: Path) -> bool:
+    """True if ``p`` lives inside the installed termapy package tree.
+
+    Detection via ``importlib.resources.files("termapy")``: works for
+    editable installs (``src/termapy/``) and wheels
+    (``site-packages/termapy/``).  Fails open on any detection error so
+    a path-comparison hiccup can't lock out a legitimate user.
+
+    Used to refuse writes (cap/, ss/, prof/, .gitignore, ...) into the
+    installed package -- a footgun that polluted the source tree during
+    development before this guard existed.
+    """
+    try:
+        import importlib.resources
+
+        pkg_root = Path(str(importlib.resources.files("termapy"))).resolve()
+        return p.resolve().is_relative_to(pkg_root)
+    except (ImportError, OSError, TypeError, ValueError):
+        return False
+
+
 def cfg_data_dir(config_path: str) -> Path:
     """Return the per-config data directory (for logs, screenshots, etc.).
 
     Config files live at termapy_cfg/<name>/<name>.cfg, so the data dir
     is just the parent directory of the config file.
+
+    Refuses to operate on cfg paths inside the installed termapy
+    package tree -- those are read-only templates (e.g. the bundled
+    ``builtins/demo/demo.cfg``).  Use ``--demo`` to copy the template
+    into a writable cfg dir, or pass ``--cfg-dir <writable>``.
     """
     d = Path(config_path).parent
+    if _is_bundled_path(d):
+        raise RuntimeError(
+            f"Refusing to activate bundled cfg as a runtime location: "
+            f"{config_path}\n"
+            f"This file is a read-only template inside the termapy "
+            f"package.\n"
+            f"Use `termapy --demo` to copy it to your cfg-dir, or pass\n"
+            f"`--cfg-dir <writable-path>` pointing at a writable location."
+        )
     d.mkdir(parents=True, exist_ok=True)
     # One-time folder renames (migration)
     for old_name, new_name in FOLDER_MIGRATIONS:

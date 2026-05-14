@@ -1,6 +1,7 @@
 """Tests for app.py config utilities, custom buttons, and script editor."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -71,6 +72,47 @@ class TestCfgDataDir:
         # Assert
         assert actual.exists(), "parent dir created"
         assert (actual / "plugin").is_dir(), "subdirs created"
+
+    def test_refuses_bundled_path(self):
+        """``cfg_data_dir`` must refuse paths inside the installed
+        termapy package tree (the bundled ``builtins/demo/demo.cfg``
+        was the historical footgun -- live-activating it polluted
+        the source tree with empty ``cap/``, ``ss/``, ``prof/`` dirs
+        and a ``.gitignore``)."""
+        # Arrange -- the bundled demo cfg is the canonical example;
+        # detection works for any path inside termapy.* regardless.
+        import importlib.resources
+
+        pkg_root = Path(str(importlib.resources.files("termapy")))
+        bundled_cfg = pkg_root / "builtins" / "demo" / "demo.cfg"
+        assert bundled_cfg.exists(), (
+            "precondition: bundled demo.cfg is the fixture under test"
+        )
+
+        # Act / Assert -- direct activation refused with a useful error.
+        with pytest.raises(RuntimeError) as exc_info:
+            cfg_data_dir(str(bundled_cfg))
+        msg = str(exc_info.value)
+        assert "Refusing" in msg, "error names the action"
+        assert str(bundled_cfg) in msg, "error names the offending path"
+
+    def test_error_message_mentions_demo_recovery(self):
+        """The refusal must teach the user the right alternative
+        (``--demo`` to copy the template) so the UX promise is pinned."""
+        # Arrange
+        import importlib.resources
+
+        pkg_root = Path(str(importlib.resources.files("termapy")))
+        bundled_cfg = pkg_root / "builtins" / "demo" / "demo.cfg"
+
+        # Act
+        with pytest.raises(RuntimeError) as exc_info:
+            cfg_data_dir(str(bundled_cfg))
+        msg = str(exc_info.value)
+
+        # Assert -- the message must point at both recovery paths.
+        assert "--demo" in msg, "error suggests --demo as the fix"
+        assert "--cfg-dir" in msg, "error mentions --cfg-dir as alternative"
 
 
 # -- cfg helper functions ---------------------------------------------------

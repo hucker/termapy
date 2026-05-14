@@ -70,13 +70,17 @@ class TestProfileLoad:
         assert result.success is False, "missing file fails"
         assert "not found" in result.error.lower(), "error names not found"
 
-    def test_load_no_args_returns_usage(self, env):
-        # Arrange / Act
+    def test_load_no_args_with_nothing_loaded_fails(self, env):
+        # Arrange -- no profile loaded yet; no-args reload has no source.
         eng, _ctx, _output = env
+        # Act
         result = eng.dispatch("profile.load")
-        # Assert
-        assert result.success is False, "no args fails"
-        assert "usage" in result.error.lower(), "error names usage"
+        # Assert -- new contract: no-args reloads current source; with
+        # nothing loaded, fails with a "nothing to reload" message.
+        assert result.success is False, "no source to reload fails"
+        assert "reload" in result.error.lower() or "path" in result.error.lower(), (
+            "error explains the no-source case"
+        )
 
     def test_load_invalid_json_fails(self, env, tmp_path):
         # Arrange — write a malformed profile
@@ -155,3 +159,247 @@ class TestProfileInfo:
         result = eng.dispatch("profile.info")
         # Assert
         assert int(result.value) == 5, "value is the command count"
+
+
+# ── /profile.load no-args reload ───────────────────────────────────────────
+
+
+class TestProfileReload:
+    def test_no_args_reloads_file_source(self, env, tmp_path):
+        # Arrange -- write a profile, load it.
+        eng, ctx, _output = env
+        path = tmp_path / "p.profile.json"
+        path.write_text(json.dumps({
+            "profile_version": 2,
+            "profile_revision": "1.0.0",
+            "commands": {"X": {"help": "x"}},
+        }), encoding="utf-8")
+        eng.dispatch(f"profile.load {path}")
+        # Mutate the file on disk; bare /profile.load should pick it up.
+        path.write_text(json.dumps({
+            "profile_version": 2,
+            "profile_revision": "1.1.0",
+            "commands": {"X": {"help": "x"}, "Y": {"help": "y"}},
+        }), encoding="utf-8")
+        # Act
+        result = eng.dispatch("profile.load")
+        # Assert
+        assert result.success is True, "no-args reload from file succeeds"
+        active = ctx.ns("active_profile")
+        assert active.get("profile_revision") == "1.1.0", "fresh contents loaded"
+        assert "Y" in active.get("commands", {}), "new command picked up"
+
+    def test_no_args_with_no_source_fails(self, env):
+        # Arrange / Act -- nothing loaded yet.
+        eng, _ctx, _output = env
+        result = eng.dispatch("profile.load")
+        # Assert
+        assert result.success is False, "no source -> fail"
+        assert "reload" in result.error.lower() or "path" in result.error.lower(), (
+            "error explains the no-source case"
+        )
+
+
+# ── /profile.save ──────────────────────────────────────────────────────────
+
+
+class TestProfileSave:
+    def test_save_to_explicit_path(self, env, tmp_path):
+        # Arrange -- load a profile, save it elsewhere.
+        eng, _ctx, _output = env
+        eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
+        out = tmp_path / "saved.profile.json"
+        # Act
+        result = eng.dispatch(f"profile.save {out}")
+        # Assert
+        assert result.success is True, "save succeeds"
+        assert out.exists(), "file written"
+        loaded = json.loads(out.read_text(encoding="utf-8"))
+        assert loaded.get("profile_revision") == "1.0.0", (
+            "saved file round-trips"
+        )
+        assert "__source_path" not in loaded, (
+            "internal fields stripped from saved profile"
+        )
+
+    def test_save_no_args_uses_default_path(self, env):
+        # Arrange -- the env fixture's cfg is at <tmp>/cfg/test.cfg, so
+        # the default save path is <tmp>/cfg/test.profile.json.
+        eng, ctx, _output = env
+        eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
+        # Act
+        result = eng.dispatch("profile.save")
+        # Assert
+        assert result.success is True, "default-path save succeeds"
+        expected = Path(ctx.config_path).parent / "test.profile.json"
+        assert expected.exists(), f"saved at default path {expected}"
+
+    def test_save_without_active_profile_fails(self, env):
+        # Arrange / Act -- nothing loaded.
+        eng, _ctx, _output = env
+        result = eng.dispatch("profile.save")
+        # Assert
+        assert result.success is False, "no profile -> fail"
+        assert "no profile" in result.error.lower(), "error message clear"
+
+    def test_save_warns_when_all_commands_disabled(self, env, tmp_path):
+        # Arrange -- write a profile where every command has enabled=false.
+        eng, _ctx, output = env
+        draft = tmp_path / "draft.profile.json"
+        draft.write_text(json.dumps({
+            "profile_version": 2,
+            "commands": {
+                "A": {"help": "a", "enabled": False},
+                "B": {"help": "b", "enabled": False},
+            },
+        }), encoding="utf-8")
+        eng.dispatch(f"profile.load {draft}")
+        out = tmp_path / "saved.profile.json"
+        output.clear()
+        # Act
+        result = eng.dispatch(f"profile.save {out}")
+        # Assert
+        assert result.success is True, "save still succeeds"
+        full = " ".join(t for t, _ in output)
+        assert "enabled=false" in full.lower() or "nothing will dispatch" in full.lower(), (
+            "warning surfaced about all-disabled state"
+        )
+
+
+# ── /profile.unload ────────────────────────────────────────────────────────
+
+
+class TestProfileUnload:
+    def test_unload_clears_active_profile(self, env):
+        # Arrange
+        eng, ctx, _output = env
+        eng.dispatch(f"profile.load {FIXTURES / 'at_modem.profile.json'}")
+        assert ctx.ns("active_profile"), "precondition: profile loaded"
+        # Act
+        result = eng.dispatch("profile.unload")
+        # Assert
+        assert result.success is True, "unload succeeds"
+        assert ctx.ns("active_profile") == {}, "namespace cleared"
+
+    def test_unload_with_no_profile_is_noop(self, env):
+        # Arrange / Act -- nothing loaded.
+        eng, _ctx, _output = env
+        result = eng.dispatch("profile.unload")
+        # Assert -- harmless, returns ok.
+        assert result.success is True, "no-op succeeds"
+
+
+# ── /profile.load cmd=<command> (device fetch) ─────────────────────────────
+
+
+class _NullContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+
+def _mock_device_json(env, payload: dict) -> None:
+    """Patch the device-fetch path so /profile.load cmd= returns ``payload``.
+
+    Mirrors test_include's `_run_fetch` helper but for the new
+    profile_cmd._read_profile_json hook and the connected-serial stubs.
+    """
+    from termapy.builtins.commands import profile_cmd
+
+    eng, ctx, _output = env
+    profile_cmd._read_profile_json = lambda c, t: payload  # type: ignore[assignment]
+    ctx.serial.is_connected = lambda: True
+    ctx.serial.io = lambda: _NullContext()
+    ctx.serial.drain = lambda: 0
+    ctx.serial.send = lambda text: None
+
+
+class TestProfileLoadFromDevice:
+    def test_fetch_installs_full_profile(self, env):
+        # Arrange -- simulate a device dumping a v2 profile.
+        _mock_device_json(env, {
+            "profile_version": 2,
+            "profile_revision": "1.0.0",
+            "transport": {"protocol": "text", "baud_rate": 115200},
+            "types": {"onoff": {"kind": "enum", "values": ["on", "off"]}},
+            "commands": {"AT": {"help": "Connection test."}},
+        })
+        eng, ctx, _output = env
+        # Act
+        result = eng.dispatch("profile.load cmd=AT+HELP.JSON")
+        # Assert -- full profile installed, not just commands.
+        assert result.success is True, "device-fetch succeeds"
+        active = ctx.ns("active_profile")
+        assert active.get("profile_revision") == "1.0.0", "revision installed"
+        assert active.get("transport", {}).get("baud_rate") == 115200, (
+            "transport block installed (the gap /include couldn't bridge)"
+        )
+        assert "onoff" in active.get("types", {}), (
+            "top-level types block installed"
+        )
+        assert "AT" in active.get("commands", {}), "commands installed"
+        assert active.get("__source_cmd") == "AT+HELP.JSON", (
+            "source command recorded for no-args reload"
+        )
+
+    def test_fetch_when_disconnected_fails(self, env):
+        # Arrange -- explicitly NOT mocking is_connected; default False.
+        eng, _ctx, _output = env
+        # Act
+        result = eng.dispatch("profile.load cmd=AT+HELP.JSON")
+        # Assert
+        assert result.success is False, "disconnected fetch fails"
+        assert "not connected" in result.error.lower(), "error clear"
+
+    def test_fetch_missing_cmd_value_fails(self, env):
+        # Arrange / Act -- cmd= with no value.
+        eng, _ctx, _output = env
+        result = eng.dispatch("profile.load cmd=")
+        # Assert
+        assert result.success is False, "empty cmd fails"
+        assert "command" in result.error.lower(), "error clear"
+
+    def test_fetch_schema_invalid_payload_refuses(self, env):
+        # Arrange -- device replies with something that fails the schema.
+        _mock_device_json(env, {
+            "profile_version": 99,
+            "commands": {"X": {"help": "x"}},
+        })
+        eng, ctx, _output = env
+        # Act
+        result = eng.dispatch("profile.load cmd=AT+HELP.JSON")
+        # Assert
+        assert result.success is False, "bad payload refused"
+        assert ctx.ns("active_profile") == {}, (
+            "active profile untouched on failure"
+        )
+
+    def test_fetch_then_no_args_reload_refetches(self, env):
+        # Arrange -- first fetch, then mutate payload, then no-args reload.
+        from termapy.builtins.commands import profile_cmd
+
+        seq = iter([
+            {
+                "profile_version": 2, "profile_revision": "1.0.0",
+                "commands": {"X": {"help": "x"}},
+            },
+            {
+                "profile_version": 2, "profile_revision": "1.1.0",
+                "commands": {"X": {"help": "x"}, "Y": {"help": "y"}},
+            },
+        ])
+        _mock_device_json(env, next(seq))
+        eng, ctx, _output = env
+        eng.dispatch("profile.load cmd=AT+HELP.JSON")
+        # Swap in the second payload; reload should re-run the cmd path.
+        profile_cmd._read_profile_json = lambda c, t: next(seq)
+        # Act
+        result = eng.dispatch("profile.load")
+        # Assert
+        assert result.success is True, "reload from cmd source succeeds"
+        active = ctx.ns("active_profile")
+        assert active.get("profile_revision") == "1.1.0", (
+            "no-args reload re-ran the device fetch and picked up new payload"
+        )

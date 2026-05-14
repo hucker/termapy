@@ -214,8 +214,13 @@ class CrcAlgorithm:
 
 
 def builtins_crc_dir() -> Path:
-    """Return the path to the built-in CRC plugin directory."""
-    return Path(__file__).parent / "builtins" / "crc"
+    """Return the path to the built-in CRC plugin directory.
+
+    Resolved relative to the termapy package root (one level above
+    this submodule), since the plugin dir lives at
+    ``termapy/builtins/crc/``, not ``termapy/protocol/builtins/crc/``.
+    """
+    return Path(__file__).parent.parent / "builtins" / "crc"
 
 
 def load_crc_plugins(

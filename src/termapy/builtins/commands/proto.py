@@ -20,7 +20,7 @@ from termapy.protocol import (
     parse_toml_script,
     strip_ansi,
 )
-from termapy.protocol_crc import CRC_CATALOGUE, get_crc_registry
+from termapy.protocol import CRC_CATALOGUE, get_crc_registry
 
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
@@ -769,7 +769,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         args: Algorithm name.
         lang: Target language (c, python, rust).
     """
-    from termapy.crc_codegen import GENERATORS
+    from termapy.protocol import GENERATORS
 
     use_table = ctx.flag("--table")
     tokens = args.strip().lower().split()

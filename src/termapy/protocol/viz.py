@@ -48,8 +48,13 @@ class VisualizerInfo:
 
 
 def builtins_viz_dir() -> Path:
-    """Return the path to the built-in visualizer directory."""
-    return Path(__file__).parent / "builtins" / "viz"
+    """Return the path to the built-in visualizer directory.
+
+    Resolved relative to the termapy package root (one level above
+    this submodule), since the plugin dir lives at
+    ``termapy/builtins/viz/``, not ``termapy/protocol/builtins/viz/``.
+    """
+    return Path(__file__).parent.parent / "builtins" / "viz"
 
 
 def load_visualizers_from_dir(

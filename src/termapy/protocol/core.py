@@ -15,7 +15,7 @@ from typing import Callable, Literal
 
 from termapy.scripting import parse_duration
 
-from termapy.protocol_crc import get_crc_registry
+from termapy.protocol.crc import get_crc_registry
 
 # ---------------------------------------------------------------------------
 # Hex utilities

@@ -98,7 +98,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 16,
+    "config_version": 17,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -708,7 +708,6 @@ demo> /help.plugin
   /exit       Exit termapy.
   /grep       Search the scrollback for lines matching a pattern (case-insensitive regex).
   /help       Show the command landscape or look up a specific command.
-  /include    Include device command help from JSON response.
   /mcp        MCP catalog and status (Model Context Protocol).
   /os         Run a shell command and show output (10s timeout). e.g. /os dir
   /ping       Send a command and measure response time.
@@ -733,7 +732,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
   /expect     Wait for text in serial output (blocks until match or timeout).
-  41 commands.
+  40 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

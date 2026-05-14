@@ -195,10 +195,16 @@ class TerminalHost:
         if not self.engine.is_connected:
             self.status("Not connected.", "yellow")
             return
+        # Capture the resolved port name BEFORE disconnect so the
+        # banner mirrors "Connected: COM4 ...".  After disconnect()
+        # the port_obj is gone, so reading it here is the only
+        # place this works.
+        actual = getattr(self.engine.port_obj, "port", "") or self.cfg.get("port", "")
         self.repl.fire_lifecycle("on_disconnect")
         self.engine.disconnect()
         self._clear_device_state()
-        self.write("Disconnected.", "red")
+        msg = f"Disconnected: {actual}" if actual else "Disconnected."
+        self.write(msg, "red")
         self._on_disconnected()
 
     def _clear_device_state(self) -> None:

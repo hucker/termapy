@@ -257,7 +257,7 @@ demo> /port.rts
 demo> /print === section: port disconnect/connect ===
   === section: port disconnect/connect ===
 demo> /port.disconnect
-Disconnected.
+Disconnected: DEMO
 demo> /port.baud_rate
   115200 (disconnected)
 demo> /port.connect
@@ -796,4 +796,4 @@ demo> /ss.svg
   Error: /ss.svg requires: screen_capture (not available in this environment)
 demo> /ss.txt
   Error: /ss.txt requires: screen_capture (not available in this environment)
-Disconnected.
+Disconnected: DEMO

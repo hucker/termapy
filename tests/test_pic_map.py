@@ -1,6 +1,33 @@
-"""Tests for pic_map.py -- PIC compiler map file parser."""
+"""Tests for the PIC compiler map file parser.
 
-from termapy.pic_map import MapFile, Symbol, format_symbol, parse_address
+The parser lives inside the example plugin at
+``examples/plugins/pic_map.py`` (a device-specific helper that doesn't
+belong in the package root).  Load it via importlib so the test stays
+hermetic and doesn't depend on the user's ``termapy_cfg/plugin/`` copy
+being current.
+"""
+
+import importlib.util
+import sys
+from pathlib import Path
+
+_PLUGIN = (
+    Path(__file__).resolve().parent.parent
+    / "examples" / "plugins" / "pic_map.py"
+)
+_MOD_NAME = "_pic_map_example"
+_spec = importlib.util.spec_from_file_location(_MOD_NAME, _PLUGIN)
+assert _spec is not None and _spec.loader is not None
+_module = importlib.util.module_from_spec(_spec)
+# Register before exec so dataclass(slots=True) + __future__ annotations
+# can resolve forward references via sys.modules lookup.
+sys.modules[_MOD_NAME] = _module
+_spec.loader.exec_module(_module)
+
+MapFile = _module.MapFile
+Symbol = _module.Symbol
+format_symbol = _module.format_symbol
+parse_address = _module.parse_address
 
 # Sample lines extracted from a real XC32 map file.
 SAMPLE_MAP = """\

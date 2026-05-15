@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING
 
 from termapy import run_legacy
 from termapy.app import CONFIG_LOAD_ERRORS
+from termapy.run_profile_hooks import register_run_profile_hooks
 from termapy.builtins.commands.edit import (
     _make_edit_handler,
     _make_explore_handler,
@@ -347,123 +348,6 @@ def _hook_run_help(app, ctx, args: str) -> CmdResult:
     return result
 
 
-def _hook_run_profile(app, ctx, args: str) -> CmdResult:
-    """Run a ``.run`` script with per-line timing instrumentation.
-
-    Dispatches to ``app._run_script(path, profile=True)``, which
-    captures per-line wall-clock + dispatch times and writes a CSV
-    profile to ``<prof_dir>/<script>_<timestamp>.prof``.  Used by
-    ``/run.profile <script>``.
-
-    Args:
-        app: The SerialTerminal instance.
-        ctx: PluginContext (unused; dispatch goes through app).
-        args: Script filename to profile.
-
-    Returns:
-        ``CmdResult`` from ``repl.start_script``.
-    """
-    path, result = app.repl.start_script(args)
-    if path:
-        app._run_script(path, profile=True)
-    return result
-
-
-def _hook_run_profile_cmd(app, ctx, args: str) -> CmdResult:
-    """Profile a single command by writing a temp script."""
-
-    line = args.strip()
-    if not line:
-        ctx.io._write("Usage: /run.profile.cmd <command>", "red")
-        return CmdResult.fail(msg="Usage: /run.profile.cmd <command>")
-    prefix = cmd_prefix(app.cfg)
-    if not line.startswith(prefix) and "." in line.split()[0]:
-        line = prefix + line
-    ts = str(int(time.time() * 1000))
-    tmp_name = f"{app._PROFILE_TMP_PREFIX}{ts}.run"
-    tmp_path = app.repl.scripts_dir / tmp_name
-    parts = line.replace("\\n", "\n").split("\n")
-    tmp_path.write_text(
-        "\n".join(p.strip() for p in parts) + "\n", encoding="utf-8"
-    )
-    path, result = app.repl.start_script(tmp_name)
-    if path:
-        app._run_script(path, profile=True)
-    return result
-
-
-def _hook_run_profile_show(app, ctx, args: str) -> CmdResult:
-    """Open the newest .prof file in the system viewer."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        ctx.io._write("No config loaded.", "red")
-        return CmdResult.fail(msg="No config loaded.")
-    profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
-    if not profs:
-        ctx.io.output("No profile files found.")
-        return CmdResult.fail(msg="No profile files found.")
-    newest = profs[-1]
-    ctx.io._write(f"Opening {newest.name}")
-    open_with_system(str(newest))
-    return CmdResult.ok()
-
-
-def _hook_run_profile_dump(app, ctx, args: str) -> CmdResult:
-    """Print newest (or named) profile to the terminal."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        ctx.io._write("No config loaded.", "red")
-        return CmdResult.fail(msg="No config loaded.")
-    name = args.strip()
-    if name:
-        path = prof_dir / name
-        if not path.exists():
-            ctx.io._write(f"File not found: {name}", "red")
-            return CmdResult.fail(msg=f"File not found: {name}")
-    else:
-        profs = sorted(prof_dir.glob("*.csv"), key=lambda f: f.stat().st_mtime)
-        if not profs:
-            ctx.io.output("No profile files found.")
-            return CmdResult.fail(msg="No profile files found.")
-        path = profs[-1]
-    try:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            ctx.io.output(line)
-    except OSError as e:
-        ctx.io._write(f"Read error: {e}", "red")
-        return CmdResult.fail(msg=f"Read error: {e}")
-    return CmdResult.ok()
-
-
-def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
-    """Open the prof/ directory in file explorer."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        ctx.io._write("No config loaded.", "red")
-        return CmdResult.fail(msg="No config loaded.")
-    prof_dir.mkdir(exist_ok=True)
-    open_with_system(str(prof_dir))
-    return CmdResult.ok()
-
-
-def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
-    """List .prof files."""
-    prof_dir = app._prof_dir()
-    if not prof_dir:
-        ctx.io._write("No config loaded.", "red")
-        return CmdResult.fail(msg="No config loaded.")
-    if not prof_dir.exists():
-        ctx.io.output("  (no profile files)")
-        return CmdResult.ok()
-    profs = sorted(prof_dir.glob("*.csv"))
-    if not profs:
-        ctx.io.output("  (no profile files)")
-        return CmdResult.ok()
-    for f in profs:
-        ctx.io._write(f"  {f.name}")
-    return CmdResult.ok()
-
-
 def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
     """Switch to a different config by name or path."""
     name = args.strip()
@@ -593,50 +477,7 @@ def register_tui_hooks(app) -> None:
         lambda ctx, args: _hook_run_help(app, ctx, args),
         source="app",
     )
-    app.repl.register_hook(
-        "run.profile",
-        "<filename>",
-        "Run a script with per-line timing.",
-        lambda ctx, args: _hook_run_profile(app, ctx, args),
-        source="app",
-    )
-    app.repl.register_hook(
-        "run.profile.show",
-        "",
-        "Open the newest .prof file in system viewer.",
-        lambda ctx, args: _hook_run_profile_show(app, ctx, args),
-        source="app",
-        needs=CapabilitySet(gui_apps=True),
-    )
-    app.repl.register_hook(
-        "run.profile.explore",
-        "",
-        "Open config directory in file explorer.",
-        lambda ctx, args: _hook_run_profile_explore(app, ctx, args),
-        source="app",
-        needs=CapabilitySet(gui_apps=True),
-    )
-    app.repl.register_hook(
-        "run.profile.cmd",
-        "<command>",
-        "Profile a single command.",
-        lambda ctx, args: _hook_run_profile_cmd(app, ctx, args),
-        source="app",
-    )
-    app.repl.register_hook(
-        "run.profile.dump",
-        "{filename}",
-        "Print newest (or named) profile to the terminal.",
-        lambda ctx, args: _hook_run_profile_dump(app, ctx, args),
-        source="app",
-    )
-    app.repl.register_hook(
-        "run.profile.list",
-        "",
-        "List profile (.prof) files.",
-        lambda ctx, args: _hook_run_profile_list(app, ctx, args),
-        source="app",
-    )
+    register_run_profile_hooks(app)
     app.repl.register_hook(
         "run.list",
         "",

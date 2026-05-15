@@ -4,6 +4,42 @@ Plugins are `.py` files that add REPL commands. Drop a file into a
 `plugin/` folder and it loads automatically. No compilation, no
 registration, no restart.
 
+## Security model
+
+Plugin auto-load runs arbitrary Python in-process — same trust shape
+as `conftest.py`, `direnv`, `Makefile`, `pip install setup.py`, or
+any other tool that reads code from a directory. **Treat
+`termapy_cfg/<name>/plugin/` and `termapy_cfg/plugin/` the same way
+you treat those: don't point termapy at config folders you don't
+trust.**
+
+If you need a stronger guarantee — for example when running
+`--mcp` with an LLM driver, or in CI, or against a freshly cloned
+project repo — set the env var:
+
+```bash
+# bash / zsh
+export TERMAPY_TRUSTED_PLUGINS_ONLY=1
+
+# PowerShell
+$env:TERMAPY_TRUSTED_PLUGINS_ONLY = "1"
+```
+
+With that flag set, termapy skips **both** filesystem plugin
+discovery passes (global `termapy_cfg/plugin/` and per-cfg
+`termapy_cfg/<name>/plugin/`).  Only built-in commands — the ones
+shipped inside the wheel, in `site-packages` — will load.  The
+trust boundary collapses to "your Python environment," which is
+the boundary every other Python tool already uses.
+
+This flag lives in the environment, **not** in the cfg file.  A
+hostile cfg cannot disable its own gate.
+
+A second related gate is `TERMAPY_OS_CMD_ENABLED`: when truthy,
+`/os` is allowed to spawn shell commands.  Was a cfg key
+(`os_cmd_enabled`) through v0.65; same rationale forced the move
+to env-var-only in v0.66.
+
 ## Quick start: copy and modify
 
 The fastest way to write a plugin is to copy an existing one:

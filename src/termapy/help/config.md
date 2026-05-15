@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 18,
+    "config_version": 19,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -47,7 +47,6 @@ Here is an example config for a device called `iot_device`:
     "cli_echo_input": false,
     "cli_completion": true,
     "config_read_only": false,
-    "os_cmd_enabled": false,
     "profile_path": "",
     "validate_typed_args": false,
     "port": "COM4",
@@ -157,7 +156,6 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `cli_echo_input`         | `false`               | Echo sent commands in CLI mode                                                              |
 | `cli_completion`         | `true`                | Enable CLI tab completion, auto-suggest, and help toolbar                                   |
 | `config_read_only`       | `false`               | Disable Edit button in pickers (`/cfg` still changes in-memory values)                      |
-| `os_cmd_enabled`         | `false`               | Allow `/os` to run shell commands                                                           |
 | `cfg_enabled`            | `true`                | Show the Cfg button in the title bar                                                        |
 | `run_enabled`            | `true`                | Show the Run button in the title bar                                                        |
 | `proto_enabled`          | `true`                | Show the Proto button in the title bar                                                      |

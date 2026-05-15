@@ -540,9 +540,15 @@ def load_config(path: str) -> dict:
     if migrated:
         cfg["_migrated_from"] = old_version
     cfg = expand_env_cfg(cfg)
+    # Migration functions may stash one-shot warnings in
+    # ``_migration_warnings`` (e.g. "your retired key was true; set
+    # the env var").  Merge them with structural validation warnings
+    # so the user sees both through the single existing display path.
+    mig_warnings = cfg.pop("_migration_warnings", [])
     config_warnings = validate_config(cfg)
-    if config_warnings:
-        cfg["_config_warnings"] = config_warnings
+    all_warnings = list(mig_warnings) + config_warnings
+    if all_warnings:
+        cfg["_config_warnings"] = all_warnings
     cleanup_profile_temps(path)
     return cfg
 

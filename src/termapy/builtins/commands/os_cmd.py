@@ -1,6 +1,11 @@
 """Built-in plugin: run a shell command.
 
 Named os_cmd.py because 'os.py' would shadow Python's os module.
+
+Gated by the ``TERMAPY_OS_CMD_ENABLED`` env var, NOT a cfg key.
+The cfg cannot grant /os to itself -- a hostile cfg flipping its
+own gate would defeat the policy.  Set the env var once in your
+shell session (or never, leaving /os disabled).
 """
 
 from __future__ import annotations
@@ -8,6 +13,7 @@ from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING
 
+from termapy.env_flags import OS_CMD_ENABLED
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -17,16 +23,24 @@ if TYPE_CHECKING:
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Run a shell command and display its output.
 
-    Requires ``os_cmd_enabled: true`` in the config. Runs the command
-    via ``subprocess.run()`` with a 10-second timeout. Stdout is
+    Gated by the ``TERMAPY_OS_CMD_ENABLED`` env var (truthy ``1`` /
+    ``true`` / ``yes`` / ``on``).  Runs the command via
+    ``subprocess.run()`` with a 10-second timeout.  Stdout is
     displayed in white, stderr in red.
 
     Args:
-        ctx: Plugin context for config access and output.
+        ctx: Plugin context for output.
         args: Shell command string to execute.
     """
-    if not ctx.cfg.get("os_cmd_enabled"):
-        return CmdResult.fail(msg="/os is disabled. Set os_cmd_enabled: true in config.")
+    if not OS_CMD_ENABLED:
+        return CmdResult.fail(
+            msg=(
+                "/os is disabled.  Set TERMAPY_OS_CMD_ENABLED=1 in "
+                "your shell to enable.  (Was a cfg key through v0.65; "
+                "retired to env-var-only because the cfg cannot defend "
+                "against the cfg.)"
+            )
+        )
     if not args.strip():
         return CmdResult.fail(msg="Usage: /os <command>")
     try:
@@ -51,8 +65,15 @@ COMMAND = Command(
 Runs a shell command via the system shell and displays its output.
 Stdout is shown in white, stderr in red.
 
-Requires os_cmd_enabled: true in your config (disabled by default
-for safety). Commands time out after 10 seconds.
+Gated by the TERMAPY_OS_CMD_ENABLED env var (disabled by default
+for safety).  Set it to 1 in your shell to enable:
+
+    # bash/zsh
+    export TERMAPY_OS_CMD_ENABLED=1
+    # PowerShell
+    $env:TERMAPY_OS_CMD_ENABLED = "1"
+
+Commands time out after 10 seconds.
 
 Examples:
   /os dir                - list files (Windows)

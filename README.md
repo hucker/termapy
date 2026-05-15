@@ -212,7 +212,7 @@ The most common ones:
 | `/edit.cfg`                         | Edit the current config file                                                    |
 | `/edit.log`                         | Open the session log in the system viewer                                       |
 | `/edit.info`                        | Open the info report in the system viewer                                       |
-| `/os <cmd>`                         | Run a shell command (10s timeout, requires `os_cmd_enabled`)                    |
+| `/os <cmd>`                         | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env)   |
 | `/grep <pattern>`                   | Search scrollback for regex matches (case-insensitive, skips own output)        |
 | `/cfg.info {--display}`             | Show project summary; `--display` opens full report in system viewer            |
 | `/cfg.files`                        | Show project directory tree                                                     |
@@ -488,7 +488,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 18,
+    "config_version": 19,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -498,7 +498,6 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "cli_echo_input": false,
     "cli_completion": true,
     "config_read_only": false,
-    "os_cmd_enabled": false,
     "profile_path": "",
     "validate_typed_args": false,
     "port": "COM4",
@@ -580,7 +579,6 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `max_lines`          | `10000`                | Maximum lines in the scrollback buffer                                                                   |
 | `cmd_prefix`         | `"/"`                  | Prefix for local REPL commands (e.g. `/help`, `/cls`)                                                    |
 | `config_read_only`   | `false`                | Disable the Edit button in config/script/proto pickers (`/cfg` still changes in-memory values)           |
-| `os_cmd_enabled`     | `false`                | Enable the `/os` REPL command to run shell commands                                                      |
 | `cfg_enabled`        | `true`                 | Show the Cfg button in the title bar                                                                     |
 | `run_enabled`        | `true`                 | Show the Run button in the title bar                                                                     |
 | `proto_enabled`      | `true`                 | Show the Proto button in the title bar                                                                   |

@@ -354,7 +354,7 @@ def real_engine(tmp_path):
     """ReplEngine -- builtins are loaded automatically by its __init__."""
     cfg = {
         "port": "DEMO", "baud_rate": 115200, "line_ending": "\r",
-        "echo_input": False, "os_cmd_enabled": False,
+        "echo_input": False,
     }
     config_path = tmp_path / "test.cfg"
     config_path.write_text(json.dumps(cfg))

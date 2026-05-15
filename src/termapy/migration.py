@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 18
+CURRENT_CONFIG_VERSION = 19
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -66,6 +66,11 @@ DEPRECATED_CFG: dict[str, str] = {
     "device_json_cmd": (
         "removed in v17 (/include retired); use /profile.load cmd=<command> "
         "directly, or set mcp_on_connect_cmd to auto-fetch on connect"
+    ),
+    # v18 -> v19: security policy must live above the cfg layer.
+    "os_cmd_enabled": (
+        "retired in v19; /os is now gated by the TERMAPY_OS_CMD_ENABLED "
+        "env var.  Set it to 1 in your shell to enable shell escapes."
     ),
 }
 
@@ -320,6 +325,34 @@ def _migrate_v17_to_v18(cfg: dict) -> dict:
 
 
 MIGRATIONS[17] = _migrate_v17_to_v18
+
+
+def _migrate_v18_to_v19(cfg: dict) -> dict:
+    """Retire ``os_cmd_enabled`` cfg key; /os moves to env-var-only gating.
+
+    Security policy must live above the cfg layer.  A cfg cannot
+    grant itself permission to run shell commands -- doing so means
+    a hostile cfg is also its own audit, which is incoherent.  /os
+    is now gated by ``TERMAPY_OS_CMD_ENABLED`` in the process
+    environment.
+
+    The migration pops the key.  If the prior value was True, a
+    one-shot warning lands in ``_migration_warnings`` so the user
+    knows their /os enablement didn't survive the upgrade -- they
+    need to set the env var if they want it back.  False or absent
+    values strip silently (no behavior change).
+    """
+    old = cfg.pop("os_cmd_enabled", None)
+    if old is True:
+        cfg.setdefault("_migration_warnings", []).append(
+            "os_cmd_enabled was true in your cfg but has been retired "
+            "in v19.  /os is now gated by the TERMAPY_OS_CMD_ENABLED "
+            "env var -- set it to 1 in your shell to keep /os enabled."
+        )
+    return cfg
+
+
+MIGRATIONS[18] = _migrate_v18_to_v19
 
 
 def migrate_config(cfg: dict) -> dict:

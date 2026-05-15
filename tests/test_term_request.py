@@ -41,7 +41,6 @@ def repl_env(tmp_path, monkeypatch):
         "echo_input": False,
         "line_ending": "\r",
         "encoding": "utf-8",
-        "os_cmd_enabled": False,
         "request_mode": False,
     }
     config_path = tmp_path / "test_cfg.cfg"

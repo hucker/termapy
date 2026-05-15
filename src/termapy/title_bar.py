@@ -87,6 +87,20 @@ def format_title_tooltip(
 
 
 def update_title(app) -> None:
+    """Refresh all three title-bar buttons with the current cfg/connection state.
+
+    Called from lifecycle hooks (on_mount, _on_connected,
+    _on_config_result) and config switches.  Recomputes the center
+    button label (cfg title), the cfg-button tooltip (kv summary), and
+    delegates port-button refresh to ``update_conn_tooltip``.
+
+    During teardown or before initial mount the title-bar widgets
+    aren't available; bails quietly instead of raising NoMatches into
+    the caller.
+
+    Args:
+        app: The SerialTerminal instance.
+    """
     # Called from lifecycle hooks (on_mount, _on_connected,
     # _on_config_result) and config switches.  During teardown or
     # before initial mount the title-bar widgets aren't available;

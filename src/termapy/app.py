@@ -1696,45 +1696,10 @@ class SerialTerminal(TerminalHost, App):
         return connection_string(self.cfg, "short", actual_port=actual)
 
     @staticmethod
-    def _format_title_tooltip(
-        title: str, kv_pairs: list[tuple[str, object]], action: str
-    ) -> str:
-        """Render a title-bar tooltip with the shared three-section layout.
-
-        Layout::
-
-            <title>
-
-            key1            = value1
-            key2            = value2
-            key3            = value3
-
-            Click to: <action>
-
-        Keys are left-aligned and padded so the ``=`` signs line up
-        across rows.  Values are formatted with ``_format_tooltip_value``
-        so booleans appear as ``ON``/``OFF``, ``None`` becomes ``(none)``,
-        and strings with control characters are repr'd.
-
-        Args:
-            title: Heading line shown at the top.
-            kv_pairs: List of (key, value) tuples for the body.  Order
-                preserved.  Empty keys are silently skipped.
-            action: Verb fragment shown after ``Click to:`` at the bottom.
-
-        Returns:
-            Formatted tooltip string with embedded newlines.
-        """
-        body_pairs = [(k, v) for k, v in kv_pairs if k]
-        key_width = max((len(k) for k, _ in body_pairs), default=0)
-        lines: list[str] = [title, ""]
-        for key, value in body_pairs:
-            display = SerialTerminal._format_tooltip_value(value)
-            lines.append(f"{key.ljust(key_width)}  = {display}")
-        lines.append("")
-        lines.append(f"Click to: {action}")
-        return "\n".join(lines)
-
+    def _format_title_tooltip(self, *args, **kwargs):
+        """Format a title-bar tooltip.  Implementation in ``title_bar``."""
+        from termapy.title_bar import format_title_tooltip
+        return format_title_tooltip(self, *args, **kwargs)
     @staticmethod
     def _format_tooltip_value(value: object) -> str:
         """Render a config value for display in a tooltip body line.
@@ -1758,57 +1723,9 @@ class SerialTerminal(TerminalHost, App):
         return str(value)
 
     def _update_title(self) -> None:
-        # Called from lifecycle hooks (on_mount, _on_connected,
-        # _on_config_result) and config switches.  During teardown or
-        # before initial mount the title-bar widgets aren't available;
-        # bail quietly instead of raising NoMatches into the caller.
-        if self._shutting_down:
-            return
-        try:
-            center = self.query_one("#title-center", Button)
-        except SHUTDOWN_RACE:
-            return
-        title = self.cfg.get("title", "") or self.config_path
-        center.label = Text(title)
-
-        # Cfg button (center) tooltip
-        cfg_title = self.cfg.get("title", "") or (
-            Path(self.config_path).stem if self.config_path else "Config"
-        )
-        sb = self.cfg.get("stop_bits", 1)
-        sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-        frame = (
-            f"{self.cfg.get('byte_size', 8)}" f"{self.cfg.get('parity', 'N')}{sb_str}"
-        )
-        cfg_pairs: list[tuple[str, object]] = [
-            ("config_path", self.config_path or "(none)"),
-            ("port", self.cfg.get("port", "?")),
-            ("baud_rate", self.cfg.get("baud_rate", "?")),
-            ("frame", frame),
-            ("flow_control", self.cfg.get("flow_control", "none")),
-            ("encoding", self.cfg.get("encoding", "utf-8")),
-            ("line_ending", self.cfg.get("line_ending", "\r")),
-            ("on_connect_cmd", self.cfg.get("on_connect_cmd") or None),
-            ("auto_connect", bool(self.cfg.get("auto_connect"))),
-            ("auto_reconnect", bool(self.cfg.get("auto_reconnect"))),
-            ("echo_input", bool(self.cfg.get("echo_input"))),
-            ("show_timestamps", bool(self.cfg.get("show_timestamps"))),
-        ]
-        center.tooltip = self._format_title_tooltip(
-            cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})"
-        )
-
-        # Port button (left) tooltip + label
-        try:
-            port_btn = self.query_one("#title-left", Button)
-            port_btn.label = self._port_info_str()
-            port_btn.tooltip = self._port_button_tooltip()
-        except SHUTDOWN_RACE:
-            pass
-
-        # Connection status button (right) tooltip
-        self._update_conn_tooltip()
-
+        """Refresh title-bar widgets.  Implementation in ``title_bar``."""
+        from termapy.title_bar import update_title
+        update_title(self)
     def _port_button_tooltip(self) -> str:
         """Build the title-bar port button tooltip with chip info.
 
@@ -1873,31 +1790,10 @@ class SerialTerminal(TerminalHost, App):
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
 
-    def _update_conn_tooltip(self, widget: Button | None = None) -> None:
-        """Update the connection button tooltip with status and config.
-
-        Uses the shared three-section layout (title / kv body / action).
-        Title is the live connection state (Connected / Disconnected).
-        Body shows port name and the auto-connect / auto-reconnect flags
-        as ON/OFF so the user can discover them without opening config.
-        Action verb tracks state: "disconnect" when connected,
-        "connect" when not.
-        """
-        try:
-            if widget is None:
-                widget = self.query_one("#title-right", Button)
-            connected = self.is_connected
-            title = "Connected" if connected else "Disconnected"
-            action = "disconnect" if connected else "connect"
-            pairs: list[tuple[str, object]] = [
-                ("port", self.cfg.get("port", "?")),
-                ("auto_connect", bool(self.cfg.get("auto_connect"))),
-                ("auto_reconnect", bool(self.cfg.get("auto_reconnect"))),
-            ]
-            widget.tooltip = self._format_title_tooltip(title, pairs, action)
-        except SHUTDOWN_RACE:
-            pass  # title widgets unmounted during teardown / reload
-
+    def _update_conn_tooltip(self, *args, **kwargs) -> None:
+        """Refresh the port-button tooltip.  Implementation in ``title_bar``."""
+        from termapy.title_bar import update_conn_tooltip
+        update_conn_tooltip(self, *args, **kwargs)
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
         if reset:
@@ -2067,17 +1963,10 @@ class SerialTerminal(TerminalHost, App):
             return
         self.push_screen(PortPicker(), callback=self._on_port_picked)
 
-    def _update_port(self, port: str) -> None:
-        """Change serial port for this session and reconnect.
-
-        Does not write to disk - the config editor is the only path
-        that persists changes.  This keeps $(env.NAME) templates intact.
-        """
-        cfg = dict(self.cfg)
-        cfg["port"] = port
-        self._switch_config(cfg, self.config_path)
-        if self.is_connected:
-            self._status(f"Port changed to {port} (session)", "green")
+    def _update_port(self, *args, **kwargs) -> None:
+        """Refresh port-name display.  Implementation in ``title_bar``."""
+        from termapy.title_bar import update_port
+        update_port(self, *args, **kwargs)
         # Connection failure already reported by _try_open_port
 
     def _on_port_picked(self, port: str | None) -> None:

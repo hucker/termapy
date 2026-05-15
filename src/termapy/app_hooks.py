@@ -71,6 +71,20 @@ def _hook_help_open(app, ctx: "PluginContext | None", args: str) -> CmdResult:
 
 
 def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
+    """Save a timestamped SVG screenshot of the terminal.
+
+    Writes to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.svg`` and prints a
+    green status line with the resolved path.  Bumps the SS button
+    counter so the title-bar tooltip reflects the new file.
+
+    Args:
+        app: The SerialTerminal instance.
+        ctx: PluginContext (unused; the hook signature requires it).
+        args: Optional name stem; defaults to ``"screenshot"``.
+
+    Returns:
+        ``CmdResult.ok()`` -- the save itself is best-effort.
+    """
     base = args.strip() or "screenshot"
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = str((app.repl.ss_dir / f"{base}_{ts}.svg").resolve())
@@ -82,6 +96,21 @@ def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_ss_svg_quiet(app, ctx, args: str) -> CmdResult:
+    """Save an SVG screenshot without a status message (scripting friendly).
+
+    Used by ``/ss.svg.silent`` for scripts that want a screenshot
+    without cluttering the output stream.  Args is the file stem
+    (no timestamp suffix unlike ``ss.svg``); ``.svg`` is appended if
+    not already present.
+
+    Args:
+        app: The SerialTerminal instance.
+        ctx: PluginContext (unused).
+        args: File stem; defaults to ``"screenshot"``.
+
+    Returns:
+        ``CmdResult.ok()``.
+    """
     name = args.strip() or "screenshot"
     if not name.endswith(".svg"):
         name += ".svg"
@@ -93,6 +122,20 @@ def _hook_ss_svg_quiet(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
+    """Save a timestamped plain-text screenshot of the terminal scrollback.
+
+    Renders ``app._get_screen_text()`` (the visible scrollback as
+    text) to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.txt``.  Print a green
+    status line with the resolved path and bump the SS button counter.
+
+    Args:
+        app: The SerialTerminal instance.
+        ctx: PluginContext (unused).
+        args: Optional name stem; defaults to ``"screenshot"``.
+
+    Returns:
+        ``CmdResult.ok()``.
+    """
     base = args.strip() or "screenshot"
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = str((app.repl.ss_dir / f"{base}_{ts}.txt").resolve())
@@ -105,6 +148,21 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_delay(app, ctx, args: str) -> CmdResult:
+    """Pause script execution for a duration, with a TUI progress bar.
+
+    Short delays (< 1s) block on ``time.sleep`` and print a single
+    "done" status.  Longer delays mount a progress bar at the bottom
+    of the terminal that updates every 100ms.
+
+    Args:
+        app: The SerialTerminal instance.
+        ctx: PluginContext (unused).
+        args: Duration string -- ``"500ms"``, ``"1.5s"``, ``"2m"``, etc.
+
+    Returns:
+        ``CmdResult.ok()`` on success, or
+        ``CmdResult.fail(msg=...)`` if the duration string is invalid.
+    """
     try:
         seconds = parse_duration(args)
     except ValueError as e:
@@ -249,6 +307,22 @@ def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
 
 
 def _hook_run(app, ctx, args: str) -> CmdResult:
+    """Run a ``.run`` script, or open the Script picker on bare ``/run``.
+
+    With no args, mirrors clicking the title-bar Run button (opens
+    ``ScriptPicker``).  With a filename, dispatches to the REPL
+    engine's script-execution path.  Honors ``output_level=verbose``
+    for command echo.
+
+    Args:
+        app: The SerialTerminal instance.
+        ctx: PluginContext (for output level + dispatch).
+        args: Script filename (resolved via ``repl.start_script``), or
+            empty to open the picker.
+
+    Returns:
+        ``CmdResult`` from the script-start dispatch.
+    """
     # Bare /run -- mirror the title-bar Run button (open ScriptPicker).
     if not args.strip():
         app._on_main(app._btn_scripts)
@@ -274,6 +348,21 @@ def _hook_run_help(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_run_profile(app, ctx, args: str) -> CmdResult:
+    """Run a ``.run`` script with per-line timing instrumentation.
+
+    Dispatches to ``app._run_script(path, profile=True)``, which
+    captures per-line wall-clock + dispatch times and writes a CSV
+    profile to ``<prof_dir>/<script>_<timestamp>.prof``.  Used by
+    ``/run.profile <script>``.
+
+    Args:
+        app: The SerialTerminal instance.
+        ctx: PluginContext (unused; dispatch goes through app).
+        args: Script filename to profile.
+
+    Returns:
+        ``CmdResult`` from ``repl.start_script``.
+    """
     path, result = app.repl.start_script(args)
     if path:
         app._run_script(path, profile=True)

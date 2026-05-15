@@ -279,7 +279,7 @@ class CLITerminal(TerminalHost):
             self.ctx.ns("flags")["output_level"] = self.output_level
 
     def _register_hooks(self) -> None:
-        """Register CLI-specific hooks for /delay, /color, /run."""
+        """Register CLI-specific hooks for /delay, /term.color, /run."""
         self.repl.register_hook(
             "delay",
             "<duration>",
@@ -303,12 +303,25 @@ class CLITerminal(TerminalHost):
             source="app",
             hidden=True,
         )
+        # /term.color is the canonical name -- it's a display toggle
+        # sibling to /term.echo, /term.line_no, /term.timestamps, etc.
+        # The bare /color was the original top-level name; it stays as
+        # a hidden alias so older scripts and shell aliases keep
+        # working.
         self.repl.register_hook(
-            "color",
+            "term.color",
             "{on|off}",
             "Show or toggle color output.",
             self._hook_color,
             source="app",
+        )
+        self.repl.register_hook(
+            "color",
+            "{on|off}",
+            "Legacy alias for /term.color.",
+            make_forwarder("color", "term.color"),
+            source="app",
+            hidden=True,
         )
         self.repl.register_hook(
             "run",

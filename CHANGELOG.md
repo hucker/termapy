@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.65.1 (2026-05-14)
+
+Maintenance release.  Drives the lint baseline to zero and hardens
+the release process so it can't drift back.
+
+### Code-hygiene baseline
+
+- **ty diagnostics: 23 -> 0** across `src/termapy/`.  Touch
+  points: annotate the monkey-patched `MCPHost.run_command_async`
+  and `_run_lock` attrs, declare `TerminalHost.prefix` and
+  `_setup_context` on the base, type the `typedef_to_catalog`
+  mixed-value dict as `dict[str, Any]`, widen `format_kv_lines`
+  rows to `Sequence` (covariant), narrow `demo_ndjson` args via an
+  explicit local, switch the `UIHandle` host-wiring sites (app,
+  cli, mcp) from method-shadowing dot assignment to the existing
+  `_*_impl` pattern, drop the now-dead `screen_capture` gate from
+  `get_screen_text`, swap `proto_debug.serial_io()` for the
+  current `ctx.serial.io()` API, and import `PluginContext` via
+  `TYPE_CHECKING` in `plugins/command.py`.
+- **ruff issues: 32 -> 0.**  Mostly `F401` unused imports cleaned
+  by `ruff --fix`; a handful of unused locals and a stray lambda
+  assignment in `test_handles` needed manual deletes.
+
+### Release-process gates
+
+- **release_prep now hard-fails** if ruff or ty has any issues.
+  Operators fix the source on a chore branch first; the release
+  can't bake regressions into a published version.
+- **Coverage % auto-refreshes** every release.  `measure_coverage_percent()`
+  parses the `TOTAL ... N%` line from `pytest --cov`; the result
+  flows into the README's test-coverage summary, the discussion
+  paragraph, AND the shields.io coverage badge URL.
+- **Coverage badge** moved from a misleading static
+  `coverage-testing-yellow` sticker to a real `coverage-N%`
+  shield with green / yellow / red thresholds (80+, 65-79, <65).
+- Reconciled the README's pre-existing 67%/70% coverage drift
+  (the discussion paragraph said 70%; the summary line still
+  showed the hard-coded 67%) -- the next release_prep
+  substitution applies cleanly to both.
+
+### Profile-type vocabulary
+
+- Demo's `LED` argument type renamed `onoff` -> `on_off` for
+  snake_case consistency with the rest of the type vocabulary.
+  Authoring guide updated.  HTML help rebuilt by this release.
+
+### Internals
+
+- `plugins/__init__.py` now re-exports `OUTPUT_LEVELS`,
+  `LEVEL_FLAGS`, `format_kv_lines`, and `parse_output_level`
+  directly from `termapy.plugins.output_levels` (the previous
+  pass-through via `plugins.context` was redundant after the
+  package split).
+- Fixed a stray "you you" typo in the `protocol/crc_codegen`
+  module docstring caught during the lint pass.
+
+### Docs
+
+- CLAUDE.md Precommit + Release sections now spell out the
+  ruff=0 / ty=0 gate and enumerate every figure release_prep
+  auto-refreshes (test count, coverage %, ty count + color,
+  per-module line counts, rounded UI line counts).
+
+No user-facing API or CLI changes from 0.65.0.
+
 ## 0.65.0 (2026-05-14)
 
 ### Headline: profile-local typed args

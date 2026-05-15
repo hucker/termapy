@@ -28,7 +28,6 @@ def repl_env(tmp_path, monkeypatch):
         "baud_rate": 115200,
         "echo_input": False,
         "line_ending": "\r",
-        "os_cmd_enabled": False,
     }
     config_path = tmp_path / "test_cfg.cfg"
     config_path.write_text(json.dumps(cfg, indent=4))
@@ -1201,10 +1200,15 @@ class TestOs:
         engine.dispatch("os echo hi")
         assert any("disabled" in t for t, _ in output), "blocked by default"
 
-    def test_os_enabled(self, repl_env):
-        # Arrange
-        engine, cfg, _, output = repl_env
-        cfg["os_cmd_enabled"] = True
+    def test_os_enabled(self, repl_env, monkeypatch):
+        # Arrange -- /os gating moved from cfg to env-var-only in v19;
+        # patch the module-level constant the handler reads.  Use the
+        # module-object form because builtins.commands is a namespace
+        # package (no __init__.py), which trips dotted-path
+        # monkeypatching.
+        from termapy.builtins.commands import os_cmd
+        engine, _, _, output = repl_env
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
 
         # Act
         engine.dispatch("os echo hello_from_os")
@@ -1213,10 +1217,11 @@ class TestOs:
         texts = [t for t, _ in output]
         assert any("hello_from_os" in t for t in texts), "shell output captured"
 
-    def test_os_no_args(self, repl_env):
+    def test_os_no_args(self, repl_env, monkeypatch):
         # Arrange
-        engine, cfg, _, output = repl_env
-        cfg["os_cmd_enabled"] = True
+        from termapy.builtins.commands import os_cmd
+        engine, _, _, output = repl_env
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
 
         # Act
         engine.dispatch("os")

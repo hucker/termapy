@@ -1391,7 +1391,22 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _load_plugins(self) -> None:
-        """Load global and per-config external plugins."""
+        """Load global and per-config external plugins.
+
+        Skipped entirely when ``TERMAPY_TRUSTED_PLUGINS_ONLY`` is
+        truthy in the environment -- the trust boundary collapses to
+        "your Python site-packages," same as every other Python tool.
+        Built-ins (loaded by ReplEngine from the bundled package) are
+        unaffected.
+        """
+        from termapy.env_flags import TRUSTED_PLUGINS_ONLY
+        if TRUSTED_PLUGINS_ONLY:
+            self._status(
+                "TERMAPY_TRUSTED_PLUGINS_ONLY=1: skipping filesystem plugin discovery.",
+                "yellow",
+            )
+            self._rebuild_suggester_commands()
+            return
         self._load_and_report(
             load_plugins_from_dir(global_plugins_dir(), "global"),
             source="global",
@@ -1850,6 +1865,10 @@ class SerialTerminal(TerminalHost, App):
             self.repl.ctx.io.status(
                 f"Unloaded {len(to_remove)} plugin(s): " + ", ".join(to_remove),
             )
+        from termapy.env_flags import TRUSTED_PLUGINS_ONLY
+        if TRUSTED_PLUGINS_ONLY:
+            self._rebuild_suggester_commands()
+            return
         cfg_name = Path(config_path).stem
         self._load_and_report(
             load_plugins_from_dir(cfg_plugins_dir(config_path), cfg_name),
@@ -2129,7 +2148,6 @@ class SerialTerminal(TerminalHost, App):
             ("auto_reconnect", bool(self.cfg.get("auto_reconnect"))),
             ("echo_input", bool(self.cfg.get("echo_input"))),
             ("show_timestamps", bool(self.cfg.get("show_timestamps"))),
-            ("os_cmd_enabled", bool(self.cfg.get("os_cmd_enabled"))),
         ]
         center.tooltip = self._format_title_tooltip(
             cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})"

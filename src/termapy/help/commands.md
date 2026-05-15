@@ -83,7 +83,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.request [on\|off]` | Toggle request/response mode for bare device commands                       |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
 | `/term.send_bare_enter [on\|off]` | Send line ending on empty Enter                                     |
-| `/os <cmd>`               | Run a shell command (requires `os_cmd_enabled`)                             |
+| `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive)                      |
 | `/edit <file>`            | Edit a project file (`run/`/`proto/` path)                                  |
 | `/edit.run {file}`        | Edit a .run script, or list available scripts if no name given              |

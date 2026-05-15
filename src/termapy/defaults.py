@@ -51,7 +51,6 @@ DEFAULT_CFG = {
     "cli_echo_input": False,
     "cli_completion": True,
     "config_read_only": False,
-    "os_cmd_enabled": False,
     "profile_path": "",
     "validate_typed_args": False,
     # Serial
@@ -432,10 +431,6 @@ CFG_HELP: dict[str, tuple] = {
     "config_read_only": (
         "Disable Edit button in pickers.",
         "Valid: true, false. /cfg still changes in-memory values.",
-    ),
-    "os_cmd_enabled": (
-        "Allow /os to run shell commands.",
-        "Valid: true, false. Security risk if enabled.",
     ),
     "profile_path": (
         "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",

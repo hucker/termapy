@@ -83,9 +83,10 @@ class MCPHost(TerminalHost):
     log events to stderr when ``--mcp-verbose`` is set.
     """
 
-    # Lazily attached at module load (see assignment below the class +
-    # _serialize_lock helper).  Declared here so type checkers see them.
-    run_command_async: Any
+    # Lazily attached by ``_serialize_lock`` (created on first
+    # ``run_command_async`` call so the lock binds to whichever event
+    # loop is alive at that moment, not to import time).  Declared
+    # here so type checkers can see the attribute.
     _run_lock: asyncio.Lock | None = None
 
     def __init__(
@@ -578,6 +579,182 @@ class MCPHost(TerminalHost):
 
         threading.Thread(target=watch, daemon=True, name="mcp-banner-watch").start()
 
+    async def run_command_async(
+        self,
+        command: str,
+        output: str,
+        timeout_s: float,
+        *,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        """Run one REPL command on behalf of an MCP client.
+
+        Serialized via an asyncio lock so dispatches run one at a
+        time.  Output is collected via the per-call buffer
+        contextvar; capture-folder mtimes are snapshotted before
+        and after so newly-written files surface in the response
+        as ``captured_artifacts``.
+        """
+        # Validate output level early; default to "normal" on bad input.
+        valid_levels = {"silent", "quiet", "normal", "verbose"}
+        level = output if output in valid_levels else "normal"
+
+        async with _serialize_lock(self):
+            # Per-call buffer in a contextvar so the sync write/log path
+            # picks it up without parameter threading.
+            token = _buffer.set([])
+            # Cross-thread call-active flag: the reader thread checks this
+            # to suppress async-event recording for bytes that are about to
+            # be consumed by the synchronous request_response read.  Without
+            # it, profile-mapped responses would duplicate: once as
+            # ``value.<group>``, once as an entry in ``async_events``.
+            self._call_active.set()
+            cap_before = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
+            line = command.strip()
+            # Output-level routing: set ctx._call_level directly for the
+            # duration of this dispatch.  Earlier this path appended a
+            # ``--<level>`` flag to ``line`` -- but for bare device commands
+            # the engine's level pre-pass only fires in ``dispatch()`` (the
+            # prefix path), so the flag leaked through ``_term_send_or_request``
+            # to the serial wire.  Keep level metadata-only: set it on the
+            # PluginContext slot, never touches command_text.
+
+            try:
+                # Run the (synchronous) dispatch in a thread so we can apply
+                # an outer wall-clock timeout without blocking the asyncio
+                # loop.  Termapy's REPL engine is single-threaded; this
+                # offload is safe because the asyncio lock above serializes
+                # MCP-driven dispatches.  Critical: run via copy_context()
+                # so the per-call buffer (a contextvar set just above) is
+                # visible inside the worker thread.
+                loop = asyncio.get_running_loop()
+
+                def _run_sync() -> CmdResult:
+                    self._log_line(f"$ {command}  ({level})")
+                    # Apply the per-call output level via ctx slot (replaces
+                    # the old --<level> text append).  Save/restore matches
+                    # the pattern in ReplEngine.dispatch.
+                    saved_call_level = self.ctx._call_level
+                    if level != "normal":
+                        self.ctx._call_level = level
+                    try:
+                        # Profile-aware path: bare device commands that
+                        # match a loaded profile entry get sent + parsed
+                        # per the response schema, returning a typed value.
+                        # Returns None for slash commands, unmapped bare
+                        # lines, or no active profile -- fall through to
+                        # dispatch_full's literal-write behavior.
+                        profiled = _dispatch_via_profile(self, line, confirm=confirm)
+                        if profiled is not None:
+                            return profiled
+                        # Use dispatch_full so /raw bypass + directive layer
+                        # + the /term.send fallthrough all behave normally.
+                        return self.repl.dispatch_full(
+                            line,
+                            log=self._log,
+                            echo_markup=self.write_markup,
+                            status=self.status,
+                            serial_write=self._serial_write,
+                            serial_write_raw=self._serial_write_raw,
+                            is_connected=lambda: self.engine.is_connected,
+                        )
+                    finally:
+                        self.ctx._call_level = saved_call_level
+
+                ctx_snapshot = contextvars.copy_context()
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    fut = loop.run_in_executor(ex, ctx_snapshot.run, _run_sync)
+                    try:
+                        result = await asyncio.wait_for(fut, timeout=timeout_s)
+                    except (asyncio.TimeoutError, FutTimeout):
+                        result = CmdResult.fail(
+                            msg=f"timeout after {timeout_s}s"
+                        )
+            finally:
+                output_lines = _buffer.get() or []
+                _buffer.reset(token)
+                # Clear the cross-thread call-active flag.  Any bytes that
+                # arrive AFTER this point go back into the async_events
+                # pipeline -- they're genuinely unsolicited.
+                self._call_active.clear()
+
+            cap_after = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
+            artifacts = _new_artifacts(cap_before, cap_after, Path(self.ctx.fs.cap_dir))
+
+            # Track for device_state resource.  ISO 8601 timestamp matches
+            # the spec's "<at>" field; UTC with explicit Z avoids TZ surprises.
+            from datetime import datetime, timezone
+
+            at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self._last_command = {
+                "cmd": command,
+                "success": bool(result.success),
+                "elapsed_s": float(result.elapsed_s or 0.0),
+                "at": at,
+            }
+            # /expect calls go into expect_history with match status.
+            cmd_name = (command.strip().lstrip(self.prefix).split() or [""])[0]
+            if cmd_name in ("expect", "expect.regex"):
+                self._expect_history.append(
+                    {
+                        "command": command,
+                        "matched": bool(result.success),
+                        "value": result.value or "",
+                        "elapsed_s": float(result.elapsed_s or 0.0),
+                        "at": at,
+                    }
+                )
+                # Cap history at last 50 entries to keep the resource small.
+                if len(self._expect_history) > 50:
+                    self._expect_history = self._expect_history[-50:]
+
+            # Pass result.value through verbatim so profile-shaped responses
+            # (dicts/lists/numbers) survive to the LLM.  Coerce only the
+            # legacy empty-string default -- never stringify dicts.
+            value: Any = result.value if result.value not in (None, "") else ""
+
+            # Deliver async events exactly once.  Lines that arrived between
+            # MCP calls (or were drained by _dispatch_via_profile pre-send)
+            # accumulated on self._async_events.  Snapshot + clear here so
+            # the LLM sees them in this response and the next response
+            # starts with an empty buffer.  device_state.json keeps the
+            # cumulative view for callers who want the full history.
+            pending_async = list(self._async_events)
+            self._async_events.clear()
+
+            # If value is a self-describing envelope (carries cmd/success/
+            # error/elapsed_s itself, as /term.request produces), don't
+            # duplicate those keys at the outer wire level -- the model
+            # already has them in value.  Plain commands (whose value is
+            # raw data, not a full envelope) get the standard outer wrap
+            # so cmd/success/error/elapsed_s are still discoverable.
+            is_self_describing = (
+                isinstance(value, dict)
+                and "cmd" in value
+                and "success" in value
+                and "error" in value
+            )
+            if is_self_describing:
+                return {
+                    "value": value,
+                    "output_lines": output_lines,
+                    "captured_artifacts": artifacts,
+                    "async_events": pending_async,
+                }
+            return {
+                "cmd": command,
+                "success": bool(result.success),
+                "error": result.error or "",
+                "value": value,
+                "elapsed_s": float(result.elapsed_s or 0.0),
+                "output_lines": output_lines,
+                "captured_artifacts": artifacts,
+                "async_events": pending_async,
+            }
+
+
+
+
 
 # ── FastMCP server wiring (lazy, only when --mcp runs) ──────────────────────
 
@@ -675,7 +852,7 @@ def _build_server(host: MCPHost) -> Any:
     return server
 
 
-# ── Lock + run_command implementation ──────────────────────────────────────-
+# ── Lock + capture-diff helpers ─────────────────────────────────────────────
 
 
 # Bolt the async helper onto MCPHost via monkey-patch so the class body
@@ -1001,179 +1178,6 @@ def _dispatch_via_profile(
     result = CmdResult.ok(value=value)
     result.elapsed_s = elapsed
     return result
-
-
-async def _run_command_async(
-    self: MCPHost,
-    command: str,
-    output: str,
-    timeout_s: float,
-    *,
-    confirm: bool = False,
-) -> dict[str, Any]:
-    """Implementation of MCPHost.run_command_async (attached below)."""
-    # Validate output level early; default to "normal" on bad input.
-    valid_levels = {"silent", "quiet", "normal", "verbose"}
-    level = output if output in valid_levels else "normal"
-
-    async with _serialize_lock(self):
-        # Per-call buffer in a contextvar so the sync write/log path
-        # picks it up without parameter threading.
-        token = _buffer.set([])
-        # Cross-thread call-active flag: the reader thread checks this
-        # to suppress async-event recording for bytes that are about to
-        # be consumed by the synchronous request_response read.  Without
-        # it, profile-mapped responses would duplicate: once as
-        # ``value.<group>``, once as an entry in ``async_events``.
-        self._call_active.set()
-        cap_before = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
-        line = command.strip()
-        # Output-level routing: set ctx._call_level directly for the
-        # duration of this dispatch.  Earlier this path appended a
-        # ``--<level>`` flag to ``line`` -- but for bare device commands
-        # the engine's level pre-pass only fires in ``dispatch()`` (the
-        # prefix path), so the flag leaked through ``_term_send_or_request``
-        # to the serial wire.  Keep level metadata-only: set it on the
-        # PluginContext slot, never touches command_text.
-
-        try:
-            # Run the (synchronous) dispatch in a thread so we can apply
-            # an outer wall-clock timeout without blocking the asyncio
-            # loop.  Termapy's REPL engine is single-threaded; this
-            # offload is safe because the asyncio lock above serializes
-            # MCP-driven dispatches.  Critical: run via copy_context()
-            # so the per-call buffer (a contextvar set just above) is
-            # visible inside the worker thread.
-            loop = asyncio.get_running_loop()
-
-            def _run_sync() -> CmdResult:
-                self._log_line(f"$ {command}  ({level})")
-                # Apply the per-call output level via ctx slot (replaces
-                # the old --<level> text append).  Save/restore matches
-                # the pattern in ReplEngine.dispatch.
-                saved_call_level = self.ctx._call_level
-                if level != "normal":
-                    self.ctx._call_level = level
-                try:
-                    # Profile-aware path: bare device commands that
-                    # match a loaded profile entry get sent + parsed
-                    # per the response schema, returning a typed value.
-                    # Returns None for slash commands, unmapped bare
-                    # lines, or no active profile -- fall through to
-                    # dispatch_full's literal-write behavior.
-                    profiled = _dispatch_via_profile(self, line, confirm=confirm)
-                    if profiled is not None:
-                        return profiled
-                    # Use dispatch_full so /raw bypass + directive layer
-                    # + the /term.send fallthrough all behave normally.
-                    return self.repl.dispatch_full(
-                        line,
-                        log=self._log,
-                        echo_markup=self.write_markup,
-                        status=self.status,
-                        serial_write=self._serial_write,
-                        serial_write_raw=self._serial_write_raw,
-                        is_connected=lambda: self.engine.is_connected,
-                    )
-                finally:
-                    self.ctx._call_level = saved_call_level
-
-            ctx_snapshot = contextvars.copy_context()
-            with ThreadPoolExecutor(max_workers=1) as ex:
-                fut = loop.run_in_executor(ex, ctx_snapshot.run, _run_sync)
-                try:
-                    result = await asyncio.wait_for(fut, timeout=timeout_s)
-                except (asyncio.TimeoutError, FutTimeout):
-                    result = CmdResult.fail(
-                        msg=f"timeout after {timeout_s}s"
-                    )
-        finally:
-            output_lines = _buffer.get() or []
-            _buffer.reset(token)
-            # Clear the cross-thread call-active flag.  Any bytes that
-            # arrive AFTER this point go back into the async_events
-            # pipeline -- they're genuinely unsolicited.
-            self._call_active.clear()
-
-        cap_after = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
-        artifacts = _new_artifacts(cap_before, cap_after, Path(self.ctx.fs.cap_dir))
-
-        # Track for device_state resource.  ISO 8601 timestamp matches
-        # the spec's "<at>" field; UTC with explicit Z avoids TZ surprises.
-        from datetime import datetime, timezone
-
-        at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        self._last_command = {
-            "cmd": command,
-            "success": bool(result.success),
-            "elapsed_s": float(result.elapsed_s or 0.0),
-            "at": at,
-        }
-        # /expect calls go into expect_history with match status.
-        cmd_name = (command.strip().lstrip(self.prefix).split() or [""])[0]
-        if cmd_name in ("expect", "expect.regex"):
-            self._expect_history.append(
-                {
-                    "command": command,
-                    "matched": bool(result.success),
-                    "value": result.value or "",
-                    "elapsed_s": float(result.elapsed_s or 0.0),
-                    "at": at,
-                }
-            )
-            # Cap history at last 50 entries to keep the resource small.
-            if len(self._expect_history) > 50:
-                self._expect_history = self._expect_history[-50:]
-
-        # Pass result.value through verbatim so profile-shaped responses
-        # (dicts/lists/numbers) survive to the LLM.  Coerce only the
-        # legacy empty-string default -- never stringify dicts.
-        value: Any = result.value if result.value not in (None, "") else ""
-
-        # Deliver async events exactly once.  Lines that arrived between
-        # MCP calls (or were drained by _dispatch_via_profile pre-send)
-        # accumulated on self._async_events.  Snapshot + clear here so
-        # the LLM sees them in this response and the next response
-        # starts with an empty buffer.  device_state.json keeps the
-        # cumulative view for callers who want the full history.
-        pending_async = list(self._async_events)
-        self._async_events.clear()
-
-        # If value is a self-describing envelope (carries cmd/success/
-        # error/elapsed_s itself, as /term.request produces), don't
-        # duplicate those keys at the outer wire level -- the model
-        # already has them in value.  Plain commands (whose value is
-        # raw data, not a full envelope) get the standard outer wrap
-        # so cmd/success/error/elapsed_s are still discoverable.
-        is_self_describing = (
-            isinstance(value, dict)
-            and "cmd" in value
-            and "success" in value
-            and "error" in value
-        )
-        if is_self_describing:
-            return {
-                "value": value,
-                "output_lines": output_lines,
-                "captured_artifacts": artifacts,
-                "async_events": pending_async,
-            }
-        return {
-            "cmd": command,
-            "success": bool(result.success),
-            "error": result.error or "",
-            "value": value,
-            "elapsed_s": float(result.elapsed_s or 0.0),
-            "output_lines": output_lines,
-            "captured_artifacts": artifacts,
-            "async_events": pending_async,
-        }
-
-
-# Attach the async method.  Keeps MCPHost class focused on lifecycle/sinks
-# and the run_command logic (which is MCP-specific glue) co-located with
-# its FastMCP wiring above.
-MCPHost.run_command_async = _run_command_async  # type: ignore[attr-defined]
 
 
 # ── Entry point ────────────────────────────────────────────────────────────

@@ -34,8 +34,6 @@ from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command, format_kv_lines
 from termapy.profile import (
-    SERIAL_LEVEL_TRANSPORT_KEYS,
-    apply_profile_transport,
     load_profile,
     save_profile,
     validate_profile,
@@ -65,10 +63,12 @@ def _apply_profile(
     source_cmd: str = "",
     label: str,
 ) -> CmdResult:
-    """Validate ``profile``, install in active_profile, apply transport.
+    """Validate ``profile`` and install it in the ``active_profile`` namespace.
 
     Single code path used by load-from-file and load-from-device so the
     behavior after a successful parse is identical regardless of source.
+    Wire-level settings live in cfg; the profile only declares the
+    device's command catalog.
     """
     if not isinstance(profile, dict):
         return CmdResult.fail(msg="Profile must be a JSON/TOML object")
@@ -94,34 +94,6 @@ def _apply_profile(
         ns["__source_path"] = source_path
     if source_cmd:
         ns["__source_cmd"] = source_cmd
-
-    transport = profile.get("transport") or {}
-    changes = apply_profile_transport(
-        transport, ctx.engine.apply_cfg, cfg_get=ctx.cfg.get,
-    )
-    # True divergences only -- fields the profile writes whose value
-    # actually disagreed with what the cfg held.  Skip None-old (cfg
-    # had nothing for the key) and equal-value cases.
-    divergences = [
-        (k, old, new) for k, (old, new) in sorted(changes.items())
-        if old is not None and old != new
-    ]
-    if divergences:
-        ctx.io.output(
-            "  note: profile overrode "
-            f"{len(divergences)} cfg field(s):",
-            "yellow",
-        )
-        for k, old, new in divergences:
-            ctx.io.output(f"    {k}: cfg={old!r} -> profile={new!r}", "yellow")
-    serial_changed = [k for k in changes if k in SERIAL_LEVEL_TRANSPORT_KEYS]
-    if serial_changed and ctx.serial.is_connected():
-        ctx.io.output(
-            "  note: serial-level params changed ("
-            + ", ".join(serial_changed)
-            + ") -- reconnect to take effect.",
-            "yellow",
-        )
 
     n = len(profile.get("commands", {}))
     rev = profile.get("profile_revision") or "(none)"
@@ -395,69 +367,13 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             rows.append(("device.vendor", device["vendor"]))
         if device.get("startup_banner"):
             rows.append(("device.startup_banner", device["startup_banner"]))
-    transport = ns.get("transport") or {}
-    if isinstance(transport, dict) and transport:
-        if transport.get("protocol"):
-            rows.append(("transport.protocol", transport["protocol"]))
-        if transport.get("baud_rate"):
-            rows.append(("transport.baud_rate", str(transport["baud_rate"])))
-        if transport.get("line_ending_send"):
-            rows.append(
-                ("transport.line_ending_send", repr(transport["line_ending_send"]))
-            )
-        if transport.get("echo") is not None:
-            rows.append(("transport.echo", str(transport["echo"])))
     cmd_count = len(ns.get("commands") or {})
     rows.append(("commands", str(cmd_count)))
 
     for line in format_kv_lines(rows):
         ctx.io.output(line)
 
-    # Divergence section: per-field comparison between active profile's
-    # transport block and the current cfg.  Anything that differs got
-    # mutated since the last /profile.load (typically via /cfg) and
-    # would revert if you reloaded the profile.
-    divergences = _transport_divergences(transport, ctx.cfg)
-    if divergences:
-        ctx.io.output("")
-        ctx.io.output("transport divergences (cfg differs from profile):", "yellow")
-        for cfg_key, profile_val, cfg_val in divergences:
-            ctx.io.output(
-                f"  {cfg_key}: profile={profile_val!r} cfg={cfg_val!r}",
-                "yellow",
-            )
-        ctx.io.output(
-            "  (next /profile.load will reset cfg to the profile values)",
-            "dim",
-        )
-
     return CmdResult.ok(value=str(cmd_count))
-
-
-def _transport_divergences(
-    transport: dict, cfg,
-) -> list[tuple[str, object, object]]:
-    """Return per-field (cfg_key, profile_val, cfg_val) tuples for transport
-    fields where the active profile and the current cfg disagree.
-
-    Skips fields the profile doesn't mention at all (no opinion =
-    nothing to diverge from).  Uses the same field map the loader
-    uses, so the row labels match what apply_profile_transport would
-    rewrite on the next load.
-    """
-    from termapy.profile.loader import _TRANSPORT_KEY_MAP
-
-    out: list[tuple[str, object, object]] = []
-    if not isinstance(transport, dict):
-        return out
-    for tkey, ckey in _TRANSPORT_KEY_MAP.items():
-        if tkey not in transport:
-            continue
-        profile_val = transport[tkey]
-        cfg_val = cfg.get(ckey)
-        if cfg_val != profile_val:
-            out.append((ckey, profile_val, cfg_val))
-    return out
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -465,11 +381,13 @@ COMMAND = Command(
     name="profile",
     help="Device profile commands (MCP profile schema, validator, loader).",
     long_help=(
-        "A device profile declaratively describes how a serial device "
-        "speaks: transport rules (baud, line endings, prompt, echo), "
-        "command catalog (typed args, response shapes), error patterns. "
-        "Profiles are the input the MCP server consumes to bridge LLMs "
-        "to serial devices.  See docs/profile-v2-spec.md for the spec."
+        "A device profile declaratively describes a serial device's "
+        "command catalog: typed args, help text, response shapes, error "
+        "patterns.  Wire-level settings (baud, line endings, encoding, "
+        "ndjson) live in the cfg file; the profile describes the device "
+        "side only.  Profiles are the input the MCP server consumes to "
+        "bridge LLMs to serial devices.  See "
+        "help/authoring-profiles.md for the spec."
     ),
     handler=None,
     sub_commands={

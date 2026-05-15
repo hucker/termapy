@@ -1,7 +1,9 @@
-"""Tests for MCP lifecycle: transport-apply, on-connect fetch, banner watcher.
+"""Tests for MCP lifecycle: profile-load rejection, on-connect fetch, banner watcher.
 
 Three pieces:
-- /profile.load applies transport rules to the live cfg.
+- A profile carrying a `transport` block is rejected by the loader
+  with a clear error (the transport block was retired; wire-level
+  settings live in cfg now).
 - on_connect_cmd entries fire after connect (used for the v2-only
   device-fetch path: ``/profile.load cmd=<command>``).
 - on_connect spawns a banner watcher when the active profile declares one.
@@ -25,10 +27,7 @@ pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] ext
 from termapy.defaults import DEFAULT_CFG  # noqa: E402
 from termapy.mcp.catalog import build_device_state  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
-from termapy.profile import (  # noqa: E402
-    SERIAL_LEVEL_TRANSPORT_KEYS,
-    apply_profile_transport,
-)
+from termapy.profile import validate_profile  # noqa: E402
 
 
 DEMO_NDJSON_PROFILE = (
@@ -41,106 +40,26 @@ DEMO_NDJSON_PROFILE = (
 )
 
 
-# ── apply_profile_transport pure-function tests ─────────────────────────────
+# ── Profile schema rejects the retired `transport` block ────────────────────
 
 
-class TestApplyProfileTransport:
-    def test_writes_each_recognized_key(self):
-        # Arrange
-        applied: dict[str, object] = {}
-
-        def fake_apply(key, val):
-            applied[key] = val
-
-        transport = {
-            "baud_rate": 9600,
-            "byte_size": 7,
-            "parity": "E",
-            "stop_bits": 2,
-            "flow_control": "rtscts",
-            "encoding": "latin-1",
-            "line_ending_send": "\n",
-            "inter_command_delay_ms": 25,
-            "default_response_timeout_ms": 1500,
+class TestTransportBlockRejected:
+    def test_profile_with_transport_block_fails_validation(self):
+        # Arrange -- a minimal v2 profile that carries the retired
+        # transport block.  This is exactly the shape that older
+        # hand-rolled profiles would have on disk.
+        profile = {
+            "profile_version": 2,
+            "transport": {"baud_rate": 9600},
+            "commands": {"AT": {"help": "test"}},
         }
         # Act
-        changes = apply_profile_transport(transport, fake_apply)
-        # Assert
-        assert applied["baud_rate"] == 9600, "baud_rate applied"
-        assert applied["line_ending"] == "\n", "line_ending_send maps to line_ending"
-        assert applied["encoding"] == "latin-1", "encoding applied"
-        assert applied["byte_size"] == 7, "byte_size applied"
-        assert len(changes) == 9, "every input key produces one change record"
-
-    def test_unknown_key_in_transport_is_ignored(self):
-        # Arrange
-        applied: dict[str, object] = {}
-        transport = {"protocol": "ndjson", "field_routing": {"id": "id"}}
-        # Act
-        changes = apply_profile_transport(transport, lambda k, v: applied.setdefault(k, v))
-        # Assert -- protocol/field_routing aren't cfg keys; ignored
-        assert applied == {}, "unknown keys silently ignored"
-        assert changes == {}, "no changes recorded"
-
-    def test_serial_level_keys_classification(self):
-        # Arrange / Act / Assert
-        for key in ("baud_rate", "byte_size", "parity", "stop_bits", "flow_control"):
-            assert key in SERIAL_LEVEL_TRANSPORT_KEYS, (
-                f"{key} flagged as serial-level"
-            )
-        for key in ("line_ending", "encoding", "inter_command_delay_ms"):
-            assert key not in SERIAL_LEVEL_TRANSPORT_KEYS, (
-                f"{key} is termapy-level, not serial-level"
-            )
-
-    def test_non_dict_transport_returns_empty(self):
-        # Arrange / Act / Assert -- defensive: malformed transport doesn't crash
-        result = apply_profile_transport("not a dict", lambda k, v: None)  # type: ignore[arg-type]
-        assert result == {}, "non-dict input is a no-op"
-
-
-# ── /profile.load applies transport ────────────────────────────────────────
-
-
-class TestProfileLoadAppliesTransport:
-    @pytest.fixture
-    def host(self, tmp_path):
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = ""
-        # Default cfg has line_ending="\r"; profile sets "\n".
-        config_path = tmp_path / "cfg" / "test.cfg"
-        config_path.parent.mkdir()
-        config_path.write_text(json.dumps(cfg))
-        for sub in ("plugin", "ss", "run", "cap"):
-            (config_path.parent / sub).mkdir(exist_ok=True)
-        return MCPHost(cfg, str(config_path), verbose=False)
-
-    def test_load_demo_ndjson_changes_line_ending(self, host):
-        # Arrange — verify before
-        assert host.repl.cfg.get("line_ending") == "\r", "default \\r"
-        # Act
-        host.repl.dispatch(f"profile.load {DEMO_NDJSON_PROFILE}")
-        # Assert
-        assert host.repl.cfg.get("line_ending") == "\n", (
-            "profile.load applied line_ending_send -> cfg.line_ending"
-        )
-
-    def test_load_demo_ndjson_changes_encoding(self, host):
-        # Arrange
-        host.repl._cfg_data["encoding"] = "ascii"
-        # Act
-        host.repl.dispatch(f"profile.load {DEMO_NDJSON_PROFILE}")
-        # Assert
-        assert host.repl.cfg.get("encoding") == "utf-8", "encoding applied"
-
-    def test_load_applies_baud_rate(self, host):
-        # Arrange
-        host.repl._cfg_data["baud_rate"] = 9600
-        # Act
-        host.repl.dispatch(f"profile.load {DEMO_NDJSON_PROFILE}")
-        # Assert
-        assert host.repl.cfg.get("baud_rate") == 115200, (
-            "baud_rate applied (next-connect semantics; cfg updates immediately)"
+        result = validate_profile(profile)
+        # Assert -- not OK; error mentions the transport block by name
+        # so the author can find what to remove.
+        assert not result.ok, "transport block must fail validation"
+        assert any("transport" in e for e in result.errors), (
+            f"error must name 'transport'; got {result.errors}"
         )
 
 
@@ -323,7 +242,6 @@ class TestAutoLoadProfileOnConnect:
             "profile_revision": "1.0.0",
             "profile_date": "2026-05-03",
             "device": {"name": "Test Device"},
-            "transport": {"protocol": "text"},
             "commands": {
                 "PING": {"help": "ping the device", "safety": "readonly"},
             },

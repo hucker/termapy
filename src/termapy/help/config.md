@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 17,
+    "config_version": 18,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -59,6 +59,13 @@ Here is an example config for a device called `iot_device`:
     "flow_control": "none",
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
+    "protocol": "text",
+    "ndjson_field_routing": {
+        "response_id": "id",
+        "error_field": "error",
+        "event_field": "event"
+    },
+    "default_response_timeout_ms": 1000,
     "auto_connect": true,
     "auto_reconnect": true,
     "on_connect_cmd": "status\nhelp",
@@ -116,6 +123,8 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `flow_control`           | `none`                | `none`, `rtscts`, `xonxoff`, or `manual` (shows DTR/RTS/Break buttons)                      |
 | `encoding`               | `utf-8`               | Character encoding (utf-8, latin-1, ascii, cp437)                                           |
 | `cmd_delay_ms`           | `0`                   | Milliseconds between commands in autoconnect and multi-command input                        |
+| `protocol`               | `text`                | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line)   |
+| `ndjson_field_routing`   | `{...}`               | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field)    |
 | `line_ending`            | `\r`                  | Appended to each sent command: `\r`, `\r\n`, or `\n`                                        |
 | `send_bare_enter`        | `false`               | Send line ending on empty Enter (for "press enter to continue" prompts)                     |
 | `auto_connect`           | `false`               | Connect automatically when the app starts                                                   |

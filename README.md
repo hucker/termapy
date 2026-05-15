@@ -488,7 +488,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 17,
+    "config_version": 18,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -510,6 +510,13 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "flow_control": "none",
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
+    "protocol": "text",
+    "ndjson_field_routing": {
+        "response_id": "id",
+        "error_field": "error",
+        "event_field": "event"
+    },
+    "default_response_timeout_ms": 1000,
     "auto_connect": false,
     "auto_reconnect": false,
     "on_connect_cmd": "",
@@ -551,6 +558,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `flow_control`       | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
 | `encoding`           | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
 | `cmd_delay_ms`       | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
+| `protocol`           | `"text"`               | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON object per line)         |
 | `line_ending`        | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
 | `send_bare_enter`    | `false`                | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)         |
 | `auto_connect`       | `false`                | Connect to the port on startup                                                                           |

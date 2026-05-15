@@ -57,7 +57,7 @@ class TestSchemaFile:
         actual = set(schema["properties"].keys())
         expected_required = {
             "profile_version", "profile_revision", "profile_date",
-            "device", "transport", "error_detection", "commands",
+            "device", "error_detection", "commands",
         }
         # Assert
         assert expected_required.issubset(actual), (
@@ -210,22 +210,17 @@ class TestBuiltinValidator:
             "error mentions profile_version"
         )
 
-    def test_invalid_protocol_fails(self):
-        # Arrange
-        profile = {"transport": {"protocol": "morse"}}
+    def test_transport_block_rejected(self):
+        # Arrange -- transport block retired in v18 cfg / drop-transport
+        # refactor; wire-level settings live in cfg now.
+        profile = {"profile_version": 2, "transport": {"baud_rate": 9600}}
         # Act
         result = validate_profile(profile)
         # Assert
-        assert result.ok is False, "protocol must be text or ndjson"
-        assert any("protocol" in e for e in result.errors), "error mentions protocol"
-
-    def test_invalid_parity_fails(self):
-        # Arrange
-        profile = {"transport": {"parity": "X"}}
-        # Act
-        result = validate_profile(profile)
-        # Assert
-        assert result.ok is False, "X is not a valid parity"
+        assert result.ok is False, "transport block must fail validation"
+        assert any("transport" in e for e in result.errors), (
+            "error mentions transport so authors can find what to remove"
+        )
 
     def test_command_missing_help_fails(self):
         # Arrange
@@ -681,14 +676,6 @@ class TestProfileDataclass:
         profile = Profile.load(path)
         # Assert
         assert "AT" in profile.commands, "AT command present"
-
-    def test_transport_accessor(self):
-        # Arrange
-        path = FIXTURES / "smart_sensor.profile.json"
-        # Act
-        profile = Profile.load(path)
-        # Assert
-        assert profile.transport.get("protocol") == "ndjson", "ndjson protocol"
 
     def test_save_uses_attached_path(self, tmp_path):
         # Arrange

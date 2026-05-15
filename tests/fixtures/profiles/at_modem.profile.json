@@ -10,21 +10,6 @@
     "prompt": ""
   },
 
-  "transport": {
-    "protocol": "text",
-    "baud_rate": 115200,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
-    "line_ending_send": "\r\n",
-    "line_ending_recv": "\r\n",
-    "encoding": "ascii",
-    "echo": true,
-    "inter_command_delay_ms": 20,
-    "default_response_timeout_ms": 1000
-  },
-
   "error_detection": {
     "pattern": "^ERROR(?::\\s*(?P<message>.+))?$",
     "async": false,

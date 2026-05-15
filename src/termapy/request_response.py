@@ -55,11 +55,9 @@ def request_response(
         command: Command text to send.  Must NOT include the line ending
             -- the helper appends ``line_ending`` so callers can't forget.
         encoding: Encoding used for the send-side ``str -> bytes`` step.
-            Typically ``"utf-8"`` from ``cfg["encoding"]`` or
-            ``profile.transport.encoding``.
+            Typically ``"utf-8"`` from ``cfg["encoding"]``.
         line_ending: Bytes appended to ``command`` (as a string, then
-            encoded).  Typically ``"\\r"`` from ``cfg["line_ending"]`` or
-            ``profile.transport.line_ending_send``.
+            encoded).  Typically ``"\\r"`` from ``cfg["line_ending"]``.
         timeout_s: Outer wall-clock cap for the response window.  When
             this elapses, ``wait_for_lines`` returns whatever it has.
         terminator: Optional regex; first matching line ends collection.

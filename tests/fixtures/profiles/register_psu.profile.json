@@ -9,21 +9,6 @@
     "prompt": "psu> "
   },
 
-  "transport": {
-    "protocol": "text",
-    "baud_rate": 9600,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
-    "line_ending_send": "\r\n",
-    "line_ending_recv": "\n",
-    "encoding": "utf-8",
-    "echo": false,
-    "inter_command_delay_ms": 50,
-    "default_response_timeout_ms": 800
-  },
-
   "error_detection": {
     "pattern": "^ERR=(?P<code>\\d+)\\s*(?P<message>.*)$",
     "async": false,

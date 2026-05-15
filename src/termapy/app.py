@@ -2279,143 +2279,29 @@ class SerialTerminal(TerminalHost, App):
 
     # ── File capture engine ──────────────────────────────────────────────────
 
-    def _cap_start(
-        self,
-        *,
-        path: Path,
-        file_mode: str,
-        mode: str,
-        duration: float = 0.0,
-        target_bytes: int = 0,
-        columns: list | None = None,
-        record_size: int = 0,
-        sep: str = ",",
-        echo: bool = False,
-        hex_mode: bool = False,
-        timeout: float = 0.0,
-    ) -> bool:
-        """Start a file capture session (delegates to CaptureEngine)."""
-        if self._capture.active:
-            self._status("Capture already active - use .stop first.", "yellow")
-            return False
+    def _cap_start(self, *args, **kwargs) -> None:
+        """Start a capture.  Implementation in ``capture_view``.
 
-        started = self._capture.start(
-            path=path,
-            file_mode=file_mode,
-            mode=mode,
-            duration=duration,
-            target_bytes=target_bytes,
-            columns=columns,
-            record_size=record_size,
-            sep=sep,
-            echo=echo,
-            hex_mode=hex_mode,
-            timeout=timeout,
-        )
-        if not started:
-            self._status(f"Cannot open capture file: {path}", "red")
-            return False
-
-        if mode == "text":
-            self._cap_timer = self.set_timer(duration, self._cap_stop)
-        else:
-            self._engine.serial_claimed = True
-            if timeout > 0:
-                self._cap_timer = self.set_timer(timeout, self._cap_stop)
-            else:
-                self._cap_timer = None
-
-        self._cap_show_progress()
-        raw = not columns
-        mode_label = "raw" if raw else ("fmt" if columns else "text")
-        self._log_line("#", f"capture start: {path} mode={mode_label}")
-        return True
+        Stub kept on the App because the engine wires this as
+        ``engine.start_capture`` (bound-method reference).
+        Signature pass-through so this file stays unaware of the
+        real arg list, which lives in ``capture_view._cap_start``.
+        """
+        from termapy.capture_view import _cap_start
+        _cap_start(self, *args, **kwargs)
 
     def _cap_stop(self) -> None:
-        """End file capture: delegate to engine, restore UI."""
-        if not self._capture.active:
-            return
+        """Stop the current capture.  Implementation in ``capture_view``.
 
-        result = self._capture.stop()
-
-        if not self.repl.in_script:
-            self._engine.serial_claimed = False
-
-        if self._cap_timer:
-            self._cap_timer.stop()
-            self._cap_timer = None
-
-        self._cap_hide_progress()
-
-        if result:
-            self._status(
-                f"Capture complete: {result.path} ({result.size_label})", "green"
-            )
-            self._log_line("#", f"capture end: {result.path} ({result.size_label})")
-        self._sync_cap_button()
-
+        Stub kept on the App because the engine wires this as
+        ``engine.stop_capture`` and the cap-stop button looks it up
+        by attribute name.
+        """
+        from termapy.capture_view import _cap_stop
+        _cap_stop(self)
     def _on_capture_complete(self, result: CaptureResult) -> None:
         """Called by CaptureEngine when capture finishes (unused for now)."""
         pass
-
-    def _cap_show_progress(self) -> None:
-        """Mount a progress overlay in the bottom bar."""
-        if self.repl.in_script:
-            return  # script overlay owns the bar
-        try:
-            bar = self.query_one("#bottom-bar")
-            for child in bar.children:
-                child.display = False
-            label = Static("", id="cap-label")
-            label.styles.width = "1fr"
-            stop_btn = Button("Stop", id="cap-stop", variant="error")
-            bar.mount(label)
-            bar.mount(stop_btn)
-            self._cap_progress_timer = self.set_interval(0.5, self._cap_update_progress)
-            inp = self.query_one("#cmd", Input)
-            inp.disabled = True
-            inp.focus()
-        except SHUTDOWN_RACE:
-            pass  # capture started before mount or during teardown
-
-    def _cap_update_progress(self) -> None:
-        """Update the capture progress label."""
-        prog = self._capture.get_progress()
-        if not prog:
-            return
-        try:
-            label = self.query_one("#cap-label", Static)
-        except SHUTDOWN_RACE:
-            return  # overlay torn down; next timer tick will be a no-op
-        if prog.mode == "text":
-            label.update(
-                f" Capturing -> {prog.path_name}  [{prog.pct}%]  "
-                f"{prog.remaining_s:.1f}s left  {prog.bytes_captured} bytes"
-            )
-        else:
-            label.update(
-                f" Capturing -> {prog.path_name}  [{prog.pct}%]  "
-                f"{prog.bytes_captured}/{prog.target_bytes} bytes"
-            )
-
-    def _cap_hide_progress(self) -> None:
-        """Remove the capture overlay and restore normal buttons."""
-        if self._cap_progress_timer:
-            self._cap_progress_timer.stop()
-            self._cap_progress_timer = None
-        if self.repl.in_script:
-            return  # script overlay owns the bar
-        try:
-            bar = self.query_one("#bottom-bar")
-            for widget in bar.query("#cap-label, #cap-stop"):
-                widget.remove()
-            for child in bar.children:
-                child.display = True
-            inp = self.query_one("#cmd", Input)
-            inp.disabled = False
-            inp.focus()
-        except SHUTDOWN_RACE:
-            pass  # overlay gone or main widgets unmounted
 
     def _write_batch(self, lines: list[str]) -> None:
         """Write a batch of lines to the output log and optional log file.
@@ -2957,38 +2843,6 @@ class SerialTerminal(TerminalHost, App):
                 label.remove_class("visible")
         except SHUTDOWN_RACE:
             pass
-
-    def _run_progress_bar(self, seconds: float, label: str) -> None:
-        """Block on the caller's thread while animating a progress bar in
-        the bottom-bar status label.  Same rendering as the CLI and
-        script-path delays -- shares ``render_progress_bar`` in
-        scripting.py.
-
-        Escape (action_stop_script) sets ``repl._script_stop`` and ends
-        the wait early.  Caller must be on a background thread; label
-        writes hop to the main thread via ``_on_main``.
-        """
-        from termapy.scripting import render_progress_bar
-
-        t0 = time.perf_counter()
-        cancelled = False
-        while True:
-            elapsed = time.perf_counter() - t0
-            if elapsed >= seconds:
-                break
-            if self.repl._script_stop.is_set():
-                cancelled = True
-                break
-            self._on_main(
-                self._set_progress_label,
-                render_progress_bar(elapsed, seconds),
-            )
-            time.sleep(0.25)
-        self._on_main(self._set_progress_label, "")
-        if cancelled:
-            self._on_main(self._status, f"Delay {label} cancelled.", "red")
-        else:
-            self._on_main(self._status, f"Delay {label} done.")
 
     def _apply_port_effects(self, effects: dict) -> None:
         """Apply side effects from a port_control function (used by port plugin)."""

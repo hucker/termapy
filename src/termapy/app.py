@@ -7,7 +7,6 @@ Runs well in most terminals (Windows Terminal, iTerm2, etc).
 VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
-import json
 import re
 import os
 import sys
@@ -25,15 +24,12 @@ from termapy.config import (
     cfg_data_dir,
     cfg_dir,
     cfg_log_path,
-    cfg_path_for_name,
     cfg_plugins_dir,
-    expand_env_cfg,
     global_plugins_dir,
     load_config,
     open_serial,
     open_with_system,
     setup_demo_config,
-    validate_config,
 )
 
 # Config-path resolution lives in termapy.config_resolve (Textual-free).
@@ -56,10 +52,8 @@ from termapy.dialogs import (
     ConfigPicker,
     ConfirmDialog,
     PortPicker,
-    ProtoEditor,
     ProtoPicker,
     QuickSetup,
-    ScriptEditor,
     ScriptPicker,
     UpdateAvailableDialog,
 )
@@ -84,7 +78,6 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
-from textual.widgets.option_list import Option
 from textual.suggester import Suggester
 
 
@@ -787,24 +780,10 @@ class SerialTerminal(TerminalHost, App):
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder.")
                 yield _btn("Cap", "btn-cap-dir", "Open captures folder.")
 
-    def _show_config_info(self, path: str) -> None:
-        """Print config dir, file, and log file paths (verbose only)."""
-        if not getattr(self.repl, "ctx", None):
-            return
-        if self.repl.ctx.output_level != "verbose":
-            return
-        resolved = Path(path).resolve()
-        self._status(f"Config dir:  {resolved.parent}", "green")
-        self._status(f"Config file: {resolved}", "green")
-        xfer_root = self.cfg.get("file_xfer_root", "")
-        if xfer_root:
-            self._status(f"Xfer root:   {Path(xfer_root).resolve()}", "green")
-        else:
-            self._status(f"Xfer root:   {resolved.parent / 'cap'}", "green")
-        log_path = self._log_path()
-        if log_path:
-            self._status(f"Log file:    {Path(log_path).resolve()}", "green")
-
+    def _show_config_info(self, *args, **kwargs):
+        """Delegate to ``info_views.show_config_info``."""
+        from termapy.info_views import show_config_info
+        show_config_info(self, *args, **kwargs)
     def _log_path(self) -> str:
         """Return log file path in the per-config data directory."""
         configured = self.cfg.get("log_file", "")
@@ -1662,20 +1641,10 @@ class SerialTerminal(TerminalHost, App):
 
             self._confirm_delete(result[1], "config", on_deleted=_after_delete)
 
-    def _on_config_result(self, result: tuple | None) -> None:
-        if result is None:
-            return
-        new_cfg, new_path = result
-        expand_env_cfg(new_cfg)
-        config_warnings = validate_config(new_cfg)
-        if config_warnings:
-            new_cfg["_config_warnings"] = config_warnings
-        self._switch_config(new_cfg, new_path)
-        if config_warnings:
-            detail = "\n".join(config_warnings)
-            self.notify(detail, severity="warning", timeout=15)
-        self._show_config_info(new_path)
-
+    def _on_config_result(self, *args, **kwargs):
+        """Delegate to ``pickers.on_config_result``."""
+        from termapy.pickers import on_config_result
+        return on_config_result(self, *args, **kwargs)
     def _port_info_str(self) -> str:
         """Format port info like 'COM4 115200 8N1' for title bar.
 
@@ -1954,26 +1923,20 @@ class SerialTerminal(TerminalHost, App):
         elif parts:
             self._dispatch_on_thread(parts[0])
 
-    def _show_port_picker(self) -> None:
-        from serial.tools.list_ports import comports
-
-        ports = sorted(comports(), key=lambda p: p.device)
-        if len(ports) == 1:
-            self._on_port_picked(ports[0].device)
-            return
-        self.push_screen(PortPicker(), callback=self._on_port_picked)
-
+    def _show_port_picker(self, *args, **kwargs):
+        """Delegate to ``info_views.show_port_picker``."""
+        from termapy.info_views import show_port_picker
+        show_port_picker(self, *args, **kwargs)
     def _update_port(self, *args, **kwargs) -> None:
         """Refresh port-name display.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_port
         update_port(self, *args, **kwargs)
         # Connection failure already reported by _try_open_port
 
-    def _on_port_picked(self, port: str | None) -> None:
-        if port is None:
-            return
-        self._update_port(port)
-
+    def _on_port_picked(self, *args, **kwargs):
+        """Delegate to ``pickers.on_port_picked``."""
+        from termapy.pickers import on_port_picked
+        on_port_picked(self, *args, **kwargs)
     # -- Palette action wrappers --
 
     def _toggle_connection(self) -> None:
@@ -1988,33 +1951,10 @@ class SerialTerminal(TerminalHost, App):
     def _new_config(self) -> None:
         self.push_screen(QuickSetup(), callback=self._on_quick_setup)
 
-    def _on_quick_setup(self, result: tuple | None) -> None:
-        if result is None:
-            return
-        action, name, port, baud, custom_baud = result
-        config_path = str(cfg_path_for_name(name))
-        cfg = dict(DEFAULT_CFG)
-        cfg["title"] = name
-        if port:
-            cfg["port"] = port
-        cfg["baud_rate"] = baud
-        cfg["custom_baud"] = custom_baud
-        if action == "advanced":
-            # Open the full config editor with pre-filled values
-            cfg_data_dir(config_path)
-            self.push_screen(
-                ConfigEditor(cfg, config_path),
-                callback=self._on_config_result,
-            )
-            return
-        # Create config dir structure (.gitignore, subdirs) and write config
-        cfg_data_dir(config_path)
-        with open(config_path, "w") as f:
-            json.dump(cfg, f, indent=4)
-        self._on_config_result((cfg, config_path))
-        if port:
-            self._connect()
-
+    def _on_quick_setup(self, *args, **kwargs):
+        """Delegate to ``pickers.on_quick_setup``."""
+        from termapy.pickers import on_quick_setup
+        on_quick_setup(self, *args, **kwargs)
     def _palette_edit_config(self) -> None:
         self.push_screen(
             ConfigEditor(dict(self.cfg), self.config_path),
@@ -2382,101 +2322,14 @@ class SerialTerminal(TerminalHost, App):
     # popup on non-Linux platforms.
     _LINUX_ONLY_RE = re.compile(r"linux[^.\n]*only|only[^.\n]*linux", re.IGNORECASE)
 
-    def _show_commands(self) -> None:
-        """Show the REPL command picker with smart arg handling.
-
-        Filters to commands whose name contains the substring currently
-        in the ``#cmd`` input (case-insensitive).  Any leading prefix
-        character in the input is stripped first, so typing ``/po`` and
-        ``po`` behave identically.  Empty input shows everything.
-
-        Hides Linux-only commands on non-Linux platforms (detected by
-        scanning each plugin's help text for "linux ... only").
-        Right-pads the command+args portion so the "# help text"
-        comment starts at a consistent column; if the prefix is too
-        long to fit, the comment wraps to a new continuation line
-        indented to the same column.
-        """
-        popup = self.query_one("#history-popup", OptionList)
-        popup.clear_options()
-        prefix = cmd_prefix(self.cfg)
-        skip_linux_only = sys.platform != "linux"
-
-        # Build the filter from the current input.  Users can have the
-        # prefix typed (``/po``) or not (``po``) -- strip once so the
-        # match is on the command name only.
-        raw = self.query_one("#cmd", Input).value.strip()
-        if raw.startswith(prefix):
-            raw = raw[len(prefix):]
-        # If the user typed args (``/port open COM3``), only match on
-        # the first token -- the name portion.
-        filter_term = raw.split(None, 1)[0].lower() if raw else ""
-
-        def _add_row(cmd_text: str, help_text: str, option_id: str) -> None:
-            """Build a Text row with the help column aligned to _CMDS_HELP_COL.
-
-            If ``cmd_text`` is shorter than the target column, pad
-            with spaces.  If it's longer, break and indent the
-            help text on the next line so the comment column
-            stays aligned.
-            """
-            label = Text(cmd_text)
-            pad = self._CMDS_HELP_COL - len(cmd_text)
-            if pad > 0:
-                label.append(" " * pad)
-                label.append(f"# {help_text}", style="dim")
-            else:
-                label.append("\n")
-                label.append(" " * self._CMDS_HELP_COL)
-                label.append(f"# {help_text}", style="dim")
-            popup.add_option(Option(label, id=option_id))
-
-        groups: dict[str, list] = {}
-        for name, plugin in self.repl._plugins.items():
-            if getattr(plugin, "hidden", False):
-                continue
-            if skip_linux_only and self._LINUX_ONLY_RE.search(plugin.help or ""):
-                continue
-            if filter_term and filter_term not in name.lower():
-                continue
-            groups.setdefault(plugin.source, []).append((name, plugin))
-        if not groups and filter_term:
-            popup.add_option(
-                Option(
-                    Text(f"  (no commands match '{filter_term}')", style="dim"),
-                    disabled=True,
-                )
-            )
-        for source, plugins in groups.items():
-            popup.add_option(Option(f"── {source} ──", disabled=True))
-            for name, plugin in sorted(plugins, key=lambda p: p[0]):
-                has_required = "<" in plugin.args if plugin.args else False
-                has_optional = "{" in plugin.args if plugin.args else False
-                if not plugin.args or (has_optional and not has_required):
-                    _add_row(f"{prefix}{name}", plugin.help, f"run:{name}")
-                if plugin.args:
-                    _add_row(
-                        f"{prefix}{name} {plugin.args}",
-                        plugin.help,
-                        f"repl:{name}",
-                    )
-        popup.add_class("visible")
-        popup.focus()
-        popup.highlighted = 1 if popup.option_count > 1 else 0
-        self._popup_mode = "commands"
-
-    def _show_palette(self) -> None:
-        """Show the command palette popup."""
-        popup = self.query_one("#history-popup", OptionList)
-        popup.clear_options()
-        for i, (label, _) in enumerate(self.PALETTE_CMDS):
-            popup.add_option(Option(label, id=f"palette:{i}"))
-        popup.add_class("visible")
-        popup.focus()
-        if popup.option_count > 0:
-            popup.highlighted = 0
-        self._popup_mode = "palette"
-
+    def _show_commands(self, *args, **kwargs):
+        """Delegate to ``info_views.show_commands``."""
+        from termapy.info_views import show_commands
+        show_commands(self, *args, **kwargs)
+    def _show_palette(self, *args, **kwargs):
+        """Delegate to ``info_views.show_palette``."""
+        from termapy.info_views import show_palette
+        show_palette(self, *args, **kwargs)
     def action_show_palette(self) -> None:
         self._show_palette()
 
@@ -2769,75 +2622,20 @@ class SerialTerminal(TerminalHost, App):
             self.push_screen, CfgConfirm(key, old_val, new_val), callback=on_result
         )
 
-    def _on_script_picked(self, result: tuple | None) -> None:
-        if result is None:
-            return
-        action = result[0]
-        if action == "run":
-            from termapy.builtins.commands.var import clear_vars, set_start_time_vars
-
-            clear_vars()
-            set_start_time_vars()
-            path, _ = self.repl.start_script(result[1])
-            if path:
-                self._run_script(path)
-        elif action == "new":
-            self.push_screen(
-                ScriptEditor(self.repl.scripts_dir),
-                callback=self._on_script_saved,
-            )
-        elif action == "edit":
-            self.push_screen(
-                ScriptEditor(self.repl.scripts_dir, result[1]),
-                callback=self._on_script_saved,
-            )
-        elif action == "delete":
-            self._confirm_delete(
-                result[1],
-                "script",
-                on_deleted=self._sync_scripts_button,
-            )
-
+    def _on_script_picked(self, *args, **kwargs):
+        """Delegate to ``pickers.on_script_picked``."""
+        from termapy.pickers import on_script_picked
+        on_script_picked(self, *args, **kwargs)
     def _on_script_saved(self, path: str | None) -> None:
         if path:
             self._status(f"Script saved: {Path(path).name}", "green")
             self._sync_scripts_button()
         self._sync_proto_button()
 
-    def _on_proto_picked(self, result: tuple | None) -> None:
-        """Handle result from the ProtoPicker dialog.
-
-        Args:
-            result: Tuple action from picker, or None if cancelled.
-        """
-        if result is None:
-            return
-        action = result[0]
-        if action == "run":
-            filename = Path(result[1]).name
-            prefix = cmd_prefix(self.cfg)
-            self._dispatch_on_thread(f"{prefix}proto.run {filename}")
-        elif action == "debug":
-            filename = Path(result[1]).name
-            prefix = cmd_prefix(self.cfg)
-            self._dispatch_on_thread(f"{prefix}proto.debug {filename}")
-        elif action == "new":
-            self.push_screen(
-                ProtoEditor(self.repl.proto_dir),
-                callback=self._on_proto_saved,
-            )
-        elif action == "edit":
-            self.push_screen(
-                ProtoEditor(self.repl.proto_dir, result[1]),
-                callback=self._on_proto_saved,
-            )
-        elif action == "delete":
-            self._confirm_delete(
-                result[1],
-                "proto script",
-                on_deleted=self._sync_proto_button,
-            )
-
+    def _on_proto_picked(self, *args, **kwargs):
+        """Delegate to ``pickers.on_proto_picked``."""
+        from termapy.pickers import on_proto_picked
+        on_proto_picked(self, *args, **kwargs)
     def _on_proto_saved(self, path: str | None) -> None:
         """Handle result from the ProtoEditor dialog.
 
@@ -2874,26 +2672,10 @@ class SerialTerminal(TerminalHost, App):
             self._status(f"Delete failed: {e}", "red")
             return CmdResult.fail(msg=str(e))
 
-    def _open_picker(self, name: str) -> CmdResult:
-        """Open the picker/dialog for a top-level command name.
-
-        Wired into ``EngineAPI.open_picker`` from ``_register_tui_hooks``
-        so that bare ``/cfg``, ``/run``, ``/proto`` invocations behave
-        like clicking the matching title-bar button.  CLI never installs
-        this callback; plugin handlers fall through to their CLI fallback.
-        """
-        dispatch = {
-            "cfg": self._btn_cfg,
-            "run": self._btn_scripts,
-            "proto": self._btn_proto,
-            "port": self._show_port_picker,
-        }
-        fn = dispatch.get(name)
-        if fn is None:
-            return CmdResult.fail(msg=f"Unknown picker: {name}")
-        self._on_main(fn)
-        return CmdResult.ok()
-
+    def _open_picker(self, *args, **kwargs):
+        """Delegate to ``pickers.open_picker``."""
+        from termapy.pickers import open_picker
+        return open_picker(self, *args, **kwargs)
     _PROFILE_TMP_PREFIX = "_profile_tmp_"
 
     def _prof_dir(self) -> Path | None:

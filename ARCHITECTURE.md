@@ -33,11 +33,11 @@ src/termapy/
 │   └── welcome_dialog.py   #   WelcomeDialog
 ├── help/                   #              Markdown help pages (source for HTML build)
 ├── html/                   #              Generated HTML help
-├── mcp/                    # (1896 lines) MCP stdio server
+├── mcp/                    # (1897 lines) MCP stdio server
 │   ├── catalog.py          #   JSON catalog + device-state resources
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
-├── plugins/                # (2209 lines) Plugin system - capability-handle architecture
+├── plugins/                # (2212 lines) Plugin system - capability-handle architecture
 │   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, EngineHandle
 │   ├── capabilities.py     #   CapabilitySet, MissingCapability
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
@@ -49,7 +49,7 @@ src/termapy/
 │   ├── matcher.py          #   match_profile_command, template_to_regex
 │   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
 │   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
-├── protocol/               # (2755 lines) Binary-protocol toolkit (library-shaped, no Textual)
+├── protocol/               # (2783 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
 │   ├── crc.py              #   CRC catalogue (64 algorithms) + registry
 │   ├── crc_codegen.py      #   C / Python / Rust CRC codegen
@@ -60,7 +60,7 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (4225 lines) Textual TUI - UI, modals, app hooks
+├── app.py                  # (4224 lines) Textual TUI - UI, modals, app hooks
 ├── capture.py              # (336 lines)  Capture state machine - text, binary, format spec
 ├── cli.py                  # (1139 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
 ├── config.py               # (712 lines)  Config dirs, loading, validation, migration trigger

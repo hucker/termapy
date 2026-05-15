@@ -706,13 +706,25 @@ def main() -> None:
     update_architecture_md(test_count)
     update_readme_md(test_count, ty_count, cov_percent)
 
-    step(5, "Updating config examples in docs...")
+    step(5, "Refreshing generated docs (config examples, credits sync)...")
     from update_doc_configs import update_doc_configs
     updated = update_doc_configs()
     if updated:
         ok(f"updated {len(updated)} config example(s)")
     else:
         ok("all config examples current")
+    # credits.py embeds help/acknowledgments.md as a string constant so
+    # the wheel can ship zero markdown.  The sync script regenerates the
+    # block between BEGIN/END sentinels; tests/test_credits_sync.py
+    # asserts the result matches the .md.  Running --check here gives
+    # the release operator a clean error before pytest does the same.
+    from sync_acknowledgments import main as sync_credits
+    if sync_credits(["--check"]) != 0:
+        die(
+            "credits.py drifted from help/acknowledgments.md.  "
+            "Run scripts/sync_acknowledgments.py on a chore branch first."
+        )
+    ok("credits.py in sync with help/acknowledgments.md")
 
     step(6, "Refreshing USB vendor table from upstream usb.ids...")
     refresh_usb_vendor_table()

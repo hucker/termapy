@@ -59,15 +59,19 @@ mcp = ["mcp>=1.0,<2.0"]
 # need a slim install.
 all = ["termapy[mcp,web]"]
 
-[tool.uv-build]
-include = [
-    "src/termapy/*.md",
-    "src/termapy/*.json",
-    "src/termapy/help/*.md",
-    "src/termapy/html/**",
-    "src/termapy/profile/*.json",
-    "src/termapy/builtins/demo/**",
-]
+[tool.uv.build-backend]
+# uv-build's default is to bundle EVERY file under src/termapy/ into
+# the wheel (Python and non-Python alike).  We drop the help markdown
+# explicitly so wheels carry only the rendered HTML help.  The in-app
+# /help command serves the html/ tree via a local HTTP server, and
+# /credits inlines its acknowledgments text as a Python constant.
+# Keeping the markdown out of the wheel saves ~200 KB / ~4,100 lines
+# per install; zensical builds the docs site from the repo, not the
+# installed package.
+#
+# Patterns follow the glob crate syntax (PEP 639 portable globs).
+# The two-pattern form here covers both top-level and nested files.
+wheel-exclude = ["*.md", "**/*.md"]
 
 [build-system]
 requires = ["uv_build"]

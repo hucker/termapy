@@ -21,7 +21,6 @@ src/termapy/
 │   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (~461 lines, the big one)
 │   ├── config_picker.py    #   ConfigPicker
 │   ├── confirm_dialog.py   #   ConfirmDialog - Yes/Cancel
-│   ├── markdown_viewer.py  #   MarkdownViewer
 │   ├── name_picker.py      #   NamePicker
 │   ├── port_picker.py      #   PortPicker - serial port selection
 │   ├── proto_editor.py     #   ProtoEditor - .pro file editor
@@ -68,7 +67,6 @@ src/termapy/
 ├── demo.py                 # (1698 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
-├── help.md                 #              Legacy single-page help (bundled)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── migration.py            # (325 lines)  Config schema migration chain (v17)
 ├── port_control.py         # (1452 lines) Pure serial port control functions - no Textual

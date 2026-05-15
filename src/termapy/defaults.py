@@ -64,6 +64,13 @@ DEFAULT_CFG = {
     "flow_control": "none",
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
+    "protocol": "text",
+    "ndjson_field_routing": {
+        "response_id": "id",
+        "error_field": "error",
+        "event_field": "event",
+    },
+    "default_response_timeout_ms": 1000,
     # Connection
     "auto_connect": False,
     "auto_reconnect": False,
@@ -290,6 +297,22 @@ CFG_HELP: dict[str, tuple] = {
     "cmd_delay_ms": (
         "Delay in ms between commands in multi-command input.",
         "0 = no delay. Positive integer.",
+    ),
+    "protocol": (
+        "Wire format the device speaks.",
+        'Valid: "text" (default, line-oriented), "ndjson" (one JSON object per line).',
+    ),
+    "ndjson_field_routing": (
+        "NDJSON: which inbound JSON fields the MCP bridge routes on.",
+        'Object with keys response_id, error_field, event_field. '
+        'Defaults: {"response_id": "id", "error_field": "error", '
+        '"event_field": "event"}.  Override only when the device uses '
+        "different field names.",
+    ),
+    "default_response_timeout_ms": (
+        "Fallback wait for any profile-driven command without an "
+        "explicit response.timeout_ms.",
+        "Positive integer ms.  Per-command response.timeout_ms always wins.",
     ),
     # Connection
     "auto_connect": (

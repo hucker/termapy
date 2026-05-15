@@ -13,21 +13,6 @@
     "on_off": {"kind": "enum", "values": ["on", "off"], "help": "LED state: on or off."}
   },
 
-  "transport": {
-    "protocol": "text",
-    "baud_rate": 115200,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
-    "line_ending_send": "\r\n",
-    "line_ending_recv": "\r\n",
-    "encoding": "utf-8",
-    "echo": false,
-    "inter_command_delay_ms": 0,
-    "default_response_timeout_ms": 500
-  },
-
   "error_detection": {
     "pattern": "^ERROR(?::\\s*(?P<message>.+))?$",
     "async": false,

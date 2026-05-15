@@ -47,6 +47,11 @@ def host(tmp_path, monkeypatch):
     cfg = dict(DEFAULT_CFG)
     cfg["port"] = ""
     cfg["echo_input"] = False
+    # Wire-level settings live in cfg now (profile.transport retired).
+    # Tests assert b"AT\r\n" wire bytes; cfg must agree.
+    cfg["line_ending"] = "\r\n"
+    cfg["encoding"] = "utf-8"
+    cfg["default_response_timeout_ms"] = 500
     config_path = tmp_path / "cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -70,9 +75,9 @@ def host(tmp_path, monkeypatch):
 def _load_profile(host: MCPHost, profile: dict) -> None:
     """Install a profile into the active_profile namespace directly.
 
-    Bypasses /profile.load (which also applies transport rules).  Tests
-    that don't care about transport mutation use this; tests that need
-    the transport-applied side-effect can call /profile.load.
+    Bypasses /profile.load's schema validation.  Wire-level settings
+    no longer live in the profile, so this matches what /profile.load
+    does end-to-end.
     """
     ns = host.ctx.ns("active_profile")
     ns.clear()
@@ -108,21 +113,15 @@ def _reply_after_send(host: MCPHost, lines: list[str]) -> None:
 # ── Profile fixtures ────────────────────────────────────────────────────────
 
 
-_BASE_TRANSPORT = {
-    "protocol": "text",
-    "baud_rate": 115200,
-    "encoding": "utf-8",
-    "line_ending_send": "\r\n",
-    "line_ending_recv": "\r\n",
-    "default_response_timeout_ms": 500,
-}
-
-
 def _profile_with(commands: dict, *, error_detection: dict | None = None) -> dict:
+    """Compose a minimal v2 profile around the supplied commands dict.
+
+    Wire-level settings (eol, encoding, timeouts) live in the host's
+    cfg, not the profile -- see the host fixture above.
+    """
     p = {
         "profile_version": 2,
         "profile_revision": "1.0.0",
-        "transport": dict(_BASE_TRANSPORT),
         "commands": commands,
     }
     if error_detection is not None:
@@ -150,7 +149,7 @@ class TestLiteralFormat:
         expected_value = "OK"
         assert result["success"] is True, "literal hit succeeds"
         assert actual_value == expected_value, "literal returns the matched text"
-        assert host._sent == [b"AT\r\n"], "wire bytes match transport eol"
+        assert host._sent == [b"AT\r\n"], "wire bytes match cfg.line_ending"
 
     def test_returns_failure_when_response_differs(self, host):
         # Arrange
@@ -561,8 +560,8 @@ class TestFallThrough:
         }))
         # Act
         result = asyncio.run(host.run_command_async("RANDOM", "normal", 5.0))
-        # Assert — /term.send returned ok, default cfg line_ending="\r"
-        # (transport eol is for profile commands; fallthrough uses cfg).
+        # Assert — /term.send returned ok; cfg.line_ending governs the
+        # wire for both profile-mapped and fall-through commands now.
         assert result["success"] is True, "fall-through send succeeds"
         assert host._sent and host._sent[0].startswith(b"RANDOM"), (
             "bytes for unmapped command still went out"

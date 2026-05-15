@@ -10,26 +10,6 @@
     "startup_banner": "\"event\"\\s*:\\s*\"ready\""
   },
 
-  "transport": {
-    "protocol": "ndjson",
-    "baud_rate": 115200,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
-    "line_ending_send": "\n",
-    "line_ending_recv": "\n",
-    "encoding": "utf-8",
-    "echo": false,
-    "inter_command_delay_ms": 5,
-    "default_response_timeout_ms": 500,
-    "field_routing": {
-      "response_id": "id",
-      "error_field": "error",
-      "event_field": "event"
-    }
-  },
-
   "error_detection": {
     "pattern": "\"error\"\\s*:\\s*\"(?P<message>[^\"]*)\"",
     "async": true,

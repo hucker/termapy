@@ -89,16 +89,16 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """
     from termapy.plugins import ENVIRONMENTS, format_kv_lines
 
-    # Catalog metadata is host-independent (profile / device / transport
-    # come from the active profile namespace, not capabilities).
+    # Catalog metadata is host-independent (profile + device come from
+    # the active profile namespace, not capabilities).  Wire-level
+    # values (protocol, baud) live in the cfg now.
     cat = build_catalog(ctx)
     device_count = len(cat.get("device_commands", []))
     profile_rev = cat.get("profile_revision") or "(none)"
     profile_date = cat.get("profile_date") or "(none)"
     device_name = (cat.get("device") or {}).get("name", "(none)")
-    transport = cat.get("transport") or {}
-    protocol = transport.get("protocol", "(none)")
-    baud = transport.get("baud_rate", "(none)")
+    protocol = ctx.cfg.get("protocol", "text")
+    baud = ctx.cfg.get("baud_rate", "(none)")
 
     # Command count: always count what MCP would see, not what the
     # current host's capabilities would surface.

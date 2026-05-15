@@ -2,9 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://termapy.org/profile.schema.json",
   "title": "Termapy Device Profile",
-  "description": "Declarative description of a serial device for the termapy MCP bridge. Profiles describe the four supported response patterns plus transport noise handling. Behavior beyond pattern matching belongs in scripts, not profiles.",
+  "description": "Declarative description of a serial device for the termapy MCP bridge. Profiles describe command typing and help only; wire-level settings (baud rate, line ending, encoding, ndjson routing) belong to the cfg file. The cfg points to the profile via profile_path; the profile does not point back.",
   "type": "object",
   "additionalProperties": true,
+  "not": {
+    "required": ["transport"]
+  },
   "properties": {
     "profile_version": {
       "description": "Schema version.  Must be 2.  v1 (commands-only manifests) was retired alongside the /include plugin in the v2-only refactor; legacy v1 dumps must be converted to v2 profiles before loading.",
@@ -40,76 +43,6 @@
         "prompt": {
           "description": "Trailing prompt string (e.g. \">\", \"# \"). Used as default response terminator when set. Empty = no prompt.",
           "type": "string"
-        }
-      }
-    },
-    "transport": {
-      "description": "Wire-level rules: serial parameters, framing, noise handling. Applied to the live session when the profile loads in MCP mode.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "protocol": {
-          "description": "Wire format. ndjson = JSON object per line. text = templated text in/out.",
-          "type": "string",
-          "enum": ["text", "ndjson"],
-          "default": "text"
-        },
-        "baud_rate": {
-          "type": "integer",
-          "minimum": 50,
-          "maximum": 4000000
-        },
-        "byte_size": {
-          "type": "integer",
-          "enum": [5, 6, 7, 8]
-        },
-        "parity": {
-          "type": "string",
-          "enum": ["N", "E", "O", "M", "S"]
-        },
-        "stop_bits": {
-          "type": "number",
-          "enum": [1, 1.5, 2]
-        },
-        "flow_control": {
-          "type": "string",
-          "enum": ["none", "rtscts", "xonxoff", "manual"]
-        },
-        "line_ending_send": {
-          "description": "Line ending appended to outbound text commands. Common values: \"\\n\", \"\\r\\n\", \"\\r\".",
-          "type": "string"
-        },
-        "line_ending_recv": {
-          "description": "Line ending used to split inbound text. Default: \"\\n\".",
-          "type": "string"
-        },
-        "encoding": {
-          "description": "Byte-decoding encoding (utf-8, latin-1, ascii, ...).",
-          "type": "string"
-        },
-        "echo": {
-          "description": "True if device echoes inbound bytes; bridge strips the echoed line from response.",
-          "type": "boolean"
-        },
-        "inter_command_delay_ms": {
-          "description": "Minimum gap between consecutive serial sends, regardless of source. Bridge enforces.",
-          "type": "integer",
-          "minimum": 0
-        },
-        "default_response_timeout_ms": {
-          "description": "Fallback timeout for commands without explicit response.timeout_ms.",
-          "type": "integer",
-          "minimum": 0
-        },
-        "field_routing": {
-          "description": "NDJSON-only: which JSON fields the bridge uses to auto-route inbound messages. Defaults: response_id=id, error_field=error, event_field=event. Override only if device uses different conventions.",
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "response_id": {"type": "string"},
-            "error_field": {"type": "string"},
-            "event_field": {"type": "string"}
-          }
         }
       }
     },

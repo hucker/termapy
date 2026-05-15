@@ -65,14 +65,6 @@ class TestBundledProfiles:
 
 
 class TestDemoProfileShape:
-    def test_protocol_is_text(self):
-        # Arrange / Act
-        profile = load_profile(DEMO_PROFILE)
-        # Assert
-        assert profile["transport"]["protocol"] == "text", (
-            "demo.profile.json describes the text DEMO simulator"
-        )
-
     def test_includes_at_command(self):
         # Arrange / Act
         profile = load_profile(DEMO_PROFILE)
@@ -95,23 +87,6 @@ class TestDemoProfileShape:
 
 
 class TestDemoNdjsonProfileShape:
-    def test_protocol_is_ndjson(self):
-        # Arrange / Act
-        profile = load_profile(DEMO_NDJSON_PROFILE)
-        # Assert
-        assert profile["transport"]["protocol"] == "ndjson", (
-            "demo_ndjson.profile.json describes the NDJSON DEMO_JSON simulator"
-        )
-
-    def test_field_routing_uses_default_keys(self):
-        # Arrange / Act
-        profile = load_profile(DEMO_NDJSON_PROFILE)
-        # Assert
-        fr = profile["transport"].get("field_routing", {})
-        assert fr.get("response_id") == "id", "default id field"
-        assert fr.get("error_field") == "error", "default error field"
-        assert fr.get("event_field") == "event", "default event field"
-
     def test_set_threshold_has_typed_args(self):
         # Arrange / Act
         profile = load_profile(DEMO_NDJSON_PROFILE)

@@ -12,7 +12,7 @@ To add a migration:
 
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 17
+CURRENT_CONFIG_VERSION = 18
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -301,6 +301,25 @@ def _migrate_v16_to_v17(cfg: dict) -> dict:
 
 
 MIGRATIONS[16] = _migrate_v16_to_v17
+
+
+def _migrate_v17_to_v18(cfg: dict) -> dict:
+    """Profile.transport block retired; wire-format settings live in cfg.
+
+    Adds ``protocol: "text"`` if missing so existing cfgs surface the
+    new field on inspect/dump.  ``ndjson_field_routing`` lands via the
+    normal defaults-backfill in ``load_config`` -- no need to write a
+    nested dict here.
+
+    Existing v2 profiles in the user's filesystem may still carry a
+    ``transport`` block; ``validate_profile`` now rejects them with a
+    clear error pointing at the cfg-based replacement.
+    """
+    cfg.setdefault("protocol", "text")
+    return cfg
+
+
+MIGRATIONS[17] = _migrate_v17_to_v18
 
 
 def migrate_config(cfg: dict) -> dict:

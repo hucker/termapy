@@ -59,7 +59,6 @@ class TestCatalog:
             "commands",
             "device_commands",
             "device",
-            "transport",
             "error_detection",
         ):
             assert key in cat, f"catalog missing top-level key: {key!r}"
@@ -221,7 +220,6 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         # Assert
         assert cat["device"] == {}, "no profile = empty device block"
-        assert cat["transport"] == {}, "no profile = empty transport block"
         assert cat["profile_revision"] == "", "no profile = empty revision"
 
     def test_catalog_hidden_flag_is_bool(self, host):

@@ -464,14 +464,6 @@ class FakeSerial:
             # set changes in a way users should pick up automatically.
             "version": "2.2.0",
             "profile_version": 2,
-            "transport": {
-                "protocol": "text",
-                "encoding": "utf-8",
-                "line_ending_send": "\r\n",
-                "line_ending_recv": "\r\n",
-                "default_response_timeout_ms": 500,
-                "echo": False,
-            },
             "error_detection": {
                 # Captures `Usage: ...` text from `ERROR: Usage: AT+LED on|off`
                 # and similar.  Anchored to the start of a line so a literal

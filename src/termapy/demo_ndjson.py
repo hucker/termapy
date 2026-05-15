@@ -32,7 +32,8 @@ Async (read, no preceding request):
 
 **Async events / errors:** not auto-emitted (would make tests flaky).
 Tests use ``emit_event(...)`` and ``emit_async_error(...)`` to inject
-on demand; the bridge then exercises ``transport.field_routing``.
+on demand; the bridge then exercises the ``ndjson_field_routing`` cfg
+keys.
 """
 
 from __future__ import annotations
@@ -262,8 +263,8 @@ class FakeSerialNDJSON:
     def emit_event(self, event_name: str, **extra: Any) -> None:
         """Queue an async event line for the next read.
 
-        Used by tests to exercise the bridge's NDJSON ``field_routing``
-        without dealing with timing.
+        Used by tests to exercise the bridge's NDJSON
+        ``ndjson_field_routing`` cfg keys without dealing with timing.
         """
         with self._lock:
             payload = {"event": event_name}

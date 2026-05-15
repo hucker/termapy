@@ -33,8 +33,11 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
 
     Walks every registered plugin and produces a stable, sorted list
     of command descriptors.  Pulls the active device profile blocks
-    (transport / device / error_detection / revision / date) when a
-    profile is loaded; emits empty placeholders otherwise.
+    (device / error_detection / revision / date) when a profile is
+    loaded; emits empty placeholders otherwise.  Wire-level settings
+    (baud, encoding, protocol) live in the cfg, not the profile, and
+    are intentionally NOT surfaced here -- the LLM should read them
+    from the device_state resource if it needs them.
 
     Args:
         ctx: A live PluginContext.  Must have ``ctx.engine.plugins``
@@ -120,7 +123,6 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
         "profile_revision": active_profile.get("profile_revision", ""),
         "profile_date": active_profile.get("profile_date", ""),
         "device": active_profile.get("device", {}),
-        "transport": active_profile.get("transport", {}),
         "error_detection": active_profile.get("error_detection", {}),
         "types": types_block,
         "commands": cmd_list,

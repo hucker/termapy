@@ -743,7 +743,7 @@ def _dispatch_via_profile(
     Lifecycle:
       1. Drain stale recent-lines into async_events (source pre_send_drain)
          so the next wait cycle starts clean.
-      2. Send command_text + transport.line_ending_send.
+      2. Send command_text + cfg["line_ending"].
       3. Per response.format: collect lines (lines/multi-line) or wait
          for a single line (literal/regex/json) or skip wait (none).
       4. Run error_detection.pattern over the collected text first;
@@ -858,9 +858,14 @@ def _dispatch_via_profile(
             # coerced value for downstream tooling.
             bound[arg_name] = outcome.value
 
-    transport = profile.get("transport") or {}
-    encoding = transport.get("encoding", "utf-8")
-    eol_send = transport.get("line_ending_send", "\r")
+    # Wire-level settings come from cfg, not the profile.  The cfg is
+    # the user's session ("how I'm wired up"); the profile is the
+    # device contract ("what commands you accept").
+    encoding = host.cfg.get("encoding", "utf-8")
+    eol_send = host.cfg.get("line_ending", "\r")
+    default_response_timeout_ms = int(
+        host.cfg.get("default_response_timeout_ms", 1000) or 1000
+    )
     raw_response = spec.get("response") or {}
     response = raw_response if isinstance(raw_response, dict) else {}
     fmt = response.get("format", "none")
@@ -875,10 +880,7 @@ def _dispatch_via_profile(
         timeout_s = float(response.get("timeout_ms", 100)) / 1000.0
     else:
         timeout_s = float(
-            response.get(
-                "timeout_ms",
-                transport.get("default_response_timeout_ms", 1000),
-            )
+            response.get("timeout_ms", default_response_timeout_ms)
         ) / 1000.0
 
     # Drain -> send -> wait pipeline lives in request_response.py so the

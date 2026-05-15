@@ -30,16 +30,21 @@ A profile is a JSON object with these top-level keys:
   "profile_revision": "1.0.0",
   "profile_date": "2026-05-03",
   "device":          {"name": "...", "vendor": "...", "model": "..."},
-  "transport":       {"protocol": "text", "baud_rate": 115200, ...},
   "error_detection": {"pattern": "^ERROR(?::\\s*(?P<message>.+))?$"},
+  "types":           {"on_off": {"kind": "enum", "values": ["on", "off"]}},
   "commands":        {"AT": {...}, "AT+TEMP": {...}, ...}
 }
 ```
 
-Only `commands` is strictly required.  Everything else is optional but
-strongly recommended — `transport.line_ending_send` in particular
-controls whether bytes get terminated with `\r`, `\n`, or `\r\n` on
-the wire.
+Only `commands` is strictly required.  Everything else is optional.
+
+**Wire-level settings live in cfg, not the profile.**  Baud rate,
+byte size, parity, stop bits, flow control, encoding, and line
+ending are session properties — they depend on the user's USB
+adapter and hardware setup, not on the device contract.  Set them
+in your `termapy_cfg/<name>/<name>.cfg` file.  See `help config`
+for the field reference.  For NDJSON devices, set `cfg.protocol`
+to `"ndjson"`; the default `"text"` covers most devices.
 
 ## Per-command schema
 
@@ -140,9 +145,9 @@ Common patterns:
 ### `response.timeout_ms` (integer)
 
 How long to wait for the response before timing out.  Defaults to
-`transport.default_response_timeout_ms` (which itself defaults to
-1000 ms).  Bump for slow operations like resets, self-tests, or
-flash erases.
+`cfg.default_response_timeout_ms` (which itself defaults to 1000
+ms).  Bump for slow operations like resets, self-tests, or flash
+erases.
 
 ### `response.types` (object, optional)
 
@@ -232,16 +237,6 @@ Notes:
   catalog sees the full contract per arg without cross-referencing.
 
 ## Top-level blocks
-
-### `transport`
-
-Wire-level rules.  Most useful keys:
-
-- `protocol`: `"text"` (default) or `"ndjson"`
-- `line_ending_send`: `"\r"`, `"\n"`, or `"\r\n"` — bytes appended on send
-- `line_ending_recv`: same vocabulary, used to split incoming text
-- `encoding`: `"utf-8"`, `"latin-1"`, `"ascii"`, etc.
-- `default_response_timeout_ms`: integer, default 1000
 
 ### `error_detection`
 
@@ -462,7 +457,7 @@ The profile is just a JSON file; edit it freely.
 ## See also
 
 - `/profile.validate <path>` — schema check against this guide.
-- `/profile.load <path>` — load a profile and apply transport rules.
+- `/profile.load <path>` — install a profile into the active session.
 - `/profile.info` — inspect the active profile.
 - `/mcp.info` — see destructive count, enabled-vs-draft split.
 - `/profile.load cmd=<command>` — for devices that publish their own

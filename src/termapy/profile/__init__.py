@@ -19,7 +19,6 @@ Public API (re-exported for one-import convenience)::
         # schema + load/save/validate
         SCHEMA_PATH, Profile, ValidationResult,
         load_profile, save_profile, validate_profile, precedence,
-        apply_profile_transport,
 
         # user-defined types + validators
         BUILTINS, TypeDef, ValidationOutcome, TypeRegistry,
@@ -74,9 +73,7 @@ from typing import Any
 from termapy.profile.loader import (
     Profile,
     SCHEMA_PATH,
-    SERIAL_LEVEL_TRANSPORT_KEYS,
     ValidationResult,
-    apply_profile_transport,
     load_profile,
     precedence,
     save_profile,
@@ -137,9 +134,7 @@ __all__ = [
     # loader
     "Profile",
     "SCHEMA_PATH",
-    "SERIAL_LEVEL_TRANSPORT_KEYS",
     "ValidationResult",
-    "apply_profile_transport",
     "load_profile",
     "precedence",
     "save_profile",

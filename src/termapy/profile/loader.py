@@ -1,8 +1,15 @@
 """Device profile: declarative description of a serial device.
 
-A profile describes how a device speaks: its transport rules (baud,
-line endings, prompt, echo), its command catalog (with typed args and
-response shapes), its error patterns, and version metadata.
+A profile describes a device's command catalog: typed args, help text,
+request/response patterns, error patterns, and version metadata.
+
+Wire-level settings (baud rate, byte size, parity, line endings,
+encoding, NDJSON field routing, ...) DO NOT live in the profile --
+they live in the user's cfg file.  The cfg points to the profile via
+``profile_path``; the profile does not point back.  Rationale: a
+profile is the device's contract (commands + help); the cfg is the
+user's session (how their hardware is wired).  Conflating the two
+forced silent cfg-overwrite behavior on profile load.
 
 The profile is the *spec*; termapy's MCP bridge is the *reference
 implementation*.  Other tools can consume the same schema.
@@ -87,83 +94,6 @@ class ValidationResult:
     errors: list[str] = field(default_factory=list)
 
 
-# ── Transport-apply: profile.transport -> live config ─────────────────────
-
-
-# Mapping from profile transport keys to termapy cfg keys.  Most are 1:1;
-# `line_ending_send` is the special case (the cfg name predates v2).
-_TRANSPORT_KEY_MAP: dict[str, str] = {
-    "baud_rate": "baud_rate",
-    "byte_size": "byte_size",
-    "parity": "parity",
-    "stop_bits": "stop_bits",
-    "flow_control": "flow_control",
-    "encoding": "encoding",
-    "inter_command_delay_ms": "inter_command_delay_ms",
-    "default_response_timeout_ms": "default_response_timeout_ms",
-    "line_ending_send": "line_ending",
-}
-
-# Serial-level params: changes to these only take effect on the next
-# ``engine.connect()``.  Bridge code that sees changes to any of these
-# while connected can warn the user.
-SERIAL_LEVEL_TRANSPORT_KEYS: frozenset[str] = frozenset(
-    {"baud_rate", "byte_size", "parity", "stop_bits", "flow_control"}
-)
-
-
-def apply_profile_transport(
-    transport: dict[str, Any],
-    apply_cfg: Any,
-    cfg_get: Any = None,
-) -> dict[str, tuple[Any, Any]]:
-    """Apply a profile's ``transport`` block to the live config.
-
-    Walks the recognized fields in ``transport`` and calls ``apply_cfg``
-    for each.  ``apply_cfg`` is the engine's per-key updater (see
-    ``ReplEngine._apply_cfg``).  When ``cfg_get`` is supplied, the
-    returned dict carries the per-field ``(old, new)`` so callers can
-    surface true divergences (cfg said X, profile says Y).  Without it,
-    old is reported as ``None``.
-
-    Termapy-level params (``line_ending``, ``encoding``,
-    ``inter_command_delay_ms``) take effect immediately.  Serial-level
-    params (``baud_rate``, ``byte_size``, ``parity``, ``stop_bits``,
-    ``flow_control``) are applied to ``cfg`` but only consumed by the
-    next ``engine.connect()`` -- pyserial doesn't safely allow hot-
-    swapping these on an open port.
-
-    NDJSON-only fields (``protocol``, ``field_routing``) are NOT
-    written to ``cfg`` -- the bridge reads them from the active
-    profile namespace directly.
-
-    Args:
-        transport: The ``transport`` block from a loaded profile dict.
-        apply_cfg: Callable matching ``ReplEngine._apply_cfg`` signature
-            ``(key: str, value: Any) -> None``.  Plugin handlers use
-            ``ctx.engine.apply_cfg``.
-        cfg_get: Optional ``(key, default=None) -> value`` reader.  When
-            provided, the returned dict records the pre-load cfg value
-            so the caller can warn on actual divergence rather than on
-            "any field present in the profile."  Plugin handlers pass
-            ``ctx.cfg.get``.
-
-    Returns:
-        ``{cfg_key: (old_value, new_value)}`` for every key written.
-        When ``cfg_get`` is None, old_value is None.
-    """
-    if not isinstance(transport, dict):
-        return {}
-    changes: dict[str, tuple[Any, Any]] = {}
-    for tkey, ckey in _TRANSPORT_KEY_MAP.items():
-        if tkey in transport:
-            new_val = transport[tkey]
-            old_val = cfg_get(ckey) if cfg_get is not None else None
-            apply_cfg(ckey, new_val)
-            changes[ckey] = (old_val, new_val)
-    return changes
-
-
 def validate_profile(profile: dict) -> ValidationResult:
     """Validate a profile dict against ``profile.schema.json``.
 
@@ -173,6 +103,19 @@ def validate_profile(profile: dict) -> ValidationResult:
     than full schema validation -- if a user wants strict checks they
     can ``pip install jsonschema``.
     """
+    # Catch the most-cited migration failure before jsonschema's
+    # "not.required" produces an unreadable error message.  Users
+    # carrying pre-v18 profiles with a transport block should get a
+    # one-line pointer at the cfg replacement, not a schema dump.
+    if isinstance(profile, dict) and "transport" in profile:
+        return ValidationResult(
+            ok=False,
+            errors=[
+                "transport: block is no longer supported; move wire-level "
+                "settings to your cfg file (baud_rate, line_ending, encoding, "
+                "etc.).  NDJSON support: set cfg `protocol: \"ndjson\"`."
+            ],
+        )
     try:
         import jsonschema  # type: ignore[import-untyped]
     except ImportError:
@@ -204,22 +147,15 @@ def _builtin_validate(profile: dict) -> ValidationResult:
     if pv is not None and pv != 2:
         errors.append(f"profile_version: expected 2, got {pv!r}")
 
-    transport = profile.get("transport")
-    if transport is not None:
-        if not isinstance(transport, dict):
-            errors.append("transport: must be an object")
-        else:
-            proto = transport.get("protocol")
-            if proto is not None and proto not in ("text", "ndjson"):
-                errors.append(
-                    f"transport/protocol: expected 'text' or 'ndjson', got {proto!r}"
-                )
-            parity = transport.get("parity")
-            if parity is not None and parity not in ("N", "E", "O", "M", "S"):
-                errors.append(f"transport/parity: invalid value {parity!r}")
-            fc = transport.get("flow_control")
-            if fc is not None and fc not in ("none", "rtscts", "xonxoff", "manual"):
-                errors.append(f"transport/flow_control: invalid value {fc!r}")
+    # The transport block was retired: wire-level settings live in the
+    # cfg, not the profile.  Reject so old hand-rolled profiles get a
+    # clear error instead of silent ignore.
+    if "transport" in profile:
+        errors.append(
+            "transport: block is no longer supported; move wire-level "
+            "settings to your cfg file (baud_rate, line_ending, encoding, "
+            "etc.).  NDJSON support: set cfg `protocol: \"ndjson\"`."
+        )
 
     commands = profile.get("commands")
     if commands is not None:
@@ -389,12 +325,6 @@ class Profile:
         """Return the commands dict, or empty if absent."""
         c = self.data.get("commands")
         return c if isinstance(c, dict) else {}
-
-    @property
-    def transport(self) -> dict[str, Any]:
-        """Return the transport block, or empty if absent."""
-        t = self.data.get("transport")
-        return t if isinstance(t, dict) else {}
 
     @property
     def device(self) -> dict[str, Any]:

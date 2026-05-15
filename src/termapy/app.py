@@ -1664,11 +1664,11 @@ class SerialTerminal(TerminalHost, App):
             actual = getattr(self.engine.port_obj, "port", "") or ""
         return connection_string(self.cfg, "short", actual_port=actual)
 
-    @staticmethod
     def _format_title_tooltip(self, *args, **kwargs):
         """Format a title-bar tooltip.  Implementation in ``title_bar``."""
         from termapy.title_bar import format_title_tooltip
         return format_title_tooltip(self, *args, **kwargs)
+
     @staticmethod
     def _format_tooltip_value(value: object) -> str:
         """Render a config value for display in a tooltip body line.

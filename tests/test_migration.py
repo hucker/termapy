@@ -434,3 +434,85 @@ def test_v15_to_v16_empty_request_err_pattern_preserved():
 
     # Assert
     assert result["request_err_pattern"] == "", "empty disable preserved"
+
+
+# ── v19 -> v20: /color renamed to /term.color in on-connect chains ─────────
+
+
+def test_v19_to_v20_rewrites_color_in_on_connect_cmd():
+    """/color at a command boundary becomes /term.color."""
+    # Arrange
+    cfg = {
+        "config_version": 19,
+        "cli_on_connect_cmd": "/color off",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    assert result["cli_on_connect_cmd"] == "/term.color off", "verb rewritten"
+
+
+def test_v19_to_v20_rewrites_color_in_multi_line_chain():
+    """Each command in a \\n-separated chain is checked independently."""
+    # Arrange
+    cfg = {
+        "config_version": 19,
+        "tui_on_connect_cmd": "echo on\n/color off\n/help",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    actual = result["tui_on_connect_cmd"]
+    expected = "echo on\n/term.color off\n/help"
+    assert actual == expected, (
+        f"/color rewritten only at line boundary; got {actual!r}"
+    )
+
+
+def test_v19_to_v20_does_not_rewrite_color_in_argument_text():
+    """``/print "/color was teal"`` keeps the literal /color in the args."""
+    # Arrange -- /color appears mid-string (after a quote, after a space
+    # that isn't a command boundary), so the conservative regex must
+    # leave it alone.
+    cfg = {
+        "config_version": 19,
+        "on_connect_cmd": '/print "the /color was teal"',
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert -- literal /color survives inside the argument text.
+    assert result["on_connect_cmd"] == '/print "the /color was teal"', (
+        "argument-text /color must not be rewritten"
+    )
+
+
+def test_v19_to_v20_idempotent_on_already_renamed():
+    """Running twice doesn't double-rewrite /term.color."""
+    # Arrange
+    cfg = {"config_version": 19, "mcp_on_connect_cmd": "/term.color on"}
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    assert result["mcp_on_connect_cmd"] == "/term.color on", "no double prefix"
+
+
+def test_v19_to_v20_covers_all_four_on_connect_fields():
+    """Every per-frontend on-connect field gets the rewrite."""
+    # Arrange
+    cfg = {
+        "config_version": 19,
+        "on_connect_cmd": "/color on",
+        "tui_on_connect_cmd": "/color on",
+        "cli_on_connect_cmd": "/color on",
+        "mcp_on_connect_cmd": "/color on",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    for key in (
+        "on_connect_cmd",
+        "tui_on_connect_cmd",
+        "cli_on_connect_cmd",
+        "mcp_on_connect_cmd",
+    ):
+        assert result[key] == "/term.color on", f"{key} rewritten"

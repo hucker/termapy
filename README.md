@@ -488,7 +488,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 19,
+    "config_version": 20,
     "title": "",
     "border_color": "",
     "max_lines": 10000,

@@ -98,7 +98,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 19,
+    "config_version": 20,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -696,7 +696,6 @@ demo> /help.plugin
 -- Application --
   /cli        Already in CLI mode.
   /clr        Clear the terminal screen (alias for /cls).
-  /color      Show or toggle color output.
   /delay      Wait for duration with progress bar (e.g. 500ms, 1.5s).
   /demo       Set up and switch to the demo device config.
   /raw        Send raw text to serial (no transforms or line ending).

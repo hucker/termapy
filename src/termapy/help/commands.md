@@ -21,7 +21,6 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
 | `/cfg.show`               | Open the current config file in the system viewer                           |
 | `/cls`                    | Clear the terminal                                                          |
-| `/color {on\|off}`        | Show or toggle color output (CLI mode only)                                 |
 | `/confirm {message}`      | Show Yes/Cancel dialog; Cancel stops a running script                       |
 | `/credits`                | Print acknowledgments (libraries and authors termapy depends on)            |
 | `/delay <duration>`       | Pause for a duration (e.g. `500ms`, `1.5s`)                                 |
@@ -110,6 +109,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/ss.txt [name]`          | Save a text screenshot                                                      |
 | `/stop`                   | Abort a running script                                                      |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
+| `/term.color {on\|off}`   | Show or toggle color output (CLI mode only)                                 |
 | `/term.echo [on\|off]`    | Toggle command echo                                                         |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
 | `/term.hex [on\|off]`     | Toggle hex display of incoming bytes                                        |

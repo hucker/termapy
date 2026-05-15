@@ -10,9 +10,10 @@ To add a migration:
     3. Add it to MIGRATIONS: {N: _migrate_vN_to_vN1}
 """
 
+import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 19
+CURRENT_CONFIG_VERSION = 20
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -353,6 +354,64 @@ def _migrate_v18_to_v19(cfg: dict) -> dict:
 
 
 MIGRATIONS[18] = _migrate_v18_to_v19
+
+
+# Conservative regex: matches ``/color`` only when it sits at the
+# *start of a command* in the chain -- meaning the first non-whitespace
+# token after the start of the string, a newline, or a semicolon.
+# Leading whitespace between the boundary and ``/color`` is allowed.
+# Plain spaces inside an argument string (``/print "the /color was
+# teal"``) deliberately do not count as a boundary, so embedded
+# literal ``/color`` text survives unchanged.  Trailing word-boundary
+# guard prevents ``/colorful`` from being rewritten.
+_COLOR_VERB_RE = re.compile(
+    r"(?P<lead>^|[\n;])(?P<ws>[ \t]*)/color(?P<tail>\b)",
+)
+
+
+def _rewrite_color_in_chain(text: str) -> str:
+    """Replace ``/color`` with ``/term.color`` at command boundaries.
+
+    The cfg ``*_on_connect_cmd`` fields are ``\\n``-separated chains of
+    REPL commands.  We rewrite ``/color`` only where it appears as a
+    command verb -- not inside argument text like ``/print "the /color
+    was teal"``.  Conservative on purpose; round-trip-safe to call
+    repeatedly.
+    """
+    if not isinstance(text, str) or "/color" not in text:
+        return text
+    return _COLOR_VERB_RE.sub(
+        r"\g<lead>\g<ws>/term.color\g<tail>", text,
+    )
+
+
+def _migrate_v19_to_v20(cfg: dict) -> dict:
+    """Rewrite ``/color`` to ``/term.color`` in on-connect command chains.
+
+    The CLI-only ``/color`` toggle was renamed to ``/term.color`` to
+    sit alongside its display-toggle siblings (``/term.echo``,
+    ``/term.line_no``, ``/term.timestamps``, ...).  A hidden legacy
+    alias keeps ``/color`` working at runtime, so user .run scripts,
+    shell aliases, and muscle memory continue to work.
+
+    This migration is cosmetic: it walks the four ``*_on_connect_cmd``
+    cfg fields and rewrites any ``/color`` command-verb occurrences in
+    place so ``/cfg.dump`` shows the canonical name and the user
+    learns the new vocabulary.  Argument text like ``/print "/color
+    was teal"`` is not rewritten (see ``_COLOR_VERB_RE``).
+    """
+    for key in (
+        "on_connect_cmd",
+        "tui_on_connect_cmd",
+        "cli_on_connect_cmd",
+        "mcp_on_connect_cmd",
+    ):
+        if key in cfg:
+            cfg[key] = _rewrite_color_in_chain(cfg[key])
+    return cfg
+
+
+MIGRATIONS[19] = _migrate_v19_to_v20
 
 
 def migrate_config(cfg: dict) -> dict:

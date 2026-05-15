@@ -1,12 +1,15 @@
-"""Implementation of /log.dump -- print the session log to the terminal.
+"""Built-in plugin: /log.dump -- print the session log to the terminal.
 
 With no argument, prints the entire log.  With a positive integer
 argument N, prints only the last N lines (tail -N).
 
-Like ``log_show.py`` and ``log_fingerprint.py``, lives as a plain
-module (not an auto-loaded plugin) because ``/log`` is an app-hook
-namespace -- registering a ``log.*`` plugin would be wiped by the
-frontend's ``/log.clear`` hook registration.
+Lives in builtins/commands/ so MCP and CLI and TUI all get it from
+the shared plugin layer (previously was a hook registered only by
+TUI and CLI, leaving MCP unable to read the session log).  The
+prior concern about ``register_hook`` wiping the ``log.*`` subtree
+is moot here: no host registers a bare ``/log`` hook, so the
+``log.dump`` plugin entry survives whatever the host adds to
+``log.delete`` / ``log.clear`` later.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import cfg_log_path
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -73,3 +76,13 @@ LONG_HELP = (
     "long and only the tail matters."
 )
 ARGS = "{count}"
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="log.dump",
+    args=ARGS,
+    help=HELP,
+    long_help=LONG_HELP,
+    handler=HANDLER,
+)

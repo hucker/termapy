@@ -1,16 +1,15 @@
-"""Implementation of /log.fingerprint -- write a session fingerprint to the log.
+"""Built-in plugin: /log.fingerprint -- write a session fingerprint to the log.
 
 Captures enough provenance data (OS, terminal, Python, termapy, config,
 serial port state) that a log file can be read back weeks later and
 the conditions of the session are unambiguous.  Writes to the session
 log only; nothing hits the output window (aside from a brief confirmation).
 
-Lives at ``termapy.log_fingerprint`` rather than as an auto-loaded
-plugin because ``/log`` is an app-level hook namespace (see
-``/log.clear``), and ``register_hook("log", ...)`` would wipe any
-plugin entries.  Keeping the handler as a plain module lets both
-frontends register it as a sibling hook after ``/log.*`` hooks are
-installed.
+Lives in builtins/commands/ so MCP and CLI and TUI all see the
+same handler.  The prior concern about ``register_hook("log", ...)``
+wiping plugin entries is moot here: no host registers a bare
+``/log`` hook, only sibling ``/log.clear`` / ``/log.delete`` hooks
+that don't touch the ``log.fingerprint`` plugin entry.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ import platform as _platform
 import socket
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -220,13 +219,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=str(len(lines)))
 
 
-# ── Public exports consumed by register_hook in cli.py and app.py ─────────────
-#
-# ``/log`` is an app-hook namespace already (see ``/log.clear``).  The
-# two frontends install their own ``log.*`` hooks at startup; this
-# handler rides along so the fingerprint command lives beside the
-# other log commands instead of getting isolated as a plugin.
-
 HANDLER = _handler
 HELP = (
     "Write a full session fingerprint (OS, terminal, port params) to the session log."
@@ -246,3 +238,14 @@ LONG_HELP = (
 )
 ARGS = "{--show}"
 FLAGS = {"--show": "Also echo the fingerprint to the terminal output."}
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="log.fingerprint",
+    args=ARGS,
+    help=HELP,
+    long_help=LONG_HELP,
+    handler=HANDLER,
+    flags=FLAGS,
+)

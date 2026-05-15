@@ -28,7 +28,7 @@ from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy import log_dump, log_fingerprint, log_show, run_legacy
+from termapy import run_legacy
 from termapy.app import CONFIG_LOAD_ERRORS
 from termapy.builtins.commands.edit import (
     _make_edit_handler,
@@ -734,35 +734,8 @@ def register_tui_hooks(app) -> None:
         source="app",
         hidden=True,
     )
-    # /log.show, /log.dump, /log.fingerprint -- shared handlers in
-    # termapy.log_show / log_dump / log_fingerprint.
-
-    app.repl.register_hook(
-        "log.show",
-        log_show.ARGS,
-        log_show.HELP,
-        log_show.HANDLER,
-        source="app",
-        long_help=log_show.LONG_HELP,
-        needs=CapabilitySet(gui_apps=True),
-    )
-    app.repl.register_hook(
-        "log.dump",
-        log_dump.ARGS,
-        log_dump.HELP,
-        log_dump.HANDLER,
-        source="app",
-        long_help=log_dump.LONG_HELP,
-    )
-    app.repl.register_hook(
-        "log.fingerprint",
-        log_fingerprint.ARGS,
-        log_fingerprint.HELP,
-        log_fingerprint.HANDLER,
-        source="app",
-        long_help=log_fingerprint.LONG_HELP,
-        flags=log_fingerprint.FLAGS,
-    )
+    # /log.show, /log.dump, /log.fingerprint live as builtin plugins
+    # in termapy/builtins/commands/log_*.py so MCP gets them too.
     # /edit.log -- hidden legacy forwarder to /log.show.
     app.repl.register_hook(
         "edit.log",

@@ -432,35 +432,9 @@ class CLITerminal(TerminalHost):
             source="app",
             hidden=True,
         )
-        # /log.show, /log.dump, /log.fingerprint -- shared handlers.
-        from termapy import log_dump, log_fingerprint, log_show
-
-        self.repl.register_hook(
-            "log.show",
-            log_show.ARGS,
-            log_show.HELP,
-            log_show.HANDLER,
-            source="app",
-            long_help=log_show.LONG_HELP,
-            needs=CapabilitySet(gui_apps=True),
-        )
-        self.repl.register_hook(
-            "log.dump",
-            log_dump.ARGS,
-            log_dump.HELP,
-            log_dump.HANDLER,
-            source="app",
-            long_help=log_dump.LONG_HELP,
-        )
-        self.repl.register_hook(
-            "log.fingerprint",
-            log_fingerprint.ARGS,
-            log_fingerprint.HELP,
-            log_fingerprint.HANDLER,
-            source="app",
-            long_help=log_fingerprint.LONG_HELP,
-            flags=log_fingerprint.FLAGS,
-        )
+        # /log.show, /log.dump, /log.fingerprint live as builtin
+        # plugins in termapy/builtins/commands/log_*.py so MCP gets
+        # them too -- no hook registration needed here.
         self.repl.register_hook(
             "tui",
             "",

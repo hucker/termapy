@@ -169,7 +169,7 @@ class CapabilitySet:
     # Where: Dynamic -- evaluated per dispatch by checking
     #        ``ctx.is_connected()``.  Any environment can publish this,
     #        but only when a port is actually open.  Commands that send
-    #        bytes (/proto.send, /xmodem.send, ...) declare this need
+    #        bytes (/proto.send, /xfer.xmodem.send, ...) declare this need
     #        so dispatch gives a clear "not connected" error instead of
     #        each handler re-implementing the check.
     serial_connected: bool = False

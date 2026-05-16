@@ -14,8 +14,11 @@ What it does:
     6. Checkout main, merge release branch with --no-ff
     7. Create tag v<version>
     8. Push main, tag, and release branch to origin
-    9. Create GitHub release with notes extracted from CHANGELOG.md
-    10. Build and publish to PyPI via uv
+    9. Build and publish to PyPI via uv
+    10. Create GitHub release with notes extracted from CHANGELOG.md
+        (after PyPI so the workflow triggered by `release.published`
+        sees the file already on PyPI and `--check-url` skips the
+        duplicate upload instead of racing it)
     11. Print summary
 
 Aborts loudly on any failure. Never force-pushes. Never deletes branches.
@@ -238,11 +241,20 @@ def main() -> None:
     # ── Push ─────────────────────────────────────────────────────────────
     push_all(version, release_branch)
 
+    # ── PyPI ─────────────────────────────────────────────────────────────
+    # Publish to PyPI BEFORE creating the GitHub release.  The GH release
+    # fires the `release.published` event that triggers the publish
+    # workflow, which also runs `uv publish --check-url`.  If we created
+    # the release first, the workflow would start in parallel with this
+    # local upload and one side would lose the upload race, hitting PyPI
+    # with a 400 "File already exists" (see publish.yml comments and
+    # v0.64.0 / v0.65.0 / v0.65.1 CI failures).  Publishing first lets
+    # the file land on PyPI's index before CI starts, so `--check-url`
+    # correctly skips the duplicate upload.
+    build_and_publish_pypi(version)
+
     # ── GitHub release ───────────────────────────────────────────────────
     create_github_release(version, notes)
-
-    # ── PyPI ─────────────────────────────────────────────────────────────
-    build_and_publish_pypi(version)
 
     # ── Done ─────────────────────────────────────────────────────────────
     print()

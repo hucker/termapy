@@ -1,16 +1,20 @@
 name: Publish to PyPI
 
 # Safety-net publisher.  release_publish.py publishes to PyPI from the
-# developer machine, then calls `gh release create` which fires the
-# release:published event that triggers this workflow.  Both try to
-# upload the same artefact; whichever loses the race hits PyPI's
-# "file already exists" 400 and the workflow shows red even though
-# the package did land.
+# developer machine FIRST, then calls `gh release create` which fires
+# the release:published event that triggers this workflow.  By the
+# time this runs the wheel + sdist are already on PyPI, so
+# `uv publish --check-url` sees them on the Simple index and exits 0
+# without re-uploading.  This makes the workflow a true no-op on a
+# normal release and a real backstop only if the local publish ever
+# fails (network hiccup, transient PyPI 5xx, etc).
 #
-# `uv publish --check-url` checks the PyPI index first and exits 0 if
-# the file is already there, so this workflow is now a no-op on a
-# normal release and a real backstop if the local publish ever fails
-# (network hiccup between `git push` and `uv publish`, etc).
+# History: until the v0.65.2 release-script change, this workflow
+# created the GitHub release BEFORE the local PyPI upload, which
+# meant both sides raced for the upload slot and the loser got
+# PyPI's "File already exists" 400 + exit 2.  v0.64.0 / v0.65.0 /
+# v0.65.1 all failed that way -- harmless (the package landed) but
+# the workflow showed red.
 
 on:
   release:

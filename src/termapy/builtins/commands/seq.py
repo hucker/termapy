@@ -64,10 +64,11 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     counters = {k: v for k, v in ctx.ns("seq").items() if isinstance(k, int)}
     if counters:
         parts = [f"seq{k}={v}" for k, v in sorted(counters.items())]
-        ctx.io.output(f"Counters: {', '.join(parts)}")
-    else:
-        ctx.io.output("No counters set.")
-    return CmdResult.ok()
+        line = ", ".join(parts)
+        ctx.io.output(f"Counters: {line}")
+        return CmdResult.ok(value=line)
+    ctx.io.output("No counters set.")
+    return CmdResult.ok(value="")
 
 
 def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
@@ -85,7 +86,7 @@ def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
     seq.clear()
     seq["_start_time"] = start_time
     ctx.io.output("Sequence counters reset.")
-    return CmdResult.ok()
+    return CmdResult.ok(value="reset")
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

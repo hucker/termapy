@@ -580,6 +580,60 @@ class TestLogCommandsAvailableInMCP:
         )
 
 
+class TestRunCommandsAvailableInMCP:
+    """``/run`` and the standard ``run.*`` folder subcommands are
+    registered in MCP's ``_register_hooks`` so an LLM client can
+    trigger pre-defined ``.run`` automation files.
+    ``chore/run-as-builtin`` (audit item #4) added this -- before,
+    MCP saw only built-ins and could not execute scripts.  ``.show``
+    and ``.explore`` stay gated on ``gui_apps`` for the same reason
+    ``/log.show`` does.
+    """
+
+    def test_run_registered_and_callable(self, host):
+        # Arrange / Act
+        plugin = host.repl._plugins.get("run")
+
+        # Assert
+        assert plugin is not None, "/run registered in MCP host"
+        missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+        assert missing == [], (
+            f"/run is callable from MCP (missing={missing})"
+        )
+
+    def test_run_bare_returns_usage_message(self, host):
+        # Arrange / Act -- bare /run has no picker / help-list in MCP.
+        result = host.repl.dispatch("run")
+
+        # Assert
+        assert not result.success, "bare /run is a usage error in MCP"
+        assert "Usage:" in result.error, "error names usage"
+
+    def test_run_list_dump_callable_from_mcp(self, host):
+        # Arrange / Act
+        for name in ("run.list", "run.dump", "run.legacy"):
+            plugin = host.repl._plugins.get(name)
+            missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+
+            # Assert
+            assert plugin is not None, f"{name} registered in MCP host"
+            assert missing == [], (
+                f"{name} callable from MCP (missing={missing})"
+            )
+
+    def test_run_show_and_explore_gated_on_gui_apps(self, host):
+        # Arrange / Act
+        for name in ("run.show", "run.explore"):
+            plugin = host.repl._plugins.get(name)
+            missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+
+            # Assert
+            assert plugin is not None, f"{name} registered in MCP host"
+            assert "gui_apps" in missing, (
+                f"{name} stays gated on gui_apps -- MCP is headless"
+            )
+
+
 # ── device_state resource ───────────────────────────────────────────────────
 
 

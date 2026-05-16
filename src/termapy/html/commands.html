@@ -19,11 +19,11 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.41">
+      <meta name="generator" content="zensical-0.0.42">
     
     
       
-        <title>REPL commands - Termapy Help v0.65.1</title>
+        <title>REPL commands - Termapy Help v0.66.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.65.1" class="md-header__button md-logo" aria-label="Termapy Help v0.65.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.66.0" class="md-header__button md-logo" aria-label="Termapy Help v0.66.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.65.1
+            Termapy Help v0.66.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.65.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.65.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.66.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.66.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.65.1
+    Termapy Help v0.66.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -917,108 +917,28 @@
 </thead>
 <tbody>
 <tr>
-<td><code>/help</code></td>
-<td>Clean landscape of every command (name + one-liner)</td>
+<td><code>/cap.bin &lt;f&gt; ...</code></td>
+<td>Capture raw binary bytes to a file</td>
 </tr>
 <tr>
-<td><code>/help &lt;term&gt;</code></td>
-<td>Exact match -&gt; man-page detail; otherwise a candidate list</td>
+<td><code>/cap.hex &lt;f&gt; ...</code></td>
+<td>Capture hex text lines, decode with format spec to CSV</td>
 </tr>
 <tr>
-<td><code>/search &lt;term&gt;</code></td>
-<td>Deep search: name, help, args, flags, long help (multi-term, <code>-exclude</code>, regex)</td>
+<td><code>/cap.stop</code></td>
+<td>Stop an active capture</td>
 </tr>
 <tr>
-<td><code>/help.target</code></td>
-<td>Show only imported target device commands</td>
+<td><code>/cap.struct &lt;f&gt; ...</code></td>
+<td>Capture binary data, decode with format spec to CSV</td>
 </tr>
 <tr>
-<td><code>/help.run</code></td>
-<td>List available .run scripts with descriptions</td>
+<td><code>/cap.text &lt;f&gt; ...</code></td>
+<td>Capture serial text to file for a timed duration</td>
 </tr>
 <tr>
-<td><code>/help.plugin</code></td>
-<td>List loaded plugins grouped by source</td>
-</tr>
-<tr>
-<td><code>/help.dev &lt;cmd&gt;</code></td>
-<td>Show a command handler's Python docstring (developer view)</td>
-</tr>
-<tr>
-<td><code>/port {name}</code></td>
-<td>TUI bare: open Port picker. CLI bare: list subcommands. With name: open it.</td>
-</tr>
-<tr>
-<td><code>/port.help</code></td>
-<td>Show <code>/port</code> help (alias for <code>/help port</code>)</td>
-</tr>
-<tr>
-<td><code>/port.list</code></td>
-<td>Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SN, ...)</td>
-</tr>
-<tr>
-<td><code>/port.connect {name} {baud} {mode}</code></td>
-<td>Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81)</td>
-</tr>
-<tr>
-<td><code>/port.mode {baud} {mode}</code></td>
-<td>Show or set serial mode (e.g. /port.mode 9600 N81)</td>
-</tr>
-<tr>
-<td><code>/port.disconnect</code></td>
-<td>Disconnect from the serial port</td>
-</tr>
-<tr>
-<td><code>/port.info</code></td>
-<td>Show port status, serial parameters, hardware lines, and xfer root</td>
-</tr>
-<tr>
-<td><code>/port.baud_rate {value}</code></td>
-<td>Show or set baud rate (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.byte_size {value}</code></td>
-<td>Show or set data bits (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.parity {value}</code></td>
-<td>Show or set parity (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.stop_bits {value}</code></td>
-<td>Show or set stop bits (hardware only)</td>
-</tr>
-<tr>
-<td><code>/port.flow_control {m}</code></td>
-<td>Show or set flow control: none, rtscts, xonxoff, manual</td>
-</tr>
-<tr>
-<td><code>/port.dtr {0\|1}</code></td>
-<td>Show or set DTR line</td>
-</tr>
-<tr>
-<td><code>/port.rts {0\|1}</code></td>
-<td>Show or set RTS line</td>
-</tr>
-<tr>
-<td><code>/port.cts</code></td>
-<td>Show CTS state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.dsr</code></td>
-<td>Show DSR state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.ri</code></td>
-<td>Show RI state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.cd</code></td>
-<td>Show CD state (read-only)</td>
-</tr>
-<tr>
-<td><code>/port.break {ms}</code></td>
-<td>Send break signal (default 250ms)</td>
+<td><code>/cap.wire {wait_gap=&lt;dur&gt;} cmd=&lt;command&gt;</code></td>
+<td>Run a command and show TX/RX bytes inline as hex + repr (debug line endings)</td>
 </tr>
 <tr>
 <td><code>/cfg [key [value]]</code></td>
@@ -1033,6 +953,18 @@
 <td>List all config files</td>
 </tr>
 <tr>
+<td><code>/cfg.files</code></td>
+<td>Show project directory tree</td>
+</tr>
+<tr>
+<td><code>/cfg.help</code></td>
+<td>Show <code>/cfg</code> help (alias for <code>/help cfg</code>)</td>
+</tr>
+<tr>
+<td><code>/cfg.info {--display}</code></td>
+<td>Show project summary; <code>--display</code> opens full report</td>
+</tr>
+<tr>
 <td><code>/cfg.load &lt;name&gt;</code></td>
 <td>Switch to a different config by name</td>
 </tr>
@@ -1041,68 +973,200 @@
 <td>Open the current config file in the system viewer</td>
 </tr>
 <tr>
-<td><code>/cfg.help</code></td>
-<td>Show <code>/cfg</code> help (alias for <code>/help cfg</code>)</td>
-</tr>
-<tr>
-<td><code>/ss.svg [name]</code></td>
-<td>Save an SVG screenshot</td>
-</tr>
-<tr>
-<td><code>/ss.txt [name]</code></td>
-<td>Save a text screenshot</td>
-</tr>
-<tr>
-<td><code>/ss.dir</code></td>
-<td>Show the screenshot folder</td>
-</tr>
-<tr>
 <td><code>/cls</code></td>
 <td>Clear the terminal</td>
-</tr>
-<tr>
-<td><code>/run {file} {-v}</code></td>
-<td>TUI bare: open Run picker. CLI bare: list scripts. With file: run it.</td>
-</tr>
-<tr>
-<td><code>/run.list</code></td>
-<td>List .run files in the run/ directory</td>
-</tr>
-<tr>
-<td><code>/run.load &lt;file&gt;</code></td>
-<td>Run a script file (same as /run)</td>
-</tr>
-<tr>
-<td><code>/run.help</code></td>
-<td>Show <code>/run</code> help (alias for <code>/help run</code>)</td>
-</tr>
-<tr>
-<td><code>/run.legacy {file\|*}</code></td>
-<td>Find pre-0.63 command names in scripts; <code>--fix</code> rewrites in place</td>
-</tr>
-<tr>
-<td><code>/delay &lt;duration&gt;</code></td>
-<td>Pause for a duration (e.g. <code>500ms</code>, <code>1.5s</code>)</td>
 </tr>
 <tr>
 <td><code>/confirm {message}</code></td>
 <td>Show Yes/Cancel dialog; Cancel stops a running script</td>
 </tr>
 <tr>
-<td><code>/repeat ...</code></td>
-<td>Repeat a command N times: <code>count=&lt;N&gt; {delay=&lt;dur&gt;} {var=&lt;name&gt;} cmd=&lt;cmd&gt;</code></td>
+<td><code>/credits</code></td>
+<td>Print acknowledgments (libraries and authors termapy depends on)</td>
 </tr>
 <tr>
-<td><code>/stop</code></td>
-<td>Abort a running script</td>
+<td><code>/delay &lt;duration&gt;</code></td>
+<td>Pause for a duration (e.g. <code>500ms</code>, <code>1.5s</code>)</td>
 </tr>
 <tr>
-<td><code>/seq</code></td>
-<td>Show sequence counters</td>
+<td><code>/edit &lt;file&gt;</code></td>
+<td>Edit a project file (<code>run/</code>/<code>proto/</code> path)</td>
 </tr>
 <tr>
-<td><code>/seq.reset</code></td>
-<td>Reset all sequence counters to zero</td>
+<td><code>/edit.cfg</code></td>
+<td>Edit the current config file</td>
+</tr>
+<tr>
+<td><code>/edit.info</code></td>
+<td>Open the info report in the system viewer</td>
+</tr>
+<tr>
+<td><code>/edit.plugin {file}</code></td>
+<td>Edit a plugin, or list available plugins if no name given</td>
+</tr>
+<tr>
+<td><code>/edit.proto {file}</code></td>
+<td>Edit a .pro file, or list available files if no name given</td>
+</tr>
+<tr>
+<td><code>/edit.run {file}</code></td>
+<td>Edit a .run script, or list available scripts if no name given</td>
+</tr>
+<tr>
+<td><code>/env.list {pattern}</code></td>
+<td>List environment variables (all, by name, or glob)</td>
+</tr>
+<tr>
+<td><code>/env.reload</code></td>
+<td>Re-snapshot variables from the OS environment</td>
+</tr>
+<tr>
+<td><code>/env.set &lt;name&gt; &lt;value&gt;</code></td>
+<td>Set a session-scoped environment variable</td>
+</tr>
+<tr>
+<td><code>/exit</code></td>
+<td>Exit termapy</td>
+</tr>
+<tr>
+<td><code>/expect {timeout} match=&lt;text&gt;</code></td>
+<td>Wait for serial-output line containing text (blocks; needs block_until)</td>
+</tr>
+<tr>
+<td><code>/expect.regex {timeout} match=&lt;pat&gt;</code></td>
+<td>Wait for serial-output line matching regex</td>
+</tr>
+<tr>
+<td><code>/grep &lt;pattern&gt;</code></td>
+<td>Search scrollback for regex matches (case-insensitive)</td>
+</tr>
+<tr>
+<td><code>/help</code></td>
+<td>Clean landscape of every command (name + one-liner)</td>
+</tr>
+<tr>
+<td><code>/help &lt;term&gt;</code></td>
+<td>Exact match -&gt; man-page detail; otherwise a candidate list</td>
+</tr>
+<tr>
+<td><code>/help.dev &lt;cmd&gt;</code></td>
+<td>Show a command handler's Python docstring (developer view)</td>
+</tr>
+<tr>
+<td><code>/help.plugin</code></td>
+<td>List loaded plugins grouped by source</td>
+</tr>
+<tr>
+<td><code>/help.run</code></td>
+<td>List available .run scripts with descriptions</td>
+</tr>
+<tr>
+<td><code>/help.target</code></td>
+<td>Show only imported target device commands</td>
+</tr>
+<tr>
+<td><code>/log.delete</code></td>
+<td>Delete the session log file</td>
+</tr>
+<tr>
+<td><code>/log.dump {N}</code></td>
+<td>Print the session log (all, or last N lines) to the terminal</td>
+</tr>
+<tr>
+<td><code>/log.fingerprint</code></td>
+<td>Write a full session fingerprint (OS, terminal, port params) to the log</td>
+</tr>
+<tr>
+<td><code>/log.show</code></td>
+<td>Open the session log in the system viewer</td>
+</tr>
+<tr>
+<td><code>/mcp.catalog</code></td>
+<td>Print the JSON command catalog (same content as termapy://commands.json MCP resource)</td>
+</tr>
+<tr>
+<td><code>/mcp.info</code></td>
+<td>Show MCP-mode status (catalog size, port, profile, captures)</td>
+</tr>
+<tr>
+<td><code>/os &lt;cmd&gt;</code></td>
+<td>Run a shell command (requires <code>TERMAPY_OS_CMD_ENABLED=1</code> in env)</td>
+</tr>
+<tr>
+<td><code>/port {name}</code></td>
+<td>TUI bare: open Port picker. CLI bare: list subcommands. With name: open it.</td>
+</tr>
+<tr>
+<td><code>/port.baud_rate {value}</code></td>
+<td>Show or set baud rate (hardware only)</td>
+</tr>
+<tr>
+<td><code>/port.break {ms}</code></td>
+<td>Send break signal (default 250ms)</td>
+</tr>
+<tr>
+<td><code>/port.byte_size {value}</code></td>
+<td>Show or set data bits (hardware only)</td>
+</tr>
+<tr>
+<td><code>/port.cd</code></td>
+<td>Show CD state (read-only)</td>
+</tr>
+<tr>
+<td><code>/port.connect {name} {baud} {mode}</code></td>
+<td>Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81)</td>
+</tr>
+<tr>
+<td><code>/port.cts</code></td>
+<td>Show CTS state (read-only)</td>
+</tr>
+<tr>
+<td><code>/port.disconnect</code></td>
+<td>Disconnect from the serial port</td>
+</tr>
+<tr>
+<td><code>/port.dsr</code></td>
+<td>Show DSR state (read-only)</td>
+</tr>
+<tr>
+<td><code>/port.dtr {0\|1}</code></td>
+<td>Show or set DTR line</td>
+</tr>
+<tr>
+<td><code>/port.flow_control {m}</code></td>
+<td>Show or set flow control: none, rtscts, xonxoff, manual</td>
+</tr>
+<tr>
+<td><code>/port.help</code></td>
+<td>Show <code>/port</code> help (alias for <code>/help port</code>)</td>
+</tr>
+<tr>
+<td><code>/port.info</code></td>
+<td>Show port status, serial parameters, hardware lines, and xfer root</td>
+</tr>
+<tr>
+<td><code>/port.list</code></td>
+<td>Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SN, ...)</td>
+</tr>
+<tr>
+<td><code>/port.mode {baud} {mode}</code></td>
+<td>Show or set serial mode (e.g. /port.mode 9600 N81)</td>
+</tr>
+<tr>
+<td><code>/port.parity {value}</code></td>
+<td>Show or set parity (hardware only)</td>
+</tr>
+<tr>
+<td><code>/port.ri</code></td>
+<td>Show RI state (read-only)</td>
+</tr>
+<tr>
+<td><code>/port.rts {0\|1}</code></td>
+<td>Show or set RTS line</td>
+</tr>
+<tr>
+<td><code>/port.stop_bits {value}</code></td>
+<td>Show or set stop bits (hardware only)</td>
 </tr>
 <tr>
 <td><code>/print &lt;text&gt;</code></td>
@@ -1113,36 +1177,8 @@
 <td>Print Rich markup text (e.g. <code>[bold red]Warning![/]</code>)</td>
 </tr>
 <tr>
-<td><code>/credits</code></td>
-<td>Print acknowledgments (libraries and authors termapy depends on)</td>
-</tr>
-<tr>
-<td><code>/show &lt;name&gt;</code></td>
-<td>Show a file</td>
-</tr>
-<tr>
-<td><code>/show.cfg</code></td>
-<td>Show the current config file</td>
-</tr>
-<tr>
-<td><code>/term</code></td>
-<td>Terminal display / session toggles (echo, line_no, timestamps, ...)</td>
-</tr>
-<tr>
-<td><code>/term.info</code></td>
-<td>Snapshot the state of every <code>/term.*</code> toggle</td>
-</tr>
-<tr>
-<td><code>/term.send &lt;text&gt;</code></td>
-<td>Send literal text to the serial port (with line ending; canonical name for the bare-line send)</td>
-</tr>
-<tr>
-<td><code>/mcp.catalog</code></td>
-<td>Print the JSON command catalog (same content as termapy://commands.json MCP resource)</td>
-</tr>
-<tr>
-<td><code>/mcp.info</code></td>
-<td>Show MCP-mode status (catalog size, port, profile, captures)</td>
+<td><code>/profile.info</code></td>
+<td>Show metadata of the active profile (plus cfg-vs-profile transport drift)</td>
 </tr>
 <tr>
 <td><code>/profile.load &lt;path&gt;</code></td>
@@ -1165,160 +1201,12 @@
 <td>Clear the active profile</td>
 </tr>
 <tr>
-<td><code>/profile.info</code></td>
-<td>Show metadata of the active profile (plus cfg-vs-profile transport drift)</td>
-</tr>
-<tr>
 <td><code>/profile.validate &lt;path&gt;</code></td>
 <td>Validate an MCP device profile against the schema</td>
 </tr>
 <tr>
-<td><code>/expect {timeout} match=&lt;text&gt;</code></td>
-<td>Wait for serial-output line containing text (blocks; needs block_until)</td>
-</tr>
-<tr>
-<td><code>/expect.regex {timeout} match=&lt;pat&gt;</code></td>
-<td>Wait for serial-output line matching regex</td>
-</tr>
-<tr>
-<td><code>/term.log &lt;text&gt;</code></td>
-<td>Append a line to the session log without echoing to screen</td>
-</tr>
-<tr>
-<td><code>/term.echo [on\|off]</code></td>
-<td>Toggle command echo</td>
-</tr>
-<tr>
-<td><code>/term.line_no [on\|off]</code></td>
-<td>Toggle line numbers in serial output (TUI only)</td>
-</tr>
-<tr>
-<td><code>/term.line_endings [on\|off]</code></td>
-<td>Toggle visible <code>\r</code> <code>\n</code> markers in serial output</td>
-</tr>
-<tr>
-<td><code>/term.output {level}</code></td>
-<td>Show or set output level (silent/quiet/normal/verbose)</td>
-</tr>
-<tr>
-<td><code>/term.usb_db</code></td>
-<td>Report bundled USB vendor-database freshness (local read)</td>
-</tr>
-<tr>
-<td><code>/term.timestamps [on\|off]</code></td>
-<td>Toggle <code>[HH:MM:SS.mmm]</code> timestamp prefix</td>
-</tr>
-<tr>
-<td><code>/term.hex [on\|off]</code></td>
-<td>Toggle hex display of incoming bytes</td>
-</tr>
-<tr>
-<td><code>/term.request [on\|off]</code></td>
-<td>Toggle request/response mode for bare device commands</td>
-</tr>
-<tr>
-<td><code>/term.encoding {name}</code></td>
-<td>Show or set byte-decoding encoding (utf-8, latin-1, ...)</td>
-</tr>
-<tr>
-<td><code>/term.send_bare_enter [on\|off]</code></td>
-<td>Send line ending on empty Enter</td>
-</tr>
-<tr>
-<td><code>/os &lt;cmd&gt;</code></td>
-<td>Run a shell command (requires <code>os_cmd_enabled</code>)</td>
-</tr>
-<tr>
-<td><code>/grep &lt;pattern&gt;</code></td>
-<td>Search scrollback for regex matches (case-insensitive)</td>
-</tr>
-<tr>
-<td><code>/edit &lt;file&gt;</code></td>
-<td>Edit a project file (<code>run/</code>/<code>proto/</code> path)</td>
-</tr>
-<tr>
-<td><code>/edit.run {file}</code></td>
-<td>Edit a .run script, or list available scripts if no name given</td>
-</tr>
-<tr>
-<td><code>/edit.proto {file}</code></td>
-<td>Edit a .pro file, or list available files if no name given</td>
-</tr>
-<tr>
-<td><code>/edit.plugin {file}</code></td>
-<td>Edit a plugin, or list available plugins if no name given</td>
-</tr>
-<tr>
-<td><code>/edit.cfg</code></td>
-<td>Edit the current config file</td>
-</tr>
-<tr>
-<td><code>/log.show</code></td>
-<td>Open the session log in the system viewer</td>
-</tr>
-<tr>
-<td><code>/log.dump {N}</code></td>
-<td>Print the session log (all, or last N lines) to the terminal</td>
-</tr>
-<tr>
-<td><code>/log.fingerprint</code></td>
-<td>Write a full session fingerprint (OS, terminal, port params) to the log</td>
-</tr>
-<tr>
-<td><code>/log.delete</code></td>
-<td>Delete the session log file</td>
-</tr>
-<tr>
-<td><code>/edit.info</code></td>
-<td>Open the info report in the system viewer</td>
-</tr>
-<tr>
-<td><code>/cfg.info {--display}</code></td>
-<td>Show project summary; <code>--display</code> opens full report</td>
-</tr>
-<tr>
-<td><code>/cfg.files</code></td>
-<td>Show project directory tree</td>
-</tr>
-<tr>
 <td><code>/proto</code></td>
 <td>TUI: open the Proto picker. CLI: show /proto long-help.</td>
-</tr>
-<tr>
-<td><code>/proto.help</code></td>
-<td>Show <code>/proto</code> help (alias for <code>/help proto</code>)</td>
-</tr>
-<tr>
-<td><code>/proto.send &lt;hex&gt;</code></td>
-<td>Send raw hex bytes and display response</td>
-</tr>
-<tr>
-<td><code>/proto.run &lt;file&gt;</code></td>
-<td>Run a binary protocol test script (.pro)</td>
-</tr>
-<tr>
-<td><code>/proto.list</code></td>
-<td>List .pro files in the proto/ directory</td>
-</tr>
-<tr>
-<td><code>/proto.load &lt;file&gt;</code></td>
-<td>Run a protocol test script (same as /proto.run)</td>
-</tr>
-<tr>
-<td><code>/proto.debug &lt;file&gt;</code></td>
-<td>Open interactive protocol debug screen for a .pro script</td>
-</tr>
-<tr>
-<td><code>/proto.hex [on\|off]</code></td>
-<td>Toggle hex display mode for serial I/O</td>
-</tr>
-<tr>
-<td><code>/proto.crc.list {pat}</code></td>
-<td>List CRC algorithms (optional glob filter)</td>
-</tr>
-<tr>
-<td><code>/proto.crc.info &lt;name&gt;</code></td>
-<td>Show CRC algorithm parameters and description</td>
 </tr>
 <tr>
 <td><code>/proto.crc.calc &lt;n&gt; {d}</code></td>
@@ -1329,12 +1217,180 @@
 <td>Identify the CRC algorithm from a captured packet (bin= or asc=)</td>
 </tr>
 <tr>
+<td><code>/proto.crc.info &lt;name&gt;</code></td>
+<td>Show CRC algorithm parameters and description</td>
+</tr>
+<tr>
+<td><code>/proto.crc.list {pat}</code></td>
+<td>List CRC algorithms (optional glob filter)</td>
+</tr>
+<tr>
+<td><code>/proto.debug &lt;file&gt;</code></td>
+<td>Open interactive protocol debug screen for a .pro script</td>
+</tr>
+<tr>
+<td><code>/proto.help</code></td>
+<td>Show <code>/proto</code> help (alias for <code>/help proto</code>)</td>
+</tr>
+<tr>
+<td><code>/proto.hex [on\|off]</code></td>
+<td>Toggle hex display mode for serial I/O</td>
+</tr>
+<tr>
+<td><code>/proto.list</code></td>
+<td>List .pro files in the proto/ directory</td>
+</tr>
+<tr>
+<td><code>/proto.load &lt;file&gt;</code></td>
+<td>Run a protocol test script (same as /proto.run)</td>
+</tr>
+<tr>
+<td><code>/proto.run &lt;file&gt;</code></td>
+<td>Run a binary protocol test script (.pro)</td>
+</tr>
+<tr>
+<td><code>/proto.send &lt;hex&gt;</code></td>
+<td>Send raw hex bytes and display response</td>
+</tr>
+<tr>
 <td><code>/proto.status</code></td>
 <td>Show current protocol mode state</td>
 </tr>
 <tr>
+<td><code>/raw &lt;text&gt;</code></td>
+<td>Send text to serial with no variable expansion or transforms</td>
+</tr>
+<tr>
+<td><code>/repeat ...</code></td>
+<td>Repeat a command N times: <code>count=&lt;N&gt; {delay=&lt;dur&gt;} {var=&lt;name&gt;} cmd=&lt;cmd&gt;</code></td>
+</tr>
+<tr>
+<td><code>/run {file} {-v}</code></td>
+<td>TUI bare: open Run picker. CLI bare: list scripts. With file: run it.</td>
+</tr>
+<tr>
+<td><code>/run.edit &lt;file&gt;</code></td>
+<td>Open a .run script in the system editor</td>
+</tr>
+<tr>
+<td><code>/run.help</code></td>
+<td>Show <code>/run</code> help (alias for <code>/help run</code>)</td>
+</tr>
+<tr>
+<td><code>/run.legacy {file\|*}</code></td>
+<td>Find pre-0.63 command names in scripts; <code>--fix</code> rewrites in place</td>
+</tr>
+<tr>
+<td><code>/run.list</code></td>
+<td>List .run files in the run/ directory</td>
+</tr>
+<tr>
+<td><code>/run.load &lt;file&gt;</code></td>
+<td>Run a script file (same as /run)</td>
+</tr>
+<tr>
+<td><code>/search &lt;term&gt;</code></td>
+<td>Deep search: name, help, args, flags, long help (multi-term, <code>-exclude</code>, regex)</td>
+</tr>
+<tr>
+<td><code>/seq</code></td>
+<td>Show sequence counters</td>
+</tr>
+<tr>
+<td><code>/seq.reset</code></td>
+<td>Reset all sequence counters to zero</td>
+</tr>
+<tr>
+<td><code>/show &lt;name&gt;</code></td>
+<td>Show a file</td>
+</tr>
+<tr>
+<td><code>/show.cfg</code></td>
+<td>Show the current config file</td>
+</tr>
+<tr>
+<td><code>/ss.dir</code></td>
+<td>Show the screenshot folder</td>
+</tr>
+<tr>
+<td><code>/ss.svg [name]</code></td>
+<td>Save an SVG screenshot</td>
+</tr>
+<tr>
+<td><code>/ss.txt [name]</code></td>
+<td>Save a text screenshot</td>
+</tr>
+<tr>
+<td><code>/stop</code></td>
+<td>Abort a running script</td>
+</tr>
+<tr>
+<td><code>/term</code></td>
+<td>Terminal display / session toggles (echo, line_no, timestamps, ...)</td>
+</tr>
+<tr>
+<td><code>/term.color {on\|off}</code></td>
+<td>Show or toggle color output (CLI mode only)</td>
+</tr>
+<tr>
+<td><code>/term.echo [on\|off]</code></td>
+<td>Toggle command echo</td>
+</tr>
+<tr>
+<td><code>/term.encoding {name}</code></td>
+<td>Show or set byte-decoding encoding (utf-8, latin-1, ...)</td>
+</tr>
+<tr>
+<td><code>/term.hex [on\|off]</code></td>
+<td>Toggle hex display of incoming bytes</td>
+</tr>
+<tr>
+<td><code>/term.info</code></td>
+<td>Snapshot the state of every <code>/term.*</code> toggle</td>
+</tr>
+<tr>
+<td><code>/term.line_endings [on\|off]</code></td>
+<td>Toggle visible <code>\r</code> <code>\n</code> markers in serial output</td>
+</tr>
+<tr>
+<td><code>/term.line_no [on\|off]</code></td>
+<td>Toggle line numbers in serial output (TUI only)</td>
+</tr>
+<tr>
+<td><code>/term.log &lt;text&gt;</code></td>
+<td>Append a line to the session log without echoing to screen</td>
+</tr>
+<tr>
+<td><code>/term.output {level}</code></td>
+<td>Show or set output level (silent/quiet/normal/verbose)</td>
+</tr>
+<tr>
+<td><code>/term.request [on\|off]</code></td>
+<td>Toggle request/response mode for bare device commands</td>
+</tr>
+<tr>
+<td><code>/term.send &lt;text&gt;</code></td>
+<td>Send literal text to the serial port (with line ending; canonical name for the bare-line send)</td>
+</tr>
+<tr>
+<td><code>/term.send_bare_enter [on\|off]</code></td>
+<td>Send line ending on empty Enter</td>
+</tr>
+<tr>
+<td><code>/term.timestamps [on\|off]</code></td>
+<td>Toggle <code>[HH:MM:SS.mmm]</code> timestamp prefix</td>
+</tr>
+<tr>
+<td><code>/term.usb_db</code></td>
+<td>Report bundled USB vendor-database freshness (local read)</td>
+</tr>
+<tr>
 <td><code>/var {name}</code></td>
 <td>List user variables, or show one by name</td>
+</tr>
+<tr>
+<td><code>/var.clear</code></td>
+<td>Clear all user variables</td>
 </tr>
 <tr>
 <td><code>/var.list</code></td>
@@ -1345,80 +1401,24 @@
 <td>Set a user variable</td>
 </tr>
 <tr>
-<td><code>/var.clear</code></td>
-<td>Clear all user variables</td>
-</tr>
-<tr>
-<td><code>/env.list {pattern}</code></td>
-<td>List environment variables (all, by name, or glob)</td>
-</tr>
-<tr>
-<td><code>/env.set &lt;name&gt; &lt;value&gt;</code></td>
-<td>Set a session-scoped environment variable</td>
-</tr>
-<tr>
-<td><code>/env.reload</code></td>
-<td>Re-snapshot variables from the OS environment</td>
-</tr>
-<tr>
-<td><code>/cap.text &lt;f&gt; ...</code></td>
-<td>Capture serial text to file for a timed duration</td>
-</tr>
-<tr>
-<td><code>/cap.bin &lt;f&gt; ...</code></td>
-<td>Capture raw binary bytes to a file</td>
-</tr>
-<tr>
-<td><code>/cap.struct &lt;f&gt; ...</code></td>
-<td>Capture binary data, decode with format spec to CSV</td>
-</tr>
-<tr>
-<td><code>/cap.hex &lt;f&gt; ...</code></td>
-<td>Capture hex text lines, decode with format spec to CSV</td>
-</tr>
-<tr>
-<td><code>/cap.wire {wait_gap=&lt;dur&gt;} cmd=&lt;command&gt;</code></td>
-<td>Run a command and show TX/RX bytes inline as hex + repr (debug line endings)</td>
-</tr>
-<tr>
-<td><code>/cap.stop</code></td>
-<td>Stop an active capture</td>
-</tr>
-<tr>
-<td><code>/xmodem.send &lt;file&gt;</code></td>
-<td>Send a file to the device via XMODEM</td>
-</tr>
-<tr>
-<td><code>/xmodem.recv &lt;file&gt;</code></td>
-<td>Receive a file from the device via XMODEM</td>
-</tr>
-<tr>
-<td><code>/ymodem.send &lt;file&gt; ...</code></td>
-<td>Send file(s) to the device via YMODEM (batch)</td>
-</tr>
-<tr>
-<td><code>/ymodem.recv {dir}</code></td>
-<td>Receive file(s) from the device via YMODEM</td>
-</tr>
-<tr>
 <td><code>/xfer.root {path}</code></td>
 <td>Show or set the file transfer root directory</td>
 </tr>
 <tr>
-<td><code>/run.edit &lt;file&gt;</code></td>
-<td>Open a .run script in the system editor</td>
+<td><code>/xfer.xmodem.recv &lt;file&gt;</code></td>
+<td>Receive a file from the device via XMODEM</td>
 </tr>
 <tr>
-<td><code>/color {on\|off}</code></td>
-<td>Show or toggle color output (CLI mode only)</td>
+<td><code>/xfer.xmodem.send &lt;file&gt;</code></td>
+<td>Send a file to the device via XMODEM</td>
 </tr>
 <tr>
-<td><code>/raw &lt;text&gt;</code></td>
-<td>Send text to serial with no variable expansion or transforms</td>
+<td><code>/xfer.ymodem.recv {dir}</code></td>
+<td>Receive file(s) from the device via YMODEM</td>
 </tr>
 <tr>
-<td><code>/exit</code></td>
-<td>Exit termapy</td>
+<td><code>/xfer.ymodem.send &lt;file&gt; ...</code></td>
+<td>Send file(s) to the device via YMODEM (batch)</td>
 </tr>
 </tbody>
 </table>
@@ -1440,10 +1440,6 @@
 <td>Profile a single command</td>
 </tr>
 <tr>
-<td><code>/run.profile.show</code></td>
-<td>Open newest profile in system viewer</td>
-</tr>
-<tr>
 <td><code>/run.profile.dump</code></td>
 <td>Print newest profile to the terminal</td>
 </tr>
@@ -1454,6 +1450,10 @@
 <tr>
 <td><code>/run.profile.list</code></td>
 <td>List profile files</td>
+</tr>
+<tr>
+<td><code>/run.profile.show</code></td>
+<td>Open newest profile in system viewer</td>
 </tr>
 </tbody>
 </table>
@@ -1597,7 +1597,7 @@
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.dbc0afdc.min.js"></script>
+      <script src="./assets/javascripts/bundle.6e5f0216.min.js"></script>
       
     
   </body>

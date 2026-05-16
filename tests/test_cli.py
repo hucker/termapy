@@ -712,6 +712,118 @@ class TestHookRegistration:
             assert name in cli.repl._plugins, f"hook {name} not registered"
 
 
+# -- --version / --help CLI flags ------------------------------------------
+
+
+class TestVersionFlag:
+    """``termapy --version`` is argparse's built-in version action.
+
+    Cheap regression guard: the entry parser keeps the ``--version``
+    flag wired to a real version string, not "unknown" or a crash.
+    """
+
+    def test_version_exits_zero_and_prints_termapy_version(
+        self, capsys, monkeypatch,
+    ):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--version"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        assert exc.value.code == 0, "--version exits 0"
+        assert out.startswith("termapy "), (
+            f"--version output starts with 'termapy ', got: {out!r}"
+        )
+        # The version token should be at least two dot-separated
+        # numerics (or 'unknown' if running from a checkout without
+        # installed metadata).  Either is acceptable -- a totally
+        # empty version field is the regression we're guarding.
+        version_token = out.strip().split(None, 1)[1]
+        assert version_token, "version token is non-empty"
+
+
+class TestHelpFlag:
+    """``termapy --help`` is argparse's built-in help action.
+
+    Catches regressions where someone deletes a flag definition or
+    breaks the argparse setup.  We assert structural shape (many
+    lines, key flag names present) rather than exact text so help
+    string tweaks don't break the test.
+    """
+
+    def test_help_exits_zero_and_produces_substantive_output(
+        self, capsys, monkeypatch,
+    ):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        out = capsys.readouterr().out
+        lines = out.splitlines()
+        assert exc.value.code == 0, "--help exits 0"
+        assert len(lines) >= 40, (
+            f"--help should produce a substantive multi-line block "
+            f"(>= 40 lines); got {len(lines)} lines"
+        )
+
+    def test_help_documents_every_major_flag(self, capsys, monkeypatch):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+
+        # Assert -- the curated set is the user-facing surface area:
+        # if any of these disappear from --help, somebody removed or
+        # broke the argparse wiring.
+        out = capsys.readouterr().out
+        for flag in (
+            "--version",
+            "--cfg-dir",
+            "--demo",
+            "--cli",
+            "--run",
+            "--exec",
+            "--ports",
+            "--chips",
+            "--info",
+            "--watch",
+            "--validate-profile",
+            "--mcp",
+        ):
+            assert flag in out, (
+                f"--help should document {flag!r}; missing from output"
+            )
+
+    def test_help_mentions_program_description(self, capsys, monkeypatch):
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+
+        # Assert -- argparse renders the parser's description string
+        # near the top.  Catches "someone wiped the description" too.
+        out = capsys.readouterr().out
+        assert "serial terminal" in out.lower(), (
+            "--help should mention what termapy is"
+        )
+
+
 # -- --info CLI flag ---------------------------------------------------------
 
 

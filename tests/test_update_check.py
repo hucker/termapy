@@ -260,3 +260,80 @@ class TestNeverRaises:
         # Act / Assert - must not raise
         actual = update_check.check(current_version="0.60.0")
         assert actual is None, "unexpected exception swallowed, returns None"
+
+
+# -- check_now: on-demand path used by /ver.latest and /ver.info ------------
+
+
+class TestCheckNow:
+    """``check_now`` powers ``/ver.latest`` and ``/ver.info`` -- the
+    user-typed-the-command path.  Different contract from
+    ``check``: no 7-day throttle, no state-file writes, network
+    failure returns ``(None, False)`` for the caller to surface.
+    """
+
+    def test_returns_latest_and_outdated_true_when_newer(self, mock_pypi):
+        # Arrange
+        mock_pypi["result"] = "0.66.1"
+
+        # Act
+        latest, outdated = update_check.check_now("0.66.0")
+
+        # Assert
+        assert latest == "0.66.1", "PyPI version returned verbatim"
+        assert outdated is True, "0.66.1 > 0.66.0 -> outdated"
+
+    def test_returns_latest_and_outdated_false_when_same(self, mock_pypi):
+        # Arrange
+        mock_pypi["result"] = "0.66.0"
+
+        # Act
+        latest, outdated = update_check.check_now("0.66.0")
+
+        # Assert
+        assert latest == "0.66.0", "PyPI version returned even when same"
+        assert outdated is False, "same version -> not outdated"
+
+    def test_returns_none_when_pypi_fetch_fails(self, mock_pypi):
+        # Arrange
+        mock_pypi["result"] = None
+
+        # Act
+        latest, outdated = update_check.check_now("0.66.0")
+
+        # Assert
+        assert latest is None, "fetch failure surfaces as None"
+        assert outdated is False, "no latest -> can't be outdated"
+
+    def test_does_not_touch_state_file(
+        self, pin_state_dir, mock_pypi,
+    ):
+        # Arrange -- check_now must NOT write state.json (that's the
+        # background banner's contract; this is the interactive path).
+        mock_pypi["result"] = "0.66.1"
+
+        # Act
+        update_check.check_now("0.66.0")
+
+        # Assert
+        assert not (pin_state_dir / "state.json").exists(), (
+            "check_now must not write state.json -- only check() does"
+        )
+
+    def test_bypasses_7_day_throttle(
+        self, pin_state_dir, freeze_time, mock_pypi,
+    ):
+        # Arrange -- state.json shows we just checked 1 minute ago.
+        # check() would skip; check_now must fetch anyway.
+        now = freeze_time["now"]
+        _write_state(pin_state_dir, {
+            "last_checked": (now - timedelta(minutes=1)).isoformat(),
+        })
+        mock_pypi["result"] = "0.66.1"
+
+        # Act
+        latest, outdated = update_check.check_now("0.66.0")
+
+        # Assert -- throttle is bypassed; we got the PyPI value.
+        assert latest == "0.66.1", "throttle bypassed; PyPI hit anyway"
+        assert outdated is True, "still detects newer version"

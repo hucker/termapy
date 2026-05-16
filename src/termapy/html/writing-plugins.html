@@ -19,11 +19,11 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.41">
+      <meta name="generator" content="zensical-0.0.42">
     
     
       
-        <title>Writing plugins - Termapy Help v0.65.1</title>
+        <title>Writing plugins - Termapy Help v0.66.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.65.1" class="md-header__button md-logo" aria-label="Termapy Help v0.65.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.66.0" class="md-header__button md-logo" aria-label="Termapy Help v0.66.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.65.1
+            Termapy Help v0.66.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.65.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.65.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.66.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.66.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.65.1
+    Termapy Help v0.66.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -693,6 +693,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#security-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Security model
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#quick-start-copy-and-modify" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1094,6 +1105,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#security-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Security model
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#quick-start-copy-and-modify" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1361,6 +1383,34 @@
 <p>Plugins are <code>.py</code> files that add REPL commands. Drop a file into a
 <code>plugin/</code> folder and it loads automatically. No compilation, no
 registration, no restart.</p>
+<h2 id="security-model">Security model<a class="headerlink" href="#security-model" title="Permanent link">&para;</a></h2>
+<p>Plugin auto-load runs arbitrary Python in-process — same trust shape
+as <code>conftest.py</code>, <code>direnv</code>, <code>Makefile</code>, <code>pip install setup.py</code>, or
+any other tool that reads code from a directory. <strong>Treat
+<code>termapy_cfg/&lt;name&gt;/plugin/</code> and <code>termapy_cfg/plugin/</code> the same way
+you treat those: don't point termapy at config folders you don't
+trust.</strong></p>
+<p>If you need a stronger guarantee — for example when running
+<code>--mcp</code> with an LLM driver, or in CI, or against a freshly cloned
+project repo — set the env var:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># bash / zsh</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TERMAPY_TRUSTED_PLUGINS_ONLY</span><span class="o">=</span><span class="m">1</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># PowerShell</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nv">$env</span>:TERMAPY_TRUSTED_PLUGINS_ONLY<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
+</span></code></pre></div>
+<p>With that flag set, termapy skips <strong>both</strong> filesystem plugin
+discovery passes (global <code>termapy_cfg/plugin/</code> and per-cfg
+<code>termapy_cfg/&lt;name&gt;/plugin/</code>).  Only built-in commands — the ones
+shipped inside the wheel, in <code>site-packages</code> — will load.  The
+trust boundary collapses to "your Python environment," which is
+the boundary every other Python tool already uses.</p>
+<p>This flag lives in the environment, <strong>not</strong> in the cfg file.  A
+hostile cfg cannot disable its own gate.</p>
+<p>A second related gate is <code>TERMAPY_OS_CMD_ENABLED</code>: when truthy,
+<code>/os</code> is allowed to spawn shell commands.  Was a cfg key
+(<code>os_cmd_enabled</code>) through v0.65; same rationale forced the move
+to env-var-only in v0.66.</p>
 <h2 id="quick-start-copy-and-modify">Quick start: copy and modify<a class="headerlink" href="#quick-start-copy-and-modify" title="Permanent link">&para;</a></h2>
 <p>The fastest way to write a plugin is to copy an existing one:</p>
 <ol>
@@ -1395,20 +1445,20 @@ contains your command. The handler receives two arguments:</p>
 device, read responses, write files, or chain other REPL commands.</p>
 <h2 id="plugin-file-structure">Plugin file structure<a class="headerlink" href="#plugin-file-structure" title="Permanent link">&para;</a></h2>
 <p>A minimal plugin:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">Command</span><span class="p">,</span> <span class="n">PluginContext</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Called when the user types /hello.&quot;&quot;&quot;</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">&quot;world&quot;</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hello, </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">!&quot;</span><span class="p">)</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># ── COMMAND (must be at end of file) ──────────────────────────────────────────</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;hello&quot;</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">args</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{name}</span><span class="s2">&quot;</span><span class="p">,</span>          <span class="c1"># {braces} = optional, &lt;angle&gt; = required</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Say hello.&quot;</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">Command</span><span class="p">,</span> <span class="n">PluginContext</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Called when the user types /hello.&quot;&quot;&quot;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">&quot;world&quot;</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hello, </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">!&quot;</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># ── COMMAND (must be at end of file) ──────────────────────────────────────────</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;hello&quot;</span><span class="p">,</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">args</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{name}</span><span class="s2">&quot;</span><span class="p">,</span>          <span class="c1"># {braces} = optional, &lt;angle&gt; = required</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Say hello.&quot;</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The <code>COMMAND</code> object must be defined after all the functions it references.
 <code>Termapy</code> looks for this specific name. If your file doesn't have a
@@ -1416,26 +1466,26 @@ device, read responses, write files, or chain other REPL commands.</p>
 <h2 id="the-plugincontext-shape">The PluginContext shape<a class="headerlink" href="#the-plugincontext-shape" title="Permanent link">&para;</a></h2>
 <p>The <code>ctx</code> object is a thin shell over <strong>five capability handles</strong>, each
 owning one domain. Plugin authors see 12 visible names on <code>ctx</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;encoding&quot;</span><span class="p">):</span>           <span class="c1"># plain config (read-only)</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        <span class="o">...</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="s2">&quot;Hello&quot;</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">)</span>           <span class="c1"># final answer (quiet+)</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;listing line&quot;</span><span class="p">)</span>             <span class="c1"># bulk data (normal+)</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">status</span><span class="p">(</span><span class="s2">&quot;loading...&quot;</span><span class="p">)</span>               <span class="c1"># progress chatter (verbose only)</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">io</span><span class="p">():</span>                     <span class="c1"># claim serial for sync read</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;AT</span><span class="se">\r</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>        <span class="n">resp</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">read_raw</span><span class="p">()</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">csv_path</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fs</span><span class="o">.</span><span class="n">cap_dir</span> <span class="o">/</span> <span class="s2">&quot;out.csv&quot;</span>     <span class="c1"># filesystem paths</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">fs</span><span class="o">.</span><span class="n">open_file</span><span class="p">(</span><span class="n">csv_path</span><span class="p">)</span>                <span class="c1"># open in system viewer</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="s2">&quot;Sure?&quot;</span><span class="p">)</span>                   <span class="c1"># TUI-only dialog (gated)</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="s2">&quot;/var.set X 5&quot;</span><span class="p">)</span>              <span class="c1"># re-route a command</span>
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">ns</span><span class="p">(</span><span class="s2">&quot;my_plugin&quot;</span><span class="p">)[</span><span class="s2">&quot;counter&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>       <span class="c1"># session-scoped storage</span>
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>
-</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=...</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;encoding&quot;</span><span class="p">):</span>           <span class="c1"># plain config (read-only)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="o">...</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="s2">&quot;Hello&quot;</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">)</span>           <span class="c1"># final answer (quiet+)</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;listing line&quot;</span><span class="p">)</span>             <span class="c1"># bulk data (normal+)</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">status</span><span class="p">(</span><span class="s2">&quot;loading...&quot;</span><span class="p">)</span>               <span class="c1"># progress chatter (verbose only)</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">io</span><span class="p">():</span>                     <span class="c1"># claim serial for sync read</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;AT</span><span class="se">\r</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">resp</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">read_raw</span><span class="p">()</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">csv_path</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fs</span><span class="o">.</span><span class="n">cap_dir</span> <span class="o">/</span> <span class="s2">&quot;out.csv&quot;</span>     <span class="c1"># filesystem paths</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">fs</span><span class="o">.</span><span class="n">open_file</span><span class="p">(</span><span class="n">csv_path</span><span class="p">)</span>                <span class="c1"># open in system viewer</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">confirm</span><span class="p">(</span><span class="s2">&quot;Sure?&quot;</span><span class="p">)</span>                   <span class="c1"># TUI-only dialog (gated)</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="s2">&quot;/var.set X 5&quot;</span><span class="p">)</span>              <span class="c1"># re-route a command</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">ns</span><span class="p">(</span><span class="s2">&quot;my_plugin&quot;</span><span class="p">)[</span><span class="s2">&quot;counter&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>       <span class="c1"># session-scoped storage</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=...</span><span class="p">)</span>
 </span></code></pre></div>
 <p>The five handles:</p>
 <ul>
@@ -1450,11 +1500,11 @@ owning one domain. Plugin authors see 12 visible names on <code>ctx</code>:</p>
 method without declaring the capability raises <code>MissingCapability</code>,
 which the dispatcher converts to <code>CmdResult.fail</code>. The fix is to declare
 what your command needs:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ask&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Prompt user.&quot;</span><span class="p">,</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">needs</span><span class="o">=</span><span class="n">CapabilitySet</span><span class="p">(</span><span class="n">confirm_dialog</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>  <span class="c1"># refuse to dispatch in CLI</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ask&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Prompt user.&quot;</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">needs</span><span class="o">=</span><span class="n">CapabilitySet</span><span class="p">(</span><span class="n">confirm_dialog</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>  <span class="c1"># refuse to dispatch in CLI</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The dispatcher refuses to invoke a handler whose <code>needs</code> aren't satisfied,
 so most capability mismatches fail loudly <em>before</em> the handler runs.</p>
@@ -1478,10 +1528,10 @@ so most capability mismatches fail loudly <em>before</em> the handler runs.</p>
 </ul>
 <p><strong>Set <code>value=</code> when your command produces data a script might capture.</strong>
 Scripts run in quiet mode read the <code>value</code> field; without it they get nothing.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">temp</span> <span class="o">=</span> <span class="n">read_temperature</span><span class="p">()</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Temperature: </span><span class="si">{</span><span class="n">temp</span><span class="si">}</span><span class="s2">C&quot;</span><span class="p">)</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">temp</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">temp</span> <span class="o">=</span> <span class="n">read_temperature</span><span class="p">()</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Temperature: </span><span class="si">{</span><span class="n">temp</span><span class="si">}</span><span class="s2">C&quot;</span><span class="p">)</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">temp</span><span class="p">))</span>
 </span></code></pre></div>
 <p>Examples that should set <code>value=</code>:</p>
 <ul>
@@ -1501,28 +1551,28 @@ help page - a loaded file, an open connection, a count of cached items -
 set <code>long_help</code> to a function instead of a string. The function takes
 the <code>PluginContext</code> and returns a string. It's invoked at render time,
 so whatever it reads from <code>ctx.ns(...)</code> or <code>ctx.cfg</code> is live.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_dynamic_long_help</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">profile</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">ns</span><span class="p">(</span><span class="s2">&quot;active_profile&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">commands</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;commands&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="k">if</span> <span class="n">commands</span><span class="p">:</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">rev</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;profile_revision&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;(none)&quot;</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">state</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>            <span class="sa">f</span><span class="s2">&quot;Active profile: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">commands</span><span class="p">)</span><span class="si">}</span><span class="s2"> device command(s) &quot;</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>            <span class="sa">f</span><span class="s2">&quot;(rev </span><span class="si">{</span><span class="n">rev</span><span class="si">}</span><span class="s2">).&quot;</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="p">)</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="k">else</span><span class="p">:</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>        <span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;No profile loaded.&quot;</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span><span class="si">{</span><span class="n">state</span><span class="si">}</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="s2">Load a device profile with /profile.load &lt;path&gt;, or fetch one from</span>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="s2">the connected device with /profile.load cmd=&lt;command&gt;.&quot;&quot;&quot;</span>
-</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>
-</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
-</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;profile&quot;</span><span class="p">,</span>
-</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Device profile commands.&quot;</span><span class="p">,</span>
-</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>    <span class="n">long_help</span><span class="o">=</span><span class="n">_dynamic_long_help</span><span class="p">,</span>   <span class="c1"># a function, not a string</span>
-</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
-</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_dynamic_long_help</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">profile</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">ns</span><span class="p">(</span><span class="s2">&quot;active_profile&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">commands</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;commands&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">if</span> <span class="n">commands</span><span class="p">:</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">rev</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;profile_revision&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;(none)&quot;</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">state</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>            <span class="sa">f</span><span class="s2">&quot;Active profile: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">commands</span><span class="p">)</span><span class="si">}</span><span class="s2"> device command(s) &quot;</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>            <span class="sa">f</span><span class="s2">&quot;(rev </span><span class="si">{</span><span class="n">rev</span><span class="si">}</span><span class="s2">).&quot;</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="p">)</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>        <span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;No profile loaded.&quot;</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span><span class="si">{</span><span class="n">state</span><span class="si">}</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="s2">Load a device profile with /profile.load &lt;path&gt;, or fetch one from</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="s2">the connected device with /profile.load cmd=&lt;command&gt;.&quot;&quot;&quot;</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;profile&quot;</span><span class="p">,</span>
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Device profile commands.&quot;</span><span class="p">,</span>
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>    <span class="n">long_help</span><span class="o">=</span><span class="n">_dynamic_long_help</span><span class="p">,</span>   <span class="c1"># a function, not a string</span>
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>When the user runs <code>/help include</code>, the DESCRIPTION section calls this
 function and the first line reflects the current state. No change to
@@ -1542,48 +1592,48 @@ accepts either form.</p>
 <p>Most dynamic help lines fall into a handful of shapes, so the built-ins
 share a small helper module. Prefer these over hand-rolling - the
 output is green-on-default and uniform across every command.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.help_dynamic</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">state_line</span><span class="p">,</span>   <span class="c1"># &quot;Current &lt;label&gt; = &lt;value&gt;&quot; in green</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">folder_line</span><span class="p">,</span>  <span class="c1"># &quot;&lt;N&gt; files in &lt;folder&gt;/&quot; in green</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">port_status</span><span class="p">,</span>  <span class="c1"># &quot;Connected: COM3 @ 115200 8N1&quot; or &quot;Not connected&quot;</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">cfg_status</span><span class="p">,</span>   <span class="c1"># &quot;Active cfg = demo (2 configs available)&quot;</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">ns_count</span><span class="p">,</span>     <span class="c1"># len(ctx.ns(name)), guards a missing ns</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">compose</span><span class="p">,</span>      <span class="c1"># join non-empty parts with a blank line between</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">green</span><span class="p">,</span>        <span class="c1"># wrap any text in green markup</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">)</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">_long_help</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="k">return</span> <span class="n">compose</span><span class="p">(</span>
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="n">folder_line</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s2">&quot;run&quot;</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s2">&quot;script&quot;</span><span class="p">),</span>
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>        <span class="s2">&quot;Run a .run script from the run/ folder.&quot;</span><span class="p">,</span>
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.help_dynamic</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">state_line</span><span class="p">,</span>   <span class="c1"># &quot;Current &lt;label&gt; = &lt;value&gt;&quot; in green</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">folder_line</span><span class="p">,</span>  <span class="c1"># &quot;&lt;N&gt; files in &lt;folder&gt;/&quot; in green</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">port_status</span><span class="p">,</span>  <span class="c1"># &quot;Connected: COM3 @ 115200 8N1&quot; or &quot;Not connected&quot;</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">cfg_status</span><span class="p">,</span>   <span class="c1"># &quot;Active cfg = demo (2 configs available)&quot;</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">ns_count</span><span class="p">,</span>     <span class="c1"># len(ctx.ns(name)), guards a missing ns</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">compose</span><span class="p">,</span>      <span class="c1"># join non-empty parts with a blank line between</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">green</span><span class="p">,</span>        <span class="c1"># wrap any text in green markup</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">)</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">_long_help</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="k">return</span> <span class="n">compose</span><span class="p">(</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>        <span class="n">folder_line</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s2">&quot;run&quot;</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s2">&quot;script&quot;</span><span class="p">),</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>        <span class="s2">&quot;Run a .run script from the run/ folder.&quot;</span><span class="p">,</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p><code>compose</code> drops empty parts, so a callable that returns <code>""</code> for
 "no state yet" collapses gracefully. For a single-value command
 that needs no prose, you can pass the helper directly:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="s2">&quot;baud_rate&quot;</span><span class="p">:</span> <span class="n">Command</span><span class="p">(</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show or set baud rate.&quot;</span><span class="p">,</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">long_help</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">state_line</span><span class="p">(</span><span class="s2">&quot;baud rate&quot;</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;baud_rate&quot;</span><span class="p">)),</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_baud_handler</span><span class="p">,</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">),</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="s2">&quot;baud_rate&quot;</span><span class="p">:</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show or set baud rate.&quot;</span><span class="p">,</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">long_help</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">state_line</span><span class="p">(</span><span class="s2">&quot;baud rate&quot;</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;baud_rate&quot;</span><span class="p">)),</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_baud_handler</span><span class="p">,</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">),</span>
 </span></code></pre></div>
 <h2 id="serial-io-pattern">Serial I/O pattern<a class="headerlink" href="#serial-io-pattern" title="Permanent link">&para;</a></h2>
 <p>Most plugins follow this pattern: send a command, read the response, do something with it.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="n">msg</span><span class="o">=</span><span class="s2">&quot;Not connected.&quot;</span><span class="p">)</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">encoding</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;encoding&quot;</span><span class="p">,</span> <span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">line_ending</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;line_ending&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\r</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">io</span><span class="p">():</span>                <span class="c1"># suppress terminal, claim serial</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>               <span class="c1"># discard stale bytes</span>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;YOUR_COMMAND</span><span class="si">{</span><span class="n">line_ending</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">encoding</span><span class="p">))</span>
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>        <span class="n">raw</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">read_raw</span><span class="p">()</span>      <span class="c1"># read response with timeout</span>
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">encoding</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">&quot;replace&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
-</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="n">text</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>        <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="n">msg</span><span class="o">=</span><span class="s2">&quot;Not connected.&quot;</span><span class="p">)</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">encoding</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;encoding&quot;</span><span class="p">,</span> <span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">line_ending</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;line_ending&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\r</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">io</span><span class="p">():</span>                <span class="c1"># suppress terminal, claim serial</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>               <span class="c1"># discard stale bytes</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;YOUR_COMMAND</span><span class="si">{</span><span class="n">line_ending</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">encoding</span><span class="p">))</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>        <span class="n">raw</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">read_raw</span><span class="p">()</span>      <span class="c1"># read response with timeout</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>        <span class="n">text</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">encoding</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">&quot;replace&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="n">text</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Key points:</p>
 <ul>
@@ -1594,11 +1644,11 @@ that needs no prose, you can pass the helper directly:</p>
 </ul>
 <p>Even cleaner: declare the connection requirement on <code>Command</code> and let
 the dispatcher gate the call:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;hello&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Say hello to the device.&quot;</span><span class="p">,</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">needs</span><span class="o">=</span><span class="n">CapabilitySet</span><span class="p">(</span><span class="n">serial_connected</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;hello&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Say hello to the device.&quot;</span><span class="p">,</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">needs</span><span class="o">=</span><span class="n">CapabilitySet</span><span class="p">(</span><span class="n">serial_connected</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">handler</span><span class="o">=</span><span class="n">_handler</span><span class="p">,</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The handler then doesn't need to check <code>is_connected</code> -- the dispatcher
 returns <code>Not connected.</code> automatically when the port is down.</p>
@@ -1608,23 +1658,23 @@ available for plugins that need typed device contracts, binary
 protocol parsing, or USB chip lookup.  Each is self-contained
 (no Textual / no engine deps) and re-exported via its package's
 <code>__init__</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Device profile schema, loader, type registry (validate typed args,</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># resolve profile-local types, walk a v2 profile dict).</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.profile</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">TypeRegistry</span><span class="p">,</span> <span class="n">load_profile</span><span class="p">,</span> <span class="n">validate_profile</span><span class="p">,</span> <span class="n">profile_command_view</span><span class="p">,</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">)</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Binary protocol toolkit (format-spec parser, CRC catalog, .pro runner,</span>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="c1"># visualizer loader).  See protocol-testing.md for the format-spec</span>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="c1"># language and serial-tools.md for the CRC catalogue.</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.protocol</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="n">parse_format_spec</span><span class="p">,</span> <span class="n">apply_format</span><span class="p">,</span> <span class="n">FrameCollector</span><span class="p">,</span> <span class="n">get_crc_registry</span><span class="p">,</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="p">)</span>
-</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
-</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="c1"># USB lookup tables (VID -&gt; vendor, VID:PID -&gt; chip + max baud,</span>
-</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="c1"># manufacturer-string -&gt; short alias).  Pure data + lookup helpers;</span>
-</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="c1"># pyserial gives you the VID/PID/manufacturer, these add value on top.</span>
-</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.usb</span><span class="w"> </span><span class="kn">import</span> <span class="n">chip</span><span class="p">,</span> <span class="n">vendor_for</span><span class="p">,</span> <span class="n">mfg</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Device profile schema, loader, type registry (validate typed args,</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1"># resolve profile-local types, walk a v2 profile dict).</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.profile</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">TypeRegistry</span><span class="p">,</span> <span class="n">load_profile</span><span class="p">,</span> <span class="n">validate_profile</span><span class="p">,</span> <span class="n">profile_command_view</span><span class="p">,</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="p">)</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Binary protocol toolkit (format-spec parser, CRC catalog, .pro runner,</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="c1"># visualizer loader).  See protocol-testing.md for the format-spec</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># language and serial-tools.md for the CRC catalogue.</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.protocol</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="n">parse_format_spec</span><span class="p">,</span> <span class="n">apply_format</span><span class="p">,</span> <span class="n">FrameCollector</span><span class="p">,</span> <span class="n">get_crc_registry</span><span class="p">,</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="p">)</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="c1"># USB lookup tables (VID -&gt; vendor, VID:PID -&gt; chip + max baud,</span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="c1"># manufacturer-string -&gt; short alias).  Pure data + lookup helpers;</span>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="c1"># pyserial gives you the VID/PID/manufacturer, these add value on top.</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="kn">from</span><span class="w"> </span><span class="nn">termapy.usb</span><span class="w"> </span><span class="kn">import</span> <span class="n">chip</span><span class="p">,</span> <span class="n">vendor_for</span><span class="p">,</span> <span class="n">mfg</span>
 </span></code></pre></div>
 <p>Each subpackage's <code>__init__.py</code> carries a library-usage docstring
 with a worked example.  Treat them as importable libraries: a plugin
@@ -1892,14 +1942,14 @@ the matching capability on <code>Command.needs</code>.</p>
 </table>
 <h2 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">&para;</a></h2>
 <p>Use <code>sub_commands</code> for related operations (e.g. <code>/tool.run</code>, <code>/tool.status</code>):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;A tool with subcommands.&quot;</span><span class="p">,</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">sub_commands</span><span class="o">=</span><span class="p">{</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>        <span class="s2">&quot;run&quot;</span><span class="p">:</span>    <span class="n">Command</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="s2">&quot;&lt;file&gt;&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Run.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_run</span><span class="p">),</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">Command</span><span class="p">(</span><span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show status.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_status</span><span class="p">),</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="p">},</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">COMMAND</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;A tool with subcommands.&quot;</span><span class="p">,</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="n">sub_commands</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>        <span class="s2">&quot;run&quot;</span><span class="p">:</span>    <span class="n">Command</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="s2">&quot;&lt;file&gt;&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Run.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_run</span><span class="p">),</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">Command</span><span class="p">(</span><span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show status.&quot;</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">_status</span><span class="p">),</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="p">},</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="p">)</span>
 </span></code></pre></div>
 <h2 id="example-plugins">Example plugins<a class="headerlink" href="#example-plugins" title="Permanent link">&para;</a></h2>
 <p>The demo config ships with four plugins of increasing complexity:</p>
@@ -2037,7 +2087,7 @@ API reference alone.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.dbc0afdc.min.js"></script>
+      <script src="./assets/javascripts/bundle.6e5f0216.min.js"></script>
       
     
   </body>

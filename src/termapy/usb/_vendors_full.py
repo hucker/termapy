@@ -6,7 +6,7 @@ from the upstream USB ID Repository.  To refresh, run::
     python scripts/refresh_usb_ids.py
 
 Source:    https://raw.githubusercontent.com/usbids/usbids/master/usb.ids
-Generated: 2026-05-14
+Generated: 2026-05-15
 Entries:   3427
 
 Used as a fallback by ``termapy.usb.vendor_for()`` when a VID
@@ -18,7 +18,7 @@ Names here are the canonical USB-IF assignments and may be long;
 from __future__ import annotations
 
 # Metadata for /term.usb_db introspection.
-GENERATED_DATE: str = '2026-05-14'
+GENERATED_DATE: str = '2026-05-15'
 SOURCE_URL: str = 'https://raw.githubusercontent.com/usbids/usbids/master/usb.ids'
 
 USB_VENDORS_FULL: dict[int, str] = {

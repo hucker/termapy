@@ -361,13 +361,22 @@ class TestHookRunProfile:
         assert not result.success, "nothing to show with empty prof/"
 
     def test_show_opens_newest(self, cli):
-        # Arrange
+        # Arrange -- explicitly stagger mtimes via os.utime; Windows
+        # NTFS mtime resolution is coarse enough that two write_text()
+        # calls in the same tick land on the same timestamp, and the
+        # sort by mtime falls back to alphabetical (where 'newer' <
+        # 'older'), causing the wrong file to be picked as "newest."
+        import os
+
         prof_dir = cli._prof_dir()
         assert prof_dir is not None, "fixture cfg gives prof_dir"
         prof_dir.mkdir(exist_ok=True)
-        (prof_dir / "older.csv").write_text("")
+        older = prof_dir / "older.csv"
+        older.write_text("")
+        os.utime(older, (1_000_000.0, 1_000_000.0))
         newest = prof_dir / "newer.csv"
         newest.write_text("")
+        os.utime(newest, (2_000_000.0, 2_000_000.0))
 
         # Act
         with patch("termapy.run_profile_hooks.open_with_system") as mock_open:

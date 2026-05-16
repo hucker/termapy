@@ -65,22 +65,22 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         if any(c in pattern for c in "*?[]"):
             matches = {k: v for k, v in _ENV.items()
                        if fnmatch.fnmatch(k, pattern)}
-            if matches:
-                for k in sorted(matches):
-                    ctx.io.output(f"  {k}={matches[k]}")
-            else:
+            if not matches:
                 return CmdResult.fail(msg=f"No variables matching: {pattern}")
-            return CmdResult.ok()
+            lines = [f"{k}={matches[k]}" for k in sorted(matches)]
+            for line in lines:
+                ctx.io.output(f"  {line}")
+            return CmdResult.ok(value="\n".join(lines))
         val = _ENV.get(pattern)
         if val is not None:
             ctx.io.output(f"  {pattern}={val}")
             return CmdResult.ok(value=val)
-        else:
-            return CmdResult.fail(msg=f"Environment variable not set: {pattern}")
+        return CmdResult.fail(msg=f"Environment variable not set: {pattern}")
     ctx.io.output(f"Environment snapshot ({len(_ENV)} vars):")
-    for k in sorted(_ENV):
-        ctx.io.output(f"  {k}={_ENV[k]}")
-    return CmdResult.ok()
+    lines = [f"{k}={_ENV[k]}" for k in sorted(_ENV)]
+    for line in lines:
+        ctx.io.output(f"  {line}")
+    return CmdResult.ok(value="\n".join(lines))
 
 
 def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
@@ -101,7 +101,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     name, value = parts
     _ENV[name] = value
     ctx.io.output(f"  {name}={value}", "green")
-    return CmdResult.ok()
+    return CmdResult.ok(value=value)
 
 
 def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
@@ -118,7 +118,7 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
     _ENV.clear()
     _ENV.update(os.environ)
     ctx.io.output(f"Environment reloaded ({len(_ENV)} vars).", "green")
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(len(_ENV)))
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

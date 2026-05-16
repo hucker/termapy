@@ -122,11 +122,14 @@ class TestEnvCommands:
         _ENV.pop("MY_TEST_VAR", None)
 
         # Act
-        _handler_set(ctx, "MY_TEST_VAR hello_world")
+        result = _handler_set(ctx, "MY_TEST_VAR hello_world")
 
         # Assert
         assert _ENV["MY_TEST_VAR"] == "hello_world", "var added to snapshot"
         assert any("hello_world" in t for t, _ in output), "confirmation shown"
+        assert result.value == "hello_world", (
+            "scripting captures the value just set (mirrors /echo / /verbose)"
+        )
 
     def test_set_overwrites_existing(self):
         # Arrange
@@ -192,13 +195,18 @@ class TestEnvCommands:
         _ENV.pop("UNRELATED_XYZ", None)
 
         # Act
-        _handler_list(ctx, "USER_*")
+        result = _handler_list(ctx, "USER_*")
 
         # Assert
         texts = [t for t, _ in output]
         assert any("USER_ALPHA=a" in t for t in texts), "first match shown"
         assert any("USER_BETA=b" in t for t in texts), "second match shown"
         assert not any("UNRELATED" in t for t in texts), "non-match excluded"
+        # Glob path returns newline-joined NAME=VALUE so scripting gets
+        # the same content the user sees, minus the indentation.
+        lines = result.value.split("\n")
+        assert "USER_ALPHA=a" in lines, "glob value includes first match"
+        assert "USER_BETA=b" in lines, "glob value includes second match"
 
     def test_list_glob_no_matches(self):
         # Arrange
@@ -229,8 +237,11 @@ class TestEnvCommands:
         _ENV["SESSION_ONLY"] = "temp"
 
         # Act
-        _handler_reload(ctx, "")
+        result = _handler_reload(ctx, "")
 
         # Assert - SESSION_ONLY was not in os.environ, so it's gone
         assert "SESSION_ONLY" not in _ENV, "session var cleared by reload"
         assert any("reloaded" in t.lower() for t, _ in output), "confirmation"
+        assert int(result.value) == len(_ENV), (
+            "reload returns the post-reload variable count for scripting"
+        )

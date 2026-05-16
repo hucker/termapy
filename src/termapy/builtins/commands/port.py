@@ -43,7 +43,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if name:
         ctx.engine.update_port(name)
-        return CmdResult.ok()
+        return CmdResult.ok(value=name)
     # Bare /port -- TUI opens the port picker (matches clicking the
     # left title-bar button); CLI shows /help port.
     if ctx.engine.open_picker is not None:
@@ -59,8 +59,9 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    _apply(ctx, port_control.list_ports())
-    return CmdResult.ok()
+    result = port_control.list_ports()
+    _apply(ctx, result)
+    return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
@@ -93,12 +94,17 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
             {"cfg_update": {"echo_input": echo}}
         )
     ctx.engine.connect(port)
-    return CmdResult.ok()
+    return CmdResult.ok(value=port or "")
 
 
 def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
+    # Snapshot the configured port name BEFORE disconnect so scripts
+    # capturing the value know which port just went down.  ctx.cfg
+    # still holds the name after disconnect, but capturing first
+    # protects against any future cfg-mutation on disconnect.
+    last_port = ctx.cfg.get("port", "") or ""
     ctx.engine.disconnect()
-    return CmdResult.ok()
+    return CmdResult.ok(value=last_port)
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
@@ -121,30 +127,38 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
                 f"For chip info on {arg!r}, use /port.chip {arg}"
             )
         )
-    _apply(ctx, port_control.port_info(ctx.cfg, ctx.serial.port()))
-    return CmdResult.ok()
+    result = port_control.port_info(ctx.cfg, ctx.serial.port())
+    _apply(ctx, result)
+    return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
-    _apply(ctx, port_control.set_mode(ctx.serial.port(), ctx.cfg, args))
-    return CmdResult.ok()
+    result = port_control.set_mode(ctx.serial.port(), ctx.cfg, args)
+    _apply(ctx, result)
+    return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
-    _apply(ctx, port_control.get_set_flow(ctx.serial.port(), ctx.cfg, args))
-    return CmdResult.ok()
+    result = port_control.get_set_flow(ctx.serial.port(), ctx.cfg, args)
+    _apply(ctx, result)
+    return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
-    _apply(ctx, port_control.send_break(ctx.serial.port(), args))
-    return CmdResult.ok()
+    result = port_control.send_break(ctx.serial.port(), args)
+    _apply(ctx, result)
+    # Break is a pure side-effect.  Return the (typically empty / status)
+    # message text so silent scripts get something deterministic instead
+    # of None.
+    return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
     current = ctx.cfg.get("port", "") or ""
     connected = current if ctx.serial.is_connected() else ""
-    _apply(ctx, port_control.chip_info(args, current, connected))
-    return CmdResult.ok()
+    result = port_control.chip_info(args, current, connected)
+    _apply(ctx, result)
+    return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
@@ -209,7 +223,7 @@ def _make_chip_field_handler(field: str):
         msgs, _ = result
         if len(msgs) == 1:
             return CmdResult.ok(value=msgs[0][0])
-        return CmdResult.ok()
+        return CmdResult.ok(value=_joined_value(result))
 
     return _handler
 
@@ -227,6 +241,19 @@ def _read_value(result: port_control.Result) -> str:
             text = text[: -len(" (disconnected)")]
         return text
     return ""
+
+
+def _joined_value(result: port_control.Result) -> str:
+    """Join non-error messages with newlines for multi-line scripting values.
+
+    ``_read_value`` only handles the single-line case; this helper
+    covers multi-row outputs like ``/port.list`` or ``/port.info``
+    where the scripting value is the same text the user sees, minus
+    error/warning lines.
+    """
+    msgs, _ = result
+    lines = [text for text, color in msgs if color not in ("red", "yellow")]
+    return "\n".join(lines)
 
 
 def _make_prop_handler(key: str):

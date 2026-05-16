@@ -55,12 +55,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     old_val = ctx.cfg[key]
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
-        return CmdResult.ok()
+        return CmdResult.ok(value=str(old_val))
     if ctx.engine.save_cfg:
         ctx.engine.save_cfg(key, new_val)
     else:
         ctx.engine.apply_cfg(key, new_val)
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(new_val))
 
 
 # ── /cfg.auto handler ─────────────────────────────────────────────────────────
@@ -101,11 +101,13 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     files = sorted(d.glob("*/*.cfg"))
     if not files:
         ctx.io.output("  (no config files)")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
+    names: list[str] = []
     for f in files:
         marker = " *" if str(f) == ctx.config_path else ""
         ctx.io.output(f"  {f.parent.name}/{f.name}{marker}")
-    return CmdResult.ok()
+        names.append(f"{f.parent.name}/{f.name}")
+    return CmdResult.ok(value="\n".join(names))
 
 
 # ── /cfg.load handler ──────────────────────────────────────────────────────
@@ -150,7 +152,7 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
     data_dir = Path(ctx.config_path).parent
     open_with_system(str(data_dir))
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(data_dir))
 
 
 def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
@@ -162,7 +164,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
     ctx.fs.open_file(Path(ctx.config_path))
-    return CmdResult.ok()
+    return CmdResult.ok(value=ctx.config_path)
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
@@ -354,7 +356,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         # json.dumps() hit a non-serializable value in the config.
         # Worth a specific message so the user knows what to fix.
         return CmdResult.fail(msg=f"Config has non-JSON value: {e}")
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(report_path))
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

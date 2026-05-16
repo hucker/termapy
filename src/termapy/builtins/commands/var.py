@@ -246,22 +246,28 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         if val is not None:
             ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{val}[/]")
             return CmdResult.ok(value=str(val))
-        else:
-            ctx.io.output(f"  $({name}) - not defined", "red")
-        return CmdResult.ok()
+        ctx.io.output(f"  $({name}) - not defined", "red")
+        return CmdResult.ok(value="")
     if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS and not _CONTEXT_VARS:
         ctx.io.output("  (no variables defined)")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
+    lines: list[str] = []
     for k in sorted(_VARS):
         ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{_VARS[k]}[/]")
+        lines.append(f"{k}={_VARS[k]}")
     for k in sorted(_LAUNCH_VARS):
         ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{_LAUNCH_VARS[k]}[/]  [dim](launch)[/]")
+        lines.append(f"{k}={_LAUNCH_VARS[k]}")
     now = datetime.now()
     for k, fmt in sorted(_DYNAMIC_VARS.items()):
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{now.strftime(fmt)}[/]  [dim](dynamic)[/]")
+        rendered = now.strftime(fmt)
+        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim](dynamic)[/]")
+        lines.append(f"{k}={rendered}")
     for k in sorted(_CONTEXT_VARS):
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{_CONTEXT_VARS[k]()}[/]  [dim](context)[/]")
-    return CmdResult.ok()
+        rendered = _CONTEXT_VARS[k]()
+        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim](context)[/]")
+        lines.append(f"{k}={rendered}")
+    return CmdResult.ok(value="\n".join(lines))
 
 
 def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
@@ -281,7 +287,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     value = parts[1]
     _VARS[name] = value
     ctx.io.output_markup(f"  [cyan]$({name})[/] = [green]{value}[/]")
-    return CmdResult.ok()
+    return CmdResult.ok(value=value)
 
 
 def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
@@ -343,7 +349,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
     count = len(_VARS)
     _VARS.clear()
     ctx.io.output(f"Cleared {count} variable(s).", "green")
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(count))
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

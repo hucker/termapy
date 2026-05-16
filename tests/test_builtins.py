@@ -152,8 +152,12 @@ class TestPrint:
 class TestSeq:
     def test_seq_show_empty(self, repl_env):
         engine, _, _, output = repl_env
-        engine.dispatch("seq")
+        result = engine.dispatch("seq")
         assert any("No counters" in t for t, _ in output), "empty state message"
+        assert result.value == "", (
+            "empty seq returns an empty string value so $(X)=/seq.quiet "
+            "doesn't crash on a None reference"
+        )
 
     def test_seq_show_with_counters(self, repl_env):
         # Arrange
@@ -163,11 +167,15 @@ class TestSeq:
         seq[2] = 7
 
         # Act
-        engine.dispatch("seq")
+        result = engine.dispatch("seq")
 
         # Assert
         assert any("seq1=3" in t for t, _ in output), "counter 1 shown"
         assert any("seq2=7" in t for t, _ in output), "counter 2 shown"
+        assert result.value == "seq1=3, seq2=7", (
+            "scripting captures the same formatted line the user sees, "
+            "minus the 'Counters: ' prefix"
+        )
 
     def test_seq_reset(self, repl_env):
         # Arrange
@@ -176,12 +184,103 @@ class TestSeq:
         seq[1] = 5
 
         # Act
-        engine.dispatch("seq.reset")
+        result = engine.dispatch("seq.reset")
 
         # Assert
         remaining_counters = {k: v for k, v in seq.items() if isinstance(k, int)}
         assert remaining_counters == {}, "counters cleared"
         assert any("reset" in t.lower() for t, _ in output), "confirmation shown"
+        assert result.value == "reset", "scripting gets a stable token confirming the action"
+
+
+# -- /var (scripting return values) -----------------------------------------
+
+
+class TestVarHandlerValues:
+    """``/var``-family handlers must set ``CmdResult.value`` so
+    ``$(X) = /var.silent NAME`` and similar scripting captures work.
+    A bare ``CmdResult.ok()`` makes the .quiet path return ``None``,
+    which silently corrupts downstream scripts.
+    """
+
+    def test_var_lookup_returns_value_when_defined(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        from termapy.builtins.commands.var import _VARS
+        _VARS["MY_VAR"] = "hello"
+
+        # Act
+        result = engine.dispatch("var MY_VAR")
+
+        # Assert
+        assert result.value == "hello", "lookup returns the variable value"
+
+        # Cleanup -- _VARS is module state shared across tests
+        _VARS.clear()
+
+    def test_var_lookup_returns_empty_when_undefined(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("var NEVER_SET_VAR")
+
+        # Assert
+        assert result.value == "", (
+            "undefined var still returns ok with empty value so "
+            "scripting doesn't hit None"
+        )
+
+    def test_var_list_all_returns_joined_lines(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        from termapy.builtins.commands.var import _VARS
+        _VARS["A"] = "1"
+        _VARS["B"] = "2"
+
+        # Act
+        result = engine.dispatch("var")
+
+        # Assert
+        lines = result.value.split("\n")
+        assert "A=1" in lines, "first variable in scripting value"
+        assert "B=2" in lines, "second variable in scripting value"
+
+        # Cleanup
+        _VARS.clear()
+
+    def test_var_set_returns_new_value(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        from termapy.builtins.commands.var import _VARS
+        _VARS.clear()
+
+        # Act
+        result = engine.dispatch("var.set NEW_VAR fresh_value")
+
+        # Assert
+        assert result.value == "fresh_value", (
+            "setter returns the new value (mirrors echo/verbose convention)"
+        )
+
+        # Cleanup
+        _VARS.clear()
+
+    def test_var_clear_returns_count_cleared(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        from termapy.builtins.commands.var import _VARS
+        _VARS["A"] = "1"
+        _VARS["B"] = "2"
+        _VARS["C"] = "3"
+
+        # Act
+        result = engine.dispatch("var.clear")
+
+        # Assert
+        assert result.value == "3", (
+            "clear returns the count of vars removed for scripting"
+        )
 
 
 # -- /stop ----------------------------------------------------------------
@@ -1947,6 +2046,102 @@ class TestCfgRead:
         assert any("port" in t for t in texts)  # JSON includes port
 
 
+class TestCfgHandlerValues:
+    """Every ``/cfg`` write/read path must populate ``CmdResult.value``
+    so ``$(X) = /cfg.silent KEY`` captures the value.  These tests
+    would have failed before fix/cmdresult-value-gaps -- the handlers
+    returned bare ``CmdResult.ok()``.
+    """
+
+    def test_cfg_get_returns_value(self, repl_env):
+        # Arrange / Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("cfg port")
+
+        # Assert
+        assert result.value == "COM4", (
+            "/cfg <key> returns the current value as a string"
+        )
+
+    def test_cfg_set_returns_new_value(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act -- /cfg.auto changes without confirmation
+        result = engine.dispatch("cfg.auto baud_rate 9600")
+
+        # Assert
+        assert result.value == "9600", (
+            "/cfg.auto returns the new value (mirrors echo/verbose)"
+        )
+
+    def test_cfg_set_unchanged_returns_existing_value(self, repl_env):
+        # Arrange -- /cfg key value where value matches current returns
+        # the existing value so scripting always gets a string back.
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("cfg baud_rate 115200")
+
+        # Assert
+        assert result.value == "115200", (
+            "/cfg key value: same value still returns the value, not None"
+        )
+
+    def test_cfg_list_empty_returns_empty_string(self, tmp_path, monkeypatch):
+        # Arrange -- point cfg_dir at an empty tmp tree
+        from termapy.builtins.commands import cfg as cfg_mod
+
+        empty = tmp_path / "empty_cfg_dir"
+        empty.mkdir()
+        monkeypatch.setattr(cfg_mod, "cfg_dir", lambda: empty)
+
+        cfg = {"port": "COM4", "baud_rate": 115200,
+                "echo_input": False, "line_ending": "\r"}
+        config_path = tmp_path / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        output = []
+        engine = ReplEngine(cfg, str(config_path),
+                            lambda t, c=None: output.append((t, c)))
+
+        # Act
+        result = engine.dispatch("cfg.list")
+
+        # Assert
+        assert result.value == "", (
+            "empty config dir returns empty string, not None"
+        )
+
+    def test_cfg_list_populated_returns_joined_names(
+        self, tmp_path, monkeypatch,
+    ):
+        # Arrange
+        from termapy.builtins.commands import cfg as cfg_mod
+
+        cfgs = tmp_path / "cfgs"
+        (cfgs / "alpha").mkdir(parents=True)
+        (cfgs / "alpha" / "alpha.cfg").write_text("{}")
+        (cfgs / "beta").mkdir()
+        (cfgs / "beta" / "beta.cfg").write_text("{}")
+        monkeypatch.setattr(cfg_mod, "cfg_dir", lambda: cfgs)
+
+        cfg = {"port": "COM4", "baud_rate": 115200,
+                "echo_input": False, "line_ending": "\r"}
+        config_path = tmp_path / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        output = []
+        engine = ReplEngine(cfg, str(config_path),
+                            lambda t, c=None: output.append((t, c)))
+
+        # Act
+        result = engine.dispatch("cfg.list")
+
+        # Assert
+        lines = result.value.split("\n")
+        assert "alpha/alpha.cfg" in lines, "first config in scripting value"
+        assert "beta/beta.cfg" in lines, "second config in scripting value"
+
+
 # -- /repeat ----------------------------------------------------------------
 
 
@@ -2217,3 +2412,56 @@ class TestPortChipList:
             "No chips match" in t and c == "yellow"
             for t, c in texts_and_colors
         ), "no-match warning rendered in yellow"
+
+
+class TestPortHandlerValues:
+    """The ``/port`` family used to drop ``CmdResult.value`` on every
+    return, so scripts capturing port state ($(X) = /port.silent dtr)
+    got ``None``.  These tests guard the value plumbing on the
+    handlers fixed in fix/cmdresult-value-gaps.
+    """
+
+    def test_port_root_set_returns_new_name(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act -- /port <name> swaps the configured port and should
+        # echo the new name as the scripting value.
+        result = engine.dispatch("port COM77")
+
+        # Assert
+        assert result.value == "COM77", (
+            "setter returns the new port name (mirrors echo/verbose convention)"
+        )
+
+    def test_port_disconnect_returns_last_port_name(self, repl_env):
+        # Arrange
+        engine, cfg, _, _ = repl_env
+        cfg["port"] = "COM4"
+
+        # Act -- disconnect captures the name that was configured
+        # before tearing the connection down so the script can record
+        # which port just went away.
+        result = engine.dispatch("port.disconnect")
+
+        # Assert
+        assert result.value == "COM4", (
+            "disconnect returns the port name in effect before the call"
+        )
+
+    def test_port_list_returns_joined_output(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("port.list")
+
+        # Assert -- value is the same text the user sees (header /
+        # rows / footer), joined with newlines.  Specific content
+        # depends on the test machine's USB devices, but the value
+        # must be a non-None string so scripting doesn't crash.
+        assert result.value is not None, (
+            "scripting value must not be None -- this is the bug "
+            "fix/cmdresult-value-gaps targets"
+        )
+        assert isinstance(result.value, str), "value is a string"

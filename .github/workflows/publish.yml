@@ -1,16 +1,19 @@
 name: Publish to PyPI
 
 # Safety-net publisher.  release_publish.py publishes to PyPI from the
-# developer machine, then calls `gh release create` which fires the
-# release:published event that triggers this workflow.  Both try to
-# upload the same artefact; whichever loses the race hits PyPI's
-# "file already exists" 400 and the workflow shows red even though
-# the package did land.
+# developer machine FIRST, then calls `gh release create` which fires
+# the release:published event that triggers this workflow.  By the
+# time this runs the wheel + sdist are already on PyPI, so the
+# pre-check below sees the version on Warehouse and skips upload.
+# The publish step only fires if the local upload somehow didn't
+# land -- the actual safety net.
 #
-# `uv publish --check-url` checks the PyPI index first and exits 0 if
-# the file is already there, so this workflow is now a no-op on a
-# normal release and a real backstop if the local publish ever fails
-# (network hiccup between `git push` and `uv publish`, etc).
+# History: `uv publish --check-url` was originally relied on for the
+# skip-if-already-published behaviour, but in uv 0.11.x it did
+# NOT skip a duplicate upload even when the file was clearly on the
+# Simple index (v0.65.1 rerun confirmed: file there 24h, still got
+# the 400).  Switched to a Warehouse JSON pre-check, which is fast,
+# CDN-cache-free, and unambiguous: HTTP 200 = version exists.
 
 on:
   release:
@@ -22,9 +25,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
+      - name: Read version from pyproject.toml
+        id: version
+        run: |
+          v=$(grep -E '^version = ' pyproject.toml | head -1 | sed -E 's/version = "(.*)"/\1/')
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $v"
+      - name: Check if version is already on PyPI
+        id: pypi
+        run: |
+          v="${{ steps.version.outputs.value }}"
+          # Warehouse JSON API: 200 = exists, 404 = not yet.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://pypi.org/pypi/termapy/$v/json")
+          echo "PyPI returned HTTP $code for termapy==$v"
+          if [ "$code" = "200" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::termapy $v already on PyPI -- skipping publish (safety net not needed)."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build package
+        if: steps.pypi.outputs.skip != 'true'
         run: uv build
       - name: Publish to PyPI
-        run: uv publish --check-url https://pypi.org/simple/termapy/
+        if: steps.pypi.outputs.skip != 'true'
+        run: uv publish
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}

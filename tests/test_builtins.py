@@ -146,6 +146,172 @@ class TestPrint:
         assert "" in actual_texts, "empty string printed"
 
 
+# -- /ver, /ver.latest, /ver.info ------------------------------------------
+
+
+class TestVer:
+    """The version family: ``/ver`` (installed), ``/ver.latest``
+    (bare PyPI value), ``/ver.info`` (verbose installed-vs-PyPI
+    compare).  Naming follows termapy's existing convention --
+    ``.info`` is the verbose-state verb used by /cfg.info,
+    /port.info, /mcp.info, /profile.info; ``.latest`` is a noun
+    matching field-getter style.
+    """
+
+    def test_ver_returns_installed_version_string(self, repl_env):
+        # Arrange / Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("ver")
+
+        # Assert
+        assert result.success, "bare /ver succeeds"
+        assert result.value.startswith("termapy v"), (
+            f"value is the human-readable version line, got: {result.value!r}"
+        )
+
+    def test_ver_latest_returns_bare_pypi_version(
+        self, repl_env, monkeypatch,
+    ):
+        # Arrange -- pin check_now() to a known value so the test
+        # doesn't hit the network.
+        from termapy import update_check
+
+        monkeypatch.setattr(
+            update_check, "check_now", lambda _v: ("0.99.0", True),
+        )
+
+        # Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("ver.latest")
+
+        # Assert -- value is the bare version string, no prose,
+        # symmetric with /ver returning installed.
+        assert result.success, "/ver.latest succeeds with PyPI reachable"
+        assert result.value == "0.99.0", (
+            "/ver.latest returns just the version string, no extras"
+        )
+
+    def test_ver_latest_fails_when_pypi_unreachable(
+        self, repl_env, monkeypatch,
+    ):
+        # Arrange
+        from termapy import update_check
+
+        monkeypatch.setattr(
+            update_check, "check_now", lambda _v: (None, False),
+        )
+
+        # Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("ver.latest")
+
+        # Assert -- network failure is LOUD on the interactive
+        # path (different contract from the background banner).
+        assert not result.success, "PyPI unreachable returns CmdResult.fail"
+        assert "PyPI" in result.error, "error message mentions PyPI"
+
+    def test_ver_info_reports_up_to_date_when_versions_match(
+        self, repl_env, monkeypatch,
+    ):
+        # Arrange -- pin check_now to return same version, not outdated.
+        from termapy import update_check
+        from termapy.builtins.commands import ver as ver_mod
+
+        monkeypatch.setattr(
+            ver_mod, "_installed_version", lambda: "0.66.0",
+        )
+        monkeypatch.setattr(
+            update_check, "check_now", lambda _v: ("0.66.0", False),
+        )
+
+        # Act
+        engine, _, _, output = repl_env
+        result = engine.dispatch("ver.info")
+
+        # Assert
+        assert result.success, "matching versions are not an error"
+        assert result.value == "0.66.0", (
+            "scripting value is the latest PyPI version (per .info convention)"
+        )
+        texts = [t for t, _ in output]
+        assert any("up to date" in t for t in texts), (
+            "human-readable line says 'up to date'"
+        )
+
+    def test_ver_info_reports_update_available_when_outdated(
+        self, repl_env, monkeypatch,
+    ):
+        # Arrange
+        from termapy import update_check
+        from termapy.builtins.commands import ver as ver_mod
+
+        monkeypatch.setattr(
+            ver_mod, "_installed_version", lambda: "0.66.0",
+        )
+        monkeypatch.setattr(
+            update_check, "check_now", lambda _v: ("0.66.1", True),
+        )
+
+        # Act
+        engine, _, _, output = repl_env
+        result = engine.dispatch("ver.info")
+
+        # Assert
+        assert result.success, "outdated is still ok -- nothing failed"
+        assert result.value == "0.66.1", "value is the latest PyPI version"
+        texts = [t for t, _ in output]
+        assert any("update available" in t for t in texts), (
+            "human-readable line announces the upgrade"
+        )
+        assert any("0.66.0" in t and "0.66.1" in t for t in texts), (
+            "both versions appear on the comparison line"
+        )
+
+    def test_ver_info_fails_when_pypi_unreachable(
+        self, repl_env, monkeypatch,
+    ):
+        # Arrange
+        from termapy import update_check
+        from termapy.builtins.commands import ver as ver_mod
+
+        monkeypatch.setattr(
+            ver_mod, "_installed_version", lambda: "0.66.0",
+        )
+        monkeypatch.setattr(
+            update_check, "check_now", lambda _v: (None, False),
+        )
+
+        # Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("ver.info")
+
+        # Assert
+        assert not result.success, "network failure surfaces as error"
+        assert "PyPI" in result.error, "error message mentions PyPI"
+
+    def test_ver_info_fails_for_source_checkout(
+        self, repl_env, monkeypatch,
+    ):
+        # Arrange -- 'unknown' is the installed-version sentinel for
+        # source checkouts without `pip install`.
+        from termapy.builtins.commands import ver as ver_mod
+
+        monkeypatch.setattr(
+            ver_mod, "_installed_version", lambda: "unknown",
+        )
+
+        # Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("ver.info")
+
+        # Assert -- comparison is meaningless without an installed
+        # version; surface a clear error instead of silently failing.
+        assert not result.success, "source-checkout cannot compare"
+        assert "source" in result.error.lower(), (
+            "error explains why (source checkout)"
+        )
+
+
 # -- /seq -----------------------------------------------------------------
 
 

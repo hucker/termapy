@@ -131,6 +131,33 @@ def _is_newer(latest: str, current: str) -> bool:
         return False
 
 
+def check_now(current_version: str) -> tuple[str | None, bool]:
+    """On-demand version compare against PyPI.  No throttle, no state writes.
+
+    Used by ``/ver.check`` and any other interactive path where the
+    user explicitly asked for a fresh comparison -- ``check()``'s
+    7-day cadence + silent-failure contract is meant for the
+    background banner and would lie to a user typing ``/ver.check``
+    on day two.
+
+    Args:
+        current_version: Installed termapy version (typically from
+            ``importlib.metadata.version("termapy")``).
+
+    Returns:
+        Tuple of ``(latest, outdated)``.  ``latest`` is the version
+        string PyPI reports, or ``None`` on any fetch error
+        (caller decides how loud to be).  ``outdated`` is True iff
+        ``latest`` is strictly higher than ``current_version`` per
+        PEP 440 ordering; False otherwise (including when
+        ``latest`` is None).
+    """
+    latest = _fetch_pypi_latest()
+    if latest is None:
+        return None, False
+    return latest, _is_newer(latest, current_version)
+
+
 def check(current_version: str) -> str | None:
     """Run one update check.  Return the latest version, or None.
 

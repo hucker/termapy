@@ -15,7 +15,7 @@ src/termapy/
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)
-├── dialogs/                # (1965 lines) Modal screens - one file per dialog
+├── dialogs/                # (1883 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
 │   ├── cfg_confirm.py      #   CfgConfirm
 │   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (~461 lines, the big one)
@@ -32,7 +32,7 @@ src/termapy/
 │   └── welcome_dialog.py   #   WelcomeDialog
 ├── help/                   #              Markdown help pages (source for HTML build)
 ├── html/                   #              Generated HTML help
-├── mcp/                    # (1897 lines) MCP stdio server
+├── mcp/                    # (1963 lines) MCP stdio server
 │   ├── catalog.py          #   JSON catalog + device-state resources
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
@@ -43,7 +43,7 @@ src/termapy/
 │   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
 │   ├── loader.py           #   Plugin discovery, COMMAND validation
 │   └── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
-├── profile/                # (1174 lines) v2 device-profile schema, loader, type registry
+├── profile/                # (1099 lines) v2 device-profile schema, loader, type registry
 │   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
 │   ├── matcher.py          #   match_profile_command, template_to_regex
 │   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
@@ -59,16 +59,16 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (4224 lines) Textual TUI - UI, modals, app hooks
+├── app.py                  # (3047 lines) Textual TUI - UI, modals, app hooks
 ├── capture.py              # (336 lines)  Capture state machine - text, binary, format spec
-├── cli.py                  # (1139 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
-├── config.py               # (712 lines)  Config dirs, loading, validation, migration trigger
-├── defaults.py             # (513 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
-├── demo.py                 # (1698 lines) Simulated device for --demo mode (FakeSerial)
+├── cli.py                  # (1140 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
+├── config.py               # (718 lines)  Config dirs, loading, validation, migration trigger
+├── defaults.py             # (531 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
+├── demo.py                 # (1690 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
-├── migration.py            # (325 lines)  Config schema migration chain (v17)
+├── migration.py            # (436 lines)  Config schema migration chain (v17)
 ├── port_control.py         # (1452 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1178 lines) Interactive protocol debug screen (Textual)
 ├── repl.py                 # (1695 lines) REPL engine - dispatch, scripting, transforms

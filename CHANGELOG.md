@@ -1,5 +1,134 @@
 # Changelog
 
+## 0.66.0 (2026-05-15)
+
+Two themes drive this release: **CLI/MCP feature parity** (an LLM
+client over MCP now has a usable command surface, not a stripped
+subset) and **scripting actually works** (`CmdResult.value` is
+populated everywhere a script would want to capture it).  A
+breaking rename folds `/xmodem` and `/ymodem` under `/xfer`, and
+the release pipeline is fixed so the publish workflow stops
+showing red on every release.
+
+### CLI / MCP feature parity
+
+- **`/log.dump`, `/log.fingerprint`, `/log.show` are now built-in
+  plugins** instead of TUI/CLI hooks.  MCP picks up builtins but
+  not hooks, so before this release an LLM had no way to read the
+  session log it was meant to be debugging.  `/log.show` stays
+  gated on `gui_apps` so it correctly hides on headless MCP.
+- **`/run.profile.*` family available in CLI.**  The five
+  subcommands (`.dump`, `.list`, `.show`, `.explore`, `.cmd`)
+  used to only register on the TUI host; CLI users running
+  `/run.profile <script>` had no way to read the resulting
+  CSV without switching to the TUI.  Handlers moved into a
+  shared `run_profile_hooks` module so both hosts register the
+  same code path.
+- **`/run` callable from MCP.**  Added to `MCPHost._register_hooks`
+  alongside the existing `/delay`.  An LLM can now trigger
+  pre-defined `.run` automation files via
+  `run_command("/run myscript.run")`.  `/run.list`, `/run.dump`,
+  and `/run.legacy` ride along; `/run.show` and `/run.explore`
+  register but stay `gui_apps`-gated.
+- **Automated CLI/MCP parity tests.**  19 new tests in
+  `test_cli.py` and `test_mcp_server.py` pin which commands are
+  callable from which host and which capability gates apply.
+  Replaces the per-branch manual smoke that had been driving the
+  audit work.
+
+### Scripting return values (`CmdResult.value`)
+
+28 handlers across `seq.py`, `env_var.py`, `var.py`, `cfg.py`,
+and `port.py` used to return bare `CmdResult.ok()`, which meant
+the value-capture idiom (`$(X) <- /cmd args` and MCP's
+`run_command(..., output="silent")`) saw `None` instead of the
+data the command had just computed.  Affected commands now
+return the formatted value the user sees:
+
+- `/seq` returns the counter line; `/seq.reset` returns `"reset"`.
+- `/var <name>` returns the variable value (`""` when undefined);
+  `/var` returns newline-joined `NAME=value` pairs; `/var.set`
+  returns the new value; `/var.clear` returns the count cleared.
+- `/env.set` returns the new value; `/env.list <pattern>`
+  returns matches; `/env.reload` returns the post-reload count.
+- `/cfg <key>` returns the value; `/cfg key value` returns the
+  new (or existing) value; `/cfg.list` returns newline-joined
+  config names; `/cfg.explore` / `/cfg.show` / `/cfg.info`
+  return the path opened.
+- `/port <name>` returns the new port; `/port.disconnect`
+  returns the last configured port (snapshotted before the
+  tear-down); `/port.list` / `/port.info` / `/port.mode` /
+  `/port.flow` / `/port.break` / `/port.chip` return the same
+  multi-line text the user sees, via a new `_joined_value()`
+  helper.
+
+A scripted end-to-end smoke
+(`tests/fixtures/value_capture.run` +
+`tests/test_value_capture_e2e.py`) exercises every value path
+through a real CLI subprocess and asserts the captured value
+appears in stdout.  Verified to catch regressions by stashing
+the source fix and watching the test fail.
+
+### Breaking: `/xfer` consolidates file-transfer commands
+
+`/xmodem.send`, `/xmodem.recv`, `/ymodem.send`, and `/ymodem.recv`
+are gone.  The file-transfer family lives under `/xfer`:
+
+```text
+/xfer.root [path]             (unchanged)
+/xfer.xmodem.send <file>
+/xfer.xmodem.recv <file>
+/xfer.ymodem.send <file> ...
+/xfer.ymodem.recv {dir}
+```
+
+`/help xfer` describes XMODEM / YMODEM inline.  No legacy
+forwarders -- `/xmodem` and `/ymodem` return `Unknown command`.
+
+### `/color` -> `/term.color`
+
+Continues the v0.64 rename pattern.  `/color` survives as a
+hidden legacy forwarder.  Auto-run cfg strings (`on_connect_cmd`,
+default scripts) are migrated.
+
+### Release pipeline fix
+
+The publish workflow has been showing red on every release back
+through v0.64.0 -- `uv publish --check-url` does not actually
+skip a duplicate upload, even when the wheel has been on PyPI's
+Simple index for 24h.  Two changes:
+
+1. `release_publish.py` now uploads to PyPI **before**
+   `gh release create`, so the `release.published` event fires
+   only after the file is on PyPI.
+2. The workflow uses a Warehouse JSON pre-check
+   (`pypi.org/pypi/<pkg>/<v>/json`) instead of the broken flag.
+   HTTP 200 -> skip publish (with a `::notice::`); HTTP 404 ->
+   the safety-net upload runs.
+
+### CLI smoke coverage
+
+`--version` and `--help` are now guarded by tests
+(`TestVersionFlag`, `TestHelpFlag`).  `--help` is asserted to
+exit 0, produce a multi-line block, and document every major
+flag -- catches argparse rewires that silently drop a flag.
+
+### Internal refactors
+
+These are no-op for users; they show up in `ls src/termapy/`
+as named subsystems instead of one 4225-line `app.py`:
+
+- `app.py` is now ~3050 lines (was ~4225).  Extracted into:
+  `app_hooks.py` (TUI REPL hooks), `capture_view.py`
+  (modal capture display), `title_bar.py` (title-bar rendering),
+  `pickers.py` (modal-picker callbacks), `info_views.py`
+  (info-report modals).
+- `MCPHost.run_command_async` inlined into the class body.
+- Profile `transport` block dropped; wire-level settings live
+  in cfg directly.
+- `pic_map` parser inlined into the example plugin that used it;
+  no callers remained in core.
+
 ## 0.65.1 (2026-05-14)
 
 Maintenance release.  Drives the lint baseline to zero and hardens

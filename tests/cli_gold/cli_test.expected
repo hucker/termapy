@@ -675,7 +675,7 @@ SUBCOMMANDS
   /run.help       Show /run help.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       List files in run/.
-  /run.profile    Run a script with per-command timing.
+  /run.profile    Run a script with per-line timing.
   /run.show       Open the newest file in run/ with the system viewer.
 demo> /print === section: help.run ===
   === section: help.run ===

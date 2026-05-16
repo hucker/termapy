@@ -532,6 +532,54 @@ class TestCatalogParity:
         # Assert
         assert a == b, "catalog generation is deterministic"
 
+
+# ── CLI/MCP feature-parity regression suite ────────────────────────────────
+
+
+class TestLogCommandsAvailableInMCP:
+    """``/log.dump`` and ``/log.fingerprint`` were promoted from
+    TUI/CLI hooks to built-in plugins in
+    ``chore/log-commands-as-builtins`` so MCP -- which only registers
+    builtins -- could read the session log.  ``/log.show`` stays
+    gated on ``gui_apps``.  These tests pin the matrix so a future
+    refactor cannot silently regress MCP's session-log access.
+    """
+
+    def test_log_dump_registered_and_mcp_callable(self, host):
+        # Arrange / Act
+        plugin = host.repl._plugins.get("log.dump")
+
+        # Assert
+        assert plugin is not None, "log.dump registered as a builtin in MCP host"
+        missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+        assert missing == [], (
+            f"log.dump satisfied by MCP capabilities (missing={missing})"
+        )
+
+    def test_log_fingerprint_registered_and_mcp_callable(self, host):
+        # Arrange / Act
+        plugin = host.repl._plugins.get("log.fingerprint")
+
+        # Assert
+        assert plugin is not None, "log.fingerprint registered as a builtin in MCP host"
+        missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+        assert missing == [], (
+            f"log.fingerprint satisfied by MCP capabilities (missing={missing})"
+        )
+
+    def test_log_show_registered_but_gated_on_gui_apps(self, host):
+        # Arrange / Act
+        plugin = host.repl._plugins.get("log.show")
+
+        # Assert
+        assert plugin is not None, "log.show registered as a builtin in MCP host"
+        missing = list(plugin.needs.missing_from(host.ctx.capabilities))
+        assert "gui_apps" in missing, (
+            "log.show stays gated on gui_apps so MCP doesn't try to spawn a "
+            "desktop viewer in a headless context"
+        )
+
+
 # ── device_state resource ───────────────────────────────────────────────────
 
 

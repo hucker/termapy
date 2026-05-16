@@ -241,6 +241,118 @@ class TestHookRun:
         assert not result.success, "missing script fails"
 
 
+# -- Hook: run.profile.* (CLI parity with TUI) -------------------------------
+
+
+class TestHookRunProfile:
+    """``/run.profile.*`` subcommands installed by
+    ``run_profile_hooks.register_run_profile_hooks``.  CLI gained
+    these in chore/run-profile-cli-parity; tests guard the parity
+    so future CLI refactors don't silently drop them again.
+    """
+
+    def test_list_empty_prof_dir(self, cli, capsys):
+        # Act
+        result = cli.repl.dispatch("run.profile.list")
+
+        # Assert
+        actual = capsys.readouterr().out
+        assert result.success, "empty prof/ is a success, not an error"
+        assert "no profile files" in actual, "reports empty state"
+
+    def test_list_enumerates_csvs(self, cli, capsys):
+        # Arrange
+        prof_dir = cli._prof_dir()
+        assert prof_dir is not None, "fixture cfg gives prof_dir"
+        prof_dir.mkdir(exist_ok=True)
+        (prof_dir / "first.csv").write_text("")
+        (prof_dir / "second.csv").write_text("")
+
+        # Act
+        cli.repl.dispatch("run.profile.list")
+
+        # Assert
+        actual = capsys.readouterr().out
+        assert "first.csv" in actual, "first profile listed"
+        assert "second.csv" in actual, "second profile listed"
+
+    def test_dump_empty_prof_dir_fails(self, cli):
+        # Act
+        result = cli.repl.dispatch("run.profile.dump")
+
+        # Assert
+        assert not result.success, "no profile to dump"
+
+    def test_dump_prints_newest_csv(self, cli, capsys):
+        # Arrange
+        prof_dir = cli._prof_dir()
+        assert prof_dir is not None, "fixture cfg gives prof_dir"
+        prof_dir.mkdir(exist_ok=True)
+        prof_path = prof_dir / "demo.csv"
+        prof_path.write_text("step,dt_ms\n0,1.5\n")
+
+        # Act
+        cli.repl.dispatch("run.profile.dump")
+
+        # Assert
+        actual = capsys.readouterr().out
+        assert "step,dt_ms" in actual, "header line printed"
+        assert "0,1.5" in actual, "data line printed"
+
+    def test_dump_named_file_not_found(self, cli):
+        # Act
+        result = cli.repl.dispatch("run.profile.dump missing.csv")
+
+        # Assert
+        assert not result.success, "named file that doesn't exist fails"
+
+    def test_show_no_profiles_fails(self, cli):
+        # Act
+        result = cli.repl.dispatch("run.profile.show")
+
+        # Assert
+        assert not result.success, "nothing to show with empty prof/"
+
+    def test_show_opens_newest(self, cli):
+        # Arrange
+        prof_dir = cli._prof_dir()
+        assert prof_dir is not None, "fixture cfg gives prof_dir"
+        prof_dir.mkdir(exist_ok=True)
+        (prof_dir / "older.csv").write_text("")
+        newest = prof_dir / "newer.csv"
+        newest.write_text("")
+
+        # Act
+        with patch("termapy.run_profile_hooks.open_with_system") as mock_open:
+            result = cli.repl.dispatch("run.profile.show")
+
+        # Assert
+        assert result.success, "show succeeds when prof/ has files"
+        mock_open.assert_called_once_with(str(newest)), "opens the newest .csv"
+
+    def test_explore_opens_prof_dir(self, cli):
+        # Arrange
+        prof_dir = cli._prof_dir()
+        assert prof_dir is not None, "fixture cfg gives prof_dir"
+
+        # Act
+        with patch("termapy.run_profile_hooks.open_with_system") as mock_open:
+            result = cli.repl.dispatch("run.profile.explore")
+
+        # Assert
+        assert result.success, "explore succeeds"
+        mock_open.assert_called_once_with(str(prof_dir)), "opens prof/ folder"
+
+    def test_cmd_empty_fails_with_usage(self, cli, capsys):
+        # Act
+        result = cli.repl.dispatch("run.profile.cmd")
+
+        # Assert
+        assert not result.success, "empty arg fails"
+        actual = capsys.readouterr().out
+        assert "Usage:" in actual, "usage message shown"
+
+
 # -- Hook: log.clear ---------------------------------------------------------
 
 
@@ -530,6 +642,11 @@ class TestHookRegistration:
             "term.color",  # canonical name
             "color",       # legacy alias (hidden)
             "run", "run.profile",
+            # /run.profile.* subcommands installed by
+            # run_profile_hooks.register_run_profile_hooks().  CLI gained
+            # these in chore/run-profile-cli-parity for TUI/CLI parity.
+            "run.profile.cmd", "run.profile.dump",
+            "run.profile.list", "run.profile.show", "run.profile.explore",
             "demo", "demo.force", "clr", "raw", "help.open",
             "log.clear", "tui", "cli",
         }

@@ -330,13 +330,13 @@ class CLITerminal(TerminalHost):
             self._hook_run,
             source="app",
         )
-        self.repl.register_hook(
-            "run.profile",
-            "{filename}",
-            "Run a script with per-command timing.",
-            self._hook_run_profile,
-            source="app",
-        )
+        # /run.profile <script> + the 5 .show/.list/.dump/.explore/.cmd
+        # subcommands live in run_profile_hooks so TUI and CLI share
+        # one set of handlers.  Must register after /run (above) so the
+        # /run tree-wipe doesn't take out /run.profile.* siblings.
+        from termapy.run_profile_hooks import register_run_profile_hooks
+
+        register_run_profile_hooks(self)
         # /run is a hook (not a plugin) because it needs CLI-specific
         # script-running machinery; register the standard folder
         # subcommands (list/explore/show/dump) as sibling hooks so
@@ -576,24 +576,38 @@ class CLITerminal(TerminalHost):
             )
         return result
 
-    def _hook_run_profile(self, ctx, args: str):
-        """Run a script with per-command timing."""
+    def _run_script(
+        self, path: Path, profile: bool = False, verbose: bool = False,
+    ) -> None:
+        """Synchronously run a .run script (mirrors TUI's ``_run_script``).
 
-        script = args.strip()
-        if not script:
-            self.status("Usage: /run.profile <script>", "red")
-            return CmdResult.fail(msg="Usage: /run.profile <script>")
-        verbose = ctx.output_level == "verbose"
-        path, result = self.repl.start_script(script)
-        if path:
+        Called by the shared ``run_profile_hooks`` handlers so the
+        ``/run.profile`` family works in both CLI and TUI.  CLI never
+        threads -- ``KeyboardInterrupt`` propagates so a long-running
+        script stops cleanly on Ctrl-C.
+        """
+        try:
             self.repl.run_script(
                 path,
                 write=self.status,
                 dispatch=self.ctx.dispatch,
-                profile=True,
+                profile=profile,
                 verbose=verbose,
             )
-        return result
+        except KeyboardInterrupt:
+            self.status("Script interrupted", "red")
+
+    def _prof_dir(self) -> Path | None:
+        """Return the prof/ directory for the current config, or None.
+
+        Used by ``/run.profile.show``, ``/run.profile.dump``,
+        ``/run.profile.explore``, ``/run.profile.list``.  Mirrors
+        ``SerialTerminal._prof_dir`` so the shared
+        ``run_profile_hooks`` handlers work unchanged.
+        """
+        if not self.config_path:
+            return None
+        return Path(self.config_path).parent / "prof"
 
     def _hook_demo(self, ctx, args: str):
         """Set up and switch to demo device config."""

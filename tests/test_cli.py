@@ -241,6 +241,53 @@ class TestHookRun:
         assert not result.success, "missing script fails"
 
 
+# -- /edit.cfg in CLI (audit item #3) ---------------------------------------
+
+
+class TestEditCfgCallableInCli:
+    """``/edit.cfg`` is registered as a sub_command of the ``edit``
+    built-in (see ``builtins/commands/edit.py``), so CLI gets it for
+    free -- TUI overrides with a modal config editor, but the builtin
+    handler in CLI spawns the system editor on the cfg file.  MCP
+    correctly hides the command via ``needs.gui_apps``.
+
+    The CLI/MCP parity audit (notes/cli-mcp-parity-audit.md, item 3)
+    initially flagged this as a gap; verification showed it already
+    works.  These tests pin the behavior so a refactor of the
+    ``edit`` builtin cannot silently regress CLI access.
+    """
+
+    def test_edit_cfg_registered_in_cli(self, cli):
+        # Arrange / Act
+        plugin = cli.repl._plugins.get("edit.cfg")
+
+        # Assert
+        assert plugin is not None, "edit.cfg present in CLI plugin set"
+        assert plugin.needs.gui_apps, (
+            "edit.cfg needs gui_apps so headless CLI / MCP correctly gate it"
+        )
+
+    def test_edit_cfg_opens_config_file_when_gui_apps_available(self, cli):
+        # Arrange -- force the gui_apps gate open and capture the impl
+        # call without spawning a real editor.
+        from termapy.plugins import CapabilitySet
+
+        cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
+        cli.ctx.fs.capabilities = cli.ctx.capabilities
+        opened = []
+        cli.ctx.fs._open_file_impl = lambda path: opened.append(path)
+
+        # Act
+        result = cli.repl.dispatch("edit.cfg")
+
+        # Assert
+        assert result.success, "edit.cfg dispatches cleanly"
+        assert len(opened) == 1, "open_file called exactly once"
+        assert Path(opened[0]) == Path(cli.config_path), (
+            "opens the live config file, not a stale path"
+        )
+
+
 # -- Hook: run.profile.* (CLI parity with TUI) -------------------------------
 
 

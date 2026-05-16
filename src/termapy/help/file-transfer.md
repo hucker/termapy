@@ -9,15 +9,15 @@ and embedded systems.
 ### Send a file
 
 ```text
-/xmodem.send <file>
+/xfer.xmodem.send <file>
 ```
 
 Send a file from your PC to the device. The file path is resolved
 relative to the per-config `cap/` directory, or provide an absolute path.
 
 ```text
-/xmodem.send firmware.bin
-/xmodem.send C:\builds\release.hex
+/xfer.xmodem.send firmware.bin
+/xfer.xmodem.send C:\builds\release.hex
 ```
 
 The device must be waiting to receive via XMODEM before you run this
@@ -26,15 +26,15 @@ command (e.g. after entering a bootloader's receive mode).
 ### Receive a file
 
 ```text
-/xmodem.recv <file>
+/xfer.xmodem.recv <file>
 ```
 
 Receive a file from the device and save it to the `cap/` directory.
 Supports auto-numbered filenames with `$(n000)`.
 
 ```text
-/xmodem.recv dump.bin
-/xmodem.recv log_$(n000).bin
+/xfer.xmodem.recv dump.bin
+/xfer.xmodem.recv log_$(n000).bin
 ```
 
 ### Protocol details
@@ -51,21 +51,21 @@ and automatic filename/size metadata in the protocol header.
 ### Send file(s)
 
 ```text
-/ymodem.send <file> {file2} ...
+/xfer.ymodem.send <file> {file2} ...
 ```
 
 Send one or more files. YMODEM includes the filename and size in the
 protocol, so the receiver knows what to expect.
 
 ```text
-/ymodem.send firmware.bin
-/ymodem.send config.json data.bin     batch send
+/xfer.ymodem.send firmware.bin
+/xfer.ymodem.send config.json data.bin     batch send
 ```
 
 ### Receive file(s)
 
 ```text
-/ymodem.recv {directory}
+/xfer.ymodem.recv {directory}
 ```
 
 Receive files from the device. YMODEM provides the filename
@@ -73,8 +73,8 @@ automatically. Files are saved to the specified directory, or `cap/`
 by default.
 
 ```text
-/ymodem.recv                          save to cap/
-/ymodem.recv C:\downloads             save to specific directory
+/xfer.ymodem.recv                          save to cap/
+/xfer.ymodem.recv C:\downloads             save to specific directory
 ```
 
 ### YMODEM protocol details
@@ -89,13 +89,13 @@ By default, file paths are resolved relative to the per-config `cap/`
 directory. Absolute paths are always accepted.
 
 ```text
-/xmodem.send firmware.bin              cap/firmware.bin
-/xmodem.send C:\builds\release.hex     absolute path
-/xmodem.recv dump.bin                  saved to cap/dump.bin
-/xmodem.recv log_$(n000).bin           auto-numbered in cap/
-/ymodem.send config.json               cap/config.json
-/ymodem.recv                           saved to cap/ (filename from protocol)
-/ymodem.recv C:\downloads              saved to specified directory
+/xfer.xmodem.send firmware.bin              cap/firmware.bin
+/xfer.xmodem.send C:\builds\release.hex     absolute path
+/xfer.xmodem.recv dump.bin                  saved to cap/dump.bin
+/xfer.xmodem.recv log_$(n000).bin           auto-numbered in cap/
+/xfer.ymodem.send config.json               cap/config.json
+/xfer.ymodem.recv                           saved to cap/ (filename from protocol)
+/xfer.ymodem.recv C:\downloads              saved to specified directory
 ```
 
 ### Custom transfer root
@@ -166,7 +166,7 @@ Both commands are needed -- one for each end of the transfer:
 
 ```text
 AT+XMODEM=SEND device_log.txt      device enters XMODEM send mode
-/xmodem.recv device_log.txt        termapy receives into cap/
+/xfer.xmodem.recv device_log.txt        termapy receives into cap/
 ```
 
 ### Example: push a file back via XMODEM
@@ -176,7 +176,7 @@ Again, tell the device first:
 
 ```text
 AT+XMODEM=RECV log_backup.dat      device enters XMODEM receive mode
-/xmodem.send device_log.txt        termapy sends from cap/
+/xfer.xmodem.send device_log.txt        termapy sends from cap/
 AT+FS.LIST                         verify it arrived on device
 ```
 
@@ -187,7 +187,7 @@ gets the name automatically:
 
 ```text
 AT+YMODEM=SEND firmware_v1.bin     device enters YMODEM send mode
-/ymodem.recv                       termapy receives (name from protocol)
+/xfer.ymodem.recv                       termapy receives (name from protocol)
 ```
 
 ### Example: push a file back via YMODEM
@@ -196,7 +196,7 @@ After pulling firmware (above), push it back:
 
 ```text
 AT+YMODEM=RECV                     device enters YMODEM receive mode
-/ymodem.send firmware_v1.bin       termapy sends from cap/
+/xfer.ymodem.send firmware_v1.bin       termapy sends from cap/
 AT+FS.LIST                         verify it arrived on device
 ```
 
@@ -206,7 +206,7 @@ AT+FS.LIST                         verify it arrived on device
 AT+FS.LIST                         see what's on the device
 AT+FS.INFO                         file count and total size
 AT+XMODEM=SEND device_log.txt      pull the log
-/xmodem.recv device_log.txt
+/xfer.xmodem.recv device_log.txt
 AT+FS.DELETE device_log.txt         clean up on device
 AT+FS.LIST                         confirm deletion
 ```

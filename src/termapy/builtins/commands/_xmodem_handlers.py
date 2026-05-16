@@ -1,4 +1,11 @@
-"""Built-in plugin: XMODEM file transfer over serial."""
+"""XMODEM file-transfer handlers (private; mounted under /xfer).
+
+Filename is underscore-prefixed so the plugin loader skips it --
+the actual command tree (``/xfer.xmodem.send`` / ``recv``, plus the
+hidden ``/xmodem`` legacy forwarders) is wired up in ``xfer.py``
+and ``xmodem.py``.  This module exists only as a home for the
+handlers and the ``QueueByteReader`` shared with ymodem.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from termapy.vendor.xmodem import XMODEM
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CmdResult
 from termapy.scripting import resolve_seq_filename
 
 if TYPE_CHECKING:
@@ -196,24 +203,13 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="XMODEM recv failed.")
 
 
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    name="xmodem",
-    help="XMODEM file transfer.",
-    handler=None,
-    needs=CapabilitySet(interactive=True),  # long-blocking binary protocol
-    sub_commands={
-        "send": Command(
-            args="<file>",
-            help="Send a file via XMODEM to the device.",
-            handler=_handler_send,
-            needs=CapabilitySet(serial_connected=True, interactive=True),
-        ),
-        "recv": Command(
-            args="<file>",
-            help="Receive a file via XMODEM from the device.",
-            handler=_handler_recv,
-            needs=CapabilitySet(serial_connected=True, interactive=True),
-        ),
-    },
-)
+# Public surface re-exported for xfer.py (the new home of the /xfer.xmodem
+# command tree).  No ``COMMAND`` -- this file is underscore-prefixed so the
+# plugin loader skips it.
+__all__ = [
+    "QueueByteReader",
+    "_get_xfer_root",
+    "_resolve_path",
+    "_handler_send",
+    "_handler_recv",
+]

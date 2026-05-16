@@ -238,7 +238,8 @@ class TestCatalog:
         names = {c["name"] for c in cat["commands"]}
         # Assert -- sample of plugins that declare needs.interactive=True
         for cmd in ("/cls", "/grep", "/exit", "/os",
-                    "/seq", "/credits", "/xmodem", "/ymodem"):
+                    "/seq", "/credits",
+                    "/xfer.xmodem", "/xfer.ymodem"):
             assert cmd not in names, (
                 f"{cmd} should be filtered (needs.interactive=True; "
                 f"MCP doesn't advertise interactive)"

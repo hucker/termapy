@@ -127,11 +127,11 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/var.clear`              | Clear all user variables                                                    |
 | `/var.list`               | List user variables (explicit alias for bare `/var`)                        |
 | `/var.set <NAME> <value>` | Set a user variable                                                         |
-| `/xfer.root {path}`       | Show or set the file transfer root directory                                |
-| `/xmodem.recv <file>`     | Receive a file from the device via XMODEM                                   |
-| `/xmodem.send <file>`     | Send a file to the device via XMODEM                                        |
-| `/ymodem.recv {dir}`      | Receive file(s) from the device via YMODEM                                  |
-| `/ymodem.send <file> ...` | Send file(s) to the device via YMODEM (batch)                               |
+| `/xfer.root {path}`            | Show or set the file transfer root directory                           |
+| `/xfer.xmodem.recv <file>`     | Receive a file from the device via XMODEM                              |
+| `/xfer.xmodem.send <file>`     | Send a file to the device via XMODEM                                   |
+| `/xfer.ymodem.recv {dir}`      | Receive file(s) from the device via YMODEM                             |
+| `/xfer.ymodem.send <file> ...` | Send file(s) to the device via YMODEM (batch)                          |
 
 ## Script profiling
 

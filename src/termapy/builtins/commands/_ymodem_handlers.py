@@ -1,4 +1,9 @@
-"""Built-in plugin: YMODEM file transfer over serial."""
+"""YMODEM file-transfer handlers (private; mounted under /xfer).
+
+Sibling of ``_xmodem_handlers``; both are mounted by ``xfer.py``
+into the ``/xfer.{xmodem,ymodem}.{send,recv}`` tree.  Hidden
+``/ymodem`` forwarders live in ``ymodem.py``.
+"""
 
 from __future__ import annotations
 
@@ -8,12 +13,12 @@ from typing import TYPE_CHECKING
 from termapy.vendor.ymodem.Socket import ModemSocket
 from termapy.vendor.ymodem.Protocol import ProtocolType
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CmdResult
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-from termapy.builtins.commands.xmodem_xfer import (
+from termapy.builtins.commands._xmodem_handlers import (
     QueueByteReader,
     _get_xfer_root,
     _resolve_path,
@@ -124,24 +129,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="YMODEM recv failed.")
 
 
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    name="ymodem",
-    help="YMODEM file transfer (batch, 1K blocks).",
-    handler=None,
-    needs=CapabilitySet(interactive=True),  # long-blocking binary protocol
-    sub_commands={
-        "send": Command(
-            args="<file> {file2} ...",
-            help="Send file(s) via YMODEM to the device.",
-            handler=_handler_send,
-            needs=CapabilitySet(serial_connected=True, interactive=True),
-        ),
-        "recv": Command(
-            args="{directory}",
-            help="Receive file(s) via YMODEM from the device.",
-            handler=_handler_recv,
-            needs=CapabilitySet(serial_connected=True, interactive=True),
-        ),
-    },
-)
+# No ``COMMAND`` -- this file is underscore-prefixed so the plugin
+# loader skips it.  ``xfer.py`` imports ``_handler_send`` and
+# ``_handler_recv`` to mount them under ``/xfer.ymodem``.
+__all__ = ["_handler_send", "_handler_recv"]

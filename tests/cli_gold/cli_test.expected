@@ -730,14 +730,12 @@ demo> /help.plugin
   /term       Terminal display / session toggles (echo, line_no, timestamps, ...).
   /var        List user variables, or show one by name.
   /ver        Show termapy version.
-  /xfer       File transfer settings.
-  /xmodem     XMODEM file transfer.
-  /ymodem     YMODEM file transfer (batch, 1K blocks).
+  /xfer       File transfer: settings and XMODEM / YMODEM send and receive.
 
 -- Script Commands (.run files only) --
   /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
   /expect     Wait for text in serial output (blocks until match or timeout).
-  39 commands.
+  37 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

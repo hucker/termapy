@@ -1,0 +1,57 @@
+# End-to-end smoke for fix/cmdresult-value-gaps.
+#
+# Each section captures a handler's CmdResult.value into a named
+# variable via /var.capture (which dispatches /<cmd>.silent
+# internally), then /print's the captured value with a stable label.
+# The companion pytest asserts each label=expected pair appears in
+# stdout -- if a handler regresses to a bare CmdResult.ok(), the
+# captured value will be missing and the test fails.
+#
+# Only deterministic handlers are exercised: in-memory state,
+# config keys with known defaults, and counter/variable operations.
+# Hardware-dependent paths (/port.list, /port.info) live in unit
+# tests in test_builtins.py since their values vary per machine.
+
+/print === BEGIN value-capture e2e ===
+
+/print --- seq ---
+/seq.reset
+/var.capture v_seq_empty /seq
+/print seq.empty=$(v_seq_empty)
+/seq.reset
+/var.capture v_seq_reset /seq.reset
+/print seq.reset=$(v_seq_reset)
+
+/print --- var ---
+/var.clear
+/var.capture v_var_set /var.set FOO bar
+/print var.set=$(v_var_set)
+/var.capture v_var_get /var FOO
+/print var.get=$(v_var_get)
+/var.set ALPHA 1
+/var.set BETA 2
+/var.capture v_var_clear /var.clear
+/print var.clear=$(v_var_clear)
+
+/print --- env ---
+/var.capture v_env_set /env.set MYVAR hello_world
+/print env.set=$(v_env_set)
+/var.capture v_env_list /env.list MYVAR
+/print env.list=$(v_env_list)
+
+/print --- cfg ---
+/var.capture v_cfg_get /cfg baud_rate
+/print cfg.get=$(v_cfg_get)
+/var.capture v_cfg_auto /cfg.auto baud_rate 9600
+/print cfg.auto=$(v_cfg_auto)
+/var.capture v_cfg_get2 /cfg baud_rate
+/print cfg.get2=$(v_cfg_get2)
+/cfg.auto baud_rate 115200
+
+/print --- port ---
+/var.capture v_port_set /port COM99
+/print port.set=$(v_port_set)
+/var.capture v_port_disc /port.disconnect
+/print port.disconnect=$(v_port_disc)
+
+/print === END value-capture e2e ===

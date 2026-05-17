@@ -1105,7 +1105,7 @@ def _proto_help_handler(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="proto",
-    help="Binary protocol tools: send, run, debug, hex, crc, status.",
+    help="Binary protocol tools: send, run, debug, hex, crc, info.",
     long_help=_proto_long_help,
     handler=_proto_root_handler,
     sub_commands={
@@ -1157,7 +1157,7 @@ COMMAND = Command(
                 ),
                 "info": Command(
                     args="<name>",
-                    help="Show algorithm parameters and description.",
+                    help="Print algorithm parameters and description.",
                     long_help=(
                         "Shows the polynomial, init, reflection, xor-out, and check\n"
                         "value for one CRC algorithm. Use {prefix}proto.crc.list to see\n"
@@ -1245,8 +1245,8 @@ COMMAND = Command(
                 ),
             },
         ),
-        "status": Command(
-            help="Show current protocol state.",
+        "info": Command(
+            help="Print current protocol state.",
             handler=_cmd_status,
         ),
         **build_folder_subcommands("proto"),

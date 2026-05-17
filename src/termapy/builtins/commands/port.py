@@ -442,7 +442,7 @@ COMMAND = Command(
             hidden=True,
         ),
         "info": Command(
-            help="Show status, params, chip, and live signals for the connected port.",
+            help="Print status, params, chip, and live signals for the connected port.",
             long_help=_port_info_long_help,
             handler=_handler_info,
         ),

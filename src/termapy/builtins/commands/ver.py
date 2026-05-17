@@ -92,11 +92,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="ver",
-    help="Show termapy version.",
+    help="Print termapy version (installed).",
     handler=_handler,
     sub_commands={
         "latest": Command(
-            help="Show the latest termapy version on PyPI (bare value).",
+            help="Print the latest termapy version on PyPI (bare value).",
             long_help=(
                 "Fetches the latest termapy version from PyPI and "
                 "prints just the version string -- the data-getter "
@@ -113,7 +113,7 @@ COMMAND = Command(
             handler=_handler_latest,
         ),
         "info": Command(
-            help="Show installed-vs-PyPI version comparison.",
+            help="Print installed-vs-PyPI version comparison.",
             long_help=(
                 "Fetches the latest termapy version from PyPI and "
                 "compares it to the installed version.  Prints a "

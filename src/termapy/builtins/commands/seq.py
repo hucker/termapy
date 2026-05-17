@@ -128,7 +128,7 @@ def _seq_long_help(ctx: PluginContext) -> str:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="seq",
-    help="Show sequence counters.",
+    help="Print sequence counters.",
     long_help=_seq_long_help,
     handler=_handler,
     needs=CapabilitySet(interactive=True),  # script-state primitive

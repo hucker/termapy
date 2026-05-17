@@ -847,7 +847,7 @@ COMMAND = Command(
     flags={
         "--mcp": "Show only commands visible to the MCP catalog.",
     },
-    help="Show the command landscape or look up a specific command.",
+    help="Print the command landscape or look up a specific command.",
     long_help="""\
 Three ways to find things:
 
@@ -863,7 +863,7 @@ candidates. Typing /help with zero matches points you at /search.""",
     handler=_handler,
     sub_commands={
         "target": Command(
-            help="Show only imported target device commands.",
+            help="Print only imported target device commands.",
             handler=_handler_target,
         ),
         "run": Command(
@@ -876,7 +876,7 @@ candidates. Typing /help with zero matches points you at /search.""",
         ),
         "dev": Command(
             args="<cmd>",
-            help="Show a command handler's Python docstring.",
+            help="Print a command handler's Python docstring.",
             handler=_handler_dev,
         ),
     },

@@ -448,7 +448,7 @@ COMMAND = Command(
     sub_commands={
         "list": Command(
             args="{name}",
-            help="List user variables, or show one by name.",
+            help="Explicit alias for bare /var.",
             long_help=_var_state_line,
             handler=_handler_list,
             raw_args=True,

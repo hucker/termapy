@@ -153,12 +153,12 @@ COMMAND = Command(
     name="env",
     args="{pattern}",
     handler=_handler_list,
-    help="Manage $(env.NAME) expansion for CLI commands.",
+    help="Print environment variables for $(env.NAME) expansion (alias: /env.list).",
     long_help=_env_long_help,
     sub_commands={
         "list": Command(
             args="{pattern}",
-            help="Show environment variables (all, by name, or glob pattern).",
+            help="Explicit alias for bare /env.",
             long_help=_env_state_line,
             handler=_handler_list,
         ),

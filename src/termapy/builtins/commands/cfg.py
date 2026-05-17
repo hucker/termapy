@@ -384,7 +384,7 @@ def _cfg_long_help(ctx: PluginContext) -> str:
 COMMAND = Command(
     name="cfg",
     args="{key {value}}",
-    help="Show or change config values.",
+    help="Show or set config values.",
     long_help=_cfg_long_help,
     handler=_handler,
     sub_commands={
@@ -405,7 +405,7 @@ COMMAND = Command(
         "info": Command(
             args="",
             flags={"--display": "Open full report in the system viewer."},
-            help="Show project summary.",
+            help="Print project summary (tree + config + buttons).",
             handler=_handler_info,
         ),
         "explore": Command(

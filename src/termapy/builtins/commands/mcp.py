@@ -294,7 +294,7 @@ COMMAND = Command(
             handler=_handler_catalog,
         ),
         "info": Command(
-            help="Show MCP-mode status (catalog/profile/port/captures).",
+            help="Print MCP-mode status (catalog/profile/port/captures).",
             handler=_handler_info,
         ),
         "log": Command(

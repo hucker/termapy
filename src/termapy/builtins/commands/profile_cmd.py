@@ -456,7 +456,7 @@ COMMAND = Command(
             handler=_handler_unload,
         ),
         "info": Command(
-            help="Show metadata of the active profile.",
+            help="Print metadata of the active profile.",
             handler=_handler_info,
         ),
     },

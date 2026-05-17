@@ -140,7 +140,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="credits",
-    help="Show acknowledgments / third-party attributions.",
+    help="Print acknowledgments / third-party attributions.",
     long_help=(
         "Prints the acknowledgments page -- every runtime dependency,\n"
         "every vendored package, and the authors behind them.\n"

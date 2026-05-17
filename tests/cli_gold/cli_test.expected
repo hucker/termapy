@@ -309,7 +309,7 @@ SUBCOMMANDS
   /port.dtr             Show or set DTR line (hardware only).
   /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
   /port.help            Show /port help.
-  /port.info            Show status, params, chip, and live signals for the connected port.
+  /port.info            Print status, params, chip, and live signals for the connected port.
   /port.list            List available serial ports.
   /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
   /port.parity          Show or set parity.
@@ -412,7 +412,7 @@ SUBCOMMANDS
   /port.dtr             Show or set DTR line (hardware only).
   /port.flow_control    Show or set flow control (none/rtscts/xonxoff/manual).
   /port.help            Show /port help.
-  /port.info            Show status, params, chip, and live signals for the connected port.
+  /port.info            Print status, params, chip, and live signals for the connected port.
   /port.list            List available serial ports.
   /port.mode            Show or set serial mode (e.g. /port.mode 9600 N81).
   /port.parity          Show or set parity.
@@ -421,7 +421,7 @@ SUBCOMMANDS
   /port.stop_bits       Show or set stop bits.
 demo> /help cfg
 NAME
-  /cfg - Show or change config values.
+  /cfg - Show or set config values.
 
 SYNOPSIS
   /cfg {key {value}}
@@ -449,7 +449,7 @@ SUBCOMMANDS
   /cfg.dump       Print current config as JSON to the terminal.
   /cfg.explore    Open config directory in file explorer.
   /cfg.help       Show /cfg help.
-  /cfg.info       Show project summary.
+  /cfg.info       Print project summary (tree + config + buttons).
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (hot-swap).
   /cfg.show       Open the current config file in the system viewer.
@@ -473,14 +473,14 @@ SUBCOMMANDS
   /proto.crc.c         Generate C source code for a CRC algorithm.
   /proto.crc.calc      Compute CRC over hex bytes, text, or file.
   /proto.crc.find      Identify the CRC algorithm used in a captured packet.
-  /proto.crc.info      Show algorithm parameters and description.
+  /proto.crc.info      Print algorithm parameters and description.
   /proto.crc.list      List algorithms (optional glob filter).
   /proto.crc.python    Generate Python source code for a CRC algorithm.
   /proto.crc.rust      Generate Rust source code for a CRC algorithm.
 
 SEE ALSO
-  /proto.debug, /proto.dump, /proto.explore, /proto.help, /proto.hex, /proto.list, /proto.run, /proto.send, /proto.show,
-/proto.status, /proto
+  /proto.debug, /proto.dump, /proto.explore, /proto.help, /proto.hex, /proto.info, /proto.list, /proto.run, /proto.send,
+/proto.show, /proto
 demo> /help var
 NAME
   /var - List user variables, or show one by name.
@@ -557,7 +557,7 @@ AVAILABLE
 SUBCOMMANDS
   /var.capture    Capture command output into a user variable.
   /var.clear      Clear all user variables.
-  /var.list       List user variables, or show one by name.
+  /var.list       Explicit alias for bare /var.
   /var.set        Set a user variable to a literal value.
 demo> /help cap
 NAME
@@ -601,7 +601,7 @@ SUBCOMMANDS
   /ss.txt        Save a text screenshot of the terminal.
 demo> /help proto
 NAME
-  /proto - Binary protocol tools: send, run, debug, hex, crc, status.
+  /proto - Binary protocol tools: send, run, debug, hex, crc, info.
 
 DESCRIPTION
   3 scripts in proto/
@@ -642,11 +642,11 @@ SUBCOMMANDS
   /proto.explore    Open proto/ in the system file explorer.
   /proto.help       Show /proto help.
   /proto.hex        Toggle hex display mode.
+  /proto.info       Print current protocol state.
   /proto.list       List files in proto/.
   /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest file in proto/ with the system viewer.
-  /proto.status     Show current protocol state.
 demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump.
@@ -705,14 +705,14 @@ demo> /help.plugin
 -- Application Plugins --
   /app        App-wide state and config.
   /cap        Data capture tools.
-  /cfg        Show or change config values.
+  /cfg        Show or set config values.
   /cls        Clear the terminal screen.
-  /credits    Show acknowledgments / third-party attributions.
+  /credits    Print acknowledgments / third-party attributions.
   /edit       Open a project file in the system editor.
-  /env        Manage $(env.NAME) expansion for CLI commands.
+  /env        Print environment variables for $(env.NAME) expansion (alias: /env.list).
   /exit       Exit termapy.
   /grep       Search the scrollback for lines matching a pattern (case-insensitive regex).
-  /help       Show the command landscape or look up a specific command.
+  /help       Print the command landscape or look up a specific command.
   /mcp        MCP catalog and status (Model Context Protocol).
   /os         Run a shell command and show output (10s timeout). e.g. /os dir
   /ping       Send a command and measure response time.
@@ -720,16 +720,16 @@ demo> /help.plugin
   /port       Serial port tools: connect, disconnect, list, configure.
   /print      Print a message to the terminal.
   /profile    Device profile commands (MCP profile schema, validator, loader).
-  /proto      Binary protocol tools: send, run, debug, hex, crc, status.
+  /proto      Binary protocol tools: send, run, debug, hex, crc, info.
   /repeat     Repeat a command N times with optional delay (escape to cancel).
   /search     Deep-search every command's metadata (name, help, args, flags, long help).
-  /seq        Show sequence counters.
+  /seq        Print sequence counters.
   /show       Show a file.
   /ss         Screenshot tools: save SVG/text, manage folder.
   /stop       Abort a running script.
   /term       Terminal display / session toggles (echo, line_no, timestamps, ...).
   /var        List user variables, or show one by name.
-  /ver        Show termapy version.
+  /ver        Print termapy version (installed).
   /xfer       File transfer: settings and XMODEM / YMODEM send and receive.
 
 -- Script Commands (.run files only) --

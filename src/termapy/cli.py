@@ -323,58 +323,13 @@ class CLITerminal(TerminalHost):
             source="app",
             hidden=True,
         )
-        self.repl.register_hook(
-            "run",
-            "{filename}",
-            "Run a script file, or list available scripts.",
-            self._hook_run,
-            source="app",
-        )
-        # /run.profile <script> + the 5 .show/.list/.dump/.explore/.cmd
-        # subcommands live in run_profile_hooks so TUI and CLI share
-        # one set of handlers.  Must register after /run (above) so the
-        # /run tree-wipe doesn't take out /run.profile.* siblings.
+        # /run and its sub_commands (.help, .legacy, .list, .dump,
+        # .show, .explore) are owned by the run.py builtin; the host
+        # only wires ctx.engine.run_script via TerminalHost.  /run.profile.*
+        # is still a hook because the runner is host-specific.
         from termapy.run_profile_hooks import register_run_profile_hooks
 
         register_run_profile_hooks(self)
-        # /run is a hook (not a plugin) because it needs CLI-specific
-        # script-running machinery; register the standard folder
-        # subcommands (list/explore/show/dump) as sibling hooks so
-        # every folder-owning command gets the same shape regardless
-        # of whether its root is a plugin or a hook.
-        from termapy.folder_ops import build_folder_subcommands
-
-        for sub_name, sub_cmd in build_folder_subcommands("run").items():
-            # build_folder_subcommands always populates handler; guard
-            # anyway so ty doesn't complain about the Optional type.
-            if sub_cmd.handler is None:
-                continue
-            self.repl.register_hook(
-                f"run.{sub_name}",
-                sub_cmd.args,
-                sub_cmd.help,
-                sub_cmd.handler,
-                source="app",
-            )
-        # /run.legacy -- re-install after the /run tree-override wipe.
-        from termapy import run_legacy
-
-        self.repl.register_hook(
-            "run.legacy",
-            run_legacy.ARGS,
-            run_legacy.HELP,
-            run_legacy.HANDLER,
-            source="app",
-            long_help=run_legacy.LONG_HELP,
-            flags=run_legacy.FLAGS,
-        )
-        self.repl.register_hook(
-            "run.help",
-            "",
-            "Show /run help.",
-            self._hook_run_help,
-            source="app",
-        )
         self.repl.register_hook(
             "demo",
             "",
@@ -538,64 +493,11 @@ class CLITerminal(TerminalHost):
             self.status(f"Color: {state}")
         return CmdResult.ok()
 
-    def _hook_run_help(self, ctx, args: str) -> CmdResult:
-        """Same as /help run, plus an AVAILABLE RUN FILES list."""
-        from termapy.builtins.commands.help import (
-            _show_command_help,
-            append_files_section,
-        )
-
-        result = _show_command_help(ctx, "run")
-        scripts_dir = ctx.fs.scripts_dir
-        files = (
-            sorted(f.name for f in scripts_dir.glob("*.run"))
-            if scripts_dir.is_dir() else []
-        )
-        append_files_section(ctx, "AVAILABLE RUN FILES", files)
-        return result
-
-    def _hook_run(self, ctx, args: str):
-        """Run a script file, or show /help run when bare.
-
-        TUI opens the Run picker for bare /run (registered in app.py);
-        CLI has no picker, so bare invocation shows /help run for
-        consistency with /cfg, /proto, /port.  Use /run.list to list
-        available scripts.
-        """
-        script = args.strip()
-        if not script:
-            return self._hook_run_help(ctx, args)
-        verbose = ctx.output_level == "verbose"
-        path, result = self.repl.start_script(script)
-        if path:
-            self.repl.run_script(
-                path,
-                write=self.status,
-                dispatch=self.ctx.dispatch,
-                verbose=verbose,
-            )
-        return result
-
-    def _run_script(
-        self, path: Path, profile: bool = False, verbose: bool = False,
-    ) -> None:
-        """Synchronously run a .run script (mirrors TUI's ``_run_script``).
-
-        Called by the shared ``run_profile_hooks`` handlers so the
-        ``/run.profile`` family works in both CLI and TUI.  CLI never
-        threads -- ``KeyboardInterrupt`` propagates so a long-running
-        script stops cleanly on Ctrl-C.
-        """
-        try:
-            self.repl.run_script(
-                path,
-                write=self.status,
-                dispatch=self.ctx.dispatch,
-                profile=profile,
-                verbose=verbose,
-            )
-        except KeyboardInterrupt:
-            self.status("Script interrupted", "red")
+    # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
+    # ``/run.help`` are now owned by the ``run.py`` built-in.
+    # ``_run_script`` lives on ``TerminalHost`` so the built-in
+    # ``/run`` handler can use ``ctx.engine.run_script`` uniformly
+    # across CLI and MCP.  No CLI-specific override needed.
 
     def _prof_dir(self) -> Path | None:
         """Return the prof/ directory for the current config, or None.

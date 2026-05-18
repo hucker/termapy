@@ -28,7 +28,6 @@ from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy import run_legacy
 from termapy.app import CONFIG_LOAD_ERRORS
 from termapy.run_profile_hooks import register_run_profile_hooks
 from termapy.builtins.commands.edit import (
@@ -36,7 +35,6 @@ from termapy.builtins.commands.edit import (
     _make_explore_handler,
     _make_list_handler,
 )
-from termapy.builtins.commands.help import _show_command_help, append_files_section
 from termapy.config import open_with_system
 from termapy.defaults import cmd_prefix
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
@@ -307,47 +305,6 @@ def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
     return CmdResult.ok()
 
 
-def _hook_run(app, ctx, args: str) -> CmdResult:
-    """Run a ``.run`` script, or open the Script picker on bare ``/run``.
-
-    With no args, mirrors clicking the title-bar Run button (opens
-    ``ScriptPicker``).  With a filename, dispatches to the REPL
-    engine's script-execution path.  Honors ``output_level=verbose``
-    for command echo.
-
-    Args:
-        app: The SerialTerminal instance.
-        ctx: PluginContext (for output level + dispatch).
-        args: Script filename (resolved via ``repl.start_script``), or
-            empty to open the picker.
-
-    Returns:
-        ``CmdResult`` from the script-start dispatch.
-    """
-    # Bare /run -- mirror the title-bar Run button (open ScriptPicker).
-    if not args.strip():
-        app._on_main(app._btn_scripts)
-        return CmdResult.ok()
-    verbose = ctx.output_level == "verbose"
-    path, result = app.repl.start_script(args)
-    if path:
-        app._run_script(path, verbose=verbose)
-    return result
-
-
-def _hook_run_help(app, ctx, args: str) -> CmdResult:
-    """Same as /help run, plus an AVAILABLE RUN FILES list."""
-
-    result = _show_command_help(ctx, "run")
-    scripts_dir = ctx.fs.scripts_dir
-    files = (
-        sorted(f.name for f in scripts_dir.glob("*.run"))
-        if scripts_dir.is_dir() else []
-    )
-    append_files_section(ctx, "AVAILABLE RUN FILES", files)
-    return result
-
-
 def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
     """Switch to a different config by name or path."""
     name = args.strip()
@@ -382,21 +339,6 @@ def _hook_proto_load(app, ctx, args: str) -> CmdResult:
     """Run a protocol test script (delegates to /proto.run)."""
     prefix = cmd_prefix(app.cfg)
     app._dispatch_single(f"{prefix}proto.run {args}")
-    return CmdResult.ok()
-
-
-def _hook_run_list(app, ctx, args: str) -> CmdResult:
-    """List .run files in the run/ directory."""
-    d = app.repl.scripts_dir
-    if not d.exists():
-        ctx.io.output("  (no run/ directory)")
-        return CmdResult.ok()
-    files = sorted(d.glob("*.run"))
-    if not files:
-        ctx.io.output("  (no .run files)")
-        return CmdResult.ok()
-    for f in files:
-        app.repl.write(f"  {f.name}")
     return CmdResult.ok()
 
 
@@ -463,40 +405,13 @@ def register_tui_hooks(app) -> None:
         source="app",
         hidden=True,
     )
-    app.repl.register_hook(
-        "run",
-        "{filename}",
-        "Run a script file, or open the Run picker if no filename.",
-        lambda ctx, args: _hook_run(app, ctx, args),
-        source="app",
-    )
-    app.repl.register_hook(
-        "run.help",
-        "",
-        "Show /run help.",
-        lambda ctx, args: _hook_run_help(app, ctx, args),
-        source="app",
-    )
+    # /run and its sub_commands (.help, .legacy, .list, .dump, .show,
+    # .explore) are owned by the run.py builtin -- TUI just needs to
+    # add the picker-on-bare-/run behaviour via ctx.engine.open_picker,
+    # which is wired further down in this function.  /run.profile.*
+    # stays as hooks because the runner is host-specific (threaded in
+    # TUI, synchronous everywhere else).
     register_run_profile_hooks(app)
-    app.repl.register_hook(
-        "run.list",
-        "",
-        "List .run files in the scripts/ directory.",
-        lambda ctx, args: _hook_run_list(app, ctx, args),
-        source="app",
-    )
-    # /run.legacy -- shared handler in termapy.run_legacy; registered
-    # here after /run's tree-override wipe so it sticks.
-
-    app.repl.register_hook(
-        "run.legacy",
-        run_legacy.ARGS,
-        run_legacy.HELP,
-        run_legacy.HANDLER,
-        source="app",
-        long_help=run_legacy.LONG_HELP,
-        flags=run_legacy.FLAGS,
-    )
     app.repl.register_hook(
         "demo",
         "",
@@ -655,13 +570,8 @@ def register_tui_hooks(app) -> None:
         lambda ctx, args: _hook_cfg_load(app, ctx, args),
         source="app",
     )
-    app.repl.register_hook(
-        "run.load",
-        "<filename>",
-        "Run a script file (same as /run).",
-        lambda ctx, args: _hook_run(app, ctx, args),
-        source="app",
-    )
+    # /run.load was a redundant alias for bare /run; dropped with the
+    # /run-as-builtin migration.  Bare /run takes a filename.
     app.repl.register_hook(
         "proto.load",
         "<filename>",

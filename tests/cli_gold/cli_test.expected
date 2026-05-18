@@ -672,7 +672,7 @@ AVAILABLE
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
   /run.explore    Open run/ in the system file explorer.
-  /run.help       Show /run help.
+  /run.help       Show /run help with the list of available .run scripts.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       List files in run/.
   /run.profile    Run a script with per-line timing.
@@ -699,7 +699,6 @@ demo> /help.plugin
   /delay      Wait for duration with progress bar (e.g. 500ms, 1.5s).
   /demo       Set up and switch to the demo device config.
   /raw        Send raw text to serial (no transforms or line ending).
-  /run        Run a script file, or list available scripts.
   /tui        Switch to TUI mode.
 
 -- Application Plugins --
@@ -722,6 +721,7 @@ demo> /help.plugin
   /profile    Device profile commands (MCP profile schema, validator, loader).
   /proto      Binary protocol tools: send, run, debug, hex, crc, info.
   /repeat     Repeat a command N times with optional delay (escape to cancel).
+  /run        Run a script file, or list available scripts.
   /search     Deep-search every command's metadata (name, help, args, flags, long help).
   /seq        Print sequence counters.
   /show       Show a file.

@@ -206,10 +206,11 @@ class TestHookRaw:
 
 class TestHookRun:
     def test_run_bare_shows_help(self, cli, capsys):
-        # Arrange -- bare /run in CLI now shows /help run for parity with
-        # /cfg, /proto, /port (TUI opens the Run picker; CLI has no picker).
+        # Arrange -- bare /run in CLI shows /help run for parity with
+        # /cfg, /proto, /port (TUI opens the Run picker; CLI has no
+        # picker so the builtin's open_picker fallback prints help).
         # Act
-        result = cli._hook_run(cli.ctx, "")
+        result = cli.repl.dispatch("run")
 
         # Assert
         assert result.success, "bare /run succeeds"
@@ -234,8 +235,9 @@ class TestHookRun:
         assert "test2.run" in actual, "second script listed"
 
     def test_run_file_not_found(self, cli):
-        # Act
-        result = cli._hook_run(cli.ctx, "nonexistent.run")
+        # Act -- /run <nonexistent> goes through the builtin handler,
+        # which delegates to engine.start_script for resolution.
+        result = cli.repl.dispatch("run nonexistent.run")
 
         # Assert
         assert not result.success, "missing script fails"

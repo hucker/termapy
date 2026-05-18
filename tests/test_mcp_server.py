@@ -583,12 +583,9 @@ class TestLogCommandsAvailableInMCP:
 
 class TestRunCommandsAvailableInMCP:
     """``/run`` and the standard ``run.*`` folder subcommands are
-    registered in MCP's ``_register_hooks`` so an LLM client can
-    trigger pre-defined ``.run`` automation files.
-    ``chore/run-as-builtin`` (audit item #4) added this -- before,
-    MCP saw only built-ins and could not execute scripts.  ``.show``
-    and ``.explore`` stay gated on ``gui_apps`` for the same reason
-    ``/log.show`` does.
+    owned by the ``run.py`` built-in, so an LLM client can trigger
+    pre-defined ``.run`` automation files.  ``.show`` and ``.explore``
+    stay gated on ``gui_apps`` for the same reason ``/log.show`` does.
     """
 
     def test_run_registered_and_callable(self, host):
@@ -602,13 +599,17 @@ class TestRunCommandsAvailableInMCP:
             f"/run is callable from MCP (missing={missing})"
         )
 
-    def test_run_bare_returns_usage_message(self, host):
-        # Arrange / Act -- bare /run has no picker / help-list in MCP.
+    def test_run_bare_falls_through_to_help(self, host):
+        # Arrange / Act -- bare /run has no picker in MCP, so the
+        # builtin's fallback path prints /help run + available files.
+        # Success rather than a usage error -- the user got something
+        # useful instead of an arity rejection.
         result = host.repl.dispatch("run")
 
         # Assert
-        assert not result.success, "bare /run is a usage error in MCP"
-        assert "Usage:" in result.error, "error names usage"
+        assert result.success, (
+            "bare /run prints help (no picker installed in MCP host)"
+        )
 
     def test_run_list_dump_callable_from_mcp(self, host):
         # Arrange / Act

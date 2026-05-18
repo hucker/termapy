@@ -1,5 +1,141 @@
 # Changelog
 
+## 0.67.0 (2026-05-18)
+
+The theme of this release is making `.run` scripts first-class.  An
+exploratory REPL session can now be captured to a `.run` file with
+one command (or one button click), and the resulting script is
+self-describing: a `#` comment block at the top serves as a Python-
+style docstring, surfaced by `/run.list` and `/run.help <script>`.
+Plus on-demand PyPI version checking, and a behind-the-scenes
+refactor that collapses `/run`'s three host-specific implementations
+into a single built-in.
+
+### Record a session to a .run script
+
+The biggest workflow win.  Three commands no longer needed:
+"remember what I typed", "open editor", "copy-paste from
+scrollback".
+
+- **`/run.record <filename>`** captures every successfully-
+  dispatched REPL or device command to the named `.run` file in
+  the per-config `run/` directory.  Bare `/run.record` stops.
+  Failed dispatches, typos, and `/run.record` itself are skipped
+  so the script plays back cleanly.
+- **TUI Record button** sits at the right edge of the REPL
+  prompt -- green when idle, red ("Stop") while recording.
+  Clicking pops a filename dialog.  Hide the button with
+  `record_enabled: false` in the config; the REPL command still
+  works regardless.
+- **Durability**: file opens with `mode="x"` (refuse-if-exists --
+  no surprise clobbers) and flushes after every write, so a
+  crash mid-session leaves a partial-but-usable file on disk.
+- **Single recording invariant**: starting a second recording
+  while one is active is a clear error, not silent corruption.
+
+Workflow: record a session, add a `#` docstring at the top of
+the recorded file (see next section), and you have a reusable,
+discoverable script.
+
+### .run script docstrings (auto-discovery)
+
+A contiguous block of `#` comments at the very top of a `.run`
+file is the script's docstring -- mirrors Python's module
+docstring shape.  First line is the summary, full block is the
+long help.  Block ends at the first blank or non-comment line.
+
+- **`/run.list`** now shows `filename -- one-line summary` for
+  each script that has a docstring.  Scripts without one still
+  appear, just without a summary -- the listing is never
+  silently filtered.
+- **`/run.help <script>`** prints the full docstring block.
+  Accepts either the bare stem (`welcome`) or the full filename
+  (`welcome.run`).  Undocumented scripts fail loudly ("no
+  docstring; add # comments at the top") rather than silently
+  printing nothing.
+- **MCP catalog** picks up summaries, so an LLM choosing from a
+  script library has something to read instead of guessing from
+  filenames.
+
+All eight demo scripts already started with `#` comments, so the
+feature lit up automatically without any demo-content changes.
+
+### On-demand PyPI version check
+
+Termapy already nudges you in the background when a newer release
+is available, but the cadence is 7 days and the path is TUI-only.
+Two new commands ask PyPI on demand:
+
+- **`/ver.latest`** prints just the latest PyPI version (bare
+  data, scriptable via `$(L) <- /ver.latest`).  Symmetric with
+  bare `/ver`, which reports the installed version.
+- **`/ver.info`** prints the installed-vs-latest comparison line
+  ("installed v0.66.0  ->  latest v0.67.0  (update available)" or
+  "installed v0.67.0  (up to date; latest v0.67.0)").  Sets
+  `CmdResult.value` to the latest PyPI version for scripting.
+
+Both bypass the 7-day throttle (the user typed the command -- they
+want a fresh answer) and surface network failure as a clear error
+rather than silently succeeding.
+
+### Internal: /run promoted to a built-in
+
+`/run` was registered as a hook in three places (TUI's
+`app_hooks.py`, CLI's `_register_hooks`, MCP's `_register_hooks`),
+each with its own implementation reaching into adapter internals
+(TUI's `@work`-decorated runner, CLI's synchronous wrapper, MCP's
+inline lambda).  Adding or changing a `/run` subcommand meant
+editing three files in lockstep.
+
+Now `/run` is one builtin (`builtins/commands/run.py`).  Folder
+subcommands (`.list` / `.dump` / `.show` / `.explore`),
+`/run.help`, and `/run.legacy` are real sub_commands declared in
+one place.  Host-specific behaviour (TUI's threaded execution vs
+CLI/MCP's synchronous) lives on `TerminalHost._run_script`, which
+TUI overrides with the `@work(thread=True)` variant that posts
+overlay messages.  Three call sites collapse to one; ~190 lines
+of duplicated host wiring removed.
+
+### Internal: post-dispatch observer hook
+
+`ReplEngine` now exposes `add_post_dispatch_observer` /
+`remove_post_dispatch_observer` -- a list of `(line, result)`
+callbacks fired after every dispatch.  `/run.record` is the first
+consumer.  The same hook is the right shape for several future
+features (audit log, `/!!` repeat-last-successful, MCP event
+streams) -- built once, useful many times.  Observer exceptions
+are caught and reported; a buggy subscriber can't break dispatch.
+
+### Help-text consistency sweep
+
+Audit of all 220 commands surfaced a few inconsistencies that
+landed in one cleanup branch.
+
+- **`proto.status` -> `proto.info`** (hard cut, no forwarder).
+  Brings the lone holdout into the `.info` convention used by 8
+  other commands (`cfg.info`, `port.info`, `mcp.info`,
+  `profile.info`, `term.info`, `proto.crc.info`, `edit.info`,
+  `ver.info`).
+- **"Show" -> "Print" in help text** for 12 commands whose help
+  meant "print to terminal."  Disambiguates from the `.show`
+  subcommand family, which uniformly means "open in external
+  viewer."  The "Show or set X" pattern for read/set fields
+  stays (it's a different idiom).
+- **`/var.list` and `/env.list`** are now declared as explicit
+  aliases for bare `/var` and `/env`.  The duplicated help text
+  was confusing -- one is the canonical form, the other says so.
+- **`/cfg` "Show or change"** -> "Show or **set**" to match
+  every other read/set command.
+
+### `record_enabled` cfg key
+
+Per the existing `cfg_enabled` / `run_enabled` / `proto_enabled`
+pattern, `record_enabled: true` controls whether the Record
+button appears in the TUI.  Users who don't want the button (or
+who use only CLI/MCP) can hide it without losing the
+`/run.record` REPL command.  Config version bumped to 21 with a
+benign `setdefault` migration.
+
 ## 0.66.0 (2026-05-15)
 
 Two themes drive this release: **CLI/MCP feature parity** (an LLM

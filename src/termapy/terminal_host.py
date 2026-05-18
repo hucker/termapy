@@ -79,6 +79,19 @@ def _format_resolved_line(spec: str, actual: str) -> str:
     return f"Resolved {spec} -> {actual}"
 
 
+def _is_recording() -> bool:
+    """Forward to the /run.record builtin's module-level state.
+
+    Imported here -- not at module import time -- so the terminal
+    host has no static dependency on a specific built-in plugin.
+    The function is called via ``ctx.engine.is_recording()`` from
+    the TUI Record button to decide which form of /run.record to
+    dispatch.
+    """
+    from termapy.builtins.commands import _run_record
+    return _run_record.is_active()
+
+
 class TerminalHost:
     """Base class shared by TUI and CLI terminal frontends.
 
@@ -300,6 +313,18 @@ class TerminalHost:
             run_script=lambda path, profile=False, verbose=False: (
                 self._run_script(path, profile=profile, verbose=verbose)
             ),
+            # Post-dispatch observer pair, shared by all hosts.  /run.record
+            # registers via add_post_dispatch_observer; future audit-log /
+            # repeat-last / event-stream features will use the same hook.
+            add_post_dispatch_observer=self.repl.add_post_dispatch_observer,
+            remove_post_dispatch_observer=(
+                self.repl.remove_post_dispatch_observer
+            ),
+            # ``is_recording`` reaches into the recorder builtin's
+            # module state.  Imported lazily inside the callable so the
+            # host has no static dependency on a specific plugin (and
+            # so the import is harmless if the builtin isn't loaded).
+            is_recording=_is_recording,
         )
 
     def _build_plugin_context(self, engine_api: EngineAPI) -> PluginContext:

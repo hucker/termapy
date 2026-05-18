@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 20,
+    "config_version": 21,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -90,6 +90,7 @@ Here is an example config for a device called `iot_device`:
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,
+    "record_enabled": true,
     "custom_buttons": [
         {
             "enabled": true,
@@ -159,6 +160,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `cfg_enabled`            | `true`                | Show the Cfg button in the title bar                                                        |
 | `run_enabled`            | `true`                | Show the Run button in the title bar                                                        |
 | `proto_enabled`          | `true`                | Show the Proto button in the title bar                                                      |
+| `record_enabled`         | `true`                | Show the Record button next to the REPL prompt (toggles `/run.record`)                      |
 | `show_traceback`         | `false`               | Show full stack trace on serial errors                                                      |
 | `custom_buttons`         | `[]`                  | Custom button objects (see [Custom Buttons](custom-buttons.md))                             |
 

@@ -20,6 +20,27 @@ and a name field. Scripts are saved with a `.run` extension in the per-config
 - Blank lines (ignored)
 - Sequence counters with `{+counter}` for auto-incrementing values
 
+A leading `#` comment block (lines 1..N, ending at the first blank or
+non-comment line) is the script's docstring: the first line is the
+summary shown by `/run.list`; the full block is what `/run.help <script>`
+prints.
+
+## Recording a session
+
+The fastest way to make a `.run` script is to record what you typed.
+
+- **TUI:** click the **Record** button next to the REPL prompt, enter
+  a filename, run the commands, click **Stop**.  Hide the button with
+  `record_enabled: false` in your config.
+- **CLI / MCP:** `/run.record <filename>` starts, bare `/run.record`
+  stops.  Same lifecycle, no button.
+
+Only successful dispatches land in the file -- failed commands,
+typos, and `/run.record` itself are skipped.  The target file is
+refused if it already exists (delete or pick a new name).  Add a `#`
+docstring at the top of the recorded file and it becomes self-describing
+in `/run.list` and `/run.help`.
+
 ## Script commands
 
 | Command | Description |

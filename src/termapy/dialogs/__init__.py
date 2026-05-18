@@ -26,6 +26,7 @@ from termapy.dialogs.cfg_confirm import CfgConfirm
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.config_picker import ConfigPicker
 from termapy.dialogs.confirm_dialog import ConfirmDialog
+from termapy.dialogs.filename_dialog import FilenameDialog
 from termapy.dialogs.name_picker import NamePicker
 from termapy.dialogs.port_picker import PortPicker
 from termapy.dialogs.proto_editor import ProtoEditor
@@ -42,6 +43,7 @@ __all__ = [
     "ConfigEditor",
     "ConfigPicker",
     "ConfirmDialog",
+    "FilenameDialog",
     "NamePicker",
     "PortPicker",
     "ProtoEditor",

@@ -104,6 +104,8 @@ DEFAULT_CFG = {
     "cfg_enabled": True,
     "run_enabled": True,
     "proto_enabled": True,
+    # Record button (next to the REPL prompt; toggles /run.record).
+    "record_enabled": True,
     # Custom buttons
     "custom_buttons": [
         {
@@ -455,6 +457,11 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "proto_enabled": (
         "Show the Proto button in the title bar.",
+        "Valid: true, false.",
+    ),
+    "record_enabled": (
+        "Show the Record button next to the REPL prompt "
+        "(toggles /run.record).",
         "Valid: true, false.",
     ),
     # Custom buttons (nested keys)

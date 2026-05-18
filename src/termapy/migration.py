@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 20
+CURRENT_CONFIG_VERSION = 21
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -412,6 +412,21 @@ def _migrate_v19_to_v20(cfg: dict) -> dict:
 
 
 MIGRATIONS[19] = _migrate_v19_to_v20
+
+
+def _migrate_v20_to_v21(cfg: dict) -> dict:
+    """Add ``record_enabled`` toggle for the Record button (default True).
+
+    The Record button sits next to the REPL prompt and toggles
+    ``/run.record``.  Older configs default to visible so the
+    feature is discoverable; users who want it hidden flip the
+    key to ``false``.
+    """
+    cfg.setdefault("record_enabled", True)
+    return cfg
+
+
+MIGRATIONS[20] = _migrate_v20_to_v21
 
 
 def migrate_config(cfg: dict) -> dict:

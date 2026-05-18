@@ -74,6 +74,15 @@ class EngineHandle:
     # CLI leaves it None so plugin handlers fall through to their existing
     # bare-args behaviour (JSON dump, script list, long-help, etc.).
     open_picker: Callable | None = None  # (name: str) -> CmdResult
+    # Script-runner callbacks wired by ``TerminalHost._build_context``.
+    # ``start_script(args)`` resolves a filename through the REPL's
+    # script-path logic; ``run_script(path, profile, verbose)`` actually
+    # executes it (synchronously in CLI/MCP, threaded via Textual @work
+    # in TUI -- subclass overrides on the host class, not here).  The
+    # ``/run`` built-in handler reaches for both via this handle so
+    # one builtin covers all three hosts.
+    start_script: Callable | None = None  # (args: str) -> tuple[Path|None, CmdResult]
+    run_script: Callable | None = None    # (path, profile=False, verbose=False) -> None
 
 
 # Backward-compat alias.  Existing code does ``from termapy.plugins import

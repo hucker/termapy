@@ -137,6 +137,32 @@ class TerminalHost:
         """Prompt for user confirmation."""
         raise NotImplementedError
 
+    def _run_script(
+        self, path: Path, profile: bool = False, verbose: bool = False,
+    ) -> None:
+        """Run a .run script through the REPL engine (default: synchronous).
+
+        Used by the ``/run`` built-in (via ``ctx.engine.run_script``) so
+        one handler works in every host.  CLI and MCP inherit this
+        synchronous default; ``SerialTerminal`` (TUI) overrides with a
+        Textual ``@work(thread=True)`` variant that also posts the
+        ``ScriptStarted`` / ``ScriptProgress`` / ``ScriptFinished``
+        messages the overlay UI listens for.
+
+        ``KeyboardInterrupt`` is caught so Ctrl-C stops a long-running
+        script cleanly without dumping a traceback.
+        """
+        try:
+            self.repl.run_script(
+                path,
+                write=self.status,
+                dispatch=self.ctx.dispatch,
+                profile=profile,
+                verbose=verbose,
+            )
+        except KeyboardInterrupt:
+            self.status("Script interrupted", "red")
+
     def _connect(self, port: str | None = None) -> bool:
         """Connect to a serial port.
 
@@ -265,6 +291,15 @@ class TerminalHost:
             rx_queue=self.engine.rx_queue,
             xfer_cancel=getattr(self, "_xfer_cancel", None),
             script_stop_event=self.repl._script_stop,
+            # /run's built-in handler reaches script-running via these
+            # two callbacks.  ``start_script`` is host-agnostic;
+            # ``run_script`` polymorphs -- CLI / MCP inherit the
+            # synchronous TerminalHost._run_script, TUI overrides with
+            # @work(thread=True).
+            start_script=lambda args: self.repl.start_script(args),
+            run_script=lambda path, profile=False, verbose=False: (
+                self._run_script(path, profile=profile, verbose=verbose)
+            ),
         )
 
     def _build_plugin_context(self, engine_api: EngineAPI) -> PluginContext:

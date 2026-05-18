@@ -405,63 +405,12 @@ class MCPHost(TerminalHost):
             source="app",
         )
 
-        # /run <script> -- gives MCP clients a way to trigger
-        # pre-defined automation .run files.  Synchronous: the call
-        # returns when the script is done (or hits the run_command
-        # outer timeout).  Bare /run has no picker / no help-list in
-        # MCP -- LLMs should use /run.list instead, then /run <name>.
-        def _hook_run(ctx: PluginContext, args: str) -> CmdResult:
-            """Run a .run script synchronously."""
-            script = args.strip()
-            if not script:
-                return CmdResult.fail(msg="Usage: /run <filename>")
-            verbose = ctx.output_level == "verbose"
-            path, result = self.repl.start_script(script)
-            if path:
-                self.repl.run_script(
-                    path,
-                    write=lambda text, color="": ctx.io.output(text),
-                    dispatch=self.ctx.dispatch,
-                    verbose=verbose,
-                )
-            return result
-
-        self.repl.register_hook(
-            "run",
-            "<filename>",
-            "Run a script file (synchronous).",
-            _hook_run,
-            source="app",
-        )
-        # /run.list / .dump / .show / .explore -- standard folder
-        # subcommands, same shape every folder-owning command uses.
-        # gui_apps gating on .show/.explore filters them out for MCP
-        # automatically.
-        from termapy.folder_ops import build_folder_subcommands
-
-        for sub_name, sub_cmd in build_folder_subcommands("run").items():
-            if sub_cmd.handler is None:
-                continue
-            self.repl.register_hook(
-                f"run.{sub_name}",
-                sub_cmd.args,
-                sub_cmd.help,
-                sub_cmd.handler,
-                source="app",
-                needs=sub_cmd.needs,
-            )
-        # /run.legacy -- re-install after the /run tree-override wipe.
-        from termapy import run_legacy
-
-        self.repl.register_hook(
-            "run.legacy",
-            run_legacy.ARGS,
-            run_legacy.HELP,
-            run_legacy.HANDLER,
-            source="app",
-            long_help=run_legacy.LONG_HELP,
-            flags=run_legacy.FLAGS,
-        )
+        # /run and its sub_commands (.help, .legacy, .list, .dump,
+        # .show, .explore) are owned by the run.py built-in.  MCP picks
+        # it up automatically via the plugin loader and dispatches
+        # through ctx.engine.run_script -- which TerminalHost wires to
+        # this host's synchronous _run_script.  No MCP-specific
+        # registration needed.
 
         # Profile-load (file) + banner-watch + user on_connect_cmd fire
         # from _on_connected (the TerminalHost override below).  We

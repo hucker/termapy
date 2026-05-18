@@ -98,7 +98,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 20,
+    "config_version": 21,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -147,6 +147,7 @@ demo> /cfg.dump
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,
+    "record_enabled": true,
     "show_traceback": true,
     "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
@@ -676,6 +677,7 @@ SUBCOMMANDS
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       List .run scripts with docstring summaries.
   /run.profile    Run a script with per-line timing.
+  /run.record     Record commands to a .run script (bare /run.record stops).
   /run.show       Open the newest file in run/ with the system viewer.
 demo> /print === section: help.run ===
   === section: help.run ===

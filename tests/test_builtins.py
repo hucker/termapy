@@ -1,6 +1,7 @@
 """Tests for built-in REPL commands dispatched through ReplEngine."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -147,6 +148,117 @@ class TestPrint:
 
 
 # -- /ver, /ver.latest, /ver.info ------------------------------------------
+
+
+class TestRunDocstring:
+    """``/run.list`` shows docstring summaries; ``/run.help <script>``
+    prints the full block.  Convention is documented in
+    ``termapy.run_docstring`` -- leading ``#`` comment block at the top
+    of the .run file is the docstring (Python-module style).
+    """
+
+    @staticmethod
+    def _wire_scripts_dir(engine, tmp_path) -> Path:
+        """Point ``ctx.fs.scripts_dir`` at a real tmp dir.
+
+        The ``repl_env`` fixture builds a minimal PluginContext that
+        defaults ``ctx.fs.scripts_dir`` to ``Path(".")``; production
+        wires it to ``<config_dir>/run`` via ``TerminalHost``.  These
+        tests dispatch through the engine, so they need the path to
+        resolve to an actual writeable dir.
+        """
+        scripts_dir = tmp_path / "run"
+        scripts_dir.mkdir(exist_ok=True)
+        engine.ctx.fs.scripts_dir = scripts_dir
+        return scripts_dir
+
+    def test_run_list_shows_summary_alongside_filename(
+        self, repl_env, tmp_path,
+    ):
+        # Arrange -- two scripts, one with a docstring and one without.
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "documented.run").write_text(
+            "# Short summary of what this does.\n/echo hello\n"
+        )
+        (scripts_dir / "undocumented.run").write_text(
+            "/echo plain command, no docstring\n"
+        )
+
+        # Act
+        result = engine.dispatch("run.list")
+
+        # Assert
+        assert result.success, "/run.list succeeds"
+        texts = [t for t, _ in output]
+        # Documented script: summary appears after the filename.
+        assert any(
+            "documented.run" in t and "Short summary" in t for t in texts
+        ), f"summary should appear next to documented.run, got: {texts}"
+        # Undocumented script: still listed, but without a summary.
+        assert any(
+            "undocumented.run" in t and "--" not in t for t in texts
+        ), "undocumented script listed without a summary separator"
+
+    def test_run_help_script_prints_full_docstring(
+        self, repl_env, tmp_path,
+    ):
+        # Arrange
+        engine, _, _, output = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "doc.run").write_text(
+            "# First line summary.\n"
+            "# Second line of details.\n"
+            "/echo body\n"
+        )
+
+        # Act -- accept bare stem too (no .run suffix).
+        result = engine.dispatch("run.help doc")
+
+        # Assert
+        assert result.success, "/run.help <script> succeeds"
+        assert result.value == (
+            "First line summary.\nSecond line of details."
+        ), "value contains the full block"
+        texts = [t for t, _ in output]
+        assert any("First line summary" in t for t in texts), (
+            "summary printed to output"
+        )
+        assert any("Second line of details" in t for t in texts), (
+            "full block printed, not just summary"
+        )
+
+    def test_run_help_undocumented_script_fails(
+        self, repl_env, tmp_path,
+    ):
+        # Arrange
+        engine, _, _, _ = repl_env
+        scripts_dir = self._wire_scripts_dir(engine, tmp_path)
+        (scripts_dir / "plain.run").write_text("/echo no docstring\n")
+
+        # Act
+        result = engine.dispatch("run.help plain")
+
+        # Assert -- silence would mask the missing docstring.  Force a
+        # visible error so the LLM / human knows to look inside.
+        assert not result.success, "undocumented script: explicit fail"
+        assert "no docstring" in result.error.lower(), (
+            f"error should name the actual problem, got: {result.error!r}"
+        )
+
+    def test_run_help_missing_script_fails(self, repl_env, tmp_path):
+        # Arrange
+        engine, _, _, _ = repl_env
+        self._wire_scripts_dir(engine, tmp_path)
+
+        # Act
+        result = engine.dispatch("run.help totally_made_up")
+
+        # Assert
+        assert not result.success, "missing script fails"
+        assert "not found" in result.error.lower(), (
+            "error message mentions 'not found'"
+        )
 
 
 class TestVer:

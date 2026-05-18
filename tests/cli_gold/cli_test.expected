@@ -188,14 +188,14 @@ demo> /print === section: config folders ===
   === section: config folders ===
 demo> /run.list
     run/
-      at_demo.run
-      doc_screenshots.run
-      expect_test.run
-      gps_demo.run
-      smoke_test.run
-      status_check.run
-      var_demo.run
-      welcome.run
+      at_demo.run          --  AT Command Demo -- Walks through all demo device commands
+      doc_screenshots.run  --  Generate documentation images
+      expect_test.run      --  Expect command test
+      gps_demo.run         --  GPS/NMEA Demo -- Query simulated GPS receiver
+      smoke_test.run       --  Smoke test for demo device
+      status_check.run     --  Quick status check
+      var_demo.run         --  Variable Demo -- Set variables and use them in commands
+      welcome.run          --  Welcome script -- Runs on connect via on_connect_cmd config
 demo> /proto.list
     proto/
       at_test.pro
@@ -672,9 +672,9 @@ AVAILABLE
 SUBCOMMANDS
   /run.dump       Print the newest (or named) file from run/ to the terminal.
   /run.explore    Open run/ in the system file explorer.
-  /run.help       Show /run help with the list of available .run scripts.
+  /run.help       Show /run help, or print a script's docstring.
   /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
-  /run.list       List files in run/.
+  /run.list       List .run scripts with docstring summaries.
   /run.profile    Run a script with per-line timing.
   /run.show       Open the newest file in run/ with the system viewer.
 demo> /print === section: help.run ===

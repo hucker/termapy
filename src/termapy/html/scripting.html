@@ -23,7 +23,7 @@
     
     
       
-        <title>Scripting - Termapy Help v0.66.0</title>
+        <title>Scripting - Termapy Help v0.67.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.66.0" class="md-header__button md-logo" aria-label="Termapy Help v0.66.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.67.0" class="md-header__button md-logo" aria-label="Termapy Help v0.67.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.66.0
+            Termapy Help v0.67.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.66.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.66.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.67.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.67.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.66.0
+    Termapy Help v0.67.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -574,6 +574,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#recording-a-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recording a session
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#script-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -911,6 +922,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#recording-a-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recording a session
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#script-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -989,6 +1011,24 @@ and a name field. Scripts are saved with a <code>.run</code> extension in the pe
 <li>Blank lines (ignored)</li>
 <li>Sequence counters with <code>{+counter}</code> for auto-incrementing values</li>
 </ul>
+<p>A leading <code>#</code> comment block (lines 1..N, ending at the first blank or
+non-comment line) is the script's docstring: the first line is the
+summary shown by <code>/run.list</code>; the full block is what <code>/run.help &lt;script&gt;</code>
+prints.</p>
+<h2 id="recording-a-session">Recording a session<a class="headerlink" href="#recording-a-session" title="Permanent link">&para;</a></h2>
+<p>The fastest way to make a <code>.run</code> script is to record what you typed.</p>
+<ul>
+<li><strong>TUI:</strong> click the <strong>Record</strong> button next to the REPL prompt, enter
+  a filename, run the commands, click <strong>Stop</strong>.  Hide the button with
+  <code>record_enabled: false</code> in your config.</li>
+<li><strong>CLI / MCP:</strong> <code>/run.record &lt;filename&gt;</code> starts, bare <code>/run.record</code>
+  stops.  Same lifecycle, no button.</li>
+</ul>
+<p>Only successful dispatches land in the file -- failed commands,
+typos, and <code>/run.record</code> itself are skipped.  The target file is
+refused if it already exists (delete or pick a new name).  Add a <code>#</code>
+docstring at the top of the recorded file and it becomes self-describing
+in <code>/run.list</code> and <code>/run.help</code>.</p>
 <h2 id="script-commands">Script commands<a class="headerlink" href="#script-commands" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

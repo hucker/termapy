@@ -1209,9 +1209,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2504 tests, 67% overall</summary>
+<summary><strong>Test coverage</strong> - 2551 tests, 67% overall</summary>
 
-2504 tests across 77 test files. Run with `uv run pytest`.
+2551 tests across 80 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 
@@ -1233,7 +1233,7 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~3050 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~1900 lines) are Textual UI and tested manually. The 67% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code:** `app.py` (~3100 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~1950 lines) are Textual UI and tested manually. The 67% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>
 

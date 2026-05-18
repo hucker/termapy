@@ -83,6 +83,20 @@ class EngineHandle:
     # one builtin covers all three hosts.
     start_script: Callable | None = None  # (args: str) -> tuple[Path|None, CmdResult]
     run_script: Callable | None = None    # (path, profile=False, verbose=False) -> None
+    # Post-dispatch observer plumbing for /run.record and any future
+    # feature that wants the same stream (audit log, repeat-last,
+    # MCP event stream).  Wired by TerminalHost._build_engine_api to
+    # the underlying ReplEngine methods of the same name.
+    add_post_dispatch_observer: Callable | None = None
+    # (cb: Callable[[str, CmdResult], None]) -> token
+    remove_post_dispatch_observer: Callable | None = None
+    # (token: Callable[[str, CmdResult], None]) -> None
+    # ``True`` if /run.record is currently active.  Source of truth
+    # is the recorder module's module-level state; this callable just
+    # forwards.  Used by the TUI Record button to decide which form
+    # of /run.record to dispatch (start vs stop) without holding its
+    # own state.
+    is_recording: Callable | None = None  # () -> bool
 
 
 # Backward-compat alias.  Existing code does ``from termapy.plugins import

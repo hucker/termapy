@@ -51,6 +51,7 @@ from termapy.dialogs import (
     ConfigEditor,
     ConfigPicker,
     ConfirmDialog,
+    FilenameDialog,
     PortPicker,
     ProtoPicker,
     QuickSetup,
@@ -735,6 +736,21 @@ class SerialTerminal(TerminalHost, App):
                     id="cmd",
                     suggester=self._suggester,
                 )
+                # Record button toggles /run.record.  Sits at the
+                # right edge of the REPL input.  Green when idle,
+                # red ("Stop") while recording.  Hidden when
+                # record_enabled is false.  All recording state
+                # lives in the recorder builtin -- this button just
+                # dispatches /run.record and refreshes its visual.
+                if self.cfg.get("record_enabled", True):
+                    record_btn = Button(
+                        "Record", id="btn-record", variant="success",
+                    )
+                    record_btn.tooltip = (
+                        "Record successfully-dispatched commands to a "
+                        ".run script.  Click to start; click again to stop."
+                    )
+                    yield record_btn
                 yield Label("", id="status-bar")
 
                 def _btn(label, id, tip, variant="default", display=True):
@@ -1880,6 +1896,8 @@ class SerialTerminal(TerminalHost, App):
         "btn-proto": "_btn_proto",  # protocol test picker
         "btn-cfg": "_btn_cfg",  # config picker
         "btn-update": "_btn_update",  # update-available dialog
+        # Recorder (next to REPL prompt)
+        "btn-record": "_btn_record",  # toggle /run.record
         # Overlays
         "cap-stop": "_cap_stop",  # stop capture
         "script-stop": "_btn_script_stop",  # stop running script
@@ -1892,6 +1910,62 @@ class SerialTerminal(TerminalHost, App):
 
     def _btn_log(self) -> None:
         open_with_system(self._log_path())
+
+    def _btn_record(self) -> None:
+        """Toggle /run.record by dispatching the REPL command.
+
+        The button stores no recording state of its own; it queries
+        ``ctx.engine.is_recording()`` (the single source of truth,
+        backed by the recorder builtin's module state) and dispatches
+        the appropriate form of ``/run.record``.  All work -- file
+        open, observer registration, state tracking, no-clobber
+        guarantee -- lives in ``builtins/commands/_run_record.py``.
+        """
+        is_rec = self.ctx.engine.is_recording
+        if is_rec is not None and is_rec():
+            # Active: dispatch bare /run.record to stop.  The handler
+            # closes the file, deregisters the observer, and prints
+            # the "Recorded N commands" message.
+            self._dispatch_on_thread("/run.record")
+            self._refresh_record_button()
+        else:
+            # Idle: prompt for the filename, then dispatch
+            # /run.record <name>.  The modal handles cancel as no-op.
+            self.push_screen(
+                FilenameDialog(
+                    title="Record to .run file:",
+                    placeholder="e.g. smoke_test",
+                ),
+                callback=self._on_record_filename,
+            )
+
+    def _on_record_filename(self, name: str | None) -> None:
+        """Modal callback for the Record button's filename prompt."""
+        if not name:
+            return  # cancelled
+        self._dispatch_on_thread(f"/run.record {name}")
+        self._refresh_record_button()
+
+    def _refresh_record_button(self) -> None:
+        """Pure visual sync.  Reads recorder state, writes button props.
+
+        Zero recording logic: if the button were removed entirely
+        the recorder still works identically.  See known v1
+        limitation in ``/run.record`` long-help: typing
+        ``/run.record`` in the REPL doesn't refresh this label
+        until the next click or visual sync.
+        """
+        try:
+            btn = self.query_one("#btn-record", Button)
+        except NoMatches:
+            return  # Record button hidden via record_enabled=false
+        is_rec = self.ctx.engine.is_recording
+        if is_rec is not None and is_rec():
+            btn.label = "Stop"
+            btn.variant = "error"
+        else:
+            btn.label = "Record"
+            btn.variant = "success"
 
     def _btn_script_stop(self) -> None:
         self.repl._script_stop.set()

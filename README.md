@@ -488,7 +488,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 20,
+    "config_version": 21,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -541,6 +541,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,
+    "record_enabled": true,
     "custom_buttons": []
 }
 ```
@@ -582,6 +583,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `cfg_enabled`        | `true`                 | Show the Cfg button in the title bar                                                                     |
 | `run_enabled`        | `true`                 | Show the Run button in the title bar                                                                     |
 | `proto_enabled`      | `true`                 | Show the Proto button in the title bar                                                                   |
+| `record_enabled`     | `true`                 | Show the Record button next to the REPL prompt (toggles `/run.record`)                                   |
 | `show_traceback`     | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`     | `[]`                   | Array of custom button objects (see Custom Buttons above)                                                |
 

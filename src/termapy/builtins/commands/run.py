@@ -32,6 +32,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy import run_legacy
+from termapy.builtins.commands._run_record import (
+    _LONG_HELP as _RECORD_LONG_HELP,
+)
+from termapy.builtins.commands._run_record import _handler as _record_handler
 from termapy.builtins.commands.help import (
     _show_command_help,
     append_files_section,
@@ -200,6 +204,12 @@ COMMAND = Command(
             long_help=run_legacy.LONG_HELP,
             handler=run_legacy.HANDLER,
             flags=run_legacy.FLAGS,
+        ),
+        "record": Command(
+            args="{filename}",
+            help="Record commands to a .run script (bare /run.record stops).",
+            long_help=_RECORD_LONG_HELP,
+            handler=_record_handler,
         ),
         **_FOLDER_SUBS,
     },

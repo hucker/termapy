@@ -289,6 +289,16 @@ class ReplEngine:
         # Directive chain - pre-dispatch line rewriters
         self._directives: list[DirectiveInfo] = []
 
+        # Post-dispatch observers - fired with (line, result) after every
+        # dispatch() call, including failed dispatches.  Consumers:
+        # /run.record (captures successful lines to a .run file) and
+        # any future audit / repeat-last / event-stream feature.
+        # Observer exceptions are caught so a buggy subscriber can't
+        # break dispatch.
+        self._post_dispatch_observers: list[
+            Callable[[str, CmdResult], None]
+        ] = []
+
         # Lifecycle hooks - flat list in load order. fire_lifecycle() filters
         # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
         self._lifecycle_hooks: list[LifecycleHook] = []
@@ -1081,17 +1091,60 @@ class ReplEngine:
 
     # -- REPL dispatch ---------------------------------------------------------
 
+    def add_post_dispatch_observer(
+        self, cb: Callable[[str, CmdResult], None],
+    ) -> Callable[[str, CmdResult], None]:
+        """Register ``cb(line, result)`` to fire after every dispatch().
+
+        Used by ``/run.record`` (and any future feature that wants the
+        same stream -- audit log, repeat-last-successful, etc.).
+
+        Args:
+            cb: Callable invoked with the dispatched line and its
+                ``CmdResult``.  Fired even for failed dispatches; the
+                subscriber decides what to do with the failure.
+
+        Returns:
+            The same callable, useful as a deregistration token.
+        """
+        self._post_dispatch_observers.append(cb)
+        return cb
+
+    def remove_post_dispatch_observer(
+        self, token: Callable[[str, CmdResult], None],
+    ) -> None:
+        """Deregister a previously-added observer.  Idempotent."""
+        if token in self._post_dispatch_observers:
+            self._post_dispatch_observers.remove(token)
+
     def dispatch(self, line: str) -> CmdResult:
         """Parse and dispatch a REPL command (prefix already stripped).
 
         Splits the line into command name and args, expands sequence
         templates in the args, then invokes the matching plugin handler.
+        Fires registered post-dispatch observers with ``(line, result)``
+        before returning -- observers see every dispatch, including
+        capability-gate failures and unknown-command errors.
 
         Args:
             line: Command string without the REPL prefix (e.g. "grep error").
 
         Returns:
             CmdResult with success/error status and elapsed time.
+        """
+        result = self._dispatch_inner(line)
+        for obs in self._post_dispatch_observers:
+            try:
+                obs(line, result)
+            except Exception as e:  # observer bug must not break dispatch
+                self.write(f"Observer error: {e}", "red")
+        return result
+
+    def _dispatch_inner(self, line: str) -> CmdResult:
+        """Original dispatch body -- pure dispatch logic, no observers.
+
+        Extracted from ``dispatch()`` so the observer fire-site is one
+        place at the wrapper level, not duplicated at every early return.
         """
         parts = line.split(None, 1)
         if not parts:

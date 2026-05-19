@@ -65,6 +65,41 @@ containers, paranoid security review), pick individual extras:
 `--mcp` requires the `[mcp]` extra (or `[all]`) and exits with an
 install hint if it's missing.  Same for `--web` and `[web]`.
 
+## Desktop launcher
+
+For a per-config desktop / menu icon, load the cfg and run `/cfg.icon`:
+
+| Platform | Result |
+| --- | --- |
+| Windows | `.lnk` on the Desktop (cmd /k termapy "&lt;cfg file&gt;") |
+| macOS | `~/Applications/<title>.app` (opens Terminal.app) |
+| Linux | `~/.local/share/applications/termapy-<name>.desktop` |
+
+`/cfg.icon --force` overwrites an existing launcher; `/cfg.icon.remove`
+deletes it; `/cfg.icon.list` enumerates every termapy launcher this OS
+can see.  The launcher embeds the absolute path to the cfg file, so
+rerun `/cfg.icon` if you move the project.
+
+### Quick demo
+
+Try it against the bundled demo cfg (no hardware required):
+
+```sh
+termapy --demo                # launches the demo cfg
+```
+
+Then in the termapy REPL:
+
+```text
+/cfg.icon          # creates the launcher
+/cfg.icon.list     # lists every termapy launcher on this OS
+/cfg.icon.remove   # deletes it
+```
+
+The launcher appears on your Desktop (Windows), in `~/Applications`
+(macOS), or in your application menu (Linux).  Double-click it to
+relaunch termapy with the demo cfg preloaded.
+
 ## Uninstall
 
 ```sh

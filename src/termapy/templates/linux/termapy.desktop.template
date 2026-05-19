@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=__NAME__
+Comment=Termapy serial terminal -- launches with the __NAME__ config preloaded.
+Exec="__PYTHON__" -m termapy "__CFG_PATH__"
+Terminal=true
+Icon=__ICON_PATH__
+Categories=Development;Utility;
+StartupNotify=true

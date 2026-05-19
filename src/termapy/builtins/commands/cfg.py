@@ -6,6 +6,19 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.builtins.commands._cfg_icon import (
+    _FLAGS as _ICON_FLAGS,
+)
+from termapy.builtins.commands._cfg_icon import (
+    _LONG_HELP as _ICON_LONG_HELP,
+)
+from termapy.builtins.commands._cfg_icon import _handler as _icon_handler
+from termapy.builtins.commands._cfg_icon import (
+    _handler_list as _icon_handler_list,
+)
+from termapy.builtins.commands._cfg_icon import (
+    _handler_remove as _icon_handler_remove,
+)
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
 from termapy.folders import FOLDERS
 from termapy.help_dynamic import cfg_status, compose
@@ -428,6 +441,26 @@ COMMAND = Command(
         "help": Command(
             help="Show /cfg help.",
             handler=_handler_help,
+        ),
+        "icon": Command(
+            args="{--force}",
+            help="Create a desktop / menu launcher for the current cfg.",
+            long_help=_ICON_LONG_HELP,
+            handler=_icon_handler,
+            flags=_ICON_FLAGS,
+            sub_commands={
+                "remove": Command(
+                    help="Delete the launcher for the current cfg.",
+                    handler=_icon_handler_remove,
+                ),
+                "list": Command(
+                    help=(
+                        "List every termapy launcher this platform "
+                        "can see."
+                    ),
+                    handler=_icon_handler_list,
+                ),
+            },
         ),
     },
 )

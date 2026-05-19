@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  termapy icon source.
+  A DB9 serial connector labeled "termapy", with a tapered
+  cable receding straight up to a near-vanishing point.
+  Background is transparent outside the connector + cable.
+  The .svg sits in this directory as the SOURCE artwork;
+  Windows / macOS / Linux launchers all use the rasterized
+  .ico / .icns / .png siblings (built by scripts/build_icons.py).
+  End users never see this .svg as an icon.
+  Rebuild .ico / .icns / .png by running scripts/build_icons.py
+  (see the docstring in that file for the uvx invocation).
+-->
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cable: filled tapered quadrilateral.
+       Bottom edge 90 wide, centered at x=512.  Top edge 28
+       wide so the cable renders as 2..3 px at typical Windows
+       desktop icon sizes (96..128 px) instead of vanishing at
+       1 px.  Top center is offset ~10 left of bottom for a
+       gentle perspective angle.
+       The bottom ~80 units sit inside the amber top-surface
+       slab below so the cable visually emerges from the back
+       of the connector housing. -->
+  <path d="M 467 540
+           L 490 20
+           L 518 20
+           L 557 540 Z"
+        fill="#FFB000"/>
+
+  <!-- Top surface of the connector housing.  Parallelogram
+       that recedes upward; solid amber fill reads as a lit top
+       face against the outlined dark front below. -->
+  <path d="M 80 560
+           L 944 560
+           L 904 460
+           L 120 460 Z"
+        fill="#FFB000" stroke="#FFB000" stroke-width="10"
+        stroke-linejoin="round"/>
+
+  <!-- D-body of the connector: filled dark interior + amber
+       outline, ~3:1 wide.  Wider top, narrower bottom is the
+       "D" asymmetry that gives DB connectors their name.
+       Rounded corners via quadratic Beziers at each virtual
+       vertex. -->
+  <path d="M 80 560
+           L 944 560
+           Q 994 560 989 610
+           L 949 830
+           Q 944 880 894 880
+           L 130 880
+           Q 80 880 75 830
+           L 35 610
+           Q 30 560 80 560 Z"
+        fill="#0e1116" stroke="#FFB000" stroke-width="40"
+        stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- "termapy" wordmark inside the D-body, phosphor green,
+       centered. -->
+  <text x="512" y="770"
+        font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace"
+        font-weight="bold" font-size="180"
+        text-anchor="middle" fill="#4ade80">termapy</text>
+</svg>

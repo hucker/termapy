@@ -450,6 +450,7 @@ SUBCOMMANDS
   /cfg.dump       Print current config as JSON to the terminal.
   /cfg.explore    Open config directory in file explorer.
   /cfg.help       Show /cfg help.
+  /cfg.icon       Create a desktop / menu launcher for the current cfg.
   /cfg.info       Print project summary (tree + config + buttons).
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (hot-swap).

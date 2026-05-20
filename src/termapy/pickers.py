@@ -85,16 +85,18 @@ def on_quick_setup(app, result: tuple | None) -> None:
     On ``"advanced"`` action, opens the full config editor with the
     wizard's pre-filled values.  Otherwise writes the config to disk,
     switches to it, and optionally auto-connects if a port was set.
+    If ``add_icon`` is true, dispatches ``/cfg.icon`` after the cfg
+    is loaded.
 
     Args:
         app: The SerialTerminal instance.
-        result: ``(action, name, port, baud, custom_baud)`` tuple where
-            ``action`` is ``"connect"``, ``"save"``, or ``"advanced"``.
+        result: ``(action, name, port, baud, custom_baud, add_icon)``
+            tuple where ``action`` is ``"connect"`` or ``"advanced"``.
             ``None`` if the user cancelled.
     """
     if result is None:
         return
-    action, name, port, baud, custom_baud = result
+    action, name, port, baud, custom_baud, add_icon = result
     config_path = str(cfg_path_for_name(name))
     cfg = dict(DEFAULT_CFG)
     cfg["title"] = name
@@ -103,7 +105,9 @@ def on_quick_setup(app, result: tuple | None) -> None:
     cfg["baud_rate"] = baud
     cfg["custom_baud"] = custom_baud
     if action == "advanced":
-        # Open the full config editor with pre-filled values
+        # Open the full config editor with pre-filled values.
+        # Advanced users skip the checkbox -- they can /cfg.icon
+        # manually after editing.
         cfg_data_dir(config_path)
         app.push_screen(
             ConfigEditor(cfg, config_path),
@@ -115,6 +119,10 @@ def on_quick_setup(app, result: tuple | None) -> None:
     with open(config_path, "w") as f:
         json.dump(cfg, f, indent=4)
     app._on_config_result((cfg, config_path))
+    if add_icon:
+        # Cfg is loaded; ctx.config_path now points at the new file
+        # so /cfg.icon picks it up automatically.
+        app.ctx.dispatch("/cfg.icon")
     if port:
         app._connect()
 

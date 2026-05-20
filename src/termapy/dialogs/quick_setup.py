@@ -13,7 +13,7 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, OptionList
+from textual.widgets import Button, Checkbox, Input, OptionList
 from textual.widgets.option_list import Option
 
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, _populate_port_option_list
@@ -22,8 +22,11 @@ from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, _populate
 class QuickSetup(ModalScreen[tuple | None]):
     """Quick setup dialog - name, port, baud rate in one screen.
 
-    Returns (name, port, baud_rate) tuple or None on cancel.
-    Used for first-run and New Config flows.
+    Returns ``(action, name, port, baud_rate, custom_baud, add_icon)``
+    tuple on submit, or None on cancel.  ``action`` is "connect" or
+    "advanced".  ``add_icon`` is the user's choice to also create a
+    desktop / menu launcher for the cfg (default False; checked via
+    the inline checkbox).
     """
 
     BINDINGS = _DISMISS_BINDINGS
@@ -90,6 +93,15 @@ class QuickSetup(ModalScreen[tuple | None]):
             )
             baud_input.add_class("qs-hidden")
             yield baud_input
+            # Optional add-icon checkbox; off by default so existing
+            # users who just want a cfg aren't surprised.  Targets
+            # the non-CLI audience who's setting termapy up the first
+            # time and would benefit from a double-clickable launcher.
+            yield Checkbox(
+                "Add a desktop / menu launcher for this config",
+                id="qs-add-icon",
+                value=False,
+            )
             with Horizontal(id="qs-buttons"):
                 connect_btn = Button("Connect", id="qs-connect", variant="success")
                 if not ports:
@@ -170,8 +182,9 @@ class QuickSetup(ModalScreen[tuple | None]):
         if result is None:
             return
         baud, custom_baud = result
+        add_icon = self.query_one("#qs-add-icon", Checkbox).value
 
-        self.dismiss(("connect", name, port, baud, custom_baud))
+        self.dismiss(("connect", name, port, baud, custom_baud, add_icon))
 
     @on(Button.Pressed, "#qs-connect")
     def connect(self) -> None:
@@ -198,7 +211,8 @@ class QuickSetup(ModalScreen[tuple | None]):
         if result is None:
             return
         baud, custom_baud = result
-        self.dismiss(("advanced", name, port, baud, custom_baud))
+        add_icon = self.query_one("#qs-add-icon", Checkbox).value
+        self.dismiss(("advanced", name, port, baud, custom_baud, add_icon))
 
     @on(Button.Pressed, "#qs-cancel")
     def cancel(self) -> None:

@@ -12,6 +12,11 @@ dialog lets you pick a port, baud rate, and config name in one step.
 Click **Connect** to start immediately, or **Advanced** to open the full
 JSON config editor with your choices pre-filled.
 
+Tick **Add a desktop / menu launcher for this config** to also create a
+double-clickable icon for this cfg.  See
+[Desktop launcher](installation.md#desktop-launcher) for the full story
+(including `/cfg.icon` from the REPL if you skipped the checkbox).
+
 ## Launching with a config
 
 ```text

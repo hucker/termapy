@@ -67,28 +67,47 @@ install hint if it's missing.  Same for `--web` and `[web]`.
 
 ## Desktop launcher
 
-For a per-config desktop / menu icon, load the cfg and run `/cfg.icon`:
+Termapy can create a per-config desktop / menu icon so non-CLI users
+can double-click into a terminal with the cfg preloaded.
+
+### Two ways to add one
+
+**Easiest -- tick the checkbox in the New Config dialog.**
+When you create a config via Quick Setup, check **Add a desktop /
+menu launcher for this config** before clicking **Connect**.  The
+launcher is created right after the cfg is saved.
+
+**From the REPL -- type `/cfg.icon`.** Works for any cfg already on
+disk; load the cfg first, then run the command.  Same outcome as the
+checkbox.
+
+### Where the launcher lands
 
 | Platform | Result |
 | --- | --- |
-| Windows | `.lnk` on the Desktop (cmd /k termapy "&lt;cfg file&gt;") |
+| Windows | `.lnk` on the Desktop (target: `cmd /k <python> -m termapy "<cfg>"`) |
 | macOS | `~/Applications/<title>.app` (opens Terminal.app) |
 | Linux | `~/.local/share/applications/termapy-<name>.desktop` |
 
-`/cfg.icon --force` overwrites an existing launcher; `/cfg.icon.remove`
-deletes it; `/cfg.icon.list` enumerates every termapy launcher this OS
-can see.  The launcher embeds the absolute path to the cfg file, so
-rerun `/cfg.icon` if you move the project.
+### Sub-commands
 
-### Quick demo
+- `/cfg.icon --force` -- overwrite an existing launcher
+- `/cfg.icon.remove` -- delete the launcher for the current cfg
+- `/cfg.icon.list` -- enumerate every termapy launcher this OS sees
+  (no cfg needs to be loaded)
 
-Try it against the bundled demo cfg (no hardware required):
+The launcher embeds the absolute path to the cfg file, so rerun
+`/cfg.icon` if you move the project.  Deleting a cfg via
+**Cfg picker → Delete** also auto-removes any matching launcher,
+so no orphan icons are left behind.
+
+### Quick demo (no hardware needed)
 
 ```sh
 termapy --demo                # launches the demo cfg
 ```
 
-Then in the termapy REPL:
+Then in the REPL:
 
 ```text
 /cfg.icon          # creates the launcher

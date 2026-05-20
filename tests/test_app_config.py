@@ -790,14 +790,17 @@ class TestValidateConfig:
         # Act
         actual = validate_config(cfg)
 
-        # Assert -- one clear warning with an upgrade hint.
+        # Assert -- one clear warning with an actionable upgrade hint.
         assert len(actual) == 1, (
             f"only the upgrade warning, no per-key noise; got {actual!r}"
         )
         msg = actual[0]
         assert "newer termapy" in msg, "explains the cause"
-        assert "uv tool upgrade termapy" in msg, "includes uv upgrade command"
-        assert "pip install -U termapy" in msg, "includes pip upgrade command"
+        assert "Upgrade with:" in msg, "names a specific upgrade command"
+        assert "termapy" in msg, "command targets the termapy package"
+        assert "restart termapy" in msg.lower(), (
+            "tells the user to restart after upgrade"
+        )
 
     def test_newer_config_suppresses_unknown_key_noise(self):
         # Arrange -- a future cfg with fields the current termapy

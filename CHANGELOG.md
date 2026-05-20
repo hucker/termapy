@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.68.0 (2026-05-20)
+
+The theme of this release is making termapy approachable for the
+non-CLI half of its audience.  A loaded config can be turned into
+a double-clickable desktop icon with one command (or one checkbox
+during setup), the New Config dialog now reflows on wide terminals,
+and the "this config was made by a newer termapy" experience is no
+longer a wall of "unknown key (typo?)" noise.
+
+### Per-config desktop launchers
+
+`/cfg.icon` turns the currently-loaded config into a real OS
+launcher in one step, on all three platforms:
+
+- **Windows** -- a `.lnk` on the Desktop pointing at
+  `cmd /k "<python>" -m termapy "<cfg>"`.  The launcher is bound
+  to the exact python install that created it, so the icon keeps
+  using the same install even when PATH later changes.  Generated
+  via the WScript.Shell COM API in PowerShell -- no `pywin32`
+  dependency.
+- **macOS** -- a small `.app` bundle in `~/Applications/`, with a
+  `CFBundleIconFile`-aware launcher script that shells out via
+  `osascript` to Terminal.app.
+- **Linux** -- an XDG `.desktop` file in
+  `~/.local/share/applications/` with `Terminal=true` so the
+  desktop environment opens it in its preferred terminal.
+
+All three platforms get the same custom termapy artwork (a DB9
+serial connector with a cable receding into the distance,
+"termapy" wordmark in phosphor green) rendered from a single SVG
+source.  Sub-commands:
+
+- `/cfg.icon` -- create the launcher for the current cfg
+- `/cfg.icon --force` -- overwrite an existing one
+- `/cfg.icon.remove` -- delete the launcher for the current cfg
+- `/cfg.icon.list` -- enumerate every termapy launcher this OS
+  can see (works without a cfg loaded, for auditing)
+
+When you create a config via the **New Config** dialog there's a
+new tick-box -- *"Add a desktop / menu launcher for this config"*
+-- so non-CLI users don't have to discover `/cfg.icon` at all.
+
+Deleting a config via **Cfg picker → Delete** also auto-removes
+any matching launcher, so the desktop doesn't accumulate dead
+icons.
+
+### New Config dialog grows with the terminal
+
+The QuickSetup dialog used to be capped at 130 cells wide, which
+on big screens forced the port-list formatter to drop columns
+even when room was available.  It now scales with the terminal
+(90% of screen, capped at 200 cells), re-renders columns on
+resize, and preserves your selected port across the re-layout.
+
+### Helpful "this cfg is from a newer termapy" warning
+
+Loading a cfg created by a newer termapy used to produce a wall
+of misleading warnings:
+
+```text
+Config warning: config_version: 22 (current is 21)
+Config warning: unknown key: 'record_enabled' (typo?)
+Config warning: unknown key: 'protocol' (typo?)
+...
+```
+
+The "(typo?)" was wrong -- those were new schema fields, not
+typos.  The warning now branches on the version comparison:
+older configs migrate forward silently as before; newer configs
+get one explicit upgrade hint with the correct command for the
+install layout it detects (uv tool / pipx / pip / dev tree), and
+the per-key noise is suppressed when the cfg is genuinely from
+the future.
+
+### Improvements
+
+- **`/cfg.icon` source refactor** -- the per-platform handler
+  module shed ~30% of its post-feature LOC during same-day trim;
+  clearer shared helpers (`_render_template`, `_already_exists`,
+  `_by_platform`) without changing behavior.
+
 ## 0.67.0 (2026-05-18)
 
 The theme of this release is making `.run` scripts first-class.  An

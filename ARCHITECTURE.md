@@ -15,7 +15,7 @@ src/termapy/
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)
-├── dialogs/                # (1967 lines) Modal screens - one file per dialog
+├── dialogs/                # (2045 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
 │   ├── cfg_confirm.py      #   CfgConfirm
 │   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (~461 lines, the big one)
@@ -59,10 +59,10 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (3121 lines) Textual TUI - UI, modals, app hooks
+├── app.py                  # (3144 lines) Textual TUI - UI, modals, app hooks
 ├── capture.py              # (336 lines)  Capture state machine - text, binary, format spec
 ├── cli.py                  # (1042 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
-├── config.py               # (718 lines)  Config dirs, loading, validation, migration trigger
+├── config.py               # (741 lines)  Config dirs, loading, validation, migration trigger
 ├── defaults.py             # (538 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
 ├── demo.py                 # (1690 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)

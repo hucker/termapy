@@ -4,7 +4,7 @@
 
 **Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
 
-**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-67%25-yellow)](https://coverage.readthedocs.io/)
+**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-68%25-yellow)](https://coverage.readthedocs.io/)
 
 Pronounced "ter-map-ee"
 
@@ -1209,9 +1209,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2551 tests, 67% overall</summary>
+<summary><strong>Test coverage</strong> - 2601 tests, 68% overall</summary>
 
-2551 tests across 80 test files. Run with `uv run pytest`.
+2601 tests across 83 test files. Run with `uv run pytest`.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 
@@ -1233,7 +1233,7 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~3100 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~1950 lines) are Textual UI and tested manually. The 67% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code:** `app.py` (~3150 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~2050 lines) are Textual UI and tested manually. The 68% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>
 

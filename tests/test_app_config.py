@@ -760,6 +760,72 @@ class TestValidateConfig:
         # Assert
         assert actual == [], "internal keys not flagged"
 
+    def test_older_config_version_warns_generic(self):
+        # Arrange -- a cfg with an older schema (migration will run
+        # to bring it forward; the warning here is informational).
+        from termapy.migration import CURRENT_CONFIG_VERSION
+        cfg = dict(_DEFAULTS_WITH_PORT, config_version=CURRENT_CONFIG_VERSION - 1)
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert -- exactly the existing "config_version: X" warning.
+        assert any("config_version:" in w for w in actual), (
+            "older cfg gets the informational version warning"
+        )
+        assert not any("upgrade" in w.lower() for w in actual), (
+            "no upgrade suggestion for older cfgs (we can migrate forward)"
+        )
+
+    def test_newer_config_version_suggests_upgrade(self):
+        # Arrange -- a cfg from a future termapy that the current
+        # one can't migrate.  This is the misleading "unknown key
+        # (typo?)" scenario the change fixes.
+        from termapy.migration import CURRENT_CONFIG_VERSION
+        cfg = dict(
+            _DEFAULTS_WITH_PORT,
+            config_version=CURRENT_CONFIG_VERSION + 1,
+        )
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert -- one clear warning with an upgrade hint.
+        assert len(actual) == 1, (
+            f"only the upgrade warning, no per-key noise; got {actual!r}"
+        )
+        msg = actual[0]
+        assert "newer termapy" in msg, "explains the cause"
+        assert "uv tool upgrade termapy" in msg, "includes uv upgrade command"
+        assert "pip install -U termapy" in msg, "includes pip upgrade command"
+
+    def test_newer_config_suppresses_unknown_key_noise(self):
+        # Arrange -- a future cfg with fields the current termapy
+        # doesn't recognise.  Without the fix these all got
+        # "unknown key (typo?)" warnings, misleading users into
+        # thinking they had typos when the keys were just newer.
+        from termapy.migration import CURRENT_CONFIG_VERSION
+        cfg = dict(
+            _DEFAULTS_WITH_PORT,
+            config_version=CURRENT_CONFIG_VERSION + 1,
+            some_future_field="future-value",
+            another_future_field=42,
+        )
+
+        # Act
+        actual = validate_config(cfg)
+
+        # Assert
+        assert len(actual) == 1, (
+            f"only the single upgrade warning; got {actual!r}"
+        )
+        assert "typo" not in actual[0], (
+            "no misleading 'typo?' verbiage when cfg is from the future"
+        )
+        assert "some_future_field" not in actual[0], (
+            "future fields are not enumerated"
+        )
+
     def test_multiple_errors(self):
         # Arrange
         cfg = dict(_DEFAULTS_WITH_PORT, byte_size=99, parity="Z", baud_rate=-1)

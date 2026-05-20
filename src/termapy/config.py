@@ -363,20 +363,42 @@ def validate_config(cfg: dict) -> list[str]:
 
     # Config version
     ver = cfg.get("config_version")
+    from_future = False
     if ver is not None and ver != CURRENT_CONFIG_VERSION:
-        warnings.append(
-            f"config_version: {ver} (current is {CURRENT_CONFIG_VERSION})"
-        )
-
-    # Unknown / deprecated keys (skip internal keys starting with _)
-    for key in cfg:
-        if key.startswith("_") or key in DEFAULT_CFG:
-            continue
-        hint = DEPRECATED_CFG.get(key)
-        if hint:
-            warnings.append(f"deprecated key: '{key}' ({hint})")
+        if ver > CURRENT_CONFIG_VERSION:
+            # Cfg was created by a NEWER termapy.  The running
+            # termapy doesn't know about fields the newer schema
+            # added, so the per-key "unknown key (typo?)" noise
+            # below would be misleading -- those aren't typos,
+            # they're fields from the future.  Emit one clear
+            # upgrade hint and suppress the per-key spam.
+            from_future = True
+            warnings.append(
+                f"cfg was created by a newer termapy "
+                f"(config_version {ver} > {CURRENT_CONFIG_VERSION}).  "
+                f"Upgrade with 'uv tool upgrade termapy' "
+                f"(or 'pip install -U termapy')."
+            )
         else:
-            warnings.append(f"unknown key: '{key}' (typo?)")
+            # Older cfg -- migrate_config() will bring it forward
+            # automatically; the warning is just informational.
+            warnings.append(
+                f"config_version: {ver} (current is {CURRENT_CONFIG_VERSION})"
+            )
+
+    # Unknown / deprecated keys (skip internal keys starting with _).
+    # Skipped entirely when the cfg is from a newer termapy: the
+    # "unknown" keys are almost certainly new schema, not typos,
+    # and listing each one is noise rather than signal.
+    if not from_future:
+        for key in cfg:
+            if key.startswith("_") or key in DEFAULT_CFG:
+                continue
+            hint = DEPRECATED_CFG.get(key)
+            if hint:
+                warnings.append(f"deprecated key: '{key}' ({hint})")
+            else:
+                warnings.append(f"unknown key: '{key}' (typo?)")
 
     # port must be a non-empty string.  A valid port is a literal
     # device name ("COM3", "/dev/ttyUSB0"), a USB serial number, a

@@ -373,11 +373,12 @@ def validate_config(cfg: dict) -> list[str]:
             # they're fields from the future.  Emit one clear
             # upgrade hint and suppress the per-key spam.
             from_future = True
+            from termapy.install_info import upgrade_command
             warnings.append(
                 f"cfg was created by a newer termapy "
                 f"(config_version {ver} > {CURRENT_CONFIG_VERSION}).  "
-                f"Upgrade with 'uv tool upgrade termapy' "
-                f"(or 'pip install -U termapy')."
+                f"Upgrade with: {upgrade_command()}.  "
+                f"Then restart termapy."
             )
         else:
             # Older cfg -- migrate_config() will bring it forward

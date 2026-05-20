@@ -304,8 +304,15 @@ def _scan_macos() -> list[Path]:
     return found
 
 
-def _scan_windows() -> list[Path]:
-    """Enumerate Desktop .lnks via one PowerShell call; filter by 'termapy'."""
+def _enum_windows_launchers() -> list[tuple[Path, str]]:
+    """Enumerate Desktop .lnks via one PowerShell call.
+
+    Returns ``(lnk_path, arguments_string)`` pairs for every .lnk
+    whose Arguments mentions ``termapy``.  Callers that only need
+    the paths use ``_scan_windows`` (a thin wrapper); callers that
+    need to substring-match against the args (e.g. finding a
+    launcher for a specific cfg) use this directly.
+    """
     desktop = _windows_desktop_path()
     if not desktop.is_dir():
         return []
@@ -325,14 +332,89 @@ def _scan_windows() -> list[Path]:
         return []
     if proc.returncode != 0:
         return []
-    found: list[Path] = []
+    pairs: list[tuple[Path, str]] = []
     for line in proc.stdout.splitlines():
         if "\t" not in line:
             continue
         path_str, args = line.split("\t", 1)
         if "termapy" in args.lower():
-            found.append(Path(path_str))
-    return found
+            pairs.append((Path(path_str), args))
+    return pairs
+
+
+def _scan_windows() -> list[Path]:
+    """Desktop .lnks that mention termapy (path-only)."""
+    return [p for p, _ in _enum_windows_launchers()]
+
+
+# ── Find a launcher for a specific cfg (cleanup on cfg-delete) ──────────────
+
+
+def _find_linux_launcher_for_cfg(cfg_path: Path) -> Path | None:
+    needle = str(cfg_path)
+    for desktop_file in _scan_linux():
+        try:
+            if needle in desktop_file.read_text(
+                encoding="utf-8", errors="ignore",
+            ):
+                return desktop_file
+        except OSError:
+            continue
+    return None
+
+
+def _find_macos_launcher_for_cfg(cfg_path: Path) -> Path | None:
+    needle = str(cfg_path)
+    for app in _scan_macos():
+        launcher = app / "Contents" / "MacOS" / "launcher"
+        try:
+            if launcher.is_file() and needle in launcher.read_text(
+                encoding="utf-8", errors="ignore",
+            ):
+                return app
+        except OSError:
+            continue
+    return None
+
+
+def _find_windows_launcher_for_cfg(cfg_path: Path) -> Path | None:
+    needle = str(cfg_path)
+    for path, args in _enum_windows_launchers():
+        if needle in args:
+            return path
+    return None
+
+
+def find_launcher_for_cfg(cfg_path: Path) -> Path | None:
+    """Find any termapy launcher whose embedded args reference cfg_path.
+
+    Returns the launcher's filesystem path (a ``.desktop`` file on
+    Linux, an ``.app`` bundle directory on macOS, a ``.lnk`` on
+    Windows) or ``None`` if no launcher references this cfg.
+
+    Cfg path is matched as a verbatim substring against the
+    launcher's embedded target/args, so callers should pass the
+    same path form that ``/cfg.icon`` originally embedded
+    (typically ``Path(ctx.config_path).resolve()``).
+    """
+    finder = _by_platform(
+        _find_linux_launcher_for_cfg,
+        _find_macos_launcher_for_cfg,
+        _find_windows_launcher_for_cfg,
+    )
+    return finder(cfg_path) if finder is not None else None
+
+
+def remove_launcher_at(launcher_path: Path) -> None:
+    """Delete a launcher file or .app directory.  Silent if missing.
+
+    Raises OSError if the deletion fails for permission/I-O reasons;
+    callers decide whether to surface or swallow.
+    """
+    if launcher_path.is_dir():
+        shutil.rmtree(launcher_path)
+    elif launcher_path.exists():
+        launcher_path.unlink()
 
 
 def _list(ctx: PluginContext) -> CmdResult:
@@ -430,4 +512,6 @@ __all__ = [
     "_handler",
     "_handler_list",
     "_handler_remove",
+    "find_launcher_for_cfg",
+    "remove_launcher_at",
 ]

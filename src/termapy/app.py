@@ -1646,8 +1646,31 @@ class SerialTerminal(TerminalHost, App):
             )
         elif action == "delete":
             is_active = result[1] == self.config_path
+            cfg_path_str = result[1]
 
             def _after_delete():
+                # Clean up any stale desktop launcher that pointed
+                # at this cfg; the user just told us they don't
+                # want the cfg anymore, so the icon would be a
+                # dead link.  Silent best-effort -- a missing
+                # launcher is the common case, and a permission
+                # failure shouldn't block the cfg delete.
+                from termapy.builtins.commands._cfg_icon import (
+                    find_launcher_for_cfg,
+                    remove_launcher_at,
+                )
+                launcher = find_launcher_for_cfg(Path(cfg_path_str))
+                if launcher is not None:
+                    try:
+                        remove_launcher_at(launcher)
+                        self._status(
+                            f"Removed desktop launcher: {launcher.name}",
+                            "green",
+                        )
+                    except OSError as e:
+                        self._status(
+                            f"Launcher cleanup failed: {e}", "yellow",
+                        )
                 if is_active:
                     self.config_path = ""
                     self.push_screen(

@@ -659,6 +659,128 @@ class TestList:
         )
 
 
+class TestFindLauncherForCfg:
+    """``find_launcher_for_cfg`` finds the launcher embedding a given cfg path.
+
+    Used by the cfg-delete cleanup: when a user deletes a cfg, the
+    app calls this to locate the matching desktop icon and removes
+    it so no orphan launchers remain.
+    """
+
+    def test_linux_finds_desktop_file_referencing_cfg(self, cfg_env, monkeypatch):
+        # Arrange -- create the launcher via the normal create path
+        # so its embedded Exec= line carries the cfg path verbatim.
+        monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
+        eng, cfg_dir, _, _ = cfg_env
+        eng.dispatch("cfg.icon")
+        cfg_file = (cfg_dir / "demo.cfg").resolve()
+
+        # Act
+        found = _cfg_icon.find_launcher_for_cfg(cfg_file)
+
+        # Assert
+        assert found is not None, "find returns the matching launcher"
+        assert found.name == "termapy-demo.desktop", (
+            "found path matches the created .desktop file"
+        )
+
+    def test_linux_returns_none_when_no_launcher_matches(
+        self, cfg_env, monkeypatch,
+    ):
+        # Arrange -- create a launcher for one cfg, search for another.
+        monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
+        eng, _, _, _ = cfg_env
+        eng.dispatch("cfg.icon")
+
+        # Act -- search for a cfg that no launcher references.
+        found = _cfg_icon.find_launcher_for_cfg(
+            Path("/nonexistent/other_cfg.cfg"),
+        )
+
+        # Assert
+        assert found is None, "no launcher references the unrelated cfg"
+
+    def test_macos_finds_bundle_referencing_cfg(self, cfg_env, monkeypatch):
+        # Arrange
+        monkeypatch.setattr(_cfg_icon, "_PLATFORM", "darwin")
+        eng, cfg_dir, fake_home, _ = cfg_env
+        eng.dispatch("cfg.icon")
+        cfg_file = (cfg_dir / "demo.cfg").resolve()
+
+        # Act
+        found = _cfg_icon.find_launcher_for_cfg(cfg_file)
+
+        # Assert
+        assert found is not None, "find returns the bundle"
+        assert found == fake_home / "Applications" / "Demo Device.app", (
+            "found path is the bundle dir"
+        )
+
+    def test_windows_finds_lnk_by_args_substring(self, cfg_env, monkeypatch):
+        # Arrange -- mock PowerShell to enumerate one .lnk whose
+        # Arguments embed the cfg path we're searching for.
+        monkeypatch.setattr(_cfg_icon, "_PLATFORM", "win32")
+        cfg_file = Path("C:/path/to/demo.cfg")
+
+        def _fake_run(cmd, **kwargs):
+            script = cmd[-1] if isinstance(cmd, list) else ""
+            if script == _cfg_icon._PS_RESOLVE_DESKTOP:
+                return _FakeProc(0, stdout="C:/Desktop\n")
+            return _FakeProc(
+                0,
+                stdout=(
+                    "C:/Desktop/Demo_Device.lnk\t"
+                    f'/k ""C:/py.exe" -m termapy "{cfg_file}""\n'
+                ),
+            )
+
+        monkeypatch.setattr(_cfg_icon.subprocess, "run", _fake_run)
+        monkeypatch.setattr(
+            _cfg_icon.Path, "is_dir", lambda self: True,
+        )
+
+        # Act
+        found = _cfg_icon.find_launcher_for_cfg(cfg_file)
+
+        # Assert
+        assert found is not None, "find matched on substring of cfg_file"
+        assert found == Path("C:/Desktop/Demo_Device.lnk"), (
+            "found the right .lnk path"
+        )
+
+
+class TestRemoveLauncherAt:
+    """``remove_launcher_at`` deletes a launcher file or .app bundle."""
+
+    def test_removes_a_file(self, tmp_path):
+        # Arrange -- a fake .desktop file (any file is fine).
+        target = tmp_path / "termapy-demo.desktop"
+        target.write_text("dummy", encoding="utf-8")
+
+        # Act
+        _cfg_icon.remove_launcher_at(target)
+
+        # Assert
+        assert not target.exists(), "file deleted"
+
+    def test_removes_a_bundle_directory(self, tmp_path):
+        # Arrange -- a fake .app bundle (just a directory).
+        bundle = tmp_path / "Demo.app"
+        (bundle / "Contents").mkdir(parents=True)
+        (bundle / "Contents" / "Info.plist").write_text("x", encoding="utf-8")
+
+        # Act
+        _cfg_icon.remove_launcher_at(bundle)
+
+        # Assert
+        assert not bundle.exists(), "whole bundle dir removed"
+
+    def test_missing_path_is_a_noop(self, tmp_path):
+        # Arrange / Act -- silent on missing.
+        _cfg_icon.remove_launcher_at(tmp_path / "never_existed.lnk")
+        # Assert -- no exception is the assertion.
+
+
 class TestDispatch:
     def test_fails_when_no_cfg_loaded(self, cfg_env, monkeypatch):
         # Arrange -- a bare engine with no config_path.

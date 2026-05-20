@@ -35,7 +35,7 @@ class QuickSetup(ModalScreen[tuple | None]):
     QuickSetup {{ align: center middle; }}
     QuickSetup Button {{ {_MODAL_BTN_CSS} }}
     #qs-dialog {{
-        width: 130; height: auto;
+        width: 90%; min-width: 100; max-width: 200; height: auto;
         border: solid $primary; background: $surface; padding: 1 2;
         border-title-align: left;
     }}
@@ -57,6 +57,10 @@ class QuickSetup(ModalScreen[tuple | None]):
     def __init__(self, title: str = "New Config") -> None:
         super().__init__()
         self._title = title
+        # Cached at compose-time so on_mount can re-render the port
+        # list against the dialog's measured cell width.  Cheap to
+        # call once; expensive to scan every resize.
+        self._ports: list = []
 
     def action_dismiss_modal(self) -> None:
         self.dismiss(None)
@@ -65,16 +69,21 @@ class QuickSetup(ModalScreen[tuple | None]):
         from serial.tools.list_ports import comports
         from textual.widgets import Static
 
-        ports = sorted(comports(), key=lambda p: p.device)
+        self._ports = sorted(comports(), key=lambda p: p.device)
         dialog = Vertical(id="qs-dialog")
         dialog.border_title = self._title
         with dialog:
             yield Static("Config Name:", classes="qs-label qs-first")
             yield Input(placeholder="e.g. my_device", id="qs-name")
             yield Static("Serial Port:", classes="qs-label")
+            # Initial population uses a conservative row_width.
+            # on_mount() re-renders with the actual measured width
+            # so wide terminals show wider columns (incl. Location).
             port_list = OptionList(id="qs-port-list")
-            _populate_port_option_list(port_list, ports, row_width=124)
-            if ports:
+            _populate_port_option_list(
+                port_list, self._ports, row_width=120,
+            )
+            if self._ports:
                 port_list.highlighted = 2  # skip header + separator rows
             yield port_list
             std_btn = Button("Standard Baud Rates", id="qs-standard-baud", variant="primary")
@@ -104,7 +113,7 @@ class QuickSetup(ModalScreen[tuple | None]):
             )
             with Horizontal(id="qs-buttons"):
                 connect_btn = Button("Connect", id="qs-connect", variant="success")
-                if not ports:
+                if not self._ports:
                     connect_btn.label = "No Ports"
                     connect_btn.variant = "error"
                     connect_btn.disabled = True
@@ -113,6 +122,61 @@ class QuickSetup(ModalScreen[tuple | None]):
                 adv.styles.background = "darkorchid"
                 yield adv
                 yield Button("Cancel", id="qs-cancel", variant="error")
+
+    def on_mount(self) -> None:
+        """Defer the real port-list render to after first layout.
+
+        At on_mount time the OptionList hasn't yet been positioned,
+        so ``size`` / ``content_size`` are 0 (or stale).  By the
+        time ``call_after_refresh`` fires, Textual has done a full
+        layout pass and ``content_size.width`` is the actual cell
+        budget the option text gets to live in.
+        """
+        self.call_after_refresh(self._render_port_list)
+
+    def on_resize(self, _event) -> None:
+        """Re-render the port list when the terminal/dialog resizes.
+
+        Without this, columns dropped while the screen was narrow
+        stay dropped after the user widens the terminal -- the
+        port list keeps showing the cramped layout even though
+        more room is now available.
+        """
+        self.call_after_refresh(self._render_port_list)
+
+    def _render_port_list(self) -> None:
+        """Repopulate the port list against the measured content width.
+
+        Preserves the user's current selection across re-renders so
+        a resize doesn't reset their port pick to the default.
+        """
+        port_list = self.query_one("#qs-port-list", OptionList)
+        # content_size excludes the OptionList's border but may
+        # still include the scrollbar column.  Subtract 1 for the
+        # scrollbar to be safe; if the OptionList isn't scrollable
+        # the cost is one wasted cell.
+        measured = port_list.content_size.width
+        row_width = max(40, measured - 1) if measured else 100
+
+        # Remember which port (by id) was selected so we can
+        # restore it after repopulating.
+        selected_id: str | None = None
+        if port_list.highlighted is not None:
+            opt = port_list.get_option_at_index(port_list.highlighted)
+            if opt is not None and opt.id is not None and not opt.disabled:
+                selected_id = str(opt.id)
+
+        port_list.clear_options()
+        _populate_port_option_list(port_list, self._ports, row_width=row_width)
+
+        if selected_id is not None:
+            for i in range(port_list.option_count):
+                opt = port_list.get_option_at_index(i)
+                if opt is not None and opt.id == selected_id:
+                    port_list.highlighted = i
+                    return
+        if self._ports:
+            port_list.highlighted = 2  # skip header + separator rows
 
     _standard_baud: bool = True
 

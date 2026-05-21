@@ -436,6 +436,13 @@ def migrate_config(cfg: dict) -> dict:
     version to CURRENT_CONFIG_VERSION. Versions without a migration
     function are skipped (version number still advances).
 
+    Each step that runs an actual migration function appends a
+    one-line description (from the function's docstring summary)
+    to ``cfg["_migration_steps"]`` so callers can display a per-step
+    breakdown -- a multi-version jump only happens once per cfg, so
+    a few extra status lines is more reassuring than a single
+    summary like "v17 -> v21".
+
     Args:
         cfg: Config dict to migrate (modified in place).
 
@@ -443,9 +450,23 @@ def migrate_config(cfg: dict) -> dict:
         The migrated config dict with config_version set to current.
     """
     v = cfg.get("config_version", 0)
+    steps: list[str] = []
     while v < CURRENT_CONFIG_VERSION:
         if v in MIGRATIONS:
-            cfg = MIGRATIONS[v](cfg)
+            fn = MIGRATIONS[v]
+            cfg = fn(cfg)
+            # First sentence of the function's docstring as the
+            # one-line description.  Trailing period stripped so
+            # we can compose ``v{a} -> v{b}: {desc}`` cleanly.
+            doc = (fn.__doc__ or "").strip()
+            summary = doc.splitlines()[0].strip().rstrip(".") if doc else ""
+            label = (
+                f"v{v} -> v{v + 1}: {summary}" if summary
+                else f"v{v} -> v{v + 1}"
+            )
+            steps.append(label)
         v += 1
     cfg["config_version"] = CURRENT_CONFIG_VERSION
+    if steps:
+        cfg.setdefault("_migration_steps", []).extend(steps)
     return cfg

@@ -1410,6 +1410,19 @@ class SerialTerminal(TerminalHost, App):
                 f"Config migrated: v{migrated_from} -> v{CURRENT_CONFIG_VERSION}",
                 "yellow",
             )
+            # Per-step breakdown: cfg["_migration_steps"] holds one
+            # line per step that ran an actual migrator (no-op
+            # versions are skipped).  Multi-version jumps happen
+            # rarely (once per cfg, on a major upgrade), so a few
+            # extra status lines is more reassuring than a single
+            # summary header.
+            for step in cfg.pop("_migration_steps", []):
+                self._status(f"  {step}", "yellow")
+        else:
+            # No migration ran, but a stale _migration_steps key
+            # could still be present if the cfg was hand-edited;
+            # drop it silently.
+            cfg.pop("_migration_steps", None)
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
         # Cfg reload may swap the active profile out from under us; rebuild

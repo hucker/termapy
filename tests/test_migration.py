@@ -516,3 +516,60 @@ def test_v19_to_v20_covers_all_four_on_connect_fields():
         "mcp_on_connect_cmd",
     ):
         assert result[key] == "/term.color on", f"{key} rewritten"
+
+
+def test_migration_steps_recorded_per_version():
+    """Each step with a migrator appends a labelled line to _migration_steps."""
+    # Arrange -- a config from v17 needs four steps to reach v21.
+    cfg = {"config_version": 17}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert -- one step entry per migrator that ran, labelled
+    # "v<from> -> v<to>: <description>".
+    steps = result.get("_migration_steps", [])
+    assert len(steps) == 4, (
+        f"v17 -> v21 covers four migrators (17->18, 18->19, 19->20, 20->21); "
+        f"got {len(steps)}: {steps!r}"
+    )
+    expected_prefixes = (
+        "v17 -> v18",
+        "v18 -> v19",
+        "v19 -> v20",
+        "v20 -> v21",
+    )
+    for step, prefix in zip(steps, expected_prefixes, strict=True):
+        assert step.startswith(prefix), (
+            f"step {step!r} should start with {prefix!r}"
+        )
+
+
+def test_migration_steps_include_docstring_summary():
+    """The label after the version range is the migrator's docstring summary."""
+    # Arrange -- v20 -> v21 has a docstring starting
+    # "Add ``record_enabled`` toggle for the Record button ...".
+    cfg = {"config_version": 20}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    steps = result.get("_migration_steps", [])
+    assert len(steps) == 1, f"one step; got {steps!r}"
+    assert "record_enabled" in steps[0], (
+        f"step line carries the migrator's docstring summary; got {steps[0]!r}"
+    )
+
+
+def test_no_steps_recorded_when_already_current():
+    """A cfg already at CURRENT_CONFIG_VERSION runs zero migrators."""
+    # Arrange / Act
+    cfg = {"config_version": CURRENT_CONFIG_VERSION}
+    result = migrate_config(cfg)
+
+    # Assert -- no _migration_steps key (or empty); the absence
+    # signals "nothing migrated" to the display path.
+    assert "_migration_steps" not in result or result["_migration_steps"] == [], (
+        "no steps when nothing to migrate"
+    )

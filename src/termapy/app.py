@@ -335,6 +335,25 @@ class SerialTerminal(TerminalHost, App):
     #status-bar.visible {
         display: block;
     }
+    #find-bar {
+        height: 1;
+        width: auto;
+        display: none;
+    }
+    #find-bar.visible {
+        display: block;
+    }
+    #find-status {
+        height: 1;
+        width: auto;
+        content-align: right middle;
+        color: $accent;
+        padding: 0 1;
+    }
+    #btn-find-prev, #btn-find-next, #btn-find-close {
+        min-width: 3;
+        background: $boost;
+    }
     #cmd.repl-mode {
         color: red;
     }
@@ -479,6 +498,28 @@ class SerialTerminal(TerminalHost, App):
         self._show_line_numbers: bool = cfg.get("show_line_numbers", False)
         self._line_counter: int = 0
         self._xfer_cancel = threading.Event()
+        # True while /find is showing the frozen highlighted view.
+        # New live data arrival (in _write_batch) flips this back
+        # to False and restores #output.
+        self._find_overlay_active: bool = False
+        # Identity key for the currently-rendered snapshot.  If the
+        # next state has the same key, we skip the expensive
+        # clear+rewrite of #output-find and just re-scroll.  Key is
+        # (id_of_scrollback_text, len_of_matches, first_match_lineno
+        # if any, last_match_lineno if any) -- captures both "new
+        # /find" and "matches changed" without per-element compare.
+        self._find_render_key: tuple | None = None
+        # Line number of the current find match at the moment of
+        # close.  Used to scroll #output to the same line so the
+        # user keeps their visual context when leaving find mode.
+        # Cleared after restore or when find ends with no matches.
+        self._find_last_current_line: int | None = None
+        # When _write_batch auto-dismisses find (new live data),
+        # we DON'T want to scroll #output back to the find
+        # position -- the user's interest just shifted to fresh
+        # output.  This flag is False during auto-dismiss and True
+        # during user-initiated close.
+        self._find_restore_scroll_on_close: bool = True
 
         # File capture engine
         self._capture = CaptureEngine(
@@ -724,6 +765,23 @@ class SerialTerminal(TerminalHost, App):
         yield RichLog(
             highlight=False, markup=True, wrap=True, id="output", max_lines=max_lines
         )
+        # Frozen-view companion for /find.  Hidden by default; when
+        # find activates, _update_find_bar populates it with a
+        # markup-styled copy of the current scrollback (matched
+        # lines in [reverse]), hides #output, and shows this one.
+        # Navigation just scrolls -- no rewrite -- so the current
+        # match is identified by viewport position (centered), not
+        # by per-line styling.  auto_scroll=False is critical:
+        # otherwise the post-write snap-to-bottom races with our
+        # explicit scroll_to(center).  Any new live data arriving
+        # via _write_batch auto-dismisses the view.
+        find_log = RichLog(
+            highlight=False, markup=True, wrap=True,
+            id="output-find", max_lines=max_lines,
+            auto_scroll=False,
+        )
+        find_log.display = False
+        yield find_log
         yield OptionList(id="history-popup")
         with Vertical(id="bottom-section"):
             with Horizontal(id="bottom-bar"):
@@ -751,6 +809,34 @@ class SerialTerminal(TerminalHost, App):
                         ".run script.  Click to start; click again to stop."
                     )
                     yield record_btn
+                # FindBar: ephemeral, hidden until /find runs.
+                # display=False on the container AND each child so
+                # the widgets vanish from layout entirely until
+                # _update_find_bar reveals them.
+                find_bar = Horizontal(id="find-bar")
+                find_bar.display = False
+                with find_bar:
+                    find_status = Label("", id="find-status")
+                    find_status.display = False
+                    yield find_status
+                    prev_btn = Button(
+                        "▲", id="btn-find-prev", variant="default",
+                    )
+                    prev_btn.tooltip = "Previous find match (/find.prev)"
+                    prev_btn.display = False
+                    yield prev_btn
+                    next_btn = Button(
+                        "▼", id="btn-find-next", variant="default",
+                    )
+                    next_btn.tooltip = "Next find match (/find.next)"
+                    next_btn.display = False
+                    yield next_btn
+                    close_btn = Button(
+                        "×", id="btn-find-close", variant="default",
+                    )
+                    close_btn.tooltip = "Close find (/find.clear)"
+                    close_btn.display = False
+                    yield close_btn
                 yield Label("", id="status-bar")
 
                 def _btn(label, id, tip, variant="default", display=True):
@@ -978,6 +1064,9 @@ class SerialTerminal(TerminalHost, App):
         engine.start_capture = self._cap_start
         engine.stop_capture = self._cap_stop
         engine.directives = self.repl._directives
+        # /find plugin calls this with a state snapshot to refresh
+        # the FindBar widget (or None to hide it).
+        engine.update_find_bar = self._update_find_bar
 
         ctx = self._build_plugin_context(engine)
         # TUI-specific PluginContext overrides
@@ -1934,6 +2023,10 @@ class SerialTerminal(TerminalHost, App):
         "btn-update": "_btn_update",  # update-available dialog
         # Recorder (next to REPL prompt)
         "btn-record": "_btn_record",  # toggle /run.record
+        # Find bar (ephemeral, next to REPL prompt; visible while /find active)
+        "btn-find-prev": "_btn_find_prev",  # /find.prev
+        "btn-find-next": "_btn_find_next",  # /find.next
+        "btn-find-close": "_btn_find_close",  # /find.clear
         # Overlays
         "cap-stop": "_cap_stop",  # stop capture
         "script-stop": "_btn_script_stop",  # stop running script
@@ -2002,6 +2095,185 @@ class SerialTerminal(TerminalHost, App):
         else:
             btn.label = "Record"
             btn.variant = "success"
+
+    def _update_find_bar(self, state: dict | None) -> None:
+        """Switch between live #output and the frozen #output-find view.
+
+        ``state=None`` hides the frozen view + the FindBar, shows
+        #output, restores the Record button.  ``state`` non-None
+        builds a markup-styled copy of the captured scrollback
+        (matched lines [reverse], current match [reverse bold]),
+        writes it into #output-find, hides #output, shows the
+        frozen view, scrolls so the current match is near the
+        middle of the viewport.
+        """
+        try:
+            output = self.query_one("#output", RichLog)
+            output_find = self.query_one("#output-find", RichLog)
+            bar = self.query_one("#find-bar")
+            status = self.query_one("#find-status", Label)
+            prev_btn = self.query_one("#btn-find-prev", Button)
+            next_btn = self.query_one("#btn-find-next", Button)
+            close_btn = self.query_one("#btn-find-close", Button)
+        except NoMatches:
+            return  # widget tree not yet mounted (rare)
+        try:
+            record_btn = self.query_one("#btn-record", Button)
+        except NoMatches:
+            record_btn = None
+
+        active = state is not None
+        # FindBar visibility -- the n/m label + three buttons.
+        bar.display = active
+        status.display = active
+        prev_btn.display = active
+        next_btn.display = active
+        close_btn.display = active
+        # Record button hides during find mode so the bottom row
+        # doesn't fight for space; restores on close.
+        if record_btn is not None:
+            record_btn.display = not active
+
+        if not active:
+            # Clean exit: hide frozen view, restore live #output.
+            # Optionally scroll #output to the same line the user
+            # was sitting on in the find view, so the visual
+            # context is preserved across the close.  Skipped
+            # when auto-dismiss fires from _write_batch (user's
+            # focus has moved on; fresh data is the new interest).
+            restore_line = self._find_last_current_line
+            output_find.display = False
+            output_find.clear()
+            output.display = True
+            self._find_overlay_active = False
+            self._find_render_key = None
+            self._find_last_current_line = None
+            if (
+                self._find_restore_scroll_on_close
+                and restore_line is not None
+            ):
+                # Defer so #output has its layout back before we
+                # compute its viewport-center scroll target.
+                self.call_after_refresh(
+                    self._scroll_to_find_match, restore_line, output,
+                )
+            return
+
+        total = state["total"]
+        # Slim label: just "n/m"; the highlighted lines in the
+        # frozen view ARE the preview, no snippet text needed.
+        if total == 0:
+            status.update(f" 0/0 '{state['pattern']}' ")
+            # Zero matches -- nothing to freeze.  Leave the live
+            # #output visible so the user can keep working.
+            output_find.display = False
+            output.display = True
+            self._find_overlay_active = False
+            self._find_render_key = None
+            return
+        status.update(f" {state['index'] + 1}/{total} ")
+
+        # Render-cache key: same matches + same scrollback text
+        # means we already painted #output-find; just re-scroll.
+        # New /find or changed scrollback -> rebuild.
+        matches = state["matches"]
+        scrollback_text = state["scrollback_text"]
+        render_key = (
+            id(scrollback_text),  # cheap proxy for "same snapshot"
+            len(matches),
+            matches[0][0] if matches else None,
+            matches[-1][0] if matches else None,
+        )
+
+        if render_key != self._find_render_key:
+            # Build once.  Every matched line gets [reverse]; the
+            # CURRENT match isn't separately styled -- viewport
+            # position (centered) identifies it.  Rewriting per-
+            # navigation would be wasteful AND races with
+            # RichLog auto_scroll (which is why we set
+            # auto_scroll=False on this widget).
+            #
+            # Per-line writes (not one big Text with embedded \n)
+            # because the live #output also writes line by line --
+            # batching into a single Text causes Rich to wrap the
+            # whole block as one paragraph, which produces
+            # different break points than #output uses for the
+            # same source lines.
+            #
+            # Explicit width= is critical: #output-find has been
+            # display=False since startup, so its own size.width
+            # is 0 (never laid out).  Writing without an explicit
+            # width makes Rich fall back to a default (~80 cols)
+            # and wrap aggressively -- you can see the wrap
+            # mismatch by comparing the same line in #output
+            # (full width) and #output-find (wrapped narrower).
+            # We borrow #output's current content width since
+            # both widgets share the same CSS slot and will end
+            # up with the same width once #output-find is shown.
+            wrap_width = output.content_size.width or output.size.width
+            matched_set = {m[0] for m in matches}
+            output_find.clear()
+            for i, line in enumerate(
+                scrollback_text.splitlines(), start=1,
+            ):
+                if i in matched_set:
+                    output_find.write(
+                        Text(line, style="reverse"),
+                        width=wrap_width,
+                    )
+                else:
+                    output_find.write(line, width=wrap_width)
+            self._find_render_key = render_key
+
+        # Swap visibility (idempotent if already in find mode)
+        # and scroll to the current match.  call_after_refresh
+        # so layout has settled before we compute viewport math.
+        output.display = False
+        output_find.display = True
+        self._find_overlay_active = True
+        current_line = state["line_no"]
+        # Remember for the close-restore path so #output can
+        # scroll to this same line when find ends.
+        self._find_last_current_line = current_line
+        self.call_after_refresh(
+            self._scroll_to_find_match, current_line, output_find,
+        )
+
+    def _scroll_to_find_match(
+        self, line_no: int, target: RichLog | None = None,
+    ) -> None:
+        """Scroll target RichLog so ``line_no`` lands at viewport middle.
+
+        With the v2 design (matches visibly highlighted in the
+        frozen view), middle is preferred over top: the user can
+        see context above and below the current match, and the
+        [reverse bold] styling makes the current line easy to spot
+        regardless of vertical position.
+
+        Always centers, even if the line is already visible.  An
+        earlier "keep visible if already in viewport" optimization
+        made nearby matches NOT reposition -- which broke the
+        promise that the current match sits in the middle.
+        """
+        if target is None:
+            try:
+                target = self.query_one("#output-find", RichLog)
+            except NoMatches:
+                return
+        target_y = max(0, line_no - 1)  # 1-based -> 0-based
+        centered = max(0, target_y - target.size.height // 2)
+        target.scroll_to(y=centered, animate=False)
+
+    def _btn_find_prev(self) -> None:
+        # Quiet dispatch: clicking the button shouldn't fill the
+        # scrollback with "/find.prev" echo lines.
+        self._dispatch_quiet("/find.prev")
+
+    def _btn_find_next(self) -> None:
+        self._dispatch_quiet("/find.next")
+
+    def _btn_find_close(self) -> None:
+        self._dispatch_quiet("/find.clear")
 
     def _btn_script_stop(self) -> None:
         self.repl._script_stop.set()
@@ -2259,6 +2531,25 @@ class SerialTerminal(TerminalHost, App):
         """
         if self._shutting_down:
             return
+        # If /find's frozen view is up, new live data on the
+        # underlying #output is the user's signal that they're
+        # done with find; auto-dismiss so the fresh output isn't
+        # hidden behind the snapshot.  Dispatched via the plugin's
+        # clear handler so the dismiss state stays consistent.
+        # Suppress the close-restore scroll: the user wasn't
+        # asking to leave find at a particular line; new data is
+        # arriving and they should see it at the bottom of
+        # #output, not be teleported back to the find position.
+        if self._find_overlay_active:
+            self._find_restore_scroll_on_close = False
+            try:
+                from termapy.builtins.commands.find import _handler_clear
+                _handler_clear(self.repl.ctx, "")
+            except Exception:
+                # Defensive: a broken plugin must not block live data.
+                self._find_overlay_active = False
+            finally:
+                self._find_restore_scroll_on_close = True
         try:
             log = self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
@@ -2412,6 +2703,26 @@ class SerialTerminal(TerminalHost, App):
             cmd,
             log=self._log_line,
             echo_markup=self._write_output_markup,
+            status=self._status,
+            serial_write=self._serial_write,
+            serial_write_raw=self._send_serial_raw,
+            is_connected=lambda: self.is_connected,
+            eol_label=eol_label,
+        )
+
+    def _dispatch_quiet(self, cmd: str) -> CmdResult:
+        """Dispatch without echoing the command line to the output.
+
+        Used by UI affordances (find-bar nav buttons, anything else
+        that fires repeatedly from a click) where echoing every
+        synthesized command would just clutter the scrollback.
+        Status / serial / log paths are unchanged -- the only
+        suppression is the input-echo line.
+        """
+        return self.repl.dispatch_full(
+            cmd,
+            log=self._log_line,
+            echo_markup=lambda _markup: None,
             status=self._status,
             serial_write=self._serial_write,
             serial_write_raw=self._send_serial_raw,

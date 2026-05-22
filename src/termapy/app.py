@@ -2096,43 +2096,38 @@ class SerialTerminal(TerminalHost, App):
             btn.label = "Record"
             btn.variant = "success"
 
+    # IDs of widgets that share the FindBar's show/hide lifecycle.
+    _FIND_BAR_WIDGETS = (
+        "#find-bar", "#find-status",
+        "#btn-find-prev", "#btn-find-next", "#btn-find-close",
+    )
+
     def _update_find_bar(self, state: dict | None) -> None:
         """Switch between live #output and the frozen #output-find view.
 
         ``state=None`` hides the frozen view + the FindBar, shows
         #output, restores the Record button.  ``state`` non-None
         builds a markup-styled copy of the captured scrollback
-        (matched lines [reverse], current match [reverse bold]),
-        writes it into #output-find, hides #output, shows the
-        frozen view, scrolls so the current match is near the
-        middle of the viewport.
+        (matched lines [reverse]; the current match is identified
+        by viewport position, not separate styling), writes it into
+        #output-find, hides #output, shows the frozen view, scrolls
+        so the current match is centered.
         """
         try:
             output = self.query_one("#output", RichLog)
             output_find = self.query_one("#output-find", RichLog)
-            bar = self.query_one("#find-bar")
             status = self.query_one("#find-status", Label)
-            prev_btn = self.query_one("#btn-find-prev", Button)
-            next_btn = self.query_one("#btn-find-next", Button)
-            close_btn = self.query_one("#btn-find-close", Button)
         except NoMatches:
             return  # widget tree not yet mounted (rare)
-        try:
-            record_btn = self.query_one("#btn-record", Button)
-        except NoMatches:
-            record_btn = None
-
         active = state is not None
-        # FindBar visibility -- the n/m label + three buttons.
-        bar.display = active
-        status.display = active
-        prev_btn.display = active
-        next_btn.display = active
-        close_btn.display = active
-        # Record button hides during find mode so the bottom row
-        # doesn't fight for space; restores on close.
-        if record_btn is not None:
-            record_btn.display = not active
+        # FindBar widgets and the Record button toggle in opposite
+        # directions: find takes the row, Record steps aside.
+        for sel in self._FIND_BAR_WIDGETS:
+            self.query_one(sel).display = active
+        try:
+            self.query_one("#btn-record", Button).display = not active
+        except NoMatches:
+            pass  # Record button hidden via record_enabled=false
 
         if not active:
             # Clean exit: hide frozen view, restore live #output.

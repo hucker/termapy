@@ -54,11 +54,6 @@ _DEFAULT_MAX_COUNT = 100
 _max_count: int = _DEFAULT_MAX_COUNT
 
 
-def is_active() -> bool:
-    """True if a /find search is currently open."""
-    return _active is not None
-
-
 def current_state() -> dict | None:
     """Snapshot for the TUI to render.  ``None`` means hide the bar.
 
@@ -69,23 +64,15 @@ def current_state() -> dict | None:
     if _active is None:
         return None
     total = len(_active.matches)
-    base = {
+    line_no, snippet = (
+        _active.matches[_active.current] if total else (None, "")
+    )
+    return {
         "pattern": _active.pattern,
         "total": total,
         "matches": list(_active.matches),
         "scrollback_text": _active.scrollback_text,
-    }
-    if total == 0:
-        return {
-            **base,
-            "index": -1,
-            "line_no": None,
-            "snippet": "",
-        }
-    line_no, snippet = _active.matches[_active.current]
-    return {
-        **base,
-        "index": _active.current,
+        "index": _active.current if total else -1,
         "line_no": line_no,
         "snippet": snippet,
     }
@@ -156,24 +143,23 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=str(len(matches)))
 
 
-def _handler_next(ctx: PluginContext, args: str) -> CmdResult:
-    """``/find.next`` -- step to the next match (wraps at end)."""
-    global _active
+def _step(ctx: PluginContext, delta: int) -> CmdResult:
+    """Walk one match forward (+1) or back (-1), wrapping at the ends."""
     if _active is None or not _active.matches:
         return CmdResult.fail(msg="No active find.")
-    _active.current = (_active.current + 1) % len(_active.matches)
+    _active.current = (_active.current + delta) % len(_active.matches)
     _refresh(ctx)
     return CmdResult.ok(value=str(_active.current + 1))
+
+
+def _handler_next(ctx: PluginContext, args: str) -> CmdResult:
+    """``/find.next`` -- step to the next match (wraps at end)."""
+    return _step(ctx, +1)
 
 
 def _handler_prev(ctx: PluginContext, args: str) -> CmdResult:
     """``/find.prev`` -- step to the previous match (wraps at start)."""
-    global _active
-    if _active is None or not _active.matches:
-        return CmdResult.fail(msg="No active find.")
-    _active.current = (_active.current - 1) % len(_active.matches)
-    _refresh(ctx)
-    return CmdResult.ok(value=str(_active.current + 1))
+    return _step(ctx, -1)
 
 
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:

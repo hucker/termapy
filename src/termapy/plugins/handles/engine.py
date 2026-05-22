@@ -97,6 +97,11 @@ class EngineHandle:
     # of /run.record to dispatch (start vs stop) without holding its
     # own state.
     is_recording: Callable | None = None  # () -> bool
+    # Refresh the TUI's FindBar from the /find plugin's state.  The
+    # plugin computes search results, then calls this with a dict
+    # snapshot (or None to hide the bar) and the TUI re-renders.
+    # CLI/MCP hosts leave this None so /find no-ops there.
+    update_find_bar: Callable | None = None  # (state: dict | None) -> None
 
 
 # Backward-compat alias.  Existing code does ``from termapy.plugins import

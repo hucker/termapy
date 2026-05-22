@@ -325,6 +325,11 @@ class TerminalHost:
             # host has no static dependency on a specific plugin (and
             # so the import is harmless if the builtin isn't loaded).
             is_recording=_is_recording,
+            # ``update_find_bar`` is None on the base host; the TUI
+            # subclass sets it to its own _update_find_bar method
+            # after super().__init__() runs.  CLI/MCP hosts inherit
+            # None, which the /find builtin treats as "no UI; no-op".
+            update_find_bar=None,
         )
 
     def _build_plugin_context(self, engine_api: EngineAPI) -> PluginContext:

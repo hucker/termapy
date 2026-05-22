@@ -36,7 +36,10 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/exit`                   | Exit termapy                                                                |
 | `/expect {timeout} match=<text>`       | Wait for serial-output line containing text (blocks; needs block_until) |
 | `/expect.regex {timeout} match=<pat>`  | Wait for serial-output line matching regex                              |
-| `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive)                      |
+| `/find <pattern>`         | Navigate scrollback matches with an interactive find bar (TUI only)         |
+| `/find.next` / `/find.prev` | Step to next / previous find match                                        |
+| `/find.clear`             | Close the find bar (or run `/find` with no args)                            |
+| `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, prints the list)     |
 | `/help`                   | Clean landscape of every command (name + one-liner)                         |
 | `/help <term>`            | Exact match -> man-page detail; otherwise a candidate list                  |
 | `/help.dev <cmd>`         | Show a command handler's Python docstring (developer view)                  |

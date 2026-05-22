@@ -401,7 +401,10 @@ Grammar (regex mode, auto-detected on metacharacters):
   /search --dev ctx\\.result   also searches handler docstrings.
 
 Returns matching command names as CmdResult.value (newline-joined),
-suitable for $(VAR) <- capture in scripts.""",
+suitable for $(VAR) <- capture in scripts.
+
+See also: /grep (search scrollback text and print matching lines),
+/find (search scrollback and navigate matches interactively).""",
     handler=_handler,
     raw_args=True,
 )

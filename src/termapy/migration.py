@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 21
+CURRENT_CONFIG_VERSION = 22
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -427,6 +427,38 @@ def _migrate_v20_to_v21(cfg: dict) -> dict:
 
 
 MIGRATIONS[20] = _migrate_v20_to_v21
+
+
+# Keys that move from the flat top-level into cfg["serial"] in v22.
+# Module-level constant so the migration step, the deprecated-key
+# lookup, and any future audit code share one source of truth.
+_V22_SERIAL_KEYS = (
+    "port", "baud_rate", "custom_baud", "byte_size",
+    "parity", "stop_bits", "flow_control",
+)
+
+
+def _migrate_v21_to_v22(cfg: dict) -> dict:
+    """Nest pyserial config keys under ``cfg['serial']``.
+
+    Moves ``port``, ``baud_rate``, ``custom_baud``, ``byte_size``,
+    ``parity``, ``stop_bits``, ``flow_control`` from the top level
+    into a ``serial`` sub-dict so the pyserial constructor args
+    read as a group.  Other serial-domain keys (encoding,
+    line_ending, cmd_delay_ms, protocol, etc.) stay flat for now;
+    grouping them is a separate future decision.
+    """
+    serial = cfg.setdefault("serial", {})
+    for key in _V22_SERIAL_KEYS:
+        if key in cfg:
+            # setdefault preserves any value already in serial[key]
+            # so a partially-nested cfg (shouldn't happen in normal
+            # flow but cheap to be defensive) doesn't get clobbered.
+            serial.setdefault(key, cfg.pop(key))
+    return cfg
+
+
+MIGRATIONS[21] = _migrate_v21_to_v22
 
 
 def migrate_config(cfg: dict) -> dict:

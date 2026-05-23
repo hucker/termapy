@@ -261,8 +261,8 @@ def run_proto_tests(
             "script_name": script.name or pro_path.stem,
             "timestamp": datetime.now().isoformat(timespec="milliseconds"),
             "config": Path(cfg.get("_config_path", "")).stem or "",
-            "port": cfg.get("port", ""),
-            "baud_rate": cfg.get("baud_rate", 0),
+            "port": cfg["serial"]["port"],
+            "baud_rate": cfg["serial"]["baud_rate"],
             "encoding": cfg.get("encoding", "utf-8"),
         },
         "summary": {

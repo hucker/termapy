@@ -24,7 +24,7 @@ import pytest
 
 pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
 
-from termapy.defaults import DEFAULT_CFG  # noqa: E402
+from termapy.defaults import default_cfg  # noqa: E402
 from termapy.mcp.catalog import build_device_state  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
 from termapy.profile import validate_profile  # noqa: E402
@@ -73,8 +73,8 @@ class TestOnConnectFetchProfile:
 
     def test_on_connect_cmd_fetches_profile_from_device(self, tmp_path):
         # Arrange -- DEMO answers AT+HELP.JSON with a v2 profile JSON.
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         cfg["line_ending"] = "\r\n"
         cfg["mcp_on_connect_cmd"] = "/profile.load cmd=AT+HELP.JSON"
         config_path = tmp_path / "cfg" / "test.cfg"
@@ -103,8 +103,8 @@ class TestOnConnectFetchProfile:
 class TestBannerWatcher:
     @pytest.fixture
     def host_with_profile(self, tmp_path):
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO_JSON"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO_JSON"
         cfg["line_ending"] = "\n"
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
@@ -173,8 +173,8 @@ class TestDisconnectClearsDeviceState:
 
     @pytest.fixture
     def host(self, tmp_path):
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
@@ -259,8 +259,8 @@ class TestAutoLoadProfileOnConnect:
         # Arrange -- write profile at a non-conventional location
         profile = cfg_dir / "weird-name.profile.json"
         self._write_profile(profile)
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         cfg["profile_path"] = str(profile)
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
@@ -283,8 +283,8 @@ class TestAutoLoadProfileOnConnect:
         # Arrange -- profile at <cfg_dir>/<cfg_name>.profile.json
         profile = cfg_dir / "test.profile.json"
         self._write_profile(profile)
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         # profile_path empty -> falls back to convention
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
@@ -305,8 +305,8 @@ class TestAutoLoadProfileOnConnect:
 
     def test_no_profile_file_is_non_fatal(self, cfg_dir):
         # Arrange -- no profile file at any expected location
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         h = MCPHost(cfg, str(config_path), verbose=False)
@@ -351,8 +351,8 @@ class TestAutoLoadProfileOnConnect:
             "transport": {"protocol": "text"},
             "commands": {"DIFFERENT": {"help": "from convention"}},
         }))
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         cfg["profile_path"] = str(explicit)  # explicit wins
         config_path = cfg_dir / "test.cfg"
         config_path.write_text(json.dumps(cfg))
@@ -381,8 +381,8 @@ class TestOnConnectCmd:
     """
 
     def _make_host(self, tmp_path, **cfg_overrides) -> MCPHost:
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         cfg["line_ending"] = "\r\n"
         cfg.update(cfg_overrides)
         config_path = tmp_path / "cfg" / "test.cfg"

@@ -118,17 +118,16 @@ def update_title(app) -> None:
     cfg_title = app.cfg.get("title", "") or (
         Path(app.config_path).stem if app.config_path else "Config"
     )
-    sb = app.cfg.get("stop_bits", 1)
+    serial = app.cfg["serial"]
+    sb = serial["stop_bits"]
     sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-    frame = (
-        f"{app.cfg.get('byte_size', 8)}" f"{app.cfg.get('parity', 'N')}{sb_str}"
-    )
+    frame = f"{serial['byte_size']}{serial['parity']}{sb_str}"
     cfg_pairs: list[tuple[str, object]] = [
         ("config_path", app.config_path or "(none)"),
-        ("port", app.cfg.get("port", "?")),
-        ("baud_rate", app.cfg.get("baud_rate", "?")),
+        ("port", serial["port"] or "?"),
+        ("baud_rate", serial["baud_rate"]),
         ("frame", frame),
-        ("flow_control", app.cfg.get("flow_control", "none")),
+        ("flow_control", serial["flow_control"]),
         ("encoding", app.cfg.get("encoding", "utf-8")),
         ("line_ending", app.cfg.get("line_ending", "\r")),
         ("on_connect_cmd", app.cfg.get("on_connect_cmd") or None),
@@ -170,7 +169,7 @@ def update_conn_tooltip(app, widget: Button | None = None) -> None:
         title = "Connected" if connected else "Disconnected"
         action = "disconnect" if connected else "connect"
         pairs: list[tuple[str, object]] = [
-            ("port", app.cfg.get("port", "?")),
+            ("port", app.cfg["serial"]["port"] or "?"),
             ("auto_connect", bool(app.cfg.get("auto_connect"))),
             ("auto_reconnect", bool(app.cfg.get("auto_reconnect"))),
         ]
@@ -185,8 +184,9 @@ def update_port(app, port: str) -> None:
     Does not write to disk - the config editor is the only path
     that persists changes.  This keeps $(env.NAME) templates intact.
     """
-    cfg = dict(app.cfg)
-    cfg["port"] = port
+    import copy
+    cfg = copy.deepcopy(app.cfg)
+    cfg["serial"]["port"] = port
     app._switch_config(cfg, app.config_path)
     if app.is_connected:
         app._status(f"Port changed to {port} (session)", "green")

@@ -44,7 +44,7 @@ from rich.text import Text
 from textual import on, work
 
 from termapy import port_control
-from termapy.defaults import DEFAULT_CFG, DEFAULT_CMD_PREFIX, cmd_prefix
+from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, default_cfg
 from termapy.folders import FOLDER_PATTERNS
 from termapy.dialogs import (
     CfgConfirm,
@@ -856,7 +856,7 @@ class SerialTerminal(TerminalHost, App):
                     b.display = display
                     return b
 
-                show_hw = self.cfg.get("flow_control") == "manual"
+                show_hw = self.cfg["serial"]["flow_control"] == "manual"
                 self._btn_dtr = _btn(
                     "DTR:0",
                     "btn-dtr",
@@ -1500,7 +1500,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _sync_hw_visibility(self) -> None:
         """Show or hide DTR/RTS/Break buttons based on flow_control config."""
-        show = self.cfg.get("flow_control") == "manual"
+        show = self.cfg["serial"]["flow_control"] == "manual"
         self._btn_dtr.display = show
         self._btn_rts.display = show
         self._btn_break.display = show
@@ -1709,7 +1709,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _check_port_and_switch(self, cfg: dict, path: str) -> None:
         """If the configured port doesn't exist, prompt with PortPicker."""
-        port = cfg.get("port", "")
+        port = cfg["serial"]["port"]
         # comports() failures are environmental: OSError on udev / IOKit
         # / WMI hiccups, ImportError on platforms without list_ports.
         # Treat either as "no ports visible" and fall through.
@@ -1738,7 +1738,7 @@ class SerialTerminal(TerminalHost, App):
         cfg = self._pending_cfg
         path = self._pending_config_path
         if port is not None:
-            cfg["port"] = port
+            cfg["serial"]["port"] = port
         self._switch_config(cfg, path)
         self._show_config_info(path)
 
@@ -1859,7 +1859,7 @@ class SerialTerminal(TerminalHost, App):
         """Build the title-bar port button tooltip with chip info.
 
         Uses the shared three-section layout (title / kv body / action).
-        The title is the device name from cfg["port"].  The body shows
+        The title is the device name from cfg["serial"]["port"].  The body shows
         chip identification fields from port_control.gather_chip_facts():
         description, manufacturer (descriptor / INF), vendor (silicon
         vendor by VID), model, USB speed, VID:PID, location (bus path),
@@ -1872,7 +1872,7 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy import port_control
 
-        port_name = self.cfg.get("port", "") or "(none)"
+        port_name = self.cfg["serial"]["port"] or "(none)"
         connected = port_name if self.is_connected else ""
         facts = (
             port_control.gather_chip_facts(port_name, connected)
@@ -3057,10 +3057,20 @@ class SerialTerminal(TerminalHost, App):
             pass
 
     def _apply_port_effects(self, effects: dict) -> None:
-        """Apply side effects from a port_control function (used by port plugin)."""
+        """Apply side effects from a port_control function (used by port plugin).
+
+        cfg_update keys arrive flat (e.g. ``"baud_rate"``); route each
+        to ``cfg["serial"]`` if it lives there, top level otherwise.
+        Keeps port_control producers oblivious to the v22 nesting.
+        """
         if effects.get("cfg_update"):
+            cfg = self.repl._cfg_data
+            serial = cfg.get("serial", {})
             for key, val in effects["cfg_update"].items():
-                self.repl._cfg_data[key] = val
+                if key in serial:
+                    serial[key] = val
+                else:
+                    cfg[key] = val
         if effects.get("update_title"):
             self._update_title()
         if effects.get("sync_hw"):
@@ -3477,7 +3487,7 @@ def _run_tui_mode(args) -> str | None:
             args.config = app.config_path
         return app.switch_to
     elif show_picker:
-        cfg = dict(DEFAULT_CFG)
+        cfg = default_cfg()
         app = SerialTerminal(
             cfg,
             config_path="",

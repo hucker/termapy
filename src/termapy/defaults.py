@@ -53,14 +53,18 @@ DEFAULT_CFG = {
     "config_read_only": False,
     "profile_path": "",
     "validate_typed_args": False,
-    # Serial
-    "port": "",
-    "baud_rate": 115200,
-    "custom_baud": False,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
+    # Serial -- pyserial constructor args grouped under "serial".
+    # Other serial-domain keys (encoding, cmd_delay_ms, protocol,
+    # line_ending) stay flat for now; future grouping decision.
+    "serial": {
+        "port": "",
+        "baud_rate": 115200,
+        "custom_baud": False,
+        "byte_size": 8,
+        "parity": "N",
+        "stop_bits": 1,
+        "flow_control": "none",
+    },
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
     "protocol": "text",
@@ -119,6 +123,20 @@ DEFAULT_CFG = {
         {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
     ],
 }
+
+
+def default_cfg() -> dict:
+    """Return a fresh deep-copy of ``DEFAULT_CFG``.
+
+    Use this instead of ``dict(DEFAULT_CFG)`` for any cfg that will
+    be mutated.  Shallow ``dict(...)`` copies leave the nested
+    sub-dicts (``serial``, ``ndjson_field_routing``) shared with
+    the module-level ``DEFAULT_CFG``, so mutations like
+    ``cfg["serial"]["port"] = "COM3"`` would corrupt the global
+    default.  ``deepcopy`` is the correct primitive.
+    """
+    import copy
+    return copy.deepcopy(DEFAULT_CFG)
 
 
 def cmd_prefix(cfg: Mapping) -> str:

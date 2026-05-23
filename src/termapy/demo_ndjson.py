@@ -63,7 +63,7 @@ def _line(obj: dict) -> bytes:
 class FakeSerialNDJSON:
     """Simulated NDJSON serial device.  Duck-types ``serial.Serial``.
 
-    Selected by setting ``cfg["port"] = "DEMO_JSON"``.  Same shape as
+    Selected by setting ``cfg["serial"]["port"] = "DEMO_JSON"``.  Same shape as
     ``demo.FakeSerial`` so the engine can use it transparently.
     """
 

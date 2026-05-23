@@ -223,7 +223,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                         editor_cfg = json.loads(
                             self.query_one("#config-editor", TextArea).text
                         )
-                        custom = editor_cfg.get("custom_baud", False)
+                        custom = editor_cfg.get("serial", {}).get("custom_baud", False)
                     except (json.JSONDecodeError, ValueError, NoMatches):
                         pass
                     if custom and v >= 300:

@@ -151,9 +151,12 @@ def test_v3_to_v4_renames_config_keys():
     }
     result = migrate_config(cfg)
 
-    assert result["baud_rate"] == 9600, "baudrate renamed"
-    assert result["byte_size"] == 7, "bytesize renamed"
-    assert result["stop_bits"] == 2, "stopbits renamed"
+    # v3->v4 renames to baud_rate/byte_size/stop_bits at top level;
+    # v21->v22 then nests them under cfg["serial"].  This test
+    # asserts on the post-full-chain shape (CURRENT_CONFIG_VERSION).
+    assert result["serial"]["baud_rate"] == 9600, "baudrate renamed and nested"
+    assert result["serial"]["byte_size"] == 7, "bytesize renamed and nested"
+    assert result["serial"]["stop_bits"] == 2, "stopbits renamed and nested"
     assert result["auto_connect"] is True, "autoconnect renamed"
     assert result["auto_reconnect"] is True, "autoreconnect renamed"
     # autoconnect_cmd was renamed to on_connect_cmd in v4+v6, then v14->v15
@@ -307,28 +310,32 @@ def test_v10_to_v11_preserves_existing_file_xfer_root():
 
 
 def test_v11_to_v12_adds_custom_baud():
-    """Migration v11->v12 adds custom_baud."""
+    """Migration v11->v12 adds custom_baud (lands under serial.* after v22)."""
     # Arrange
     cfg = {"config_version": 11, "port": "COM4"}
 
     # Act
     result = migrate_config(cfg)
 
-    # Assert
-    assert result["custom_baud"] is False, "custom_baud defaults to False"
+    # Assert -- post-v22, custom_baud lives under cfg["serial"].
+    assert result["serial"]["custom_baud"] is False, (
+        "custom_baud defaults to False (nested under serial after v22)"
+    )
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
 def test_v11_to_v12_preserves_existing_custom_baud():
-    """Migration v11->v12 preserves existing custom_baud."""
+    """Migration v11->v12 preserves existing custom_baud (lands under serial.* after v22)."""
     # Arrange
     cfg = {"config_version": 11, "port": "COM4", "custom_baud": True}
 
     # Act
     result = migrate_config(cfg)
 
-    # Assert
-    assert result["custom_baud"] is True, "existing custom_baud preserved"
+    # Assert -- post-v22, the preserved value lives under cfg["serial"].
+    assert result["serial"]["custom_baud"] is True, (
+        "existing custom_baud preserved (nested under serial after v22)"
+    )
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
@@ -520,7 +527,7 @@ def test_v19_to_v20_covers_all_four_on_connect_fields():
 
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
-    # Arrange -- a config from v17 needs four steps to reach v21.
+    # Arrange -- a config from v17 needs five steps to reach v22.
     cfg = {"config_version": 17}
 
     # Act
@@ -529,8 +536,8 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labelled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 4, (
-        f"v17 -> v21 covers four migrators (17->18, 18->19, 19->20, 20->21); "
+    assert len(steps) == 5, (
+        f"v17 -> v22 covers five migrators (17->18, 18->19, 19->20, 20->21, 21->22); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -538,6 +545,7 @@ def test_migration_steps_recorded_per_version():
         "v18 -> v19",
         "v19 -> v20",
         "v20 -> v21",
+        "v21 -> v22",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -549,16 +557,19 @@ def test_migration_steps_include_docstring_summary():
     """The label after the version range is the migrator's docstring summary."""
     # Arrange -- v20 -> v21 has a docstring starting
     # "Add ``record_enabled`` toggle for the Record button ...".
+    # v21 -> v22 also runs in the chain ("Nest pyserial config keys ...").
     cfg = {"config_version": 20}
 
     # Act
     result = migrate_config(cfg)
 
-    # Assert
+    # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 1, f"one step; got {steps!r}"
+    assert len(steps) == 2, (
+        f"two steps (v20->v21, v21->v22); got {steps!r}"
+    )
     assert "record_enabled" in steps[0], (
-        f"step line carries the migrator's docstring summary; got {steps[0]!r}"
+        f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
 
 
@@ -572,4 +583,105 @@ def test_no_steps_recorded_when_already_current():
     # signals "nothing migrated" to the display path.
     assert "_migration_steps" not in result or result["_migration_steps"] == [], (
         "no steps when nothing to migrate"
+    )
+
+
+def test_v21_to_v22_nests_pyserial_keys():
+    """Pyserial constructor args move from top level into cfg['serial']."""
+    # Arrange -- v21 cfg with all 7 pyserial keys flat plus some
+    # non-serial keys that should stay flat after migration.
+    cfg = {
+        "config_version": 21,
+        "port": "COM4",
+        "baud_rate": 9600,
+        "custom_baud": True,
+        "byte_size": 8,
+        "parity": "E",
+        "stop_bits": 2,
+        "flow_control": "rtscts",
+        # Non-serial keys that should NOT move.
+        "encoding": "utf-8",
+        "line_ending": "\n",
+        "cmd_delay_ms": 100,
+    }
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert -- all 7 pyserial keys nested under cfg["serial"].
+    expected_serial = {
+        "port": "COM4",
+        "baud_rate": 9600,
+        "custom_baud": True,
+        "byte_size": 8,
+        "parity": "E",
+        "stop_bits": 2,
+        "flow_control": "rtscts",
+    }
+    actual_serial = result.get("serial", {})
+    assert actual_serial == expected_serial, (
+        f"all 7 pyserial keys nested under cfg['serial']; got {actual_serial!r}"
+    )
+
+    # Assert -- the 7 flat keys are gone from the top level.
+    for key in expected_serial:
+        assert key not in result, (
+            f"flat top-level {key!r} removed after nesting; still present"
+        )
+
+    # Assert -- non-serial keys stay where they were.
+    assert result["encoding"] == "utf-8", "encoding stays flat top-level"
+    assert result["line_ending"] == "\n", "line_ending stays flat top-level"
+    assert result["cmd_delay_ms"] == 100, "cmd_delay_ms stays flat top-level"
+
+    # Assert -- version advanced.
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, (
+        "version advanced to current"
+    )
+
+
+def test_v21_to_v22_idempotent_for_partial_v22_shape():
+    """A cfg that's somehow already partially nested doesn't lose data.
+
+    Normal flow never produces a partially-nested cfg, but the
+    migration step uses ``setdefault`` defensively so a flat key
+    can't clobber an already-nested value (e.g. if a user hand-edits
+    a cfg between versions or restores from a stale backup).
+    """
+    # Arrange -- port is flat, baud_rate is already nested.
+    cfg = {
+        "config_version": 21,
+        "port": "COM4",
+        "serial": {"baud_rate": 9600},
+    }
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert -- nested value wins, flat value moves in alongside.
+    assert result["serial"]["baud_rate"] == 9600, (
+        "pre-existing nested baud_rate preserved"
+    )
+    assert result["serial"]["port"] == "COM4", (
+        "flat port moved into serial sub-dict"
+    )
+    assert "port" not in result, "flat port removed from top level"
+
+
+def test_v21_to_v22_empty_cfg_creates_empty_serial():
+    """A v21 cfg with no pyserial keys gets an empty serial sub-dict.
+
+    The defaults-backfill in ``load_config`` fills serial.* from
+    DEFAULT_CFG once one-level recursive backfill runs; this test
+    just verifies the migration step itself doesn't drop the key.
+    """
+    # Arrange
+    cfg = {"config_version": 21, "title": "no-serial cfg"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert -- empty serial sub-dict, ready for backfill.
+    assert result["serial"] == {}, (
+        "serial sub-dict created (empty) so defaults-backfill fills it"
     )

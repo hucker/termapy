@@ -1303,8 +1303,16 @@ class ReplEngine:
 
         The config editor is the only path that persists changes to disk.
         This keeps $(env.NAME) templates in the JSON file intact.
+
+        ``key`` may be a top-level cfg key or a pyserial key that lives
+        under cfg["serial"] (post-v22).  Route to wherever it currently
+        sits so callers stay oblivious to nesting.
         """
-        self._cfg_data[key] = new_val
+        serial = self._cfg_data.get("serial", {})
+        if key in serial:
+            serial[key] = new_val
+        else:
+            self._cfg_data[key] = new_val
         self.write(f"{key} = {new_val!r}  (session)", "green")
         if self._after_cfg:
             self._after_cfg(key, new_val)

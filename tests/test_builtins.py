@@ -25,8 +25,16 @@ def repl_env(tmp_path, monkeypatch):
     _var_mod._LAUNCH_VARS.pop("FRONT_END", None)
 
     cfg = {
-        "port": "COM4",
-        "baud_rate": 115200,
+        # v22 nested-serial shape.
+        "serial": {
+            "port": "COM4",
+            "baud_rate": 115200,
+            "custom_baud": False,
+            "byte_size": 8,
+            "parity": "N",
+            "stop_bits": 1,
+            "flow_control": "none",
+        },
         "echo_input": False,
         "line_ending": "\r",
     }
@@ -2715,7 +2723,7 @@ class TestPortHandlerValues:
     def test_port_disconnect_returns_last_port_name(self, repl_env):
         # Arrange
         engine, cfg, _, _ = repl_env
-        cfg["port"] = "COM4"
+        cfg["serial"]["port"] = "COM4"
 
         # Act -- disconnect captures the name that was configured
         # before tearing the connection down so the script can record

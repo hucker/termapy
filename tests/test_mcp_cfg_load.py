@@ -17,7 +17,7 @@ import pytest
 
 pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
 
-from termapy.defaults import DEFAULT_CFG  # noqa: E402
+from termapy.defaults import default_cfg  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
 
 
@@ -26,8 +26,8 @@ def _make_cfg_dir(parent: Path, name: str, **overrides) -> Path:
 
     Returns the path to the .cfg file.
     """
-    cfg = dict(DEFAULT_CFG)
-    cfg["port"] = ""
+    cfg = default_cfg()
+    cfg["serial"]["port"] = ""
     cfg.update(overrides)
     cfg_path = parent / name / f"{name}.cfg"
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,9 +144,8 @@ class TestZeroConfigMcpHost:
         _make_cfg_dir(tmp_path, "alpha")
         _make_cfg_dir(tmp_path, "beta")
         # MCPHost with no cfg loaded (mimics zero-config slot startup)
-        from termapy.defaults import DEFAULT_CFG
 
-        cfg = dict(DEFAULT_CFG)
+        cfg = default_cfg()
         return MCPHost(cfg, "", verbose=False)
 
     def test_starts_with_no_log_path(self, zero_host):
@@ -210,10 +209,9 @@ class TestCfgLoadFiresOnConnected:
     """
 
     def _make_cfg(self, parent, name, **overrides):
-        from termapy.defaults import DEFAULT_CFG
 
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
         cfg["line_ending"] = "\r\n"
         cfg["auto_connect"] = True
         cfg.update(overrides)

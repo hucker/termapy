@@ -1229,9 +1229,9 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
         cfg = load_config(cfg_path)
     else:
         # Zero-config fallback: in-memory defaults.
-        from termapy.defaults import DEFAULT_CFG
+        from termapy.defaults import default_cfg
 
-        cfg = dict(DEFAULT_CFG)
+        cfg = default_cfg()
         cfg_path = ""
 
     verbose = bool(getattr(args, "mcp_verbose", False))
@@ -1246,7 +1246,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     # Auto-connect if a port is configured.  Failure to open a port
     # doesn't abort the server -- Claude can /port.connect later.
-    if cfg.get("port"):
+    if cfg["serial"]["port"]:
         try:
             host._connect()
         except (OSError, Exception) as exc:  # noqa: BLE001 - boundary

@@ -181,14 +181,17 @@ class TestReadFrame:
 class TestRunProtoTests:
     @pytest.fixture
     def demo_cfg(self) -> dict:
-        """Minimal config for demo device."""
+        """Minimal config for demo device (v22 nested-serial shape)."""
         return {
-            "port": "DEMO",
-            "baud_rate": 115200,
-            "byte_size": 8,
-            "parity": "N",
-            "stop_bits": 1,
-            "flow_control": "none",
+            "serial": {
+                "port": "DEMO",
+                "baud_rate": 115200,
+                "custom_baud": False,
+                "byte_size": 8,
+                "parity": "N",
+                "stop_bits": 1,
+                "flow_control": "none",
+            },
             "encoding": "utf-8",
             "line_ending": "\r",
         }

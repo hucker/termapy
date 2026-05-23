@@ -195,11 +195,12 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         args: Mode string with optional baud rate prefix.
     """
     if not args.strip():
-        sb = cfg.get("stop_bits", 1)
+        serial = cfg["serial"]
+        sb = serial["stop_bits"]
         sb_str = str(int(sb)) if sb == int(sb) else str(sb)
         current = (
-            f"{cfg.get('baud_rate', '?')} "
-            f"{cfg.get('byte_size', 8)}{cfg.get('parity', 'N')}{sb_str}"
+            f"{serial['baud_rate']} "
+            f"{serial['byte_size']}{serial['parity']}{sb_str}"
         )
         suffix = " (disconnected)" if ser is None else ""
         return _result([_msg(f"{current}{suffix}")])
@@ -243,12 +244,13 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
             cfg_update["byte_size"] = byte_size
             cfg_update["stop_bits"] = stop_bits
         # Build summary
-        sb = cfg_update.get("stop_bits", cfg.get("stop_bits", 1))
+        serial = cfg["serial"]
+        sb = cfg_update.get("stop_bits", serial["stop_bits"])
         sb_str = str(int(sb)) if sb == int(sb) else str(sb)
         summary = (
-            f"{cfg_update.get('baud_rate', cfg.get('baud_rate', '?'))} "
-            f"{cfg_update.get('byte_size', cfg.get('byte_size', 8))}"
-            f"{cfg_update.get('parity', cfg.get('parity', 'N'))}"
+            f"{cfg_update.get('baud_rate', serial['baud_rate'])} "
+            f"{cfg_update.get('byte_size', serial['byte_size'])}"
+            f"{cfg_update.get('parity', serial['parity'])}"
             f"{sb_str}"
         )
         msgs.append(_msg(f"Mode -> {summary}"))
@@ -775,7 +777,7 @@ def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | N
 # When TERMAPY_DEMO_FLEET is set, _gather_all_chip_facts() returns these
 # synthetic ports instead of calling comports().  Useful for screenshots,
 # docs, hardware-free demos, and cross-platform tests.  Sibling hooks:
-# cfg["port"] = "DEMO" (fake open) and "DEMO_FAIL" (raise on open).
+# cfg["serial"]["port"] = "DEMO" (fake open) and "DEMO_FAIL" (raise on open).
 _DEMO_FLEET_ENV = "TERMAPY_DEMO_FLEET"
 
 
@@ -980,7 +982,7 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
     ``_gather_all_chip_facts()`` does.
 
     Args:
-        spec: The raw ``cfg["port"]`` value, post-env-expansion.
+        spec: The raw ``cfg["serial"]["port"]`` value, post-env-expansion.
         connected_port: The currently-connected port (used for the
             ``in_use`` annotation inside ``ChipFacts``; not consulted by
             resolution itself).
@@ -1101,7 +1103,7 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
     Args:
         arg: Empty string (use current_port), exact device name, or
             ``"*"`` for all connected ports.
-        current_port: The port name from ``cfg["port"]``, used when arg
+        current_port: The port name from ``cfg["serial"]["port"]``, used when arg
             is empty.
         connected_port: The port termapy currently has open, if any.
 
@@ -1141,7 +1143,7 @@ def chip_field(
         field: Name of the ChipFacts field to query (e.g. ``"driver"``).
         arg: Empty string (use current_port), exact device name, or
             ``"*"`` for all connected ports.
-        current_port: The port name from ``cfg["port"]``, used when arg
+        current_port: The port name from ``cfg["serial"]["port"]``, used when arg
             is empty.
 
     Returns:
@@ -1195,14 +1197,15 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
     """
     connected = ser is not None
     state = "connected" if connected else "disconnected"
-    sb = cfg.get("stop_bits", 1)
+    serial = cfg["serial"]
+    sb = serial["stop_bits"]
     sb_str = str(int(sb)) if sb == int(sb) else str(sb)
 
     # Determine the actual device name and whether it differs from the
     # configured spec.  When connected, trust what the Serial object
     # actually opened.  When disconnected, best-effort resolve the spec
     # so the chip section below still finds the right device.
-    spec = cfg.get("port", "") or ""
+    spec = serial["port"] or ""
     if ser is not None:
         actual = getattr(ser, "port", spec) or spec
     else:
@@ -1225,9 +1228,9 @@ def port_info(cfg: Mapping[str, Any], ser: Any | None) -> Result:
 
     top_rows: list[tuple[str, str]] = [
         ("Port", port_value),
-        ("Baud rate", str(cfg.get("baud_rate", "?"))),
-        ("Frame", f"{cfg.get('byte_size', 8)}{cfg.get('parity', 'N')}{sb_str}"),
-        ("Flow control", str(cfg.get("flow_control", "none"))),
+        ("Baud rate", str(serial["baud_rate"])),
+        ("Frame", f"{serial['byte_size']}{serial['parity']}{sb_str}"),
+        ("Flow control", str(serial["flow_control"])),
         ("Encoding", str(cfg.get("encoding", "utf-8"))),
     ]
     xfer_root = cfg.get("file_xfer_root", "")
@@ -1299,9 +1302,14 @@ def get_set_prop(
     attr, coerce, desc, valid = PORT_PROPS[key]
     val = args.strip()
     connected = ser is not None
+    # Keys for the pyserial constructor live under cfg["serial"]
+    # (post-v22).  Other keys (e.g. encoding) stay flat.  Read from
+    # whichever location actually holds the value.
+    serial = cfg.get("serial", {})
+    cfg_val = serial.get(key, cfg.get(key, "?"))
     if not val:
         if not connected:
-            return _result([_msg(f"{cfg.get(key, '?')} (disconnected)")])
+            return _result([_msg(f"{cfg_val} (disconnected)")])
         try:
             return _result([_msg(f"{getattr(ser, attr)}")])
         except OSError as e:
@@ -1337,7 +1345,7 @@ def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     """
     val = args.strip().lower()
     if not val:
-        fc = cfg.get("flow_control", "none")
+        fc = cfg["serial"]["flow_control"]
         suffix = " (disconnected)" if ser is None else ""
         return _result([_msg(f"{fc}{suffix}")])
     if ser is None:

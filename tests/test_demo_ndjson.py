@@ -23,8 +23,8 @@ from termapy.demo_ndjson import FakeSerialNDJSON
 
 class TestSimulatorBasics:
     def test_open_serial_routes_demo_json(self):
-        # Arrange / Act
-        port = open_serial({"port": "DEMO_JSON", "baud_rate": 115200})
+        # Arrange / Act -- v22 nested-serial shape.
+        port = open_serial({"serial": {"port": "DEMO_JSON", "baud_rate": 115200}})
         # Assert
         assert isinstance(port, FakeSerialNDJSON), (
             "open_serial returns the NDJSON simulator for DEMO_JSON"
@@ -178,11 +178,11 @@ pytest_mcp = pytest.importorskip(
 class TestMcpHostAgainstDemoJson:
     @pytest.fixture
     def host(self, tmp_path):
-        from termapy.defaults import DEFAULT_CFG
+        from termapy.defaults import default_cfg
         from termapy.mcp.server import MCPHost
 
-        cfg = dict(DEFAULT_CFG)
-        cfg["port"] = "DEMO_JSON"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO_JSON"
         cfg["auto_connect"] = True
         # NDJSON wants \n; default is \r.  Phase 6 will apply this from
         # the loaded profile; for now the test sets it explicitly.

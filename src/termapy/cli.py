@@ -683,7 +683,7 @@ class CLITerminal(TerminalHost):
                 )
             except KeyboardInterrupt:
                 self._raw("\nScript interrupted")
-        actual = getattr(self.engine.port_obj, "port", "") or self.cfg.get("port", "")
+        actual = getattr(self.engine.port_obj, "port", "") or self.cfg["serial"]["port"]
         self.engine.disconnect()
         msg = f"Disconnected: {actual}" if actual else "Disconnected."
         self.write(msg, "red")
@@ -816,7 +816,7 @@ class CLITerminal(TerminalHost):
         finally:
             actual = (
                 getattr(self.engine.port_obj, "port", "")
-                or self.cfg.get("port", "")
+                or self.cfg["serial"]["port"]
             )
             self.engine.disconnect()
             msg = f"Disconnected: {actual}" if actual else "Disconnected."
@@ -837,7 +837,7 @@ class CLITerminal(TerminalHost):
         # skip the initial connect (no port selected yet), and let the
         # user type /port.connect <name> to pick one.  Every other path --
         # a real config file, --demo, --run with an inferred config --
-        # has a non-empty cfg["port"] by contract, so the else branch
+        # has a non-empty cfg["serial"]["port"] by contract, so the else branch
         # here just connects as before.
         if self.zero_config:
             self._show_zero_config_welcome()
@@ -998,9 +998,9 @@ def _run_cli_mode(args) -> str | None:
             # "no config found -- exit" behaviour for interactive use.
             # --run without an inferrable config still errors (handled
             # above), since scripting without a config is ambiguous.
-            from termapy.defaults import DEFAULT_CFG
+            from termapy.defaults import default_cfg
 
-            cfg = dict(DEFAULT_CFG)
+            cfg = default_cfg()
             cli = CLITerminal(
                 cfg,
                 config_path="",

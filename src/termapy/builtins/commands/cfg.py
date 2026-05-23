@@ -52,20 +52,21 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             return ctx.engine.open_picker("cfg")
         return _handler_help(ctx, args)
     key = parts[0]
-    if key not in ctx.cfg:
+    container = _find_cfg_container(ctx.cfg, key)
+    if container is None:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
     # /cfg key - show value
     if len(parts) == 1:
-        val = ctx.cfg[key]
+        val = container[key]
         ctx.io.result(str(val))
         return CmdResult.ok(value=str(val))
     # /cfg key value - validate and delegate for confirmation
     value_str = parts[1]
     try:
-        new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])
+        new_val = ctx.engine.coerce_type(value_str, container[key])
     except (ValueError, TypeError) as e:
         return CmdResult.fail(msg=f"Type error: {e}")
-    old_val = ctx.cfg[key]
+    old_val = container[key]
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
         return CmdResult.ok(value=str(old_val))
@@ -74,6 +75,25 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     else:
         ctx.engine.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))
+
+
+def _find_cfg_container(cfg, key: str):
+    """Return the dict that owns ``key`` (top-level or under cfg["serial"]).
+
+    Lets ``/cfg port`` keep working post-v22 even though port now lives
+    under ``cfg["serial"]``.  ``None`` means the key isn't known.  Only
+    looks one level deep (top + serial sub-dict); deeper nesting would
+    require dotted-path support.
+
+    ``cfg`` is typed loosely (``MappingProxyType | dict`` in callers)
+    so the helper just relies on duck-typed ``in`` / ``get``.
+    """
+    if key in cfg:
+        return cfg
+    serial = cfg.get("serial", {})
+    if isinstance(serial, dict) and key in serial:
+        return serial
+    return None
 
 
 # ── /cfg.auto handler ─────────────────────────────────────────────────────────
@@ -90,10 +110,11 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     if not parts or len(parts) < 2:
         return CmdResult.fail(msg="Usage: /cfg.auto <key> <value>")
     key, value_str = parts[0], parts[1]
-    if key not in ctx.cfg:
+    container = _find_cfg_container(ctx.cfg, key)
+    if container is None:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
     try:
-        new_val = ctx.engine.coerce_type(value_str, ctx.cfg[key])
+        new_val = ctx.engine.coerce_type(value_str, container[key])
     except (ValueError, TypeError) as e:
         return CmdResult.fail(msg=f"Type error: {e}")
     ctx.engine.apply_cfg(key, new_val)

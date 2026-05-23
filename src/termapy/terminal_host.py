@@ -188,9 +188,9 @@ class TerminalHost:
             self.status("Already connected", "yellow")
             return False
         if port:
-            self.repl._cfg_data["port"] = port
+            self.repl._cfg_data["serial"]["port"] = port
         if not self.engine.connect():
-            port_name = self.cfg.get("port", "?")
+            port_name = self.cfg["serial"]["port"] or "?"
             detail = self.engine.last_error
             if detail:
                 self.status(f"Cannot open {port_name}: {detail}", "red")
@@ -204,7 +204,7 @@ class TerminalHost:
         # serial number lookup or a pipe fallback chain), tell the user
         # which candidate won so "why am I on COM4 when my config says
         # A1B2C3D4" never becomes a support question.
-        spec = self.cfg.get("port", "")
+        spec = self.cfg["serial"]["port"]
         actual = getattr(self.engine.port_obj, "port", spec) or spec
         if spec != actual:
             self.write(_format_resolved_line(spec, actual), "green")
@@ -243,7 +243,7 @@ class TerminalHost:
         # banner mirrors "Connected: COM4 ...".  After disconnect()
         # the port_obj is gone, so reading it here is the only
         # place this works.
-        actual = getattr(self.engine.port_obj, "port", "") or self.cfg.get("port", "")
+        actual = getattr(self.engine.port_obj, "port", "") or self.cfg["serial"]["port"]
         self.repl.fire_lifecycle("on_disconnect")
         self.engine.disconnect()
         self._clear_device_state()
@@ -496,10 +496,21 @@ class TerminalHost:
         """Apply port_control side effects (cfg_update).
 
         Subclasses may override to add UI updates (title, hw buttons).
+
+        cfg_update keys arrive flat (e.g. ``"baud_rate"``) because the
+        port_control producers don't need to know the cfg shape.  Route
+        each key to ``cfg["serial"]`` if it currently lives there;
+        otherwise set it at the top level.  Keeps producers oblivious
+        to schema changes like the v22 serial nesting.
         """
         if effects.get("cfg_update"):
+            cfg = self.repl._cfg_data
+            serial = cfg.get("serial", {})
             for key, val in effects["cfg_update"].items():
-                self.repl._cfg_data[key] = val
+                if key in serial:
+                    serial[key] = val
+                else:
+                    cfg[key] = val
 
     # -- Port switching ---------------------------------------------------------
 
@@ -508,7 +519,7 @@ class TerminalHost:
 
         Does not write to disk -- keeps $(env.NAME) templates intact.
         """
-        self.cfg["port"] = port
+        self.cfg["serial"]["port"] = port
         if self.engine.is_connected:
             self._disconnect()
         self._connect()

@@ -43,16 +43,27 @@ def _mock_ser(**overrides):
 
 
 def _cfg(**overrides):
-    """Create a minimal config dict."""
+    """Create a minimal config dict in the v22 nested-serial shape.
+
+    Pyserial keys (port/baud_rate/byte_size/parity/stop_bits/flow_control)
+    nest under cfg["serial"].  Caller can override flat top-level keys
+    (encoding, etc.) directly, or nested serial keys via ``serial=`` dict.
+    """
     defaults = {
-        "port": "COM4",
-        "baud_rate": 115200,
-        "byte_size": 8,
-        "parity": "N",
-        "stop_bits": 1,
-        "flow_control": "none",
+        "serial": {
+            "port": "COM4",
+            "baud_rate": 115200,
+            "custom_baud": False,
+            "byte_size": 8,
+            "parity": "N",
+            "stop_bits": 1,
+            "flow_control": "none",
+        },
         "encoding": "utf-8",
     }
+    serial_override = overrides.pop("serial", None)
+    if serial_override:
+        defaults["serial"].update(serial_override)
     defaults.update(overrides)
     return defaults
 

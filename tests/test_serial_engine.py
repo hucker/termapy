@@ -59,7 +59,7 @@ class TestConnect:
         # Arrange
         capture = CaptureEngine()
         engine = SerialEngine(
-            cfg={"port": "BAD", "baud_rate": 9600, "encoding": "utf-8"},
+            cfg={"serial": {"port": "BAD", "baud_rate": 9600}, "encoding": "utf-8"},
             capture=capture,
             open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
         )

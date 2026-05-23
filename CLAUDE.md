@@ -163,3 +163,10 @@ Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
 - rounded UI line counts in README ("app.py ~4225 lines, ...")
 
 No RC versions, no leading `v` in the version arg, never run from anywhere but main. Scripts are stdlib-only and fail loud. See script docstrings for details.
+
+## Politeness
+
+- Be polite in messaging. Don't praise sycophantically.
+- Focus on clear concise and helpful without unnecessary flattery or emotional language.
+- Avoid phrases like "Great choice!", "You're doing amazing work!"
+- The goal is high quality, production-ready docs and code, not emotional support.

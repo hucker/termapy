@@ -41,17 +41,34 @@ class ScriptPicker(ModalScreen[tuple | None]):
         self.dismiss(None)
 
     def __init__(self, scripts_dir: Path, read_only: bool = False) -> None:
+        """Build the picker for scripts living in ``scripts_dir``.
+
+        Args:
+            scripts_dir: Folder to enumerate (usually the cfg's
+                ``run/`` directory).
+            read_only: When ``True``, hides Edit and Delete so the
+                user can still pick a script to Run but cannot
+                mutate the on-disk set.
+        """
         super().__init__()
         self.scripts_dir = scripts_dir
         self.read_only = read_only
 
     def compose(self) -> ComposeResult:
+        """Build the modal layout: title, file list, action buttons.
+
+        Files are listed alphabetically; dotfiles (e.g.
+        ``.cmd_history.txt``) are filtered out so they don't appear
+        as runnable scripts.  Run / Edit / Delete are disabled when
+        the directory is empty; Edit / Delete are also disabled in
+        read-only mode.
+        """
         from textual.widgets import Static
 
         scripts = sorted(self.scripts_dir.glob("*"))
         scripts = [f for f in scripts if f.is_file() and not f.name.startswith(".")]
         with Vertical(id="script-dialog"):
-            yield Static("Select Script", id="script-title")
+            yield Static("Select Run File", id="script-title")
             ol = OptionList(id="script-list")
             for f in scripts:
                 ol.add_option(Option(f.name, id=str(f)))
@@ -81,6 +98,11 @@ class ScriptPicker(ModalScreen[tuple | None]):
                 yield Button("Cancel", id="script-cancel", variant="error")
 
     def _selected_path(self) -> str | None:
+        """Return the absolute path of the highlighted entry, or ``None``.
+
+        ``None`` covers both "list is empty" and "nothing highlighted"
+        — callers should treat it as "no-op, don't dismiss."
+        """
         ol = self.query_one("#script-list", OptionList)
         if ol.highlighted is not None:
             return str(ol.get_option_at_index(ol.highlighted).id)
@@ -88,22 +110,26 @@ class ScriptPicker(ModalScreen[tuple | None]):
 
     @on(Button.Pressed, "#script-delete")
     def delete_script(self) -> None:
+        """Dismiss with ``("delete", path)`` so the app can prompt + unlink."""
         path = self._selected_path()
         if path:
             self.dismiss(("delete", path))
 
     @on(Button.Pressed, "#script-new")
     def new_script(self) -> None:
+        """Dismiss with ``("new",)`` so the app opens a name-entry dialog."""
         self.dismiss(("new",))
 
     @on(Button.Pressed, "#script-edit")
     def edit_script(self) -> None:
+        """Dismiss with ``("edit", path)`` so the app opens the script in $EDITOR."""
         path = self._selected_path()
         if path:
             self.dismiss(("edit", path))
 
     @on(Button.Pressed, "#script-run")
     def run_script(self) -> None:
+        """Dismiss with ``("run", path)`` so the app executes the script."""
         path = self._selected_path()
         if path:
             self.dismiss(("run", path))
@@ -122,4 +148,5 @@ class ScriptPicker(ModalScreen[tuple | None]):
 
     @on(Button.Pressed, "#script-cancel")
     def cancel_picker(self) -> None:
+        """Dismiss with ``None`` — the app treats this as "no action taken"."""
         self.dismiss(None)

@@ -278,7 +278,7 @@ class SerialTerminal(TerminalHost, App):
     #title-bar > Button:first-of-type {
         margin-left: 0;
     }
-    #btn-cmds {
+    #btn-cmds, #btn-palette {
         width: auto;
         min-width: 3;
         text-align: center;
@@ -793,6 +793,9 @@ class SerialTerminal(TerminalHost, App):
                 cmd_btn = Button(prefix, id="btn-cmds")
                 cmd_btn.tooltip = f"Show REPL {prefix} commands."
                 yield cmd_btn
+                palette_btn = Button("≡", id="btn-palette")
+                palette_btn.tooltip = "Open command palette (Ctrl+P)."
+                yield palette_btn
                 yield Input(
                     placeholder=f"{prefix} for REPL commands, Ctrl+P: palette",
                     id="cmd",
@@ -806,7 +809,11 @@ class SerialTerminal(TerminalHost, App):
                 # dispatches /run.record and refreshes its visual.
                 if self.cfg.get("record_enabled", True):
                     record_btn = Button(
-                        "Rec", id="btn-record", variant="success",
+                        # Angle brackets mark this as a state indicator
+                        # rather than a discovery button (btn-cmds /
+                        # btn-palette).  Square brackets would render as
+                        # Rich markup tags and eat the label.
+                        "<Rec>", id="btn-record", variant="success",
                     )
                     record_btn.tooltip = (
                         "Record successfully-dispatched commands to a "
@@ -873,11 +880,19 @@ class SerialTerminal(TerminalHost, App):
                 for i, cb in enumerate(custom_buttons):
                     if not cb.get("enabled", False):
                         continue
-                    has_custom = True
                     btn_id = f"btn-custom-{i}"
                     b = Button(cb.get("name", f"C{i}"), id=btn_id)
                     b.tooltip = cb.get("tooltip", cb.get("name", ""))
                     b.add_class("custom-btn")
+                    # First enabled custom button gets a wider left
+                    # margin so the boundary into the custom-button
+                    # region is unambiguously visible (intentionally
+                    # a little wider than the matching boundary gap
+                    # Log uses on the region's right edge -- erring
+                    # on too-wide rather than ambiguously-close).
+                    if not has_custom:
+                        b.styles.margin = (0, 0, 0, 3)
+                    has_custom = True
                     yield b
                 log_btn = _btn("Log", "btn-log", "View current log file.")
                 if has_custom:
@@ -2015,7 +2030,8 @@ class SerialTerminal(TerminalHost, App):
         "btn-rts": "_on_btn_rts",  # toggle RTS pin
         "btn-break": "_on_btn_break",  # send serial break
         # Toolbar
-        "btn-cmds": "_show_commands",  # command palette
+        "btn-cmds": "_show_commands",  # REPL command picker (full plugin list)
+        "btn-palette": "_show_palette",  # curated command palette (same as Ctrl+P)
         "btn-help": "_btn_help",  # open help
         "btn-log": "_btn_log",  # open session log
         "btn-ss-dir": "action_open_screenshot",  # open screenshot folder
@@ -2094,10 +2110,10 @@ class SerialTerminal(TerminalHost, App):
             return  # Record button hidden via record_enabled=false
         is_rec = self.ctx.engine.is_recording
         if is_rec is not None and is_rec():
-            btn.label = "Stop"
+            btn.label = "<Stop>"
             btn.variant = "error"
         else:
-            btn.label = "Rec"
+            btn.label = "<Rec>"
             btn.variant = "success"
 
     # IDs of widgets that share the FindBar's show/hide lifecycle.

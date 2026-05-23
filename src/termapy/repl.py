@@ -973,7 +973,9 @@ class ReplEngine:
                 _echo(f"[cyan]> {cmd}[/]")
             if serial_write_raw:
                 serial_write_raw(raw_text)
-            return CmdResult.ok()
+            # Internal raw-passthrough: the bytes are gone on the wire
+            # before this returns; no scriptable value.
+            return CmdResult.ok(value="")
 
         # 2. Pre-dispatch directives (e.g. $(VAR) = value -> /var.set)
         result = self.run_directives(cmd)
@@ -987,7 +989,8 @@ class ReplEngine:
             if echo_on:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Warning: {result.payload}", "yellow")
-            return CmdResult.ok()
+            # Internal: warnings come back without a value to capture.
+            return CmdResult.ok(value="")
         if result.action == "error":
             _log(">", cmd)
             if echo_on:
@@ -1151,7 +1154,9 @@ class ReplEngine:
             plugin = self._plugins.get("help")
             if plugin:
                 plugin.handler(self.ctx, "")
-            return CmdResult.ok()
+            # Bare-empty dispatch: fell through to help; nothing
+            # scriptable to capture here.
+            return CmdResult.ok(value="")
         name = parts[0].lower()
         raw_args = parts[1] if len(parts) > 1 else ""
         args = self._expand_template(raw_args)
@@ -1234,7 +1239,10 @@ class ReplEngine:
                 else:
                     result = plugin.handler(self.ctx, args)
                 if result is None:
-                    result = CmdResult.ok()
+                    # SPECIAL CASE: legacy / external handler returned None.
+                    # Synthesize an empty success so the dispatch loop has
+                    # a result to attach elapsed_s to.
+                    result = CmdResult.ok(value="")
                 result.elapsed_s = time.perf_counter() - t0
             # MissingCapability is the structural backstop for
             # "handler called a capability-gated handle method but didn't
@@ -1400,7 +1408,9 @@ class ReplEngine:
             # plugin clears counters and refreshes {starttime} from its hook.
             self.fire_lifecycle("on_script_start")
         self.ctx.io.status(f"Running script: {filename}")
-        return path, CmdResult.ok()
+        # Caller pairs this with the resolved Path; auto-resolve gives
+        # absolute string at the value site.
+        return path, CmdResult.ok(value=path)
 
     # -- Script blocking command handlers ----------------------------------------
 
@@ -1437,15 +1447,16 @@ class ReplEngine:
             return CmdResult.fail(msg="Script stopped.")
         if not sctx.profile and name == "delay":
             sctx.w(f"Delay {expanded} done.")
-        return CmdResult.ok()
+        return CmdResult.ok(value=str(seconds))
 
     def _script_confirm(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /confirm in scripts - show dialog, block on background thread."""
         message = args.strip() or "Continue?"
-        if not self.ctx.ui.confirm(message):
+        accepted = self.ctx.ui.confirm(message)
+        if not accepted:
             sctx.w("Script cancelled by user.")
             self._script_stop.set()
-        return CmdResult.ok()
+        return CmdResult.ok(value="yes" if accepted else "no")
 
     def _script_run(self, name: str, args: str, sctx: ScriptCtx) -> CmdResult:
         """Handle /run and /run.profile in scripts - nested execution.
@@ -1509,7 +1520,9 @@ class ReplEngine:
             return CmdResult.fail(msg=f'Expect "{pattern}" timeout after {timeout_str}')
         if not quiet:
             sctx.w(f'Expect "{pattern}" matched', "green")
-        return CmdResult.ok()
+        # Return the matched line so scripts can capture it via
+        # ``$(LINE) <- /expect ready.quiet``.
+        return CmdResult.ok(value=match)
 
     # Blocking commands - must run on the script's background thread because
     # they block (sleep, wait for serial, show dialog). Regular commands are
@@ -1559,7 +1572,10 @@ class ReplEngine:
             elapsed = cmd_result.elapsed_s
         else:
             elapsed = time.perf_counter() - t0
-        result = cmd_result or CmdResult.ok()
+        # Bare-serial or no-result branches fall back to an empty
+        # success so the per-line accounting (elapsed_s, post-dispatch
+        # observers) still has a CmdResult to operate on.
+        result = cmd_result or CmdResult.ok(value="")
         result.elapsed_s = elapsed
         # Wait for device response after serial commands
         if not stripped.startswith(sctx.prefix):

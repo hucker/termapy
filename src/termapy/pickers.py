@@ -222,6 +222,7 @@ def open_picker(app, name: str) -> CmdResult:
     if fn is None:
         return CmdResult.fail(msg=f"Unknown picker: {name}")
     app._on_main(fn)
-    return CmdResult.ok()
+    # Return which picker was opened so scripts can log.
+    return CmdResult.ok(value=name)
 
 

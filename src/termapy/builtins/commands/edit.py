@@ -66,14 +66,14 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     if path is None:
         return CmdResult.fail(msg=f"File not found: {name}")
     ctx.fs.open_file(path)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
     ctx.fs.open_file(Path(ctx.config_path))
-    return CmdResult.ok()
+    return CmdResult.ok(value=Path(ctx.config_path))
 
 
 def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
@@ -81,10 +81,11 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
     configured = ctx.cfg.get("log_file", "")
     if configured:
-        ctx.fs.open_file(Path(configured).resolve())
+        path = Path(configured).resolve()
     else:
-        ctx.fs.open_file(Path(cfg_log_path(ctx.config_path)))
-    return CmdResult.ok()
+        path = Path(cfg_log_path(ctx.config_path))
+    ctx.fs.open_file(path)
+    return CmdResult.ok(value=path)
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
@@ -94,7 +95,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     path = Path(ctx.config_path).parent / f"{stem}.md"
     if path.exists():
         ctx.fs.open_file(path)
-        return CmdResult.ok()
+        return CmdResult.ok(value=path)
     else:
         return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
 
@@ -103,7 +104,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _make_edit_handler(get_dir, ext, pattern):
-    """Create a handler that opens a file by name, or lists files if no name given."""
+    """Create a handler that opens a file by name, or lists files if no name given.
+
+    Returns the opened file path as ``CmdResult.value`` (or the list of
+    file names if no name was given and we delegate to the list handler).
+    """
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         name = args.strip()
         if not name:
@@ -115,35 +120,44 @@ def _make_edit_handler(get_dir, ext, pattern):
         if not path.exists():
             return CmdResult.fail(msg=f"File not found: {name}")
         ctx.fs.open_file(path)
-        return CmdResult.ok()
+        return CmdResult.ok(value=path)
     return handler
 
 
 def _make_list_handler(get_dir, pattern):
-    """Create a handler that lists files in a folder."""
+    """Create a handler that lists files in a folder.
+
+    Returns the newline-joined list of file names as ``CmdResult.value``
+    so scripts can capture it; empty string for empty/missing folders.
+    """
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         if not folder.is_dir():
             ctx.io.output("  (no directory)")
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
         files = sorted(folder.glob(pattern))
         if not files:
             ctx.io.output("  (empty)")
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
         ctx.io.output("  Available file(s):")
+        names = []
         for f in files:
             ctx.io.output(f"    {f.name}")
-        return CmdResult.ok()
+            names.append(f.name)
+        return CmdResult.ok(value="\n".join(names))
     return handler
 
 
 def _make_explore_handler(get_dir):
-    """Create a handler that opens a folder in the system file explorer."""
+    """Create a handler that opens a folder in the system file explorer.
+
+    Returns the opened folder path as ``CmdResult.value``.
+    """
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         folder = get_dir(ctx)
         folder.mkdir(parents=True, exist_ok=True)
         ctx.fs.open_file(folder)
-        return CmdResult.ok()
+        return CmdResult.ok(value=folder)
     return handler
 
 

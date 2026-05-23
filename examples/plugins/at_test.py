@@ -17,7 +17,9 @@ def _handler(ctx, args):
     ctx.io.output(f"> {cmd}", "purple")
     ctx.serial.send(cmd)
     ctx.serial.wait_idle()
-    return CmdResult.ok()
+    # Return the sent command so scripts can capture it via
+    # ``$(SENT) <- /at AT+VER``.
+    return CmdResult.ok(value=cmd)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

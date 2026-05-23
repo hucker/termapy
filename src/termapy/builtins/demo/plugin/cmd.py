@@ -30,7 +30,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
     ctx.serial.send(f"{args} {crc:04X}")
     ctx.io.output(f"Sent: {args} {crc:04X}", "green")
-    return CmdResult.ok()
+    return CmdResult.ok(value=f"{crc:04X}")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

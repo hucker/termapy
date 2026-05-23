@@ -46,7 +46,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not name:
         return CmdResult.fail(msg="Usage: /show <name>  (or /show.cfg for config)")
     _show_file(ctx, Path(name))
-    return CmdResult.ok()
+    # Return the resolved path so scripts can confirm what was shown.
+    return CmdResult.ok(value=Path(name))
 
 
 def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
@@ -59,7 +60,7 @@ def _handler_cfg(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
     _show_file(ctx, Path(ctx.config_path))
-    return CmdResult.ok()
+    return CmdResult.ok(value=Path(ctx.config_path))
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

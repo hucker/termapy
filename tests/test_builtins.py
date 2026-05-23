@@ -1976,7 +1976,7 @@ class TestCapWire:
                 cb(b"AT+VER\r")
             for cb in rx_cbs:
                 cb(b"VER=1.2.3\r\n")
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
 
         ctx.dispatch = fake_dispatch
 
@@ -2004,7 +2004,7 @@ class TestCapWire:
                 cb(b"x\r")
             for cb in rx_cbs:
                 cb(b"y\r\n")
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
 
         ctx.dispatch = fake_dispatch
 
@@ -2030,7 +2030,7 @@ class TestCapWire:
         ctx = engine.ctx
         self._wire_observers(ctx)
         from termapy.plugins import CmdResult
-        ctx.dispatch = lambda cmd: CmdResult.ok()
+        ctx.dispatch = lambda cmd: CmdResult.ok(value="")
 
         # Act
         result = engine.dispatch("cap.wire cmd=help")
@@ -2076,7 +2076,7 @@ class TestCapWire:
         ctx = engine.ctx
         rx_cbs, tx_cbs = self._wire_observers(ctx)
         from termapy.plugins import CmdResult
-        ctx.dispatch = lambda cmd: CmdResult.ok()
+        ctx.dispatch = lambda cmd: CmdResult.ok(value="")
 
         # Act -- with wait_gap=0, total wall time should be well under
         # the default 50ms idle gap (no settle loop runs).  Note the

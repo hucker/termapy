@@ -22,7 +22,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     ctx.serial.wait_idle(timeout_ms=500)
     ms = (time.perf_counter() - start) * 1000
     ctx.io.output(f"{cmd} -- {ms:.0f}ms", "green")
-    return CmdResult.ok()
+    # Return RTT in ms so scripts can capture / threshold it.
+    return CmdResult.ok(value=f"{ms:.0f}")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

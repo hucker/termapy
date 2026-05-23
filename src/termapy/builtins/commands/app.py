@@ -61,7 +61,9 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)
         ctx.fs.open_file(path)
-    return CmdResult.ok()
+    # Return newline-joined paths so scripts can capture which folders
+    # were opened (one on Windows/macOS, two on Linux).
+    return CmdResult.ok(value="\n".join(sorted(str(p) for p in paths)))
 
 
 # ── /app.list ─────────────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """
     paths = sorted({app_state_dir(), app_config_dir()})
     any_shown = False
+    file_names: list[str] = []
     for path in paths:
         if not path.is_dir():
             continue
@@ -89,10 +92,13 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(f"  {path}/")
         for f in files:
             ctx.io.output(f"    {f.name}")
+            file_names.append(str(f))
         any_shown = True
     if not any_shown:
         ctx.io.output("  (no app folder yet)")
-    return CmdResult.ok()
+    # Newline-joined list of every file (full path) so scripts can
+    # capture or iterate.  Empty when no folders existed.
+    return CmdResult.ok(value="\n".join(file_names))
 
 
 # ── /app.state ────────────────────────────────────────────────────────────────
@@ -131,7 +137,7 @@ def _handler_state_edit(ctx: PluginContext, args: str) -> CmdResult:
     if not path.exists():
         path.write_text("{}\n", encoding="utf-8")
     ctx.fs.open_file(path)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 # ── /app.config ───────────────────────────────────────────────────────────────
@@ -167,7 +173,7 @@ def _handler_config_edit(ctx: PluginContext, args: str) -> CmdResult:
     if not path.exists():
         path.write_text("{}\n", encoding="utf-8")
     ctx.fs.open_file(path)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 _APP_LONG_HELP = """\

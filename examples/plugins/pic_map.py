@@ -448,7 +448,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(f"  {prefix}map.load {{path}}  -- load/reload map file")
         resolved = _resolve_map_path(ctx)
         ctx.io.output(f"  Current: {resolved or '(none)'}")
-        return CmdResult.ok()
+        return CmdResult.ok(value=str(resolved) if resolved else "")
 
     _check_reload(ctx)
     mf = _get_map(ctx)
@@ -463,7 +463,9 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         sym = mf.lookup(addr)
         if sym is None:
             ctx.io.output(f"0x{addr:08X}  -- no symbol found", "yellow")
-            return CmdResult.ok()
+            # No symbol at this address; empty value lets scripts
+            # distinguish "lookup ran, nothing here" from "errored."
+            return CmdResult.ok(value="")
         text = format_symbol(sym, addr)
         ctx.io.output(f"  {text}")
         return CmdResult.ok(value=sym.name)
@@ -478,7 +480,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     matches = mf.search(arg)
     if not matches:
         ctx.io.output(f"No symbol matching '{arg}'", "yellow")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     for sym in matches:
         ctx.io.output(f"  {format_symbol(sym)}")
     return CmdResult.ok(value=matches[0].name)
@@ -550,7 +552,7 @@ def _handler_path(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Path saved but cannot read: {e}")
     _set_map(ctx, mf)
     ctx.io.output(f"Map path saved. Loaded {len(mf)} symbols from {resolved.name}", "green")
-    return CmdResult.ok()
+    return CmdResult.ok(value=resolved)
 
 
 def _handler_path_clear(ctx: PluginContext, args: str) -> CmdResult:
@@ -560,17 +562,17 @@ def _handler_path_clear(ctx: PluginContext, args: str) -> CmdResult:
     pcfg.save()
     _set_map(ctx, None)
     ctx.io.output("Map path cleared.", "green")
-    return CmdResult.ok()
+    return CmdResult.ok(value="")
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
     """Unload the current map file."""
     if _get_map(ctx) is None:
         ctx.io.output("No map file loaded.", "yellow")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     _set_map(ctx, None)
     ctx.io.output("Map file unloaded.", "green")
-    return CmdResult.ok()
+    return CmdResult.ok(value="")
 
 
 def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
@@ -598,7 +600,7 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
     matches = mf.search(pattern)
     if not matches:
         ctx.io.output(f"No symbols matching '{pattern}'", "yellow")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
 
     for sym in matches:
         ctx.io.output(f"  {format_symbol(sym)}")
@@ -613,7 +615,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         mf = _auto_load(ctx)
     if mf is None:
         ctx.io.output("No map file loaded.", "yellow")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
 
     w = 10
     ctx.io.output(f"  {'File':>{w}}: {mf.path or '(unknown)'}")
@@ -634,7 +636,8 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         first = mf.symbols[0]
         last = mf.symbols[-1]
         ctx.io.output(f"  {'Range':>{w}}: 0x{first.addr:08X} - 0x{last.end:08X}")
-    return CmdResult.ok()
+    # Return total symbol count so scripts can verify map load size.
+    return CmdResult.ok(value=str(len(mf)))
 
 
 # ── Lifecycle ───────────────────────────────────────────────────────────────

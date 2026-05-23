@@ -141,7 +141,7 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
 
     if started and cmd:
         ctx.dispatch(cmd)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 # ── /cap.bin handler ─────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     if started and cmd:
         ctx.serial.drain()
         ctx.dispatch(cmd)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 # ── /cap.struct and /cap.hex shared handler ──────────────────────────────────
@@ -318,7 +318,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     if started and cmd:
         ctx.serial.drain()
         ctx.dispatch(cmd)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _handler_struct(ctx: PluginContext, args: str) -> CmdResult:
@@ -605,7 +605,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 
     if path is not None:
         ctx.io.output(f"Poll complete: {path} ({samples_written} samples)", "green")
-        return CmdResult.ok(value=str(path))
+        return CmdResult.ok(value=path)
     ctx.io.output(f"Poll complete ({samples_written} samples)", "green")
     return CmdResult.ok(value=str(samples_written))
 
@@ -614,9 +614,13 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
-    """Stop an active capture."""
+    """Stop an active capture.
+
+    Side-effect only; the engine's stop callback returns no path, so
+    ``CmdResult.value`` is ``""`` rather than something synthetic.
+    """
     ctx.engine.stop_capture()
-    return CmdResult.ok()
+    return CmdResult.ok(value="")
 
 
 # ── /cap.wire handler ────────────────────────────────────────────────────────

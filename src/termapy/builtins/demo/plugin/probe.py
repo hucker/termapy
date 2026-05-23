@@ -119,17 +119,16 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         command = args.strip()
         if not command:
             _survey(ctx)
-            return CmdResult.ok()
+            return CmdResult.ok(value="")
 
         # Single command mode
         resp = _send_cmd(ctx, command)
         if resp is None:
             ctx.io.output(f"{command}: (no response)", "red")
-        else:
-            for line in resp.splitlines():
-                ctx.io.output(f"  {line}")
-
-    return CmdResult.ok()
+            return CmdResult.ok(value="")
+        for line in resp.splitlines():
+            ctx.io.output(f"  {line}")
+        return CmdResult.ok(value=resp)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

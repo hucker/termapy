@@ -21,7 +21,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Text to print.
     """
     ctx.io.output(args)
-    return CmdResult.ok()
+    # Return the printed text so scripts can echo and capture in one shot.
+    return CmdResult.ok(value=args)
 
 
 def _handler_rich(ctx: PluginContext, args: str) -> CmdResult:
@@ -36,7 +37,8 @@ def _handler_rich(ctx: PluginContext, args: str) -> CmdResult:
         args: Rich markup text to render.
     """
     ctx.io.output_markup(args)
-    return CmdResult.ok()
+    # Return the printed text so scripts can echo and capture in one shot.
+    return CmdResult.ok(value=args)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

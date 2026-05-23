@@ -55,7 +55,10 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
         ms = times[0]
         result_text = f"{ms:.0f}ms"
         return CmdResult.ok(value=result_text)
-    return CmdResult.ok()
+    # Ping ran but every response timed out -- empty value rather
+    # than missing, so scripts can distinguish "tried but nothing"
+    # from "didn't run."
+    return CmdResult.ok(value="")
 
 
 def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:

@@ -690,8 +690,9 @@ class TerminalHost:
         port = self._ensure_help_server()
         import webbrowser
 
-        webbrowser.open(f"http://127.0.0.1:{port}/{page}")
-        return CmdResult.ok()
+        url = f"http://127.0.0.1:{port}/{page}"
+        webbrowser.open(url)
+        return CmdResult.ok(value=url)
 
     # -- Shared hook handlers -------------------------------------------------
 
@@ -705,7 +706,8 @@ class TerminalHost:
             self.engine.serial_port.write(
                 args.encode(self.cfg.get("encoding", "utf-8"))
             )
-        return CmdResult.ok()
+        # Return the sent text so scripts can confirm what was written.
+        return CmdResult.ok(value=args)
 
     def _hook_log_delete(self, ctx, args: str) -> CmdResult:
         """Delete the session log file on disk.
@@ -723,7 +725,7 @@ class TerminalHost:
         try:
             Path(log_path).unlink()
             self.status(f"Deleted {Path(log_path).name}", "green")
-            return CmdResult.ok()
+            return CmdResult.ok(value=Path(log_path))
         except OSError as e:
             self.status(f"Delete failed: {e}", "red")
             return CmdResult.fail(msg=str(e))

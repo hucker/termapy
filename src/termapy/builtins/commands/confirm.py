@@ -22,10 +22,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Message text to display in the dialog.
     """
     message = args.strip() or "Continue?"
-    if not ctx.ui.confirm(message):
+    accepted = ctx.ui.confirm(message)
+    if not accepted:
         ctx.io.result("Cancelled.", "yellow")
         ctx.engine.script_stop()
-    return CmdResult.ok()
+    # Return the user's choice so scripts can capture it via
+    # ``$(OK) <- /confirm Continue?`` even if they don't stop on cancel.
+    return CmdResult.ok(value="yes" if accepted else "no")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

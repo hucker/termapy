@@ -361,10 +361,10 @@ class TestParseKeywords:
 
 class TestCmdResult:
     def test_ok(self):
-        actual = CmdResult.ok()
-        assert actual.success is True  # success
-        assert actual.error == ""  # no error
-        assert actual.elapsed_s == 0.0  # no timing yet
+        actual = CmdResult.ok(value="")
+        assert actual.success is True, "ok() returns success"
+        assert actual.error == "", "no error on success"
+        assert actual.elapsed_s == 0.0, "no timing yet"
 
     def test_fail_with_message(self):
         actual = CmdResult.fail(msg="bad input")
@@ -382,21 +382,37 @@ class TestCmdResult:
 
     def test_elapsed_mutable(self):
         # Arrange
-        actual = CmdResult.ok()
+        actual = CmdResult.ok(value="")
 
         # Act
         actual.elapsed_s = 0.123
 
         # Assert
-        assert actual.elapsed_s == 0.123  # dispatch sets this
+        assert actual.elapsed_s == 0.123, "dispatch sets elapsed_s post-handler"
 
-    def test_value_default_empty(self):
-        actual = CmdResult.ok()
-        assert actual.value == ""  # default no value
+    def test_value_required_keyword(self):
+        # ``value`` is keyword-only with no default so callers can't
+        # silently forget it.  Positional or missing args must error.
+        import pytest as _pytest
+        with _pytest.raises(TypeError):
+            CmdResult.ok()  # type: ignore[call-arg]
+
+    def test_value_empty_explicit(self):
+        actual = CmdResult.ok(value="")
+        assert actual.value == "", "explicit empty is preserved"
 
     def test_value_set(self):
         actual = CmdResult(value="0.35.0")
         assert actual.value == "0.35.0"  # value captured
+
+    def test_path_auto_resolved(self):
+        # Path values auto-convert to absolute strings via the
+        # constructor; callers can hand a Path directly.
+        from pathlib import Path
+        p = Path("some/relative/path")
+        actual = CmdResult.ok(value=p)
+        assert isinstance(actual.value, str), "Path converted to string"
+        assert Path(actual.value).is_absolute(), "value is an absolute path"
 
 
 # ── parse_bool ──────────────────────────────────────────────────────────────

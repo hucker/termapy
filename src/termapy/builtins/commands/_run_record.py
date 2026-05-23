@@ -160,7 +160,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
     token = ctx.engine.add_post_dispatch_observer(_observe)
     _active = _Active(path=path, file=fh, line_count=0, observer=token)
     ctx.io.result(f"Recording to {path}")
-    return CmdResult.ok(value=str(path))
+    return CmdResult.ok(value=path)
 
 
 def _stop(ctx: PluginContext) -> CmdResult:
@@ -181,7 +181,7 @@ def _stop(ctx: PluginContext) -> CmdResult:
 
     word = "command" if count == 1 else "commands"
     ctx.io.result(f"Recorded {count} {word} to {path}")
-    return CmdResult.ok(value=str(path))
+    return CmdResult.ok(value=path)
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

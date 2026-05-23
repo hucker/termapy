@@ -366,7 +366,8 @@ class CLITerminal(TerminalHost):
             "clr",
             "",
             "Clear the terminal screen (alias for {prefix}cls).",
-            lambda ctx, args: (ctx.io.clear_screen(), CmdResult.ok())[-1],
+            # SPECIAL CASE: clearing the screen produces no scriptable value.
+            lambda ctx, args: (ctx.io.clear_screen(), CmdResult.ok(value=""))[-1],
             source="app",
             needs=CapabilitySet(interactive=True),
         )
@@ -410,7 +411,10 @@ class CLITerminal(TerminalHost):
             "tui",
             "",
             "Switch to TUI mode.",
-            lambda ctx, args: CmdResult.ok(),  # handled in _run_interactive
+            # SPECIAL CASE: mode switch is intercepted in _run_interactive
+            # before this lambda returns; value="" is a placeholder that
+            # never actually reaches a script capture site.
+            lambda ctx, args: CmdResult.ok(value=""),
             source="app",
             needs=CapabilitySet(interactive=True),
         )
@@ -418,7 +422,8 @@ class CLITerminal(TerminalHost):
             "cli",
             "",
             "Already in CLI mode.",
-            lambda ctx, args: CmdResult.ok(),
+            # SPECIAL CASE: no-op when /cli runs while already in CLI mode.
+            lambda ctx, args: CmdResult.ok(value=""),
             source="app",
             needs=CapabilitySet(interactive=True),
         )
@@ -453,10 +458,10 @@ class CLITerminal(TerminalHost):
             self.cfg["cli_completion"] = False
             self._session = None
             self.status("CLI completion disabled.")
-        else:
-            state = "on" if self.cfg.get("cli_completion", True) else "off"
+        state = "on" if self.cfg.get("cli_completion", True) else "off"
+        if val is None:
             self.status(f"CLI completion: {state}")
-        return CmdResult.ok()
+        return CmdResult.ok(value=state)
 
     def _hook_delay(self, ctx, args: str):
         """Wait with progress bar (>=1s) or silently (<1s).
@@ -476,7 +481,7 @@ class CLITerminal(TerminalHost):
                 self._draw_progress_bar(seconds, args.strip())
         except KeyboardInterrupt:
             self._raw(f"\r  Delay cancelled.{' ' * 30}")
-        return CmdResult.ok()
+        return CmdResult.ok(value=str(seconds))
 
     def _hook_delay_quiet(self, ctx, args: str):
         """Wait silently - no progress bar, no output.
@@ -491,7 +496,7 @@ class CLITerminal(TerminalHost):
             time.sleep(seconds)
         except KeyboardInterrupt:
             pass
-        return CmdResult.ok()
+        return CmdResult.ok(value=str(seconds))
 
     def _hook_color(self, ctx, args: str):
         """Toggle color output on/off."""
@@ -504,10 +509,10 @@ class CLITerminal(TerminalHost):
         elif val is False:
             self.console.no_color = True
             self.status("Color disabled.")
-        else:
-            state = "on" if not self.console.no_color else "off"
+        state = "on" if not self.console.no_color else "off"
+        if val is None:
             self.status(f"Color: {state}")
-        return CmdResult.ok()
+        return CmdResult.ok(value=state)
 
     # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
     # ``/run.help`` are now owned by the ``run.py`` built-in.

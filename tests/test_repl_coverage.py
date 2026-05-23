@@ -279,7 +279,7 @@ class TestDispatchSuggestion:
     def test_unknown_command_suggests(self, engine):
         # Arrange
         eng, output = engine
-        eng.register_hook("help", "", "Show help.", lambda ctx, args: CmdResult.ok(),
+        eng.register_hook("help", "", "Show help.", lambda ctx, args: CmdResult.ok(value=""),
                           source="test")
 
         # Act
@@ -310,7 +310,7 @@ class TestDispatchQuiet:
         # Arrange
         eng, output = engine
         eng.register_hook("cap.quiet", "", "Quiet cap.",
-                          lambda ctx, args: CmdResult.ok(), source="test")
+                          lambda ctx, args: CmdResult.ok(value=""), source="test")
 
         # Act
         result = eng.dispatch_full(
@@ -465,7 +465,7 @@ class TestRunScriptProfile:
         script = tmp_path / "sub" / "run" / "test.run"
         script.write_text("/delay 10ms\n")
         eng.register_hook("delay", "<dur>", "Wait.",
-                          lambda ctx, args: CmdResult.ok(), source="test")
+                          lambda ctx, args: CmdResult.ok(value=""), source="test")
 
         # Act
         path, result = eng.start_script(str(script))
@@ -473,7 +473,7 @@ class TestRunScriptProfile:
             eng.run_script(
                 path,
                 write=lambda t, c=None: None,
-                dispatch=lambda cmd: eng.dispatch(cmd[1:]) if cmd.startswith("/") else CmdResult.ok(),
+                dispatch=lambda cmd: eng.dispatch(cmd[1:]) if cmd.startswith("/") else CmdResult.ok(value=""),
                 profile=True,
                 verbose=True,
             )

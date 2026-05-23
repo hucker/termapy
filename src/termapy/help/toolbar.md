@@ -73,9 +73,11 @@ terminal, which intercepts some F-keys.
 Press **Ctrl+P** to open the command palette, which provides quick access to:
 
 - Help
+- Find in scrollback / Grep scrollback / Search command help
 - Select Port
 - Connect / Disconnect
 - Edit, Load, or Create a Config
+- Load Run Script
 - View / Delete Log File
 - Clear Screen
 - Save SVG / Text Screenshot

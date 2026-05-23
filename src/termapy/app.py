@@ -448,11 +448,15 @@ class SerialTerminal(TerminalHost, App):
 
     PALETTE_CMDS = [
         ("Help", "_palette_help"),
+        ("Find in scrollback...", "_palette_find"),
+        ("Search scrollback (Grep)...", "_palette_grep"),
+        ("Search command help...", "_palette_search_help"),
         ("Select Port...", "_show_port_picker"),
         ("Connect / Disconnect", "_toggle_connection"),
         ("Edit Config", "_palette_edit_config"),
         ("Load Config...", "_palette_load_config"),
         ("New Config", "_palette_new_config"),
+        ("Load Run Script...", "_btn_scripts"),
         ("View Log File", "_palette_view_log"),
         ("Delete Log File", "_palette_delete_log"),
         ("Clear Screen", "_palette_clear"),
@@ -802,7 +806,7 @@ class SerialTerminal(TerminalHost, App):
                 # dispatches /run.record and refreshes its visual.
                 if self.cfg.get("record_enabled", True):
                     record_btn = Button(
-                        "Record", id="btn-record", variant="success",
+                        "Rec", id="btn-record", variant="success",
                     )
                     record_btn.tooltip = (
                         "Record successfully-dispatched commands to a "
@@ -2093,7 +2097,7 @@ class SerialTerminal(TerminalHost, App):
             btn.label = "Stop"
             btn.variant = "error"
         else:
-            btn.label = "Record"
+            btn.label = "Rec"
             btn.variant = "success"
 
     # IDs of widgets that share the FindBar's show/hide lifecycle.
@@ -2405,6 +2409,40 @@ class SerialTerminal(TerminalHost, App):
 
     def _palette_help(self) -> None:
         self._hook_help_open(None, "")
+
+    def _palette_find(self) -> None:
+        """Prompt for a pattern, then dispatch ``/find <pattern>``."""
+        self._prompt_then_dispatch("Find pattern:", "/find ")
+
+    def _palette_grep(self) -> None:
+        """Prompt for a pattern, then dispatch ``/grep <pattern>``."""
+        self._prompt_then_dispatch("Grep pattern:", "/grep ")
+
+    def _palette_search_help(self) -> None:
+        """Prompt for a term, then dispatch ``/search <term>``."""
+        self._prompt_then_dispatch("Search help for:", "/search ")
+
+    def _prompt_then_dispatch(
+        self, title: str, command_prefix: str,
+    ) -> None:
+        """Push a single-line input prompt; on submit, dispatch a REPL line.
+
+        The dispatched line is ``command_prefix`` concatenated with
+        the user input.  Uses the quiet dispatch path so the
+        synthesized REPL line doesn't echo into the scrollback (same
+        pattern as the FindBar buttons).  Cancel and empty input are
+        no-ops -- no spurious blank-arg dispatches.
+        """
+        from termapy.dialogs.filename_dialog import FilenameDialog
+
+        def _on_submit(value: str | None) -> None:
+            if value:
+                self._dispatch_quiet(command_prefix + value)
+
+        self.push_screen(
+            FilenameDialog(title=title, placeholder="regex"),
+            callback=_on_submit,
+        )
 
     def _palette_show_newest_ss(self) -> None:
         path = self._newest_file(self.repl.ss_dir)

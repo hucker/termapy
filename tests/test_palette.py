@@ -140,3 +140,22 @@ class TestPromptThenDispatch:
         )
 
 
+class TestPaletteButton:
+    """The visible ``≡`` button in the bottom bar dispatches to the palette."""
+
+    def test_palette_button_wired_in_dispatch_table(self):
+        # Arrange / Act
+        table = SerialTerminal._BUTTON_DISPATCH
+
+        # Assert -- btn-palette routes to _show_palette, the same
+        # handler as Ctrl+P.  This is the visible affordance for
+        # users who don't know the hotkey, and the visible partner
+        # to btn-cmds (the / button) so the two-layer discovery
+        # design -- auto-generated plugin reflection vs curated
+        # editorial palette -- is legible in the UI.
+        assert table.get("btn-palette") == "_show_palette", (
+            f"btn-palette should dispatch to _show_palette; "
+            f"got {table.get('btn-palette')!r}"
+        )
+
+

@@ -40,6 +40,7 @@ The bottom bar has buttons. Some appear based on context:
 | Button      | When Visible                 | Action                                          |
 | ----------- | ---------------------------- | ----------------------------------------------- |
 | **/**       | Always                       | Show REPL command picker (filters as you type)  |
+| **≡**       | Always                       | Open the command palette (also Ctrl+P)          |
 | **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line                    |
 | **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line                    |
 | **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal                |
@@ -70,7 +71,8 @@ terminal, which intercepts some F-keys.
 
 ## Command palette
 
-Press **Ctrl+P** to open the command palette, which provides quick access to:
+Press **Ctrl+P** (or click the **≡** button next to the REPL input) to
+open the command palette, which provides quick access to:
 
 - Help
 - Find in scrollback / Grep scrollback / Search command help

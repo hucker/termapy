@@ -19,8 +19,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     scripts_dir.mkdir(parents=True, exist_ok=True)
     if not name.endswith(".run"):
         name += ".run"
-    ctx.fs.open_file(scripts_dir / name)
-    return CmdResult.ok()
+    path = scripts_dir / name
+    ctx.fs.open_file(path)
+    return CmdResult.ok(value=path)
 
 
 def _run_long_help(ctx: PluginContext) -> str:

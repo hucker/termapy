@@ -18,7 +18,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Ignored.
     """
     ctx.ui.exit_app()
-    return CmdResult.ok()
+    # SPECIAL CASE: the process is about to terminate -- no caller
+    # ever reads this value.  Empty string satisfies the required-value
+    # contract while making the void intent visible.
+    return CmdResult.ok(value="")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

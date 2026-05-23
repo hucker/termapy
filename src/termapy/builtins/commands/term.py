@@ -80,7 +80,11 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     # is a subclass of Exception. Match dispatch_full's legacy catch.
     except (OSError, Exception) as e:  # noqa: BLE001  -- boundary catch
         return CmdResult.fail(msg=f"Send error: {e}")
-    return CmdResult.ok()
+    # SPECIAL CASE: /term.send is fire-and-forget over the wire; the
+    # device's response (if any) is async and comes through /expect or
+    # the read pipeline, not back via this CmdResult.  Returning the
+    # sent bytes here would be a misleading "value" (input, not output).
+    return CmdResult.ok(value="")
 
 
 def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
@@ -344,7 +348,8 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     if not text:
         return CmdResult.fail(msg=f"Usage: {ctx.engine.prefix}term.log <text>")
     ctx.io.log("#", text)
-    return CmdResult.ok()
+    # Return the logged text so scripts can confirm what was written.
+    return CmdResult.ok(value=text)
 
 
 # ── /term.info: snapshot ────────────────────────────────────────────────────
@@ -367,7 +372,9 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     ]
     for line in format_kv_lines(rows):
         ctx.io.output_markup(line)
-    return CmdResult.ok()
+    # Return the snapshot as a newline-joined "key=value" payload so
+    # scripts can grep / parse it.
+    return CmdResult.ok(value="\n".join(f"{k}={v}" for k, v in rows))
 
 
 # ── /term root handler: list subcommands when called bare ───────────────────

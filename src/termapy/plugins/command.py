@@ -105,13 +105,34 @@ class CmdResult:
     value: Any = ""
 
     @classmethod
-    def ok(cls, value: Any = "") -> "CmdResult":
-        """Return a successful result, optionally with a value.
+    def ok(cls, *, value: Any) -> "CmdResult":
+        """Return a successful result with a value.
+
+        ``value`` is REQUIRED -- pass ``value=""`` explicitly for
+        truly side-effect commands that have nothing scriptable to
+        return (e.g. ``/cls``, ``/exit``).  This forces every handler
+        author to make a deliberate choice and lets the type checker
+        catch silent gaps where a handler computes something but
+        forgets to expose it via ``CmdResult.value``.
 
         ``value`` is typically a string (script-readable), but profile
         executors pass typed shapes (dict/list/number) that survive
         through to the MCP response.
+
+        **Path values auto-resolve to absolute strings.** When ``value``
+        is a ``pathlib.Path``, it is converted via ``str(value.resolve())``
+        so callers can hand a Path directly and get a canonical,
+        working-directory-independent string.  This means handlers can
+        write ``CmdResult.ok(value=path)`` instead of repeatedly
+        constructing ``str(path.resolve())`` at every call site.
+        Multi-path values (newline-joined lists) still need explicit
+        ``.resolve()`` per item -- the conversion only fires for a
+        single Path.
         """
+        from pathlib import Path
+
+        if isinstance(value, Path):
+            value = str(value.resolve())
         return cls(value=value)
 
     @classmethod

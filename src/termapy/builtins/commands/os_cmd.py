@@ -53,7 +53,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.output(line, "red")
     except subprocess.TimeoutExpired:
         return CmdResult.fail(msg="Command timed out (10s limit)")
-    return CmdResult.ok()
+    # Return stdout so scripts can capture command output via
+    # ``$(OUT) <- /os hostname`` etc.
+    return CmdResult.ok(value=result.stdout)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

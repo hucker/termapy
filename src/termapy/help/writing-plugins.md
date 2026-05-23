@@ -171,12 +171,23 @@ Gated methods today:
 
 Handlers return `CmdResult` to indicate success or failure:
 
-- `CmdResult.ok()` -- success, no scriptable data
 - `CmdResult.ok(value="...")` -- success, `value` is available to scripts
+- `CmdResult.ok(value="")` -- success, no scriptable data (pure side-effect)
 - `CmdResult.fail(msg="...")` -- failure with error message
 
-**Set `value=` when your command produces data a script might capture.**
-Scripts run in quiet mode read the `value` field; without it they get nothing.
+**`value=` is required on `CmdResult.ok()`.** Pass the data your command
+produces (a path, a count, a parsed response, a toggle state).  For pure
+side-effect commands (`/cls`, `/exit`) pass `value=""` explicitly so the
+"no scriptable data" intent is visible at the call site.
+
+**Paths auto-resolve to absolute strings.** If `value` is a `pathlib.Path`,
+the constructor calls `str(path.resolve())` for you, so handlers can
+write `CmdResult.ok(value=path)` directly -- no manual `str()` /
+`.resolve()` boilerplate.
+
+Scripts run in quiet mode (or via `$(VAR) <- /cmd`) read the `value`
+field; the type checker catches missing-`value=` calls so a "I forgot"
+gap can't ship silently.
 
 ```python
 def _handler(ctx: PluginContext, args: str):

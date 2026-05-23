@@ -86,7 +86,7 @@ def _hook_run_profile_show(app, ctx, args: str) -> CmdResult:
     newest = profs[-1]
     ctx.io._write(f"Opening {newest.name}")
     open_with_system(str(newest))
-    return CmdResult.ok()
+    return CmdResult.ok(value=newest)
 
 
 def _hook_run_profile_dump(app, ctx, args: str) -> CmdResult:
@@ -108,12 +108,13 @@ def _hook_run_profile_dump(app, ctx, args: str) -> CmdResult:
             return CmdResult.fail(msg="No profile files found.")
         path = profs[-1]
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        text = path.read_text(encoding="utf-8")
+        for line in text.splitlines():
             ctx.io.output(line)
     except OSError as e:
         ctx.io._write(f"Read error: {e}", "red")
         return CmdResult.fail(msg=f"Read error: {e}")
-    return CmdResult.ok()
+    return CmdResult.ok(value=text)
 
 
 def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
@@ -124,7 +125,7 @@ def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
     prof_dir.mkdir(exist_ok=True)
     open_with_system(str(prof_dir))
-    return CmdResult.ok()
+    return CmdResult.ok(value=prof_dir)
 
 
 def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
@@ -135,14 +136,14 @@ def _hook_run_profile_list(app, ctx, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
     if not prof_dir.exists():
         ctx.io.output("  (no profile files)")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     profs = sorted(prof_dir.glob("*.csv"))
     if not profs:
         ctx.io.output("  (no profile files)")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     for f in profs:
         ctx.io._write(f"  {f.name}")
-    return CmdResult.ok()
+    return CmdResult.ok(value="\n".join(f.name for f in profs))
 
 
 def register_run_profile_hooks(app) -> None:

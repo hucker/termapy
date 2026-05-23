@@ -134,7 +134,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Print the acknowledgments / attribution page to the terminal."""
     for line in _ACKNOWLEDGMENTS.splitlines():
         ctx.io.output(line)
-    return CmdResult.ok()
+    # Return the full text so scripts can capture/search the credits
+    # programmatically (e.g. ``$(CRED) <- /credits.quiet``).
+    return CmdResult.ok(value=_ACKNOWLEDGMENTS)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

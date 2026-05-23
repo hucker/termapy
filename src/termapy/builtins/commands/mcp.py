@@ -214,7 +214,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
         )
     open_with_system(str(path))
     ctx.io.output(f"  Opening {path.name}", "green")
-    return CmdResult.ok(value=str(path))
+    return CmdResult.ok(value=path)
 
 
 def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
@@ -268,7 +268,7 @@ def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
     path = _mcp_log_path(ctx)
     marker = "" if path.exists() else "  (not yet created)"
     ctx.io.output(f"{path}{marker}")
-    return CmdResult.ok(value=str(path))
+    return CmdResult.ok(value=path)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

@@ -445,7 +445,9 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.output(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
         ctx.io.output("  RX: (no response)", "red")
-    return CmdResult.ok()
+    # Return the response bytes as a hex string so scripts can
+    # capture and parse them (empty string when no response).
+    return CmdResult.ok(value=response.hex() if response else "")
 
 
 def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
@@ -482,7 +484,8 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
         if not steps:
             return CmdResult.fail(msg="Script has no steps.")
         _run_flat_script(ctx, path, settings, steps)
-    return CmdResult.ok()
+    # Return the script path so scripts can confirm what was run.
+    return CmdResult.ok(value=path)
 
 
 def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
@@ -510,7 +513,7 @@ def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Script has no tests.")
 
     ctx.engine.open_proto_debug(path, script)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
@@ -535,7 +538,8 @@ def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
         flags["hex_mode"] = not flags["hex_mode"]
         state = "enabled" if flags["hex_mode"] else "disabled"
         ctx.io.output(f"Hex display mode {state}.", "bright_green")
-    return CmdResult.ok()
+    # Mirror the echo/verbose convention: return the new state.
+    return CmdResult.ok(value="on" if flags["hex_mode"] else "off")
 
 
 def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
@@ -551,7 +555,10 @@ def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
     connected = ctx.serial.is_connected()
     ctx.io.output(f"Hex mode: {'on' if hex_mode else 'off'}")
     ctx.io.output(f"Connected: {'yes' if connected else 'no'}")
-    return CmdResult.ok()
+    return CmdResult.ok(
+        value=f"hex={'on' if hex_mode else 'off'}, "
+              f"connected={'yes' if connected else 'no'}"
+    )
 
 
 # ---- CRC subcommand handlers ----------------------------------------------
@@ -592,7 +599,8 @@ def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
 
     total = sum(len(g) for g in groups.values())
     ctx.io.output(f"  {total} algorithms available")
-    return CmdResult.ok()
+    # Return the matched algorithm names so scripts can iterate or count.
+    return CmdResult.ok(value="\n".join(names))
 
 
 def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
@@ -617,7 +625,7 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
             alg = registry[name]
             ctx.io.output(f"  {name} (plugin, {alg.width * 8}-bit)")
             ctx.io.output("  No catalogue parameters - loaded from plugin file.")
-            return CmdResult.ok()
+            return CmdResult.ok(value=name)
         ctx.io.output(f"Use '{p}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
@@ -643,7 +651,8 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
     ]
     for line in format_kv_lines(rows):
         ctx.io.output_markup(line)
-    return CmdResult.ok()
+    # Return the algorithm name so scripts can confirm the lookup.
+    return CmdResult.ok(value=name)
 
 
 def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
@@ -791,7 +800,8 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 
     for line in code.split("\n"):
         ctx.io.output_markup(f"  [green]{line}[/]")
-    return CmdResult.ok()
+    # Return the generated source so scripts can write it to disk.
+    return CmdResult.ok(value=code)
 
 
 def _parse_find_args(text: str) -> dict[str, str]:
@@ -987,7 +997,9 @@ def _render_find_matches(
         ctx.io.output("  No matches found.", "red")
         ctx.io.output("  Packet may use a non-standard algorithm, a CRC field")
         ctx.io.output("  that is not trailing, or be too short to identify.")
-        return CmdResult.ok()
+        # Zero matches -- empty value lets scripts distinguish "no match"
+        # from "single hit" (the success branch returns the alg name).
+        return CmdResult.ok(value="")
     collapsed = _dedupe_catalogue_aliases(matches)
     if len(collapsed) == 1:
         ctx.io.output("  1 match:", "green")

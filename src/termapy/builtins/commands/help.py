@@ -523,14 +523,15 @@ def _show_command_help(ctx: PluginContext, name: str,
     plugin = plugins.get(name)
     if plugin is not None:
         _render_man_page(ctx, name, plugin, dev_mode=dev_mode)
-        return CmdResult.ok()
+        # Resolved name so scripts can confirm what /help matched.
+        return CmdResult.ok(value=name)
 
     # 2. Device command from the active profile.
     from termapy.profile import profile_command_view
     tc = profile_command_view(ctx.ns("active_profile")).get(name)
     if tc is not None:
         _render_target_man_page(ctx, tc)
-        return CmdResult.ok()
+        return CmdResult.ok(value=name)
 
     # 3. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
@@ -679,7 +680,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         f"[{_SEP}]Use {prefix}help <term> to find a command, "
         f"{prefix}search <word> for a deep search.[/]"
     )
-    return CmdResult.ok()
+    # The landscape view's natural scriptable summary is the total
+    # command count -- scripts can compare it across cfgs to detect
+    # plugin drift, e.g., ``$(N) <- /help.quiet`` then arithmetic.
+    return CmdResult.ok(value=str(len(all_plugins)))
 
 
 # ── /help.target, /help.run, /help.plugin, /help.dev ─────────────────────────
@@ -694,10 +698,10 @@ def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
             "No device commands available.  /profile.load <path> "
             "or /profile.load cmd=<command> to load one."
         )
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     _render_target(ctx)
     ctx.io.result(f"{len(target_cmds)} device commands.")
-    return CmdResult.ok()
+    return CmdResult.ok(value="\n".join(sorted(target_cmds)))
 
 
 def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
@@ -759,15 +763,15 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     scripts_dir = ctx.fs.scripts_dir
     if not scripts_dir.is_dir():
         ctx.io.result("No scripts directory.")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     scripts = sorted(scripts_dir.glob("*.run"))
     if not scripts:
         ctx.io.result("No .run scripts found.")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     prefix = ctx.engine.prefix
     _render_scripts(ctx, scripts, prefix)
     ctx.io.result(f"{len(scripts)} scripts.")
-    return CmdResult.ok()
+    return CmdResult.ok(value="\n".join(p.stem for p in scripts))
 
 
 def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
@@ -779,7 +783,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
     all_plugins = ctx.engine.plugins
     if not all_plugins:
         ctx.io.result("No plugins loaded.")
-        return CmdResult.ok()
+        return CmdResult.ok(value="")
     _SOURCE_ORDER = {"app": 0, "built-in": 1, "global": 2}
     _SOURCE_LABELS = {
         "app": "Application",
@@ -829,7 +833,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
             total += 1
 
     ctx.io.result(f"{total} commands.")
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(total))
 
 
 def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:

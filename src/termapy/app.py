@@ -1643,7 +1643,9 @@ class SerialTerminal(TerminalHost, App):
         # Stash current config path so the mode loop can pass it to CLI
         self._switch_config_path = self.config_path
         self.exit()
-        return CmdResult.ok()
+        # Mode switch is intercepted by the outer mode loop; no value
+        # to capture reaches a script.
+        return CmdResult.ok(value="cli")
 
     def _start_demo(self, args: str = "") -> CmdResult:
         """Set up and switch to the built-in demo device config.
@@ -1653,7 +1655,9 @@ class SerialTerminal(TerminalHost, App):
         """
         force = "--force" in args.lower()
         self._start_demo_async(force)
-        return CmdResult.ok()
+        # Demo setup runs in a background worker; this returns
+        # immediately, so the value reports what was requested.
+        return CmdResult.ok(value="demo")
 
     @work(thread=True)
     def _start_demo_async(self, force: bool) -> None:
@@ -2740,7 +2744,8 @@ class SerialTerminal(TerminalHost, App):
     def _tui_hook_raw(self, text: str) -> CmdResult:
         """Hook wrapper for /raw - sends text with no transforms."""
         self._send_serial_raw(text)
-        return CmdResult.ok()
+        # Return the sent text so scripts can confirm what was written.
+        return CmdResult.ok(value=text)
 
     def _dispatch_single(self, cmd: str) -> CmdResult:
         """Dispatch a single command (delegates to repl.dispatch_full).
@@ -3147,7 +3152,8 @@ class SerialTerminal(TerminalHost, App):
         try:
             Path(log_path).unlink()
             self._status(f"Deleted {Path(log_path).name}", "green")
-            return CmdResult.ok()
+            # Return the deleted path so scripts can log / confirm.
+            return CmdResult.ok(value=Path(log_path))
         except OSError as e:
             self._status(f"Delete failed: {e}", "red")
             return CmdResult.fail(msg=str(e))

@@ -175,6 +175,17 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
 # ── /cfg.explore handler ──────────────────────────────────────────────────────
 
 
+def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
+    """Print current config as JSON and return it via CmdResult.value.
+
+    Lets `.quiet` mode capture the serialized config for scripting
+    (e.g. ``$(JSON) <- /cfg.dump.quiet``).
+    """
+    text = json.dumps(dict(ctx.cfg), indent=4)
+    ctx.io.output(text)
+    return CmdResult.ok(value=text)
+
+
 def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
     """Open the config data directory in the system file explorer.
 
@@ -186,7 +197,7 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No config loaded.")
     data_dir = Path(ctx.config_path).parent
     open_with_system(str(data_dir))
-    return CmdResult.ok(value=str(data_dir))
+    return CmdResult.ok(value=data_dir)
 
 
 def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
@@ -198,7 +209,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.config_path:
         return CmdResult.fail(msg="No config loaded.")
     ctx.fs.open_file(Path(ctx.config_path))
-    return CmdResult.ok(value=ctx.config_path)
+    return CmdResult.ok(value=Path(ctx.config_path))
 
 
 def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
@@ -390,7 +401,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         # json.dumps() hit a non-serializable value in the config.
         # Worth a specific message so the user knows what to fix.
         return CmdResult.fail(msg=f"Config has non-JSON value: {e}")
-    return CmdResult.ok(value=str(report_path))
+    return CmdResult.ok(value=report_path)
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
@@ -449,10 +460,7 @@ COMMAND = Command(
         ),
         "dump": Command(
             help="Print current config as JSON to the terminal.",
-            handler=lambda ctx, args: (
-                ctx.io.output(json.dumps(dict(ctx.cfg), indent=4)),
-                CmdResult.ok(),
-            )[-1],
+            handler=_handler_dump,
         ),
         "show": Command(
             help="Open the current config file in the system viewer.",

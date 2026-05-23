@@ -49,9 +49,9 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         if root:
             resolved = Path(root).resolve()
             ctx.io.result(str(resolved))
-        else:
-            ctx.io.result(f"{ctx.fs.cap_dir}  (default)")
-        return CmdResult.ok()
+            return CmdResult.ok(value=str(resolved))
+        ctx.io.result(f"{ctx.fs.cap_dir}  (default)")
+        return CmdResult.ok(value=str(ctx.fs.cap_dir))
 
     # Set the root
     path = Path(arg)

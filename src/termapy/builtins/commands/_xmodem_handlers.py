@@ -141,7 +141,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg="XMODEM send cancelled.")
         if ok:
             ctx.io.result(f"XMODEM send complete: {path} ({file_size} bytes)")
-            return CmdResult.ok(value=str(path))
+            return CmdResult.ok(value=path)
         return CmdResult.fail(msg="XMODEM send failed.")
 
 
@@ -196,7 +196,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         if ok:
             size = path.stat().st_size
             ctx.io.result(f"XMODEM recv complete: {path} ({size} bytes)")
-            return CmdResult.ok(value=str(path))
+            return CmdResult.ok(value=path)
         # Clean up empty file on failure
         if path.exists() and path.stat().st_size == 0:
             path.unlink()

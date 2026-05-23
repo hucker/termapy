@@ -65,8 +65,10 @@ def _hook_help_open(app, ctx: "PluginContext | None", args: str) -> CmdResult:
         return CmdResult.fail(msg=msg)
     port = app._ensure_help_server()
 
-    webbrowser.open(f"http://127.0.0.1:{port}/{page}")
-    return CmdResult.ok()
+    url = f"http://127.0.0.1:{port}/{page}"
+    webbrowser.open(url)
+    # Return the URL so scripts can capture / log which help page was opened.
+    return CmdResult.ok(value=url)
 
 
 def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
@@ -91,7 +93,7 @@ def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
     app.last_screenshot = path
     app._status(f"SVG screenshot saved: {path}", "green")
     app._on_main(app._sync_ss_button)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _hook_ss_svg_quiet(app, ctx, args: str) -> CmdResult:
@@ -117,7 +119,7 @@ def _hook_ss_svg_quiet(app, ctx, args: str) -> CmdResult:
     app._on_main(app.save_screenshot, path)
     app.last_screenshot = path
     app._on_main(app._sync_ss_button)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
@@ -143,7 +145,7 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
     app.last_screenshot = path
     app._status(f"Text screenshot saved: {path}", "green")
     app._on_main(app._sync_ss_button)
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _hook_delay(app, ctx, args: str) -> CmdResult:
@@ -170,9 +172,9 @@ def _hook_delay(app, ctx, args: str) -> CmdResult:
     if seconds < 1:
         time.sleep(seconds)
         app._on_main(app._status, f"Delay {args} done.")
-        return CmdResult.ok()
+        return CmdResult.ok(value=str(seconds))
     app._run_progress_bar(seconds, args.strip())
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(seconds))
 
 
 def _hook_delay_quiet(app, ctx, args: str) -> CmdResult:
@@ -183,7 +185,7 @@ def _hook_delay_quiet(app, ctx, args: str) -> CmdResult:
         app._status(str(e), "red")
         return CmdResult.fail(msg=str(e))
     app._on_main(app.set_timer, seconds, lambda: None)
-    return CmdResult.ok()
+    return CmdResult.ok(value=str(seconds))
 
 
 def _hook_line_no(app, ctx, args: str) -> CmdResult:
@@ -192,11 +194,11 @@ def _hook_line_no(app, ctx, args: str) -> CmdResult:
     if arg == "on":
         app._show_line_numbers = True
         app._status("Line numbers ON")
-        return CmdResult.ok()
+        return CmdResult.ok(value="on")
     elif arg == "off":
         app._show_line_numbers = False
         app._status("Line numbers OFF")
-        return CmdResult.ok()
+        return CmdResult.ok(value="off")
     else:
         app._status("Usage: line_no on|off", "yellow")
         return CmdResult.fail(msg="Usage: line_no on|off")
@@ -209,7 +211,7 @@ def _hook_edit_cfg(app) -> CmdResult:
         ConfigEditor(dict(app.cfg), app.config_path),
         callback=app._on_config_result,
     )
-    return CmdResult.ok()
+    return CmdResult.ok(value=Path(app.config_path) if app.config_path else "")
 
 
 def _hook_edit_info(app) -> CmdResult:
@@ -221,7 +223,7 @@ def _hook_edit_info(app) -> CmdResult:
     path = Path(app.config_path).parent / f"{stem}.md"
     if path.exists():
         open_with_system(str(path))
-        return CmdResult.ok()
+        return CmdResult.ok(value=path)
     else:
         app.repl.write("No info report yet. Run /cfg.info first.", "red")
         return CmdResult.fail(msg="No info report yet. Run /cfg.info first.")
@@ -260,7 +262,7 @@ def _hook_edit(app, ctx, args: str) -> CmdResult:
             ProtoEditor(app.repl.proto_dir, str(path)),
             callback=app._on_proto_saved,
         )
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
@@ -269,17 +271,19 @@ def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
     if not name:
         dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
         base = dir_map.get(folder)
+        listed: list[str] = []
         if base and base.is_dir():
             files = sorted(base.glob(f"*{ext}"))
             if files:
                 app.repl.write("  Available file(s):")
                 for f in files:
                     app.repl.write(f"    {f.name}")
+                    listed.append(f.name)
             else:
                 app.repl.write("  (empty)")
         else:
             app.repl.write("  (no directory)")
-        return CmdResult.ok()
+        return CmdResult.ok(value="\n".join(listed))
     if not name.endswith(ext):
         name += ext
     dir_map = {"run": app.repl.scripts_dir, "proto": app.repl.proto_dir}
@@ -302,7 +306,7 @@ def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
             ProtoEditor(base, str(path)),
             callback=app._on_proto_saved,
         )
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
@@ -332,14 +336,16 @@ def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Failed to load config: {e}")
     app._on_main(app._switch_config, cfg, str(path))
     app._on_main(app._show_config_info, str(path))
-    return CmdResult.ok()
+    return CmdResult.ok(value=path)
 
 
 def _hook_proto_load(app, ctx, args: str) -> CmdResult:
     """Run a protocol test script (delegates to /proto.run)."""
     prefix = cmd_prefix(app.cfg)
     app._dispatch_single(f"{prefix}proto.run {args}")
-    return CmdResult.ok()
+    # Dispatch is fire-and-forget here; the args carry the script
+    # identifier so scripts can confirm what was requested.
+    return CmdResult.ok(value=args.strip())
 
 
 def register_tui_hooks(app) -> None:
@@ -440,7 +446,9 @@ def register_tui_hooks(app) -> None:
         "tui",
         "",
         "Already in TUI mode.",
-        lambda ctx, args: CmdResult.ok(),
+        # SPECIAL CASE: this hook fires when the user types /tui while
+        # already in TUI mode -- no state change, no scriptable output.
+        lambda ctx, args: CmdResult.ok(value=""),
         source="app",
         needs=CapabilitySet(interactive=True),
     )

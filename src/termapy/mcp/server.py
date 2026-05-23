@@ -388,7 +388,7 @@ class MCPHost(TerminalHost):
             import time as _time
 
             _time.sleep(duration)
-            return CmdResult.ok()
+            return CmdResult.ok(value=str(duration))
 
         self.repl.register_hook(
             "delay",

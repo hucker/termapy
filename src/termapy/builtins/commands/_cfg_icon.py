@@ -256,7 +256,7 @@ def _create(
     if path is None:
         return CmdResult.fail(msg="Launcher creation returned no path.")
     ctx.io.result(f"Launcher created: {path}")
-    return CmdResult.ok(value=str(path))
+    return CmdResult.ok(value=path)
 
 
 def _remove(ctx: PluginContext, name: str, stem: str) -> CmdResult:
@@ -272,7 +272,7 @@ def _remove(ctx: PluginContext, name: str, stem: str) -> CmdResult:
         return CmdResult.fail(msg=f"Launcher not found: {path}")
     (shutil.rmtree if path.is_dir() else Path.unlink)(path)
     ctx.io.result(f"Launcher removed: {path}")
-    return CmdResult.ok(value=str(path))
+    return CmdResult.ok(value=path)
 
 
 # ── Scan + list ──────────────────────────────────────────────────────────────

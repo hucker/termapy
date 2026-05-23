@@ -192,16 +192,27 @@ def _fuzzy_matches(query: str, plugins: dict, include_dev: bool = False,
 
 
 def _highlight(text: str, span: tuple[int, int]) -> str:
-    """Return a context snippet around ``span`` with the match wrapped in yellow."""
+    """Return a context snippet around ``span`` with the match wrapped in yellow.
+
+    User-supplied text (e.g. a long_help that contains its own Rich
+    markup like ``[green]Current X = Y[/]``) is escaped before being
+    spliced into the final string -- without that, a snippet boundary
+    can land between an opening tag and its closer, leaving an orphan
+    ``[/]`` that breaks Rich's parser.
+    """
+    from rich.markup import escape
+
     start, end = span
     left = max(0, start - _SEARCH_CONTEXT)
     right = min(len(text), end + _SEARCH_CONTEXT)
     prefix = "..." if left > 0 else ""
     suffix = "..." if right < len(text) else ""
-    # Collapse newlines/tabs so each hit stays on one line.
-    before = text[left:start].replace("\n", " ").replace("\t", " ")
-    hit = text[start:end].replace("\n", " ").replace("\t", " ")
-    after = text[end:right].replace("\n", " ").replace("\t", " ")
+    # Collapse newlines/tabs so each hit stays on one line, then escape
+    # so any literal "[...]" in the source text is treated as text, not
+    # as Rich markup that would collide with our [yellow] wrapper.
+    before = escape(text[left:start].replace("\n", " ").replace("\t", " "))
+    hit = escape(text[start:end].replace("\n", " ").replace("\t", " "))
+    after = escape(text[end:right].replace("\n", " ").replace("\t", " "))
     return f"{prefix}{before}[yellow]{hit}[/]{after}{suffix}"
 
 

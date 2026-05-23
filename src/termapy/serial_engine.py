@@ -357,7 +357,7 @@ class SerialEngine:
             )
             return False
         except (_serial.SerialException, OSError, ValueError) as e:
-            self.last_error = _classify_serial_error(e, self._cfg.get("port", ""))
+            self.last_error = _classify_serial_error(e, self._cfg["serial"]["port"])
             return False
 
         self._serial_port = SerialPort(

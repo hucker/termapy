@@ -217,7 +217,7 @@ def connection_string(
         cfg: Config dict with serial parameters.
         level: "short" (port baud 8N1), "medium" (+ flow control if non-default),
             or "full" (+ encoding and line ending).
-        actual_port: If non-empty, shown in place of ``cfg["port"]``.
+        actual_port: If non-empty, shown in place of ``cfg["serial"]["port"]``.
             Callers that know the resolved device (via ``port_obj.port``
             after connect) pass it here so the displayed port is the
             real device name, not the possibly-cryptic spec (SN, pipe
@@ -226,13 +226,14 @@ def connection_string(
     Returns:
         Formatted connection string.
     """
-    port = actual_port or cfg.get("port", "?")
-    baud = cfg.get("baud_rate", "?")
-    bits = cfg.get("byte_size", 8)
-    parity = cfg.get("parity", "N")
-    sb = cfg.get("stop_bits", 1)
+    serial = cfg["serial"]
+    port = actual_port or serial["port"] or "?"
+    baud = serial["baud_rate"]
+    bits = serial["byte_size"]
+    parity = serial["parity"]
+    sb = serial["stop_bits"]
     sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-    fc = cfg.get("flow_control", "none")
+    fc = serial["flow_control"]
 
     base = f"{port} {baud} {bits}{parity}{sb_str}"
     if level == "short":
@@ -409,40 +410,41 @@ def validate_config(cfg: dict) -> list[str]:
     # bootstrap a REPL with no config file, but that path never hits
     # validate_config (no load_config, no --check).  Any config
     # actually persisted to disk gets a warning here.
-    p = cfg.get("port")
+    serial = cfg.get("serial", {})
+    p = serial.get("port")
     if p is not None:
         if not isinstance(p, str):
-            warnings.append(f"port: expected str, got {type(p).__name__}")
+            warnings.append(f"serial.port: expected str, got {type(p).__name__}")
         elif p == "":
             warnings.append(
-                "port: must not be empty "
+                "serial.port: must not be empty "
                 "(use a device name, USB serial number, or 'DEMO')"
             )
 
     # Type + value checks for serial settings
-    _check_set(cfg, "byte_size", int, VALID_BYTE_SIZES, warnings)
-    _check_set(cfg, "parity", str, VALID_PARITIES, warnings)
-    _check_set(cfg, "stop_bits", (int, float), VALID_STOP_BITS, warnings)
-    _check_set(cfg, "flow_control", str, VALID_FLOW_CONTROLS, warnings)
+    _check_set(serial, "byte_size", int, VALID_BYTE_SIZES, warnings, key_prefix="serial.")
+    _check_set(serial, "parity", str, VALID_PARITIES, warnings, key_prefix="serial.")
+    _check_set(serial, "stop_bits", (int, float), VALID_STOP_BITS, warnings, key_prefix="serial.")
+    _check_set(serial, "flow_control", str, VALID_FLOW_CONTROLS, warnings, key_prefix="serial.")
 
     # custom_baud - must be bool
-    cb = cfg.get("custom_baud")
+    cb = serial.get("custom_baud")
     if cb is not None and not isinstance(cb, bool):
-        warnings.append(f"custom_baud: expected bool, got {type(cb).__name__}")
+        warnings.append(f"serial.custom_baud: expected bool, got {type(cb).__name__}")
 
     # Baud rate - standard rates only unless custom_baud is enabled
-    val = cfg.get("baud_rate")
+    val = serial.get("baud_rate")
     if val is not None:
         if not isinstance(val, int):
-            warnings.append(f"baud_rate: expected int, got {type(val).__name__}")
+            warnings.append(f"serial.baud_rate: expected int, got {type(val).__name__}")
         elif val <= 0:
-            warnings.append(f"baud_rate: must be positive, got {val}")
-        elif cfg.get("custom_baud"):
+            warnings.append(f"serial.baud_rate: must be positive, got {val}")
+        elif serial.get("custom_baud"):
             if val < 300:
-                warnings.append(f"baud_rate: custom baud requires >= 300, got {val}")
+                warnings.append(f"serial.baud_rate: custom baud requires >= 300, got {val}")
         elif val not in STANDARD_BAUD_RATES:
             warnings.append(
-                f"baud_rate: {val} is not a standard rate -- set custom_baud to true to allow non-standard rates"
+                f"serial.baud_rate: {val} is not a standard rate -- set custom_baud to true to allow non-standard rates"
             )
 
     # Encoding - must be a valid Python codec
@@ -469,16 +471,26 @@ def _check_set(
     expected_type: type | tuple[type, ...],
     valid: set,
     warnings: list[str],
+    key_prefix: str = "",
 ) -> None:
-    """Check that cfg[key] has the right type and is in the valid set."""
+    """Check that cfg[key] has the right type and is in the valid set.
+
+    ``key_prefix`` is prepended to ``key`` in any warning message,
+    so callers checking nested sub-dicts (e.g. cfg["serial"]) can
+    pass ``key_prefix="serial."`` to get user-visible warnings like
+    ``serial.byte_size: ...`` instead of bare ``byte_size: ...``.
+    """
     val = cfg.get(key)
     if val is None:
         return
+    label = f"{key_prefix}{key}"
     if not isinstance(val, expected_type):
-        warnings.append(f"{key}: expected {_type_name(expected_type)}, got {type(val).__name__}")
+        warnings.append(
+            f"{label}: expected {_type_name(expected_type)}, got {type(val).__name__}"
+        )
         return
     if val not in valid:
-        warnings.append(f"{key}: invalid value {val!r}, expected one of {sorted(valid)}")
+        warnings.append(f"{label}: invalid value {val!r}, expected one of {sorted(valid)}")
 
 
 def _check_positive(cfg: dict, key: str, warnings: list[str]) -> None:
@@ -556,6 +568,15 @@ def load_config(path: str) -> dict:
         if key not in cfg:
             cfg[key] = val
             changed = True
+        elif isinstance(val, dict) and isinstance(cfg[key], dict):
+            # One-level recursive backfill for nested-dict defaults
+            # (e.g. cfg["serial"], cfg["ndjson_field_routing"]).
+            # Lets users partial-set nested keys without losing their
+            # siblings to "key missing" surprises at access sites.
+            for sub_key, sub_val in val.items():
+                if sub_key not in cfg[key]:
+                    cfg[key][sub_key] = sub_val
+                    changed = True
     cfg.pop("_migrated_from", None)  # clean up stale marker from older saves
     if changed:
         with open(path, "w") as f:
@@ -615,7 +636,7 @@ def open_with_system(path: str) -> None:
 def open_serial(cfg: dict) -> Any:
     """Open serial port from config dict.
 
-    ``cfg["port"]`` may be a plain device name (``"COM3"``,
+    ``cfg["serial"]["port"]`` may be a plain device name (``"COM3"``,
     ``"/dev/ttyUSB0"``), a USB serial number, a ``|``-separated fallback
     chain (``"A1B2C3D4|COM3"``), a reserved name (``"DEMO"``,
     ``"DEMO_FAIL"``), or a pyserial URL.  Resolution to a concrete
@@ -635,35 +656,36 @@ def open_serial(cfg: dict) -> Any:
         A serial port object (real or simulated).
 
     Raises:
-        AmbiguousSerialNumberError: when ``cfg["port"]`` is a spec
-            whose serial-number candidate matches two or more connected
-            devices.  Surfaces through to the connect failure path so
-            the user sees which devices collided.
+        AmbiguousSerialNumberError: when ``cfg["serial"]["port"]`` is a
+            spec whose serial-number candidate matches two or more
+            connected devices.  Surfaces through to the connect failure
+            path so the user sees which devices collided.
     """
     from termapy.port_control import resolve_port
 
-    resolved = resolve_port(cfg["port"])
+    serial_cfg = cfg["serial"]
+    resolved = resolve_port(serial_cfg["port"])
     name = resolved.upper()
     if name == "DEMO":
         from termapy.demo import FakeSerial
 
-        return FakeSerial(baudrate=cfg["baud_rate"])
+        return FakeSerial(baudrate=serial_cfg["baud_rate"])
     if name == "DEMO_JSON":
         from termapy.demo_ndjson import FakeSerialNDJSON
 
-        return FakeSerialNDJSON(baudrate=cfg["baud_rate"])
+        return FakeSerialNDJSON(baudrate=serial_cfg["baud_rate"])
     if name == "DEMO_FAIL":
         raise OSError("DEMO_FAIL: simulated open failure")
 
-    fc = cfg.get("flow_control", "none")
+    fc = serial_cfg["flow_control"]
     # serial_for_url handles both plain ports ("COM3", "/dev/ttyUSB0")
     # and URLs ("rfc2217://host:port", "socket://host:port", "loop://").
     return serial.serial_for_url(
         resolved,
-        baudrate=cfg["baud_rate"],
-        bytesize=cfg["byte_size"],
-        parity=cfg["parity"],
-        stopbits=cfg["stop_bits"],
+        baudrate=serial_cfg["baud_rate"],
+        bytesize=serial_cfg["byte_size"],
+        parity=serial_cfg["parity"],
+        stopbits=serial_cfg["stop_bits"],
         rtscts=(fc == "rtscts"),
         xonxoff=(fc == "xonxoff"),
         timeout=0.05,

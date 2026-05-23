@@ -102,7 +102,7 @@ def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
     # capturing the value know which port just went down.  ctx.cfg
     # still holds the name after disconnect, but capturing first
     # protects against any future cfg-mutation on disconnect.
-    last_port = ctx.cfg.get("port", "") or ""
+    last_port = ctx.cfg["serial"]["port"] or ""
     ctx.engine.disconnect()
     return CmdResult.ok(value=last_port)
 
@@ -154,7 +154,7 @@ def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_chip(ctx: PluginContext, args: str) -> CmdResult:
-    current = ctx.cfg.get("port", "") or ""
+    current = ctx.cfg["serial"]["port"] or ""
     connected = current if ctx.serial.is_connected() else ""
     result = port_control.chip_info(args, current, connected)
     _apply(ctx, result)
@@ -210,11 +210,11 @@ def _make_chip_field_handler(field: str):
     """Build a handler for /port.chip.<field>.
 
     The handler takes an optional port name (or ``*`` for all ports).
-    With no argument it queries the current port from cfg["port"].
+    With no argument it queries the current port from cfg["serial"]["port"].
     """
 
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        current = ctx.cfg.get("port", "") or ""
+        current = ctx.cfg["serial"]["port"] or ""
         connected = current if ctx.serial.is_connected() else ""
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
@@ -295,10 +295,20 @@ def _make_signal_handler(signal: str):
 
 
 def _cfg_value_long_help(key: str, label: str):
-    """Build a callable that renders a state_line for a single cfg key."""
+    """Build a callable that renders a state_line for a single cfg key.
+
+    Reads from ``ctx.cfg["serial"][key]`` if the key lives there
+    (post-v22 pyserial keys); falls back to flat top-level for any
+    other key.  Keeps callers (port.baud_rate, port.byte_size,
+    port.stop_bits) oblivious to the v22 nesting.
+    """
 
     def _long(ctx: PluginContext) -> str:
-        value = ctx.cfg.get(key, "?")
+        serial = ctx.cfg.get("serial", {})
+        if key in serial:
+            value = serial[key]
+        else:
+            value = ctx.cfg.get(key, "?")
         return state_line(label, value)
 
     return _long
@@ -326,10 +336,11 @@ def _port_info_long_help(ctx: PluginContext) -> str:
 
 
 def _port_mode_long_help(ctx: PluginContext) -> str:
-    byte = ctx.cfg.get("byte_size", "?")
-    par = ctx.cfg.get("parity", "?")
-    stop = ctx.cfg.get("stop_bits", "?")
-    baud = ctx.cfg.get("baud_rate", "?")
+    serial = ctx.cfg["serial"]
+    byte = serial["byte_size"]
+    par = serial["parity"]
+    stop = serial["stop_bits"]
+    baud = serial["baud_rate"]
     return compose(
         green(f"Current mode = {baud} {par}{byte}{stop}"),
         "Combined form for baud + mode triple. Accepts '{prefix}port.mode\n"
@@ -341,7 +352,7 @@ def _port_mode_long_help(ctx: PluginContext) -> str:
 
 def _port_parity_long_help(ctx: PluginContext) -> str:
     return compose(
-        state_line("parity", ctx.cfg.get("parity", "?")),
+        state_line("parity", ctx.cfg["serial"]["parity"]),
         "Parity bit mode. Values:\n"
         "  N - none (default for most modern devices)\n"
         "  E - even\n"
@@ -353,7 +364,7 @@ def _port_parity_long_help(ctx: PluginContext) -> str:
 
 def _port_flow_long_help(ctx: PluginContext) -> str:
     return compose(
-        state_line("flow control", ctx.cfg.get("flow_control", "none")),
+        state_line("flow control", ctx.cfg["serial"]["flow_control"]),
         "Serial flow-control mode. Values:\n"
         "  none    - no flow control (default; most modern devices)\n"
         "  rtscts  - hardware handshake using the RTS/CTS lines\n"

@@ -276,7 +276,7 @@ that needs no prose, you can pass the helper directly:
 ```python
 "baud_rate": Command(
     help="Show or set baud rate.",
-    long_help=lambda ctx: state_line("baud rate", ctx.cfg.get("baud_rate")),
+    long_help=lambda ctx: state_line("baud rate", ctx.cfg["serial"]["baud_rate"]),
     handler=_baud_handler,
 ),
 ```

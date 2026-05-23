@@ -61,8 +61,8 @@ class TestDefaultCfg:
         assert "config_version" in DEFAULT_CFG, "version key present"
 
     def test_default_baud_rate(self):
-        # Assert
-        assert DEFAULT_CFG["baud_rate"] == 115200, "standard default"
+        # Assert -- nested under cfg["serial"] post-v22.
+        assert DEFAULT_CFG["serial"]["baud_rate"] == 115200, "standard default"
 
     def test_default_line_ending(self):
         # Assert

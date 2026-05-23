@@ -131,6 +131,6 @@ def test_quick_setup_writes_cfg_file_with_expected_contents(
     assert cfg_path.is_file(), "cfg file was written"
     data = json.loads(cfg_path.read_text(encoding="utf-8"))
     assert data["title"] == "demo", "title field carries the cfg name"
-    assert data["port"] == "COM1", "port field carries the selection"
-    assert data["baud_rate"] == 115200, "baud rate written"
+    assert data["serial"]["port"] == "COM1", "serial.port carries the selection (post-v22)"
+    assert data["serial"]["baud_rate"] == 115200, "serial.baud_rate written (post-v22)"
     assert app.connect_calls == 1, "auto-connect fired (port present)"

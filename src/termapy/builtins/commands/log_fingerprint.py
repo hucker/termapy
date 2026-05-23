@@ -157,7 +157,7 @@ def _config_snapshot(ctx: PluginContext) -> list[str]:
 
     lines.append(_kv("  Encoding", ctx.cfg.get("encoding", "utf-8")))
     lines.append(_kv("  Line ending", repr(ctx.cfg.get("line_ending", "\r"))))
-    lines.append(_kv("  Flow control", ctx.cfg.get("flow_control", "none")))
+    lines.append(_kv("  Flow control", ctx.cfg["serial"]["flow_control"]))
     return lines
 
 

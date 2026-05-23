@@ -1001,8 +1001,8 @@ class ProtoDebugScreen(ModalScreen[None]):
                 "script_name": self._script.name or self._path.stem,
                 "timestamp": datetime.now().isoformat(timespec="milliseconds"),
                 "config": config_name,
-                "port": cfg.get("port", ""),
-                "baud_rate": cfg.get("baud_rate", 0),
+                "port": cfg["serial"]["port"],
+                "baud_rate": cfg["serial"]["baud_rate"],
                 "encoding": cfg.get("encoding", "utf-8"),
             },
             "summary": {

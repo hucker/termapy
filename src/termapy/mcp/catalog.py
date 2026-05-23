@@ -188,7 +188,7 @@ def build_device_state(
     # Port state.
     port_obj = ctx.serial.port() if ctx.serial.is_connected() else None
     port_info: dict[str, Any] = {
-        "name": ctx.cfg.get("port", ""),
+        "name": ctx.cfg["serial"]["port"],
         "open": ctx.serial.is_connected(),
     }
     if port_obj is not None:

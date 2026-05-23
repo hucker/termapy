@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 21,
+    "config_version": 22,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -49,13 +49,15 @@ Here is an example config for a device called `iot_device`:
     "config_read_only": false,
     "profile_path": "",
     "validate_typed_args": false,
-    "port": "COM4",
-    "baud_rate": 115200,
-    "custom_baud": false,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
+    "serial": {
+        "port": "COM4",
+        "baud_rate": 115200,
+        "custom_baud": false,
+        "byte_size": 8,
+        "parity": "N",
+        "stop_bits": 1,
+        "flow_control": "none"
+    },
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
     "protocol": "text",
@@ -114,13 +116,13 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
 | Field                    | Default               | Description                                                                                 |
 | ------------------------ | --------------------- | ------------------------------------------------------------------------------------------- |
-| `port`                   | `""`                  | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
-| `baud_rate`              | `115200`              | Serial baud rate -- non-standard rates require `custom_baud`                                |
-| `custom_baud`            | `false`               | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates              |
-| `byte_size`              | `8`                   | Data bits per byte (5, 6, 7, or 8)                                                          |
-| `parity`                 | `N`                   | Parity: None, Even, Odd, Mark, or Space                                                     |
-| `stop_bits`              | `1`                   | Stop bits (1, 1.5, or 2)                                                                    |
-| `flow_control`           | `none`                | `none`, `rtscts`, `xonxoff`, or `manual` (shows DTR/RTS/Break buttons)                      |
+| `serial.port`            | `""`                  | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
+| `serial.baud_rate`       | `115200`              | Serial baud rate -- non-standard rates require `custom_baud`                                |
+| `serial.custom_baud`     | `false`               | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates              |
+| `serial.byte_size`       | `8`                   | Data bits per byte (5, 6, 7, or 8)                                                          |
+| `serial.parity`          | `N`                   | Parity: None, Even, Odd, Mark, or Space                                                     |
+| `serial.stop_bits`       | `1`                   | Stop bits (1, 1.5, or 2)                                                                    |
+| `serial.flow_control`    | `none`                | `none`, `rtscts`, `xonxoff`, or `manual` (shows DTR/RTS/Break buttons)                      |
 | `encoding`               | `utf-8`               | Character encoding (utf-8, latin-1, ascii, cp437)                                           |
 | `cmd_delay_ms`           | `0`                   | Milliseconds between commands in autoconnect and multi-command input                        |
 | `protocol`               | `text`                | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line)   |

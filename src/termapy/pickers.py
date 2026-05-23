@@ -29,7 +29,7 @@ from termapy.config import (
     expand_env_cfg,
     validate_config,
 )
-from termapy.defaults import DEFAULT_CFG, cmd_prefix
+from termapy.defaults import cmd_prefix, default_cfg
 from termapy.dialogs import (
     ConfigEditor,
     ProtoEditor,
@@ -98,12 +98,12 @@ def on_quick_setup(app, result: tuple | None) -> None:
         return
     action, name, port, baud, custom_baud, add_icon = result
     config_path = str(cfg_path_for_name(name))
-    cfg = dict(DEFAULT_CFG)
+    cfg = default_cfg()
     cfg["title"] = name
     if port:
-        cfg["port"] = port
-    cfg["baud_rate"] = baud
-    cfg["custom_baud"] = custom_baud
+        cfg["serial"]["port"] = port
+    cfg["serial"]["baud_rate"] = baud
+    cfg["serial"]["custom_baud"] = custom_baud
     if action == "advanced":
         # Open the full config editor with pre-filled values.
         # Advanced users skip the checkbox -- they can /cfg.icon

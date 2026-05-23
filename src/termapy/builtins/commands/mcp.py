@@ -98,7 +98,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     profile_date = cat.get("profile_date") or "(none)"
     device_name = (cat.get("device") or {}).get("name", "(none)")
     protocol = ctx.cfg.get("protocol", "text")
-    baud = ctx.cfg.get("baud_rate", "(none)")
+    baud = ctx.cfg["serial"]["baud_rate"]
 
     # Command count: always count what MCP would see, not what the
     # current host's capabilities would surface.
@@ -111,7 +111,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     # Port state.
     is_connected = ctx.serial.is_connected()
     port_state = "connected" if is_connected else "disconnected"
-    port_name = ctx.cfg.get("port", "(none)")
+    port_name = ctx.cfg["serial"]["port"] or "(none)"
 
     # Capture artifacts.
     cap_dir = Path(ctx.fs.cap_dir)

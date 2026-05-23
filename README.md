@@ -488,7 +488,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 21,
+    "config_version": 22,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -500,13 +500,15 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "config_read_only": false,
     "profile_path": "",
     "validate_typed_args": false,
-    "port": "COM4",
-    "baud_rate": 115200,
-    "custom_baud": false,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
+    "serial": {
+        "port": "COM4",
+        "baud_rate": 115200,
+        "custom_baud": false,
+        "byte_size": 8,
+        "parity": "N",
+        "stop_bits": 1,
+        "flow_control": "none"
+    },
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
     "protocol": "text",
@@ -549,13 +551,13 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | Field                | Default                | Description                                                                                              |
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `config_version`     | `5`                    | Schema version (managed automatically by the migration system, do not edit)                              |
-| `port`               | `""`                   | Serial port name -- auto-detected when only one port available (supports `$(env.NAME\|fallback)`)        |
-| `baud_rate`          | `115200`               | Baud rate -- non-standard rates require `custom_baud`                                                    |
-| `custom_baud`        | `false`                | Allow any baud rate >= 300 (modern drivers support arbitrary rates; disable to catch typos)               |
-| `byte_size`          | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
-| `parity`             | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
-| `stop_bits`          | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
-| `flow_control`       | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
+| `serial.port`        | `""`                   | Serial port name -- auto-detected when only one port available (supports `$(env.NAME\|fallback)`)        |
+| `serial.baud_rate`   | `115200`               | Baud rate -- non-standard rates require `custom_baud`                                                    |
+| `serial.custom_baud` | `false`                | Allow any baud rate >= 300 (modern drivers support arbitrary rates; disable to catch typos)               |
+| `serial.byte_size`   | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
+| `serial.parity`      | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
+| `serial.stop_bits`   | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
+| `serial.flow_control` | `"none"`              | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
 | `encoding`           | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
 | `cmd_delay_ms`       | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
 | `protocol`           | `"text"`               | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON object per line)         |

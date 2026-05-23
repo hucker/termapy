@@ -217,9 +217,17 @@ class CLITerminal(TerminalHost):
     # -- Output ---------------------------------------------------------------
 
     def write(self, text: str, color: str = "") -> None:
-        """Write text to stdout via Rich console."""
+        """Write text to stdout via Rich console.
+
+        When ``color`` is given, ``text`` is treated as plain content
+        and any literal ``[...]`` inside it is escaped so it doesn't
+        collide with the wrapper.  Callers that want true Rich markup
+        should use ``write_markup`` instead.
+        """
         if color:
-            self.console.print(f"[{color}]{text}[/]")
+            from rich.markup import escape
+
+            self.console.print(f"[{color}]{escape(text)}[/]")
         else:
             self.console.print(text)
 
@@ -228,9 +236,17 @@ class CLITerminal(TerminalHost):
         self.console.print(text)
 
     def status(self, text: str, color: str = "") -> None:
-        """Write an indented status message."""
+        """Write an indented status message.
+
+        When ``color`` is given, ``text`` is treated as plain content
+        and escaped before the wrapper (see ``write``).  Avoids a
+        cascade failure when an error message contains literal
+        ``[/]`` (e.g. a Rich MarkupError repeated as ``err_msg``).
+        """
         if color:
-            self.console.print(f"  [{color}]{text}[/]")
+            from rich.markup import escape
+
+            self.console.print(f"  [{color}]{escape(text)}[/]")
         else:
             self.console.print(f"  {text}")
 

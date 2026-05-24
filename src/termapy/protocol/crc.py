@@ -170,6 +170,14 @@ CRC_CATALOGUE: dict[str, dict] = {
     "crc32-mef":        {"width": 32, "poly": 0x741B8CD7, "init": 0xFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0x00000000, "check": 0xD2C22F51, "desc": "Metro Ethernet Forum (MEF)"},
     "crc32-mpeg-2":     {"width": 32, "poly": 0x04C11DB7, "init": 0xFFFFFFFF, "refin": False, "refout": False, "xorout": 0x00000000, "check": 0x0376E6E7, "desc": "MPEG-2 transport stream"},
     "crc32-xfer":       {"width": 32, "poly": 0x000000AF, "init": 0x00000000, "refin": False, "refout": False, "xorout": 0x00000000, "check": 0xBD0BE338, "desc": "XFER file transfer protocol"},
+    # ---- CRC-64 (7 algorithms) ----
+    "crc64-ecma-182":   {"width": 64, "poly": 0x42F0E1EBA9EA3693, "init": 0x0000000000000000, "refin": False, "refout": False, "xorout": 0x0000000000000000, "check": 0x6C40DF5F0B497347, "desc": "ECMA-182 (DLT tape, original)"},
+    "crc64-go-iso":     {"width": 64, "poly": 0x000000000000001B, "init": 0xFFFFFFFFFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFFFFFFFFFFFFFF, "check": 0xB90956C775A41001, "desc": "Go standard library (hash/crc64.ISO)"},
+    "crc64-ms":         {"width": 64, "poly": 0x259C84CBA6426349, "init": 0xFFFFFFFFFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0x0000000000000000, "check": 0x75D4B74F024ECEEA, "desc": "Microsoft (jhash.c)"},
+    "crc64-nvme":       {"width": 64, "poly": 0xAD93D23594C93659, "init": 0xFFFFFFFFFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFFFFFFFFFFFFFF, "check": 0xAE8B14860A799888, "desc": "NVMe storage protocol"},
+    "crc64-redis":      {"width": 64, "poly": 0xAD93D23594C935A9, "init": 0x0000000000000000, "refin": True,  "refout": True,  "xorout": 0x0000000000000000, "check": 0xE9C6D914C4B8D9CA, "desc": "Redis in-memory data store"},
+    "crc64-we":         {"width": 64, "poly": 0x42F0E1EBA9EA3693, "init": 0xFFFFFFFFFFFFFFFF, "refin": False, "refout": False, "xorout": 0xFFFFFFFFFFFFFFFF, "check": 0x62EC59E3F1A4F00A, "desc": "Wolfgang Ehrhardt CRC-64"},
+    "crc64-xz":         {"width": 64, "poly": 0x42F0E1EBA9EA3693, "init": 0xFFFFFFFFFFFFFFFF, "refin": True,  "refout": True,  "xorout": 0xFFFFFFFFFFFFFFFF, "check": 0x995DC9BBDF1939FA, "desc": "XZ file format (LZMA2 streams)"},
 }
 
 # Backward-compatible aliases for old short names

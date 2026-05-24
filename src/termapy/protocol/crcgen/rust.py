@@ -89,8 +89,10 @@ def generate_rust(name: str, table: bool = False) -> str | None:
         rtype = "u8"
     elif w <= 16:
         rtype = "u16"
-    else:
+    elif w <= 32:
         rtype = "u32"
+    else:
+        rtype = "u64"
 
     lines = []
     if table:

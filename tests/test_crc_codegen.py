@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from termapy.protocol import generate_c, generate_python, generate_rust, GENERATORS
+from termapy.protocol import (
+    generate_c, generate_python, generate_rust, generate_vhdl, GENERATORS,
+)
 from termapy.protocol import CRC_CATALOGUE
 
 
@@ -64,15 +66,28 @@ class TestGeneratePython:
 
 
 class TestGenerateC:
-    def test_generates_code(self):
-        # Act
-        code = generate_c("crc16-modbus")
+    """generate_c returns a (header, source) pair of complete files.
 
-        # Assert
-        assert code is not None, "generator returned code"
-        assert "uint16_t" in code, "correct type"
-        assert "crc16_modbus" in code, "function name"
-        assert "0x4B37" in code, "check value in comment"
+    The header has the standard ``extern "C"`` guard for C++ interop;
+    the source ``#include``s the header and emits a ``_self_test()``
+    function callers can invoke for runtime verification.  See
+    ``test_crc_codegen_exec.py`` for the execution-verified tests
+    (compile + run) that pin correctness for every algorithm.
+    """
+
+    def test_generates_pair(self):
+        # Act
+        result = generate_c("crc16-modbus")
+
+        # Assert -- tuple shape and basic content
+        assert result is not None, "generator returned a pair"
+        header, source = result
+        assert "extern \"C\"" in header, "header has extern \"C\" guard for C++ interop"
+        assert "uint16_t crc16_modbus(" in header, "header declares the function"
+        assert "int crc16_modbus_self_test(" in header, "header declares self_test"
+        assert "#include \"crc16_modbus.h\"" in source, "source includes its header"
+        assert "crc16_modbus_self_test" in source, "source defines self_test"
+        assert "0x4B37" in source, "self_test asserts the canonical check value"
 
     def test_unknown_algorithm(self):
         # Assert
@@ -80,22 +95,32 @@ class TestGenerateC:
 
     def test_crc8_uses_uint8(self):
         # Act
-        code = generate_c("crc8")
+        result = generate_c("crc8")
 
         # Assert
-        assert code is not None, "generator returned code"
-        assert "uint8_t" in code, "CRC-8 should use uint8_t"
+        assert result is not None, "generator returned a pair"
+        _header, source = result
+        assert "uint8_t" in source, "CRC-8 should use uint8_t"
 
     def test_crc32_uses_uint32(self):
         # Act
-        code = generate_c("crc32")
+        result = generate_c("crc32")
 
         # Assert
-        assert code is not None, "generator returned code"
-        assert "uint32_t" in code, "CRC-32 should use uint32_t"
+        assert result is not None, "generator returned a pair"
+        _header, source = result
+        assert "uint32_t" in source, "CRC-32 should use uint32_t"
 
 
 class TestGenerateRust:
+    """generate_rust returns a single .rs source string.
+
+    Includes a ``#[cfg(test)] mod tests`` block at the bottom; idiomatic
+    Rust testing -- ``cargo test`` discovers it, and termapy's pytest
+    runs it via ``rustc --test``.  See ``test_crc_codegen_exec.py`` for
+    the parameterized execution-verified tests.
+    """
+
     def test_generates_code(self):
         # Act
         code = generate_rust("crc16-modbus")
@@ -105,6 +130,8 @@ class TestGenerateRust:
         assert "fn crc16_modbus" in code, "function name"
         assert "u16" in code, "correct type"
         assert "0x4B37" in code, "check value"
+        assert "#[cfg(test)]" in code, "cfg(test) gated test module emitted"
+        assert "#[test]" in code, "individual #[test] attribute present"
 
     def test_unknown_algorithm(self):
         # Assert
@@ -127,27 +154,72 @@ class TestGenerateRust:
         assert "u32" in code, "CRC-32 should use u32"
 
 
+class TestGenerateVhdl:
+    """generate_vhdl returns a complete .vhd package source.
+
+    Includes a ``<fname>_self_test`` boolean function that termapy's
+    pytest harness exercises by synthesizing a testbench (see
+    ``test_crc_codegen_exec.py``).  Bit-by-bit only -- table-driven
+    VHDL is a future enhancement; the ``table=True`` parameter is
+    accepted for API symmetry but ignored.
+    """
+
+    def test_generates_code(self):
+        # Act
+        code = generate_vhdl("crc16-modbus")
+
+        # Assert
+        assert code is not None, "generator returned code"
+        assert "package crc16_modbus_pkg" in code, "package header present"
+        assert "function crc16_modbus(" in code, "compute function declared"
+        assert (
+            "function crc16_modbus_self_test return boolean" in code
+        ), "self_test function declared"
+        assert "ieee.numeric_std" in code, "uses numeric_std for unsigned arithmetic"
+        assert "0x4B37" in code or "19255" in code, "self_test checks against reveng value"
+
+    def test_unknown_algorithm(self):
+        # Assert
+        assert generate_vhdl("nonexistent") is None, "unknown algorithm returns None"
+
+    def test_table_parameter_accepted_but_ignored(self):
+        # Act -- table=True should not raise; bit-by-bit is always emitted.
+        bit_code = generate_vhdl("crc16-modbus", table=False)
+        table_code = generate_vhdl("crc16-modbus", table=True)
+
+        # Assert
+        actual = table_code
+        expected = bit_code
+        assert actual == expected, (
+            "table=True must produce identical output to table=False (ignored param)"
+        )
+
+
 class TestGenerators:
     def test_all_languages_present(self):
         # Assert
-        assert set(GENERATORS.keys()) == {"c", "python", "rust"}, "expected c, python, rust generators"
+        assert set(GENERATORS.keys()) == {"c", "python", "rust", "vhdl"}, (
+            "expected c, python, rust, vhdl generators"
+        )
 
-    @pytest.mark.parametrize("lang", ["c", "python", "rust"])
+    @pytest.mark.parametrize("lang", ["c", "python", "rust", "vhdl"])
     def test_reflected_algorithm(self, lang):
         """Verify reflected algorithms (refin=True) generate code."""
         # Act - crc16-modbus is reflected
-        code = GENERATORS[lang]("crc16-modbus")
+        result = GENERATORS[lang]("crc16-modbus")
 
-        # Assert
-        assert code is not None, f"{lang} generator returned None for reflected algorithm"
-        assert len(code) > 100, "non-trivial output"
+        # Assert -- C returns a (header, source) pair; others return a string.
+        assert result is not None, f"{lang} generator returned None for reflected algorithm"
+        body = "".join(result) if isinstance(result, tuple) else result
+        assert len(body) > 100, "non-trivial output"
 
-    @pytest.mark.parametrize("lang", ["c", "python", "rust"])
+    @pytest.mark.parametrize("lang", ["c", "python", "rust", "vhdl"])
     def test_normal_algorithm(self, lang):
         """Verify normal algorithms (refin=False) generate code."""
         # Act - crc16-xmodem is normal
-        code = GENERATORS[lang]("crc16-xmodem")
+        result = GENERATORS[lang]("crc16-xmodem")
 
-        # Assert
-        assert code is not None, f"{lang} generator returned None for normal algorithm"
-        assert len(code) > 100, "non-trivial output"
+        # Assert -- C returns a (header, source) pair; others return a string.
+        assert result is not None, f"{lang} generator returned None for normal algorithm"
+        body = "".join(result) if isinstance(result, tuple) else result
+        assert len(body) > 100, "non-trivial output"

@@ -162,6 +162,37 @@ class QuickSetup(ModalScreen[tuple | None]):
             "Close without creating a config."
         )
         self.call_after_refresh(self._render_port_list)
+        # Poll comports once a second so the dialog reflects USB
+        # plug / unplug events without the user re-opening it.
+        # set_interval returns a Timer that auto-cancels when the
+        # widget unmounts, so there is no teardown to manage.
+        self.set_interval(1.0, self._poll_ports)
+
+    def _poll_ports(self) -> None:
+        """Re-scan USB serial ports; re-render the list if it changed.
+
+        Early-returns when the set of device names is unchanged to
+        avoid OptionList flicker and to keep the user's current
+        selection stable while they're mid-edit.  When the set HAS
+        changed, also sync the Connect button between its
+        "Connect" / "No Ports" states so the button label tells the
+        truth about whether clicking it will do anything.
+        """
+        from serial.tools.list_ports import comports
+        fresh = sorted(comports(), key=lambda p: p.device)
+        if [p.device for p in fresh] == [p.device for p in self._ports]:
+            return
+        self._ports = fresh
+        self._render_port_list()
+        btn = self.query_one("#qs-connect", Button)
+        if self._ports:
+            btn.label = "Connect"
+            btn.variant = "success"
+            btn.disabled = False
+        else:
+            btn.label = "No Ports"
+            btn.variant = "error"
+            btn.disabled = True
 
     def on_resize(self, _event) -> None:
         """Re-render the port list when the terminal/dialog resizes.

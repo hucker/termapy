@@ -28,10 +28,12 @@ tooltip with current settings and chip information.
 
 Clicking the port name in the title bar (or picking **Select Port**
 from the command palette) opens a dialog listing every connected
-serial port with its USB chip identification.  For a full tour of the
-port picker, the `/port.info` and `/port.chip` commands, the
-`termapy --info` CLI flag, and the rest of termapy's serial-port
-diagnostics, see [Serial ports](ports.md).
+serial port with its USB chip identification.  The list auto-refreshes
+about once a second, so plug / unplug events appear without re-opening
+the dialog — handy for identifying which COM port belongs to which
+physical device.  For a full tour of the port picker, the `/port.info`
+and `/port.chip` commands, the `termapy --info` CLI flag, and the rest
+of termapy's serial-port diagnostics, see [Serial ports](ports.md).
 
 ## Toolbar buttons
 

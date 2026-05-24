@@ -20,7 +20,13 @@ from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
 
 
 class ScriptEditor(ModalScreen[str | None]):
-    """Modal editor for .run script files with bash syntax highlighting."""
+    """Modal editor for ``.run`` script files (termapy's scripting language).
+
+    The TextArea uses ``language="bash"`` purely for cosmetic syntax
+    highlighting (Textual ships no ``run`` lexer; bash is the closest
+    fit for ``#`` comments and ``/cmd`` lines).  The files themselves
+    are interpreted by termapy's REPL engine, not by bash.
+    """
 
     BINDINGS = _DISMISS_BINDINGS
 
@@ -46,6 +52,26 @@ class ScriptEditor(ModalScreen[str | None]):
     def action_dismiss_modal(self) -> None:
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
+
+    def on_mount(self) -> None:
+        self.query_one("#sed-editor", TextArea).tooltip = (
+            "Edit the .run script body."
+        )
+        self.query_one("#sed-name", Input).tooltip = (
+            "Script name (the .run extension is added automatically)."
+        )
+        self.query_one("#sed-save-as-input", Input).tooltip = (
+            "New filename for Save As (without .run)."
+        )
+        self.query_one("#sed-save", Button).tooltip = (
+            "Save the script to disk and close."
+        )
+        self.query_one("#sed-save-as", Button).tooltip = (
+            "Save the script to a new filename."
+        )
+        self.query_one("#sed-cancel", Button).tooltip = (
+            "Discard changes and close."
+        )
 
     def __init__(self, scripts_dir: Path, path: str | None = None) -> None:
         super().__init__()

@@ -37,6 +37,11 @@ class WelcomeDialog(ModalScreen[None]):
     def action_dismiss_modal(self) -> None:
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#welcome-ok", Button).tooltip = (
+            "Close this welcome message."
+        )
+
     def __init__(self, title: str, message: str) -> None:
         super().__init__()
         self.title_text = title

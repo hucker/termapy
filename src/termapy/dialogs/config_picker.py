@@ -43,6 +43,26 @@ class ConfigPicker(ModalScreen[tuple | None]):
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#picker-list", OptionList).tooltip = (
+            "Configs found under termapy_cfg/.  Press Enter to load."
+        )
+        self.query_one("#picker-load", Button).tooltip = (
+            "Load and activate the selected config."
+        )
+        self.query_one("#picker-edit", Button).tooltip = (
+            "Open the selected config in the editor."
+        )
+        self.query_one("#picker-new", Button).tooltip = (
+            "Create a new config."
+        )
+        self.query_one("#picker-delete", Button).tooltip = (
+            "Delete the selected config (asks for confirmation)."
+        )
+        self.query_one("#picker-cancel", Button).tooltip = (
+            "Close without loading or editing."
+        )
+
     def __init__(self, current_path: str = "", read_only: bool = False) -> None:
         super().__init__()
         self.current_path = current_path

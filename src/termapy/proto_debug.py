@@ -19,8 +19,10 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button, Checkbox, Input, RichLog, Rule, SelectionList, Static,
+    Button, Input, RichLog, Rule, SelectionList, Static,
 )
+
+from termapy.widgets import StrongCheckbox
 
 from termapy.config import cfg_data_dir, open_with_system
 from termapy.plugins import BoundaryException
@@ -65,7 +67,7 @@ class ProtoDebugScreen(ModalScreen[None]):
     CSS = f"""
     ProtoDebugScreen {{ align: center middle; }}
     ProtoDebugScreen Button {{ {_BTN_CSS} }}
-    ProtoDebugScreen Checkbox {{
+    ProtoDebugScreen StrongCheckbox {{
         min-width: 0; height: 1; margin: 0; padding: 0;
         border: none;
     }}
@@ -208,13 +210,13 @@ class ProtoDebugScreen(ModalScreen[None]):
                         viz_sl.add_option((viz.name, idx, idx == 0))
                     yield viz_sl
                 with Vertical(id="chk-col"):
-                    yield Checkbox(
+                    yield StrongCheckbox(
                         "Stop on Error", value=False, id="chk-stop-err")
-                    yield Checkbox(
+                    yield StrongCheckbox(
                         "Show viz string", value=False, id="chk-show-viz")
-                    yield Checkbox(
+                    yield StrongCheckbox(
                         "Compact", value=False, id="chk-compact")
-                    yield Checkbox(
+                    yield StrongCheckbox(
                         "JSON", value=False, id="chk-json")
                 with Vertical(id="input-col"):
                     with Horizontal(classes="input-row"):
@@ -674,19 +676,19 @@ class ProtoDebugScreen(ModalScreen[None]):
 
     def _get_stop_on_error(self) -> bool:
         """Get the stop-on-error checkbox state."""
-        return self.query_one("#chk-stop-err", Checkbox).value
+        return self.query_one("#chk-stop-err", StrongCheckbox).value
 
     def _get_show_viz(self) -> bool:
         """Get the Show Viz checkbox state."""
-        return self.query_one("#chk-show-viz", Checkbox).value
+        return self.query_one("#chk-show-viz", StrongCheckbox).value
 
     def _get_compact(self) -> bool:
         """Get the Compact checkbox state."""
-        return self.query_one("#chk-compact", Checkbox).value
+        return self.query_one("#chk-compact", StrongCheckbox).value
 
     def _get_json_enabled(self) -> bool:
         """Get the JSON checkbox state."""
-        return self.query_one("#chk-json", Checkbox).value
+        return self.query_one("#chk-json", StrongCheckbox).value
 
     def _highlight_test(self, tc: TestCase) -> None:
         """Move the SelectionList cursor to a specific test case.

@@ -61,6 +61,14 @@ class FilenameDialog(ModalScreen[str | None]):
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#filename-input", Input).tooltip = (
+            "Filename for the new file."
+        )
+        self.query_one("#filename-cancel", Button).tooltip = (
+            "Close without saving."
+        )
+
     def compose(self) -> ComposeResult:
         with Vertical(id="filename-dialog"):
             yield Static(self._title, id="filename-label")

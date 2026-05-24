@@ -13,10 +13,11 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Checkbox, Input, OptionList
+from textual.widgets import Button, Input, OptionList
 from textual.widgets.option_list import Option
 
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, _populate_port_option_list
+from termapy.widgets import StrongCheckbox
 
 
 class QuickSetup(ModalScreen[tuple | None]):
@@ -106,7 +107,7 @@ class QuickSetup(ModalScreen[tuple | None]):
             # users who just want a cfg aren't surprised.  Targets
             # the non-CLI audience who's setting termapy up the first
             # time and would benefit from a double-clickable launcher.
-            yield Checkbox(
+            yield StrongCheckbox(
                 "Add a desktop / menu launcher for this config",
                 id="qs-add-icon",
                 value=False,
@@ -124,14 +125,42 @@ class QuickSetup(ModalScreen[tuple | None]):
                 yield Button("Cancel", id="qs-cancel", variant="error")
 
     def on_mount(self) -> None:
-        """Defer the real port-list render to after first layout.
+        """Set tooltips and defer the real port-list render.
 
         At on_mount time the OptionList hasn't yet been positioned,
         so ``size`` / ``content_size`` are 0 (or stale).  By the
         time ``call_after_refresh`` fires, Textual has done a full
         layout pass and ``content_size.width`` is the actual cell
         budget the option text gets to live in.
+
+        Tooltip on ``qs-standard-baud`` is already set inline in
+        compose() because it flips dynamically when the user toggles
+        between standard/custom baud entry; we don't touch it here.
         """
+        self.query_one("#qs-name", Input).tooltip = (
+            "Config name.  Becomes the folder name under termapy_cfg/."
+        )
+        self.query_one("#qs-port-list", OptionList).tooltip = (
+            "Connected serial ports.  Click a row to select."
+        )
+        self.query_one("#qs-baud-list", OptionList).tooltip = (
+            "Pick a standard baud rate."
+        )
+        self.query_one("#qs-baud-input", Input).tooltip = (
+            "Type a custom baud rate (>= 300)."
+        )
+        self.query_one("#qs-add-icon", StrongCheckbox).tooltip = (
+            "Also create a desktop / menu launcher for this config."
+        )
+        self.query_one("#qs-connect", Button).tooltip = (
+            "Save the config and connect immediately."
+        )
+        self.query_one("#qs-advanced", Button).tooltip = (
+            "Save the config and open the full Config Editor."
+        )
+        self.query_one("#qs-cancel", Button).tooltip = (
+            "Close without creating a config."
+        )
         self.call_after_refresh(self._render_port_list)
 
     def on_resize(self, _event) -> None:
@@ -246,7 +275,7 @@ class QuickSetup(ModalScreen[tuple | None]):
         if result is None:
             return
         baud, custom_baud = result
-        add_icon = self.query_one("#qs-add-icon", Checkbox).value
+        add_icon = self.query_one("#qs-add-icon", StrongCheckbox).value
 
         self.dismiss(("connect", name, port, baud, custom_baud, add_icon))
 
@@ -275,7 +304,7 @@ class QuickSetup(ModalScreen[tuple | None]):
         if result is None:
             return
         baud, custom_baud = result
-        add_icon = self.query_one("#qs-add-icon", Checkbox).value
+        add_icon = self.query_one("#qs-add-icon", StrongCheckbox).value
         self.dismiss(("advanced", name, port, baud, custom_baud, add_icon))
 
     @on(Button.Pressed, "#qs-cancel")

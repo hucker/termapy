@@ -40,6 +40,30 @@ class ProtoPicker(ModalScreen[tuple | None]):
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#proto-list", OptionList).tooltip = (
+            "Protocol scripts (.pro) in this config's proto/ folder.  "
+            "Press Enter to run."
+        )
+        self.query_one("#proto-run", Button).tooltip = (
+            "Run the selected protocol script."
+        )
+        self.query_one("#proto-debug", Button).tooltip = (
+            "Run the selected script with debug tracing (TX/RX bytes shown)."
+        )
+        self.query_one("#proto-edit", Button).tooltip = (
+            "Open the selected protocol script in the editor."
+        )
+        self.query_one("#proto-new", Button).tooltip = (
+            "Create a new protocol script."
+        )
+        self.query_one("#proto-delete", Button).tooltip = (
+            "Delete the selected script (asks for confirmation)."
+        )
+        self.query_one("#proto-cancel", Button).tooltip = (
+            "Close without running or editing."
+        )
+
     def __init__(self, proto_dir: Path, read_only: bool = False) -> None:
         super().__init__()
         self.proto_dir = proto_dir

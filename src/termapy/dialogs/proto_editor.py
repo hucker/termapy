@@ -47,6 +47,26 @@ class ProtoEditor(ModalScreen[str | None]):
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#ped-editor", TextArea).tooltip = (
+            "Edit the .pro protocol script (TOML format)."
+        )
+        self.query_one("#ped-name", Input).tooltip = (
+            "Protocol script name (the .pro extension is added automatically)."
+        )
+        self.query_one("#ped-save-as-input", Input).tooltip = (
+            "New filename for Save As (without .pro)."
+        )
+        self.query_one("#ped-save", Button).tooltip = (
+            "Save the protocol script to disk and close."
+        )
+        self.query_one("#ped-save-as", Button).tooltip = (
+            "Save the protocol script to a new filename."
+        )
+        self.query_one("#ped-cancel", Button).tooltip = (
+            "Discard changes and close."
+        )
+
     def __init__(self, proto_dir: Path, path: str | None = None) -> None:
         super().__init__()
         self.proto_dir = proto_dir

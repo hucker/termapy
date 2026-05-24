@@ -40,6 +40,27 @@ class ScriptPicker(ModalScreen[tuple | None]):
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#script-list", OptionList).tooltip = (
+            "Run scripts (.run) in this config's run/ folder.  "
+            "Press Enter to run."
+        )
+        self.query_one("#script-run", Button).tooltip = (
+            "Run the selected script."
+        )
+        self.query_one("#script-edit", Button).tooltip = (
+            "Open the selected script in the editor."
+        )
+        self.query_one("#script-new", Button).tooltip = (
+            "Create a new .run script."
+        )
+        self.query_one("#script-delete", Button).tooltip = (
+            "Delete the selected script (asks for confirmation)."
+        )
+        self.query_one("#script-cancel", Button).tooltip = (
+            "Close without running or editing."
+        )
+
     def __init__(self, scripts_dir: Path, read_only: bool = False) -> None:
         """Build the picker for scripts living in ``scripts_dir``.
 

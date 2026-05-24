@@ -55,7 +55,12 @@ class ConfirmDialog(ModalScreen[bool]):
                 yield Button("Cancel", id="confirm-no", variant="error")
 
     def on_mount(self) -> None:
-        self.query_one("#confirm-yes", Button).focus()
+        yes_btn = self.query_one("#confirm-yes", Button)
+        yes_btn.tooltip = "Confirm the action."
+        yes_btn.focus()
+        self.query_one("#confirm-no", Button).tooltip = (
+            "Close without confirming."
+        )
 
     @on(Button.Pressed, "#confirm-yes")
     def confirm(self) -> None:

@@ -38,6 +38,14 @@ class NamePicker(ModalScreen[str | None]):
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#name-input", Input).tooltip = (
+            "Name for the new config (becomes the folder under termapy_cfg/)."
+        )
+        self.query_one("#name-cancel", Button).tooltip = (
+            "Close without creating a config."
+        )
+
     def compose(self) -> ComposeResult:
         from textual.widgets import Static
 

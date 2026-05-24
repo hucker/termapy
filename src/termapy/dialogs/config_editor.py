@@ -98,7 +98,22 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     yield Button("Cancel", id="cfg-cancel", variant="error")
 
     def on_mount(self) -> None:
-        """Position cursor on highlight_key line."""
+        """Set tooltips and position cursor on highlight_key line."""
+        self.query_one("#config-editor", TextArea).tooltip = (
+            "Edit the raw JSON config.  Live validation shows hints below."
+        )
+        self.query_one("#save-as-input", Input).tooltip = (
+            "New filename for Save As (the .cfg extension is added automatically)."
+        )
+        self.query_one("#cfg-save", Button).tooltip = (
+            "Validate and save changes to this config."
+        )
+        self.query_one("#cfg-save-as", Button).tooltip = (
+            "Save the config to a new filename."
+        )
+        self.query_one("#cfg-cancel", Button).tooltip = (
+            "Discard changes and close."
+        )
         if not self._highlight_key:
             return
         editor = self.query_one("#config-editor", TextArea)

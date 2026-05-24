@@ -44,6 +44,14 @@ class PortPicker(ModalScreen[str | None]):
         """Close the modal on Ctrl+Q or Escape."""
         self.dismiss(None)
 
+    def on_mount(self) -> None:
+        self.query_one("#port-list", OptionList).tooltip = (
+            "Connected serial ports.  Click a row or press Enter to select."
+        )
+        self.query_one("#port-cancel", Button).tooltip = (
+            "Close without selecting a port."
+        )
+
     def compose(self) -> ComposeResult:
         from serial.tools.list_ports import comports
         from textual.widgets import Static

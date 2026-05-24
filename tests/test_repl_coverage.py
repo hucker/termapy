@@ -428,6 +428,41 @@ class TestDispatchDirectives:
         assert result.success is True, "warn directive returns ok"
         assert any("watch out" in m for m in status_msgs), "warning shown"
 
+
+class TestDispatchBarePrefix:
+    """Regression: a lone prefix character (``/``) must not crash dispatch.
+
+    Pre-fix: ``repl_cmd.split()[0]`` raised ``IndexError: list index out
+    of range`` because the bare prefix strips to an empty string, and
+    ``"".split()`` yields ``[]``.  Discovered 2026-05-23 when a user
+    pressed Enter with just ``/`` in the REPL.
+    """
+
+    def test_bare_prefix_does_not_crash(self, engine):
+        # Arrange
+        eng, output = engine
+
+        # Act -- the trigger that crashed before.  Should land on the
+        # "unknown command" path (empty command name) without raising.
+        result = eng.dispatch_full(
+            "/",
+            log=lambda d, t: None,
+            echo_markup=lambda t: None,
+            status=lambda t, c="": None,
+            serial_write=lambda d: None,
+            serial_write_raw=lambda t: None,
+            is_connected=lambda: False,
+            eol_label=lambda le: "",
+        )
+
+        # Assert -- we don't care what the result is (success or fail);
+        # the contract is "do not crash".  Any returned CmdResult means
+        # the dispatcher completed normally.
+        assert result is not None, (
+            "dispatch of bare prefix returned a CmdResult instead of "
+            "raising IndexError"
+        )
+
     def test_error_directive(self, engine):
         # Arrange
         eng, output = engine

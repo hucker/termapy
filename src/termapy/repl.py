@@ -1009,7 +1009,12 @@ class ReplEngine:
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
-            if echo_on and ".silent" not in repl_cmd.split()[0]:
+            # When the user types just the prefix character ("/"), repl_cmd
+            # is "" and ``repl_cmd.split()[0]`` would IndexError.  Guard
+            # against that: an empty command has no first token to inspect
+            # for ".silent", so just echo unconditionally.
+            first_word = repl_cmd.split()[0] if repl_cmd.split() else ""
+            if echo_on and ".silent" not in first_word:
                 _echo_cmd(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):

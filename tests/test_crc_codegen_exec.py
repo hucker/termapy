@@ -28,6 +28,15 @@ import pytest
 from termapy.protocol import CRC_CATALOGUE, generate_c, generate_rust, generate_vhdl
 
 
+# Every test in this file shells out to a compiler / simulator
+# (gcc / rustc / ghdl) and is therefore subprocess-spawning.  Per
+# CLAUDE.md's testing conventions the "slow" marker covers exactly
+# that class of test, so apply it module-wide -- the full suite
+# still runs them, but ``pytest -m "not slow"`` keeps the fast
+# iteration loop at its baseline ~35s instead of ~215s.
+pytestmark = pytest.mark.slow
+
+
 HAS_GCC = shutil.which("gcc") is not None
 HAS_RUSTC = shutil.which("rustc") is not None
 HAS_GHDL = shutil.which("ghdl") is not None

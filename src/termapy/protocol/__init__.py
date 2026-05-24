@@ -39,7 +39,8 @@ Files in this package:
                            FrameCollector, parse_hex, response matching,
                            ColumnSpec, parse_proto_script, TestCase
   - ``crc.py``          -- CRC catalogue, registry, generic_crc
-  - ``crc_codegen.py``  -- C / Python / Rust code generation for CRCs
+  - ``crcgen/``        -- Python / C / Rust / VHDL CRC code generators
+                          (one module per target language)
   - ``runner.py``       -- .pro file execution; run_proto_tests
   - ``viz.py``          -- visualizer plugin loader
 
@@ -101,7 +102,7 @@ from termapy.protocol.crc import (
     load_crc_plugins,
     reset_crc_registry,
 )
-from termapy.protocol.crc_codegen import (
+from termapy.protocol.crcgen import (
     GENERATORS,
     generate_c,
     generate_python,
@@ -154,7 +155,7 @@ __all__ = [
     "get_crc_registry",
     "load_crc_plugins",
     "reset_crc_registry",
-    # crc_codegen
+    # crcgen
     "GENERATORS",
     "generate_c",
     "generate_python",

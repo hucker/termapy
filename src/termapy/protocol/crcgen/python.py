@@ -1,15 +1,21 @@
 """Python CRC generator.
 
-Emits a complete Python module string containing a single function
-that computes the named CRC over a ``bytes`` input.  Verified at
-build time by :class:`tests.test_crc_codegen.TestGeneratePython`,
-which ``exec``-s the output and asserts the result for
-``b"123456789"`` matches the reveng catalogue's ``check`` value.
+Emits a Python module string containing four module-level functions:
 
-No self-test function is emitted (unlike the C / Rust / VHDL
-generators) because the Python output never leaves Python's verified
-test boundary; pytest already executes every variant against the
-reveng check value at termapy build time.
+  - ``<fname>_init()``     -- return the starting state
+  - ``<fname>_update(state, data)`` -- feed bytes, return new state
+  - ``<fname>_finalize(state)`` -- apply output reflection + xorout
+  - ``<fname>(data)``      -- one-shot wrapper (init + update + finalize)
+
+The streaming primitives (init / update / finalize) let callers
+compute a CRC over data that arrives in chunks (large files, network
+streams, sensor logs) without buffering everything in memory first.
+The one-shot wrapper preserves the simple API for the common case.
+
+Verified at build time by :class:`tests.test_crc_codegen
+.TestGeneratePython` (one-shot path) and
+:class:`tests.test_crc_codegen.TestGeneratedPythonStreaming`
+(streaming splittability invariant).
 """
 
 # ruff: noqa: F541  - f-strings without placeholders used for code alignment
@@ -39,7 +45,7 @@ def _format_table_python(table: list[int], width: int) -> str:
 
 
 def generate_python(name: str, table: bool = False) -> str | None:
-    """Generate a Python function for a CRC algorithm.
+    """Generate Python init/update/finalize + one-shot for a CRC algorithm.
 
     Args:
         name: Algorithm name from CRC_CATALOGUE.
@@ -63,36 +69,42 @@ def generate_python(name: str, table: bool = False) -> str | None:
     fname = _func_name(name)
     mask = _mask(w)
 
-    lines = []
+    # Pre-loaded init state: matches the value the main loop expects on
+    # entry.  Reflected algorithms enter the loop with the reflection
+    # of the textbook init; non-reflected use the textbook init directly.
+    # This is what crc_init() returns and what callers pass into update().
+    init_state = _reflect(init, w) if refin else init
+
+    lines: list[str] = []
+
+    # Table literal (table-driven variant only).
     if table:
         tbl = _build_table(w, poly, refin)
         lines.append(_format_table_python(tbl, w))
         lines.append("")
         lines.append("")
 
-    lines.append(f"def {fname}(data: bytes) -> int:")
-    lines.append(f'    """{name} - {desc}')
-    lines.append(f"")
-    lines.append(f"    check: crc(b'123456789') == {_hex(check, w)}")
-    lines.append(f'    """')
+    # ----- <fname>_init() -----
+    lines.append(f"def {fname}_init() -> int:")
+    lines.append(f'    """Return the initial state for {name} streaming CRC."""')
+    lines.append(f"    return {_hex(init_state, w)}")
+    lines.append("")
+    lines.append("")
 
+    # ----- <fname>_update(state, data) -----
+    lines.append(f"def {fname}_update(state: int, data: bytes) -> int:")
+    lines.append(f'    """Feed bytes into {name} state; return updated state."""')
+    lines.append(f"    crc = state")
+    lines.append(f"    for byte in data:")
     if table:
         if refin:
-            ref_init = _reflect(init, w)
-            lines.append(f"    crc = {_hex(ref_init, w)}")
-            lines.append(f"    for byte in data:")
             lines.append(f"        crc = _TABLE[(crc ^ byte) & 0xFF] ^ (crc >> 8)")
         else:
-            lines.append(f"    crc = {_hex(init, w)}")
-            lines.append(f"    for byte in data:")
             lines.append(
                 f"        crc = _TABLE[((crc >> {w - 8}) ^ byte) & 0xFF] ^ (crc << 8) & {mask}"
             )
     elif refin:
         ref_poly = _reflect(poly, w)
-        ref_init = _reflect(init, w)
-        lines.append(f"    crc = {_hex(ref_init, w)}")
-        lines.append(f"    for byte in data:")
         lines.append(f"        crc ^= byte")
         lines.append(f"        for _ in range(8):")
         lines.append(f"            if crc & 1:")
@@ -100,8 +112,6 @@ def generate_python(name: str, table: bool = False) -> str | None:
         lines.append(f"            else:")
         lines.append(f"                crc >>= 1")
     else:
-        lines.append(f"    crc = {_hex(init, w)}")
-        lines.append(f"    for byte in data:")
         lines.append(f"        crc ^= byte << {w - 8}")
         lines.append(f"        for _ in range(8):")
         lines.append(f"            if crc & {_hex(1 << (w - 1), w)}:")
@@ -109,16 +119,40 @@ def generate_python(name: str, table: bool = False) -> str | None:
         lines.append(f"            else:")
         lines.append(f"                crc <<= 1")
         lines.append(f"            crc &= {mask}")
+    lines.append(f"    return crc")
+    lines.append("")
+    lines.append("")
 
+    # ----- <fname>_finalize(state) -----
+    lines.append(f"def {fname}_finalize(state: int) -> int:")
+    lines.append(
+        f'    """Apply output reflection and xorout to finalize {name}."""'
+    )
     if refout != refin:
-        lines.append(f"    # reflect output")
+        lines.append(f"    # reflect output (refout != refin)")
         lines.append(
-            f"    crc = sum(((crc >> k) & 1) << ({w - 1} - k) for k in range({w}))"
+            f"    state = sum(((state >> k) & 1) << ({w - 1} - k) for k in range({w}))"
         )
-
     if xorout:
-        lines.append(f"    return crc ^ {_hex(xorout, w)}")
+        lines.append(f"    return state ^ {_hex(xorout, w)}")
     else:
-        lines.append(f"    return crc")
+        lines.append(f"    return state")
+    lines.append("")
+    lines.append("")
+
+    # ----- <fname>(data) one-shot wrapper -----
+    lines.append(f"def {fname}(data: bytes) -> int:")
+    lines.append(f'    """{name} - {desc}')
+    lines.append(f"")
+    lines.append(f"    check: crc(b'123456789') == {_hex(check, w)}")
+    lines.append(f"")
+    lines.append(
+        f"    One-shot wrapper.  For streaming use "
+        f"{fname}_init / _update / _finalize."
+    )
+    lines.append(f'    """')
+    lines.append(
+        f"    return {fname}_finalize({fname}_update({fname}_init(), data))"
+    )
 
     return "\n".join(lines)

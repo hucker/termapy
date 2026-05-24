@@ -146,6 +146,27 @@ def _self_test_rust(fname: str, check: int, width: int) -> str:
     return "\n".join(lines)
 
 
+def _vhdl_lit(value: int, width: int) -> str:
+    """Format an integer constant as a VHDL ``unsigned``-compatible literal.
+
+    Hex bit-string literals (``x"..."``) are used when ``width`` is a
+    multiple of 4 because they are width-explicit (no need to pass the
+    size separately) and don't suffer from ``to_unsigned``'s ``natural``
+    range limit -- which silently rejects values >= 2^31 with a
+    runtime bound-check failure.  That bites every 32-bit CRC whose
+    init / poly / check value happens to exceed 0x7FFFFFFF
+    (most of them: 0xFFFFFFFF is a common init).
+
+    For widths that aren't a multiple of 4 (e.g. CRC-5, CRC-12), the
+    max possible value fits in ``natural``, so ``to_unsigned`` is
+    safe and we keep using it.
+    """
+    if width % 4 == 0:
+        hex_w = width // 4
+        return f'x"{value:0{hex_w}X}"'
+    return f"to_unsigned({value}, {width})"
+
+
 def _self_test_vhdl(fname: str, check: int, width: int) -> str:
     """Emit a VHDL self-test function.
 
@@ -161,7 +182,7 @@ def _self_test_vhdl(fname: str, check: int, width: int) -> str:
         f'            x"313233343536373839";  -- ASCII "123456789"',
         f"    begin",
         f"        return unsigned({fname}(kCheckInput)) = "
-        f"to_unsigned({check}, {width});",
+        f"{_vhdl_lit(check, width)};",
         f"    end function;",
     ]
     return "\n".join(lines)
@@ -614,7 +635,7 @@ def generate_vhdl(name: str, table: bool = False) -> str | None:
         f"    function {fname}(data: std_logic_vector) "
         f"return std_logic_vector is",
         f"        variable crc: unsigned({w - 1} downto 0) := "
-        f"to_unsigned({init_val}, {w});",
+        f"{_vhdl_lit(init_val, w)};",
         f"        variable byte: unsigned(7 downto 0);",
         f"        -- Normalize indexing regardless of caller's slice direction.",
         f"        constant d: std_logic_vector(data'length - 1 downto 0) := data;",
@@ -639,7 +660,7 @@ def generate_vhdl(name: str, table: bool = False) -> str | None:
             f"            for j in 0 to 7 loop",
             f"                if crc(0) = '1' then",
             f"                    crc := shift_right(crc, 1) xor "
-            f"to_unsigned({poly_val}, {w});",
+            f"{_vhdl_lit(poly_val, w)};",
             f"                else",
             f"                    crc := shift_right(crc, 1);",
             f"                end if;",
@@ -651,7 +672,7 @@ def generate_vhdl(name: str, table: bool = False) -> str | None:
             f"            for j in 0 to 7 loop",
             f"                if crc({w - 1}) = '1' then",
             f"                    crc := shift_left(crc, 1) xor "
-            f"to_unsigned({poly_val}, {w});",
+            f"{_vhdl_lit(poly_val, w)};",
             f"                else",
             f"                    crc := shift_left(crc, 1);",
             f"                end if;",
@@ -673,7 +694,7 @@ def generate_vhdl(name: str, table: bool = False) -> str | None:
     if xorout:
         body.append(
             f"        return std_logic_vector(crc xor "
-            f"to_unsigned({xorout}, {w}));"
+            f"{_vhdl_lit(xorout, w)});"
         )
     else:
         body.append(f"        return std_logic_vector(crc);")

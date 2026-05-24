@@ -52,6 +52,24 @@ one disappear) to identify which COM port belongs to which physical
 device — no need to close and re-open.  The Quick Setup dialog (used
 when creating a new config) refreshes the same way.
 
+## The bundled USB vendor database
+
+Termapy ships the **full canonical USB vendor table** — more than
+3,400 vendor IDs from the [usb.ids](https://github.com/usbids/usbids)
+upstream — so the manufacturer column on the port picker recognizes
+every assigned vendor, not just the popular ones.  A separate
+hand-curated table covers the common USB-serial bridge chips (FTDI,
+Silicon Labs, WCH / CH340-CH341, Microchip, Prolific, CP210x, etc.)
+with datasheet-sourced model name, USB speed class (full vs high),
+and the maximum baud rate the chip silicon supports.  That data
+fills the `Chip` and `Max baud` columns the picker shows.
+
+The bundled snapshot ships with each termapy release.  If you want
+a fresher one, upgrade termapy through the normal channel
+(`uv tool upgrade termapy` or `pip install -U termapy`) — termapy's
+built-in update checker will surface the prompt when a newer
+release is available.
+
 ## When your serial link feels laggy (Linux + FTDI)
 
 FTDI chips buffer incoming bytes for up to **16 ms** before pushing them

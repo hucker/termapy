@@ -65,6 +65,76 @@ class TestGeneratePython:
         assert actual == expected, f"{name} table: {actual:#x} != {expected:#x}"
 
 
+class TestGeneratedPythonStreaming:
+    """The streaming primitives (init / update / finalize) must satisfy
+    the splittability invariant: for any input, computing in chunks
+    must produce the same result as the one-shot wrapper, which in
+    turn must equal the reveng catalogue's check value.
+
+    Three patterns are exercised per algorithm:
+
+    1. **Split mid-input** (init -> update("1234") -> update("56789") ->
+       finalize) -- catches wrong state shape, broken update
+       accumulator, or accidentally re-applying finalize logic in update.
+    2. **Empty chunk at start** (init -> update(b"") -> update(full)
+       -> finalize) -- catches loops that misbehave on zero-length
+       input.
+    3. **Empty chunk at end** (init -> update(full) -> update(b"") ->
+       finalize) -- catches a different class of zero-length bug.
+
+    All three must equal the reveng check value AND equal the
+    one-shot wrapper's result.
+    """
+
+    @pytest.mark.parametrize("table", [False, True])
+    @pytest.mark.parametrize("name", sorted(CRC_CATALOGUE.keys()))
+    def test_streaming_matches_oneshot(self, name, table):
+        # Arrange
+        entry = CRC_CATALOGUE[name]
+        expected = entry["check"]
+        code = generate_python(name, table=table)
+        assert code is not None, f"generate_python({name!r}) returned code"
+
+        ns: dict = {}
+        exec(code, ns)
+        fname = name.replace("-", "_").replace(".", "_")
+        init_fn = ns[f"{fname}_init"]
+        update_fn = ns[f"{fname}_update"]
+        finalize_fn = ns[f"{fname}_finalize"]
+
+        # Pattern 1 -- split at byte 4
+        state = init_fn()
+        state = update_fn(state, b"1234")
+        state = update_fn(state, b"56789")
+        split_result = finalize_fn(state)
+
+        # Pattern 2 -- empty chunk first
+        state = init_fn()
+        state = update_fn(state, b"")
+        state = update_fn(state, b"123456789")
+        empty_first_result = finalize_fn(state)
+
+        # Pattern 3 -- empty chunk last
+        state = init_fn()
+        state = update_fn(state, b"123456789")
+        state = update_fn(state, b"")
+        empty_last_result = finalize_fn(state)
+
+        # Assert -- all three patterns equal the reveng check value
+        assert split_result == expected, (
+            f"{name} (table={table}): split-at-4 streamed result "
+            f"{split_result:#x} != check {expected:#x}"
+        )
+        assert empty_first_result == expected, (
+            f"{name} (table={table}): empty-chunk-first streamed result "
+            f"{empty_first_result:#x} != check {expected:#x}"
+        )
+        assert empty_last_result == expected, (
+            f"{name} (table={table}): empty-chunk-last streamed result "
+            f"{empty_last_result:#x} != check {expected:#x}"
+        )
+
+
 class TestGenerateC:
     """generate_c returns a (header, source) pair of complete files.
 

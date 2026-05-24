@@ -265,6 +265,16 @@ class SerialTerminal(TerminalHost, App):
     Tooltip {
         max-width: 80;
     }
+    /* Tighten Textual's CommandPalette: the built-in CommandInput
+       ships with `border: blank` which renders as one blank cell
+       above and below the search row, on top of the #--input hkey
+       border.  Drop the inner blank border so the search box is a
+       single row instead of three. */
+    CommandPalette CommandInput,
+    CommandPalette CommandInput:focus {
+        border: none;
+        height: 1;
+    }
     #title-bar {
         dock: top;
         height: 1;

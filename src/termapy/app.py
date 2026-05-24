@@ -46,6 +46,7 @@ from textual import on, work
 from termapy import port_control
 from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, default_cfg
 from termapy.folders import FOLDER_PATTERNS
+from termapy.palette_provider import PaletteProvider
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -165,6 +166,16 @@ def _hotkey_label(btn_id: str) -> str:
     return primary.upper()
 
 
+# VS Code's integrated terminal captures Ctrl+P for its own "Go to
+# file" dialog before termapy can see the keystroke.  Detect that
+# host and advertise the Alt+P fallback in the REPL placeholder so
+# users in VS Code don't have to discover the alternative by guessing.
+# ``TERM_PROGRAM=vscode`` is set by every VS Code integrated terminal
+# session; other terminals leave it unset (or set to their own name
+# like ``Apple_Terminal`` or ``iTerm.app``).
+PALETTE_HOTKEY = "Alt+P" if os.environ.get("TERM_PROGRAM") == "vscode" else "Ctrl+P"
+
+
 def _build_help_tooltip(ver: str):
     """Build the Help-button tooltip as a Rich renderable.
 
@@ -278,7 +289,7 @@ class SerialTerminal(TerminalHost, App):
     #title-bar > Button:first-of-type {
         margin-left: 0;
     }
-    #btn-cmds, #btn-palette {
+    #btn-cmds {
         width: auto;
         min-width: 3;
         text-align: center;
@@ -427,7 +438,11 @@ class SerialTerminal(TerminalHost, App):
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit"),
-        Binding("ctrl+p", "show_palette", "Command Palette", show=False, priority=True),
+        # Ctrl+P opens Textual's built-in CommandPalette (top-center,
+        # drop-down, fuzzy filter).  PALETTE_CMDS is exposed to it via
+        # the PaletteProvider registered in App.COMMANDS below.
+        Binding("ctrl+p", "command_palette", "Command Palette",
+                show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
         Binding("escape", "stop_script", "Stop Script", show=False),
@@ -440,11 +455,17 @@ class SerialTerminal(TerminalHost, App):
         # so they give every user a path that survives hostile
         # terminals.  Harmless everywhere else.
         Binding("alt+q", "quit", "Quit (alt)", show=False),
-        Binding("alt+p", "show_palette", "Command Palette (alt)",
+        Binding("alt+p", "command_palette", "Command Palette (alt)",
                 show=False, priority=True),
         Binding("alt+s", "screenshot", "Screenshot (alt)", show=False),
         Binding("alt+t", "text_screenshot", "Text Screenshot (alt)", show=False),
     ]
+
+    # COMMANDS replaces Textual's default providers (which would surface
+    # every framework action).  We only want the curated PaletteProvider;
+    # the user's "two-layer discovery" model says the palette is the
+    # opinionated editorial layer, not a kitchen-sink action dump.
+    COMMANDS = {PaletteProvider}
 
     PALETTE_CMDS = [
         ("Help", "_palette_help"),
@@ -452,6 +473,15 @@ class SerialTerminal(TerminalHost, App):
         ("Search scrollback (Grep)...", "_palette_grep"),
         ("Search command help...", "_palette_search_help"),
         ("Select Port...", "_show_port_picker"),
+        ("List Ports", "_palette_list_ports"),
+        ("List Variables", "_palette_list_vars"),
+        ("Set Variable...", "_palette_set_var"),
+        ("Toggle Line Numbers", "_palette_toggle_line_numbers"),
+        ("Toggle Echo", "_palette_toggle_echo"),
+        ("Toggle Timestamps", "_palette_toggle_timestamps"),
+        ("Toggle Hex Display", "_palette_toggle_hex"),
+        ("Toggle Line Endings", "_palette_toggle_line_endings"),
+        ("Show Terminal Settings", "_palette_term_info"),
         ("Connect / Disconnect", "_toggle_connection"),
         ("Edit Config", "_palette_edit_config"),
         ("Load Config...", "_palette_load_config"),
@@ -793,11 +823,8 @@ class SerialTerminal(TerminalHost, App):
                 cmd_btn = Button(prefix, id="btn-cmds")
                 cmd_btn.tooltip = f"Show REPL {prefix} commands."
                 yield cmd_btn
-                palette_btn = Button("≡", id="btn-palette")
-                palette_btn.tooltip = "Open command palette (Ctrl+P)."
-                yield palette_btn
                 yield Input(
-                    placeholder=f"{prefix} for REPL commands, Ctrl+P: palette",
+                    placeholder=f"{prefix} for REPL, {PALETTE_HOTKEY} for palette",
                     id="cmd",
                     suggester=self._suggester,
                 )
@@ -810,9 +837,9 @@ class SerialTerminal(TerminalHost, App):
                 if self.cfg.get("record_enabled", True):
                     record_btn = Button(
                         # Angle brackets mark this as a state indicator
-                        # rather than a discovery button (btn-cmds /
-                        # btn-palette).  Square brackets would render as
-                        # Rich markup tags and eat the label.
+                        # rather than a discovery button.  Square
+                        # brackets would render as Rich markup tags
+                        # and eat the label.
                         "<Rec>", id="btn-record", variant="success",
                     )
                     record_btn.tooltip = (
@@ -1218,7 +1245,8 @@ class SerialTerminal(TerminalHost, App):
         self._set_conn_status("Connected")
         self._update_title()
         inp = self.query_one("#cmd", Input)
-        inp.placeholder = "REPL:type command, Enter to send"
+        prefix = cmd_prefix(self.cfg)
+        inp.placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         inp.focus()
         self._sync_hw_buttons()
         connect_cmds: list[str] = []
@@ -1491,7 +1519,7 @@ class SerialTerminal(TerminalHost, App):
             try:
                 inp = self.query_one("#cmd", Input)
                 prefix = cmd_prefix(self.cfg)
-                inp.placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
+                inp.placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
             except SHUTDOWN_RACE:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
@@ -2035,7 +2063,6 @@ class SerialTerminal(TerminalHost, App):
         "btn-break": "_on_btn_break",  # send serial break
         # Toolbar
         "btn-cmds": "_show_commands",  # REPL command picker (full plugin list)
-        "btn-palette": "_show_palette",  # curated command palette (same as Ctrl+P)
         "btn-help": "_btn_help",  # open help
         "btn-log": "_btn_log",  # open session log
         "btn-ss-dir": "action_open_screenshot",  # open screenshot folder
@@ -2407,11 +2434,61 @@ class SerialTerminal(TerminalHost, App):
         except SHUTDOWN_RACE:
             pass
 
+    def _palette_list_ports(self) -> None:
+        self._dispatch_quiet("/port.list")
+
+    def _palette_list_vars(self) -> None:
+        self._dispatch_quiet("/var")
+
+    def _palette_set_var(self) -> None:
+        """Push a SetVarDialog; on submit, dispatch /var.set NAME value."""
+        from termapy.dialogs.set_var_dialog import SetVarDialog
+
+        def _on_submit(result: tuple[str, str] | None) -> None:
+            if result is None:
+                return
+            name, value = result
+            # Accept either "TIMEOUT" or "$(TIMEOUT)" in the Name
+            # field -- strip the $(...) wrapping so users can paste
+            # a variable reference from elsewhere as-is.  Without
+            # this, the REPL var transform would expand $(TIMEOUT)
+            # before /var.set runs, producing the wrong dispatch.
+            if name.startswith("$(") and name.endswith(")"):
+                name = name[2:-1].strip()
+            self._dispatch_quiet(f"/var.set {name} {value}")
+
+        self.push_screen(SetVarDialog(), callback=_on_submit)
+
+    def _palette_toggle_line_numbers(self) -> None:
+        self._dispatch_quiet("/term.line_no")
+
+    def _palette_toggle_echo(self) -> None:
+        self._dispatch_quiet("/term.echo")
+
+    def _palette_toggle_timestamps(self) -> None:
+        self._dispatch_quiet("/term.timestamps")
+
+    def _palette_toggle_hex(self) -> None:
+        self._dispatch_quiet("/term.hex")
+
+    def _palette_toggle_line_endings(self) -> None:
+        self._dispatch_quiet("/term.line_endings")
+
+    def _palette_term_info(self) -> None:
+        self._dispatch_quiet("/term.info")
+
     def _palette_ss_svg(self) -> None:
-        self.repl.dispatch("ss.svg")
+        # call_after_refresh defers one tick so the CommandPalette
+        # has finished dismissing before save_screenshot walks the
+        # widget tree -- without this, the palette modal can end up
+        # in the snapshot.
+        self.call_after_refresh(self.repl.dispatch, "ss.svg")
 
     def _palette_ss_txt(self) -> None:
-        self.repl.dispatch("ss.txt")
+        # Same one-tick defer as ss.svg above; the text snapshot
+        # path also reads the current screen, so the palette must
+        # be gone first.
+        self.call_after_refresh(self.repl.dispatch, "ss.txt")
 
     _HELP_TOPICS = [
         "getting-started",
@@ -2801,12 +2878,6 @@ class SerialTerminal(TerminalHost, App):
         """Delegate to ``info_views.show_commands``."""
         from termapy.info_views import show_commands
         show_commands(self, *args, **kwargs)
-    def _show_palette(self, *args, **kwargs):
-        """Delegate to ``info_views.show_palette``."""
-        from termapy.info_views import show_palette
-        show_palette(self, *args, **kwargs)
-    def action_show_palette(self) -> None:
-        self._show_palette()
 
     def _hide_history(self) -> None:
         popup = self.query_one("#history-popup", OptionList)
@@ -2814,16 +2885,18 @@ class SerialTerminal(TerminalHost, App):
         self.query_one("#cmd", Input).focus()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        """Handle selection from command picker or palette popup."""
+        """Handle selection from the REPL command picker or run-script picker.
+
+        The curated palette is no longer routed through this widget --
+        it uses Textual's built-in CommandPalette (see PaletteProvider).
+        This handler now covers only the ``#history-popup`` modes:
+        REPL command picker (``repl:`` ids) and quick-run (``run:`` ids).
+        """
         if event.option_list.id != "history-popup":
             return
         self._hide_history()
         opt_id = str(event.option.id) if event.option.id is not None else ""
-        if self._popup_mode == "palette" and opt_id.startswith("palette:"):
-            idx = int(opt_id.split(":")[1])
-            _, method_name = self.PALETTE_CMDS[idx]
-            self.set_timer(0.1, getattr(self, method_name))
-        elif opt_id.startswith("run:"):
+        if opt_id.startswith("run:"):
             name = opt_id.split(":")[1]
             prefix = cmd_prefix(self.cfg)
             self._dispatch_on_thread(f"{prefix}{name}")
@@ -2965,7 +3038,7 @@ class SerialTerminal(TerminalHost, App):
             self.query_one("#btn-cmds", Button).label = prefix
             self.query_one(
                 "#cmd", Input
-            ).placeholder = f"{prefix} for REPL commands, Ctrl+P: palette"
+            ).placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         except SHUTDOWN_RACE:
             pass  # prefix changed before mount or during teardown
         self.repl.ctx.engine.prefix = prefix

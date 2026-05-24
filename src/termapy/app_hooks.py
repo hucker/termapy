@@ -189,19 +189,24 @@ def _hook_delay_quiet(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_line_no(app, ctx, args: str) -> CmdResult:
-    """Toggle line numbers on or off."""
+    """Toggle line numbers, or set explicitly with ``on``/``off``."""
     arg = args.strip().lower()
-    if arg == "on":
-        app._show_line_numbers = True
-        app._status("Line numbers ON")
-        return CmdResult.ok(value="on")
+    if arg == "":
+        # Bare invocation toggles -- matches the {on|off} optional
+        # convention in CLAUDE.md.
+        new_state = not app._show_line_numbers
+    elif arg == "on":
+        new_state = True
     elif arg == "off":
-        app._show_line_numbers = False
-        app._status("Line numbers OFF")
-        return CmdResult.ok(value="off")
+        new_state = False
     else:
-        app._status("Usage: line_no on|off", "yellow")
-        return CmdResult.fail(msg="Usage: line_no on|off")
+        app._status(f"Invalid line_no: {arg}", "yellow")
+        return CmdResult.fail(msg=f"Invalid line_no: {arg}")
+
+    app._show_line_numbers = new_state
+    label = "on" if new_state else "off"
+    app._status(f"Line numbers {label.upper()}")
+    return CmdResult.ok(value=label)
 
 
 def _hook_edit_cfg(app) -> CmdResult:

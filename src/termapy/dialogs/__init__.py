@@ -34,6 +34,7 @@ from termapy.dialogs.proto_picker import ProtoPicker
 from termapy.dialogs.quick_setup import QuickSetup
 from termapy.dialogs.script_editor import ScriptEditor
 from termapy.dialogs.script_picker import ScriptPicker
+from termapy.dialogs.set_var_dialog import SetVarDialog
 from termapy.dialogs.update_available import UpdateAvailableDialog
 from termapy.dialogs.welcome_dialog import WelcomeDialog
 
@@ -51,6 +52,7 @@ __all__ = [
     "QuickSetup",
     "ScriptEditor",
     "ScriptPicker",
+    "SetVarDialog",
     "UpdateAvailableDialog",
     "WelcomeDialog",
 ]

@@ -1,18 +1,20 @@
 """Read-only info views for the TUI.
 
-Four passive renders over app state -- the full command landscape,
-the config-info dialog, the command palette, and the port picker.
-None of these mutate state; they just present what the app already
-knows.
+Three passive renders over app state -- the full command landscape,
+the config-info dialog, and the port picker.  None of these mutate
+state; they just present what the app already knows.
 
-Previously lived as four ``_show_*`` methods on ``SerialTerminal``.
-Extracted here so the read-only display surface is a named
-subsystem.
+Previously lived as ``_show_*`` methods on ``SerialTerminal``.
+Extracted here so the read-only display surface is a named subsystem.
 
 Each function takes the app as first argument.  ``SerialTerminal``
-keeps thin stubs (``self._show_commands`` etc.) so existing call
-sites -- direct method calls, button-dict getattr-by-name lookups,
-and action_show_palette -- keep working unchanged.
+keeps thin stubs (``self._show_commands`` etc.) so existing call sites
+-- direct method calls and button-dict getattr-by-name lookups --
+keep working unchanged.
+
+The curated command palette is no longer in this module: it moved
+to ``palette_provider.PaletteProvider`` to feed Textual's built-in
+``CommandPalette`` modal directly.
 """
 
 from __future__ import annotations
@@ -152,18 +154,5 @@ def show_commands(app) -> None:
     popup.focus()
     popup.highlighted = 1 if popup.option_count > 1 else 0
     app._popup_mode = "commands"
-
-
-def show_palette(app) -> None:
-    """Show the command palette popup."""
-    popup = app.query_one("#history-popup", OptionList)
-    popup.clear_options()
-    for i, (label, _) in enumerate(app.PALETTE_CMDS):
-        popup.add_option(Option(label, id=f"palette:{i}"))
-    popup.add_class("visible")
-    popup.focus()
-    if popup.option_count > 0:
-        popup.highlighted = 0
-    app._popup_mode = "palette"
 
 

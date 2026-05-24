@@ -20,11 +20,36 @@ from termapy.defaults import DEFAULT_CFG
 pytestmark = pytest.mark.slow  # subprocess + tempfile config-switching tests
 
 
+_SERIAL_KEYS = frozenset({
+    "port", "baud_rate", "custom_baud", "byte_size",
+    "parity", "stop_bits", "flow_control",
+})
+
+
 def _write_cfg(cfg_dir: Path, name: str, cfg_overrides: dict) -> Path:
-    """Write termapy_cfg/<name>/<name>.cfg with given overrides."""
+    """Write termapy_cfg/<name>/<name>.cfg with given overrides.
+
+    Routes serial-domain overrides (port, baud_rate, etc.) into the
+    ``cfg["serial"]`` sub-dict where they live post-v22.  Otherwise a
+    flat ``{"port": "DEMO"}`` override would sit at top level, ignored
+    by the loader (which reads ``cfg["serial"]["port"]``), leaving
+    the port empty and connect failing with "Cannot open ?".
+    """
     proj = cfg_dir / name
     proj.mkdir(parents=True, exist_ok=True)
-    cfg = {**DEFAULT_CFG, **cfg_overrides}
+    serial_overrides = {
+        k: cfg_overrides[k] for k in cfg_overrides if k in _SERIAL_KEYS
+    }
+    top_overrides = {
+        k: v for k, v in cfg_overrides.items() if k not in _SERIAL_KEYS
+    }
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {
+        **DEFAULT_CFG,
+        "serial": {**default_serial, **serial_overrides},
+        **top_overrides,
+    }
     path = proj / f"{name}.cfg"
     path.write_text(json.dumps(cfg, indent=4))
     return path

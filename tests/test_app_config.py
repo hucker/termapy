@@ -26,11 +26,35 @@ pytestmark = pytest.mark.slow  # subprocess-based config-load tests
 # DEFAULT_CFG has an empty ``port`` field because the zero-config CLI
 # needs somewhere to synthesize its in-memory cfg from, but any cfg
 # actually validated or loaded from disk must name a port.  Tests that
-# build minimal cfgs with ``dict(_DEFAULTS_WITH_PORT, ...)`` inherit a
-# valid DEMO port so the one-warning-at-a-time assertions below aren't
-# clouded by an incidental empty-port warning.  Callers that want to
-# test the port field specifically override it in the usual way.
-_DEFAULTS_WITH_PORT = dict(DEFAULT_CFG, port="DEMO")
+# build minimal cfgs with ``_cfg_with(...)`` inherit a valid DEMO port
+# so the one-warning-at-a-time assertions below aren't clouded by an
+# incidental empty-port warning.  Callers that want to test the port
+# field specifically override it via ``port=...``.
+#
+# Post-v22, pyserial keys (port, baud_rate, byte_size, parity,
+# stop_bits, flow_control, custom_baud) live nested under
+# ``cfg["serial"]``.  The helper below routes serial-key overrides
+# into the sub-dict and leaves other overrides (encoding, cmd_delay_ms,
+# config_version, etc.) at the top level, so tests can write
+# ``_cfg_with(byte_size=9)`` without thinking about the nesting.
+_SERIAL_KEYS = frozenset({
+    "port", "baud_rate", "custom_baud", "byte_size",
+    "parity", "stop_bits", "flow_control",
+})
+
+
+def _cfg_with(**overrides) -> dict:
+    """Build a test cfg, routing serial keys into ``cfg['serial']``."""
+    serial_overrides = {
+        k: overrides.pop(k) for k in list(overrides) if k in _SERIAL_KEYS
+    }
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    return {
+        **DEFAULT_CFG,
+        "serial": {**default_serial, "port": "DEMO", **serial_overrides},
+        **overrides,
+    }
 
 
 # -- cfg_data_dir: subdirectory creation ------------------------------------
@@ -186,8 +210,17 @@ class TestDefaultCfg:
             assert "tooltip" in btn, "tooltip field present"
 
     def test_has_essential_keys(self):
-        for key in ("port", "baud_rate", "line_ending", "cmd_prefix"):
-            assert key in DEFAULT_CFG, f"essential config key present: {key}"
+        # Post-v22, port and baud_rate live nested under cfg["serial"]
+        # while line_ending and cmd_prefix stay at the top level.
+        for key in ("line_ending", "cmd_prefix"):
+            assert key in DEFAULT_CFG, (
+                f"essential top-level key present: {key}"
+            )
+        assert "serial" in DEFAULT_CFG, "serial sub-dict present"
+        serial = DEFAULT_CFG["serial"]
+        assert isinstance(serial, dict), "serial is a dict"
+        for key in ("port", "baud_rate"):
+            assert key in serial, f"essential serial key present: {key}"
 
 
 # -- load_config ------------------------------------------------------------
@@ -204,7 +237,8 @@ class TestLoadConfig:
             load_config(str(config_path))
 
     def test_adds_missing_keys(self, tmp_path):
-        # Arrange
+        # Arrange -- minimal cfg in the pre-v22 flat shape; load_config
+        # should migrate it forward so port lives at cfg["serial"]["port"].
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         minimal = {"port": "COM3", "baud_rate": 9600}
@@ -213,14 +247,17 @@ class TestLoadConfig:
         # Act
         actual = load_config(str(config_path))
 
-        # Assert
-        assert actual["port"] == "COM3", "original value preserved"
+        # Assert -- original value preserved at its migrated location
+        assert actual["serial"]["port"] == "COM3", (
+            "original port preserved at migrated location"
+        )
         assert "custom_buttons" in actual, "missing default added"
         actual_saved = json.loads(config_path.read_text())
         assert "custom_buttons" in actual_saved, "persisted to disk"
 
     def test_does_not_overwrite_existing_keys(self, tmp_path):
-        # Arrange
+        # Arrange -- pre-v22 flat cfg; load_config migrates port to
+        # cfg["serial"]["port"] but leaves custom_buttons alone.
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
         custom = {
@@ -236,7 +273,9 @@ class TestLoadConfig:
         actual = load_config(str(config_path))
 
         # Assert
-        assert actual["port"] == "COM7", "custom port preserved"
+        assert actual["serial"]["port"] == "COM7", (
+            "custom port preserved at migrated location"
+        )
         assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
@@ -401,8 +440,10 @@ class TestLoadConfigEnvExpansion:
         # Act
         actual = load_config(str(config_path))
 
-        # Assert
-        assert actual["port"] == "COM8", "env var expanded in memory"
+        # Assert -- after migration, port lives at cfg["serial"]["port"].
+        assert actual["serial"]["port"] == "COM8", (
+            "env var expanded in memory after migration"
+        )
 
     def test_disk_keeps_template(self, tmp_path, monkeypatch):
         # Arrange
@@ -416,9 +457,13 @@ class TestLoadConfigEnvExpansion:
         # Act
         load_config(str(config_path))
 
-        # Assert
+        # Assert -- load_config persists the migrated shape back to
+        # disk, so port lives nested.  The raw env-var template must
+        # survive the round-trip (NOT expanded on disk).
         actual_disk = json.loads(config_path.read_text())
-        assert actual_disk["port"] == template, "disk keeps raw template"
+        assert actual_disk["serial"]["port"] == template, (
+            "disk keeps raw template at migrated location"
+        )
 
 
 # -- migrate_json_to_cfg -----------------------------------------------------
@@ -520,14 +565,14 @@ class TestMigrateJsonToCfg:
 class TestValidateConfig:
     def test_default_cfg_passes(self):
         # Act
-        actual = validate_config(dict(_DEFAULTS_WITH_PORT))
+        actual = validate_config(_cfg_with())
 
         # Assert
         assert actual == [], "no warnings for defaults"
 
     def test_invalid_byte_size(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, byte_size=9)
+        cfg = _cfg_with(byte_size=9)
 
         # Act
         actual = validate_config(cfg)
@@ -539,7 +584,7 @@ class TestValidateConfig:
 
     def test_invalid_parity(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, parity="X")
+        cfg = _cfg_with(parity="X")
 
         # Act
         actual = validate_config(cfg)
@@ -550,7 +595,7 @@ class TestValidateConfig:
 
     def test_invalid_stop_bits(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, stop_bits=3)
+        cfg = _cfg_with(stop_bits=3)
 
         # Act
         actual = validate_config(cfg)
@@ -561,7 +606,7 @@ class TestValidateConfig:
 
     def test_invalid_flow_control(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, flow_control="bad")
+        cfg = _cfg_with(flow_control="bad")
 
         # Act
         actual = validate_config(cfg)
@@ -572,7 +617,7 @@ class TestValidateConfig:
 
     def test_nonstandard_baud_rate_warns(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=250000)
+        cfg = _cfg_with(baud_rate=250000)
 
         # Act
         actual = validate_config(cfg)
@@ -584,7 +629,7 @@ class TestValidateConfig:
 
     def test_custom_baud_accepts_nonstandard(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=625000, custom_baud=True)
+        cfg = _cfg_with(baud_rate=625000, custom_baud=True)
 
         # Act
         actual = validate_config(cfg)
@@ -594,7 +639,7 @@ class TestValidateConfig:
 
     def test_custom_baud_rejects_below_300(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=150, custom_baud=True)
+        cfg = _cfg_with(baud_rate=150, custom_baud=True)
 
         # Act
         actual = validate_config(cfg)
@@ -605,7 +650,7 @@ class TestValidateConfig:
 
     def test_custom_baud_accepts_300(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=300, custom_baud=True)
+        cfg = _cfg_with(baud_rate=300, custom_baud=True)
 
         # Act
         actual = validate_config(cfg)
@@ -615,7 +660,7 @@ class TestValidateConfig:
 
     def test_custom_baud_false_still_warns(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=625000, custom_baud=False)
+        cfg = _cfg_with(baud_rate=625000, custom_baud=False)
 
         # Act
         actual = validate_config(cfg)
@@ -626,7 +671,7 @@ class TestValidateConfig:
 
     def test_custom_baud_wrong_type(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, custom_baud="yes")
+        cfg = _cfg_with(custom_baud="yes")
 
         # Act
         actual = validate_config(cfg)
@@ -637,7 +682,7 @@ class TestValidateConfig:
 
     def test_standard_baud_rate_ok(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=9600)
+        cfg = _cfg_with(baud_rate=9600)
 
         # Act
         actual = validate_config(cfg)
@@ -647,7 +692,7 @@ class TestValidateConfig:
 
     def test_negative_baud_rate(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=-1)
+        cfg = _cfg_with(baud_rate=-1)
 
         # Act
         actual = validate_config(cfg)
@@ -658,7 +703,7 @@ class TestValidateConfig:
 
     def test_baud_rate_wrong_type(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate="fast")
+        cfg = _cfg_with(baud_rate="fast")
 
         # Act
         actual = validate_config(cfg)
@@ -669,7 +714,7 @@ class TestValidateConfig:
 
     def test_invalid_encoding(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, encoding="not-a-codec")
+        cfg = _cfg_with(encoding="not-a-codec")
 
         # Act
         actual = validate_config(cfg)
@@ -680,7 +725,7 @@ class TestValidateConfig:
 
     def test_valid_encoding(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, encoding="ascii")
+        cfg = _cfg_with(encoding="ascii")
 
         # Act
         actual = validate_config(cfg)
@@ -690,7 +735,7 @@ class TestValidateConfig:
 
     def test_negative_cmd_delay_ms(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, cmd_delay_ms=-10)
+        cfg = _cfg_with(cmd_delay_ms=-10)
 
         # Act
         actual = validate_config(cfg)
@@ -701,7 +746,7 @@ class TestValidateConfig:
 
     def test_zero_max_lines(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, max_lines=0)
+        cfg = _cfg_with(max_lines=0)
 
         # Act
         actual = validate_config(cfg)
@@ -712,7 +757,7 @@ class TestValidateConfig:
 
     def test_unknown_key_flagged(self):
         # Arrange -- a key that never existed, not a deprecated one.
-        cfg = dict(_DEFAULTS_WITH_PORT, not_a_real_key=9600)
+        cfg = _cfg_with(not_a_real_key=9600)
 
         # Act
         actual = validate_config(cfg)
@@ -724,7 +769,7 @@ class TestValidateConfig:
 
     def test_deprecated_renamed_key_flagged_with_hint(self):
         # Arrange -- 'baudrate' was renamed to 'baud_rate' in v4.
-        cfg = dict(_DEFAULTS_WITH_PORT, baudrate=9600)
+        cfg = _cfg_with(baudrate=9600)
 
         # Act
         actual = validate_config(cfg)
@@ -739,7 +784,7 @@ class TestValidateConfig:
 
     def test_deprecated_removed_key_flagged_with_hint(self):
         # Arrange -- 'cap_endian' was removed outright in v8.
-        cfg = dict(_DEFAULTS_WITH_PORT, cap_endian="little")
+        cfg = _cfg_with(cap_endian="little")
 
         # Act
         actual = validate_config(cfg)
@@ -752,7 +797,7 @@ class TestValidateConfig:
 
     def test_internal_keys_ignored(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, _migrated_from=5, _config_warnings=[])
+        cfg = _cfg_with(_migrated_from=5, _config_warnings=[])
 
         # Act
         actual = validate_config(cfg)
@@ -764,7 +809,7 @@ class TestValidateConfig:
         # Arrange -- a cfg with an older schema (migration will run
         # to bring it forward; the warning here is informational).
         from termapy.migration import CURRENT_CONFIG_VERSION
-        cfg = dict(_DEFAULTS_WITH_PORT, config_version=CURRENT_CONFIG_VERSION - 1)
+        cfg = _cfg_with(config_version=CURRENT_CONFIG_VERSION - 1)
 
         # Act
         actual = validate_config(cfg)
@@ -782,10 +827,7 @@ class TestValidateConfig:
         # one can't migrate.  This is the misleading "unknown key
         # (typo?)" scenario the change fixes.
         from termapy.migration import CURRENT_CONFIG_VERSION
-        cfg = dict(
-            _DEFAULTS_WITH_PORT,
-            config_version=CURRENT_CONFIG_VERSION + 1,
-        )
+        cfg = _cfg_with(config_version=CURRENT_CONFIG_VERSION + 1)
 
         # Act
         actual = validate_config(cfg)
@@ -808,8 +850,7 @@ class TestValidateConfig:
         # "unknown key (typo?)" warnings, misleading users into
         # thinking they had typos when the keys were just newer.
         from termapy.migration import CURRENT_CONFIG_VERSION
-        cfg = dict(
-            _DEFAULTS_WITH_PORT,
+        cfg = _cfg_with(
             config_version=CURRENT_CONFIG_VERSION + 1,
             some_future_field="future-value",
             another_future_field=42,
@@ -831,7 +872,7 @@ class TestValidateConfig:
 
     def test_multiple_errors(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, byte_size=99, parity="Z", baud_rate=-1)
+        cfg = _cfg_with(byte_size=99, parity="Z", baud_rate=-1)
 
         # Act
         actual = validate_config(cfg)
@@ -841,7 +882,7 @@ class TestValidateConfig:
 
     def test_old_config_version_warns(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, config_version=3)
+        cfg = _cfg_with(config_version=3)
 
         # Act
         actual = validate_config(cfg)
@@ -853,7 +894,7 @@ class TestValidateConfig:
 
     def test_current_config_version_ok(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT)  # uses CURRENT_CONFIG_VERSION
+        cfg = _cfg_with()  # uses CURRENT_CONFIG_VERSION
 
         # Act
         actual = validate_config(cfg)
@@ -880,7 +921,7 @@ class TestValidateConfig:
 
     def test_port_wrong_type_warns(self):
         # Arrange -- port must be a string.
-        cfg = dict(_DEFAULTS_WITH_PORT, port=1234)
+        cfg = _cfg_with(port=1234)
 
         # Act
         actual = validate_config(cfg)
@@ -928,7 +969,7 @@ class TestRunCheck:
         # Arrange
         cfg_file = tmp_path / "ok" / "ok.cfg"
         cfg_file.parent.mkdir()
-        cfg_file.write_text(json.dumps(dict(_DEFAULTS_WITH_PORT)))
+        cfg_file.write_text(json.dumps(_cfg_with()))
 
         # Act
         code, stdout = self._run(str(cfg_file))
@@ -940,7 +981,7 @@ class TestRunCheck:
 
     def test_invalid_baud_warns(self, tmp_path):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, baud_rate=999)
+        cfg = _cfg_with(baud_rate=999)
         cfg_file = tmp_path / "bad" / "bad.cfg"
         cfg_file.parent.mkdir()
         cfg_file.write_text(json.dumps(cfg))
@@ -970,7 +1011,7 @@ class TestRunCheck:
 
     def test_does_not_modify_file(self, tmp_path):
         # Arrange - config with old version, check should NOT migrate it
-        cfg = dict(_DEFAULTS_WITH_PORT, config_version=3)
+        cfg = _cfg_with(config_version=3)
         cfg_file = tmp_path / "old" / "old.cfg"
         cfg_file.parent.mkdir()
         original = json.dumps(cfg)
@@ -990,7 +1031,7 @@ class TestRunCheck:
 class TestOpenSerialUrl:
     def test_demo_port_returns_fake(self):
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, port="DEMO")
+        cfg = _cfg_with(port="DEMO")
 
         # Act
         ser = open_serial(cfg)
@@ -1001,7 +1042,7 @@ class TestOpenSerialUrl:
     def test_loopback_url_works(self):
         """loop:// URL round-trips bytes through pyserial's loopback handler."""
         # Arrange
-        cfg = dict(_DEFAULTS_WITH_PORT, port="loop://", baud_rate=115200)
+        cfg = _cfg_with(port="loop://", baud_rate=115200)
 
         # Act
         ser = open_serial(cfg)

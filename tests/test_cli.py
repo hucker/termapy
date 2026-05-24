@@ -26,7 +26,17 @@ def cli(tmp_path):
     ``cli.engine._is_connected = False`` (or call ``cli._disconnect()``).
     Tests that need a connected state can call ``cli._connect()``.
     """
-    cfg = dict(DEFAULT_CFG, port="DEMO", baud_rate=115200, line_ending="\r")
+    # Serial keys (port, baud_rate) live nested under cfg["serial"]
+    # post-v22; the merge into DEFAULT_CFG must target the sub-dict
+    # explicitly or those keys get silently created at the top level
+    # where pyserial / open_serial won't find them.
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {
+        **DEFAULT_CFG,
+        "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200},
+        "line_ending": "\r",
+    }
     config_path = tmp_path / "test_cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -470,8 +480,9 @@ class TestConnect:
         # open_serial() treats as a simulated open failure.  Exercises
         # the real connect-failure path without needing broken hardware
         # or a mocked open_fn.
-        cli.cfg["port"] = "DEMO_FAIL"
-        cli.repl._cfg_data["port"] = "DEMO_FAIL"
+        # Port lives at cfg["serial"]["port"] post-v22.
+        cli.cfg["serial"]["port"] = "DEMO_FAIL"
+        cli.repl._cfg_data["serial"]["port"] = "DEMO_FAIL"
 
         # Act
         cli._connect()
@@ -487,7 +498,9 @@ class TestConnect:
         cli._connect(port="DEMO")
 
         # Assert
-        assert cli.cfg["port"] == "DEMO", "port updated in config"
+        assert cli.cfg["serial"]["port"] == "DEMO", (
+            "port updated in config at migrated location"
+        )
         assert cli.engine.is_connected, "engine connected after override"
 
     def test_disconnect_not_connected(self, cli, capsys):
@@ -620,7 +633,9 @@ class TestApplyPortEffects:
         cli._apply_port_effects(effects)
 
         # Assert
-        assert cli.repl._cfg_data["baud_rate"] == 9600, "config updated"
+        assert cli.repl._cfg_data["serial"]["baud_rate"] == 9600, (
+            "config updated at migrated location (cfg['serial']['baud_rate'])"
+        )
 
     def test_empty_effects(self, cli):
         # Act / Assert - no exception on empty effects

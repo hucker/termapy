@@ -790,14 +790,29 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     if gen is None:
         return CmdResult.fail(msg=f"Unknown language: {lang}")
 
-    code = gen(name, table=use_table)
-    if code is None:
+    result = gen(name, table=use_table)
+    if result is None:
         p = ctx.engine.prefix
         ctx.io.output(
             f"Unknown algorithm: {name}. Use {p}proto.crc.list to see available.", "red"
         )
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
+    # generate_c returns a (header, source) tuple so the same algorithm
+    # gives a complete C and C++-friendly pair.  generate_python /
+    # generate_rust still return a single source string.  Render both
+    # shapes with file-name banners so the user can split them easily.
+    if isinstance(result, tuple):
+        fname = name.replace("-", "_").replace(".", "_")
+        header, source = result
+        banner_h = f"/* ====== {fname}.h ====== */"
+        banner_c = f"/* ====== {fname}.c ====== */"
+        combined = "\n".join([banner_h, header, "", banner_c, source])
+        for line in combined.split("\n"):
+            ctx.io.output_markup(f"  [green]{line}[/]")
+        return CmdResult.ok(value=combined)
+
+    code = result
     for line in code.split("\n"):
         ctx.io.output_markup(f"  [green]{line}[/]")
     # Return the generated source so scripts can write it to disk.

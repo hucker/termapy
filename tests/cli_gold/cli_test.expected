@@ -98,7 +98,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 21,
+    "config_version": 22,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -109,13 +109,15 @@ demo> /cfg.dump
     "cli_completion": true,
     "config_read_only": false,
     "profile_path": "",
-    "port": "DEMO",
-    "baud_rate": 115200,
-    "custom_baud": false,
-    "byte_size": 8,
-    "parity": "N",
-    "stop_bits": 1,
-    "flow_control": "none",
+    "serial": {
+        "port": "DEMO",
+        "baud_rate": 115200,
+        "custom_baud": false,
+        "byte_size": 8,
+        "parity": "N",
+        "stop_bits": 1,
+        "flow_control": "none"
+    },
     "encoding": "utf-8",
     "cmd_delay_ms": 0,
     "protocol": "text",
@@ -134,7 +136,7 @@ demo> /cfg.dump
     "line_ending": "\r",
     "send_bare_enter": false,
     "echo_input": false,
-    "echo_input_fmt": "$(CFG)> {cmd}",
+    "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
     "log_file": "",
     "show_timestamps": false,
     "show_line_endings": false,
@@ -713,6 +715,7 @@ demo> /help.plugin
   /edit       Open a project file in the system editor.
   /env        Print environment variables for $(env.NAME) expansion (alias: /env.list).
   /exit       Exit termapy.
+  /find       Navigate scrollback matches with an interactive find bar.
   /grep       Search the scrollback for lines matching a pattern (case-insensitive regex).
   /help       Print the command landscape or look up a specific command.
   /mcp        MCP catalog and status (Model Context Protocol).
@@ -738,7 +741,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm    Show Yes/Cancel dialog; Cancel stops a running script.
   /expect     Wait for text in serial output (blocks until match or timeout).
-  37 commands.
+  38 commands.
 demo> /print === section: cap.poll ===
   === section: cap.poll ===
 demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP

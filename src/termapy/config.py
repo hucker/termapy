@@ -328,10 +328,14 @@ def expand_env_str(text: str) -> str:
 
 
 def expand_env_cfg(cfg: dict) -> dict:
-    """Expand $(env.NAME) in all top-level string values of a config dict.
+    """Expand $(env.NAME) in string values of a config dict, recursively.
 
-    Mutates and returns *cfg*. Non-string values and nested structures
-    are left untouched.
+    Mutates and returns *cfg*.  Recurses into nested dict values so
+    env vars in ``cfg["serial"]["port"]`` (and any future grouped
+    section) get expanded too -- the v22 migration nested pyserial
+    keys under ``cfg["serial"]``, so a top-level-only expander
+    silently stopped working for serial keys.  Non-string, non-dict
+    values are left untouched.
 
     Args:
         cfg: Config dict to expand in place.
@@ -342,6 +346,8 @@ def expand_env_cfg(cfg: dict) -> dict:
     for key, val in cfg.items():
         if isinstance(val, str) and "$(" in val:
             cfg[key] = expand_env_str(val)
+        elif isinstance(val, dict):
+            expand_env_cfg(val)
     return cfg
 
 

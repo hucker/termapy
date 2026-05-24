@@ -40,7 +40,29 @@ def _run_cli(
     """
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir(parents=True, exist_ok=True)
-    cfg = {**DEFAULT_CFG, "port": "DEMO", "auto_connect": True, **cfg_overrides}
+    # Serial keys (port, baud_rate, etc.) live nested under
+    # cfg["serial"] post-v22.  Callers still pass them flat through
+    # cfg_overrides ({"port": "..."}), so we route those into the
+    # sub-dict before serializing -- a flat top-level "port" would
+    # be silently ignored by open_serial.
+    _serial_keys = frozenset({
+        "port", "baud_rate", "custom_baud", "byte_size",
+        "parity", "stop_bits", "flow_control",
+    })
+    serial_overrides = {
+        k: cfg_overrides[k] for k in cfg_overrides if k in _serial_keys
+    }
+    top_overrides = {
+        k: v for k, v in cfg_overrides.items() if k not in _serial_keys
+    }
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {
+        **DEFAULT_CFG,
+        "serial": {**default_serial, "port": "DEMO", **serial_overrides},
+        "auto_connect": True,
+        **top_overrides,
+    }
     (proj_dir / "proj.cfg").write_text(json.dumps(cfg, indent=4))
 
     script_path = tmp_path / "resolve.run"

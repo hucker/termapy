@@ -719,8 +719,17 @@ class SerialTerminal(TerminalHost, App):
         commands: list[str] = []
         for name, plugin in self.repl._plugins.items():
             commands.append(f"{prefix}{name}")
-            if plugin.args:
-                commands.append(f"{prefix}{name} {plugin.args}")
+            # Build a longer ghost-text variant when the plugin has args
+            # or flags so the user sees the full signature inline.  Flags
+            # render with {braces} -- matching termapy's args convention
+            # for optional things -- so a Command(args="<name>",
+            # flags={"--table": ...}) shows as "/cmd <name> {--table}".
+            if plugin.args or plugin.flags:
+                parts = [f"{prefix}{name}"]
+                if plugin.args:
+                    parts.append(plugin.args)
+                parts.extend(f"{{{flag}}}" for flag in plugin.flags)
+                commands.append(" ".join(parts))
         for f in self._project_files():
             commands.append(f"{prefix}edit {f}")
         # Device commands now live on the active profile; suggester

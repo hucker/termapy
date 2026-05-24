@@ -46,6 +46,12 @@ column is usually enough to disambiguate: `FTDI` for FTDI cables,
 `Microsoft` for a generic Microsoft CDC device, `Teensy` for a Teensy,
 and so on.
 
+The picker also **auto-refreshes about once a second** while it's open.
+Plug your device in and watch the new row appear (or unplug and watch
+one disappear) to identify which COM port belongs to which physical
+device — no need to close and re-open.  The Quick Setup dialog (used
+when creating a new config) refreshes the same way.
+
 ## When your serial link feels laggy (Linux + FTDI)
 
 FTDI chips buffer incoming bytes for up to **16 ms** before pushing them
@@ -64,7 +70,7 @@ echo 1 | sudo tee /sys/bus/usb-serial/devices/ttyUSB0/latency_timer  # set to 1 
 
 To make it permanent across plug-unplug cycles, add a udev rule:
 
-```
+```text
 # /etc/udev/rules.d/99-ftdi-latency.rules
 ACTION=="add", SUBSYSTEM=="usb-serial", DRIVERS=="ftdi_sio", ATTR{latency_timer}="1"
 ```

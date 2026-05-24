@@ -456,7 +456,20 @@ def generate_rust(name: str, table: bool = False) -> str | None:
     lines.append(f"fn {fname}(data: &[u8]) -> {rtype} {{")
 
     if table:
-        if refin:
+        if w == 8:
+            # For 8-bit CRC, table lookup IS the complete algorithm --
+            # no shifts or masks needed.  Rust rejects ``u8 << 8`` as
+            # arithmetic_overflow (correctly -- u8 has 8 bits), so the
+            # generic shift-and-xor formula below would fail to compile
+            # for w=8.  C silently widens the operand via integer
+            # promotion and produces the same result, but emitting the
+            # simplified form is cleaner output for both languages.
+            init_val = _reflect(init, w) if refin else init
+            lines.append(f"    let mut crc: {rtype} = {_hex(init_val, w)};")
+            lines.append(f"    for &byte in data {{")
+            lines.append(f"        crc = CRC_TABLE[(crc ^ byte) as usize];")
+            lines.append(f"    }}")
+        elif refin:
             ref_init = _reflect(init, w)
             lines.append(f"    let mut crc: {rtype} = {_hex(ref_init, w)};")
             lines.append(f"    for &byte in data {{")

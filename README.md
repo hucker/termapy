@@ -54,7 +54,7 @@ For a plain-text terminal (no TUI), use CLI mode:
 termapy --cli --demo
 ```
 
-There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (62 of them, all verified against their check values in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
+There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (60+, each verified against its canonical check value in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
 
 ---
 
@@ -1166,7 +1166,7 @@ Drop into `builtins/crc/` or `termapy_cfg/<name>/crc/`.
 <details>
 <summary>CRC support</summary>
 
-62 built-in algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
+60+ built-in algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
 
 In format specs, CRC columns verify data integrity automatically:
 
@@ -1176,7 +1176,7 @@ In format specs, CRC columns verify data integrity automatically:
 
 From the REPL:
 
-- `/proto.crc.list` - show all 62 algorithms
+- `/proto.crc.list` - list every algorithm
 - `/proto.crc.info crc16-modbus` - show parameters
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
 - `/proto.crc.find bin=01 03 00 00 00 0A C5 CD` - identify the algorithm from a captured packet

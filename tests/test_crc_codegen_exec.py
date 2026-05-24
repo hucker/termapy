@@ -25,11 +25,12 @@ import subprocess
 
 import pytest
 
-from termapy.protocol import CRC_CATALOGUE, generate_c, generate_rust
+from termapy.protocol import CRC_CATALOGUE, generate_c, generate_rust, generate_vhdl
 
 
 HAS_GCC = shutil.which("gcc") is not None
 HAS_RUSTC = shutil.which("rustc") is not None
+HAS_GHDL = shutil.which("ghdl") is not None
 
 
 def _func_name(algo: str) -> str:
@@ -228,4 +229,94 @@ class TestGeneratedRustExecutes:
         # Assert
         assert run_result.returncode == 0, (
             f"{name} (table): test binary returned {run_result.returncode}"
+        )
+
+
+@pytest.mark.skipif(not HAS_GHDL, reason="ghdl not in PATH")
+class TestGeneratedVhdlExecutes:
+    """Compile each generated .vhd through GHDL + a synthesized testbench.
+
+    Per-algorithm flow:
+
+    1. ``generate_vhdl(name)`` -> ``.vhd`` source (a package containing
+       the compute function and a ``_self_test`` boolean function).
+    2. Write the package to ``<fname>.vhd``.
+    3. Synthesize a tiny ``<fname>_tb.vhd`` whose architecture is a
+       single process that ``assert``s ``<fname>_self_test`` with
+       ``severity failure`` -- GHDL halts the simulation with a
+       non-zero exit on assertion failure.
+    4. ``ghdl -a <fname>.vhd <fname>_tb.vhd`` -- analyze both files.
+       Syntax errors in the generator output surface here.
+    5. ``ghdl -e <fname>_tb`` -- elaborate the testbench entity.
+    6. ``ghdl -r <fname>_tb`` -- run the simulation.  Exit 0 = check
+       value matches; non-zero = the generated function produced the
+       wrong CRC for "123456789".
+
+    GHDL is available via ``apt install ghdl`` on Linux, ``brew
+    install ghdl`` on macOS, and a manual installer on Windows.  Not
+    preinstalled on GitHub Actions runners, so the suite stays green
+    on CI without it.
+    """
+
+    @pytest.mark.parametrize("name", sorted(CRC_CATALOGUE.keys()))
+    def test_self_test_passes(self, name, tmp_path):
+        # Arrange
+        code = generate_vhdl(name)
+        assert code is not None, f"generate_vhdl({name!r}) returned None"
+        fname = _func_name(name)
+
+        (tmp_path / f"{fname}.vhd").write_text(code)
+        (tmp_path / f"{fname}_tb.vhd").write_text(
+            "library ieee;\n"
+            "use ieee.std_logic_1164.all;\n"
+            f"use work.{fname}_pkg.all;\n"
+            "\n"
+            f"entity {fname}_tb is\n"
+            "end entity;\n"
+            "\n"
+            f"architecture sim of {fname}_tb is\n"
+            "begin\n"
+            "    process\n"
+            "    begin\n"
+            f"        assert {fname}_self_test\n"
+            f'            report "{name} self_test FAILED"\n'
+            "            severity failure;\n"
+            "        wait;\n"
+            "    end process;\n"
+            "end architecture;\n"
+        )
+
+        # Act -- analyze (compile to GHDL's working library)
+        analyze = subprocess.run(
+            ["ghdl", "-a", "--std=08", f"{fname}.vhd", f"{fname}_tb.vhd"],
+            capture_output=True,
+            cwd=tmp_path,
+        )
+        assert analyze.returncode == 0, (
+            f"{name}: ghdl analyze failed: "
+            f"{analyze.stderr.decode(errors='replace')}"
+        )
+
+        # Act -- elaborate the testbench entity
+        elaborate = subprocess.run(
+            ["ghdl", "-e", "--std=08", f"{fname}_tb"],
+            capture_output=True,
+            cwd=tmp_path,
+        )
+        assert elaborate.returncode == 0, (
+            f"{name}: ghdl elaborate failed: "
+            f"{elaborate.stderr.decode(errors='replace')}"
+        )
+
+        # Act -- run the simulation
+        run = subprocess.run(
+            ["ghdl", "-r", "--std=08", f"{fname}_tb"],
+            capture_output=True,
+            cwd=tmp_path,
+        )
+
+        # Assert
+        assert run.returncode == 0, (
+            f"{name}: ghdl simulation returned {run.returncode}: "
+            f"{run.stderr.decode(errors='replace')}"
         )

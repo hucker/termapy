@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from termapy.protocol import generate_c, generate_python, generate_rust, GENERATORS
+from termapy.protocol import (
+    generate_c, generate_python, generate_rust, generate_vhdl, GENERATORS,
+)
 from termapy.protocol import CRC_CATALOGUE
 
 
@@ -152,12 +154,55 @@ class TestGenerateRust:
         assert "u32" in code, "CRC-32 should use u32"
 
 
+class TestGenerateVhdl:
+    """generate_vhdl returns a complete .vhd package source.
+
+    Includes a ``<fname>_self_test`` boolean function that termapy's
+    pytest harness exercises by synthesizing a testbench (see
+    ``test_crc_codegen_exec.py``).  Bit-by-bit only -- table-driven
+    VHDL is a future enhancement; the ``table=True`` parameter is
+    accepted for API symmetry but ignored.
+    """
+
+    def test_generates_code(self):
+        # Act
+        code = generate_vhdl("crc16-modbus")
+
+        # Assert
+        assert code is not None, "generator returned code"
+        assert "package crc16_modbus_pkg" in code, "package header present"
+        assert "function crc16_modbus(" in code, "compute function declared"
+        assert (
+            "function crc16_modbus_self_test return boolean" in code
+        ), "self_test function declared"
+        assert "ieee.numeric_std" in code, "uses numeric_std for unsigned arithmetic"
+        assert "0x4B37" in code or "19255" in code, "self_test checks against reveng value"
+
+    def test_unknown_algorithm(self):
+        # Assert
+        assert generate_vhdl("nonexistent") is None, "unknown algorithm returns None"
+
+    def test_table_parameter_accepted_but_ignored(self):
+        # Act -- table=True should not raise; bit-by-bit is always emitted.
+        bit_code = generate_vhdl("crc16-modbus", table=False)
+        table_code = generate_vhdl("crc16-modbus", table=True)
+
+        # Assert
+        actual = table_code
+        expected = bit_code
+        assert actual == expected, (
+            "table=True must produce identical output to table=False (ignored param)"
+        )
+
+
 class TestGenerators:
     def test_all_languages_present(self):
         # Assert
-        assert set(GENERATORS.keys()) == {"c", "python", "rust"}, "expected c, python, rust generators"
+        assert set(GENERATORS.keys()) == {"c", "python", "rust", "vhdl"}, (
+            "expected c, python, rust, vhdl generators"
+        )
 
-    @pytest.mark.parametrize("lang", ["c", "python", "rust"])
+    @pytest.mark.parametrize("lang", ["c", "python", "rust", "vhdl"])
     def test_reflected_algorithm(self, lang):
         """Verify reflected algorithms (refin=True) generate code."""
         # Act - crc16-modbus is reflected
@@ -168,7 +213,7 @@ class TestGenerators:
         body = "".join(result) if isinstance(result, tuple) else result
         assert len(body) > 100, "non-trivial output"
 
-    @pytest.mark.parametrize("lang", ["c", "python", "rust"])
+    @pytest.mark.parametrize("lang", ["c", "python", "rust", "vhdl"])
     def test_normal_algorithm(self, lang):
         """Verify normal algorithms (refin=False) generate code."""
         # Act - crc16-xmodem is normal

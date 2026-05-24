@@ -106,6 +106,7 @@ from termapy.protocol.crc_codegen import (
     generate_c,
     generate_python,
     generate_rust,
+    generate_vhdl,
 )
 from termapy.protocol.runner import (
     expand_result_template,
@@ -158,6 +159,7 @@ __all__ = [
     "generate_c",
     "generate_python",
     "generate_rust",
+    "generate_vhdl",
     # runner
     "expand_result_template",
     "run_proto_tests",

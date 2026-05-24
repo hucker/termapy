@@ -1270,6 +1270,21 @@ COMMAND = Command(
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
                 ),
+                "vhdl": Command(
+                    args="<name>",
+                    help="Generate VHDL source code (package) for a CRC algorithm.",
+                    long_help=(
+                        "Prints a self-contained VHDL package implementing the named\n"
+                        "CRC. Includes a {fname}_self_test boolean function that\n"
+                        "verifies the algorithm against the reveng check value --\n"
+                        "call from a testbench's assert. Currently emits the bit-by-\n"
+                        "bit form only (table-driven VHDL is a future enhancement).\n"
+                        "\n"
+                        "Example:\n"
+                        "  {prefix}proto.crc.vhdl crc16-modbus"
+                    ),
+                    handler=lambda ctx, args: _crc_codegen(ctx, args, "vhdl"),
+                ),
             },
         ),
         "info": Command(

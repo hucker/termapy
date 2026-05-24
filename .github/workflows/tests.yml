@@ -14,6 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
+      - name: Install GHDL (for CRC code-gen VHDL execution tests)
+        # gcc and rustc are preinstalled on ubuntu-latest; the C and
+        # Rust generated-code execution tests run automatically.  GHDL
+        # is the one toolchain that needs an explicit install before
+        # the VHDL execution tests can verify the generator.
+        run: sudo apt-get update && sudo apt-get install -y ghdl
       - name: Run tests
         run: uv run --python ${{ matrix.python-version }} pytest
 
@@ -22,6 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
+      - name: Install GHDL (for CRC code-gen VHDL execution tests)
+        run: sudo apt-get update && sudo apt-get install -y ghdl
       - name: Run tests with coverage
         run: uv run --python 3.14 pytest --cov=termapy --cov-report=xml:coverage.xml
       - name: Upload coverage to Codecov

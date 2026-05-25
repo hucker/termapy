@@ -89,7 +89,7 @@ Issues = "https://github.com/hucker/termapy/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --cov=termapy --cov-report=term-missing"
+addopts = "-v --cov=termapy --cov-report=term-missing -n auto"
 markers = [
     "flaky: timing-sensitive test that sleeps to poll thread state; may be fragile on slow CI or under heavy load",
     "slow: subprocess-spawning, real-serial-loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",

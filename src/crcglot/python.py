@@ -22,13 +22,13 @@ Verified at build time by :class:`tests.test_crc_codegen
 
 from __future__ import annotations
 
-from termapy.protocol.crc import CRC_CATALOGUE, _reflect
-from termapy.protocol.crcgen._helpers import (
+from crcglot._helpers import (
     _build_table,
     _func_name,
     _hex,
     _mask,
 )
+from crcglot.catalogue import CRC_CATALOGUE, _reflect
 
 
 def _format_table_python(table: list[int], width: int) -> str:

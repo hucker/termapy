@@ -102,7 +102,7 @@ from termapy.protocol.crc import (
     load_crc_plugins,
     reset_crc_registry,
 )
-from termapy.protocol.crcgen import (
+from crcglot import (
     GENERATORS,
     GENERATORS_FROM_ENTRY,
     generate_c,

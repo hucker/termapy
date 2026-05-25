@@ -11,7 +11,7 @@ Underscore-prefixed; the package's public API is ``__init__.py``.
 
 from __future__ import annotations
 
-from termapy.protocol.crc import _reflect
+from crcglot.catalogue import _reflect
 
 
 def _func_name(algo_name: str) -> str:

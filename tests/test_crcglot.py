@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from termapy.protocol import (
-    generate_c, generate_python, generate_rust, generate_vhdl, GENERATORS,
+from crcglot import (
+    CRC_CATALOGUE,
+    GENERATORS,
+    generate_c,
+    generate_python,
+    generate_rust,
+    generate_vhdl,
 )
-from termapy.protocol import CRC_CATALOGUE
 
 
 # Standard check string used by the reveng catalogue
@@ -186,8 +190,8 @@ class TestGenerateRust:
     """generate_rust returns a single .rs source string.
 
     Includes a ``#[cfg(test)] mod tests`` block at the bottom; idiomatic
-    Rust testing -- ``cargo test`` discovers it, and termapy's pytest
-    runs it via ``rustc --test``.  See ``test_crc_codegen_exec.py`` for
+    Rust testing -- ``cargo test`` discovers it, and crcglot's pytest
+    runs it via ``rustc --test``.  See ``test_crcglot_exec.py`` for
     the parameterized execution-verified tests.
     """
 
@@ -227,9 +231,9 @@ class TestGenerateRust:
 class TestGenerateVhdl:
     """generate_vhdl returns a complete .vhd package source.
 
-    Includes a ``<fname>_self_test`` boolean function that termapy's
+    Includes a ``<fname>_self_test`` boolean function that crcglot's
     pytest harness exercises by synthesizing a testbench (see
-    ``test_crc_codegen_exec.py``).  Bit-by-bit only -- table-driven
+    ``test_crcglot_exec.py``).  Bit-by-bit only -- table-driven
     VHDL is a future enhancement; the ``table=True`` parameter is
     accepted for API symmetry but ignored.
     """

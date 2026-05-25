@@ -25,7 +25,7 @@ import subprocess
 
 import pytest
 
-from termapy.protocol import CRC_CATALOGUE, generate_c, generate_rust, generate_vhdl
+from crcglot import CRC_CATALOGUE, generate_c, generate_rust, generate_vhdl
 
 
 # Every test in this file shells out to a compiler / simulator

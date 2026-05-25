@@ -10,7 +10,7 @@ Emits a complete ``.rs`` file with four module-level functions:
 Plus an idiomatic ``#[cfg(test)] mod tests`` block containing a
 ``#[test]`` that asserts the one-shot path against the reveng
 catalogue's ``check`` value.  ``cargo test`` discovers and runs it;
-termapy's pytest harness uses ``rustc --test file.rs -o bin && ./bin``
+crcglot's pytest harness uses ``rustc --test file.rs -o bin && ./bin``
 for the same verification.
 
 The streaming primitives (init / update / finalize) let callers
@@ -28,14 +28,14 @@ invariant via a synthesized runner).
 
 from __future__ import annotations
 
-from termapy.protocol.crc import CRC_CATALOGUE, _reflect
-from termapy.protocol.crcgen._helpers import (
+from crcglot._helpers import (
     _build_slice8_tables,
     _build_table,
     _func_name,
     _hex,
     _mask,
 )
+from crcglot.catalogue import CRC_CATALOGUE, _reflect
 
 
 def _format_table_rust(table: list[int], width: int, rtype: str) -> str:

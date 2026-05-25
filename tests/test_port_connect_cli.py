@@ -30,7 +30,20 @@ def _run_cli(
     """Invoke termapy --cli with a throwaway config + script."""
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir(parents=True, exist_ok=True)
-    cfg = {**DEFAULT_CFG, "port": "DEMO", "auto_connect": False, **cfg_overrides}
+    # v22 schema: pyserial keys (port, baud_rate, parity, ...) live
+    # under cfg["serial"], not at the top level.  Route any flat
+    # serial-domain keys passed in cfg_overrides into cfg["serial"]
+    # so call sites can keep using {"baud_rate": 9600} without
+    # knowing about the nesting.
+    serial_keys = {"port", "baud_rate", "custom_baud", "byte_size",
+                   "parity", "stop_bits", "flow_control"}
+    cfg = {**DEFAULT_CFG, "auto_connect": False}
+    cfg["serial"] = {**cfg["serial"], "port": "DEMO"}
+    for k, v in cfg_overrides.items():
+        if k in serial_keys:
+            cfg["serial"][k] = v
+        else:
+            cfg[k] = v
     (proj_dir / "proj.cfg").write_text(json.dumps(cfg, indent=4))
 
     script_path = tmp_path / "connect.run"

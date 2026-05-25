@@ -48,12 +48,19 @@ def _run_cli(
     # response without real hardware.  DEFAULT_CFG has ``port=""``
     # so setdefault() won't help -- we put the DEMO defaults first
     # and let cfg_overrides from the caller win by merging last.
-    cfg = {
-        **DEFAULT_CFG,
-        "port": "DEMO",
-        "auto_connect": True,
-        **cfg_overrides,
-    }
+    # v22 schema: pyserial keys (port, baud_rate, parity, ...) live
+    # under cfg["serial"], not at the top level.  Route any flat
+    # serial-domain keys passed in cfg_overrides into cfg["serial"]
+    # so call sites can stay schema-agnostic.
+    serial_keys = {"port", "baud_rate", "custom_baud", "byte_size",
+                   "parity", "stop_bits", "flow_control"}
+    cfg = {**DEFAULT_CFG, "auto_connect": True}
+    cfg["serial"] = {**cfg["serial"], "port": "DEMO"}
+    for k, v in cfg_overrides.items():
+        if k in serial_keys:
+            cfg["serial"][k] = v
+        else:
+            cfg[k] = v
     (proj_dir / "proj.cfg").write_text(json.dumps(cfg, indent=4))
 
     script_path = tmp_path / "prefix_test.run"

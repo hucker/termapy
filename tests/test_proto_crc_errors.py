@@ -35,7 +35,13 @@ def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedPro
     """Invoke termapy --cli against a throwaway config and script."""
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir(parents=True, exist_ok=True)
-    cfg = {**DEFAULT_CFG, "port": "DEMO", "auto_connect": True}
+    # v22 schema: pyserial keys (port, baud_rate, parity, ...) live
+    # under cfg["serial"], not at the top level.  Setting a flat
+    # ``"port": "DEMO"`` here is a no-op against current termapy and
+    # makes the startup connect fail with ``Cannot open ?:`` -- the
+    # script never runs.
+    cfg = {**DEFAULT_CFG, "auto_connect": True}
+    cfg["serial"] = {**cfg["serial"], "port": "DEMO"}
     (proj_dir / "proj.cfg").write_text(json.dumps(cfg, indent=4))
 
     script_path = tmp_path / "crc_errs.run"

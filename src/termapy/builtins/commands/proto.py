@@ -770,21 +770,99 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=crc_hex)
 
 
+_CRC_FILE_EXTENSIONS = {
+    "c": (".h", ".c"),
+    "python": (".py",),
+    "rust": (".rs",),
+    "vhdl": (".vhd",),
+}
+
+
+def _write_crc_codegen_files(
+    result: str | tuple[str, str],
+    lang: str,
+    file_stem: str,
+    cwd,
+) -> list:
+    """Write codegen output to disk; return the list of written ``Path``s.
+
+    The C generator returns a ``(header, source)`` tuple; everything
+    else returns a single source string.  This helper handles both
+    shapes and picks the per-language extension from
+    ``_CRC_FILE_EXTENSIONS``.  Extracted out of ``_crc_codegen`` so
+    the file-writing logic is testable without spinning up a full
+    PluginContext.
+
+    Args:
+        result: Generator output (string for python/rust/vhdl;
+            ``(header, source)`` tuple for c).
+        lang: Target language code (``c``, ``python``, ``rust``,
+            ``vhdl``).
+        file_stem: User-supplied stem; the per-language extension is
+            appended.
+        cwd: Base directory the file(s) are written under (typically
+            ``Path.cwd()``; tests pass ``tmp_path``).
+
+    Returns:
+        List of ``Path`` objects, one per file written.  Length 2 for
+        C (.h + .c), length 1 for the other languages.
+    """
+    extensions = _CRC_FILE_EXTENSIONS.get(lang, (".txt",))
+    written: list = []
+    # ``str(content)`` casts -- ``result`` comes from a Callable in
+    # GENERATORS so ty widens its elements to ``object``; runtime
+    # always returns strings.
+    if isinstance(result, tuple):
+        for content, ext in zip(result, extensions):
+            path = cwd / f"{file_stem}{ext}"
+            path.write_text(str(content), encoding="utf-8")
+            written.append(path)
+    else:
+        path = cwd / f"{file_stem}{extensions[0]}"
+        path.write_text(str(result), encoding="utf-8")
+        written.append(path)
+    return written
+
+
 def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """Generate CRC source code in the specified language.
 
     Args:
         ctx: Plugin context for output.
-        args: Algorithm name.
-        lang: Target language (c, python, rust).
+        args: Algorithm name, optionally followed by ``file=STEM`` to
+            redirect output to disk instead of stdout.
+        lang: Target language (c, python, rust, vhdl).
     """
+    from pathlib import Path
+
     from termapy.protocol import GENERATORS
 
     use_table = ctx.flag("--table")
-    tokens = args.strip().lower().split()
-    name = tokens[0] if tokens else ""
+
+    # Parse ``file=STEM`` manually -- termapy's registered-flag system
+    # is bool-only and rejects value-bearing tokens that start with
+    # ``--``, so we use the bare ``key=value`` form (matches
+    # /proto.crc.find's ``bin=``/``asc=`` pattern).  The dashed
+    # ``--file=`` form is intercepted by the dispatcher's flag parser
+    # before this handler runs and would need a framework change to
+    # support; documented as a known difference from pycrc's CLI.
+    file_stem: str | None = None
+    name_tokens: list[str] = []
+    for tok in args.strip().split():
+        if tok.startswith("file="):
+            file_stem = tok[len("file="):]
+        else:
+            name_tokens.append(tok)
+
+    name = name_tokens[0].lower() if name_tokens else ""
     if not name:
-        return CmdResult.fail(msg=f"Usage: /proto.crc.{lang} <algorithm> {{--table}}")
+        return CmdResult.fail(
+            msg=f"Usage: /proto.crc.{lang} <algorithm> {{--table}} {{file=stem}}"
+        )
+    if file_stem == "":
+        return CmdResult.fail(
+            msg="file= requires a value (e.g. file=crc_my)"
+        )
 
     gen = GENERATORS.get(lang)
     if gen is None:
@@ -798,6 +876,16 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         )
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
+    # ----- File output mode (file=STEM) -----
+    if file_stem is not None:
+        written = _write_crc_codegen_files(result, lang, file_stem, Path.cwd())
+        ctx.io.output(
+            f"Wrote {', '.join(str(p.name) for p in written)}", "green"
+        )
+        # Return the joined paths so scripts can capture them.
+        return CmdResult.ok(value=" ".join(str(p) for p in written))
+
+    # ----- Stdout mode (default) -----
     # generate_c returns a (header, source) tuple so the same algorithm
     # gives a complete C and C++-friendly pair.  generate_python /
     # generate_rust still return a single source string.  Render both
@@ -859,7 +947,7 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     """
     p = ctx.engine.prefix
     usage = (
-        f"Usage: {p}proto.crc.find [width=8|16|32] [endian=be|le] "
+        f"Usage: {p}proto.crc.find [width=8|16|32|64] [endian=be|le] "
         "bin=<hex> | asc=<text>"
     )
     kw = _parse_find_args(args)
@@ -869,15 +957,16 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     try:
         width_filter = int(kw["width"]) if "width" in kw else None
     except ValueError:
-        return CmdResult.fail(msg="Invalid width: must be 8, 16, or 32")
-    if width_filter is not None and width_filter not in (8, 16, 32):
-        return CmdResult.fail(msg="Invalid width: must be 8, 16, or 32")
+        return CmdResult.fail(msg="Invalid width: must be 8, 16, 32, or 64")
+    if width_filter is not None and width_filter not in (8, 16, 32, 64):
+        return CmdResult.fail(msg="Invalid width: must be 8, 16, 32, or 64")
 
     endian_filter = kw.get("endian", "").lower()
     if endian_filter and endian_filter not in ("be", "le"):
         return CmdResult.fail(msg="Invalid endian: must be be or le")
 
-    byte_widths = (width_filter // 8,) if width_filter else (1, 2, 4)
+    # CRC-64 widths searched by default alongside the smaller ones.
+    byte_widths = (width_filter // 8,) if width_filter else (1, 2, 4, 8)
     endians = (endian_filter,) if endian_filter else ("be", "le")
 
     if kw["mode"] == "bin":
@@ -1226,52 +1315,71 @@ COMMAND = Command(
                     handler=_crc_calc,
                 ),
                 "c": Command(
-                    args="<name>",
-                    flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
+                    args="<name> {file=stem}",
+                    flags={
+                        "--table": "Use 256-entry lookup table (4-8x faster).",
+                    },
                     help="Generate C source code for a CRC algorithm.",
                     long_help=(
                         "Prints a self-contained C implementation for the named\n"
                         "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
                         "name, or {prefix}proto.crc.info <name> for its parameters.\n"
                         "\n"
+                        "With ``file=STEM``, writes STEM.h + STEM.c to the current\n"
+                        "directory instead of stdout -- the right shape for invoking\n"
+                        "from a Makefile rule.\n"
+                        "\n"
                         "Example:\n"
                         "  {prefix}proto.crc.c crc16-modbus\n"
-                        "  {prefix}proto.crc.c crc32 --table"
+                        "  {prefix}proto.crc.c crc32 --table\n"
+                        "  {prefix}proto.crc.c crc32 file=crc32"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
                 ),
                 "python": Command(
-                    args="<name>",
-                    flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
+                    args="<name> {file=stem}",
+                    flags={
+                        "--table": "Use 256-entry lookup table (4-8x faster).",
+                    },
                     help="Generate Python source code for a CRC algorithm.",
                     long_help=(
                         "Prints a self-contained Python implementation for the named\n"
                         "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
                         "name, or {prefix}proto.crc.info <name> for its parameters.\n"
                         "\n"
+                        "With ``file=STEM``, writes STEM.py to the current directory\n"
+                        "instead of stdout.\n"
+                        "\n"
                         "Example:\n"
                         "  {prefix}proto.crc.python crc16-modbus\n"
-                        "  {prefix}proto.crc.python crc32 --table"
+                        "  {prefix}proto.crc.python crc32 --table\n"
+                        "  {prefix}proto.crc.python crc16-modbus file=my_crc"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "python"),
                 ),
                 "rust": Command(
-                    args="<name>",
-                    flags={"--table": "Use 256-entry lookup table (4-8x faster)."},
+                    args="<name> {file=stem}",
+                    flags={
+                        "--table": "Use 256-entry lookup table (4-8x faster).",
+                    },
                     help="Generate Rust source code for a CRC algorithm.",
                     long_help=(
                         "Prints a self-contained Rust implementation for the named\n"
                         "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
                         "name, or {prefix}proto.crc.info <name> for its parameters.\n"
                         "\n"
+                        "With ``file=STEM``, writes STEM.rs to the current directory\n"
+                        "instead of stdout.\n"
+                        "\n"
                         "Example:\n"
                         "  {prefix}proto.crc.rust crc16-modbus\n"
-                        "  {prefix}proto.crc.rust crc32 --table"
+                        "  {prefix}proto.crc.rust crc32 --table\n"
+                        "  {prefix}proto.crc.rust crc16-modbus file=my_crc"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
                 ),
                 "vhdl": Command(
-                    args="<name>",
+                    args="<name> {file=stem}",
                     help="Generate VHDL source code (package) for a CRC algorithm.",
                     long_help=(
                         "Prints a self-contained VHDL package implementing the named\n"
@@ -1280,8 +1388,12 @@ COMMAND = Command(
                         "call from a testbench's assert. Currently emits the bit-by-\n"
                         "bit form only (table-driven VHDL is a future enhancement).\n"
                         "\n"
+                        "With ``file=STEM``, writes STEM.vhd to the current directory\n"
+                        "instead of stdout.\n"
+                        "\n"
                         "Example:\n"
-                        "  {prefix}proto.crc.vhdl crc16-modbus"
+                        "  {prefix}proto.crc.vhdl crc16-modbus\n"
+                        "  {prefix}proto.crc.vhdl crc16-modbus file=crc16_modbus"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "vhdl"),
                 ),

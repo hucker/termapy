@@ -1180,10 +1180,14 @@ class TestCrcCatalogue:
             assert "desc" in entry  # alias entry has desc
 
     def test_catalogue_count(self):
-        """Catalogue has expected number of canonical algorithms (20+30+12)."""
+        """Catalogue has expected number of canonical algorithms (20+30+12+7)."""
+        # 20 CRC-8 + 30 CRC-16 + 12 CRC-32 + 7 CRC-64 = 69 canonical
+        # (crc16m / crc16x aliases live outside _CANONICAL_NAMES).
         actual = len(_CANONICAL_NAMES)
-        expected = 62
-        assert actual == expected  # catalogue size changed
+        expected = 69
+        assert actual == expected, (
+            f"catalogue size changed: expected {expected}, got {actual}"
+        )
 
     def test_desc_is_short(self):
         """Description strings should be concise one-liners."""

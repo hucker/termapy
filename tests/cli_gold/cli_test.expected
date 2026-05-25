@@ -481,6 +481,7 @@ SUBCOMMANDS
   /proto.crc.list      List algorithms (optional glob filter).
   /proto.crc.python    Generate Python source code for a CRC algorithm.
   /proto.crc.rust      Generate Rust source code for a CRC algorithm.
+  /proto.crc.vhdl      Generate VHDL source code (package) for a CRC algorithm.
 
 SEE ALSO
   /proto.debug, /proto.dump, /proto.explore, /proto.help, /proto.hex, /proto.info, /proto.list, /proto.run, /proto.send,

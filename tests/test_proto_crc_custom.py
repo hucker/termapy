@@ -34,9 +34,12 @@ from termapy.builtins.commands.proto import (
     _symbol_from_stem,
 )
 from termapy.protocol import (
-    CRC_CATALOGUE,
+    generate_c,
     generate_c_from_entry,
+    generate_python,
     generate_python_from_entry,
+    generate_rust,
+    generate_vhdl,
 )
 from termapy.protocol.crc import _generic_crc
 
@@ -310,4 +313,141 @@ class TestGenerateFromEntryAcceptsSyntheticEntry:
         assert generated_result == engine_result, (
             f"generator and engine disagree on synthetic CRC: "
             f"generator={generated_result:#x}, engine={engine_result:#x}"
+        )
+
+
+class TestSliceBy8GeneratorAPI:
+    """Structural tests for the slice8 generator parameter.
+
+    Execution-correctness tests live in test_crc_codegen_exec.py
+    (TestGeneratedCSliceBy8Executes / TestGeneratedRustSliceBy8Executes).
+    These tests verify the API surface: returns aren't None, output
+    contains the right markers, and out-of-range widths raise cleanly.
+    """
+
+    def test_c_slice8_emits_8_tables(self):
+        # Arrange + Act
+        result = generate_c("crc32", slice8=True)
+
+        # Assert -- generator returned a (header, source) pair and the
+        # source contains the 2D slice-table declaration.
+        assert result is not None, "generate_c crc32 slice8=True returned None"
+        _header, source = result
+        assert "crc_slice_tables[8][256]" in source, (
+            "C source missing 2D slice-table declaration"
+        )
+
+    def test_rust_slice8_emits_8_tables(self):
+        # Arrange + Act
+        code = generate_rust("crc32", slice8=True)
+
+        # Assert
+        assert code is not None, "generate_rust crc32 slice8=True returned None"
+        assert "CRC_SLICE_TABLES: [[u32; 256]; 8]" in code, (
+            "Rust source missing 2D slice-table declaration"
+        )
+
+    @pytest.mark.parametrize("algo", ["crc8", "crc16-modbus"])
+    def test_c_slice8_rejects_narrow_widths(self, algo):
+        # Act + Assert
+        with pytest.raises(ValueError, match="slice8=True requires width"):
+            generate_c(algo, slice8=True)
+
+    @pytest.mark.parametrize("algo", ["crc8", "crc16-modbus"])
+    def test_rust_slice8_rejects_narrow_widths(self, algo):
+        # Act + Assert
+        with pytest.raises(ValueError, match="slice8=True requires width"):
+            generate_rust(algo, slice8=True)
+
+    def test_python_generate_has_no_slice8_kwarg(self):
+        """generate_python intentionally has no slice8 parameter: Python's
+        per-int overhead eats the speedup, so emitting slice-by-8 in
+        Python would add code without any throughput benefit."""
+        # Act + Assert -- passing slice8= must raise TypeError.
+        with pytest.raises(TypeError):
+            generate_python("crc32", slice8=True)  # type: ignore[call-arg]
+
+    def test_vhdl_generate_has_no_slice8_kwarg(self):
+        """Same rationale for VHDL: the generator is simulator-focused
+        (a reference implementation), not synthesizable hardware where
+        throughput optimization would matter."""
+        # Act + Assert
+        with pytest.raises(TypeError):
+            generate_vhdl("crc32", slice8=True)  # type: ignore[call-arg]
+
+
+class TestPythonSlice8Fallback:
+    """``/proto.crc.python --slice8`` falls back to ``--table`` with a note.
+
+    Slice-by-8 in CPython is empirically a 0.79x performance regression
+    (PyLong allocations eat the loop-iteration savings).  Rather than
+    error out and force the user to retype the command, the handler
+    accepts ``--slice8``, emits a note explaining the fallback, and
+    proceeds as if they'd typed ``--table``.
+    """
+
+    def _build_stub_ctx(self):
+        """Minimal ctx that captures ``ctx.io.output(*)`` calls.
+
+        Enough of the PluginContext surface for ``_crc_codegen`` to
+        run without crashing -- engine.prefix for the legacy error
+        path, IOHandle with capturing _write callbacks for output().
+        """
+        from termapy.plugins import IOHandle, PluginContext
+        captured: list[tuple[str, str]] = []
+        captured_markup: list[str] = []
+
+        def write(text, color="dim"):
+            captured.append((text, color))
+
+        def write_markup(text):
+            captured_markup.append(text)
+
+        ctx = PluginContext(
+            io=IOHandle(_write=write, _write_markup=write_markup),
+            active_flags={},
+        )
+        return ctx, captured, captured_markup
+
+    def test_python_slice8_falls_back_to_table_with_note(self):
+        # Arrange
+        from termapy.builtins.commands.proto import _crc_codegen
+        ctx, captured, captured_markup = self._build_stub_ctx()
+        ctx.active_flags = {"--slice8": True}
+
+        # Act
+        result = _crc_codegen(ctx, "crc32", "python")
+
+        # Assert -- handler succeeded and the fallback note was emitted.
+        assert result.success, f"handler should succeed, got {result.error!r}"
+        note_msgs = [t for t, _color in captured if "slice8" in t.lower()]
+        assert note_msgs, (
+            f"fallback note about --slice8 should appear in output; "
+            f"got captured={captured}"
+        )
+        # The emitted code should be table-driven (contains _TABLE),
+        # NOT slice-by-8 (would contain CRC_SLICE_TABLES).
+        emitted = "".join(captured_markup)
+        assert "_TABLE = (" in emitted, (
+            "Python slice8 fallback should emit table-driven code "
+            "(no Python slice-by-8 implementation exists)"
+        )
+        assert "SLICE" not in emitted.upper(), (
+            "Python fallback must NOT emit slice-by-8 code"
+        )
+
+    def test_python_slice8_with_table_is_rejected(self):
+        # Arrange
+        from termapy.builtins.commands.proto import _crc_codegen
+        ctx, _captured, _markup = self._build_stub_ctx()
+        ctx.active_flags = {"--slice8": True, "--table": True}
+
+        # Act
+        result = _crc_codegen(ctx, "crc32", "python")
+
+        # Assert -- mutually-exclusive error takes precedence over the
+        # python fallback.
+        assert not result.success, "--slice8 + --table should be rejected"
+        assert "mutually exclusive" in (result.error or ""), (
+            f"error msg should mention mutual exclusion, got {result.error!r}"
         )

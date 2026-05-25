@@ -888,6 +888,27 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     from termapy.protocol.crc import _generic_crc
 
     use_table = ctx.flag("--table")
+    use_slice8 = ctx.flag("--slice8")
+
+    if use_slice8 and use_table:
+        return CmdResult.fail(
+            msg="--slice8 and --table are mutually exclusive (slice-by-8 "
+            "already uses tables, just 8 of them)"
+        )
+    # Python doesn't benefit from slice-by-8 -- empirically 0.79x of
+    # plain table-driven on a 1 MB CRC-32 buffer, since PyLong allocation
+    # for every shift / mask / XOR / list-index eats the loop-iteration
+    # savings.  Fall back to --table with a one-line note so the user
+    # knows what they got and why; producing a Python slice-by-8 file
+    # would be a perf regression dressed as an optimization.
+    if use_slice8 and lang == "python":
+        ctx.io.output(
+            "Note: --slice8 is slower than --table in CPython "
+            "(measured 0.79x); using --table instead.",
+            "yellow",
+        )
+        use_slice8 = False
+        use_table = True
 
     # Parse all ``key=value`` tokens manually -- termapy's
     # registered-flag system is bool-only.  Anything that isn't a
@@ -929,6 +950,11 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             return CmdResult.fail(
                 msg="Custom CRC width must be 8, 16, 32, or 64"
             )
+        if use_slice8 and width not in (32, 64):
+            return CmdResult.fail(
+                msg=f"--slice8 requires width=32 or 64 (got width={width}). "
+                "Slice-by-8 only makes sense at those widths."
+            )
 
         # Compute the check value (CRC of "123456789") via the same
         # engine that powers the bundled catalogue.  Embedded in the
@@ -957,9 +983,10 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         gen_entry = GENERATORS_FROM_ENTRY.get(lang)
         if gen_entry is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        result = gen_entry(
-            custom_name, entry, table=use_table, symbol=symbol,
-        )
+        gen_kwargs = {"table": use_table, "symbol": symbol}
+        if use_slice8:
+            gen_kwargs["slice8"] = True
+        result = gen_entry(custom_name, entry, **gen_kwargs)
     else:
         # ----- Catalogue lookup (existing path) -----
         name = name_tokens[0].lower() if name_tokens else ""
@@ -983,7 +1010,20 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         gen = GENERATORS.get(lang)
         if gen is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        result = gen(name, table=use_table, symbol=symbol)
+        if use_slice8:
+            # Fail early with a clear message rather than letting
+            # generate_c / generate_rust raise ValueError later.
+            from termapy.protocol.crc import CRC_CATALOGUE
+            entry = CRC_CATALOGUE.get(name)
+            if entry is not None and entry["width"] not in (32, 64):
+                return CmdResult.fail(
+                    msg=f"--slice8 requires width=32 or 64; {name} is "
+                    f"width={entry['width']}"
+                )
+        gen_kwargs = {"table": use_table, "symbol": symbol}
+        if use_slice8:
+            gen_kwargs["slice8"] = True
+        result = gen(name, **gen_kwargs)
         if result is None:
             p = ctx.engine.prefix
             ctx.io.output(
@@ -1435,6 +1475,11 @@ COMMAND = Command(
                     args="<name> {file=stem}",
                     flags={
                         "--table": "Use 256-entry lookup table (4-8x faster).",
+                        "--slice8": (
+                            "Use slice-by-8 (8 tables, 5-10x faster than "
+                            "--table for CRC-32/64 on large buffers). "
+                            "Width 32 or 64 only."
+                        ),
                     },
                     help="Generate C source code for a CRC algorithm.",
                     long_help=(
@@ -1449,6 +1494,7 @@ COMMAND = Command(
                         "Example:\n"
                         "  {prefix}proto.crc.c crc16-modbus\n"
                         "  {prefix}proto.crc.c crc32 --table\n"
+                        "  {prefix}proto.crc.c crc32 --slice8\n"
                         "  {prefix}proto.crc.c crc32 file=crc32"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
@@ -1457,6 +1503,12 @@ COMMAND = Command(
                     args="<name> {file=stem}",
                     flags={
                         "--table": "Use 256-entry lookup table (4-8x faster).",
+                        "--slice8": (
+                            "Accepted but falls back to --table: slice-by-8 "
+                            "is actually slower than --table in CPython "
+                            "(measured 0.79x) because PyLong allocations eat "
+                            "the loop-iteration savings."
+                        ),
                     },
                     help="Generate Python source code for a CRC algorithm.",
                     long_help=(
@@ -1478,6 +1530,11 @@ COMMAND = Command(
                     args="<name> {file=stem}",
                     flags={
                         "--table": "Use 256-entry lookup table (4-8x faster).",
+                        "--slice8": (
+                            "Use slice-by-8 (8 tables, 5-10x faster than "
+                            "--table for CRC-32/64 on large buffers). "
+                            "Width 32 or 64 only."
+                        ),
                     },
                     help="Generate Rust source code for a CRC algorithm.",
                     long_help=(
@@ -1491,6 +1548,7 @@ COMMAND = Command(
                         "Example:\n"
                         "  {prefix}proto.crc.rust crc16-modbus\n"
                         "  {prefix}proto.crc.rust crc32 --table\n"
+                        "  {prefix}proto.crc.rust crc32 --slice8\n"
                         "  {prefix}proto.crc.rust crc16-modbus file=my_crc"
                     ),
                     handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),

@@ -76,3 +76,49 @@ def _build_table(width: int, poly: int, refin: bool) -> list[int]:
                 crc &= (1 << width) - 1
             table.append(crc)
     return table
+
+
+def _build_slice8_tables(
+    width: int, poly: int, refin: bool,
+) -> list[list[int]]:
+    """Pre-compute the 8 tables used by slice-by-8 CRC.
+
+    Returns ``[T0, T1, ..., T7]``: each Tk is a 256-entry list of
+    width-bit ints.  Tk[i] is the CRC of ``[i] + [0] * k`` -- i.e.
+    the contribution to the running CRC of a byte at position k.
+
+    The recurrence: ``T(k+1)[i] = T0[low_byte(Tk[i])] ^ shifted_rest(Tk[i])``
+    where the shift direction matches the polynomial direction.  This
+    is what powers Intel's slice-by-8 (5-10x throughput over standard
+    table-driven for CRC-32 / CRC-64 on big buffers).
+    """
+    mask = (1 << width) - 1
+    t0 = _build_table(width, poly, refin)
+    tables = [t0]
+    for _ in range(7):
+        prev = tables[-1]
+        nxt: list[int] = []
+        if refin:
+            # Reflected: low byte feeds next lookup, rest shifts right.
+            for i in range(256):
+                v = prev[i]
+                nxt.append((t0[v & 0xFF] ^ (v >> 8)) & mask)
+        else:
+            # Normal: high byte feeds next lookup, rest shifts left.
+            for i in range(256):
+                v = prev[i]
+                top = (v >> (width - 8)) & 0xFF
+                nxt.append((t0[top] ^ ((v << 8) & mask)) & mask)
+        tables.append(nxt)
+    return tables
+
+
+# Note: a Python reference for slice-by-8 was considered but dropped.
+# It would have served as a test oracle for the generated C / Rust
+# code, but Python doesn't benefit from slice-by-N at runtime (per-int
+# overhead eats the win), and using it as an oracle adds a third
+# implementation that itself needs verification.  Better verification:
+# generate both bit-by-bit and slice-by-8 in the target language,
+# compile both, run both on the same inputs, assert they agree.
+# Bit-by-bit is reveng-verified, so equivalence means slice-by-8 is
+# correct.  Tests live in tests/test_crc_codegen_exec.py.

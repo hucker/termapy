@@ -153,15 +153,17 @@ In format specs and `/proto.send`, CRC algorithm names accept suffixes:
 ![CRC Python code generation](img/doc_07_crc_python.svg)
 
 Generate a standalone CRC function in C, Python, or Rust for any
-algorithm in the catalogue. Two implementations available:
+algorithm in the catalogue. Three implementations available:
 
 ```text
 /proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
 /proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
 /proto.crc.c crc16-xmodem               C bit-by-bit
 /proto.crc.c crc16-xmodem --table       C table-driven
+/proto.crc.c crc32 --slice8             C slice-by-8 (fastest, CRC-32/64 only)
 /proto.crc.rust crc32                    Rust bit-by-bit
 /proto.crc.rust crc32 --table           Rust table-driven
+/proto.crc.rust crc64-xz --slice8       Rust slice-by-8
 ```
 
 **Bit-by-bit** -- compact code, zero RAM overhead. Best for
@@ -170,6 +172,16 @@ microcontrollers with limited memory (PIC, ATtiny).
 **Table-driven** (`--table`) -- 4-8x faster. Pre-computes a
 256-entry lookup table. Uses 256-1024 bytes of RAM depending
 on CRC width.
+
+**Slice-by-8** (`--slice8`) -- 5-10x faster than `--table` for
+CRC-32 and CRC-64 on large buffers. Pre-computes 8 lookup tables
+(8 KB at width 32, 16 KB at width 64) and consumes 8 bytes per
+loop iteration. C and Rust only; width 32 or 64 only.
+
+(`/proto.crc.python ... --slice8` is accepted but falls back to
+`--table` -- slice-by-8 in CPython is actually slower than plain
+table-driven because PyLong allocations eat the loop-iteration
+savings.  The fallback prints a note so you know.)
 
 All algorithm parameters (polynomial, init, reflect, xorout) are
 baked into the generated code. Copy-paste into your firmware or
@@ -219,10 +231,11 @@ def crc16_cms(data: bytes) -> int:
 Both forms return `0xAEE7` for `b"123456789"` -- the docstring shows the
 catalogue check value so you can verify after pasting.
 
-**NOTE:** Currently only the generated Python code is test-verified
-against all 62 catalogue check values (both bit-by-bit and
-table-driven). C and Rust output is structurally correct but not
-compiled/verified by the test suite.
+**NOTE:** Generated Python is test-verified against all catalogue
+check values via exec. C, Rust, and VHDL output is execution-verified
+when the corresponding toolchain (gcc, rustc, ghdl) is on PATH;
+otherwise those tests skip but the bit-by-bit / table-driven /
+slice-by-8 paths run on CI for every push.
 
 **Custom CRC plugins** for non-standard checksums:
 

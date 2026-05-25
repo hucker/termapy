@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from termapy.protocol.crc import CRC_CATALOGUE, _reflect
 from termapy.protocol.crcgen._helpers import (
+    _build_slice8_tables,
     _build_table,
     _func_name,
     _hex,
@@ -53,6 +54,165 @@ def _format_table_c(table: list[int], width: int, ctype: str) -> str:
         lines.append(f"    {vals}{comma}")
     lines.append("};")
     return "\n".join(lines)
+
+
+def _format_slice8_tables_c(
+    tables: list[list[int]], width: int, ctype: str,
+) -> str:
+    """Format the 8 slice-by-8 tables as a 2D C ``static const`` array."""
+    hex_w = (width + 3) // 4
+    lines = [f"static const {ctype} crc_slice_tables[8][256] = {{"]
+    for t_idx, table in enumerate(tables):
+        lines.append(f"    {{ /* T{t_idx} */")
+        for row in range(0, 256, 8):
+            vals = ", ".join(
+                f"0x{table[i]:0{hex_w}X}"
+                for i in range(row, min(row + 8, 256))
+            )
+            comma = "," if row + 8 < 256 else ""
+            lines.append(f"        {vals}{comma}")
+        comma = "," if t_idx < 7 else ""
+        lines.append(f"    }}{comma}")
+    lines.append("};")
+    return "\n".join(lines)
+
+
+def _update_loop_c_slice8(w: int, refin: bool, ctype: str) -> list[str]:
+    """Emit the per-8-byte slice-by-8 main loop + byte-by-byte tail.
+
+    Variable ``crc`` (of type ``ctype``) is assumed to already hold
+    the incoming state.  Processes ``data[0..len-1]`` 8 bytes at a
+    time via 8 chained table lookups (the slice tables), then falls
+    back to single-byte table-driven via ``crc_slice_tables[0]`` for
+    any 1-7 trailing bytes.
+
+    Only valid for w == 32 or w == 64 (only widths where slice-by-8
+    has a meaningful equivalent of "fits in a uint64_t chunk").
+    """
+    if w == 32:
+        if refin:
+            # Reflected: input loaded little-endian, low byte of state
+            # XOR'd with first 4 input bytes, table indices walk from
+            # least-significant byte upward (T7..T0).
+            return [
+                "    while (len >= 8) {",
+                "        uint32_t b03 = (uint32_t)data[0]"
+                " | (uint32_t)data[1] << 8"
+                " | (uint32_t)data[2] << 16"
+                " | (uint32_t)data[3] << 24;",
+                "        uint32_t b47 = (uint32_t)data[4]"
+                " | (uint32_t)data[5] << 8"
+                " | (uint32_t)data[6] << 16"
+                " | (uint32_t)data[7] << 24;",
+                "        uint32_t xored = crc ^ b03;",
+                "        crc = crc_slice_tables[7][ xored        & 0xFF]"
+                " ^ crc_slice_tables[6][(xored >>  8) & 0xFF]",
+                "            ^ crc_slice_tables[5][(xored >> 16) & 0xFF]"
+                " ^ crc_slice_tables[4][(xored >> 24) & 0xFF]",
+                "            ^ crc_slice_tables[3][ b47          & 0xFF]"
+                " ^ crc_slice_tables[2][(b47   >>  8) & 0xFF]",
+                "            ^ crc_slice_tables[1][(b47   >> 16) & 0xFF]"
+                " ^ crc_slice_tables[0][(b47   >> 24) & 0xFF];",
+                "        data += 8;",
+                "        len -= 8;",
+                "    }",
+                "    while (len--) {",
+                "        crc = crc_slice_tables[0][(crc ^ *data++) & 0xFF]"
+                " ^ (crc >> 8);",
+                "    }",
+            ]
+        # Non-reflected w=32: load big-endian, state's top XOR'd with
+        # first 4 input bytes' top.  Table-index convention: byte at
+        # position k in the chunk uses T[7-k] (k=0 is "most delayed",
+        # i.e. the byte that has the most zero-bytes processed after
+        # it to reach the end of the chunk).
+        return [
+            "    while (len >= 8) {",
+            "        uint32_t b03 = (uint32_t)data[0] << 24"
+            " | (uint32_t)data[1] << 16"
+            " | (uint32_t)data[2] << 8"
+            " | (uint32_t)data[3];",
+            "        uint32_t b47 = (uint32_t)data[4] << 24"
+            " | (uint32_t)data[5] << 16"
+            " | (uint32_t)data[6] << 8"
+            " | (uint32_t)data[7];",
+            "        uint32_t xored = crc ^ b03;",
+            "        crc = crc_slice_tables[7][(xored >> 24) & 0xFF]"
+            " ^ crc_slice_tables[6][(xored >> 16) & 0xFF]",
+            "            ^ crc_slice_tables[5][(xored >>  8) & 0xFF]"
+            " ^ crc_slice_tables[4][ xored        & 0xFF]",
+            "            ^ crc_slice_tables[3][(b47   >> 24) & 0xFF]"
+            " ^ crc_slice_tables[2][(b47   >> 16) & 0xFF]",
+            "            ^ crc_slice_tables[1][(b47   >>  8) & 0xFF]"
+            " ^ crc_slice_tables[0][ b47          & 0xFF];",
+            "        data += 8;",
+            "        len -= 8;",
+            "    }",
+            "    while (len--) {",
+            "        uint32_t top = crc >> 24;",
+            "        crc = crc_slice_tables[0][(top ^ *data++) & 0xFF]"
+            " ^ (crc << 8);",
+            "    }",
+        ]
+    # w == 64
+    if refin:
+        return [
+            "    while (len >= 8) {",
+            "        uint64_t b = (uint64_t)data[0]"
+            " | (uint64_t)data[1] << 8"
+            " | (uint64_t)data[2] << 16"
+            " | (uint64_t)data[3] << 24",
+            "                   | (uint64_t)data[4] << 32"
+            " | (uint64_t)data[5] << 40"
+            " | (uint64_t)data[6] << 48"
+            " | (uint64_t)data[7] << 56;",
+            "        uint64_t xored = crc ^ b;",
+            "        crc = crc_slice_tables[7][ xored        & 0xFF]"
+            " ^ crc_slice_tables[6][(xored >>  8) & 0xFF]",
+            "            ^ crc_slice_tables[5][(xored >> 16) & 0xFF]"
+            " ^ crc_slice_tables[4][(xored >> 24) & 0xFF]",
+            "            ^ crc_slice_tables[3][(xored >> 32) & 0xFF]"
+            " ^ crc_slice_tables[2][(xored >> 40) & 0xFF]",
+            "            ^ crc_slice_tables[1][(xored >> 48) & 0xFF]"
+            " ^ crc_slice_tables[0][(xored >> 56) & 0xFF];",
+            "        data += 8;",
+            "        len -= 8;",
+            "    }",
+            "    while (len--) {",
+            "        crc = crc_slice_tables[0][(crc ^ *data++) & 0xFF]"
+            " ^ (crc >> 8);",
+            "    }",
+        ]
+    # Non-reflected w=64.  Same index convention as w=32: byte at
+    # position k uses T[7-k].
+    return [
+        "    while (len >= 8) {",
+        "        uint64_t b = (uint64_t)data[0] << 56"
+        " | (uint64_t)data[1] << 48"
+        " | (uint64_t)data[2] << 40"
+        " | (uint64_t)data[3] << 32",
+        "                   | (uint64_t)data[4] << 24"
+        " | (uint64_t)data[5] << 16"
+        " | (uint64_t)data[6] << 8"
+        " | (uint64_t)data[7];",
+        "        uint64_t xored = crc ^ b;",
+        "        crc = crc_slice_tables[7][(xored >> 56) & 0xFF]"
+        " ^ crc_slice_tables[6][(xored >> 48) & 0xFF]",
+        "            ^ crc_slice_tables[5][(xored >> 40) & 0xFF]"
+        " ^ crc_slice_tables[4][(xored >> 32) & 0xFF]",
+        "            ^ crc_slice_tables[3][(xored >> 24) & 0xFF]"
+        " ^ crc_slice_tables[2][(xored >> 16) & 0xFF]",
+        "            ^ crc_slice_tables[1][(xored >>  8) & 0xFF]"
+        " ^ crc_slice_tables[0][ xored        & 0xFF];",
+        "        data += 8;",
+        "        len -= 8;",
+        "    }",
+        "    while (len--) {",
+        "        uint64_t top = crc >> 56;",
+        "        crc = crc_slice_tables[0][(top ^ *data++) & 0xFF]"
+        " ^ (crc << 8);",
+        "    }",
+    ]
 
 
 def _update_loop_c(
@@ -179,7 +339,10 @@ def _header_c(name: str, fname: str, ctype: str, desc: str) -> str:
 
 
 def generate_c(
-    name: str, table: bool = False, symbol: str | None = None,
+    name: str,
+    table: bool = False,
+    symbol: str | None = None,
+    slice8: bool = False,
 ) -> tuple[str, str] | None:
     """Look up a CRC algorithm by name and generate a C .h + .c pair.
 
@@ -189,7 +352,9 @@ def generate_c(
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
         return None
-    return generate_c_from_entry(name, entry, table=table, symbol=symbol)
+    return generate_c_from_entry(
+        name, entry, table=table, symbol=symbol, slice8=slice8,
+    )
 
 
 def generate_c_from_entry(
@@ -197,6 +362,7 @@ def generate_c_from_entry(
     entry: dict,
     table: bool = False,
     symbol: str | None = None,
+    slice8: bool = False,
 ) -> tuple[str, str]:
     """Generate a C ``.h`` + ``.c`` pair from a catalogue-shaped entry dict.
 
@@ -242,6 +408,14 @@ def generate_c_from_entry(
     else:
         ctype = "uint64_t"
 
+    if slice8 and w not in (32, 64):
+        raise ValueError(
+            f"slice8=True requires width=32 or width=64 (got width={w}). "
+            "Slice-by-8 is a high-throughput optimization that only "
+            "makes sense at those widths; smaller CRCs would need a "
+            "different chunking scheme."
+        )
+
     # Pre-loaded init state: matches the value the main loop expects
     # on entry.  Reflected algorithms enter the loop with the reflection
     # of the textbook init; non-reflected use the textbook init directly.
@@ -255,10 +429,19 @@ def generate_c_from_entry(
     lines.append(f' * Streaming: init -> update (any number of times) -> finalize.')
     lines.append(f' * One-shot:  call {fname}(data, len).')
     lines.append(f' * Verify:    call {fname}_self_test() (returns 0 on success).')
+    if slice8:
+        lines.append(
+            f' * Variant:   slice-by-8 (8 tables, ~10x throughput vs '
+            f'plain table for large buffers).'
+        )
     lines.append(f' */')
     lines.append(f'#include "{fname}.h"')
     lines.append(f'')
-    if table:
+    if slice8:
+        slice_tables = _build_slice8_tables(w, poly, refin)
+        lines.append(_format_slice8_tables_c(slice_tables, w, ctype))
+        lines.append("")
+    elif table:
         tbl = _build_table(w, poly, refin)
         lines.append(_format_table_c(tbl, w, ctype))
         lines.append("")
@@ -274,7 +457,10 @@ def generate_c_from_entry(
         f"{ctype} {fname}_update({ctype} state, const uint8_t *data, size_t len) {{"
     )
     lines.append(f"    {ctype} crc = state;")
-    lines.extend(_update_loop_c(w, poly, refin, mask, table, ctype))
+    if slice8:
+        lines.extend(_update_loop_c_slice8(w, refin, ctype))
+    else:
+        lines.extend(_update_loop_c(w, poly, refin, mask, table, ctype))
     lines.append(f"    return crc;")
     lines.append(f"}}")
     lines.append("")

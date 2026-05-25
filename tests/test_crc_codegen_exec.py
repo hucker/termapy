@@ -501,6 +501,189 @@ class TestGeneratedRustStreaming:
         )
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Slice-by-8 equivalence tests.
+#
+# Slice-by-8 is a high-throughput CRC optimization (8 tables, 8 bytes
+# per iteration -- 5-10x faster than plain table-driven on large
+# buffers).  Verification strategy: generate BOTH bit-by-bit and
+# slice-by-8 in the target language under different symbol names,
+# compile both into the same runner, and assert they produce identical
+# output across a range of input lengths.  Since the bit-by-bit form
+# is already reveng-verified (by the TestGenerated{C,Rust}Executes
+# tests above), equivalence proves slice-by-8 is correct.
+#
+# Input lengths chosen to exercise the 8-byte main loop AND the 1-7
+# byte tail loop: 0 (degenerate), 1 (pure tail), 7 (just under one
+# chunk), 8 (exactly one chunk), 9 (one chunk + 1-byte tail), 15
+# (just under two chunks), 16 (exactly two chunks), 100 (12 chunks +
+# 4-byte tail).  The input data is the cyclic byte sequence
+# 0x00, 0x01, ..., 0xFF, ... to avoid all-zero or all-one degenerate
+# patterns that might mask indexing bugs.
+#
+# Limited to CRC-32 and CRC-64 algorithms; slice-by-8 only makes sense
+# at those widths (validated by the slice8=True ValueError in the
+# generators).
+# ─────────────────────────────────────────────────────────────────────
+
+
+# Input lengths spanning degenerate, sub-chunk, exact-chunk, mixed.
+_SLICE8_INPUT_LENGTHS = (0, 1, 7, 8, 9, 15, 16, 100)
+
+
+def _slice8_algos() -> list[str]:
+    """Catalogue algorithms eligible for slice-by-8 (width 32 or 64)."""
+    return sorted(
+        n for n, e in CRC_CATALOGUE.items() if e["width"] in (32, 64)
+    )
+
+
+@pytest.mark.skipif(not HAS_GCC, reason="gcc not in PATH")
+class TestGeneratedCSliceBy8Executes:
+    """Slice-by-8 equivalence with bit-by-bit in generated C."""
+
+    @pytest.mark.parametrize("name", _slice8_algos())
+    def test_slice8_matches_bitbybit(self, name, tmp_path):
+        # Arrange -- generate two C pairs with disjoint symbol names so
+        # they can link in the same runner.
+        bb_sym = f"{_func_name(name)}_bb"
+        s8_sym = f"{_func_name(name)}_s8"
+        bb_header, bb_source = generate_c(name, symbol=bb_sym)
+        s8_header, s8_source = generate_c(name, slice8=True, symbol=s8_sym)
+        ctype = _c_state_type(CRC_CATALOGUE[name]["width"])
+
+        (tmp_path / f"{bb_sym}.h").write_text(bb_header)
+        (tmp_path / f"{bb_sym}.c").write_text(bb_source)
+        (tmp_path / f"{s8_sym}.h").write_text(s8_header)
+        (tmp_path / f"{s8_sym}.c").write_text(s8_source)
+
+        lengths_csv = ", ".join(str(n) for n in _SLICE8_INPUT_LENGTHS)
+        runner_src = (
+            f'#include "{bb_sym}.h"\n'
+            f'#include "{s8_sym}.h"\n'
+            f"#include <stdio.h>\n"
+            f"int main(void) {{\n"
+            f"    static uint8_t buf[256];\n"
+            f"    for (int k = 0; k < 256; k++) buf[k] = (uint8_t)k;\n"
+            f"    size_t lengths[] = {{ {lengths_csv} }};\n"
+            f"    size_t nlen = sizeof(lengths) / sizeof(lengths[0]);\n"
+            f"    for (size_t li = 0; li < nlen; li++) {{\n"
+            f"        size_t n = lengths[li];\n"
+            f"        {ctype} bb = {bb_sym}(buf, n);\n"
+            f"        {ctype} s8 = {s8_sym}(buf, n);\n"
+            f"        if (bb != s8) {{\n"
+            f'            fprintf(stderr, "len=%zu bb=0x%llx s8=0x%llx\\n",\n'
+            f"                    n, (unsigned long long)bb,\n"
+            f"                    (unsigned long long)s8);\n"
+            f"            return (int)(li + 1);\n"
+            f"        }}\n"
+            f"    }}\n"
+            f"    return 0;\n"
+            f"}}\n"
+        )
+        (tmp_path / "runner.c").write_text(runner_src)
+
+        binary = tmp_path / ("run.exe" if shutil.which("cmd") else "run")
+
+        # Act -- compile + run
+        compile_result = subprocess.run(
+            [
+                "gcc",
+                "-std=c99", "-Wall", "-Werror",
+                "-o", str(binary),
+                str(tmp_path / f"{bb_sym}.c"),
+                str(tmp_path / f"{s8_sym}.c"),
+                str(tmp_path / "runner.c"),
+            ],
+            capture_output=True, cwd=tmp_path,
+        )
+        assert compile_result.returncode == 0, (
+            f"{name}: gcc failed: "
+            f"{compile_result.stderr.decode(errors='replace')}"
+        )
+        run_result = subprocess.run(
+            [str(binary)], capture_output=True, cwd=tmp_path,
+        )
+
+        # Assert -- exit 0 means slice-by-8 == bit-by-bit at every length;
+        # nonzero index identifies which length disagreed.
+        assert run_result.returncode == 0, (
+            f"{name}: slice8 != bit-by-bit at length "
+            f"{_SLICE8_INPUT_LENGTHS[run_result.returncode - 1]}: "
+            f"{run_result.stderr.decode(errors='replace')}"
+        )
+
+
+@pytest.mark.skipif(not HAS_RUSTC, reason="rustc not in PATH")
+class TestGeneratedRustSliceBy8Executes:
+    """Slice-by-8 equivalence with bit-by-bit in generated Rust."""
+
+    @pytest.mark.parametrize("name", _slice8_algos())
+    def test_slice8_matches_bitbybit(self, name, tmp_path):
+        # Arrange -- generate two .rs files with disjoint symbol names.
+        bb_sym = f"{_func_name(name)}_bb"
+        s8_sym = f"{_func_name(name)}_s8"
+        bb_code = generate_rust(name, symbol=bb_sym)
+        s8_code = generate_rust(name, slice8=True, symbol=s8_sym)
+        rtype = _rust_state_type(CRC_CATALOGUE[name]["width"])
+
+        bb_path = tmp_path / f"{bb_sym}.rs"
+        s8_path = tmp_path / f"{s8_sym}.rs"
+        bb_path.write_text(bb_code)
+        s8_path.write_text(s8_code)
+
+        # The two files define identically-named CRC_TABLE /
+        # CRC_SLICE_TABLES constants but in disjoint modules, so we
+        # ``include!`` them into separate mods to avoid name collisions.
+        lengths_csv = ", ".join(str(n) for n in _SLICE8_INPUT_LENGTHS)
+        runner_src = (
+            f'mod bb {{ include!("{bb_sym}.rs"); }}\n'
+            f'mod s8 {{ include!("{s8_sym}.rs"); }}\n'
+            f"fn main() {{\n"
+            f"    let mut buf = [0u8; 256];\n"
+            f"    for k in 0..256 {{ buf[k] = k as u8; }}\n"
+            f"    let lengths: [usize; {len(_SLICE8_INPUT_LENGTHS)}] = "
+            f"[{lengths_csv}];\n"
+            f"    for (li, &n) in lengths.iter().enumerate() {{\n"
+            f"        let bb: {rtype} = bb::{bb_sym}(&buf[..n]);\n"
+            f"        let s8: {rtype} = s8::{s8_sym}(&buf[..n]);\n"
+            f"        if bb != s8 {{\n"
+            f'            eprintln!("len={{}} bb=0x{{:x}} s8=0x{{:x}}", '
+            f"n, bb, s8);\n"
+            f"            std::process::exit((li + 1) as i32);\n"
+            f"        }}\n"
+            f"    }}\n"
+            f"}}\n"
+        )
+        runner_path = tmp_path / "runner.rs"
+        runner_path.write_text(runner_src)
+
+        binary = tmp_path / ("run.exe" if shutil.which("cmd") else "run")
+
+        # Act -- compile + run.  -A warnings silences unused-function
+        # / unused-const warnings from the included bit-by-bit + slice-by-8
+        # files (each contains a _self_test mod we don't invoke from main).
+        compile_result = subprocess.run(
+            ["rustc", "--edition=2021", "-A", "warnings",
+             "-o", str(binary), str(runner_path)],
+            capture_output=True, cwd=tmp_path,
+        )
+        assert compile_result.returncode == 0, (
+            f"{name}: rustc failed: "
+            f"{compile_result.stderr.decode(errors='replace')}"
+        )
+        run_result = subprocess.run(
+            [str(binary)], capture_output=True, cwd=tmp_path,
+        )
+
+        # Assert -- exit 0 means slice-by-8 == bit-by-bit at every length.
+        assert run_result.returncode == 0, (
+            f"{name}: slice8 != bit-by-bit at length "
+            f"{_SLICE8_INPUT_LENGTHS[run_result.returncode - 1]}: "
+            f"{run_result.stderr.decode(errors='replace')}"
+        )
+
+
 @pytest.mark.skipif(not HAS_GHDL, reason="ghdl not in PATH")
 class TestGeneratedVhdlStreaming:
     """Verify the VHDL streaming triple satisfies the splittability invariant."""

@@ -231,11 +231,66 @@ def crc16_cms(data: bytes) -> int:
 Both forms return `0xAEE7` for `b"123456789"` -- the docstring shows the
 catalogue check value so you can verify after pasting.
 
-**NOTE:** Generated Python is test-verified against all catalogue
-check values via exec. C, Rust, and VHDL output is execution-verified
-when the corresponding toolchain (gcc, rustc, ghdl) is on PATH;
-otherwise those tests skip but the bit-by-bit / table-driven /
-slice-by-8 paths run on CI for every push.
+### Verification: we test the Python; you verify everything else on your target
+
+For the **Python** generator, our test suite execs every output and
+asserts the canonical reveng check value (`crc("123456789")`).  Same
+interpreter you use, so if our tests pass, your `import` works.
+
+For the **C, Rust, and VHDL** generators, we test on our development
+machines (compile + run + check), but the contract for using our
+generated code is that **you verify on your own build environment
+before shipping** -- your compiler version, your target ISA, your
+simulator, your optimization flags may differ from ours.  Every
+generated file embeds the test for exactly this purpose:
+
+| Language | How to verify |
+| --- | --- |
+| C | Call `<fname>_self_test()` from your `main()` or test framework. Returns `0` on success, `1` on failure. No `main()` is emitted, so it links cleanly alongside your own. |
+| Rust | `cargo test` (or `rustc --test`) runs the embedded `#[cfg(test)] mod tests` block, which asserts the check value. Exit `0` means pass. |
+| VHDL | Call `<fname>_self_test` (returns `boolean`) from a testbench process via `assert <fname>_self_test severity failure;`. Halts simulation on failure. |
+| Python | No separate test needed -- the generator runs the same interpreter you do, and our test suite execs every output. If `import` succeeds, the implementation matches the catalogue check value (which the docstring lists, e.g. `check: crc(b'123456789') == 0xCBF43926`). |
+
+All four mechanisms compare `crc("123456789")` against the reveng-catalogue
+canonical check value, baked into the generated source at emit time.  If
+your compiler or target produces a different value, the self-test catches
+it -- you have an immediate, decisive signal that something in your build
+environment differs from ours, before the CRC ships into firmware.
+
+### What's in the box (and what you can drop for embedded)
+
+Each generated file ships with **five entry points**: a streaming triple
+(`init` / `update` / `finalize`), a one-shot wrapper that composes them,
+and a self-test.  Pick the shape that fits your call site -- a firmware
+that computes the CRC over a whole frame at once uses the one-shot;
+a streaming protocol that processes bytes as they arrive uses the triple.
+
+| Function | Use case | Safe to drop? |
+| --- | --- | --- |
+| `<fname>_init` / `_update` / `_finalize` | Streaming -- feed data chunk by chunk | No (the one-shot wrapper calls them internally) |
+| `<fname>` (one-shot wrapper) | Whole-buffer computation in a single call | Yes, if you only stream |
+| `<fname>_self_test` | One-time toolchain verification (above) | Yes, after you've verified once |
+
+For memory-constrained embedded targets, the standard toolchain
+flags strip unreferenced functions automatically -- no manual
+edits to the generated source needed:
+
+- **C** -- compile with `-ffunction-sections -fdata-sections`, link
+  with `-Wl,--gc-sections`.  Any function your code doesn't call
+  (transitively) drops out of the final binary.
+- **Rust** -- `cargo --release` drops the `#[cfg(test)] mod tests`
+  block automatically; enabling LTO (`-C lto=fat` or `[profile.release]
+  lto = true`) drops other unused functions.
+- **VHDL** -- synthesizers (Vivado, Quartus, Intel Quartus Prime, etc.)
+  elaborate only what's referenced from the top-level entity.  Unused
+  package functions cost zero gates.
+- **Python** -- not applicable (interpreted; "removing" a function
+  just saves source bytes, not RAM).
+
+So an embedded firmware that calls `crc32(data, len)` once per packet
+and has run `_self_test()` once at boot can compile-and-strip down to
+just `_init` + `_update` + `_finalize` + `crc32` in the final binary,
+with no self-test overhead and no streaming-vs-one-shot duplication.
 
 **Custom CRC plugins** for non-standard checksums:
 

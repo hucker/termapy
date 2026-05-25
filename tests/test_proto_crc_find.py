@@ -149,8 +149,10 @@ class TestRoundtripEveryCatalogueAlgorithm:
         packet = b"123456789" + check.to_bytes(width_bytes, order)
 
         # Act -- search across all widths + endians (simulate user's view).
+        # CRC-64 needs byte_width=8; include it so the 7 crc64-* algorithms
+        # get scanned by the parametrize sweep.
         raw = _find_in_binary(
-            packet, byte_widths=(1, 2, 4), endians=("be", "le")
+            packet, byte_widths=(1, 2, 4, 8), endians=("be", "le")
         )
         collapsed = _dedupe_catalogue_aliases(raw)
 
@@ -230,7 +232,17 @@ def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedPro
     """Invoke termapy --cli against a throwaway config and script."""
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir(parents=True, exist_ok=True)
-    cfg = {**DEFAULT_CFG, "port": "DEMO", "auto_connect": True}
+    # Port lives nested under cfg["serial"] post-v22; building a flat
+    # ``{**DEFAULT_CFG, "port": "DEMO"}`` would silently ignore the
+    # port (the loader reads ``cfg["serial"]["port"]``) and the demo
+    # connect would fail with "Cannot open ?: Port not found".
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {
+        **DEFAULT_CFG,
+        "serial": {**default_serial, "port": "DEMO"},
+        "auto_connect": True,
+    }
     (proj_dir / "proj.cfg").write_text(json.dumps(cfg, indent=4))
 
     script_path = tmp_path / "crc_find.run"

@@ -44,12 +44,20 @@ def _format_table_python(table: list[int], width: int) -> str:
     return "\n".join(lines)
 
 
-def generate_python(name: str, table: bool = False) -> str | None:
-    """Generate Python init/update/finalize + one-shot for a CRC algorithm.
+def generate_python(
+    name: str, table: bool = False, symbol: str | None = None,
+) -> str | None:
+    """Look up a CRC algorithm by name and generate Python source for it.
+
+    Thin wrapper around :func:`generate_python_from_entry`; use the
+    latter directly when generating from a custom (non-catalogue)
+    algorithm spec.
 
     Args:
         name: Algorithm name from CRC_CATALOGUE.
         table: If True, generate table-driven implementation.
+        symbol: Optional override for the generated function name
+            (default: a sanitized form of ``name``).
 
     Returns:
         Python source code string, or None if algorithm not found.
@@ -57,7 +65,30 @@ def generate_python(name: str, table: bool = False) -> str | None:
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
         return None
+    return generate_python_from_entry(name, entry, table=table, symbol=symbol)
 
+
+def generate_python_from_entry(
+    name: str,
+    entry: dict,
+    table: bool = False,
+    symbol: str | None = None,
+) -> str:
+    """Generate Python source from a catalogue-shaped entry dict.
+
+    Args:
+        name: Algorithm name (used in comments and as the default
+            function-name source).
+        entry: Catalogue dict with ``width`` / ``poly`` / ``init`` /
+            ``refin`` / ``refout`` / ``xorout`` / ``check`` (required)
+            and ``desc`` (optional).
+        table: If True, generate table-driven implementation.
+        symbol: Optional override for the generated function name
+            (default: ``_func_name(name)``).
+
+    Returns:
+        Python source code string.
+    """
     w = entry["width"]
     poly = entry["poly"]
     init = entry["init"]
@@ -66,7 +97,7 @@ def generate_python(name: str, table: bool = False) -> str | None:
     xorout = entry["xorout"]
     check = entry["check"]
     desc = entry.get("desc", "")
-    fname = _func_name(name)
+    fname = symbol if symbol else _func_name(name)
     mask = _mask(w)
 
     # Pre-loaded init state: matches the value the main loop expects on

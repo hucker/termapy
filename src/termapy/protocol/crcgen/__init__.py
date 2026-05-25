@@ -44,14 +44,15 @@ from __future__ import annotations
 
 from typing import Callable
 
-from termapy.protocol.crcgen.c import generate_c
-from termapy.protocol.crcgen.python import generate_python
-from termapy.protocol.crcgen.rust import generate_rust
-from termapy.protocol.crcgen.vhdl import generate_vhdl
+from termapy.protocol.crcgen.c import generate_c, generate_c_from_entry
+from termapy.protocol.crcgen.python import generate_python, generate_python_from_entry
+from termapy.protocol.crcgen.rust import generate_rust, generate_rust_from_entry
+from termapy.protocol.crcgen.vhdl import generate_vhdl, generate_vhdl_from_entry
 
 
-# Language code -> generator callable.  Used by the CLI dispatcher
-# (``/proto.crc.<lang>``) and by tests that parameterize over targets.
+# Language code -> name-lookup generator callable.  Used by the CLI
+# dispatcher (``/proto.crc.<lang>``) and by tests that parameterize
+# over targets.
 GENERATORS: dict[str, Callable] = {
     "c": generate_c,
     "python": generate_python,
@@ -60,10 +61,26 @@ GENERATORS: dict[str, Callable] = {
 }
 
 
+# Language code -> entry-dict generator callable.  Used by the CLI
+# dispatcher's custom-params path (``/proto.crc.<lang> width=N poly=X ...``)
+# which builds a synthetic entry instead of looking up by name.
+GENERATORS_FROM_ENTRY: dict[str, Callable] = {
+    "c": generate_c_from_entry,
+    "python": generate_python_from_entry,
+    "rust": generate_rust_from_entry,
+    "vhdl": generate_vhdl_from_entry,
+}
+
+
 __all__ = [
     "GENERATORS",
+    "GENERATORS_FROM_ENTRY",
     "generate_c",
+    "generate_c_from_entry",
     "generate_python",
+    "generate_python_from_entry",
     "generate_rust",
+    "generate_rust_from_entry",
     "generate_vhdl",
+    "generate_vhdl_from_entry",
 ]

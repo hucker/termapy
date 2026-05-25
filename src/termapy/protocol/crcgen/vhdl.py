@@ -80,25 +80,44 @@ def _self_test_vhdl(fname: str, check: int, width: int) -> str:
     return "\n".join(lines)
 
 
-def generate_vhdl(name: str, table: bool = False) -> str | None:
-    """Generate VHDL init/update/finalize + one-shot package for a CRC.
+def generate_vhdl(
+    name: str, table: bool = False, symbol: str | None = None,
+) -> str | None:
+    """Look up a CRC algorithm by name and generate a VHDL package.
 
-    Args:
-        name: Algorithm name from CRC_CATALOGUE.
-        table: Accepted for API symmetry with the other generators
-            but ignored -- the bit-by-bit form is always emitted.
-            Table-driven VHDL adds nontrivial code-gen for the
-            256-entry constant array without earning much in
-            simulator mode; deferred to a future pass.
-
-    Returns:
-        VHDL source string, or None if the algorithm is unknown.
+    Thin wrapper around :func:`generate_vhdl_from_entry`; use the
+    latter directly when generating from a custom (non-catalogue)
+    algorithm spec.
     """
-    _ = table  # currently unused (see scope note in module docstring)
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
         return None
+    return generate_vhdl_from_entry(name, entry, table=table, symbol=symbol)
 
+
+def generate_vhdl_from_entry(
+    name: str,
+    entry: dict,
+    table: bool = False,
+    symbol: str | None = None,
+) -> str:
+    """Generate a VHDL package from a catalogue-shaped entry dict.
+
+    Args:
+        name: Algorithm name (used in comments).
+        entry: Catalogue dict with ``width`` / ``poly`` / ``init`` /
+            ``refin`` / ``refout`` / ``xorout`` / ``check`` (required)
+            and ``desc`` (optional).
+        table: Accepted for API symmetry with the other generators
+            but ignored -- bit-by-bit only (table-driven VHDL deferred).
+        symbol: Optional override for the generated function name
+            (default: ``_func_name(name)``).  Package name derives
+            from the symbol so include references match.
+
+    Returns:
+        VHDL source string.
+    """
+    _ = table  # currently unused (see scope note in module docstring)
     w = entry["width"]
     poly = entry["poly"]
     init = entry["init"]
@@ -107,7 +126,7 @@ def generate_vhdl(name: str, table: bool = False) -> str | None:
     xorout = entry["xorout"]
     check = entry["check"]
     desc = entry.get("desc", "")
-    fname = _func_name(name)
+    fname = symbol if symbol else _func_name(name)
     pkg = f"{fname}_pkg"
 
     # Pre-loaded init state and (for reflected algorithms) the reflected

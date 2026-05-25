@@ -104,10 +104,15 @@ from termapy.protocol.crc import (
 )
 from termapy.protocol.crcgen import (
     GENERATORS,
+    GENERATORS_FROM_ENTRY,
     generate_c,
+    generate_c_from_entry,
     generate_python,
+    generate_python_from_entry,
     generate_rust,
+    generate_rust_from_entry,
     generate_vhdl,
+    generate_vhdl_from_entry,
 )
 from termapy.protocol.runner import (
     expand_result_template,
@@ -157,10 +162,15 @@ __all__ = [
     "reset_crc_registry",
     # crcgen
     "GENERATORS",
+    "GENERATORS_FROM_ENTRY",
     "generate_c",
+    "generate_c_from_entry",
     "generate_python",
+    "generate_python_from_entry",
     "generate_rust",
+    "generate_rust_from_entry",
     "generate_vhdl",
+    "generate_vhdl_from_entry",
     # runner
     "expand_result_template",
     "run_proto_tests",

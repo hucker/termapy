@@ -824,57 +824,174 @@ def _write_crc_codegen_files(
     return written
 
 
+_CRC_CODEGEN_KV_KEYS = {
+    "file", "width", "poly", "init", "refin", "refout",
+    "xorout", "name", "desc", "symbol",
+}
+
+
+def _parse_int_value(value: str, key: str) -> int:
+    """Parse a hex (``0x...``) or decimal integer; raise ValueError on garbage."""
+    s = value.strip()
+    if s.lower().startswith("0x"):
+        return int(s, 16)
+    return int(s)
+
+
+def _parse_bool_value(value: str, key: str) -> bool:
+    """Parse a permissive boolean: true / false / 1 / 0 / yes / no."""
+    v = value.strip().lower()
+    if v in ("true", "1", "yes", "on"):
+        return True
+    if v in ("false", "0", "no", "off"):
+        return False
+    raise ValueError(
+        f"{key} must be true/false (got {value!r})"
+    )
+
+
+def _symbol_from_stem(file_stem: str) -> str:
+    """Derive a valid C/Rust/Python identifier from a file path / stem.
+
+    Strips the directory part and replaces ``-`` and ``.`` with ``_``
+    so a stem like ``out/my-crc.v1`` becomes ``my_crc_v1``.
+    """
+    from pathlib import Path
+    base = Path(file_stem).name
+    return base.replace("-", "_").replace(".", "_")
+
+
 def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """Generate CRC source code in the specified language.
 
+    Two invocation shapes:
+
+    * **Catalogue lookup** (existing): ``<algorithm-name> [file=stem]
+      [symbol=name]``.  Looks ``algorithm-name`` up in
+      ``CRC_CATALOGUE``; ``symbol=`` overrides the default function
+      name; ``file=`` writes to disk and (if no ``symbol=`` given)
+      also sets the function name from the file basename.
+    * **Custom CRC** (new): ``width=N poly=X [init=...] [refin=...]
+      [refout=...] [xorout=...] [name=...] [desc=...] [file=stem]
+      [symbol=name]``.  Builds a synthetic catalogue entry from raw
+      Rocksoft/Williams parameters and computes the check value via
+      the same generic engine that drives the bundled catalogue.
+
     Args:
         ctx: Plugin context for output.
-        args: Algorithm name, optionally followed by ``file=STEM`` to
-            redirect output to disk instead of stdout.
+        args: See above.
         lang: Target language (c, python, rust, vhdl).
     """
     from pathlib import Path
 
-    from termapy.protocol import GENERATORS
+    from termapy.protocol import GENERATORS, GENERATORS_FROM_ENTRY
+    from termapy.protocol.crc import _generic_crc
 
     use_table = ctx.flag("--table")
 
-    # Parse ``file=STEM`` manually -- termapy's registered-flag system
-    # is bool-only and rejects value-bearing tokens that start with
-    # ``--``, so we use the bare ``key=value`` form (matches
-    # /proto.crc.find's ``bin=``/``asc=`` pattern).  The dashed
-    # ``--file=`` form is intercepted by the dispatcher's flag parser
-    # before this handler runs and would need a framework change to
-    # support; documented as a known difference from pycrc's CLI.
-    file_stem: str | None = None
+    # Parse all ``key=value`` tokens manually -- termapy's
+    # registered-flag system is bool-only.  Anything that isn't a
+    # recognized key=value pair drops into ``name_tokens`` and
+    # (for catalogue mode) is treated as the algorithm name.
+    kv: dict[str, str] = {}
     name_tokens: list[str] = []
     for tok in args.strip().split():
-        if tok.startswith("file="):
-            file_stem = tok[len("file="):]
-        else:
-            name_tokens.append(tok)
+        if "=" in tok:
+            k, v = tok.split("=", 1)
+            if k in _CRC_CODEGEN_KV_KEYS:
+                kv[k] = v
+                continue
+        name_tokens.append(tok)
 
-    name = name_tokens[0].lower() if name_tokens else ""
-    if not name:
-        return CmdResult.fail(
-            msg=f"Usage: /proto.crc.{lang} <algorithm> {{--table}} {{file=stem}}"
-        )
+    file_stem = kv.get("file")
     if file_stem == "":
-        return CmdResult.fail(
-            msg="file= requires a value (e.g. file=crc_my)"
+        return CmdResult.fail(msg="file= requires a value (e.g. file=crc_my)")
+    symbol_override = kv.get("symbol")
+    if symbol_override == "":
+        return CmdResult.fail(msg="symbol= requires a value")
+
+    is_custom = "width" in kv
+
+    if is_custom:
+        # ----- Custom CRC: build synthetic entry from raw params -----
+        if "poly" not in kv:
+            return CmdResult.fail(msg="Custom CRC requires poly=...")
+        try:
+            width = _parse_int_value(kv["width"], "width")
+            poly = _parse_int_value(kv["poly"], "poly")
+            init = _parse_int_value(kv.get("init", "0"), "init")
+            xorout = _parse_int_value(kv.get("xorout", "0"), "xorout")
+            refin = _parse_bool_value(kv.get("refin", "false"), "refin")
+            refout = _parse_bool_value(kv.get("refout", "false"), "refout")
+        except ValueError as e:
+            return CmdResult.fail(msg=f"Custom CRC param: {e}")
+        if width not in (8, 16, 32, 64):
+            return CmdResult.fail(
+                msg="Custom CRC width must be 8, 16, 32, or 64"
+            )
+
+        # Compute the check value (CRC of "123456789") via the same
+        # engine that powers the bundled catalogue.  Embedded in the
+        # generated _self_test so downstream users can verify too.
+        check = _generic_crc(
+            b"123456789", width, poly, init, refin, refout, xorout
         )
 
-    gen = GENERATORS.get(lang)
-    if gen is None:
-        return CmdResult.fail(msg=f"Unknown language: {lang}")
-
-    result = gen(name, table=use_table)
-    if result is None:
-        p = ctx.engine.prefix
-        ctx.io.output(
-            f"Unknown algorithm: {name}. Use {p}proto.crc.list to see available.", "red"
+        custom_name = kv.get("name") or "crc_custom"
+        desc = kv.get("desc") or (
+            f"Custom CRC-{width} (poly=0x{poly:X}, init=0x{init:X}, "
+            f"refin={refin}, refout={refout}, xorout=0x{xorout:X})"
         )
-        return CmdResult.fail(msg=f"Unknown algorithm: {name}")
+        entry = {
+            "width": width, "poly": poly, "init": init,
+            "refin": refin, "refout": refout, "xorout": xorout,
+            "check": check, "desc": desc,
+        }
+        # Symbol resolution: explicit > file basename > name=.
+        symbol = (
+            symbol_override
+            or (_symbol_from_stem(file_stem) if file_stem else None)
+            or _symbol_from_stem(custom_name)
+        )
+
+        gen_entry = GENERATORS_FROM_ENTRY.get(lang)
+        if gen_entry is None:
+            return CmdResult.fail(msg=f"Unknown language: {lang}")
+        result = gen_entry(
+            custom_name, entry, table=use_table, symbol=symbol,
+        )
+    else:
+        # ----- Catalogue lookup (existing path) -----
+        name = name_tokens[0].lower() if name_tokens else ""
+        if not name:
+            return CmdResult.fail(
+                msg=(
+                    f"Usage: /proto.crc.{lang} <algorithm> [--table] "
+                    "[file=stem] [symbol=name]\n"
+                    f"   or: /proto.crc.{lang} width=N poly=X "
+                    "[init=...] [refin=...] [refout=...] [xorout=...] "
+                    "[name=...] [file=...] [symbol=...]"
+                )
+            )
+
+        # Symbol resolution: explicit > file basename > generator default.
+        symbol = (
+            symbol_override
+            or (_symbol_from_stem(file_stem) if file_stem else None)
+        )
+
+        gen = GENERATORS.get(lang)
+        if gen is None:
+            return CmdResult.fail(msg=f"Unknown language: {lang}")
+        result = gen(name, table=use_table, symbol=symbol)
+        if result is None:
+            p = ctx.engine.prefix
+            ctx.io.output(
+                f"Unknown algorithm: {name}. "
+                f"Use {p}proto.crc.list to see available.",
+                "red",
+            )
+            return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     # ----- File output mode (file=STEM) -----
     if file_stem is not None:

@@ -178,8 +178,27 @@ def _header_c(name: str, fname: str, ctype: str, desc: str) -> str:
     return "\n".join(lines)
 
 
-def generate_c(name: str, table: bool = False) -> tuple[str, str] | None:
-    """Generate a C ``.h`` + ``.c`` pair for a CRC algorithm.
+def generate_c(
+    name: str, table: bool = False, symbol: str | None = None,
+) -> tuple[str, str] | None:
+    """Look up a CRC algorithm by name and generate a C .h + .c pair.
+
+    Thin wrapper around :func:`generate_c_from_entry`; use the latter
+    directly when generating from a custom (non-catalogue) algorithm spec.
+    """
+    entry = CRC_CATALOGUE.get(name)
+    if entry is None:
+        return None
+    return generate_c_from_entry(name, entry, table=table, symbol=symbol)
+
+
+def generate_c_from_entry(
+    name: str,
+    entry: dict,
+    table: bool = False,
+    symbol: str | None = None,
+) -> tuple[str, str]:
+    """Generate a C ``.h`` + ``.c`` pair from a catalogue-shaped entry dict.
 
     Returns a ``(header, source)`` tuple of complete, compilable files.
     The source emits the streaming triple (init / update / finalize),
@@ -187,18 +206,22 @@ def generate_c(name: str, table: bool = False) -> tuple[str, str] | None:
     details.
 
     Args:
-        name: Algorithm name from CRC_CATALOGUE.
+        name: Algorithm name (used in comments + ``_self_test`` input
+            data; pass a meaningful descriptor when generating from
+            custom params).
+        entry: Catalogue dict with ``width`` / ``poly`` / ``init`` /
+            ``refin`` / ``refout`` / ``xorout`` / ``check`` (required)
+            and ``desc`` (optional).
         table: If True, emit the table-driven implementation instead
             of the bit-by-bit form.
+        symbol: Optional override for the generated function name
+            (default: ``_func_name(name)``).  Header filename and
+            include guard derive from the symbol so the generated
+            header references match.
 
     Returns:
-        ``(header_source, impl_source)`` tuple of strings, or None if
-        the algorithm name is unknown.
+        ``(header_source, impl_source)`` tuple of strings.
     """
-    entry = CRC_CATALOGUE.get(name)
-    if entry is None:
-        return None
-
     w = entry["width"]
     poly = entry["poly"]
     init = entry["init"]
@@ -207,7 +230,7 @@ def generate_c(name: str, table: bool = False) -> tuple[str, str] | None:
     xorout = entry["xorout"]
     check = entry["check"]
     desc = entry.get("desc", "")
-    fname = _func_name(name)
+    fname = symbol if symbol else _func_name(name)
     mask = _mask(w)
 
     if w <= 8:

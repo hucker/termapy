@@ -1211,9 +1211,17 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 3642 tests, 70% overall</summary>
+<summary><strong>Test coverage</strong> - 2561 tests, 70% overall</summary>
 
-3642 tests across 89 test files. Run with `uv run pytest`.
+2561 tests across 87 test files. Run with `uv run pytest`.
+
+Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
+engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC
+codegen correctness (generator output for every algorithm in every
+language) lives in the [crcglot](https://github.com/hucker/crcglot)
+test suite and runs on every crcglot release; termapy verifies only
+"the dispatch reached crcglot and produced output," not every
+generator permutation.
 
 **Core logic** (serial engine, capture, REPL, protocol, config):
 

@@ -14,13 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - name: Install GHDL (for CRC code-gen VHDL execution tests)
-        # gcc and rustc are preinstalled on ubuntu-latest; the C and
-        # Rust generated-code execution tests run automatically.  GHDL
-        # is the one toolchain that needs an explicit install before
-        # the VHDL execution tests can verify the generator.
-        run: sudo apt-get update && sudo apt-get install -y ghdl
       - name: Run tests
+        # CRC code-gen execution tests (which needed gcc/rustc/ghdl on
+        # PATH) moved out to the standalone crcglot package in 2026-05;
+        # they run in crcglot's own CI now.  Termapy keeps a tiny
+        # wrapper smoke test that doesn't need any toolchain.
         run: uv run --python ${{ matrix.python-version }} pytest
 
   coverage:
@@ -28,8 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
-      - name: Install GHDL (for CRC code-gen VHDL execution tests)
-        run: sudo apt-get update && sudo apt-get install -y ghdl
       - name: Run tests with coverage
         run: uv run --python 3.14 pytest --cov=termapy --cov-report=xml:coverage.xml
       - name: Upload coverage to Codecov

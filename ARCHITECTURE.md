@@ -468,7 +468,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test coverage
 
-89 test files, 3642 tests:
+87 test files, 2561 tests:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |

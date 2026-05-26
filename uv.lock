@@ -375,6 +375,15 @@ toml = [
 ]
 
 [[package]]
+name = "crcglot"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/74/f65b1f69b352da9bc5656b886d02e2d626082977853b70fb8ad67bb406d8/crcglot-0.1.0.tar.gz", hash = "sha256:bc047478169cb55a5aa229dfff4e418f48ec7737ccd8c8d5cc4efcdbcb422f8f", size = 24668, upload-time = "2026-05-25T20:29:02.545Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/8e/68fc9b563f24f21143684ed59d1fa3e8d4a2b0b48cb6bf632a97b7c79118/crcglot-0.1.0-py3-none-any.whl", hash = "sha256:873e11f4708048dadce2482cf08f5a1a40a8389ab15fe443a89c1b99f1fec531", size = 30375, upload-time = "2026-05-25T20:29:01.167Z" },
+]
+
+[[package]]
 name = "cryptography"
 version = "47.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1463,6 +1472,7 @@ name = "termapy"
 version = "0.68.0"
 source = { editable = "." }
 dependencies = [
+    { name = "crcglot" },
     { name = "packaging" },
     { name = "platformdirs" },
     { name = "prompt-toolkit" },
@@ -1494,6 +1504,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "crcglot", specifier = ">=0.1.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0,<2.0" },
     { name = "packaging", specifier = ">=24.0" },
     { name = "platformdirs", specifier = ">=4.0" },

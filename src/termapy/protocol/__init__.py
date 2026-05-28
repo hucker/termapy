@@ -103,8 +103,7 @@ from termapy.protocol.crc import (
     reset_crc_registry,
 )
 from crcglot import (
-    GENERATORS,
-    GENERATORS_FROM_ENTRY,
+    LANGUAGES,
     generate_c,
     generate_c_from_entry,
     generate_python,
@@ -123,6 +122,18 @@ from termapy.protocol.viz import (
     builtins_viz_dir,
     load_visualizers_from_dir,
 )
+
+# crcglot 0.8.0 dropped the module-level GENERATORS / GENERATORS_FROM_ENTRY
+# dicts in favour of LANGUAGES[code].generator.  termapy's proto.py
+# dispatcher keys generators by language code, so rebuild the dicts here.
+# This also automatically picks up languages crcglot adds (csharp, go,
+# typescript, verilog in 0.8.0) -- though termapy only registers REPL
+# commands for the subset it knows about; extra GENERATORS keys are
+# harmless (never dispatched to).
+GENERATORS = {code: info.generator for code, info in LANGUAGES.items()}
+GENERATORS_FROM_ENTRY = {
+    code: info.generator_from_entry for code, info in LANGUAGES.items()
+}
 
 
 __all__ = [

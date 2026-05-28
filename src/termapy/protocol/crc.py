@@ -17,15 +17,32 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-# Re-export the pure CRC API from crcglot.  Internal termapy callers
-# import these from here for historical reasons; new code should
-# import directly from ``crcglot``.
-from crcglot.catalogue import (
-    CRC_CATALOGUE,
-    _generic_crc,
-)
+# Adapt crcglot 0.8.0's public API to the shapes termapy's internal
+# callers (get_crc_registry, proto.py) have historically consumed:
+#
+#   * crcglot 0.8.0 exposes the typed ``ALGORITHMS`` (dict[str,
+#     AlgorithmInfo]); termapy's registry code reads dict-of-dicts
+#     ``CRC_CATALOGUE`` with ``entry["width"]`` access.  Rebuild that
+#     legacy shape here so internal callers don't all have to change.
+#   * crcglot renamed the compute helper ``_generic_crc`` ->
+#     ``generic_crc`` (made it public).  Alias it back.
+#
+# New termapy code should prefer ``from crcglot import ALGORITHMS,
+# generic_crc`` directly rather than these shims.
+from crcglot import ALGORITHMS as _ALGORITHMS
+from crcglot import generic_crc as _generic_crc
 
 from termapy.plugins import BoundaryException
+
+
+CRC_CATALOGUE: dict[str, dict] = {
+    name: {
+        "width": a.width, "poly": a.poly, "init": a.init,
+        "refin": a.refin, "refout": a.refout, "xorout": a.xorout,
+        "check": a.check, "desc": a.desc,
+    }
+    for name, a in _ALGORITHMS.items()
+}
 
 
 def _make_crc_compute(entry: dict) -> Callable[[bytes], int]:

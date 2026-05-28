@@ -161,3 +161,80 @@ class TestPythonSlice8Fallback:
         assert "mutually exclusive" in (result.error or ""), (
             f"error msg should mention mutual exclusion, got {result.error!r}"
         )
+
+
+class TestCustomParamsDispatch:
+    """``/proto.crc.<lang> width=N poly=X ...`` (custom Rocksoft/Williams
+    parameters, no catalogue lookup) dispatches and produces output.
+
+    Regression guard for two things:
+      1. crcglot 0.8.0's ``*_from_entry`` generators take a typed
+         ``AlgorithmInfo``, not a dict -- termapy builds the dataclass.
+      2. Custom params + C + stdout (no file=) previously crashed on an
+         unbound ``name`` in the stdout banner; it's unified with the
+         catalogue branch's ``name`` now.
+    """
+
+    def _build_stub_ctx(self):
+        from termapy.plugins import IOHandle, PluginContext
+        captured: list[tuple[str, str]] = []
+        captured_markup: list[str] = []
+
+        def write(text, color="dim"):
+            captured.append((text, color))
+
+        def write_markup(text):
+            captured_markup.append(text)
+
+        ctx = PluginContext(
+            io=IOHandle(_write=write, _write_markup=write_markup),
+            active_flags={},
+        )
+        return ctx, captured, captured_markup
+
+    def test_custom_params_c_stdout(self):
+        # Arrange -- C output (tuple result) to stdout exercises the
+        # banner path that referenced the formerly-unbound ``name``.
+        from termapy.builtins.commands.proto import _crc_codegen
+        ctx, _captured, captured_markup = self._build_stub_ctx()
+
+        # Act -- crc16-ccitt params via the custom path, no file=.
+        result = _crc_codegen(
+            ctx,
+            "width=16 poly=0x1021 init=0xFFFF refin=true refout=true "
+            "xorout=0x0000 name=mycrc",
+            "c",
+        )
+
+        # Assert
+        assert result.success, (
+            f"custom-params C/stdout should succeed, got {result.error!r}"
+        )
+        emitted = "".join(captured_markup)
+        assert "mycrc" in emitted, (
+            f"custom name should appear in generated C; got {emitted[:200]!r}"
+        )
+
+    def test_custom_params_builds_algorithm_info(self):
+        # Arrange -- Python output (string result) confirms the
+        # AlgorithmInfo handoff to *_from_entry works.
+        from termapy.builtins.commands.proto import _crc_codegen
+        ctx, _captured, captured_markup = self._build_stub_ctx()
+
+        # Act
+        result = _crc_codegen(
+            ctx,
+            "width=16 poly=0x8005 init=0xFFFF refin=true refout=true "
+            "xorout=0x0000 name=cust16",
+            "python",
+        )
+
+        # Assert
+        assert result.success, (
+            f"custom-params Python should succeed, got {result.error!r}"
+        )
+        emitted = "".join(captured_markup)
+        assert "cust16" in emitted, (
+            f"custom name should appear in generated Python; "
+            f"got {emitted[:200]!r}"
+        )

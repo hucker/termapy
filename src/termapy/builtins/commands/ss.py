@@ -51,8 +51,8 @@ COMMAND = Command(
             needs=CapabilitySet(screen_capture=True),
         ),
         "txt": Command(
-            args="{name}",
-            help="Save a text screenshot of the terminal.",
+            args="{name} {N}",
+            help="Save a text screenshot (optionally last/first N lines).",
             long_help=_ss_long_help,
             handler=_handler_placeholder,
             needs=CapabilitySet(screen_capture=True),

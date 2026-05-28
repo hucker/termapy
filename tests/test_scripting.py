@@ -9,9 +9,11 @@ from termapy.plugins import CmdResult
 from termapy.scripting import (
     expand_template,
     parse_bool,
+    parse_count_arg,
     parse_duration,
     parse_keywords,
     resolve_seq_filename,
+    select_lines,
 )
 
 
@@ -466,3 +468,122 @@ class TestParseBool:
 
         # Assert
         assert actual is None, f"expected None for {val!r}, got {actual!r}"
+
+
+# ── select_lines (shared count scheme) ───────────────────────────
+
+
+class TestSelectLines:
+    """The +N=last / -N=first / None=all line-selection scheme."""
+
+    LINES = ["a", "b", "c", "d", "e"]
+
+    def test_none_returns_all(self):
+        # Act
+        actual = select_lines(self.LINES, None)
+
+        # Assert
+        assert actual == self.LINES, "no count -> every line, unchanged"
+
+    def test_positive_returns_last_n(self):
+        # Act -- positive N is the most-recent N (tail)
+        actual = select_lines(self.LINES, 2)
+
+        # Assert
+        expected = ["d", "e"]
+        assert actual == expected, "+2 -> last 2 lines (most recent)"
+
+    def test_negative_returns_first_n(self):
+        # Act -- negative N is the oldest N (head)
+        actual = select_lines(self.LINES, -2)
+
+        # Assert
+        expected = ["a", "b"]
+        assert actual == expected, "-2 -> first 2 lines (oldest)"
+
+    def test_positive_overshoot_clamps_to_all(self):
+        # Act
+        actual = select_lines(self.LINES, 999)
+
+        # Assert
+        assert actual == self.LINES, "|N| >= count clamps to all (tail end)"
+
+    def test_negative_overshoot_clamps_to_all(self):
+        # Act
+        actual = select_lines(self.LINES, -999)
+
+        # Assert
+        assert actual == self.LINES, "|N| >= count clamps to all (head end)"
+
+    def test_single_line_buffer(self):
+        # Act
+        actual_last = select_lines(["only"], 1)
+        actual_first = select_lines(["only"], -1)
+
+        # Assert
+        assert actual_last == ["only"], "+1 on single line -> that line"
+        assert actual_first == ["only"], "-1 on single line -> that line"
+
+    def test_empty_buffer(self):
+        # Act / Assert -- never raises, always empty
+        assert select_lines([], 5) == [], "+N on empty -> empty"
+        assert select_lines([], -5) == [], "-N on empty -> empty"
+        assert select_lines([], None) == [], "None on empty -> empty"
+
+
+# ── parse_count_arg (name + optional signed count) ───────────────
+
+
+class TestParseCountArg:
+    """Splitting a `name`/`count` arg string for /ss.txt."""
+
+    def test_empty_uses_default_name_and_no_count(self):
+        # Act
+        actual = parse_count_arg("", "screenshot")
+
+        # Assert
+        expected = ("screenshot", None)
+        assert actual == expected, "no args -> default name, no count"
+
+    def test_bare_positive_count(self):
+        # Act
+        actual = parse_count_arg("50", "screenshot")
+
+        # Assert
+        expected = ("screenshot", 50)
+        assert actual == expected, "bare int -> count, default name"
+
+    def test_bare_negative_count(self):
+        # Act
+        actual = parse_count_arg("-50", "screenshot")
+
+        # Assert
+        expected = ("screenshot", -50)
+        assert actual == expected, "leading minus parsed as negative count"
+
+    def test_name_only(self):
+        # Act
+        actual = parse_count_arg("mycap", "screenshot")
+
+        # Assert
+        expected = ("mycap", None)
+        assert actual == expected, "non-int token -> name, no count"
+
+    @pytest.mark.parametrize("args", ["mycap 5", "5 mycap"])
+    def test_name_and_count_order_independent(self, args):
+        # Act
+        actual = parse_count_arg(args, "screenshot")
+
+        # Assert
+        expected = ("mycap", 5)
+        assert actual == expected, f"{args!r} -> (name, count) regardless of order"
+
+    def test_zero_count_rejected(self):
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid line count: 0"):
+            parse_count_arg("0", "screenshot")
+
+    def test_two_int_tokens_rejected(self):
+        # Act / Assert
+        with pytest.raises(ValueError, match="Usage"):
+            parse_count_arg("10 20", "screenshot")

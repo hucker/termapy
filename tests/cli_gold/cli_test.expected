@@ -607,7 +607,7 @@ SUBCOMMANDS
   /ss.list       List files in ss/.
   /ss.show       Open the newest file in ss/ with the system viewer.
   /ss.svg        Save an SVG screenshot of the terminal.
-  /ss.txt        Save a text screenshot of the terminal.
+  /ss.txt        Save a text screenshot (optionally last/first N lines).
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.

@@ -1,5 +1,103 @@
 # Changelog
 
+## 0.70.0 (2026-05-28)
+
+The theme of this release is the CRC code generator growing up and
+moving out.  What started as an in-tree helper for `/proto.crc` is now
+**crcglot**, a standalone PyPI package with its own test matrix that
+execution-verifies every algorithm in every target language on every
+push.  termapy depends on it like any other library, the supported
+languages and variants are now discovered dynamically (so a new crcglot
+release adds targets to termapy with no code change), and along the way
+the generator gained streaming APIs, custom-parameter support,
+slice-by-8 tables, and three new target languages.  This release also
+adds `/find` (interactive scrollback search) and rebuilds the command
+palette on Textual's native widget.
+
+### CRC code generation extracted to crcglot
+
+The CRC subsystem is now its own package.  termapy declares a
+`crcglot>=0.8.0` dependency and imports the catalogue, the generators,
+and the calculation kernel from it; nothing CRC-specific is vendored in
+the termapy tree anymore.
+
+The win is verification.  crcglot ships its own CI that compiles and
+runs generated code for every (algorithm x language x variant) cell and
+checks it against the reveng catalogue's published check value -- over a
+thousand exec tests per push.  termapy no longer re-implements that;
+its CRC tests are now thin dispatch smokes ("the REPL routed to crcglot
+and got non-empty output back").  Correctness lives where the code lives.
+
+`/proto.crc.<lang>` is now generated dynamically from
+`crcglot.LANGUAGES`, so every language crcglot ships -- and every future
+one -- appears automatically.  This release surfaces eight targets:
+**C/C++, C#, Go, Python, Rust, TypeScript, Verilog, and VHDL**.
+
+### Richer CRC generators
+
+Folded in from the work that preceded the extraction:
+
+- **Streaming API** -- every target now emits an init / update /
+  finalize trio alongside the one-shot function, so generated code can
+  CRC a stream without buffering it.
+- **Custom parameters** -- supply your own Rocksoft parameters
+  (width / poly / init / refin / refout / xorout) for an algorithm that
+  isn't in the catalogue, plus `symbol-from-file=` to name the emitted
+  function after a source file.  Closes the ergonomic gap with `pycrc`.
+- **Slice-by-8** -- `--slice8` emits eight-table slice-by-8 code for
+  C and Rust (5-10x throughput on CRC-32/64).  Python's `--slice8`
+  warns and falls back to `--table` -- measured slice-by-8 is *slower*
+  in CPython, so termapy refuses to ship a misleading codepath.
+- **CRC-64** -- the catalogue now covers every reveng CRC-64 variant.
+- **`file=STEM`** output writes the generated source straight to disk
+  with the right extension for the target language.
+- Bitwise-only targets (Verilog, VHDL) now **reject** `--table` /
+  `--slice8` with a clear error instead of silently emitting bitwise.
+
+There's also a new note in the docs: on most platforms CRC-32 /
+CRC-32C run on dedicated CPU instructions and are ~10x faster than
+other widths, so prefer them when you get to choose the algorithm.
+
+### `/find` -- interactive scrollback search
+
+`/find <pattern>` searches the scrollback and lets you step through
+matches with the matches highlighted in place -- a proper find loop
+rather than a one-shot grep.  It's wired into the command palette too.
+
+### Command palette rebuilt on Textual's native widget
+
+The palette now uses Textual's built-in `CommandPalette` (top-center,
+fuzzy filter, keyboard-first) instead of the hand-rolled bottom-docked
+list.  New entries cover find, grep, help search, and load-and-run
+script; the bottom bar gains a `≡` palette button paired with `/`.
+
+### Config schema v22: serial keys nested
+
+pyserial settings (`port`, `baud_rate`, etc.) now live under a
+`cfg["serial"]` section instead of at the top level.  Older configs
+migrate forward automatically with chatty per-step output, and a config
+written by a *newer* termapy gets the correct upgrade hint rather than a
+wall of "unknown key (typo?)" noise.
+
+### Improvements
+
+- **Live port pickers** -- the PortPicker and QuickSetup dialogs now
+  poll for USB plug/unplug and update the list in real time.
+- **Tooltips everywhere** -- every interactive dialog widget gained a
+  tooltip; new `StrongCheckbox` for emphasis.
+- **Faster test suite** -- pytest-xdist runs `-n auto` by default
+  (~2.1x on an 8-core machine).
+- **Windows test-env robustness** -- the suite auto-corrects the
+  msys2 PATH ordering that breaks the Git-Bash gcc toolchain (emitting
+  a `RuntimeWarning` so the fix is visible), and 27 stale CLI
+  subprocess tests broken by the v22 nesting were repaired.
+- Ghost-text command suggestions now include `--flags`.
+- `CmdResult.ok` requires `value=` (type-checked) and auto-resolves
+  `Path` values to absolute strings.
+- User text is escaped before being wrapped in Rich color tags in
+  search highlighting and CLI output.
+- A bare prefix character no longer crashes dispatch.
+
 ## 0.68.0 (2026-05-20)
 
 The theme of this release is making termapy approachable for the

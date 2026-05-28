@@ -23,7 +23,7 @@
     
     
       
-        <title>Toolbar and shortcuts - Termapy Help v0.68.0</title>
+        <title>Toolbar and shortcuts - Termapy Help v0.70.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.68.0" class="md-header__button md-logo" aria-label="Termapy Help v0.68.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.70.0" class="md-header__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.68.0
+            Termapy Help v0.70.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.68.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.68.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.70.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.68.0
+    Termapy Help v0.70.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1045,10 +1045,12 @@ tooltip with current settings and chip information.</p>
 <h3 id="port-picker">Port picker<a class="headerlink" href="#port-picker" title="Permanent link">&para;</a></h3>
 <p>Clicking the port name in the title bar (or picking <strong>Select Port</strong>
 from the command palette) opens a dialog listing every connected
-serial port with its USB chip identification.  For a full tour of the
-port picker, the <code>/port.info</code> and <code>/port.chip</code> commands, the
-<code>termapy --info</code> CLI flag, and the rest of termapy's serial-port
-diagnostics, see <a href="ports.html">Serial ports</a>.</p>
+serial port with its USB chip identification.  The list auto-refreshes
+about once a second, so plug / unplug events appear without re-opening
+the dialog — handy for identifying which COM port belongs to which
+physical device.  For a full tour of the port picker, the <code>/port.info</code>
+and <code>/port.chip</code> commands, the <code>termapy --info</code> CLI flag, and the rest
+of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.</p>
 <h2 id="toolbar-buttons">Toolbar buttons<a class="headerlink" href="#toolbar-buttons" title="Permanent link">&para;</a></h2>
 <p>The bottom bar has buttons. Some appear based on context:</p>
 <table>
@@ -1165,12 +1167,19 @@ diagnostics, see <a href="ports.html">Serial ports</a>.</p>
 <p>The <code>Ctrl+Shift+digit</code> aliases work inside VS Code's integrated
 terminal, which intercepts some F-keys.</p>
 <h2 id="command-palette">Command palette<a class="headerlink" href="#command-palette" title="Permanent link">&para;</a></h2>
-<p>Press <strong>Ctrl+P</strong> to open the command palette, which provides quick access to:</p>
+<p>Press <strong>Ctrl+P</strong> (or <strong>Alt+P</strong> if your terminal captures Ctrl+P --
+VS Code's integrated terminal does) to open the command palette.
+It drops down from the top-center of the window, like VS Code's
+command palette, with fuzzy filtering as you type and a most-recently-used
+list when opened with an empty query.</p>
+<p>Quick access to:</p>
 <ul>
 <li>Help</li>
+<li>Find in scrollback / Grep scrollback / Search command help</li>
 <li>Select Port</li>
 <li>Connect / Disconnect</li>
 <li>Edit, Load, or Create a Config</li>
+<li>Load Run Script</li>
 <li>View / Delete Log File</li>
 <li>Clear Screen</li>
 <li>Save SVG / Text Screenshot</li>

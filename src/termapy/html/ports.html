@@ -23,7 +23,7 @@
     
     
       
-        <title>Serial ports - Termapy Help v0.68.0</title>
+        <title>Serial ports - Termapy Help v0.70.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.68.0" class="md-header__button md-logo" aria-label="Termapy Help v0.68.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.70.0" class="md-header__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.68.0
+            Termapy Help v0.70.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.68.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.68.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.70.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.68.0
+    Termapy Help v0.70.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -422,6 +422,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         When you have multiple cables and don't know which is which
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bundled-usb-vendor-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The bundled USB vendor database
       </span>
     </span>
   </a>
@@ -1027,6 +1038,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-bundled-usb-vendor-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The bundled USB vendor database
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-your-serial-link-feels-laggy-linux-ftdi" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1260,6 +1282,26 @@ USB speed class, and VID:PID for every connected port.  The manufacturer
 column is usually enough to disambiguate: <code>FTDI</code> for FTDI cables,
 <code>Microsoft</code> for a generic Microsoft CDC device, <code>Teensy</code> for a Teensy,
 and so on.</p>
+<p>The picker also <strong>auto-refreshes about once a second</strong> while it's open.
+Plug your device in and watch the new row appear (or unplug and watch
+one disappear) to identify which COM port belongs to which physical
+device — no need to close and re-open.  The Quick Setup dialog (used
+when creating a new config) refreshes the same way.</p>
+<h2 id="the-bundled-usb-vendor-database">The bundled USB vendor database<a class="headerlink" href="#the-bundled-usb-vendor-database" title="Permanent link">&para;</a></h2>
+<p>Termapy ships the <strong>full canonical USB vendor table</strong> — more than
+3,400 vendor IDs from the <a href="https://github.com/usbids/usbids">usb.ids</a>
+upstream — so the manufacturer column on the port picker recognizes
+every assigned vendor, not just the popular ones.  A separate
+hand-curated table covers the common USB-serial bridge chips (FTDI,
+Silicon Labs, WCH / CH340-CH341, Microchip, Prolific, CP210x, etc.)
+with datasheet-sourced model name, USB speed class (full vs high),
+and the maximum baud rate the chip silicon supports.  That data
+fills the <code>Chip</code> and <code>Max baud</code> columns the picker shows.</p>
+<p>The bundled snapshot ships with each termapy release.  If you want
+a fresher one, upgrade termapy through the normal channel
+(<code>uv tool upgrade termapy</code> or <code>pip install -U termapy</code>) — termapy's
+built-in update checker will surface the prompt when a newer
+release is available.</p>
 <h2 id="when-your-serial-link-feels-laggy-linux-ftdi">When your serial link feels laggy (Linux + FTDI)<a class="headerlink" href="#when-your-serial-link-feels-laggy-linux-ftdi" title="Permanent link">&para;</a></h2>
 <p>FTDI chips buffer incoming bytes for up to <strong>16 ms</strong> before pushing them
 upstream, because of a chip-level policy called the <em>latency timer</em>.

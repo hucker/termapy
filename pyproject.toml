@@ -50,7 +50,7 @@ dependencies = [
     # in 2026-05 so engineers who need just the codegen don't pull in
     # a TUI dependency tree.  termapy.protocol.crc remains as a thin
     # shim re-exporting the pure CRC bits (CRC_CATALOGUE, _generic_crc).
-    "crcglot>=0.1.0",
+    "crcglot>=0.8.0",
 ]
 
 [project.optional-dependencies]

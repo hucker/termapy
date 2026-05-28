@@ -884,6 +884,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """
     from pathlib import Path
 
+    from crcglot import AlgorithmInfo
     from termapy.protocol import GENERATORS, GENERATORS_FROM_ENTRY
     from termapy.protocol.crc import _generic_crc
 
@@ -964,15 +965,22 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         )
 
         custom_name = kv.get("name") or "crc_custom"
+        # Unify with the catalogue-lookup branch's ``name`` so the
+        # downstream stdout banner (which references ``name``) works for
+        # custom params too -- previously custom + C + stdout crashed
+        # with an unbound ``name``.
+        name = custom_name
         desc = kv.get("desc") or (
             f"Custom CRC-{width} (poly=0x{poly:X}, init=0x{init:X}, "
             f"refin={refin}, refout={refout}, xorout=0x{xorout:X})"
         )
-        entry = {
-            "width": width, "poly": poly, "init": init,
-            "refin": refin, "refout": refout, "xorout": xorout,
-            "check": check, "desc": desc,
-        }
+        # crcglot 0.8.0's *_from_entry generators take a typed
+        # AlgorithmInfo, not a dict.
+        entry = AlgorithmInfo(
+            name=custom_name, width=width, poly=poly, init=init,
+            refin=refin, refout=refout, xorout=xorout,
+            check=check, desc=desc,
+        )
         # Symbol resolution: explicit > file basename > name=.
         symbol = (
             symbol_override

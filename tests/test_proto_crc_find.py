@@ -123,27 +123,49 @@ class TestFindInBinary:
         assert isinstance(matches, list), "matches must be a list"
 
 
+def _single_byte_algos() -> list[str]:
+    """Catalogue algorithm names whose CRC is a single byte (CRC-8)."""
+    return sorted(
+        n for n in CRC_CATALOGUE if (CRC_CATALOGUE[n]["width"] + 7) // 8 == 1
+    )
+
+
+def _roundtrip_cells() -> list[tuple[str, str]]:
+    """(algo, endian) cells for the roundtrip test -- meaningful ones only.
+
+    Multi-byte CRCs are tested in both byte orders.  Single-byte CRCs
+    have only one meaningful layout: a 1-byte check value is byte-
+    identical big- or little-endian, so a second "le" cell would build
+    the exact same packet and make the exact same assertion -- a pure
+    duplicate, not added coverage.  So single-byte algorithms get a
+    single "be" cell here; the endian-independence itself is asserted
+    once in ``test_single_byte_endian_independent`` rather than smeared
+    across N redundant roundtrip runs.
+    """
+    cells: list[tuple[str, str]] = []
+    for name in sorted(CRC_CATALOGUE):
+        width_bytes = (CRC_CATALOGUE[name]["width"] + 7) // 8
+        endians = ("be",) if width_bytes == 1 else ("be", "le")
+        cells.extend((name, e) for e in endians)
+    return cells
+
+
 class TestRoundtripEveryCatalogueAlgorithm:
     """Every catalogue algorithm must be identifiable from a crafted packet.
 
     For each CRC in ``CRC_CATALOGUE``, construct a packet of
     ``"123456789"`` + the algorithm's catalogue check value (laid out
-    in both big- and little-endian) and feed it to ``_find_in_binary``.
-    The algorithm name must appear in the result set.
+    big- and, for multi-byte CRCs, little-endian) and feed it to
+    ``_find_in_binary``.  The algorithm name must appear in the result
+    set.
     """
 
-    @pytest.mark.parametrize("algo_name", sorted(CRC_CATALOGUE.keys()))
-    @pytest.mark.parametrize("endian", ["be", "le"])
+    @pytest.mark.parametrize("algo_name,endian", _roundtrip_cells())
     def test_roundtrip(self, algo_name, endian):
         # Arrange -- build a packet: known data + the catalogue check value.
         entry = CRC_CATALOGUE[algo_name]
         width_bits = entry["width"]
         width_bytes = (width_bits + 7) // 8
-        # 8-bit CRCs have no endian -- a single byte reads the same either
-        # way -- so skip the duplicate run.  The test is still exhaustive
-        # over multi-byte CRCs for both orders.
-        if width_bytes == 1 and endian == "le":
-            pytest.skip("endian is meaningless for single-byte CRCs")
         check = entry["check"]
         order = "big" if endian == "be" else "little"
         packet = b"123456789" + check.to_bytes(width_bytes, order)
@@ -170,6 +192,30 @@ class TestRoundtripEveryCatalogueAlgorithm:
         assert algo_name in all_names, (
             f"find must identify {algo_name} from a known-good {endian} "
             f"packet, got: {sorted(all_names)}"
+        )
+
+    @pytest.mark.parametrize("algo_name", _single_byte_algos())
+    def test_single_byte_endian_independent(self, algo_name):
+        """A single-byte CRC packet is endian-independent.
+
+        This is the invariant that lets the roundtrip test cover
+        single-byte (CRC-8) algorithms with one cell instead of two:
+        laying the 1-byte check value into the packet big- vs little-
+        endian yields byte-identical packets.  Asserting it here -- once
+        per single-byte algorithm -- documents the assumption and would
+        catch a regression (e.g. if packet construction ever started
+        padding single-byte CRCs to a wider field).
+        """
+        # Arrange / Act
+        check = CRC_CATALOGUE[algo_name]["check"]
+        be_packet = b"123456789" + check.to_bytes(1, "big")
+        le_packet = b"123456789" + check.to_bytes(1, "little")
+
+        # Assert -- the two layouts are identical, so there is exactly
+        # one meaningful packet (and one find result) for a 1-byte CRC.
+        assert be_packet == le_packet, (
+            f"{algo_name}: single-byte CRC packet must be endian-"
+            f"independent, got be={be_packet!r} le={le_packet!r}"
         )
 
 

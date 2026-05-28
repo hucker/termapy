@@ -297,6 +297,21 @@ class TestMcpLog:
         assert "d" in text and "e" in text, "last 2 lines present"
         assert "a" not in text.split("\n")[0], "earlier lines suppressed"
 
+    def test_log_dump_negative_n_prints_first_n(self, env):
+        # Arrange
+        eng, ctx, output = env
+        self._seed_log(ctx, "a\nb\nc\nd\ne\n")
+        # Act -- first 2 lines (head)
+        output.clear()
+        result = eng.dispatch("mcp.log.dump -2")
+        # Assert
+        assert result.success, "head-N (negative) succeeds"
+        printed = [t for t, _ in output]
+        actual = printed[:2]
+        expected = ["a", "b"]
+        assert actual == expected, "first 2 lines present, in order"
+        assert "e" not in printed, "later lines suppressed"
+
     def test_log_dump_invalid_n_fails(self, env):
         # Arrange
         eng, ctx, _output = env
@@ -306,3 +321,13 @@ class TestMcpLog:
         # Assert
         assert not result.success, "non-int N rejected"
         assert "Usage" in result.error, "usage shown"
+
+    def test_log_dump_zero_n_fails(self, env):
+        # Arrange
+        eng, ctx, _output = env
+        self._seed_log(ctx, "x\ny\n")
+        # Act
+        result = eng.dispatch("mcp.log.dump 0")
+        # Assert
+        assert not result.success, "0 is rejected (ambiguous, -0 == 0)"
+        assert "0" in result.error, "error names the rejected value"

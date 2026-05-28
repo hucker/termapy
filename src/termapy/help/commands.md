@@ -47,7 +47,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/help.run`               | List available .run scripts with descriptions                               |
 | `/help.target`            | Show only imported target device commands                                   |
 | `/log.delete`             | Delete the session log file                                                 |
-| `/log.dump {N}`           | Print the session log (all, or last N lines) to the terminal                |
+| `/log.dump [N]`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
 | `/log.show`               | Open the session log in the system viewer                                   |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
@@ -109,7 +109,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/show.cfg`               | Show the current config file                                                |
 | `/ss.dir`                 | Show the screenshot folder                                                  |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
-| `/ss.txt [name]`          | Save a text screenshot                                                      |
+| `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
 | `/term.color {on\|off}`   | Show or toggle color output (CLI mode only)                                 |
@@ -135,6 +135,10 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/xfer.xmodem.send <file>`     | Send a file to the device via XMODEM                                   |
 | `/xfer.ymodem.recv {dir}`      | Receive file(s) from the device via YMODEM                             |
 | `/xfer.ymodem.send <file> ...` | Send file(s) to the device via YMODEM (batch)                          |
+
+**Line counts:** `/ss.txt`, `/log.dump`, and `/mcp.log.dump` take an
+optional `N`. `N>0` saves/prints the **last N** lines (most recent),
+`N<0` the **first N** (oldest); omit it for everything.
 
 ## Script profiling
 

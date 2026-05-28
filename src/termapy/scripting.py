@@ -114,6 +114,69 @@ def parse_duration(text: str) -> float:
     return value / 1000.0 if unit == "ms" else value
 
 
+# ── Line selection (shared count scheme) ──────────────────────────────────────
+
+# A line-count token: an optional sign followed by digits.  Shared by every
+# command that takes a "how many lines" argument so the parse stays uniform.
+_COUNT_RE = re.compile(r"[+-]?\d+")
+
+
+def select_lines(lines: list[str], n: int | None) -> list[str]:
+    """Return the last n (n>0) or first n (n<0) lines; n is None -> all.
+
+    The shared counting scheme behind ``/ss.txt``, ``/log.dump`` and
+    ``/mcp.log.dump``: a positive N is the most-recent N (tail), a
+    negative N is the oldest N (head).  Slicing clamps, so an ``abs(n)``
+    larger than ``len(lines)`` yields every line.  Callers must reject
+    ``n == 0`` before calling (``parse_count_arg`` does so).
+
+    Args:
+        lines: The lines to select from.
+        n: Positive for the last N, negative for the first N, None for all.
+
+    Returns:
+        The selected lines (a slice of ``lines``).
+    """
+    if n is None:
+        return lines
+    return lines[-n:] if n > 0 else lines[:-n]
+
+
+def parse_count_arg(args: str, default_name: str) -> tuple[str, int | None]:
+    """Split a ``name``/``count`` argument string into ``(name, count)``.
+
+    Tokenizes on whitespace.  A single token matching an optional-sign
+    integer is the line count; the remaining tokens form the name
+    (joined with spaces).  Order-independent: ``"cap 50"`` and
+    ``"50 cap"`` both yield ``("cap", 50)``.  With no integer token the
+    count is ``None`` and the name falls back to ``default_name``.
+
+    Args:
+        args: The raw argument string (e.g. from ``/ss.txt``).
+        default_name: Name to use when no name token is present.
+
+    Returns:
+        ``(name, count)`` where count is None when no integer was given.
+
+    Raises:
+        ValueError: If more than one integer token is present, or the
+            count is 0 (``-0 == 0`` is ambiguous; "all" is the no-arg
+            form).  The message is ready for ``CmdResult.fail``.
+    """
+    tokens = args.split()
+    int_tokens = [t for t in tokens if _COUNT_RE.fullmatch(t)]
+    name_tokens = [t for t in tokens if not _COUNT_RE.fullmatch(t)]
+    if len(int_tokens) > 1:
+        raise ValueError(
+            "Usage: /ss.txt [name] [N]  (N>0 last N, N<0 first N)"
+        )
+    n = int(int_tokens[0]) if int_tokens else None
+    if n == 0:
+        raise ValueError("Invalid line count: 0")
+    name = " ".join(name_tokens) or default_name
+    return name, n
+
+
 # ── Progress bar rendering ────────────────────────────────────────────────────
 
 _PROGRESS_SUB_UNICODE = " \u2591\u2592\u2593\u2588"  # ░▒▓█

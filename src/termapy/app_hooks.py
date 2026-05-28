@@ -40,7 +40,7 @@ from termapy.defaults import cmd_prefix
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult
-from termapy.scripting import parse_duration
+from termapy.scripting import parse_count_arg, parse_duration, select_lines
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -126,24 +126,33 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
     """Save a timestamped plain-text screenshot of the terminal scrollback.
 
     Renders ``app._get_screen_text()`` (the visible scrollback as
-    text) to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.txt``.  Print a green
-    status line with the resolved path and bump the SS button counter.
+    text) to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.txt``.  An optional
+    integer selects a slice: ``N>0`` saves the last N lines (most
+    recent), ``N<0`` the first N; omit it for the whole buffer.  Print
+    a green status line with the resolved path and the line count, and
+    bump the SS button counter.
 
     Args:
         app: The SerialTerminal instance.
         ctx: PluginContext (unused).
-        args: Optional name stem; defaults to ``"screenshot"``.
+        args: Optional name stem and/or line count; name defaults to
+            ``"screenshot"``.
 
     Returns:
-        ``CmdResult.ok()``.
+        ``CmdResult.ok(value=path)``, or ``CmdResult.fail`` on a bad count.
     """
-    base = args.strip() or "screenshot"
+    try:
+        base, n = parse_count_arg(args, "screenshot")
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = str((app.repl.ss_dir / f"{base}_{ts}.txt").resolve())
-    text = app._on_main(app._get_screen_text)
-    Path(path).write_text(text or "", encoding="utf-8")
+    raw = str(app._on_main(app._get_screen_text) or "")
+    text = "\n".join(select_lines(raw.splitlines(), n))
+    Path(path).write_text(text, encoding="utf-8")
     app.last_screenshot = path
-    app._status(f"Text screenshot saved: {path}", "green")
+    saved = len(text.splitlines()) if text else 0
+    app._status(f"Text screenshot saved ({saved} lines): {path}", "green")
     app._on_main(app._sync_ss_button)
     return CmdResult.ok(value=path)
 
@@ -388,8 +397,8 @@ def register_tui_hooks(app) -> None:
     )
     app.repl.register_hook(
         "ss.txt",
-        "{name}",
-        "Save text screenshot. Name defaults to 'screenshot'.",
+        "{name} {N}",
+        "Save text screenshot; N>0 last N lines, N<0 first N.",
         lambda ctx, args: _hook_ss_txt(app, ctx, args),
         source="app",
         needs=CapabilitySet(screen_capture=True),

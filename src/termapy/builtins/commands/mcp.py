@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 from termapy.config import open_with_system
 from termapy.mcp.catalog import build_catalog, catalog_json
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.scripting import select_lines
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -218,15 +219,15 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """Print the MCP session log to the terminal (or last N lines).
+    """Print the MCP session log to the terminal (all, or an N-line slice).
 
-    With no argument prints the entire log; with a positive integer
-    N prints only the last N lines (tail -N).  Useful when you want
-    to see the log inline rather than launching an external viewer
-    -- particularly in CLI/SSH sessions where /mcp.log can't open
-    anything.
+    With no argument prints the entire log; with a signed integer N
+    prints a slice: N>0 the last N lines (most recent), N<0 the first
+    N (oldest).  Useful when you want to see the log inline rather than
+    launching an external viewer -- particularly in CLI/SSH sessions
+    where /mcp.log can't open anything.
 
-    Mirrors ``/log.dump`` for the regular session log.
+    Mirrors ``/log.dump`` for the regular session log (same count scheme).
     """
     path = _mcp_log_path(ctx)
     if not path.exists():
@@ -239,18 +240,17 @@ def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
             n = int(arg)
         except ValueError:
             return CmdResult.fail(
-                msg=f"Usage: {ctx.engine.prefix}mcp.log.dump {{N}}  (N = last N lines)"
+                msg=f"Usage: {ctx.engine.prefix}mcp.log.dump [N]  (N>0 last N, N<0 first N)"
             )
-        if n <= 0:
-            return CmdResult.fail(msg="N must be a positive integer.")
+        if n == 0:
+            return CmdResult.fail(msg="Invalid line count: 0")
 
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as e:
         return CmdResult.fail(msg=f"Read error: {e}")
 
-    if n is not None:
-        lines = lines[-n:]
+    lines = select_lines(lines, n)
 
     for line in lines:
         ctx.io.output(line)
@@ -303,8 +303,8 @@ COMMAND = Command(
             needs=CapabilitySet(gui_apps=True),
             sub_commands={
                 "dump": Command(
-                    args="{count}",
-                    help="Print the MCP session log to the terminal (or last N lines).",
+                    args="{N}",
+                    help="Print the MCP session log; N>0 last N lines, N<0 first N.",
                     handler=_handler_log_dump,
                 ),
                 "path": Command(

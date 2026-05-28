@@ -2751,3 +2751,88 @@ class TestPortHandlerValues:
             "fix/cmdresult-value-gaps targets"
         )
         assert isinstance(result.value, str), "value is a string"
+
+
+# -- /log.dump ------------------------------------------------------------
+
+
+class TestLogDump:
+    """Signed line-count scheme on /log.dump (shares scripting.select_lines)."""
+
+    def _seed_log(self, cfg, config_path, content: str) -> Path:
+        """Point cfg at a temp log file and write content to it."""
+        log = Path(config_path).parent / "session.log"
+        log.write_text(content, encoding="utf-8")
+        cfg["log_file"] = str(log)
+        return log
+
+    def test_full_dump_prints_all(self, repl_env):
+        # Arrange
+        engine, cfg, config_path, output = repl_env
+        self._seed_log(cfg, config_path, "a\nb\nc\n")
+
+        # Act
+        output.clear()
+        result = engine.dispatch("log.dump")
+
+        # Assert
+        assert result.success, "full dump succeeds"
+        assert int(result.value) == 3, "value is the line count"
+
+    def test_positive_n_prints_last_n(self, repl_env):
+        # Arrange
+        engine, cfg, config_path, output = repl_env
+        self._seed_log(cfg, config_path, "a\nb\nc\nd\ne\n")
+
+        # Act -- positive N is the most-recent N (tail)
+        output.clear()
+        result = engine.dispatch("log.dump 2")
+
+        # Assert
+        assert result.success, "tail-N succeeds"
+        printed = [t for t, _ in output]
+        actual = printed[-2:]
+        expected = ["d", "e"]
+        assert actual == expected, "+2 -> last 2 lines"
+        assert "a" not in printed, "earlier lines suppressed"
+
+    def test_negative_n_prints_first_n(self, repl_env):
+        # Arrange
+        engine, cfg, config_path, output = repl_env
+        self._seed_log(cfg, config_path, "a\nb\nc\nd\ne\n")
+
+        # Act -- negative N is the oldest N (head)
+        output.clear()
+        result = engine.dispatch("log.dump -2")
+
+        # Assert
+        assert result.success, "head-N (negative) succeeds"
+        printed = [t for t, _ in output]
+        actual = printed[:2]
+        expected = ["a", "b"]
+        assert actual == expected, "-2 -> first 2 lines"
+        assert "e" not in printed, "later lines suppressed"
+
+    def test_zero_n_rejected(self, repl_env):
+        # Arrange
+        engine, cfg, config_path, _output = repl_env
+        self._seed_log(cfg, config_path, "x\ny\n")
+
+        # Act
+        result = engine.dispatch("log.dump 0")
+
+        # Assert
+        assert not result.success, "0 is rejected (ambiguous, -0 == 0)"
+        assert "0" in result.error, "error names the rejected value"
+
+    def test_non_int_n_rejected(self, repl_env):
+        # Arrange
+        engine, cfg, config_path, _output = repl_env
+        self._seed_log(cfg, config_path, "x\n")
+
+        # Act
+        result = engine.dispatch("log.dump notanumber")
+
+        # Assert
+        assert not result.success, "non-int N rejected"
+        assert "Usage" in result.error, "usage shown"

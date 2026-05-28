@@ -100,6 +100,23 @@ REPL commands:
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
 - `/proto.crc.find bin=01 03 00 00 00 0A C5 CD` - identify the algorithm used in a captured packet
 
+### Choosing a CRC for speed
+
+If you're *designing* a protocol and free to pick the CRC (not matching
+an existing device), prefer **CRC-32** (`crc32`) or **CRC-32C**
+(`crc32-iscsi`, Castagnoli) -- especially when large payloads or
+high-throughput streams need checking.
+
+Modern CPUs have hardware support for these polynomials: the SSE4.2
+`crc32` instruction and `PCLMULQDQ` on x86, the `CRC32` instructions on
+ARM.  Code that uses them (zlib for IEEE CRC-32, hardware intrinsics for
+CRC-32C) runs roughly **10x faster** than a software CRC of an arbitrary
+polynomial.  An obscure CRC-16 has no hardware path -- it's computed
+bit-by-bit or table-driven in software regardless.
+
+This only applies when the choice is yours.  If the device already
+speaks CRC-16/Modbus, you speak CRC-16/Modbus.
+
 ### Identifying a CRC from a captured packet
 
 `/proto.crc.find` takes the full packet you captured and figures out

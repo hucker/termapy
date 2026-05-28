@@ -48,20 +48,28 @@ def _build_stub_ctx():
     return ctx, captured, captured_markup
 
 
-# One row per (lang, variant) the wrapper supports.  Python --slice8
-# is its own test (separate file) because it tests the FALLBACK behaviour,
-# not the dispatch path; VHDL doesn't have --table or --slice8.
-_DISPATCH_CELLS = [
-    ("c", "bitbybit", {}),
-    ("c", "table", {"--table": True}),
-    ("c", "slice8", {"--slice8": True}),
-    ("python", "bitbybit", {}),
-    ("python", "table", {"--table": True}),
-    ("rust", "bitbybit", {}),
-    ("rust", "table", {"--table": True}),
-    ("rust", "slice8", {"--slice8": True}),
-    ("vhdl", "bitbybit", {}),
-]
+def _dispatch_cells():
+    """One (lang, variant, flags) row per language × native variant.
+
+    Derived from ``crcglot.LANGUAGES`` so every language crcglot ships
+    (and every future one) is smoke-tested automatically -- the test
+    matches termapy's now-dynamic /proto.crc.<lang> registration.  We
+    test only NATIVE variants here; the --slice8 FALLBACK behaviour
+    (Python, and any future table-but-no-slice8 language) is covered by
+    its own test in test_proto_crc_custom.py.
+    """
+    from crcglot import LANGUAGES
+    cells = []
+    for code, info in sorted(LANGUAGES.items()):
+        cells.append((code, "bitwise", {}))
+        if "table" in info.variants:
+            cells.append((code, "table", {"--table": True}))
+        if "slice8" in info.variants:
+            cells.append((code, "slice8", {"--slice8": True}))
+    return cells
+
+
+_DISPATCH_CELLS = _dispatch_cells()
 
 
 class TestDispatchSmoke:
@@ -94,3 +102,46 @@ class TestDispatchSmoke:
             f"/proto.crc.{lang} crc32 ({variant}) output should mention "
             f"the algorithm name; got: {emitted[:200]!r}"
         )
+
+
+class TestUnsupportedVariantFlagRejected:
+    """Bitwise-only languages reject --table / --slice8 with a clear error.
+
+    These languages (verilog, vhdl in crcglot 0.8.0) register no variant
+    flags, so the dispatcher passes a stray --table/--slice8 through as a
+    bare token.  _crc_codegen catches it and errors rather than silently
+    ignoring the flag and emitting bitwise anyway.
+    """
+
+    @pytest.mark.parametrize("lang", ["vhdl", "verilog"])
+    @pytest.mark.parametrize("flag", ["--table", "--slice8"])
+    def test_bitwise_only_rejects_variant_flag(self, lang, flag):
+        # Arrange -- pass the unsupported flag as a bare arg token (it
+        # isn't a registered flag for these languages, so it arrives in
+        # the args string, mimicking real dispatch).
+        ctx, _captured, _markup = _build_stub_ctx()
+
+        # Act
+        result = _crc_codegen(ctx, f"crc32 {flag}", lang)
+
+        # Assert -- clean failure naming the rejected flag, not silent
+        # success.
+        assert not result.success, (
+            f"/proto.crc.{lang} {flag} should be rejected, not silently "
+            f"ignored"
+        )
+        assert flag in (result.error or ""), (
+            f"error should name the rejected flag {flag!r}; "
+            f"got {result.error!r}"
+        )
+
+    def test_native_flag_still_accepted(self):
+        # Guard against over-rejection: a language that DOES support the
+        # flag must still accept it (c has native --slice8).
+        ctx, _captured, captured_markup = _build_stub_ctx()
+        ctx.active_flags = {"--slice8": True}
+        result = _crc_codegen(ctx, "crc32", "c")
+        assert result.success, (
+            f"c --slice8 should still work, got {result.error!r}"
+        )
+        assert "".join(captured_markup), "c --slice8 should produce output"

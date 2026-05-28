@@ -110,7 +110,7 @@ uv run termapy --cfg-dir . # use cwd for configs
 - Google-style docstrings and type hints
 - Warn about hacks, threads, delays, magic,monkeypatch, test constants
 - OS-independent path handling: use `pathlib.Path` — never split on `/` or `\\`
-- Watch for large code added to solve small problems. AI can make any spec work regardless of how much code it takes, so volume is not evidence of difficulty. Sprawling helpers, many-branched special cases, or duplicated logic across helpers usually indicate the spec was underspecified or the approach is wrong — pause and re-scope rather than piling on more code.
+- Watch for large code added to solve small problems. AI can make any spec work regardless of how much code it takes, so volume is not evidence of difficulty. Sprawling helpers, many-branched special cases, or duplicated logic across helpers usually indicate the spec was under-specified or the approach is wrong — pause and re-scope rather than piling on more code.
 
 ## Threading
 

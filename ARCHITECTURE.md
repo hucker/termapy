@@ -50,8 +50,7 @@ src/termapy/
 │   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
 ├── protocol/               # (2783 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
-│   ├── crc.py              #   CRC catalogue (64 algorithms) + registry
-│   ├── crc_codegen.py      #   C / Python / Rust CRC codegen
+│   ├── crc.py              #   crcglot catalogue shim (71 algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
 ├── usb/                    # (3913 lines) USB lookup tables (library-shaped)
@@ -295,8 +294,7 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 │  protocol/ - Protocol Engine (package)           │
 │  • core.py: format-spec language (H, U, I, S,    │
 │    F, B, CRC), apply_format, FrameCollector      │
-│  • crc.py: 64 CRC algorithms + plugin loading    │
-│  • crc_codegen.py: C / Python / Rust codegen     │
+│  • crc.py: crcglot catalogue + plugin loading    │
 │  • runner.py: .pro test-script execution         │
 │  • viz.py: visualizer plugin loader              │
 ├──────────────────────────────────────────────────┤
@@ -468,7 +466,7 @@ At most two workers run concurrently: the serial reader plus one command/script/
 
 ## Test coverage
 
-87 test files, 2561 tests:
+87 test files, 2578 tests:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |

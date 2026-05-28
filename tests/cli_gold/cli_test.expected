@@ -474,14 +474,18 @@ AVAILABLE
   TUI: yes   CLI: yes   MCP: yes
 
 SUBCOMMANDS
-  /proto.crc.c         Generate C source code for a CRC algorithm.
-  /proto.crc.calc      Compute CRC over hex bytes, text, or file.
-  /proto.crc.find      Identify the CRC algorithm used in a captured packet.
-  /proto.crc.info      Print algorithm parameters and description.
-  /proto.crc.list      List algorithms (optional glob filter).
-  /proto.crc.python    Generate Python source code for a CRC algorithm.
-  /proto.crc.rust      Generate Rust source code for a CRC algorithm.
-  /proto.crc.vhdl      Generate VHDL source code (package) for a CRC algorithm.
+  /proto.crc.c             Generate C / C++ source code for a CRC algorithm.
+  /proto.crc.calc          Compute CRC over hex bytes, text, or file.
+  /proto.crc.csharp        Generate C# source code for a CRC algorithm.
+  /proto.crc.find          Identify the CRC algorithm used in a captured packet.
+  /proto.crc.go            Generate Go source code for a CRC algorithm.
+  /proto.crc.info          Print algorithm parameters and description.
+  /proto.crc.list          List algorithms (optional glob filter).
+  /proto.crc.python        Generate Python source code for a CRC algorithm.
+  /proto.crc.rust          Generate Rust source code for a CRC algorithm.
+  /proto.crc.typescript    Generate TypeScript source code for a CRC algorithm.
+  /proto.crc.verilog       Generate Verilog source code for a CRC algorithm.
+  /proto.crc.vhdl          Generate VHDL source code for a CRC algorithm.
 
 SEE ALSO
   /proto.debug, /proto.dump, /proto.explore, /proto.help, /proto.hex, /proto.info, /proto.list, /proto.run, /proto.send,

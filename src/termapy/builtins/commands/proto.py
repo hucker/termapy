@@ -770,12 +770,6 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=crc_hex)
 
 
-_CRC_FILE_EXTENSIONS = {
-    "c": (".h", ".c"),
-    "python": (".py",),
-    "rust": (".rs",),
-    "vhdl": (".vhd",),
-}
 
 
 def _write_crc_codegen_files(
@@ -789,7 +783,7 @@ def _write_crc_codegen_files(
     The C generator returns a ``(header, source)`` tuple; everything
     else returns a single source string.  This helper handles both
     shapes and picks the per-language extension from
-    ``_CRC_FILE_EXTENSIONS``.  Extracted out of ``_crc_codegen`` so
+    ``crcglot.LANGUAGES[lang].extensions``.  Extracted out of ``_crc_codegen`` so
     the file-writing logic is testable without spinning up a full
     PluginContext.
 
@@ -807,7 +801,8 @@ def _write_crc_codegen_files(
         List of ``Path`` objects, one per file written.  Length 2 for
         C (.h + .c), length 1 for the other languages.
     """
-    extensions = _CRC_FILE_EXTENSIONS.get(lang, (".txt",))
+    from crcglot import LANGUAGES
+    extensions = LANGUAGES[lang].extensions if lang in LANGUAGES else (".txt",)
     written: list = []
     # ``str(content)`` casts -- ``result`` comes from a Callable in
     # GENERATORS so ty widens its elements to ``object``; runtime
@@ -896,20 +891,30 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             msg="--slice8 and --table are mutually exclusive (slice-by-8 "
             "already uses tables, just 8 of them)"
         )
-    # Python doesn't benefit from slice-by-8 -- empirically 0.79x of
-    # plain table-driven on a 1 MB CRC-32 buffer, since PyLong allocation
-    # for every shift / mask / XOR / list-index eats the loop-iteration
-    # savings.  Fall back to --table with a one-line note so the user
-    # knows what they got and why; producing a Python slice-by-8 file
-    # would be a perf regression dressed as an optimization.
-    if use_slice8 and lang == "python":
-        ctx.io.output(
-            "Note: --slice8 is slower than --table in CPython "
-            "(measured 0.79x); using --table instead.",
-            "yellow",
-        )
-        use_slice8 = False
-        use_table = True
+    # --slice8 fallback, data-driven from crcglot's per-language variant
+    # set.  A language gets --slice8 registered (see _build_one_crc_lang_
+    # command) whenever it has a table-driven variant -- so if the user
+    # passes --slice8 but the language doesn't emit slice-by-8 natively,
+    # fall back to --table with a one-line note rather than erroring.
+    # Python is the one current case (table but no slice8): its note
+    # calls out the measured 0.79x CPython regression specifically.
+    if use_slice8:
+        from crcglot import LANGUAGES
+        variants = LANGUAGES[lang].variants if lang in LANGUAGES else frozenset()
+        if "slice8" not in variants:
+            if lang == "python":
+                note = (
+                    "Note: --slice8 is slower than --table in CPython "
+                    "(measured 0.79x); using --table instead."
+                )
+            else:
+                note = (
+                    f"Note: --slice8 not available for {lang}; "
+                    "using --table instead."
+                )
+            ctx.io.output(note, "yellow")
+            use_slice8 = False
+            use_table = True
 
     # Parse all ``key=value`` tokens manually -- termapy's
     # registered-flag system is bool-only.  Anything that isn't a
@@ -924,6 +929,27 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 kv[k] = v
                 continue
         name_tokens.append(tok)
+
+    # Reject flags the language doesn't support.  Languages that DO
+    # register a flag (--table on c/python/rust/..., --slice8 on
+    # c/rust/...) have it stripped by the dispatcher before we get here.
+    # But bitwise-only languages (vhdl, verilog) register NO variant
+    # flags, so the dispatcher passes --table / --slice8 through as bare
+    # tokens -- which would otherwise be silently ignored.  Anything
+    # left in name_tokens that starts with "--" is an unsupported flag;
+    # tell the user instead of dropping it.  (Algorithm names like
+    # "crc16-modbus" have internal dashes but never start with "--".)
+    stray = next((t for t in name_tokens if t.startswith("--")), None)
+    if stray is not None:
+        from crcglot import LANGUAGES
+        supported = (
+            sorted(LANGUAGES[lang].variants) if lang in LANGUAGES else []
+        )
+        disp = LANGUAGES[lang].display_name if lang in LANGUAGES else lang
+        return CmdResult.fail(
+            msg=f"/proto.crc.{lang} doesn't accept {stray} "
+            f"({disp} emits {', '.join(supported) or 'bitwise'} only)"
+        )
 
     file_stem = kv.get("file")
     if file_stem == "":
@@ -1383,6 +1409,89 @@ def _proto_help_handler(ctx: PluginContext, args: str) -> CmdResult:
     return result
 
 
+def _build_one_crc_lang_command(code: str, info) -> Command:
+    """Build one ``/proto.crc.<lang>`` Command from a crcglot LanguageInfo.
+
+    Flags are derived from the language's ``variants`` set:
+      * ``--table`` registered when table-driven output is available.
+      * ``--slice8`` registered when *either* slice-by-8 is native OR a
+        table variant exists to fall back to (so the flag is accepted
+        and _crc_codegen's data-driven fallback handles the rest).
+      * Bitwise-only languages (verilog, vhdl) get no variant flags.
+
+    Help text, file extension, and display name all come from the
+    LanguageInfo -- no per-language hardcoding here, so a new crcglot
+    language surfaces as a working REPL command on the next bump.
+    """
+    variants = info.variants
+    has_table = "table" in variants
+    has_slice8 = "slice8" in variants
+    exts = info.extensions
+    ext_desc = " + ".join(f"STEM{e}" for e in exts)
+
+    flags: dict[str, str] = {}
+    if has_table:
+        flags["--table"] = "Use 256-entry lookup table (4-8x faster)."
+    if has_slice8:
+        flags["--slice8"] = (
+            "Use slice-by-8 (8 tables, 5-10x faster than --table for "
+            "CRC-32/64 on large buffers). Width 32 or 64 only."
+        )
+    elif has_table:
+        # Table exists but no native slice-by-8: accept --slice8 and
+        # fall back to --table (the fallback note is emitted at dispatch).
+        flags["--slice8"] = (
+            "Accepted but falls back to --table (no native slice-by-8 "
+            f"for {info.display_name})."
+        )
+
+    example_lines = [
+        f"  {{prefix}}proto.crc.{code} crc16-modbus",
+    ]
+    if has_table:
+        example_lines.append(f"  {{prefix}}proto.crc.{code} crc32 --table")
+    if has_slice8:
+        example_lines.append(f"  {{prefix}}proto.crc.{code} crc32 --slice8")
+    example_lines.append(f"  {{prefix}}proto.crc.{code} crc16-modbus file=my_crc")
+
+    long_help = (
+        f"Prints a self-contained {info.display_name} implementation for the\n"
+        f"named CRC. Use {{prefix}}proto.crc.list to see every available\n"
+        f"algorithm name, or {{prefix}}proto.crc.info <name> for its parameters.\n"
+        f"\n"
+        f"With ``file=STEM``, writes {ext_desc} to the current directory\n"
+        f"instead of stdout.\n"
+        f"\n"
+        f"Example:\n"
+        + "\n".join(example_lines)
+    )
+
+    return Command(
+        args="<name> {file=stem}",
+        flags=flags,
+        help=f"Generate {info.display_name} source code for a CRC algorithm.",
+        long_help=long_help,
+        # _code=code freezes the loop variable into the closure so each
+        # handler dispatches to its own language (Python late-binding gotcha).
+        handler=lambda ctx, args, _code=code: _crc_codegen(ctx, args, _code),
+    )
+
+
+def _build_crc_lang_commands() -> dict[str, Command]:
+    """Build all ``/proto.crc.<lang>`` commands from ``crcglot.LANGUAGES``.
+
+    One command per language crcglot exposes (c, csharp, go, python,
+    rust, typescript, verilog, vhdl in crcglot 0.8.0).  Adding a target
+    in a future crcglot release surfaces it here automatically on the
+    next dependency bump -- no termapy code change.
+    """
+    from crcglot import LANGUAGES
+    return {
+        code: _build_one_crc_lang_command(code, info)
+        for code, info in sorted(LANGUAGES.items())
+    }
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="proto",
@@ -1479,107 +1588,11 @@ COMMAND = Command(
                     ),
                     handler=_crc_calc,
                 ),
-                "c": Command(
-                    args="<name> {file=stem}",
-                    flags={
-                        "--table": "Use 256-entry lookup table (4-8x faster).",
-                        "--slice8": (
-                            "Use slice-by-8 (8 tables, 5-10x faster than "
-                            "--table for CRC-32/64 on large buffers). "
-                            "Width 32 or 64 only."
-                        ),
-                    },
-                    help="Generate C source code for a CRC algorithm.",
-                    long_help=(
-                        "Prints a self-contained C implementation for the named\n"
-                        "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
-                        "name, or {prefix}proto.crc.info <name> for its parameters.\n"
-                        "\n"
-                        "With ``file=STEM``, writes STEM.h + STEM.c to the current\n"
-                        "directory instead of stdout -- the right shape for invoking\n"
-                        "from a Makefile rule.\n"
-                        "\n"
-                        "Example:\n"
-                        "  {prefix}proto.crc.c crc16-modbus\n"
-                        "  {prefix}proto.crc.c crc32 --table\n"
-                        "  {prefix}proto.crc.c crc32 --slice8\n"
-                        "  {prefix}proto.crc.c crc32 file=crc32"
-                    ),
-                    handler=lambda ctx, args: _crc_codegen(ctx, args, "c"),
-                ),
-                "python": Command(
-                    args="<name> {file=stem}",
-                    flags={
-                        "--table": "Use 256-entry lookup table (4-8x faster).",
-                        "--slice8": (
-                            "Accepted but falls back to --table: slice-by-8 "
-                            "is actually slower than --table in CPython "
-                            "(measured 0.79x) because PyLong allocations eat "
-                            "the loop-iteration savings."
-                        ),
-                    },
-                    help="Generate Python source code for a CRC algorithm.",
-                    long_help=(
-                        "Prints a self-contained Python implementation for the named\n"
-                        "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
-                        "name, or {prefix}proto.crc.info <name> for its parameters.\n"
-                        "\n"
-                        "With ``file=STEM``, writes STEM.py to the current directory\n"
-                        "instead of stdout.\n"
-                        "\n"
-                        "Example:\n"
-                        "  {prefix}proto.crc.python crc16-modbus\n"
-                        "  {prefix}proto.crc.python crc32 --table\n"
-                        "  {prefix}proto.crc.python crc16-modbus file=my_crc"
-                    ),
-                    handler=lambda ctx, args: _crc_codegen(ctx, args, "python"),
-                ),
-                "rust": Command(
-                    args="<name> {file=stem}",
-                    flags={
-                        "--table": "Use 256-entry lookup table (4-8x faster).",
-                        "--slice8": (
-                            "Use slice-by-8 (8 tables, 5-10x faster than "
-                            "--table for CRC-32/64 on large buffers). "
-                            "Width 32 or 64 only."
-                        ),
-                    },
-                    help="Generate Rust source code for a CRC algorithm.",
-                    long_help=(
-                        "Prints a self-contained Rust implementation for the named\n"
-                        "CRC. Use {prefix}proto.crc.list to see every available algorithm\n"
-                        "name, or {prefix}proto.crc.info <name> for its parameters.\n"
-                        "\n"
-                        "With ``file=STEM``, writes STEM.rs to the current directory\n"
-                        "instead of stdout.\n"
-                        "\n"
-                        "Example:\n"
-                        "  {prefix}proto.crc.rust crc16-modbus\n"
-                        "  {prefix}proto.crc.rust crc32 --table\n"
-                        "  {prefix}proto.crc.rust crc32 --slice8\n"
-                        "  {prefix}proto.crc.rust crc16-modbus file=my_crc"
-                    ),
-                    handler=lambda ctx, args: _crc_codegen(ctx, args, "rust"),
-                ),
-                "vhdl": Command(
-                    args="<name> {file=stem}",
-                    help="Generate VHDL source code (package) for a CRC algorithm.",
-                    long_help=(
-                        "Prints a self-contained VHDL package implementing the named\n"
-                        "CRC. Includes a {fname}_self_test boolean function that\n"
-                        "verifies the algorithm against the reveng check value --\n"
-                        "call from a testbench's assert. Currently emits the bit-by-\n"
-                        "bit form only (table-driven VHDL is a future enhancement).\n"
-                        "\n"
-                        "With ``file=STEM``, writes STEM.vhd to the current directory\n"
-                        "instead of stdout.\n"
-                        "\n"
-                        "Example:\n"
-                        "  {prefix}proto.crc.vhdl crc16-modbus\n"
-                        "  {prefix}proto.crc.vhdl crc16-modbus file=crc16_modbus"
-                    ),
-                    handler=lambda ctx, args: _crc_codegen(ctx, args, "vhdl"),
-                ),
+                # /proto.crc.<lang> commands are built dynamically from
+                # crcglot.LANGUAGES so every language crcglot ships gets a
+                # REPL command automatically -- no hardcoded per-language
+                # blocks to keep in sync.  See _build_crc_lang_commands.
+                **_build_crc_lang_commands(),
             },
         ),
         "info": Command(

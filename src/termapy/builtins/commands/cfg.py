@@ -70,8 +70,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
         return CmdResult.ok(value=str(old_val))
-    if ctx.engine.save_cfg:
-        ctx.engine.save_cfg(key, new_val)
+    if ctx.engine.confirm_save_cfg:
+        ctx.engine.confirm_save_cfg(key, new_val)
     else:
         ctx.engine.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))

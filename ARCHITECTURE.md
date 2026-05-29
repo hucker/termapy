@@ -19,7 +19,7 @@ src/termapy/
 │   │   ├── confirm.py  #  /confirm - Yes/Cancel dialog (scripts)
 │   │   ├── credits.py  #  /credits - print the acknowledgments page
 │   │   ├── edit.py     #  /edit - open project files in the system editor
-│   │   ├── env_var.py  #  $(env.NAME) expansion transform + command
+│   │   ├── env.py      #  /env - $(env.NAME) expansion (command + transform)
 │   │   ├── exit.py     #  /exit - quit the application
 │   │   ├── find.py     #  /find - navigate scrollback matches (interactive)
 │   │   ├── grep.py     #  /grep - search scrollback for matching lines

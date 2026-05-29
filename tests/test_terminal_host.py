@@ -83,21 +83,16 @@ def host(tmp_path):
 # -- _build_internal_handle -------------------------------------------------------
 
 
-class TestBuildInternalHandle:
-    def test_returns_internal_handle(self, host):
-        # Act
-        api = host._build_internal_handle()
-
-        # Assert
-        assert isinstance(api, InternalHandle), "returns InternalHandle instance"
+class TestBuildSerialHandle:
+    """Serial lifecycle verbs delegate to the host (moved off ctx.internal)."""
 
     def test_connect_callback_wired(self, host):
         # Arrange
         host._connect = MagicMock()
 
         # Act
-        api = host._build_internal_handle()
-        api.connect("COM1")
+        serial = host._build_plugin_context(host._build_internal_handle()).serial
+        serial.connect("COM1")
 
         # Assert
         host._connect.assert_called_once_with("COM1"), "connect delegates to host"
@@ -107,11 +102,31 @@ class TestBuildInternalHandle:
         host._disconnect = MagicMock()
 
         # Act
-        api = host._build_internal_handle()
-        api.disconnect()
+        serial = host._build_plugin_context(host._build_internal_handle()).serial
+        serial.disconnect()
 
         # Assert
         host._disconnect.assert_called_once(), "disconnect delegates to host"
+
+    def test_apply_port_effects_wired(self, host):
+        # Arrange
+        host._apply_port_effects = MagicMock()
+
+        # Act
+        serial = host._build_plugin_context(host._build_internal_handle()).serial
+        serial.apply_port_effects({"cfg_update": {"port": "COM2"}})
+
+        # Assert
+        host._apply_port_effects.assert_called_once(), "apply_port_effects delegates"
+
+
+class TestBuildInternalHandle:
+    def test_returns_internal_handle(self, host):
+        # Act
+        api = host._build_internal_handle()
+
+        # Assert
+        assert isinstance(api, InternalHandle), "returns InternalHandle instance"
 
     def test_start_capture_wired(self, host):
         # Arrange
@@ -124,17 +139,6 @@ class TestBuildInternalHandle:
         # Assert
         host._start_capture.assert_called_once_with(mode="text", path="/tmp/x"), \
             "start_capture delegates to host"
-
-    def test_apply_port_effects_wired(self, host):
-        # Arrange
-        host._apply_port_effects = MagicMock()
-
-        # Act
-        api = host._build_internal_handle()
-        api.apply_port_effects({"cfg_update": {"port": "COM2"}})
-
-        # Assert
-        host._apply_port_effects.assert_called_once(), "apply_port_effects delegates"
 
     def test_script_stop_event_wired(self, host):
         # Act

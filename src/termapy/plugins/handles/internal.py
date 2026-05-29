@@ -24,12 +24,13 @@ class InternalHandle:
 
     It serves two distinct jobs, grouped below:
 
-    1. **Frontend escape hatch** -- slots that genuinely need Textual,
-       pyserial, or threads (a confirm modal, port connect/disconnect,
-       capture, the proto-debug and picker screens, the @work script run).
-       The plugin layer must not import those, so the host injects them.
-       Several are ``None`` in CLI/MCP, so the same command adapts per
-       frontend.
+    1. **Frontend escape hatch** -- slots that genuinely need Textual or
+       threads (a confirm modal, capture, the proto-debug and picker
+       screens, the @work script run).  The plugin layer must not import
+       those, so the host injects them.  Several are ``None`` in CLI/MCP,
+       so the same command adapts per frontend.  (Serial connect/disconnect
+       used to live here too; they moved to ``ctx.serial`` -- a plugin
+       looking for "connect the port" expects them in the serial domain.)
 
     2. **Engine forwarders** -- slots that just forward to the live
        ``ReplEngine``.  They're injected rather than imported because
@@ -80,13 +81,10 @@ class InternalHandle:
     # apply_cfg (above).  The pure JSON write lives in config.py.
     confirm_save_cfg: Callable | None = None
 
-    connect: Callable = lambda port=None: None
-    disconnect: Callable = lambda: None
-    update_port: Callable = lambda name: None
-    apply_port_effects: Callable = lambda effects: None  # apply serial port settings
     # load_config(name): resolve name, disconnect + reconnect; -> CmdResult.
+    # Stays here (not on ctx.serial): it's a config-switch orchestration
+    # that happens to touch the port, not a serial primitive.
     load_config: Callable = lambda name: None
-    rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
 
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None

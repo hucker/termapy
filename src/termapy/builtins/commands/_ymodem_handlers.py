@@ -51,7 +51,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         cancel.clear()
     with ctx.serial.io():
         ctx.serial.drain()
-        reader = QueueByteReader(ctx.internal.rx_queue, cancel=cancel)
+        reader = QueueByteReader(ctx.serial.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
             result = reader.getc(size, timeout=timeout or 1)
@@ -104,7 +104,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         cancel.clear()
     with ctx.serial.io():
         ctx.serial.drain()
-        reader = QueueByteReader(ctx.internal.rx_queue, cancel=cancel)
+        reader = QueueByteReader(ctx.serial.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
             result = reader.getc(size, timeout=timeout or 1)

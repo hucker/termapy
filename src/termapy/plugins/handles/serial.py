@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable, Generator
+from typing import Any, Callable, Generator
 
 
 @dataclass
@@ -32,6 +32,16 @@ class SerialHandle:
     is_connected: Callable = lambda: False
     port: Callable = lambda: None  # -> serial.Serial | None
 
+    # ── Connection lifecycle / port control ──────────────────────────
+    # Host-orchestrated: connect/disconnect fire lifecycle hooks and
+    # update the frontend, update_port rewrites the port name, and
+    # apply_port_effects pushes serial settings (baud, DTR/RTS, ...) to
+    # the live port.  The host wires these; defaults are no-ops.
+    connect: Callable = lambda port=None: None
+    disconnect: Callable = lambda: None
+    update_port: Callable = lambda name: None
+    apply_port_effects: Callable = lambda effects: None
+
     # ── Raw I/O ──────────────────────────────────────────────────────
     write: Callable = lambda data: None
     send: Callable = lambda text: None
@@ -39,6 +49,7 @@ class SerialHandle:
     drain: Callable = lambda: 0
     wait_for_data: Callable = lambda timeout_ms=250: False
     wait_idle: Callable = lambda timeout_ms=400: None
+    rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
 
     # ── Claim/release primitives ─────────────────────────────────────
     # Prefer the ``io()`` context manager below; these are exposed for

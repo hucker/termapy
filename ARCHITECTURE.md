@@ -165,7 +165,7 @@ Every handler receives a `PluginContext`, the stable API boundary between plugin
 - **`ctx.serial`** — the serial connection: state (`is_connected`, `port`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`), and passive `rx` / `tx` byte observers.
 - **`ctx.fs`** — the filesystem layer: the config-dir folders (`ss_dir`, `scripts_dir`, `proto_dir`, `cap_dir`) and `open_file()`.
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
-- **`ctx.engine`** — the intentional escape hatch: an internal, unstable SPI for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
+- **`ctx.engine`** — the intentional escape hatch: an internal, unstable interface (`EngineAPI`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
 
 The remaining members (`ctx.cfg`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.wait_for_match`) sit directly on the context. The full surface, by handle:
 
@@ -185,7 +185,7 @@ ctx.fs.ss_dir, ctx.fs.scripts_dir, ctx.fs.proto_dir, ctx.fs.cap_dir
 ctx.fs.open_file()                            # gated by gui_apps capability
 ctx.ui.confirm(), ctx.ui.notify()             # TUI-strict; raise MissingCapability in CLI
 ctx.ui.clear_screen(), ctx.ui.exit_app(), ctx.ui.screenshot()
-ctx.engine                                    # internal/unstable SPI for built-ins
+ctx.engine                                    # internal/unstable interface for built-ins
 ctx.dispatch(cmd)                             # re-route a command through the pipeline
 ctx.wait_for_match(predicate, timeout)        # block until serial matches (gated)
 ctx.ns(name)                                  # session-scoped state dict (see below)
@@ -198,7 +198,7 @@ ctx.plugin_cfg(name)                          # per-plugin persistent config
 
 **Two-tier output.** `ctx.io.notify()` and `ctx.io.status_bar()` are the always-works fallbacks (toast in TUI, plain print in CLI). `ctx.ui.notify()` and `ctx.ui.status_bar()` are TUI-strict variants that require the matching capability. Plugin authors pick by intent: "just communicate" → `ctx.io`, "I need a real toast" → `ctx.ui`.
 
-External plugins use `PluginContext` only. `ctx.engine` is the intentional escape hatch for built-ins that need internal SPI (capture, proto debug, modem transfers); its surface may change.
+External plugins use `PluginContext` only. `ctx.engine` is the intentional escape hatch for built-ins that need privileged engine internals (capture, proto debug, modem transfers); its surface may change.
 
 #### Namespaces (`ctx.ns()`)
 

@@ -10,6 +10,7 @@ No Textual dependency - fully testable.
 
 from __future__ import annotations
 
+import codecs
 import queue
 import re
 import time
@@ -221,6 +222,12 @@ class SerialReader:
         self._capture = capture
         self._serial_claimed = serial_claimed or (lambda: False)
         self._buf: str = ""
+        # Stateful decoder: holds the trailing bytes of a multi-byte
+        # character that gets split across two serial reads, so the char
+        # is decoded once whole instead of becoming two U+FFFD on each
+        # side of the split.  (Byte-level analog of the partial-ANSI
+        # buffering below.)
+        self._decoder = codecs.getincrementaldecoder(encoding)(errors="replace")
         self._last_rx: float = time.monotonic()
 
     @property
@@ -230,6 +237,10 @@ class SerialReader:
     @encoding.setter
     def encoding(self, value: str) -> None:
         self._encoding = value
+        # Rebuild the incremental decoder for the new codec; any bytes
+        # buffered for the old encoding are dropped (they were for a
+        # codec we're no longer using).
+        self._decoder = codecs.getincrementaldecoder(value)(errors="replace")
 
     @property
     def show_line_endings(self) -> bool:
@@ -266,10 +277,14 @@ class SerialReader:
             if self._serial_claimed():
                 self._last_rx = time.monotonic()
                 self._buf = ""
+                self._decoder.reset()  # drop any half-decoded char too
                 return result
 
             self._last_rx = time.monotonic()
-            text = data.decode(self._encoding, errors="replace")
+            # Incremental decode: a multi-byte char split across two reads
+            # is held until its continuation bytes arrive, instead of
+            # decoding each chunk independently and emitting U+FFFD twice.
+            text = self._decoder.decode(data)
 
             # Insert visible EOL markers before line splitting
             if self._show_line_endings:
@@ -293,8 +308,15 @@ class SerialReader:
 
         else:
             # No data - flush partial line after 200ms of silence
-            if self._buf and (time.monotonic() - self._last_rx) >= 0.2:
-                if not PARTIAL_ANSI_RE.search(self._buf):
+            if (time.monotonic() - self._last_rx) >= 0.2:
+                # Drain any bytes the decoder is holding mid-character so a
+                # truncated multi-byte tail surfaces (as U+FFFD) instead of
+                # lingering until the next read.
+                tail = self._decoder.decode(b"", final=True)
+                self._decoder.reset()
+                if tail:
+                    self._buf += tail
+                if self._buf and not PARTIAL_ANSI_RE.search(self._buf):
                     result.lines.append(self._buf)
                     self._buf = ""
 
@@ -303,4 +325,5 @@ class SerialReader:
     def reset(self) -> None:
         """Clear the internal buffer."""
         self._buf = ""
+        self._decoder.reset()
         self._last_rx = time.monotonic()

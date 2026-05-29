@@ -6,6 +6,20 @@ For how termapy was built (and the role LLM tooling played), see [On AI assistan
 
 Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `/grep`, `/proto`, etc.) are regular plugins loaded from `builtins/commands/`. The same `Command` + `PluginContext` API that implements the core REPL is available to user plugins. Drop a `.py` file in a folder to add commands, override builtins, or build device-specific tools. No compilation or registration required.
 
+## Core concepts
+
+The whole system fits in your head once these pieces click. Each is detailed in its own section below; this list is the map.
+
+- **Plugin system** — almost every command is a plugin (a `.py` file exporting a `COMMAND`). The same API builds the built-ins and any user/device plugin, so command functionality is added by dropping a file, not editing the core.
+- **Hooks** — the small set of commands that need live frontend internals (Textual widgets, the screenshot surface, modals) are registered by the host instead of shipped as plugins. Everything else is a plugin.
+- **PluginContext** — the stable API every handler receives: five capability handles (`io`, `serial`, `fs`, `ui`, and the `engine` escape hatch) covering config, serial, filesystem, output/input, and global session state.
+- **Capabilities & frontend projections** — each frontend (TUI / CLI / MCP) advertises a `CapabilitySet`; commands declare what they `need`. The dispatcher gates calls, so the three frontends are *projections* of one engine through different capability sets and an unavailable command fails cleanly instead of mysteriously.
+- **Dispatch pipeline** — every input line follows one ordered path: *directive* → *transform* → REPL-vs-serial routing → *capability gate* → *handler* → **CmdResult**. New behavior attaches to a stage rather than becoming a special case.
+- **CmdResult & output levels** — every handler returns one uniform `CmdResult` (success / value / error / timing). The active output level (silent / quiet / normal / verbose) decides which channels actually render, so a single handler is correct from a quiet script to a verbose TUI to an MCP caller that wants only `value`.
+- **Variables** — `$(NAME)` placeholders, expanded during the transform stage from three sources: user-assigned (`/var`, `$(NAME) = ...`), the loaded config, and the environment (`$(env.NAME)`).
+- **Lifecycle events** — plugins react to app start/stop and script start/stop, so session-scoped state sets up and tears down without the engine knowing about it.
+- **Config migration** — every config carries a schema version and is auto-upgraded on load through a chain of small migrators, so schema and command changes ship without breaking existing user configs.
+
 ## Module structure
 
 ```text
@@ -137,6 +151,12 @@ COMMAND = Command(
 
 The subcommand tree is flattened at registration into dotted names (`cfg.auto`, `cfg.ss.explore`) that the dispatch system looks up directly. The `/help` command walks the tree to show hierarchical output.
 
+### Hooks
+
+A **hook** is a command the host (`app.py` / `cli.py` / `mcp/server.py`) registers directly via `repl.register_hook(...)` instead of shipping as a plugin file. Hooks exist for the small set of commands that need *live frontend internals* a plugin can't reach through `PluginContext` — mounting a Textual overlay, grabbing the screenshot surface, driving a modal dialog. Examples: `ss`, `run`, `delay`, `cfg.load`, `help.open`, `log.clear` / `log.delete`.
+
+Hooks and plugins share one registry and one dispatch path; a hook is just a late, host-supplied entry that can override a plugin of the same name (see [Loading order](#loading-order-later-overrides-earlier)). The rule of thumb: if a command can be expressed through `PluginContext`, it's a plugin (large, portable set); if it genuinely needs Textual/host state, it's a hook (small, frontend-bound set).
+
 ### PluginContext
 
 Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **capability handles**, each owning one domain:
@@ -253,6 +273,24 @@ DIRECTIVE = Directive(
 ```
 
 Currently the only directive is `var_assign` which rewrites `$(PORT) = COM7` into `var.set PORT COM7`. The directive system exists so this logic lives in the plugin rather than as a hardcoded special case in app.py.
+
+### Dispatch pipeline
+
+Every line — typed at the prompt or run from a `.run` script — flows through one ordered pipeline, so new behavior attaches to a stage instead of becoming a special case:
+
+```text
+raw line
+  → Directive       intercept non-/command syntax (may rewrite / warn / error)
+  → Transform       rewrite the command text; expand $(NAME) variables
+  → Route           starts with the prefix? -> REPL command : serial send
+  → Capability gate  command's `needs` vs the frontend's CapabilitySet
+  → Handler         the plugin or hook function
+  → CmdResult       success / value / error / elapsed
+```
+
+**`CmdResult` is the uniform contract.** Every handler returns one, and the active **output level** (`silent` / `quiet` / `normal` / `verbose`) decides which of its channels render. So the *same* handler is correct in a chatty TUI, a normal CLI, a quiet script that only consumes `value`, or an MCP call that treats `value` as structured data — handlers emit through `ctx.io` and never branch on "which frontend am I."
+
+**Variables** resolve in the transform stage from three sources: user-assigned (`/var.set`, or the `$(NAME) = value` directive), the loaded **config**, and the **environment** (`$(env.NAME)`). Because expansion happens before routing, the same `$(NAME)` works in a REPL command and in a bare serial line. The runtime trace of this pipeline is in [Key data flows](#key-data-flows) → *Command dispatch* below.
 
 ### Plugin file convention
 
@@ -444,6 +482,19 @@ termapy_cfg/
 
 `cfg_data_dir()` auto-creates all subdirs on access. Old `captures/` folders are auto-renamed to `cap/`.
 
+## Config migration
+
+Every config carries a `config_version`. On load, `migrate_config()` (`migration.py`) runs the chain in `MIGRATIONS` from the file's version up to `CURRENT_CONFIG_VERSION` — one small function per step:
+
+```text
+config_version: 17  ──migrators──▶  CURRENT_CONFIG_VERSION (23)
+   v17→v18, v18→v19, ... , v22→v23     (each step is one function in MIGRATIONS)
+```
+
+A migrator does whatever a schema change needs: rename a key, nest keys under a sub-dict (`port` → `serial.port`), rewrite a renamed command verb in the `*_on_connect_cmd` chains (`/color` → `/term.color`, `/ver` → `/app.ver`), or retire a key. Two supporting tables back it: `DEPRECATED_CFG` (the reason each removed key went away, surfaced as a warning) and the legacy-command tables in `legacy.py` (so `/run.legacy` can rewrite old command names inside `.run` scripts).
+
+The payoff — and the reason this is a core concept, not plumbing — is that schema and command changes ship freely: an old config opens, upgrades itself with a chatty per-step summary, and the user never hand-edits JSON. A config written by a *newer* termapy is detected and gets one clear upgrade hint instead of a wall of "unknown key" warnings.
+
 ## Threading model
 
 ```text
@@ -469,46 +520,15 @@ termapy_cfg/
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker. `call_from_thread` posts UI updates back to the main thread. `post_message` is used for script lifecycle events (thread-safe).
 
-## Built-in plugins (36 files)
+## Built-in plugins
 
-| Plugin             | Command       | Purpose                                            |
-| ------------------ | ------------- | -------------------------------------------------- |
-| app.py             | /app          | App-wide state and config (state.json, config.json)|
-| cap.py             | /cap          | Unified data capture (text, bin, struct, hex)      |
-| cfg.py             | /cfg          | Config values, info, explore, per-folder file ops  |
-| cls.py             | /cls          | Clear terminal                                     |
-| confirm.py         | /confirm      | Yes/Cancel dialog (scripts)                        |
-| credits.py         | /credits      | Third-party attributions                           |
-| echo.py            | /echo         | Toggle command echo                                |
-| edit.py            | /edit         | Open project files (scripts, proto, plugins, cfg)  |
-| env_var.py         | /env          | Environment variable management                    |
-| eol.py             | /eol          | Toggle line ending markers                         |
-| exit.py            | /exit         | Quit the app                                       |
-| grep.py            | /grep         | Search scrollback (TUI only)                       |
-| help.py            | /help         | Colorized command listing and help                 |
-| line_no.py         | /line_no      | Toggle line numbers in terminal output             |
-| mcp.py             | /mcp          | MCP catalog and status                             |
-| os_cmd.py          | /os           | Run shell commands                                 |
-| ping.py            | /ping         | Send command, measure response time                |
-| plugin_folder.py   | /plugin       | Plugin-folder tools (list, explore, show, dump)    |
-| port.py            | /port         | Serial port control                                |
-| print.py           | /print        | Print to terminal                                  |
-| profile_cmd.py     | /profile      | Device profile commands (MCP profile schema)       |
-| proto.py           | /proto        | Binary protocol tools                              |
-| repeat.py          | /repeat       | Repeat a command N times with optional delay       |
-| run_edit.py        | /run.edit     | Open .run scripts in system editor                 |
-| search.py          | /search       | Deep-search every command's metadata               |
-| seq.py             | /seq          | Sequence counters                                  |
-| show.py            | /show         | Display files                                      |
-| ss.py              | /ss           | Screenshots (TUI only, stub in CLI)                |
-| stop.py            | /stop         | Abort running script                               |
-| term.py            | /term         | Terminal display / session toggles                 |
-| var.py             | /var          | User variables                                     |
-| ver.py             | /ver          | Show termapy version                               |
-| verbose.py         | /verbose      | Output-level toggle (silent/quiet/normal/verbose)  |
-| xfer.py            | /xfer         | File transfer settings                             |
-| xmodem_xfer.py     | /xmodem       | XMODEM file transfer                               |
-| ymodem_xfer.py     | /ymodem       | YMODEM file transfer (batch, 1K blocks)            |
+Every built-in command is one file in `builtins/commands/`, listed with its
+`/command` and purpose in the [Module structure](#module-structure) tree
+above — that tree is the single source of truth, so there's no second list
+to drift out of sync. They are ordinary plugins: the same `Command` +
+`PluginContext` API a user plugin uses. Hidden legacy aliases (e.g. `/echo`
+→ `/term.echo`) are registered centrally from `legacy.py` rather than as
+files (see [Hooks](#hooks) for the host-registered exceptions).
 
 ## Test coverage
 

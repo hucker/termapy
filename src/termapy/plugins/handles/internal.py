@@ -1,11 +1,15 @@
-"""EngineHandle -- the privileged internal interface for built-in plugins.
+"""InternalHandle -- the privileged internal interface for built-in plugins.
 
-One of the namespaced capability handles on ``PluginContext`` (reached
-as ``ctx.engine``), not a parallel concept.
+Reached as ``ctx.internal``.  Named for the one property every slot
+shares: it's *internal* -- not part of the external plugin API.  The
+sibling handles (``ctx.io`` / ``ctx.serial`` / ``ctx.fs`` / ``ctx.ui``)
+are clean capability domains; this one is deliberately the bucket for
+everything privileged that doesn't fit a domain, so naming it after a
+real domain (it used to be ``engine``) made it read like a peer when
+it isn't.
 
 External plugin authors should not reach for this; it's intentionally
-unstable.  Use ``ctx.io`` / ``ctx.serial`` / ``ctx.fs`` / ``ctx.ui``
-for the supported, gated handles.
+unstable.  Use the four capability handles for the supported, gated API.
 """
 
 from __future__ import annotations
@@ -17,8 +21,8 @@ from termapy.defaults import DEFAULT_CMD_PREFIX
 
 
 @dataclass
-class EngineHandle:
-    """Privileged handle exposed to built-in plugins via ``ctx.engine``.
+class InternalHandle:
+    """Privileged handle exposed to built-in plugins via ``ctx.internal``.
 
     It serves two distinct jobs, grouped below:
 
@@ -33,11 +37,13 @@ class EngineHandle:
        ``ReplEngine``.  They're injected rather than imported because
        ``repl.py`` imports the plugins package, so a plugin importing
        ``repl`` would be circular.  Pure engine logic the plugin can't
-       reach any other way -- not frontend-coupled.
+       reach any other way -- not frontend-coupled.  (This job is why the
+       handle was once called ``engine``; it names only half of what's
+       here, which is why the handle is now ``internal``.)
 
     For plain session state (flags, counters, scratch) use ``ctx.ns()``
     instead; anything that could live in a dict was moved off this handle
-    on purpose.  External plugins should not use ``ctx.engine`` -- it is
+    on purpose.  External plugins should not use ``ctx.internal`` -- it is
     unstable and may change between versions.
     """
 

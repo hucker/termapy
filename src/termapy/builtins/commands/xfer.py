@@ -59,7 +59,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Directory not found: {path.resolve()}")
 
     resolved = str(path.resolve())
-    ctx.engine.apply_cfg("file_xfer_root", resolved)
+    ctx.internal.apply_cfg("file_xfer_root", resolved)
     ctx.io.result(f"Transfer root: {resolved}")
     return CmdResult.ok(value=resolved)
 

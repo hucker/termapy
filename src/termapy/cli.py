@@ -268,10 +268,10 @@ class CLITerminal(TerminalHost):
     # -- Context and hooks ----------------------------------------------------
 
     def _setup_context(self) -> None:
-        """Build PluginContext and EngineHandle, wire to REPL."""
-        engine_api = self._build_engine_api()
+        """Build PluginContext and InternalHandle, wire to REPL."""
+        internal_handle = self._build_internal_handle()
 
-        self.ctx = self._build_plugin_context(engine_api)
+        self.ctx = self._build_plugin_context(internal_handle)
         # CLI-specific callbacks
         self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
@@ -341,7 +341,7 @@ class CLITerminal(TerminalHost):
         )
         # /run and its sub_commands (.help, .legacy, .list, .dump,
         # .show, .explore) are owned by the run.py builtin; the host
-        # only wires ctx.engine.run_script via TerminalHost.  /run.profile.*
+        # only wires ctx.internal.run_script via TerminalHost.  /run.profile.*
         # is still a hook because the runner is host-specific.
         from termapy.run_profile_hooks import register_run_profile_hooks
 
@@ -517,7 +517,7 @@ class CLITerminal(TerminalHost):
     # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
     # ``/run.help`` are now owned by the ``run.py`` built-in.
     # ``_run_script`` lives on ``TerminalHost`` so the built-in
-    # ``/run`` handler can use ``ctx.engine.run_script`` uniformly
+    # ``/run`` handler can use ``ctx.internal.run_script`` uniformly
     # across CLI and MCP.  No CLI-specific override needed.
 
     def _prof_dir(self) -> Path | None:

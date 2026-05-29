@@ -15,7 +15,7 @@ import pytest
 
 from termapy.plugins import (
     CapabilitySet,
-    EngineHandle,
+    InternalHandle,
     IOHandle,
     PluginContext,
     SerialHandle,
@@ -62,7 +62,7 @@ def ctx_with_tracker(tmp_path):
     output: list = []
     engine = ReplEngine(cfg, str(config_path),
                         lambda t, c=None: output.append((t, c)))
-    api = EngineHandle(
+    api = InternalHandle(
         prefix="/",
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,
@@ -82,7 +82,7 @@ def ctx_with_tracker(tmp_path):
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
-        engine=api,
+        internal=api,
         capabilities=CapabilitySet(serial_connected=True),
         io=IOHandle(
             _write=lambda t, c=None: None,
@@ -165,15 +165,15 @@ class TestSerialIoContextManagerSafety:
 
 
 class TestEngineApiBareApiUnreachable:
-    """The bare ``set_proto_active`` callback was removed from EngineHandle to
+    """The bare ``set_proto_active`` callback was removed from InternalHandle to
     force plugins through ``ctx.serial.io()``.  Verify the field doesn't
     exist on the dataclass so any plugin trying to call it gets
     AttributeError instead of silently working.
     """
 
-    def test_engine_api_has_no_set_proto_active(self):
+    def test_internal_handle_has_no_set_proto_active(self):
         # Arrange / Act
-        api = EngineHandle(prefix="/", plugins={})
+        api = InternalHandle(prefix="/", plugins={})
 
         # Assert
         assert not hasattr(api, "set_proto_active"), (

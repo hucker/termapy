@@ -6,7 +6,7 @@ help text, its arg spec, its safety/capability flags.  Served as the
 ``/mcp.catalog`` (Phase 4) -- the two outputs are byte-identical.
 
 This module has no SDK dependencies.  Pure functions that walk
-``ctx.engine.plugins`` (a dict of PluginInfo) and emit serializable
+``ctx.internal.plugins`` (a dict of PluginInfo) and emit serializable
 dicts.  Importable in any context (REPL plugin, MCP server, tests).
 """
 
@@ -40,7 +40,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     from the device_state resource if it needs them.
 
     Args:
-        ctx: A live PluginContext.  Must have ``ctx.engine.plugins``
+        ctx: A live PluginContext.  Must have ``ctx.internal.plugins``
             populated (every running termapy host satisfies this).
 
     Returns:
@@ -56,7 +56,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     except ImportError:  # pragma: no cover - importlib.metadata is stdlib
         ver = "unknown"
 
-    plugins = ctx.engine.plugins
+    plugins = ctx.internal.plugins
     # Filter to commands the LLM can actually invoke meaningfully:
     # ``needs`` not satisfied by ``ctx.capabilities`` -- the capability
     # gate would reject these at dispatch.  The MCP host advertises
@@ -119,7 +119,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     return {
         "schema": CATALOG_SCHEMA_VERSION,
         "version": ver,
-        "prefix": ctx.engine.prefix,
+        "prefix": ctx.internal.prefix,
         "profile_revision": active_profile.get("profile_revision", ""),
         "profile_date": active_profile.get("profile_date", ""),
         "device": active_profile.get("device", {}),
@@ -279,7 +279,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     """
     long_help_text = resolve_long_help(plugin, ctx)
     return {
-        "name": ctx.engine.prefix + plugin.name,
+        "name": ctx.internal.prefix + plugin.name,
         "args": plugin.args or "",
         "help": plugin.help or "",
         "long_help": long_help_text,

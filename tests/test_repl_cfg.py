@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from termapy.plugins import EngineHandle, PluginContext
+from termapy.plugins import InternalHandle, PluginContext
 from termapy.repl import ReplEngine
 
 
@@ -27,7 +27,7 @@ def repl_env(tmp_path):
         output.append((text, color))
 
     engine = ReplEngine(cfg, str(config_path), write)
-    engine_api = EngineHandle(
+    internal_handle = InternalHandle(
         prefix="/",
         plugins=engine._plugins,
         apply_cfg=engine._apply_cfg,
@@ -37,7 +37,7 @@ def repl_env(tmp_path):
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
-        engine=engine_api,
+        internal=internal_handle,
         io=IOHandle(_write=write, _write_markup=write),
     )
     engine.set_context(ctx)
@@ -93,7 +93,7 @@ class TestCfgChange:
         # Arrange
         engine, _, _, output = repl_env
         called_with = []
-        engine.ctx.engine.confirm_save_cfg = lambda k, v: called_with.append((k, v))
+        engine.ctx.internal.confirm_save_cfg = lambda k, v: called_with.append((k, v))
 
         # Act
         engine.dispatch("cfg baud_rate 9600")

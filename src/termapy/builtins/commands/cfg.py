@@ -48,8 +48,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # title-bar button); CLI shows /help cfg.  Use /cfg.dump to print
     # the loaded config as JSON.
     if not parts:
-        if ctx.engine.open_picker is not None:
-            return ctx.engine.open_picker("cfg")
+        if ctx.internal.open_picker is not None:
+            return ctx.internal.open_picker("cfg")
         return _handler_help(ctx, args)
     key = parts[0]
     container = _find_cfg_container(ctx.cfg, key)
@@ -63,17 +63,17 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # /cfg key value - validate and delegate for confirmation
     value_str = parts[1]
     try:
-        new_val = ctx.engine.coerce_type(value_str, container[key])
+        new_val = ctx.internal.coerce_type(value_str, container[key])
     except (ValueError, TypeError) as e:
         return CmdResult.fail(msg=f"Type error: {e}")
     old_val = container[key]
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
         return CmdResult.ok(value=str(old_val))
-    if ctx.engine.confirm_save_cfg:
-        ctx.engine.confirm_save_cfg(key, new_val)
+    if ctx.internal.confirm_save_cfg:
+        ctx.internal.confirm_save_cfg(key, new_val)
     else:
-        ctx.engine.apply_cfg(key, new_val)
+        ctx.internal.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))
 
 
@@ -114,10 +114,10 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     if container is None:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
     try:
-        new_val = ctx.engine.coerce_type(value_str, container[key])
+        new_val = ctx.internal.coerce_type(value_str, container[key])
     except (ValueError, TypeError) as e:
         return CmdResult.fail(msg=f"Type error: {e}")
-    ctx.engine.apply_cfg(key, new_val)
+    ctx.internal.apply_cfg(key, new_val)
     return CmdResult.ok(value=str(new_val))
 
 
@@ -161,15 +161,15 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     without spawning a new server process for each one.
 
     Args:
-        ctx: Plugin context (uses ``ctx.engine.load_config``).
+        ctx: Plugin context (uses ``ctx.internal.load_config``).
         args: The config name / path to load.
     """
     name = args.strip()
     if not name:
         return CmdResult.fail(
-            msg=f"Usage: {ctx.engine.prefix}cfg.load <name>"
+            msg=f"Usage: {ctx.internal.prefix}cfg.load <name>"
         )
-    return ctx.engine.load_config(name)
+    return ctx.internal.load_config(name)
 
 
 # ── /cfg.explore handler ──────────────────────────────────────────────────────

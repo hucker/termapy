@@ -7,7 +7,7 @@ import pytest
 
 import re as _re
 
-from termapy.plugins import CapabilitySet, EngineHandle, PluginContext
+from termapy.plugins import CapabilitySet, InternalHandle, PluginContext
 from termapy.repl import ReplEngine
 
 
@@ -47,7 +47,7 @@ def repl_env(tmp_path, monkeypatch):
         output.append((text, color))
 
     engine = ReplEngine(cfg, str(config_path), write)
-    engine_api = EngineHandle(
+    internal_handle = InternalHandle(
         prefix="/",
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,
@@ -64,7 +64,7 @@ def repl_env(tmp_path, monkeypatch):
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
-        engine=engine_api,
+        internal=internal_handle,
         io=IOHandle(_write=write, _write_markup=write_markup),
         # Test fixture publishes every capability so command-by-command
         # tests can exercise any handler.  Specific capability-gate tests
@@ -2122,7 +2122,7 @@ class TestCapTextHandler:
         # Arrange
         engine, _, _, output = repl_env
         captures = []
-        engine.ctx.engine.start_capture = lambda **kw: (
+        engine.ctx.internal.start_capture = lambda **kw: (
             captures.append(kw) or True
         )
 
@@ -2138,7 +2138,7 @@ class TestCapTextHandler:
         # Arrange
         engine, _, _, output = repl_env
         captures = []
-        engine.ctx.engine.start_capture = lambda **kw: (
+        engine.ctx.internal.start_capture = lambda **kw: (
             captures.append(kw) or True
         )
 
@@ -2157,7 +2157,7 @@ class TestCapStructHandler:
         # Arrange
         engine, _, _, output = repl_env
         captures = []
-        engine.ctx.engine.start_capture = lambda **kw: (
+        engine.ctx.internal.start_capture = lambda **kw: (
             captures.append(kw) or True
         )
 
@@ -2175,7 +2175,7 @@ class TestCapStructHandler:
         engine, _, _, output = repl_env
         captures = []
         dispatched = []
-        engine.ctx.engine.start_capture = lambda **kw: (
+        engine.ctx.internal.start_capture = lambda **kw: (
             captures.append(kw) or True
         )
         engine.ctx.dispatch = lambda cmd: dispatched.append(cmd)
@@ -2597,7 +2597,7 @@ class TestRepeat:
 
         engine, _, _, output = repl_env
         stop_event = Event()
-        engine.ctx.engine.script_stop_event = stop_event
+        engine.ctx.internal.script_stop_event = stop_event
         dispatched = []
 
         def dispatch_and_stop(cmd):
@@ -2621,7 +2621,7 @@ class TestRepeat:
 
         engine, _, _, output = repl_env
         stop_event = Event()
-        engine.ctx.engine.script_stop_event = stop_event
+        engine.ctx.internal.script_stop_event = stop_event
         dispatched = []
 
         def dispatch_and_stop(cmd):

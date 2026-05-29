@@ -1,10 +1,10 @@
-"""PluginContext, EngineHandle, and PluginConfig.
+"""PluginContext, InternalHandle, and PluginConfig.
 
 The runtime objects every plugin handler interacts with:
 
   - ``PluginContext`` -- the single argument every handler receives.
     Stable façade over Textual / pyserial / threading internals.
-  - ``EngineHandle`` -- privileged escape hatch reachable as ``ctx.engine``.
+  - ``InternalHandle`` -- privileged escape hatch reachable as ``ctx.internal``.
     Built-in plugins only; unstable.
   - ``PluginConfig`` -- per-plugin persistent JSON config object.
 
@@ -23,7 +23,7 @@ from types import MappingProxyType
 from typing import Any, Callable
 
 from termapy.plugins.capabilities import CapabilitySet
-from termapy.plugins.handles.engine import EngineHandle
+from termapy.plugins.handles.internal import InternalHandle
 from termapy.plugins.handles.fs import FilesystemHandle
 from termapy.plugins.handles.io import IOHandle
 from termapy.plugins.handles.serial import SerialHandle
@@ -149,11 +149,11 @@ class PluginContext:
 
     Capability-domain handles (each one a focused namespace):
 
-      - ``io``      -- write/markup/log/result/output/status/notify/status_bar/clear_screen
-      - ``serial``  -- send/write/read_raw/drain/io()/rx_observer/tx_observer/...
-      - ``fs``      -- cap_dir/scripts_dir/proto_dir/ss_dir/prof_dir/open_file
-      - ``ui``      -- confirm/notify/screenshot/get_screen_text/exit_app (TUI-strict)
-      - ``engine``  -- internal SPI for built-in plugins only
+      - ``io``        -- write/markup/log/result/output/status/notify/status_bar/clear_screen
+      - ``serial``    -- send/write/read_raw/drain/io()/rx_observer/tx_observer/...
+      - ``fs``        -- cap_dir/scripts_dir/proto_dir/ss_dir/prof_dir/open_file
+      - ``ui``        -- confirm/notify/screenshot/get_screen_text/exit_app (TUI-strict)
+      - ``internal``  -- privileged escape hatch for built-in plugins only
 
     Methods on the base context (universal, not domain-specific):
 
@@ -166,7 +166,7 @@ class PluginContext:
       - ``output_level``          -- property; current verbose/quiet/silent dial
 
     See the docstring on each handle module
-    (``termapy.plugins.handles.{io,serial,fs,ui,engine}``) for the
+    (``termapy.plugins.handles.{io,serial,fs,ui,internal}``) for the
     full method reference of that domain.
     """
 
@@ -182,7 +182,7 @@ class PluginContext:
     serial: SerialHandle = field(default_factory=SerialHandle)
     fs: FilesystemHandle = field(default_factory=FilesystemHandle)
     ui: UIHandle = field(default_factory=UIHandle)
-    engine: EngineHandle = field(default_factory=EngineHandle)
+    internal: InternalHandle = field(default_factory=InternalHandle)
 
     # ── Universal callbacks / methods stored as fields ───────────────
     # These don't fit any single domain handle (dispatch routes to all

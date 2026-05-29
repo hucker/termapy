@@ -14,13 +14,13 @@ if TYPE_CHECKING:
 
 def _is_stopped(ctx: PluginContext) -> bool:
     """Check if /stop has been requested."""
-    ev = getattr(ctx.engine, "script_stop_event", None)
+    ev = getattr(ctx.internal, "script_stop_event", None)
     return ev is not None and ev.is_set()
 
 
 def _interruptible_sleep(ctx: PluginContext, seconds: float) -> bool:
     """Sleep in 100ms chunks, returning True if stopped early."""
-    ev = getattr(ctx.engine, "script_stop_event", None)
+    ev = getattr(ctx.internal, "script_stop_event", None)
     if ev is not None:
         # wait() returns True if the event is set (stopped)
         return ev.wait(timeout=seconds)
@@ -69,7 +69,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     from termapy.builtins.commands.var import _VARS
 
-    ev = getattr(ctx.engine, "script_stop_event", None)
+    ev = getattr(ctx.internal, "script_stop_event", None)
     if ev is not None:
         ev.clear()
 

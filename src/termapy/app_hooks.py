@@ -14,9 +14,9 @@ The ``register_tui_hooks(app)`` function wraps each handler in a
 register_hook contract is preserved.
 
 The cfg-confirm callback (``_hook_cfg_confirm``) is NOT here -- it
-isn't a REPL hook but an engine.confirm_save_cfg callback; it stays on
-``SerialTerminal`` next to the other engine wiring in
-``_build_context``.
+isn't a REPL hook but an ``internal.confirm_save_cfg`` callback; it
+stays on ``SerialTerminal`` next to the other internal-handle wiring
+in ``_build_context``.
 """
 
 from __future__ import annotations
@@ -369,7 +369,7 @@ def register_tui_hooks(app) -> None:
     # title-bar button.  Plugin handlers (cfg.py, proto.py) and the
     # /run hook check this callback when invoked with no args; CLI
     # leaves it None so they fall through to their CLI fallbacks.
-    app.repl.ctx.engine.open_picker = app._open_picker
+    app.repl.ctx.internal.open_picker = app._open_picker
     app.repl.register_hook(
         "ss.svg",
         "{name}",
@@ -427,7 +427,7 @@ def register_tui_hooks(app) -> None:
     )
     # /run and its sub_commands (.help, .legacy, .list, .dump, .show,
     # .explore) are owned by the run.py builtin -- TUI just needs to
-    # add the picker-on-bare-/run behaviour via ctx.engine.open_picker,
+    # add the picker-on-bare-/run behaviour via ctx.internal.open_picker,
     # which is wired further down in this function.  /run.profile.*
     # stays as hooks because the runner is host-specific (threaded in
     # TUI, synchronous everywhere else).

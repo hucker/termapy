@@ -136,7 +136,7 @@ The five handles:
 - `ctx.serial` -- read/write the serial port, observe bytes
 - `ctx.fs` -- per-config directories and file opening
 - `ctx.ui` -- TUI-only operations (dialogs, screenshots); raises in CLI
-- `ctx.engine` -- internal SPI for built-ins; external plugins should avoid it
+- `ctx.internal` -- privileged escape hatch for built-ins; external plugins should avoid it
 
 ### Capability gating
 
@@ -458,7 +458,7 @@ the matching capability on `Command.needs`.
 | `ctx.ns(name)` | Get/create a session-scoped state dict |
 | `ctx.plugin_cfg(name)` | Get a per-plugin persistent config dict |
 | `ctx.is_oneshot()` | True when running under `--exec` (one-shot CLI mode) |
-| `ctx.engine` | Internal SPI for built-ins; external plugins should avoid |
+| `ctx.internal` | Privileged escape hatch for built-ins; external plugins should avoid |
 
 ## Subcommands
 

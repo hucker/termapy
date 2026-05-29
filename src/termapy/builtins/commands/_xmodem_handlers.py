@@ -119,12 +119,12 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     file_size = path.stat().st_size
     ctx.io.output(f"  XMODEM send: {path.name} ({file_size} bytes) -- Esc to cancel")
 
-    cancel = ctx.engine.xfer_cancel
+    cancel = ctx.internal.xfer_cancel
     if cancel:
         cancel.clear()
     with ctx.serial.io():
         ctx.serial.drain()
-        reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
+        reader = QueueByteReader(ctx.internal.rx_queue, cancel=cancel)
         modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial.write(data) or len(data))
 
         _last = [0]
@@ -164,12 +164,12 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     path = _resolve_path(filename, _get_xfer_root(ctx))
     ctx.io.output(f"  XMODEM recv: waiting for data -> {path} -- Esc to cancel")
 
-    cancel = ctx.engine.xfer_cancel
+    cancel = ctx.internal.xfer_cancel
     if cancel:
         cancel.clear()
     with ctx.serial.io():
         ctx.serial.drain()
-        reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
+        reader = QueueByteReader(ctx.internal.rx_queue, cancel=cancel)
         modem = XMODEM(reader.getc, lambda data, timeout=1: ctx.serial.write(data) or len(data))
 
         _last = [0]

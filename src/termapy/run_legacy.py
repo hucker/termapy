@@ -168,12 +168,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     fix_mode = ctx.flag("--fix")
     name = args.strip()
     if not name:
-        p = ctx.engine.prefix
+        p = ctx.internal.prefix
         return CmdResult.fail(
             msg=f"Usage: {p}run.legacy <filename | *> {{--fix}}"
         )
 
-    prefix = ctx.engine.prefix
+    prefix = ctx.internal.prefix
 
     # ``*`` scans every .run file in the config's scripts directory.
     if name == "*":
@@ -211,7 +211,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 def _run_long_help(ctx: PluginContext) -> str:
     """Show current legacy table + script folder count."""
     mapping_lines = [
-        f"  {ctx.engine.prefix}{old} -> {ctx.engine.prefix}{new}"
+        f"  {ctx.internal.prefix}{old} -> {ctx.internal.prefix}{new}"
         for old, new in sorted(LEGACY_COMMANDS.items())
     ]
     folder = folder_line(ctx, "run", noun="script")

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from termapy.capture import CaptureEngine
-from termapy.plugins import CmdResult, EngineHandle, PluginContext
+from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
@@ -80,20 +80,20 @@ def host(tmp_path):
     return h
 
 
-# -- _build_engine_api -------------------------------------------------------
+# -- _build_internal_handle -------------------------------------------------------
 
 
 class TestBuildEngineApi:
-    def test_returns_engine_api(self, host):
+    def test_returns_internal_handle(self, host):
         # Act
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
 
         # Assert
-        assert isinstance(api, EngineHandle), "returns EngineHandle instance"
+        assert isinstance(api, InternalHandle), "returns InternalHandle instance"
 
     def test_prefix_from_cfg(self, host):
         # Act
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
 
         # Assert
         assert api.prefix == "/", "prefix from cfg cmd_prefix"
@@ -103,7 +103,7 @@ class TestBuildEngineApi:
         host._connect = MagicMock()
 
         # Act
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         api.connect("COM1")
 
         # Assert
@@ -114,7 +114,7 @@ class TestBuildEngineApi:
         host._disconnect = MagicMock()
 
         # Act
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         api.disconnect()
 
         # Assert
@@ -125,7 +125,7 @@ class TestBuildEngineApi:
         host._start_capture = MagicMock(return_value=True)
 
         # Act
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         api.start_capture(mode="text", path="/tmp/x")
 
         # Assert
@@ -137,7 +137,7 @@ class TestBuildEngineApi:
         host._apply_port_effects = MagicMock()
 
         # Act
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         api.apply_port_effects({"cfg_update": {"port": "COM2"}})
 
         # Assert
@@ -145,7 +145,7 @@ class TestBuildEngineApi:
 
     def test_script_stop_event_wired(self, host):
         # Act
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
 
         # Assert
         assert api.script_stop_event is host.repl._script_stop, \
@@ -158,7 +158,7 @@ class TestBuildEngineApi:
 class TestBuildPluginContext:
     def test_returns_plugin_context(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
 
         # Act
         ctx = host._build_plugin_context(api)
@@ -168,7 +168,7 @@ class TestBuildPluginContext:
 
     def test_cfg_wired(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
 
         # Act
         ctx = host._build_plugin_context(api)
@@ -178,7 +178,7 @@ class TestBuildPluginContext:
 
     def test_config_path_wired(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
 
         # Act
         ctx = host._build_plugin_context(api)
@@ -188,7 +188,7 @@ class TestBuildPluginContext:
 
     def test_serial_write_wired(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         ctx = host._build_plugin_context(api)
         host.engine.serial_port = MagicMock()
 
@@ -201,7 +201,7 @@ class TestBuildPluginContext:
 
     def test_directories_wired(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
 
         # Act
         ctx = host._build_plugin_context(api)
@@ -215,7 +215,7 @@ class TestBuildPluginContext:
 
     def test_is_connected_wired(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         ctx = host._build_plugin_context(api)
         host.engine.is_connected = True
 
@@ -227,7 +227,7 @@ class TestBuildPluginContext:
 
     def test_confirm_wired(self, host):
         # Arrange -- TUI capability is needed for ctx.ui.confirm
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         ctx = host._build_plugin_context(api)
         from termapy.plugins import CapabilitySet
         ctx.capabilities = CapabilitySet(confirm_dialog=True)
@@ -246,7 +246,7 @@ class TestBuildPluginContext:
 class TestInitFlags:
     def test_echo_true(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
         # Act
@@ -259,7 +259,7 @@ class TestInitFlags:
 
     def test_echo_false(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
         # Act
@@ -272,7 +272,7 @@ class TestInitFlags:
     def test_hex_mode_from_cfg(self, host):
         # Arrange
         host.cfg["hex_mode"] = True
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
         # Act
@@ -373,7 +373,7 @@ class TestSerialWriteRaw:
 class TestDispatch:
     def test_dispatch_delegates_to_repl(self, host):
         # Arrange
-        api = host._build_engine_api()
+        api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
         host.repl.set_context(host.ctx)
         host._init_flags(echo=False)

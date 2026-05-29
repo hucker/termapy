@@ -346,8 +346,8 @@ class MCPHost(TerminalHost):
         cfg's mcp/ directory, not the old one.
         """
         self._refresh_log_paths()
-        engine_api = self._build_engine_api()
-        self.ctx = self._build_plugin_context(engine_api)
+        internal_handle = self._build_internal_handle()
+        self.ctx = self._build_plugin_context(internal_handle)
         # MCP-specific UI no-ops (no screen, no toast, no clear).
         self.ctx.io.notify = lambda text, **kw: None
         self.ctx.io.clear_screen = lambda: None
@@ -408,7 +408,7 @@ class MCPHost(TerminalHost):
         # /run and its sub_commands (.help, .legacy, .list, .dump,
         # .show, .explore) are owned by the run.py built-in.  MCP picks
         # it up automatically via the plugin loader and dispatches
-        # through ctx.engine.run_script -- which TerminalHost wires to
+        # through ctx.internal.run_script -- which TerminalHost wires to
         # this host's synchronous _run_script.  No MCP-specific
         # registration needed.
 

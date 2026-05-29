@@ -48,12 +48,12 @@ def env(tmp_path, monkeypatch):
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
     flags["output_level"] = "verbose"
-    # The engine handle the recorder reaches for is on ctx.engine;
+    # The internal handle the recorder reaches for is on ctx.internal;
     # wire the observer pair to the underlying repl methods so the
     # builtin sees a configured host (TerminalHost normally does
     # this, but this test bypasses TerminalHost).
-    eng.ctx.engine.add_post_dispatch_observer = eng.add_post_dispatch_observer
-    eng.ctx.engine.remove_post_dispatch_observer = (
+    eng.ctx.internal.add_post_dispatch_observer = eng.add_post_dispatch_observer
+    eng.ctx.internal.remove_post_dispatch_observer = (
         eng.remove_post_dispatch_observer
     )
     # Tests dispatch via the engine, so scripts_dir on ctx.fs needs

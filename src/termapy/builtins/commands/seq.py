@@ -57,7 +57,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     expansions in scripts. Displays all current counter values.
 
     Args:
-        ctx: Plugin context for engine state and output.
+        ctx: Plugin context for state and output.
         args: Unused.
     """
     # Integer keys only -- _start_time is plugin-internal, not a counter.
@@ -78,7 +78,7 @@ def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
     the next script starts.
 
     Args:
-        ctx: Plugin context for engine state and output.
+        ctx: Plugin context for state and output.
         args: Unused.
     """
     seq = ctx.ns("seq")

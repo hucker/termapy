@@ -68,7 +68,7 @@ def env(tmp_path, monkeypatch):
     # Capture update_find_bar payloads so tests can assert on what
     # the UI would have been told.
     payloads: list = []
-    eng.ctx.engine.update_find_bar = payloads.append
+    eng.ctx.internal.update_find_bar = payloads.append
 
     # Reset module-level state before the test.
     _find._active = None
@@ -220,7 +220,7 @@ class TestUiCallback:
     def test_update_find_bar_none_means_no_ui_no_error(self, env):
         # Arrange -- a CLI/MCP-style host with no UI callback.
         eng, _, _ = env
-        eng.ctx.engine.update_find_bar = None
+        eng.ctx.internal.update_find_bar = None
 
         # Act -- /find should NOT crash; it still runs the search.
         result = eng.dispatch("find AT")

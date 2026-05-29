@@ -69,7 +69,7 @@ def _indexable_commands(ctx: PluginContext) -> dict:
     from termapy.profile import profile_command_view
 
     merged = dict(profile_command_view(ctx.ns("active_profile")))
-    merged.update(ctx.engine.plugins)
+    merged.update(ctx.internal.plugins)
     return merged
 
 
@@ -289,7 +289,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     doesn't eat ``-exclude`` terms. ``--dev`` is parsed here instead.
 
     Args:
-        ctx: Plugin context for engine plugin registry and output.
+        ctx: Plugin context for the plugin registry and output.
         args: Search pattern, possibly with a ``--dev`` flag somewhere.
     """
     tokens = args.split() if isinstance(args, str) else []
@@ -298,7 +298,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not tokens:
         return CmdResult.fail(msg="Usage: /search {--dev} <pattern>")
     pattern = " ".join(tokens)
-    prefix = ctx.engine.prefix
+    prefix = ctx.internal.prefix
 
     if _REGEX_META_RE.search(pattern):
         return _run_regex(ctx, pattern, include_dev, prefix)
@@ -333,7 +333,7 @@ def _run_regex(ctx: PluginContext, pattern: str, include_dev: bool,
             truncated = True
             continue
         _render_hit(ctx, prefix, name, plugin, hit_fields,
-                    is_target=(name in targets and name not in ctx.engine.plugins))
+                    is_target=(name in targets and name not in ctx.internal.plugins))
         rendered += 1
     return _finish(ctx, pattern, matches, truncated)
 
@@ -368,7 +368,7 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool,
             truncated = True
             continue
         _render_hit(ctx, prefix, name, plugin, hit_fields, underlines=positives,
-                    is_target=(name in targets and name not in ctx.engine.plugins))
+                    is_target=(name in targets and name not in ctx.internal.plugins))
         rendered += 1
     return _finish(ctx, pattern, ordered_names, truncated)
 

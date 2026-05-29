@@ -72,20 +72,20 @@ def make_forwarder(old_name: str, new_name: str) -> Callable:
         warned = ctx.ns("legacy_warned")
         if old_name not in warned:
             warned[old_name] = True
-            p = ctx.engine.prefix
+            p = ctx.internal.prefix
             ctx.io._write(
                 f"  Note: {p}{old_name} is legacy; use {p}{new_name}.",
                 "yellow",
             )
-        # Use engine.dispatch (bare REPL dispatch) rather than
+        # Use ctx.internal.dispatch (bare REPL dispatch) rather than
         # ctx.dispatch (the full pipeline).  ctx.dispatch requires a
         # prefixed command -- un-prefixed input would be treated as
-        # serial and sent to the device.  engine.dispatch takes the
+        # serial and sent to the device.  ctx.internal.dispatch takes the
         # name-and-args directly and routes through plugin lookup,
         # capability gates, and flag parsing.
         target = f"{new_name} {args}".strip()
-        result = ctx.engine.dispatch(target)
-        # engine.dispatch already wrote any error message to the user
+        result = ctx.internal.dispatch(target)
+        # ctx.internal.dispatch already wrote any error message to the user
         # via self.write(err_msg, "red").  Clear .error so the outer
         # dispatch layer that invoked us doesn't print the same
         # message a second time.  Preserve success/value for scripting.
@@ -121,7 +121,7 @@ def _verbose_forwarder(ctx: PluginContext, args: str) -> CmdResult:
     warned = ctx.ns("legacy_warned")
     if "verbose" not in warned:
         warned["verbose"] = True
-        p = ctx.engine.prefix
+        p = ctx.internal.prefix
         ctx.io.output(
             f"  Note: {p}verbose is legacy; use {p}term.output "
             f"(verbose|normal).",
@@ -138,7 +138,7 @@ def _verbose_forwarder(ctx: PluginContext, args: str) -> CmdResult:
             target = "term.output normal"
         else:
             return CmdResult.fail(msg=f"Invalid: {body} (use on or off)")
-    result = ctx.engine.dispatch(target)
+    result = ctx.internal.dispatch(target)
     if not result.success:
         return CmdResult(
             success=False,

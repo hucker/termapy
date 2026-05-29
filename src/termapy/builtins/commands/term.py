@@ -114,7 +114,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
     warned = ctx.ns("legacy_warned")
     if "term.verbose" not in warned:
         warned["term.verbose"] = True
-        p = ctx.engine.prefix
+        p = ctx.internal.prefix
         ctx.io.output(
             f"  Note: {p}term.verbose is legacy; use "
             f"{p}term.output (verbose|normal).",
@@ -131,7 +131,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
             target = "term.output normal"
         else:
             return CmdResult.fail(msg=f"Invalid: {body} (use on or off)")
-    result = ctx.engine.dispatch(target)
+    result = ctx.internal.dispatch(target)
     if not result.success:
         return CmdResult(
             success=False,
@@ -146,7 +146,7 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     return _flag_toggle(ctx, args, "hex_mode")
 
 
-# ── Config-persisted toggles (via ctx.engine.apply_cfg) ─────────────────────
+# ── Config-persisted toggles (via ctx.internal.apply_cfg) ─────────────────────
 
 
 def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
@@ -154,13 +154,13 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
 
     Empty/unknown input flips the current value so the command doubles
     as a toggle; an explicit token just sets it.  Persists to the
-    in-memory config via ``engine.apply_cfg``; the ConfigEditor dialog
+    in-memory config via ``ctx.internal.apply_cfg``; the ConfigEditor dialog
     is the only path that writes to disk.
     """
     val = parse_bool(args)
     current = bool(ctx.cfg.get(key, False))
     new = (not current) if val is None else val
-    ctx.engine.apply_cfg(key, new)
+    ctx.internal.apply_cfg(key, new)
     state = "on" if new else "off"
     ctx.io.result(state)
     return CmdResult.ok(value=state)
@@ -194,7 +194,7 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)})"
         )
-    ctx.engine.apply_cfg("line_ending", _EOL_TOKENS[arg])
+    ctx.internal.apply_cfg("line_ending", _EOL_TOKENS[arg])
     ctx.io.result(arg)
     return CmdResult.ok(value=arg)
 
@@ -278,7 +278,7 @@ def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
         current = ctx.cfg.get("encoding", "utf-8")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
-    ctx.engine.apply_cfg("encoding", name)
+    ctx.internal.apply_cfg("encoding", name)
     ctx.io.result(name)
     return CmdResult.ok(value=name)
 
@@ -375,7 +375,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     """
     text = args.strip()
     if not text:
-        return CmdResult.fail(msg=f"Usage: {ctx.engine.prefix}term.log <text>")
+        return CmdResult.fail(msg=f"Usage: {ctx.internal.prefix}term.log <text>")
     ctx.io.log("#", text)
     # Return the logged text so scripts can confirm what was written.
     return CmdResult.ok(value=text)
@@ -414,7 +414,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """When /term is called bare, show the subcommand landscape."""
     arg = args.strip()
     if arg:
-        p = ctx.engine.prefix
+        p = ctx.internal.prefix
         return CmdResult.fail(msg=f"Usage: {p}term.<subcommand>.  Try {p}term.info.")
     return ctx.dispatch("help term")
 

@@ -7,8 +7,8 @@ internals (TUI's ``app._run_script`` Worker, CLI's ``self._hook_run``,
 MCP's inline lambda) because the script-runner machinery lives on
 the host.
 
-Now the host exposes the runner via the engine handle
-(``ctx.engine.start_script`` + ``ctx.engine.run_script``, wired in
+Now the host exposes the runner via the internal handle
+(``ctx.internal.start_script`` + ``ctx.internal.run_script``, wired in
 ``TerminalHost._build_context``), and this single built-in handler
 covers all three frontends.  ``TerminalHost._run_script`` is the
 default synchronous implementation; ``SerialTerminal`` (TUI)
@@ -18,7 +18,7 @@ messages for the overlay -- same polymorphism the rest of the
 plugin layer uses.
 
 Bare ``/run`` opens the Run picker when a host installs one
-(``ctx.engine.open_picker`` is set in TUI, unset elsewhere); CLI
+(``ctx.internal.open_picker`` is set in TUI, unset elsewhere); CLI
 and MCP fall through to ``/help run`` with the available-files
 section appended.  Folder subcommands (.list/.dump/.show/.explore)
 come from the shared ``build_folder_subcommands`` helper.
@@ -136,28 +136,28 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     with a filename, dispatches to the host's script runner.
 
     The host wires ``start_script`` and ``run_script`` onto
-    ``ctx.engine`` in ``TerminalHost._build_context``; this handler
+    ``ctx.internal`` in ``TerminalHost._build_context``; this handler
     is host-agnostic and works in every frontend.
     """
     arg = args.strip()
     if not arg:
-        if ctx.engine.open_picker is not None:
-            return ctx.engine.open_picker("run")
+        if ctx.internal.open_picker is not None:
+            return ctx.internal.open_picker("run")
         # No picker in this host -- show help + the list of
         # available .run files (the closest CLI / MCP equivalent
         # to "open the picker").
         return _handler_help(ctx, args)
 
-    if ctx.engine.start_script is None or ctx.engine.run_script is None:
+    if ctx.internal.start_script is None or ctx.internal.run_script is None:
         # Defensive: a host that doesn't wire the script runner can't
         # execute scripts.  Should not happen in practice -- TerminalHost
         # wires both -- but guard so a misconfigured embed doesn't crash.
         return CmdResult.fail(msg="This host does not support script execution.")
 
     verbose = ctx.output_level == "verbose"
-    path, result = ctx.engine.start_script(arg)
+    path, result = ctx.internal.start_script(arg)
     if path:
-        ctx.engine.run_script(path, verbose=verbose)
+        ctx.internal.run_script(path, verbose=verbose)
     return result
 
 

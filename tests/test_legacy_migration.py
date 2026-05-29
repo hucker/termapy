@@ -276,3 +276,53 @@ class TestVerboseRuntimeForward:
         actual = eng.ctx.ns("flags")["output_level"]
         expected = "verbose"
         assert actual == expected, "term.verbose on -> verbose level"
+
+
+class TestSimpleForwarderRuntime:
+    """The central make_forwarder aliases reach their /term.* target.
+
+    Covers the plain name-forward forwarders (echo, show_line_endings)
+    that moved out of per-file plugins into legacy.LEGACY_FORWARDERS;
+    /verbose has its own arg-translating coverage above.
+    """
+
+    def test_echo_off_forwards_to_term_echo(self, engine_with_term):
+        # Arrange
+        eng, _ = engine_with_term
+        eng.ctx.ns("flags")["echo"] = True
+
+        # Act -- /echo forwards to /term.echo, which sets flags["echo"].
+        eng.dispatch("echo off")
+
+        # Assert
+        actual = eng.ctx.ns("flags")["echo"]
+        assert actual is False, "/echo off -> /term.echo set flags['echo'] False"
+
+    def test_show_line_endings_on_forwards_to_term(self, engine_with_term):
+        # Arrange
+        eng, _ = engine_with_term
+
+        # Act -- /show_line_endings forwards to /term.line_endings.
+        result = eng.dispatch("show_line_endings on")
+
+        # Assert -- the forwarded result carries the toggle's reported state,
+        # proving the forward reached /term.line_endings and it ran.
+        assert result.success, "/show_line_endings forwards successfully"
+        assert result.value == "on", (
+            "/show_line_endings on -> /term.line_endings reported 'on'"
+        )
+
+    def test_forwarder_emits_deprecation_note_once(self, engine_with_term):
+        # Arrange
+        eng, writes = engine_with_term
+
+        # Act -- two invocations of the same legacy alias.
+        eng.dispatch("echo off")
+        first_count = sum(1 for t, _ in writes if "legacy" in t and "echo" in t)
+        writes.clear()
+        eng.dispatch("echo on")
+        second_count = sum(1 for t, _ in writes if "legacy" in t and "echo" in t)
+
+        # Assert -- one note per session, not per call.
+        assert first_count == 1, "first /echo call warns"
+        assert second_count == 0, "second /echo call stays silent"

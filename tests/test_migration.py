@@ -525,6 +525,64 @@ def test_v19_to_v20_covers_all_four_on_connect_fields():
         assert result[key] == "/term.color on", f"{key} rewritten"
 
 
+def test_v22_to_v23_rewrites_ver_in_all_on_connect_fields():
+    """v22->v23 rewrites /ver -> /app.ver in every on-connect chain."""
+    # Arrange
+    cfg = {
+        "config_version": 22,
+        "on_connect_cmd": "/ver",
+        "tui_on_connect_cmd": "/ver",
+        "cli_on_connect_cmd": "/ver",
+        "mcp_on_connect_cmd": "/ver",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    for key in (
+        "on_connect_cmd",
+        "tui_on_connect_cmd",
+        "cli_on_connect_cmd",
+        "mcp_on_connect_cmd",
+    ):
+        assert result[key] == "/app.ver", f"{key} rewritten to /app.ver"
+
+
+def test_v22_to_v23_rewrites_ver_subcommands_and_chains():
+    """/ver.latest / /ver.info rewrite too; only the verb, at line boundaries."""
+    # Arrange -- a chain with a subcommand and a following command.
+    cfg = {
+        "config_version": 22,
+        "tui_on_connect_cmd": "/ver.info\n/cls",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    actual = result["tui_on_connect_cmd"]
+    expected = "/app.ver.info\n/cls"
+    assert actual == expected, (
+        f"/ver.info rewritten at the line boundary; got {actual!r}"
+    )
+
+
+def test_v22_to_v23_does_not_rewrite_verbose_or_argument_text():
+    """The verb guard leaves /verbose, /version, and literal /ver in args alone."""
+    # Arrange
+    cfg = {
+        "config_version": 22,
+        "on_connect_cmd": "/verbose on",
+        "cli_on_connect_cmd": '/print "the /ver string"',
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert -- /verbose is not /ver (no word boundary); arg-text /ver survives.
+    assert result["on_connect_cmd"] == "/verbose on", (
+        "/verbose must not be rewritten to /app.verbose"
+    )
+    assert result["cli_on_connect_cmd"] == '/print "the /ver string"', (
+        "argument-text /ver must not be rewritten"
+    )
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.

@@ -311,6 +311,45 @@ COMMAND = Command(name="hello", args="{name}", help="Say hello.", handler=_handl
 
 There is deliberately no `Plugin` base class. A plugin is a module that exports stuff; the loader finds what's there. This keeps the mental model one sentence long and avoids the inheritance, decorator, and metaclass traps that creep into most plugin systems. If a plugin needs internal organization, it can use a class *inside* the module - the module boundary is the plugin boundary.
 
+### Worked example: the `seq` plugin
+
+`builtins/commands/seq.py` is a small real plugin that exercises both **session-global state** (a namespace) and **lifecycle events** in one file. It owns the `seq` namespace — the counters behind the `{seqN+}` script-template placeholders — and resets that state at the right session boundaries:
+
+```python
+from datetime import datetime
+from termapy.plugins import CmdResult, Command
+
+def _now() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+# --- lifecycle: set up / reset the shared state at session boundaries ---
+
+def on_app_start(ctx):                 # fires once, after plugins load
+    ctx.ns("seq")["_start_time"] = _now()
+
+def on_script_start(ctx):              # fires at each OUTERMOST /run (not nested)
+    seq = ctx.ns("seq")                # the shared session dict
+    seq.clear()                        # fresh counters per top-level script run
+    seq["_start_time"] = _now()
+
+# --- command: read the shared state ---
+
+def _handler(ctx, args) -> CmdResult:
+    counters = {k: v for k, v in ctx.ns("seq").items() if isinstance(k, int)}
+    line = ", ".join(f"seq{k}={v}" for k, v in sorted(counters.items()))
+    ctx.io.output(f"Counters: {line}" if line else "No counters set.")
+    return CmdResult.ok(value=line)
+
+COMMAND = Command(name="seq", help="Print sequence counters.", handler=_handler)
+```
+
+What it demonstrates:
+
+- **Global/session state** lives in `ctx.ns("seq")` — a plain dict shared across every call for the life of the `PluginContext`. The `{seqN+}` transform writes counters here; `_handler` and the template engine read them. No module-level globals, no monkeypatching `ctx`.
+- **Lifecycle** keeps that state honest: `on_app_start` seeds it once; `on_script_start` clears it at the top of each outermost script so runs don't bleed into each other — and since nested `/run` doesn't re-fire, inner scripts inherit the outer run's counters. The engine knows nothing about sequence counters; the plugin owns the policy.
+
+Copy this shape for any plugin that needs per-session state with setup/reset semantics. (The full file adds a `_start_time` for the `{starttime}` placeholder, a `seq.reset` subcommand, and a dynamic `long_help` that reads the live state.)
+
 ## Layer diagram
 
 ```text

@@ -862,8 +862,8 @@ class SerialTerminal(TerminalHost, App):
                         "<Rec>", id="btn-record", variant="success",
                     )
                     record_btn.tooltip = (
-                        "Record successfully-dispatched commands to a "
-                        ".run script.  Click to start; click again to stop."
+                        "Record commands to a .run script. "
+                        "Click to start; click again to stop."
                     )
                     yield record_btn
                 # FindBar: ephemeral, hidden until /find runs.

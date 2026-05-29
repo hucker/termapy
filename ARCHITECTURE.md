@@ -11,43 +11,39 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 ```text
 src/termapy/
 ├── builtins/
-│   ├── commands/           #              command plugins (hidden legacy aliases register from legacy.py, not files):
-│   │   ├── app.py               #   /app - app-wide state, config, and version (/app.ver)
-│   │   ├── cap.py               #   /cap - unified data capture (text/binary/struct/hex)
-│   │   ├── cfg.py               #   /cfg - show or change config values, project info
-│   │   ├── cls.py               #   /cls - clear the terminal screen
-│   │   ├── confirm.py           #   /confirm - Yes/Cancel dialog (scripts)
-│   │   ├── credits.py           #   /credits - print the acknowledgments page
-│   │   ├── edit.py              #   /edit - open project files in the system editor
-│   │   ├── env_var.py           #   $(env.NAME) expansion transform + command
-│   │   ├── exit.py              #   /exit - quit the application
-│   │   ├── find.py              #   /find - navigate scrollback matches (interactive)
-│   │   ├── grep.py              #   /grep - search scrollback for matching lines
-│   │   ├── help.py              #   /help - forgiving help with man-page detail view
-│   │   ├── log.py               #   /log.* - dump / fingerprint / show the session log
-│   │   ├── mcp.py               #   /mcp.* - MCP catalog, status, session log
-│   │   ├── os_cmd.py            #   /os (/!) - run a shell command
-│   │   ├── ping.py              #   /ping - measure serial response time
-│   │   ├── plugin_folder.py     #   /plugin - plugin folder operations
-│   │   ├── port.py              #   /port - serial port list/connect/configure/signals
-│   │   ├── print.py             #   /print - print plain or Rich-markup text
-│   │   ├── profile_cmd.py       #   /profile.* - device-profile commands
-│   │   ├── proto.py             #   /proto - binary protocol send/expect/crc testing
-│   │   ├── repeat.py            #   /repeat - repeat a command N times
-│   │   ├── run.py               #   /run - execute .run scripts from any host
-│   │   ├── run_edit.py          #   /run.edit - open .run scripts in the editor
-│   │   ├── search.py            #   /search - Google-style deep command search
-│   │   ├── seq.py               #   /seq - show or reset sequence counters
-│   │   ├── show.py              #   /show - show file contents
-│   │   ├── ss.py                #   /ss - screenshot commands (svg, txt + folder ops)
-│   │   ├── stop.py              #   /stop - abort a running script
-│   │   ├── term.py              #   /term.* - terminal display / session toggles
-│   │   ├── var.py               #   /var - user-defined variables, $(NAME) syntax
-│   │   ├── xfer.py              #   /xfer - file transfer (settings + XMODEM + YMODEM)
-│   │   ├── _cfg_icon.py         #   private handlers for /cfg.icon
-│   │   ├── _run_record.py       #   private handlers for /run.record
-│   │   ├── _xmodem_handlers.py  #   XMODEM handlers (private; under /xfer)
-│   │   └── _ymodem_handlers.py  #   YMODEM handlers (private; under /xfer)
+│   ├── commands/           #              command plugins (private _* helpers omitted; legacy aliases register from legacy.py):
+│   │   ├── app.py      #  /app - app-wide state, config, and version (/app.ver)
+│   │   ├── cap.py      #  /cap - unified data capture (text/binary/struct/hex)
+│   │   ├── cfg.py      #  /cfg - show or change config values, project info
+│   │   ├── cls.py      #  /cls - clear the terminal screen
+│   │   ├── confirm.py  #  /confirm - Yes/Cancel dialog (scripts)
+│   │   ├── credits.py  #  /credits - print the acknowledgments page
+│   │   ├── edit.py     #  /edit - open project files in the system editor
+│   │   ├── env_var.py  #  $(env.NAME) expansion transform + command
+│   │   ├── exit.py     #  /exit - quit the application
+│   │   ├── find.py     #  /find - navigate scrollback matches (interactive)
+│   │   ├── grep.py     #  /grep - search scrollback for matching lines
+│   │   ├── help.py     #  /help - forgiving help with man-page detail view
+│   │   ├── log.py      #  /log.* - dump / fingerprint / show the session log
+│   │   ├── mcp.py      #  /mcp.* - MCP catalog, status, session log
+│   │   ├── os_cmd.py   #  /os (/!) - run a shell command
+│   │   ├── ping.py     #  /ping - measure serial response time
+│   │   ├── plugin.py   #  /plugin - plugin folder operations
+│   │   ├── port.py     #  /port - serial port list/connect/configure/signals
+│   │   ├── print.py    #  /print - print plain or Rich-markup text
+│   │   ├── profile.py  #  /profile.* - device-profile commands
+│   │   ├── proto.py    #  /proto - binary protocol send/expect/crc testing
+│   │   ├── repeat.py   #  /repeat - repeat a command N times
+│   │   ├── run.py      #  /run - execute .run scripts from any host
+│   │   ├── run_edit.py #  /run.edit - open .run scripts in the editor
+│   │   ├── search.py   #  /search - Google-style deep command search
+│   │   ├── seq.py      #  /seq - show or reset sequence counters
+│   │   ├── show.py     #  /show - show file contents
+│   │   ├── ss.py       #  /ss - screenshot commands (svg, txt + folder ops)
+│   │   ├── stop.py     #  /stop - abort a running script
+│   │   ├── term.py     #  /term.* - terminal display / session toggles
+│   │   ├── var.py      #  /var - user-defined variables, $(NAME) syntax
+│   │   └── xfer.py     #  /xfer - file transfer (settings + XMODEM + YMODEM)
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)

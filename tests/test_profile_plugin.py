@@ -306,12 +306,12 @@ def _mock_device_json(env, payload: dict) -> None:
     """Patch the device-fetch path so /profile.load cmd= returns ``payload``.
 
     Mirrors test_include's `_run_fetch` helper but for the new
-    profile_cmd._read_profile_json hook and the connected-serial stubs.
+    profile._read_profile_json hook and the connected-serial stubs.
     """
-    from termapy.builtins.commands import profile_cmd
+    from termapy.builtins.commands import profile
 
     eng, ctx, _output = env
-    profile_cmd._read_profile_json = lambda c, t: payload  # type: ignore[assignment]
+    profile._read_profile_json = lambda c, t: payload  # type: ignore[assignment]
     ctx.serial.is_connected = lambda: True
     ctx.serial.io = lambda: _NullContext()
     ctx.serial.drain = lambda: 0
@@ -378,7 +378,7 @@ class TestProfileLoadFromDevice:
 
     def test_fetch_then_no_args_reload_refetches(self, env):
         # Arrange -- first fetch, then mutate payload, then no-args reload.
-        from termapy.builtins.commands import profile_cmd
+        from termapy.builtins.commands import profile
 
         seq = iter([
             {
@@ -394,7 +394,7 @@ class TestProfileLoadFromDevice:
         eng, ctx, _output = env
         eng.dispatch("profile.load cmd=AT+HELP.JSON")
         # Swap in the second payload; reload should re-run the cmd path.
-        profile_cmd._read_profile_json = lambda c, t: next(seq)
+        profile._read_profile_json = lambda c, t: next(seq)
         # Act
         result = eng.dispatch("profile.load")
         # Assert

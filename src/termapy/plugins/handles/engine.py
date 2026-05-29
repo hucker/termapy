@@ -1,7 +1,7 @@
-"""EngineHandle -- the privileged internal SPI for built-in plugins.
+"""EngineHandle -- the privileged internal interface for built-in plugins.
 
 This is the renamed ``EngineAPI``.  Same shape, same fields, same usage
-(``ctx.engine.<x>``).  The rename emphasises that it's *one of* the
+(``ctx.engine.<x>``).  The rename emphasizes that it's *one of* the
 namespaced handles on ``PluginContext``, not a parallel concept.
 
 External plugin authors should not reach for this; it's intentionally
@@ -39,69 +39,68 @@ class EngineHandle:
     should not use this; it is unstable and may change between versions.
     """
 
+    # ── Engine + registry ────────────────────────────────────────────
     prefix: str = DEFAULT_CMD_PREFIX
     plugins: dict = field(default_factory=dict)
-    in_script: Callable = lambda: False
-    script_stop: Callable = lambda: None
-    # Internal dispatch: run a REPL command through the plugin pipeline
-    # (capability gates, flag parsing, etc.) without the serial-output
-    # sugar that ``ctx.dispatch`` adds via dispatch_full.  Used by legacy
-    # forwarders (/echo -> /term.echo) where going back out to
-    # dispatch_full would misinterpret the un-prefixed target as a
-    # serial command.
-    dispatch: Callable = lambda _line: None
-    save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
-    apply_cfg: Callable = lambda key, val: None
-    coerce_type: Callable = lambda val, existing: val
-    open_proto_debug: Callable = lambda path, script: None
-    start_capture: Callable = lambda **kw: None
-    stop_capture: Callable = lambda: None
     directives: list = field(default_factory=list)
+
+    # ── Command dispatch ─────────────────────────────────────────────
+    # Bare REPL dispatch through the plugin pipeline (capability gates,
+    # flag parsing) WITHOUT the serial-output sugar ctx.dispatch adds via
+    # dispatch_full.  Legacy forwarders (/echo -> /term.echo) use this --
+    # re-entering dispatch_full would misread the un-prefixed target as a
+    # serial send.
+    dispatch: Callable = lambda _line: None
+
+    # ── Config ───────────────────────────────────────────────────────
+    save_cfg: Callable | None = (
+        None  # (key, val) -> confirm dialog; None = apply, no confirm
+    )
+    apply_cfg: Callable = lambda key, val: None  # set in-memory, no dialog
+    coerce_type: Callable = lambda val, existing: val
+    load_config: Callable = lambda name: (
+        None
+    )  # resolve name + (re)connect; returns CmdResult
+
+    # ── Serial port ──────────────────────────────────────────────────
     connect: Callable = lambda port=None: None
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None
     apply_port_effects: Callable = lambda effects: None
-    # Load a named config file, disconnecting + reconnecting as needed.
-    # Name is resolved via config_resolve.resolve_config, so a bare
-    # "myproj" or a full path both work.  Returns a ``CmdResult`` so
-    # the caller can surface success/failure via their frontend.
-    load_config: Callable = lambda name: None
     rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
-    xfer_cancel: Any = None  # threading.Event - set by Escape to cancel transfers
-    script_stop_event: Any = None  # threading.Event - set by /stop to abort scripts
-    # Open the picker/dialog associated with a top-level command name
-    # ("cfg", "run", "proto").  TUI installs this in _register_tui_hooks;
-    # CLI leaves it None so plugin handlers fall through to their existing
-    # bare-args behaviour (JSON dump, script list, long-help, etc.).
-    open_picker: Callable | None = None  # (name: str) -> CmdResult
-    # Script-runner callbacks wired by ``TerminalHost._build_context``.
-    # ``start_script(args)`` resolves a filename through the REPL's
-    # script-path logic; ``run_script(path, profile, verbose)`` actually
-    # executes it (synchronously in CLI/MCP, threaded via Textual @work
-    # in TUI -- subclass overrides on the host class, not here).  The
-    # ``/run`` built-in handler reaches for both via this handle so
-    # one builtin covers all three hosts.
-    start_script: Callable | None = None  # (args: str) -> tuple[Path|None, CmdResult]
-    run_script: Callable | None = None    # (path, profile=False, verbose=False) -> None
-    # Post-dispatch observer plumbing for /run.record and any future
-    # feature that wants the same stream (audit log, repeat-last,
-    # MCP event stream).  Wired by TerminalHost._build_engine_api to
-    # the underlying ReplEngine methods of the same name.
-    add_post_dispatch_observer: Callable | None = None
-    # (cb: Callable[[str, CmdResult], None]) -> token
-    remove_post_dispatch_observer: Callable | None = None
-    # (token: Callable[[str, CmdResult], None]) -> None
-    # ``True`` if /run.record is currently active.  Source of truth
-    # is the recorder module's module-level state; this callable just
-    # forwards.  Used by the TUI Record button to decide which form
-    # of /run.record to dispatch (start vs stop) without holding its
-    # own state.
-    is_recording: Callable | None = None  # () -> bool
-    # Refresh the TUI's FindBar from the /find plugin's state.  The
-    # plugin computes search results, then calls this with a dict
-    # snapshot (or None to hide the bar) and the TUI re-renders.
-    # CLI/MCP hosts leave this None so /find no-ops there.
-    update_find_bar: Callable | None = None  # (state: dict | None) -> None
+
+    # ── Capture + protocol debug ─────────────────────────────────────
+    start_capture: Callable = lambda **kw: None
+    stop_capture: Callable = lambda: None
+    open_proto_debug: Callable = lambda path, script: None
+
+    # ── Script execution ─────────────────────────────────────────────
+    in_script: Callable = lambda: False
+    script_stop: Callable = lambda: None
+    script_stop_event: Any = None  # threading.Event - /stop aborts a running script
+    # start_script(args): resolve a filename via the REPL's script-path
+    # logic.  run_script(path, ...): execute it -- synchronous in CLI/MCP,
+    # threaded (@work) in TUI via a host-subclass override.  The /run
+    # builtin uses both, so one builtin serves all three hosts.
+    start_script: Callable | None = None  # (args) -> (Path | None, CmdResult)
+    run_script: Callable | None = None  # (path, profile=False, verbose=False) -> None
+
+    # ── File transfer ────────────────────────────────────────────────
+    xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
+
+    # ── TUI-only UI (None in CLI/MCP, so builtins fall through to text) ──
+    open_picker: Callable | None = (
+        None  # (name "cfg"/"run"/"proto") -> CmdResult; opens the dialog
+    )
+    update_find_bar: Callable | None = (
+        None  # (state dict | None) -> None; /find re-renders the FindBar
+    )
+
+    # ── Post-dispatch observers (/run.record, audit, MCP stream) ─────
+    # Wired to the ReplEngine methods of the same name.
+    add_post_dispatch_observer: Callable | None = None  # (cb) -> token
+    remove_post_dispatch_observer: Callable | None = None  # (token) -> None
+    is_recording: Callable | None = None  # () -> bool; the TUI Record button reads this
 
 
 # Backward-compat alias.  Existing code does ``from termapy.plugins import

@@ -695,3 +695,40 @@ class TestDirectiveIntegration:
         # Assert - error, not sent to device
         assert actual.action == "error"
         assert "requires a value" in actual.payload
+
+
+class TestCfgContextVars:
+    """CFG.PORT / CFG.BAUD read the v22-nested serial keys, not flat."""
+
+    @pytest.fixture
+    def _restore_context_vars(self):
+        # register_cfg_vars mutates the module-global _CONTEXT_VARS; snapshot
+        # and restore so we don't leak our stub get_cfg into other tests.
+        import termapy.builtins.commands.var as var_mod
+        saved = dict(var_mod._CONTEXT_VARS)
+        yield var_mod
+        var_mod._CONTEXT_VARS.clear()
+        var_mod._CONTEXT_VARS.update(saved)
+
+    def test_cfg_port_and_baud_read_nested_serial(self, _restore_context_vars):
+        # Arrange -- v22 cfg: port/baud_rate live under cfg["serial"].
+        var_mod = _restore_context_vars
+        cfg = {"serial": {"port": "COM4", "baud_rate": 115200}}
+        var_mod.register_cfg_vars(lambda: "", lambda: cfg, lambda: "")
+
+        # Act
+        actual_port = var_mod._CONTEXT_VARS["CFG.PORT"]()
+        actual_baud = var_mod._CONTEXT_VARS["CFG.BAUD"]()
+
+        # Assert -- not the empty string a flat get("port") would yield
+        assert actual_port == "COM4", "CFG.PORT reads cfg['serial']['port']"
+        assert actual_baud == "115200", "CFG.BAUD reads cfg['serial']['baud_rate']"
+
+    def test_cfg_port_empty_when_no_serial_section(self, _restore_context_vars):
+        # Arrange -- defensive: a cfg missing the serial section.
+        var_mod = _restore_context_vars
+        var_mod.register_cfg_vars(lambda: "", lambda: {}, lambda: "")
+
+        # Act / Assert -- empty string, no KeyError
+        actual = var_mod._CONTEXT_VARS["CFG.PORT"]()
+        assert actual == "", "no serial section -> empty, not a crash"

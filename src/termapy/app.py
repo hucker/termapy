@@ -3189,14 +3189,24 @@ class SerialTerminal(TerminalHost, App):
             self._connect()
 
     def _hook_cfg_confirm(self, key: str, new_val) -> None:
-        old_val = self.cfg[key]
+        # baud_rate / port / etc. live under cfg["serial"] post-v22, so read
+        # the current value from wherever the key sits (mirrors the routing
+        # in repl._apply_cfg).  A naive self.cfg[key] KeyErrors on serial keys.
+        serial = self.cfg.get("serial", {})
+        old_val = serial[key] if isinstance(serial, dict) and key in serial else self.cfg[key]
 
         def on_result(confirmed: bool) -> None:
             if confirmed:
                 self.repl._apply_cfg(key, new_val)
 
+        # Wrap in a no-arg lambda: _on_main forwards to call_from_thread,
+        # whose own first param is named `callback`, so passing push_screen
+        # positionally + callback=on_result collides.  The lambda hands
+        # call_from_thread a single callable instead.
         self._on_main(
-            self.push_screen, CfgConfirm(key, old_val, new_val), callback=on_result
+            lambda: self.push_screen(  # ty: ignore[no-matching-overload]
+                CfgConfirm(key, old_val, new_val), callback=on_result
+            )
         )
 
     def _on_script_picked(self, *args, **kwargs):

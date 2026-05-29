@@ -291,12 +291,7 @@ class TerminalHost:
             open_proto_debug=lambda path, script: None,
             start_capture=lambda **kw: self._start_capture(**kw),
             stop_capture=lambda: self._stop_capture(),
-            connect=lambda port=None: self._connect(port),
-            disconnect=lambda: self._disconnect(),
-            update_port=lambda name: self._update_port(name),
-            apply_port_effects=lambda effects: self._apply_port_effects(effects),
             load_config=lambda name: self._load_config(name),
-            rx_queue=self.engine.rx_queue,
             xfer_cancel=getattr(self, "_xfer_cancel", None),
             script_stop_event=self.repl._script_stop,
             # /run's built-in handler reaches script-running via these
@@ -349,6 +344,10 @@ class TerminalHost:
         serial = SerialHandle(
             is_connected=lambda: self.engine.is_connected,
             port=lambda: self.engine.port_obj if self.engine.is_connected else None,
+            connect=lambda port=None: self._connect(port),
+            disconnect=lambda: self._disconnect(),
+            update_port=lambda name: self._update_port(name),
+            apply_port_effects=lambda effects: self._apply_port_effects(effects),
             write=self._serial_write,
             send=self._serial_send,
             read_raw=self._serial_read_raw,
@@ -356,6 +355,7 @@ class TerminalHost:
             wait_idle=lambda timeout_ms=100, max_wait_s=3.0: (
                 self._wait_for_idle(timeout_ms, max_wait_s)
             ),
+            rx_queue=self.engine.rx_queue,
             claim=lambda: setattr(self.engine, "serial_claimed", True),
             release=lambda: setattr(self.engine, "serial_claimed", False),
             # Underscore-prefixed: ``ctx.serial.rx_observer(cb)`` and

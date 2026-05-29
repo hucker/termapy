@@ -135,7 +135,7 @@ def _handler(ctx, args):
 The five handles:
 
 - `ctx.io` -- write to user (terminal, log, fallback notifications)
-- `ctx.serial` -- read/write the serial port, observe bytes
+- `ctx.serial` -- connect/disconnect, read/write the serial port, observe bytes
 - `ctx.fs` -- per-config directories and file opening
 - `ctx.ui` -- TUI-only operations (dialogs, screenshots); raises in CLI
 - `ctx.internal` -- privileged escape hatch for built-ins; external plugins should avoid it

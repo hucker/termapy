@@ -162,7 +162,7 @@ Hooks and plugins share one registry and one dispatch path; a hook is just a lat
 Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **handles** — four capability domains, plus `internal`, the privileged escape hatch that deliberately isn't a domain:
 
 - **`ctx.io`** — text in/out: the level-gated `result` / `output` / `status` channels (and their Rich-markup variants) plus the always-works `notify` / `status_bar` / `log` fallbacks.
-- **`ctx.serial`** — the serial connection: state (`is_connected`, `port`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`), and passive `rx` / `tx` byte observers.
+- **`ctx.serial`** — the serial connection: state (`is_connected`, `port`), lifecycle (`connect`, `disconnect`, `update_port`, `apply_port_effects`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`, `rx_queue`), and passive `rx` / `tx` byte observers.
 - **`ctx.fs`** — the filesystem layer: the config-dir folders (`ss_dir`, `scripts_dir`, `proto_dir`, `cap_dir`) and `open_file()`.
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
 - **`ctx.internal`** — the intentional escape hatch: an internal, unstable interface (`InternalHandle`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
@@ -177,8 +177,10 @@ ctx.io.result_markup(), ctx.io.output_markup(),          # level-gated Rich-mark
 ctx.io.notify(), ctx.io.status_bar()          # always-works fallbacks (no capability gate)
 ctx.io.log()                                  # session log
 ctx.serial.is_connected, ctx.serial.port      # serial state
+ctx.serial.connect(), ctx.serial.disconnect() # connection lifecycle (host-orchestrated)
+ctx.serial.update_port(), ctx.serial.apply_port_effects()
 ctx.serial.write(), ctx.serial.read_raw()     # serial I/O primitives
-ctx.serial.drain(), ctx.serial.wait_idle()
+ctx.serial.drain(), ctx.serial.wait_idle(), ctx.serial.rx_queue
 ctx.serial.io() (context manager)             # acquire serial for synchronous read
 ctx.serial.rx_observer(), ctx.serial.tx_observer()  # passive byte taps
 ctx.fs.ss_dir, ctx.fs.scripts_dir, ctx.fs.proto_dir, ctx.fs.cap_dir

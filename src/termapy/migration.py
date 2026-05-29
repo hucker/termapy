@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 22
+CURRENT_CONFIG_VERSION = 23
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -459,6 +459,51 @@ def _migrate_v21_to_v22(cfg: dict) -> dict:
 
 
 MIGRATIONS[21] = _migrate_v21_to_v22
+
+
+# Conservative regex: matches ``/ver`` only as a command verb -- first
+# non-whitespace token after the start of the string, a newline, or a
+# semicolon.  The trailing ``\b`` rewrites ``/ver`` and ``/ver.latest`` /
+# ``/ver.info`` (boundary before the dot) but NOT ``/verbose`` or
+# ``/version`` (no boundary mid-word), and leaves literal ``/ver`` inside
+# argument text untouched.
+_VER_VERB_RE = re.compile(
+    r"(?P<lead>^|[\n;])(?P<ws>[ \t]*)/ver(?P<tail>\b)",
+)
+
+
+def _rewrite_ver_in_chain(text: str) -> str:
+    """Replace ``/ver`` with ``/app.ver`` at command boundaries.
+
+    Rewrites the verb only (``/ver``, ``/ver.latest``, ``/ver.info``),
+    not literal ``/ver`` inside argument text.  Round-trip-safe.
+    """
+    if not isinstance(text, str) or "/ver" not in text:
+        return text
+    return _VER_VERB_RE.sub(r"\g<lead>\g<ws>/app.ver\g<tail>", text)
+
+
+def _migrate_v22_to_v23(cfg: dict) -> dict:
+    """Rewrite ``/ver`` -> ``/app.ver`` in on-connect command chains.
+
+    ``/ver`` moved under ``/app`` (``/app.ver``, ``/app.ver.latest``,
+    ``/app.ver.info``) to group the app-info commands.  A hidden legacy
+    alias keeps ``/ver`` working at runtime, so this migration is
+    cosmetic: it updates the four ``*_on_connect_cmd`` chains so
+    ``/cfg.dump`` shows the canonical name and the user learns it.
+    """
+    for key in (
+        "on_connect_cmd",
+        "tui_on_connect_cmd",
+        "cli_on_connect_cmd",
+        "mcp_on_connect_cmd",
+    ):
+        if key in cfg:
+            cfg[key] = _rewrite_ver_in_chain(cfg[key])
+    return cfg
+
+
+MIGRATIONS[22] = _migrate_v22_to_v23
 
 
 def migrate_config(cfg: dict) -> dict:

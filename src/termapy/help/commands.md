@@ -115,6 +115,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.color {on\|off}`   | Show or toggle color output (CLI mode only)                                 |
 | `/term.echo [on\|off]`    | Toggle command echo                                                         |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
+| `/term.eol {cr\|lf\|crlf\|none}` | Show or set the line ending sent with commands (session override)    |
 | `/term.hex [on\|off]`     | Toggle hex display of incoming bytes                                        |
 | `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
 | `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output                      |

@@ -170,6 +170,35 @@ def _handler_line_endings(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_toggle(ctx, args, "show_line_endings")
 
 
+# Named tokens for the line ending appended to every sent command.
+_EOL_TOKENS = {"cr": "\r", "lf": "\n", "crlf": "\r\n", "none": ""}
+_EOL_LABELS = {v: k for k, v in _EOL_TOKENS.items()}
+
+
+def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
+    """Show or set the line ending appended to sent commands.
+
+    Bare invocation reports the current ending as a token; an argument
+    (``cr`` / ``lf`` / ``crlf`` / ``none``) sets it for the session via
+    ``apply_cfg`` -- the same in-memory path the other /term.* toggles
+    use.  Persisting to disk is still /cfg line_ending or the Config
+    Editor; this is the quick runtime override.
+    """
+    arg = args.strip().lower()
+    if not arg:
+        current = ctx.cfg.get("line_ending", "\r")
+        label = _EOL_LABELS.get(current, repr(current))
+        ctx.io.result(label)
+        return CmdResult.ok(value=label)
+    if arg not in _EOL_TOKENS:
+        return CmdResult.fail(
+            msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)})"
+        )
+    ctx.engine.apply_cfg("line_ending", _EOL_TOKENS[arg])
+    ctx.io.result(arg)
+    return CmdResult.ok(value=arg)
+
+
 def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_toggle(ctx, args, "show_timestamps")
 
@@ -366,6 +395,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("hex", "on" if flags.get("hex_mode") else "off"),
         ("line_no", "on" if flags.get("line_no") else "off"),
         ("line_endings", "on" if ctx.cfg.get("show_line_endings") else "off"),
+        ("eol", _EOL_LABELS.get(ctx.cfg.get("line_ending", "\r"), repr(ctx.cfg.get("line_ending", "\r")))),
         ("timestamps", "on" if ctx.cfg.get("show_timestamps") else "off"),
         ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
         ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
@@ -444,6 +474,23 @@ COMMAND = Command(
             args="{on|off}",
             help="Toggle visible \\r \\n markers in serial output.",
             handler=_handler_line_endings,
+        ),
+        "eol": Command(
+            args="{cr|lf|crlf|none}",
+            help="Show or set the line ending sent with commands (cr/lf/crlf/none).",
+            long_help=(
+                "Sets the line ending appended to every command sent to the\n"
+                "device.  Tokens: cr (\\r), lf (\\n), crlf (\\r\\n), none.\n"
+                "Bare {prefix}term.eol reports the current ending.\n"
+                "\n"
+                "This is a session override (in-memory, like the other\n"
+                "{prefix}term.* toggles).  To persist, use {prefix}cfg "
+                "line_ending or the Config Editor.\n"
+                "\n"
+                "Note: {prefix}term.line_endings is unrelated -- it toggles\n"
+                "VISIBLE \\r \\n markers in received output for debugging."
+            ),
+            handler=_handler_eol,
         ),
         "output": Command(
             args="{silent|quiet|normal|verbose}",

@@ -525,9 +525,67 @@ def test_v19_to_v20_covers_all_four_on_connect_fields():
         assert result[key] == "/term.color on", f"{key} rewritten"
 
 
+def test_v22_to_v23_rewrites_ver_in_all_on_connect_fields():
+    """v22->v23 rewrites /ver -> /app.ver in every on-connect chain."""
+    # Arrange
+    cfg = {
+        "config_version": 22,
+        "on_connect_cmd": "/ver",
+        "tui_on_connect_cmd": "/ver",
+        "cli_on_connect_cmd": "/ver",
+        "mcp_on_connect_cmd": "/ver",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    for key in (
+        "on_connect_cmd",
+        "tui_on_connect_cmd",
+        "cli_on_connect_cmd",
+        "mcp_on_connect_cmd",
+    ):
+        assert result[key] == "/app.ver", f"{key} rewritten to /app.ver"
+
+
+def test_v22_to_v23_rewrites_ver_subcommands_and_chains():
+    """/ver.latest / /ver.info rewrite too; only the verb, at line boundaries."""
+    # Arrange -- a chain with a subcommand and a following command.
+    cfg = {
+        "config_version": 22,
+        "tui_on_connect_cmd": "/ver.info\n/cls",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    actual = result["tui_on_connect_cmd"]
+    expected = "/app.ver.info\n/cls"
+    assert actual == expected, (
+        f"/ver.info rewritten at the line boundary; got {actual!r}"
+    )
+
+
+def test_v22_to_v23_does_not_rewrite_verbose_or_argument_text():
+    """The verb guard leaves /verbose, /version, and literal /ver in args alone."""
+    # Arrange
+    cfg = {
+        "config_version": 22,
+        "on_connect_cmd": "/verbose on",
+        "cli_on_connect_cmd": '/print "the /ver string"',
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert -- /verbose is not /ver (no word boundary); arg-text /ver survives.
+    assert result["on_connect_cmd"] == "/verbose on", (
+        "/verbose must not be rewritten to /app.verbose"
+    )
+    assert result["cli_on_connect_cmd"] == '/print "the /ver string"', (
+        "argument-text /ver must not be rewritten"
+    )
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
-    # Arrange -- a config from v17 needs five steps to reach v22.
+    # Arrange -- a config from v17 needs six steps to reach v23.
     cfg = {"config_version": 17}
 
     # Act
@@ -536,8 +594,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labelled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 5, (
-        f"v17 -> v22 covers five migrators (17->18, 18->19, 19->20, 20->21, 21->22); "
+    assert len(steps) == 6, (
+        f"v17 -> v23 covers six migrators "
+        f"(17->18, 18->19, 19->20, 20->21, 21->22, 22->23); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -546,6 +605,7 @@ def test_migration_steps_recorded_per_version():
         "v19 -> v20",
         "v20 -> v21",
         "v21 -> v22",
+        "v22 -> v23",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -557,7 +617,7 @@ def test_migration_steps_include_docstring_summary():
     """The label after the version range is the migrator's docstring summary."""
     # Arrange -- v20 -> v21 has a docstring starting
     # "Add ``record_enabled`` toggle for the Record button ...".
-    # v21 -> v22 also runs in the chain ("Nest pyserial config keys ...").
+    # v21->v22 (nest pyserial keys) and v22->v23 (/ver rewrite) also run.
     cfg = {"config_version": 20}
 
     # Act
@@ -565,8 +625,8 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 2, (
-        f"two steps (v20->v21, v21->v22); got {steps!r}"
+    assert len(steps) == 3, (
+        f"three steps (v20->v21, v21->v22, v22->v23); got {steps!r}"
     )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"

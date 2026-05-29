@@ -270,23 +270,34 @@ class TestRunDocstring:
 
 
 class TestVer:
-    """The version family: ``/ver`` (installed), ``/ver.latest``
-    (bare PyPI value), ``/ver.info`` (verbose installed-vs-PyPI
-    compare).  Naming follows termapy's existing convention --
-    ``.info`` is the verbose-state verb used by /cfg.info,
-    /port.info, /mcp.info, /profile.info; ``.latest`` is a noun
-    matching field-getter style.
+    """The version family under /app: ``/app.ver`` (installed),
+    ``/app.ver.latest`` (bare PyPI value), ``/app.ver.info`` (verbose
+    installed-vs-PyPI compare).  ``.info`` is the verbose-state verb
+    used by /cfg.info, /port.info, /mcp.info, /profile.info; ``.latest``
+    is a noun matching field-getter style.  The old top-level ``/ver*``
+    names keep working as hidden legacy forwarders.
     """
 
-    def test_ver_returns_installed_version_string(self, repl_env):
+    def test_app_ver_returns_installed_version_string(self, repl_env):
         # Arrange / Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("app.ver")
+
+        # Assert
+        assert result.success, "bare /app.ver succeeds"
+        assert result.value.startswith("termapy v"), (
+            f"value is the human-readable version line, got: {result.value!r}"
+        )
+
+    def test_legacy_ver_forwards_to_app_ver(self, repl_env):
+        # Arrange / Act -- the old /ver keeps working via a hidden forwarder
         engine, _, _, _ = repl_env
         result = engine.dispatch("ver")
 
-        # Assert
-        assert result.success, "bare /ver succeeds"
+        # Assert -- forwarded result's value is preserved
+        assert result.success, "/ver forwards to /app.ver"
         assert result.value.startswith("termapy v"), (
-            f"value is the human-readable version line, got: {result.value!r}"
+            f"forwarded value preserved, got: {result.value!r}"
         )
 
     def test_ver_latest_returns_bare_pypi_version(
@@ -302,7 +313,7 @@ class TestVer:
 
         # Act
         engine, _, _, _ = repl_env
-        result = engine.dispatch("ver.latest")
+        result = engine.dispatch("app.ver.latest")
 
         # Assert -- value is the bare version string, no prose,
         # symmetric with /ver returning installed.
@@ -323,7 +334,7 @@ class TestVer:
 
         # Act
         engine, _, _, _ = repl_env
-        result = engine.dispatch("ver.latest")
+        result = engine.dispatch("app.ver.latest")
 
         # Assert -- network failure is LOUD on the interactive
         # path (different contract from the background banner).
@@ -335,10 +346,10 @@ class TestVer:
     ):
         # Arrange -- pin check_now to return same version, not outdated.
         from termapy import update_check
-        from termapy.builtins.commands import ver as ver_mod
+        from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            ver_mod, "_installed_version", lambda: "0.66.0",
+            app_mod, "_installed_version", lambda: "0.66.0",
         )
         monkeypatch.setattr(
             update_check, "check_now", lambda _v: ("0.66.0", False),
@@ -346,7 +357,7 @@ class TestVer:
 
         # Act
         engine, _, _, output = repl_env
-        result = engine.dispatch("ver.info")
+        result = engine.dispatch("app.ver.info")
 
         # Assert
         assert result.success, "matching versions are not an error"
@@ -363,10 +374,10 @@ class TestVer:
     ):
         # Arrange
         from termapy import update_check
-        from termapy.builtins.commands import ver as ver_mod
+        from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            ver_mod, "_installed_version", lambda: "0.66.0",
+            app_mod, "_installed_version", lambda: "0.66.0",
         )
         monkeypatch.setattr(
             update_check, "check_now", lambda _v: ("0.66.1", True),
@@ -374,7 +385,7 @@ class TestVer:
 
         # Act
         engine, _, _, output = repl_env
-        result = engine.dispatch("ver.info")
+        result = engine.dispatch("app.ver.info")
 
         # Assert
         assert result.success, "outdated is still ok -- nothing failed"
@@ -392,10 +403,10 @@ class TestVer:
     ):
         # Arrange
         from termapy import update_check
-        from termapy.builtins.commands import ver as ver_mod
+        from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            ver_mod, "_installed_version", lambda: "0.66.0",
+            app_mod, "_installed_version", lambda: "0.66.0",
         )
         monkeypatch.setattr(
             update_check, "check_now", lambda _v: (None, False),
@@ -403,7 +414,7 @@ class TestVer:
 
         # Act
         engine, _, _, _ = repl_env
-        result = engine.dispatch("ver.info")
+        result = engine.dispatch("app.ver.info")
 
         # Assert
         assert not result.success, "network failure surfaces as error"
@@ -414,15 +425,15 @@ class TestVer:
     ):
         # Arrange -- 'unknown' is the installed-version sentinel for
         # source checkouts without `pip install`.
-        from termapy.builtins.commands import ver as ver_mod
+        from termapy.builtins.commands import app as app_mod
 
         monkeypatch.setattr(
-            ver_mod, "_installed_version", lambda: "unknown",
+            app_mod, "_installed_version", lambda: "unknown",
         )
 
         # Act
         engine, _, _, _ = repl_env
-        result = engine.dispatch("ver.info")
+        result = engine.dispatch("app.ver.info")
 
         # Assert -- comparison is meaningless without an installed
         # version; surface a clear error instead of silently failing.
@@ -2836,3 +2847,60 @@ class TestLogDump:
         # Assert
         assert not result.success, "non-int N rejected"
         assert "Usage" in result.error, "usage shown"
+
+
+# -- /term.eol ------------------------------------------------------------
+
+
+class TestTermEol:
+    """/term.eol shows/sets the sent line ending via named tokens."""
+
+    def test_bare_reports_default_cr(self, repl_env):
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.eol")
+
+        # Assert
+        assert result.success, "bare /term.eol succeeds"
+        assert result.value == "cr", "default line_ending \\r reports as cr"
+
+    def test_set_crlf_persists_and_reports(self, repl_env):
+        # Arrange
+        engine, cfg, _path, _output = repl_env
+
+        # Act -- set, then query
+        set_result = engine.dispatch("term.eol crlf")
+        show_result = engine.dispatch("term.eol")
+
+        # Assert
+        assert set_result.success, "set crlf succeeds"
+        actual = cfg["line_ending"]
+        assert actual == "\r\n", "crlf token sets line_ending to CRLF"
+        assert show_result.value == "crlf", "subsequent query reports crlf"
+
+    @pytest.mark.parametrize(
+        "token,expected", [("cr", "\r"), ("lf", "\n"), ("none", "")]
+    )
+    def test_token_maps_to_line_ending(self, repl_env, token, expected):
+        # Arrange
+        engine, cfg, _path, _output = repl_env
+
+        # Act
+        engine.dispatch(f"term.eol {token}")
+
+        # Assert
+        actual = cfg["line_ending"]
+        assert actual == expected, f"{token} -> {expected!r}"
+
+    def test_unknown_token_rejected(self, repl_env):
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.eol bogus")
+
+        # Assert
+        assert not result.success, "unknown token rejected"
+        assert "bogus" in result.error, "error names the bad token"

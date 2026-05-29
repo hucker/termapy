@@ -207,7 +207,7 @@ def on_proto_picked(app, result: tuple | None) -> None:
 def open_picker(app, name: str) -> CmdResult:
     """Open the picker/dialog for a top-level command name.
 
-    Wired into ``EngineAPI.open_picker`` from ``_register_tui_hooks``
+    Wired into ``EngineHandle.open_picker`` from ``_register_tui_hooks``
     so that bare ``/cfg``, ``/run``, ``/proto`` invocations behave
     like clicking the matching title-bar button.  CLI never installs
     this callback; plugin handlers fall through to their CLI fallback.

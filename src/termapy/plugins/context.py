@@ -1,10 +1,10 @@
-"""PluginContext, EngineAPI, and PluginConfig.
+"""PluginContext, EngineHandle, and PluginConfig.
 
 The runtime objects every plugin handler interacts with:
 
   - ``PluginContext`` -- the single argument every handler receives.
     Stable façade over Textual / pyserial / threading internals.
-  - ``EngineAPI`` -- privileged escape hatch reachable as ``ctx.engine``.
+  - ``EngineHandle`` -- privileged escape hatch reachable as ``ctx.engine``.
     Built-in plugins only; unstable.
   - ``PluginConfig`` -- per-plugin persistent JSON config object.
 
@@ -23,7 +23,7 @@ from types import MappingProxyType
 from typing import Any, Callable
 
 from termapy.plugins.capabilities import CapabilitySet
-from termapy.plugins.handles.engine import EngineAPI
+from termapy.plugins.handles.engine import EngineHandle
 from termapy.plugins.handles.fs import FilesystemHandle
 from termapy.plugins.handles.io import IOHandle
 from termapy.plugins.handles.serial import SerialHandle
@@ -182,7 +182,7 @@ class PluginContext:
     serial: SerialHandle = field(default_factory=SerialHandle)
     fs: FilesystemHandle = field(default_factory=FilesystemHandle)
     ui: UIHandle = field(default_factory=UIHandle)
-    engine: EngineAPI = field(default_factory=EngineAPI)
+    engine: EngineHandle = field(default_factory=EngineHandle)
 
     # ── Universal callbacks / methods stored as fields ───────────────
     # These don't fit any single domain handle (dispatch routes to all

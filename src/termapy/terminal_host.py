@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.defaults import cmd_prefix
-from termapy.plugins import CmdResult, EngineAPI, PluginContext
+from termapy.plugins import CmdResult, EngineHandle, PluginContext
 from termapy.serial_port import eol_label
 
 if TYPE_CHECKING:
@@ -271,8 +271,8 @@ class TerminalHost:
 
     # -- Context builders (subclass extends, not replaces) --------------------
 
-    def _build_engine_api(self) -> EngineAPI:
-        """Build an EngineAPI with the callbacks shared by all frontends.
+    def _build_engine_api(self) -> EngineHandle:
+        """Build an EngineHandle with the callbacks shared by all frontends.
 
         Subclasses should call ``super()._build_engine_api()`` then set
         any frontend-specific fields on the returned object before passing
@@ -280,7 +280,7 @@ class TerminalHost:
         """
         from termapy.repl import ReplEngine
 
-        return EngineAPI(
+        return EngineHandle(
             prefix=cmd_prefix(self.cfg),
             plugins=self.repl._plugins,
             in_script=lambda: self.repl.in_script,
@@ -332,7 +332,7 @@ class TerminalHost:
             update_find_bar=None,
         )
 
-    def _build_plugin_context(self, engine_api: EngineAPI) -> PluginContext:
+    def _build_plugin_context(self, engine_api: EngineHandle) -> PluginContext:
         """Build a PluginContext with the callbacks shared by all frontends.
 
         Subclasses should call ``super()._build_plugin_context(api)`` then

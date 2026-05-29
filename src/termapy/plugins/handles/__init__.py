@@ -19,7 +19,7 @@ See :class:`MissingCapability` in ``capabilities`` for the exception
 that gated methods raise when their capability is absent.
 """
 
-from termapy.plugins.handles.engine import EngineAPI, EngineHandle
+from termapy.plugins.handles.engine import EngineHandle
 from termapy.plugins.handles.fs import FilesystemHandle
 from termapy.plugins.handles.io import IOHandle
 from termapy.plugins.handles.serial import SerialHandle
@@ -27,7 +27,6 @@ from termapy.plugins.handles.ui import UIHandle
 
 
 __all__ = [
-    "EngineAPI",
     "EngineHandle",
     "FilesystemHandle",
     "IOHandle",

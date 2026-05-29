@@ -165,7 +165,7 @@ Every handler receives a `PluginContext`, the stable API boundary between plugin
 - **`ctx.serial`** — the serial connection: state (`is_connected`, `port`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`), and passive `rx` / `tx` byte observers.
 - **`ctx.fs`** — the filesystem layer: the config-dir folders (`ss_dir`, `scripts_dir`, `proto_dir`, `cap_dir`) and `open_file()`.
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
-- **`ctx.engine`** — the intentional escape hatch: an internal, unstable interface (`EngineAPI`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
+- **`ctx.engine`** — the intentional escape hatch: an internal, unstable interface (`EngineHandle`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
 
 The remaining members (`ctx.cfg`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.wait_for_match`) sit directly on the context. The full surface, by handle:
 
@@ -221,7 +221,7 @@ ctx.ns("flags")            - engine-owned toggles: echo, verbose, hex_mode
 
 The `flags` namespace is engine-reserved. Third-party plugins should use their own namespace name (conventionally the plugin name, e.g. `ctx.ns("myplugin")`). The engine's flag defaults are set once at context construction in `_build_context`; read sites access them with bare key lookups, so a missing key is a construction bug, not silent drift.
 
-Contrast with `ctx.engine`: `EngineAPI` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction - `engine` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
+Contrast with `ctx.engine`: `EngineHandle` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction - `engine` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
 
 #### Lifecycle hooks
 

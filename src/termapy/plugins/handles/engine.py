@@ -1,15 +1,11 @@
 """EngineHandle -- the privileged internal interface for built-in plugins.
 
-This is the renamed ``EngineAPI``.  Same shape, same fields, same usage
-(``ctx.engine.<x>``).  The rename emphasizes that it's *one of* the
-namespaced handles on ``PluginContext``, not a parallel concept.
+One of the namespaced capability handles on ``PluginContext`` (reached
+as ``ctx.engine``), not a parallel concept.
 
 External plugin authors should not reach for this; it's intentionally
 unstable.  Use ``ctx.io`` / ``ctx.serial`` / ``ctx.fs`` / ``ctx.ui``
 for the supported, gated handles.
-
-The ``EngineAPI`` alias is preserved so existing imports keep working
-unchanged through the migration.
 """
 
 from __future__ import annotations
@@ -102,10 +98,3 @@ class EngineHandle:
     open_picker: Callable | None = None
     # update_find_bar(state dict | None) -> None; /find re-renders the FindBar.
     update_find_bar: Callable | None = None
-
-
-# Backward-compat alias.  Existing code does ``from termapy.plugins import
-# EngineAPI`` and ``EngineAPI()`` -- both keep working.  External plugin
-# authors aren't expected to touch this, but the alias keeps the migration
-# free of import churn.
-EngineAPI = EngineHandle

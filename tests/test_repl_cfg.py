@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from termapy.plugins import EngineAPI, PluginContext
+from termapy.plugins import EngineHandle, PluginContext
 from termapy.repl import ReplEngine
 
 
@@ -27,7 +27,7 @@ def repl_env(tmp_path):
         output.append((text, color))
 
     engine = ReplEngine(cfg, str(config_path), write)
-    engine_api = EngineAPI(
+    engine_api = EngineHandle(
         prefix="/",
         plugins=engine._plugins,
         apply_cfg=engine._apply_cfg,

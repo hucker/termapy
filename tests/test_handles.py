@@ -25,7 +25,6 @@ import pytest
 
 from termapy.plugins import (
     CapabilitySet,
-    EngineAPI,
     EngineHandle,
     FilesystemHandle,
     IOHandle,
@@ -72,12 +71,6 @@ class TestHandlesAreAttached:
         assert isinstance(ctx.fs, FilesystemHandle), "ctx.fs is a FilesystemHandle"
         assert isinstance(ctx.ui, UIHandle), "ctx.ui is a UIHandle"
         assert isinstance(ctx.engine, EngineHandle), "ctx.engine is an EngineHandle"
-
-    def test_engine_api_alias_preserved(self):
-        # EngineAPI was the old name; the alias must keep working.
-        actual = EngineAPI is EngineHandle
-        expected = True
-        assert actual == expected, "EngineAPI alias points to EngineHandle"
 
 
 class TestIOHandle:

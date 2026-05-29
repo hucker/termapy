@@ -7,7 +7,7 @@ import pytest
 
 import re as _re
 
-from termapy.plugins import CapabilitySet, EngineAPI, PluginContext
+from termapy.plugins import CapabilitySet, EngineHandle, PluginContext
 from termapy.repl import ReplEngine
 
 
@@ -47,7 +47,7 @@ def repl_env(tmp_path, monkeypatch):
         output.append((text, color))
 
     engine = ReplEngine(cfg, str(config_path), write)
-    engine_api = EngineAPI(
+    engine_api = EngineHandle(
         prefix="/",
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,

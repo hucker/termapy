@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from termapy.capture import CaptureEngine
-from termapy.plugins import CmdResult, EngineAPI, PluginContext
+from termapy.plugins import CmdResult, EngineHandle, PluginContext
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
@@ -89,7 +89,7 @@ class TestBuildEngineApi:
         api = host._build_engine_api()
 
         # Assert
-        assert isinstance(api, EngineAPI), "returns EngineAPI instance"
+        assert isinstance(api, EngineHandle), "returns EngineHandle instance"
 
     def test_prefix_from_cfg(self, host):
         # Act

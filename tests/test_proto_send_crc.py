@@ -2,7 +2,7 @@
 
 import pytest
 
-from termapy.plugins import EngineAPI, PluginContext
+from termapy.plugins import EngineHandle, PluginContext
 from termapy.builtins.commands.proto import _cmd_send, _parse_send_algo
 from termapy.protocol import get_crc_registry
 
@@ -15,7 +15,7 @@ def send_env():
 
     from termapy.plugins import IOHandle, SerialHandle
     ctx = PluginContext(
-        engine=EngineAPI(),
+        engine=EngineHandle(),
         io=IOHandle(_write=lambda text, color=None: output.append((text, color))),
         serial=SerialHandle(
             is_connected=lambda: True,

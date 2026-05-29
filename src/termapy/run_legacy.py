@@ -12,10 +12,11 @@ wipes every ``run.*`` plugin entry.  Keeping the handler as a plain
 module lets both frontends register it as a sibling hook after
 ``/run`` is installed.
 
-The rename table is ``LEGACY_COMMANDS`` in ``termapy.legacy`` --
-populated automatically as each legacy plugin registers its
-forwarder, so a new rename only needs to add a ``make_forwarder(old,
-new)`` call in its plugin file and this scanner picks it up.
+The rename tables -- ``LEGACY_COMMANDS`` (simple name renames) and
+``LEGACY_REWRITES`` (args-aware) -- live in ``termapy.legacy`` and are
+populated at import.  To add a rename, add it there (a
+``LEGACY_FORWARDERS`` entry also gives it a runtime forwarder); this
+scanner reads the tables, so it picks the rename up automatically.
 """
 
 from __future__ import annotations

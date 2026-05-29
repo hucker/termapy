@@ -11,25 +11,20 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 ```text
 src/termapy/
 ├── builtins/
-│   ├── commands/           #              built-in REPL command plugins (one file per command family):
-│   │   ├── app.py               #   /app - inspect app-wide state and config
+│   ├── commands/           #              command plugins (hidden legacy aliases register from legacy.py, not files):
+│   │   ├── app.py               #   /app - app-wide state, config, and version (/app.ver)
 │   │   ├── cap.py               #   /cap - unified data capture (text/binary/struct/hex)
 │   │   ├── cfg.py               #   /cfg - show or change config values, project info
 │   │   ├── cls.py               #   /cls - clear the terminal screen
 │   │   ├── confirm.py           #   /confirm - Yes/Cancel dialog (scripts)
 │   │   ├── credits.py           #   /credits - print the acknowledgments page
-│   │   ├── echo.py              #   legacy alias -> /term.echo
 │   │   ├── edit.py              #   /edit - open project files in the system editor
 │   │   ├── env_var.py           #   $(env.NAME) expansion transform + command
-│   │   ├── eol.py               #   legacy alias -> /term.line_endings
 │   │   ├── exit.py              #   /exit - quit the application
 │   │   ├── find.py              #   /find - navigate scrollback matches (interactive)
 │   │   ├── grep.py              #   /grep - search scrollback for matching lines
 │   │   ├── help.py              #   /help - forgiving help with man-page detail view
-│   │   ├── line_no.py           #   legacy alias -> /term.line_no
-│   │   ├── log_dump.py          #   /log.dump - print the session log (all or N-line slice)
-│   │   ├── log_fingerprint.py   #   /log.fingerprint - write a session fingerprint to the log
-│   │   ├── log_show.py          #   /log.show - open the session log in the system viewer
+│   │   ├── log.py               #   /log.* - dump / fingerprint / show the session log
 │   │   ├── mcp.py               #   /mcp.* - MCP catalog, status, session log
 │   │   ├── os_cmd.py            #   /os (/!) - run a shell command
 │   │   ├── ping.py              #   /ping - measure serial response time
@@ -48,8 +43,6 @@ src/termapy/
 │   │   ├── stop.py              #   /stop - abort a running script
 │   │   ├── term.py              #   /term.* - terminal display / session toggles
 │   │   ├── var.py               #   /var - user-defined variables, $(NAME) syntax
-│   │   ├── ver.py               #   /ver - show version, check PyPI for updates
-│   │   ├── verbose.py           #   legacy alias -> /term.output
 │   │   ├── xfer.py              #   /xfer - file transfer (settings + XMODEM + YMODEM)
 │   │   ├── _cfg_icon.py         #   private handlers for /cfg.icon
 │   │   ├── _run_record.py       #   private handlers for /run.record

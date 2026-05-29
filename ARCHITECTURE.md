@@ -198,7 +198,12 @@ ctx.plugin_cfg(name)                          # per-plugin persistent config
 
 **Two-tier output.** `ctx.io.notify()` and `ctx.io.status_bar()` are the always-works fallbacks (toast in TUI, plain print in CLI). `ctx.ui.notify()` and `ctx.ui.status_bar()` are TUI-strict variants that require the matching capability. Plugin authors pick by intent: "just communicate" → `ctx.io`, "I need a real toast" → `ctx.ui`.
 
-External plugins use `PluginContext` only. `ctx.engine` is the intentional escape hatch for built-ins that need privileged engine internals (capture, proto debug, modem transfers); its surface may change.
+External plugins use `PluginContext` only. `ctx.engine` is the intentional escape hatch for built-ins; its surface may change. It actually serves **two jobs**:
+
+1. **Frontend escape hatch** — slots that genuinely need Textual / pyserial / threads. `confirm_save_cfg`, for instance, pops a TUI confirm modal — and is `None` in CLI/MCP, so the same `/cfg key value` falls back to `apply_cfg` and applies directly. Capture, proto-debug, the picker screens, and threaded script runs are here too.
+2. **Engine forwarders** — slots like `dispatch` / `apply_cfg` / `coerce_type` that just reach the live `ReplEngine`. They're *injected rather than imported* because `repl.py` imports the plugins package, so a plugin importing `repl` would be circular — there's no other way for a Textual-free, repl-free plugin to reach the running engine.
+
+The genuinely pure work (e.g. the JSON config write behind `confirm_save_cfg`) stays in pure modules like `config.py`; only the frontend-coupled and engine-reachable orchestration lives on the handle.
 
 #### Namespaces (`ctx.ns()`)
 

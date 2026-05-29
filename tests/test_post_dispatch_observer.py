@@ -52,13 +52,13 @@ class TestPostDispatchObserver:
             lambda line, result: seen.append((line, result.success))
         )
 
-        # Act -- /ver is a no-op safe command that succeeds without
+        # Act -- /app.ver is a no-op safe command that succeeds without
         # requiring any capabilities, so the test engine's bare context
         # can dispatch it cleanly.
-        engine.dispatch("ver")
+        engine.dispatch("app.ver")
 
         # Assert
-        assert seen == [("ver", True)], (
+        assert seen == [("app.ver", True)], (
             f"observer should fire with (line, success=True), got {seen}"
         )
 
@@ -87,11 +87,11 @@ class TestPostDispatchObserver:
         engine.add_post_dispatch_observer(lambda line, _r: b.append(line))
 
         # Act
-        engine.dispatch("ver")
+        engine.dispatch("app.ver")
 
         # Assert
-        assert a == ["ver"], "first observer fired"
-        assert b == ["ver"], "second observer fired"
+        assert a == ["app.ver"], "first observer fired"
+        assert b == ["app.ver"], "second observer fired"
 
     def test_observer_exception_does_not_break_dispatch(self, engine):
         # Arrange -- one bad observer, one good observer registered after.
@@ -104,12 +104,12 @@ class TestPostDispatchObserver:
         engine.add_post_dispatch_observer(lambda line, _r: good.append(line))
 
         # Act -- dispatch must not raise.
-        result = engine.dispatch("ver")
+        result = engine.dispatch("app.ver")
 
         # Assert -- dispatch returned cleanly AND the second observer
         # still fired despite the first one exploding.
         assert result.success, "dispatch completed despite broken observer"
-        assert good == ["ver"], (
+        assert good == ["app.ver"], (
             "later observers still fire after an earlier one explodes"
         )
 
@@ -121,12 +121,12 @@ class TestPostDispatchObserver:
         )
 
         # Act
-        engine.dispatch("ver")
+        engine.dispatch("app.ver")
         engine.remove_post_dispatch_observer(token)
-        engine.dispatch("ver")
+        engine.dispatch("app.ver")
 
         # Assert -- only the first dispatch fired the observer.
-        assert seen == ["ver"], "observer removed before second dispatch"
+        assert seen == ["app.ver"], "observer removed before second dispatch"
 
     def test_remove_observer_is_idempotent(self, engine):
         # Arrange / Act -- removing an unregistered observer must not raise.
@@ -134,7 +134,7 @@ class TestPostDispatchObserver:
 
         # Assert -- no exception means the test passes.  Sanity-check
         # the engine is still operable.
-        result = engine.dispatch("ver")
+        result = engine.dispatch("app.ver")
         assert result.success, "engine still works after spurious remove"
 
     def test_observer_fires_for_empty_line(self, engine):

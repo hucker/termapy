@@ -176,6 +176,80 @@ def _handler_config_edit(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
+# ── /app.ver ──────────────────────────────────────────────────────────────────
+
+
+def _installed_version() -> str:
+    """Return the installed termapy version, or 'unknown' for source checkouts.
+
+    PackageNotFoundError fires when termapy is being run from a git clone
+    without ``pip install .`` -- common during development.  That's the
+    only exception this path can legitimately raise.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("termapy")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _handler_ver(ctx: PluginContext, args: str) -> CmdResult:
+    """Print the installed termapy version."""
+    ver = _installed_version()
+    ver_str = f"termapy v{ver}"
+    ctx.io.result(ver_str)
+    return CmdResult.ok(value=ver_str)
+
+
+def _handler_ver_latest(ctx: PluginContext, args: str) -> CmdResult:
+    """Return just the latest termapy version on PyPI (bare data getter).
+
+    Symmetric with ``/app.ver``: that reports the LOCAL installed
+    version, this reports the REMOTE PyPI version.  Bypasses the 7-day
+    throttle used by the background banner -- the user typed the
+    command, they want a fresh answer.
+    """
+    from termapy.update_check import check_now
+
+    installed = _installed_version()
+    latest, _ = check_now(installed if installed != "unknown" else "0")
+    if latest is None:
+        return CmdResult.fail(msg="Could not reach PyPI.")
+    ctx.io.result(latest)
+    return CmdResult.ok(value=latest)
+
+
+def _handler_ver_info(ctx: PluginContext, args: str) -> CmdResult:
+    """Verbose human-readable installed-vs-PyPI comparison.
+
+    Matches the ``/X.info`` convention (/cfg.info, /port.info, etc.).
+    Bypasses the 7-day throttle used by the background banner.
+    """
+    from termapy.update_check import check_now
+
+    installed = _installed_version()
+    if installed == "unknown":
+        return CmdResult.fail(
+            msg="Cannot check for updates: termapy is not installed "
+            "(running from a source checkout?)."
+        )
+
+    latest, outdated = check_now(installed)
+    if latest is None:
+        return CmdResult.fail(msg="Could not reach PyPI.")
+
+    if outdated:
+        line = (
+            f"installed v{installed}  ->  latest v{latest}  "
+            f"(update available)"
+        )
+    else:
+        line = f"installed v{installed}  (up to date; latest v{latest})"
+    ctx.io.result(line)
+    return CmdResult.ok(value=latest)
+
+
 _APP_LONG_HELP = """\
 Inspect app-wide state and config.
 
@@ -187,6 +261,9 @@ Inspect app-wide state and config.
   {prefix}app.config           print config.json path
   {prefix}app.config.dump      print config.json contents
   {prefix}app.config.edit      open config.json in the system editor
+  {prefix}app.ver              print termapy version (installed)
+  {prefix}app.ver.latest       latest version on PyPI (bare value)
+  {prefix}app.ver.info         installed-vs-PyPI comparison
 
 state.json is app-written (PyPI update-check timestamps, caches);
 .edit is exposed for symmetry but hand-edits usually get silently
@@ -247,6 +324,47 @@ COMMAND = Command(
                     help="Open config.json in the system editor.",
                     handler=_handler_config_edit,
                     needs=CapabilitySet(gui_apps=True),
+                ),
+            },
+        ),
+        "ver": Command(
+            help="Print termapy version (installed).",
+            handler=_handler_ver,
+            sub_commands={
+                "latest": Command(
+                    help="Print the latest termapy version on PyPI (bare value).",
+                    long_help=(
+                        "Fetches the latest termapy version from PyPI and "
+                        "prints just the version string -- the data-getter "
+                        "symmetric to /app.ver (which reports installed).  "
+                        "Set as CmdResult.value so scripts can capture it "
+                        "with $(LATEST) <- /app.ver.latest.\n"
+                        "\n"
+                        "Bypasses the 7-day throttle used by the background "
+                        "banner -- this always hits PyPI fresh.  Network "
+                        "failure returns an error.  Times out after 2 seconds.\n"
+                        "\n"
+                        "See /app.ver.info for a verbose installed-vs-PyPI compare."
+                    ),
+                    handler=_handler_ver_latest,
+                ),
+                "info": Command(
+                    help="Print installed-vs-PyPI version comparison.",
+                    long_help=(
+                        "Fetches the latest termapy version from PyPI and "
+                        "compares it to the installed version.  Prints a "
+                        "human-readable line: either 'up to date' or "
+                        "'update available' along with both version numbers.\n"
+                        "\n"
+                        "Bypasses the 7-day throttle used by the background "
+                        "banner -- this always hits PyPI fresh.  Network "
+                        "failure returns an error.  Times out after 2 seconds.\n"
+                        "\n"
+                        "Sets CmdResult.value to the latest PyPI version.  "
+                        "See /app.ver.latest for just the bare PyPI value, or "
+                        "/app.ver for just the installed version."
+                    ),
+                    handler=_handler_ver_info,
                 ),
             },
         ),

@@ -190,6 +190,27 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
         _verbose_forwarder,
         CapabilitySet(interactive=True),
     ),
+    LegacyForwarder(
+        "ver",
+        "",
+        "Legacy alias for /app.ver (installed version).",
+        make_forwarder("ver", "app.ver"),
+        CapabilitySet(),
+    ),
+    LegacyForwarder(
+        "ver.latest",
+        "",
+        "Legacy alias for /app.ver.latest.",
+        make_forwarder("ver.latest", "app.ver.latest"),
+        CapabilitySet(),
+    ),
+    LegacyForwarder(
+        "ver.info",
+        "",
+        "Legacy alias for /app.ver.info.",
+        make_forwarder("ver.info", "app.ver.info"),
+        CapabilitySet(),
+    ),
 ]
 
 # Args-aware verbose forwarding + the rename-only entries that used to

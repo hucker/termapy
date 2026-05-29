@@ -98,7 +98,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 22,
+    "config_version": 23,
     "default_ui": "tui",
     "title": "Demo Device",
     "border_color": "",
@@ -723,6 +723,7 @@ demo> /help.plugin
   /find       Navigate scrollback matches with an interactive find bar.
   /grep       Search the scrollback for lines matching a pattern (case-insensitive regex).
   /help       Print the command landscape or look up a specific command.
+  /log        Session log: print, fingerprint, or open it.
   /mcp        MCP catalog and status (Model Context Protocol).
   /os         Run a shell command and show output (10s timeout). e.g. /os dir
   /ping       Send a command and measure response time.
@@ -740,7 +741,6 @@ demo> /help.plugin
   /stop       Abort a running script.
   /term       Terminal display / session toggles (echo, line_no, timestamps, ...).
   /var        List user variables, or show one by name.
-  /ver        Print termapy version (installed).
   /xfer       File transfer: settings and XMODEM / YMODEM send and receive.
 
 -- Script Commands (.run files only) --

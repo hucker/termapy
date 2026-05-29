@@ -86,18 +86,18 @@ class TestStartStop:
 
         # Act
         start = eng.dispatch("run.record session_a")
-        eng.dispatch("ver")
-        eng.dispatch("ver")
+        eng.dispatch("app.ver")
+        eng.dispatch("app.ver")
         stop = eng.dispatch("run.record")
 
         # Assert
         assert start.success, "start succeeded"
         assert stop.success, "stop succeeded"
         recorded = (scripts_dir / "session_a.run").read_text(encoding="utf-8")
-        # Both /ver lines were dispatched successfully.  Bare /run.record
-        # at start AND stop should NOT appear.
-        assert recorded == "ver\nver\n", (
-            f"expected two ver lines, got: {recorded!r}"
+        # Both /app.ver lines were dispatched successfully.  Bare
+        # /run.record at start AND stop should NOT appear.
+        assert recorded == "app.ver\napp.ver\n", (
+            f"expected two app.ver lines, got: {recorded!r}"
         )
 
     def test_failed_dispatch_is_skipped(self, env):
@@ -107,13 +107,13 @@ class TestStartStop:
         # Act
         eng.dispatch("run.record session_b")
         eng.dispatch("definitely_not_a_command")  # unknown -> fail
-        eng.dispatch("ver")  # success
+        eng.dispatch("app.ver")  # success
         eng.dispatch("run.record")  # stop
 
         # Assert
         recorded = (scripts_dir / "session_b.run").read_text(encoding="utf-8")
-        assert recorded == "ver\n", (
-            "failed dispatch should be skipped; only successful /ver kept"
+        assert recorded == "app.ver\n", (
+            "failed dispatch should be skipped; only successful /app.ver kept"
         )
 
     def test_run_record_itself_never_recorded(self, env):
@@ -123,9 +123,9 @@ class TestStartStop:
         # Act -- mix /run.record forms to verify the filter catches
         # all variants.
         eng.dispatch("run.record session_c")
-        eng.dispatch("ver")
+        eng.dispatch("app.ver")
         eng.dispatch("  run.record   foo  ")  # weird whitespace
-        eng.dispatch("ver")
+        eng.dispatch("app.ver")
         eng.dispatch("run.record")
 
         # Assert
@@ -133,7 +133,7 @@ class TestStartStop:
         assert "run.record" not in recorded, (
             "recorder must filter out /run.record in every form"
         )
-        assert recorded.count("ver\n") == 2, "both /ver lines preserved"
+        assert recorded.count("app.ver\n") == 2, "both /app.ver lines preserved"
 
     def test_stop_message_reports_count_and_path(self, env):
         # Arrange
@@ -141,9 +141,9 @@ class TestStartStop:
 
         # Act
         eng.dispatch("run.record session_d")
-        eng.dispatch("ver")
-        eng.dispatch("ver")
-        eng.dispatch("ver")
+        eng.dispatch("app.ver")
+        eng.dispatch("app.ver")
+        eng.dispatch("app.ver")
         eng.dispatch("run.record")
 
         # Assert
@@ -261,8 +261,8 @@ class TestDurability:
 
         # Act
         eng.dispatch("run.record live_check")
-        eng.dispatch("ver")
-        eng.dispatch("ver")
+        eng.dispatch("app.ver")
+        eng.dispatch("app.ver")
 
         # Read the file mid-recording.  Without flush this would
         # likely be empty.
@@ -275,7 +275,7 @@ class TestDurability:
         eng.dispatch("run.record")
 
         # Assert
-        assert on_disk == "ver\nver\n", (
+        assert on_disk == "app.ver\napp.ver\n", (
             f"both lines flushed to disk before stop, got: {on_disk!r}"
         )
 

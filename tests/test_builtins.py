@@ -2836,3 +2836,60 @@ class TestLogDump:
         # Assert
         assert not result.success, "non-int N rejected"
         assert "Usage" in result.error, "usage shown"
+
+
+# -- /term.eol ------------------------------------------------------------
+
+
+class TestTermEol:
+    """/term.eol shows/sets the sent line ending via named tokens."""
+
+    def test_bare_reports_default_cr(self, repl_env):
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.eol")
+
+        # Assert
+        assert result.success, "bare /term.eol succeeds"
+        assert result.value == "cr", "default line_ending \\r reports as cr"
+
+    def test_set_crlf_persists_and_reports(self, repl_env):
+        # Arrange
+        engine, cfg, _path, _output = repl_env
+
+        # Act -- set, then query
+        set_result = engine.dispatch("term.eol crlf")
+        show_result = engine.dispatch("term.eol")
+
+        # Assert
+        assert set_result.success, "set crlf succeeds"
+        actual = cfg["line_ending"]
+        assert actual == "\r\n", "crlf token sets line_ending to CRLF"
+        assert show_result.value == "crlf", "subsequent query reports crlf"
+
+    @pytest.mark.parametrize(
+        "token,expected", [("cr", "\r"), ("lf", "\n"), ("none", "")]
+    )
+    def test_token_maps_to_line_ending(self, repl_env, token, expected):
+        # Arrange
+        engine, cfg, _path, _output = repl_env
+
+        # Act
+        engine.dispatch(f"term.eol {token}")
+
+        # Assert
+        actual = cfg["line_ending"]
+        assert actual == expected, f"{token} -> {expected!r}"
+
+    def test_unknown_token_rejected(self, repl_env):
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.eol bogus")
+
+        # Assert
+        assert not result.success, "unknown token rejected"
+        assert "bogus" in result.error, "error names the bad token"

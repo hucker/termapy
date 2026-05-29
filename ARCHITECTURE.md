@@ -203,10 +203,12 @@ ctx.prefix                                    # active REPL command prefix (deri
 
 External plugins use `PluginContext` only. `ctx.internal` is the intentional escape hatch for built-ins; its surface may change. It actually serves **two jobs**:
 
-1. **Frontend escape hatch** — slots that genuinely need Textual / pyserial / threads. `confirm_save_cfg`, for instance, pops a TUI confirm modal — and is `None` in CLI/MCP, so the same `/cfg key value` falls back to `apply_cfg` and applies directly. Capture, proto-debug, the picker screens, and threaded script runs are here too.
+1. **Frontend escape hatch** — slots that genuinely need Textual or threads. `confirm_save_cfg`, for instance, pops a TUI confirm modal — and is `None` in CLI/MCP, so the same `/cfg key value` falls back to `apply_cfg` and applies directly. Capture, proto-debug, the picker screens, and threaded script runs are here too.
 2. **Engine forwarders** — slots like `dispatch` / `apply_cfg` / `in_script` that just reach the live `ReplEngine`. They're *injected rather than imported* because `repl.py` imports the plugins package, so a plugin importing `repl` would be circular — there's no other way for a Textual-free, repl-free plugin to reach the running engine.
 
 The genuinely pure work (e.g. the JSON config write behind `confirm_save_cfg`) stays in pure modules like `config.py`; only the frontend-coupled and engine-reachable orchestration lives on the handle.
+
+What remains on `ctx.internal` is the irreducible core, not the dregs of an unfinished cleanup. Members that had a real home already left: pure data (`prefix` → the `ctx.prefix` property, config-value coercion → `scripting`) and serial lifecycle (`connect` / `disconnect` / `update_port` / `apply_port_effects` / `rx_queue` → `ctx.serial`). The escape-hatch slots that stay are *per-command TUI screens* — `confirm_save_cfg` (the `CfgConfirm` old→new dialog), `open_proto_debug`, `open_picker`, `update_find_bar`. Each is used by a single command and is a no-op outside the TUI; promoting them to `ctx.ui` would clutter that clean, general API with one-off methods, so they live on the explicitly-unstable handle instead. The engine forwarders likewise can't move without breaking the `plugins ↔ repl` import cycle — the most they could become is one typed engine reference, which is a larger change than the cleanup warranted.
 
 #### Namespaces (`ctx.ns()`)
 

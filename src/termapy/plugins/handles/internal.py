@@ -44,6 +44,16 @@ class InternalHandle:
     instead; anything that could live in a dict was moved off this handle
     on purpose.  External plugins should not use ``ctx.internal`` -- it is
     unstable and may change between versions.
+
+    What's left is the irreducible core, deliberately not the leftovers
+    of a half-finished cleanup.  Members with a real home already moved:
+    pure data (``prefix`` -> ``ctx.prefix``, type coercion ->
+    ``scripting``) and serial lifecycle (``connect`` / ``disconnect`` /
+    ... -> ``ctx.serial``).  The escape-hatch slots that remain are
+    per-command TUI screens (one command each, no-ops outside the TUI):
+    promoting them to ``ctx.ui`` would pollute that clean, general API
+    with one-off methods, so they stay here where "unstable, built-ins
+    only" is the contract.
     """
 
     # ═══ Engine forwarders ════════════════════════════════════════════
@@ -72,9 +82,13 @@ class InternalHandle:
     is_recording: Callable | None = None  # () -> bool; TUI Record button reads this
 
     # ═══ Frontend escape hatch ════════════════════════════════════════
-    # Genuinely need Textual / pyserial / threads, which the plugin layer
-    # can't import.  Wired by the host; several are None in CLI/MCP, so the
-    # same command adapts per frontend.
+    # Genuinely need Textual or threads, which the plugin layer can't
+    # import.  Wired by the host; several are None in CLI/MCP, so the
+    # same command adapts per frontend.  These are per-command screens
+    # (proto-debug, the pickers, the find bar) -- they stay here rather
+    # than on ctx.ui because each is used by exactly one command and is a
+    # no-op everywhere else; ctx.ui is the clean general TUI API and
+    # shouldn't collect one-off methods.
 
     # confirm_save_cfg(key, val): ask the frontend to confirm (TUI modal),
     # then apply on Yes.  None in CLI/MCP -> caller applies directly via

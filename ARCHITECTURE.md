@@ -11,7 +11,50 @@ Termapy is built on its own plugin system. Built-in commands (`/help`, `/cfg`, `
 ```text
 src/termapy/
 ├── builtins/
-│   ├── commands/           #              36 built-in REPL command plugins
+│   ├── commands/           #              built-in REPL command plugins (one file per command family):
+│   │   ├── app.py               #   /app - inspect app-wide state and config
+│   │   ├── cap.py               #   /cap - unified data capture (text/binary/struct/hex)
+│   │   ├── cfg.py               #   /cfg - show or change config values, project info
+│   │   ├── cls.py               #   /cls - clear the terminal screen
+│   │   ├── confirm.py           #   /confirm - Yes/Cancel dialog (scripts)
+│   │   ├── credits.py           #   /credits - print the acknowledgments page
+│   │   ├── echo.py              #   legacy alias -> /term.echo
+│   │   ├── edit.py              #   /edit - open project files in the system editor
+│   │   ├── env_var.py           #   $(env.NAME) expansion transform + command
+│   │   ├── eol.py               #   legacy alias -> /term.line_endings
+│   │   ├── exit.py              #   /exit - quit the application
+│   │   ├── find.py              #   /find - navigate scrollback matches (interactive)
+│   │   ├── grep.py              #   /grep - search scrollback for matching lines
+│   │   ├── help.py              #   /help - forgiving help with man-page detail view
+│   │   ├── line_no.py           #   legacy alias -> /term.line_no
+│   │   ├── log_dump.py          #   /log.dump - print the session log (all or N-line slice)
+│   │   ├── log_fingerprint.py   #   /log.fingerprint - write a session fingerprint to the log
+│   │   ├── log_show.py          #   /log.show - open the session log in the system viewer
+│   │   ├── mcp.py               #   /mcp.* - MCP catalog, status, session log
+│   │   ├── os_cmd.py            #   /os (/!) - run a shell command
+│   │   ├── ping.py              #   /ping - measure serial response time
+│   │   ├── plugin_folder.py     #   /plugin - plugin folder operations
+│   │   ├── port.py              #   /port - serial port list/connect/configure/signals
+│   │   ├── print.py             #   /print - print plain or Rich-markup text
+│   │   ├── profile_cmd.py       #   /profile.* - device-profile commands
+│   │   ├── proto.py             #   /proto - binary protocol send/expect/crc testing
+│   │   ├── repeat.py            #   /repeat - repeat a command N times
+│   │   ├── run.py               #   /run - execute .run scripts from any host
+│   │   ├── run_edit.py          #   /run.edit - open .run scripts in the editor
+│   │   ├── search.py            #   /search - Google-style deep command search
+│   │   ├── seq.py               #   /seq - show or reset sequence counters
+│   │   ├── show.py              #   /show - show file contents
+│   │   ├── ss.py                #   /ss - screenshot commands (svg, txt + folder ops)
+│   │   ├── stop.py              #   /stop - abort a running script
+│   │   ├── term.py              #   /term.* - terminal display / session toggles
+│   │   ├── var.py               #   /var - user-defined variables, $(NAME) syntax
+│   │   ├── ver.py               #   /ver - show version, check PyPI for updates
+│   │   ├── verbose.py           #   legacy alias -> /term.output
+│   │   ├── xfer.py              #   /xfer - file transfer (settings + XMODEM + YMODEM)
+│   │   ├── _cfg_icon.py         #   private handlers for /cfg.icon
+│   │   ├── _run_record.py       #   private handlers for /run.record
+│   │   ├── _xmodem_handlers.py  #   XMODEM handlers (private; under /xfer)
+│   │   └── _ymodem_handlers.py  #   YMODEM handlers (private; under /xfer)
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)
@@ -108,6 +151,14 @@ The subcommand tree is flattened at registration into dotted names (`cfg.auto`, 
 ### PluginContext
 
 Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **capability handles**, each owning one domain:
+
+- **`ctx.io`** — text in/out: the level-gated `result` / `output` / `status` channels (and their Rich-markup variants) plus the always-works `notify` / `status_bar` / `log` fallbacks.
+- **`ctx.serial`** — the serial connection: state (`is_connected`, `port`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`), and passive `rx` / `tx` byte observers.
+- **`ctx.fs`** — the filesystem layer: the config-dir folders (`ss_dir`, `scripts_dir`, `proto_dir`, `cap_dir`) and `open_file()`.
+- **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
+- **`ctx.engine`** — the intentional escape hatch: an internal, unstable SPI for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
+
+The remaining members (`ctx.cfg`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.wait_for_match`) sit directly on the context. The full surface, by handle:
 
 ```text
 ctx.cfg, ctx.config_path                      # plain config (read-only mapping + path)
@@ -322,6 +373,12 @@ There is deliberately no `Plugin` base class. A plugin is a module that exports 
 | `/delay`             | `set_timer()` (non-blocking) | `time.sleep()` + progress bar |
 
 CLI-specific features: readline tab completion, shared command history, `/color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer), no `/edit.cfg` (no config editor modal).
+
+## MCP mode (`mcp/server.py`)
+
+`termapy --mcp` runs a third frontend (`MCPHost`): an MCP stdio server that exposes the same `ReplEngine`, `PluginContext`, and built-in plugins to an LLM client rather than to a human. Like CLI mode it has no Textual, so the `ctx.ui.*` handle raises `MissingCapability`; everything else (serial I/O, plugins, scripting) is the same engine the TUI uses. This is why MCP is a first-class audience for the project, not a bolt-on: an LLM drives the device through the identical command pipeline a support engineer types into.
+
+A client discovers what a device can do from a JSON **catalog** (`mcp/catalog.py`) — the command list plus device-state resources — and invokes commands through a single `run_command` tool that dispatches them down the normal pipeline. When a v2 device **profile** is loaded (`profile/`), requests and responses are *shaped* by the profile (typed arguments in, structured fields out) instead of returned as raw text. Each cfg-with-profile is served by its own `--mcp` process; there is no hot-swap, so a client config lists one entry per device. The session log is inspectable inline with `/mcp.log.dump`. For the catalog schema, profile shaping, and the destructive-action approval gate, see `mcp/catalog.py`, `mcp/server.py`, and `help/authoring-profiles.md`.
 
 ## Key data flows
 

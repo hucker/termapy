@@ -14,7 +14,7 @@ The ``register_tui_hooks(app)`` function wraps each handler in a
 register_hook contract is preserved.
 
 The cfg-confirm callback (``_hook_cfg_confirm``) is NOT here -- it
-isn't a REPL hook but an engine.save_cfg callback; it stays on
+isn't a REPL hook but an engine.confirm_save_cfg callback; it stays on
 ``SerialTerminal`` next to the other engine wiring in
 ``_build_context``.
 """

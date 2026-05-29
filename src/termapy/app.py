@@ -1122,7 +1122,7 @@ class SerialTerminal(TerminalHost, App):
         """Build PluginContext and EngineAPI, wire to REPL."""
         engine = self._build_engine_api()
         # TUI-specific EngineAPI extensions
-        engine.save_cfg = self._hook_cfg_confirm
+        engine.confirm_save_cfg = self._hook_cfg_confirm
         engine.open_proto_debug = lambda path, script: self.call_later(
             self._open_proto_debug, path, script
         )

@@ -89,11 +89,11 @@ class TestCfgChange:
         engine.dispatch("cfg echo_input maybe")
         assert output[-1][1] == "red", "error shown in red"
 
-    def test_calls_save_cfg_hook(self, repl_env):
+    def test_calls_confirm_save_cfg_hook(self, repl_env):
         # Arrange
         engine, _, _, output = repl_env
         called_with = []
-        engine.ctx.engine.save_cfg = lambda k, v: called_with.append((k, v))
+        engine.ctx.engine.confirm_save_cfg = lambda k, v: called_with.append((k, v))
 
         # Act
         engine.dispatch("cfg baud_rate 9600")

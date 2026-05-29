@@ -1,7 +1,7 @@
-"""EngineHandle -- the privileged internal SPI for built-in plugins.
+"""EngineHandle -- the privileged internal interface for built-in plugins.
 
 This is the renamed ``EngineAPI``.  Same shape, same fields, same usage
-(``ctx.engine.<x>``).  The rename emphasises that it's *one of* the
+(``ctx.engine.<x>``).  The rename emphasizes that it's *one of* the
 namespaced handles on ``PluginContext``, not a parallel concept.
 
 External plugin authors should not reach for this; it's intentionally
@@ -22,86 +22,86 @@ from termapy.defaults import DEFAULT_CMD_PREFIX
 
 @dataclass
 class EngineHandle:
-    """Privileged escape hatch exposed to built-in plugins only.
+    """Privileged handle exposed to built-in plugins via ``ctx.engine``.
 
-    Holds Textual, threading, and pyserial handles that are genuinely
-    frontend-specific and cannot be generified: the plugin registry,
-    config apply hooks, port connect/disconnect, capture lifecycle,
-    proto debug screen, the raw RX queue, cancel/stop events, etc.
+    It serves two distinct jobs, grouped below:
 
-    For session state (flags, counters, target commands, per-plugin
-    scratch space) use ``ctx.ns()`` instead.  That is the supported API
-    for both built-in and external plugins.  Anything that could live in
-    a plain dict has been migrated off ``EngineHandle`` on purpose --
-    what's left is the set of things that must remain frontend-coupled.
+    1. **Frontend escape hatch** -- slots that genuinely need Textual,
+       pyserial, or threads (a confirm modal, port connect/disconnect,
+       capture, the proto-debug and picker screens, the @work script run).
+       The plugin layer must not import those, so the host injects them.
+       Several are ``None`` in CLI/MCP, so the same command adapts per
+       frontend.
 
-    Access from built-in plugins via ``ctx.engine``.  External plugins
-    should not use this; it is unstable and may change between versions.
+    2. **Engine forwarders** -- slots that just forward to the live
+       ``ReplEngine``.  They're injected rather than imported because
+       ``repl.py`` imports the plugins package, so a plugin importing
+       ``repl`` would be circular.  Pure engine logic the plugin can't
+       reach any other way -- not frontend-coupled.
+
+    For plain session state (flags, counters, scratch) use ``ctx.ns()``
+    instead; anything that could live in a dict was moved off this handle
+    on purpose.  External plugins should not use ``ctx.engine`` -- it is
+    unstable and may change between versions.
     """
+
+    # ═══ Engine forwarders ════════════════════════════════════════════
+    # Forward to the live ReplEngine.  Injected (not imported) because
+    # repl.py imports the plugins package -- a plugin importing repl would
+    # be circular.  Nothing here is frontend-coupled.
 
     prefix: str = DEFAULT_CMD_PREFIX
     plugins: dict = field(default_factory=dict)
-    in_script: Callable = lambda: False
-    script_stop: Callable = lambda: None
-    # Internal dispatch: run a REPL command through the plugin pipeline
-    # (capability gates, flag parsing, etc.) without the serial-output
-    # sugar that ``ctx.dispatch`` adds via dispatch_full.  Used by legacy
-    # forwarders (/echo -> /term.echo) where going back out to
-    # dispatch_full would misinterpret the un-prefixed target as a
-    # serial command.
-    dispatch: Callable = lambda _line: None
-    save_cfg: Callable | None = None  # (key, val) -> confirm dialog; None = no confirm
-    apply_cfg: Callable = lambda key, val: None
-    coerce_type: Callable = lambda val, existing: val
-    open_proto_debug: Callable = lambda path, script: None
-    start_capture: Callable = lambda **kw: None
-    stop_capture: Callable = lambda: None
     directives: list = field(default_factory=list)
+
+    # Bare REPL dispatch through the plugin pipeline (capability gates,
+    # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  Legacy
+    # forwarders (/echo -> /term.echo) use this -- dispatch_full would
+    # misread the un-prefixed target as a serial send.
+    dispatch: Callable = lambda _line: None
+
+    apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog
+    coerce_type: Callable = lambda val, existing: val
+    in_script: Callable = lambda: False
+    start_script: Callable | None = None  # (args) -> (Path | None, CmdResult)
+    # script_stop()/script_stop_event: signal the engine's script runner
+    # to abort (a threading.Event it owns); reached here, not imported.
+    script_stop: Callable = lambda: None
+    script_stop_event: Any = None
+    add_post_dispatch_observer: Callable | None = None  # (cb) -> token
+    remove_post_dispatch_observer: Callable | None = None  # (token) -> None
+    is_recording: Callable | None = None  # () -> bool; TUI Record button reads this
+
+    # ═══ Frontend escape hatch ════════════════════════════════════════
+    # Genuinely need Textual / pyserial / threads, which the plugin layer
+    # can't import.  Wired by the host; several are None in CLI/MCP, so the
+    # same command adapts per frontend.
+
+    # confirm_save_cfg(key, val): ask the frontend to confirm (TUI modal),
+    # then apply on Yes.  None in CLI/MCP -> caller applies directly via
+    # apply_cfg (above).  The pure JSON write lives in config.py.
+    confirm_save_cfg: Callable | None = None
+
     connect: Callable = lambda port=None: None
     disconnect: Callable = lambda: None
     update_port: Callable = lambda name: None
-    apply_port_effects: Callable = lambda effects: None
-    # Load a named config file, disconnecting + reconnecting as needed.
-    # Name is resolved via config_resolve.resolve_config, so a bare
-    # "myproj" or a full path both work.  Returns a ``CmdResult`` so
-    # the caller can surface success/failure via their frontend.
+    apply_port_effects: Callable = lambda effects: None  # apply serial port settings
+    # load_config(name): resolve name, disconnect + reconnect; -> CmdResult.
     load_config: Callable = lambda name: None
     rx_queue: Any = None  # queue.Queue[bytes] - raw RX for protocol handlers
-    xfer_cancel: Any = None  # threading.Event - set by Escape to cancel transfers
-    script_stop_event: Any = None  # threading.Event - set by /stop to abort scripts
-    # Open the picker/dialog associated with a top-level command name
-    # ("cfg", "run", "proto").  TUI installs this in _register_tui_hooks;
-    # CLI leaves it None so plugin handlers fall through to their existing
-    # bare-args behaviour (JSON dump, script list, long-help, etc.).
-    open_picker: Callable | None = None  # (name: str) -> CmdResult
-    # Script-runner callbacks wired by ``TerminalHost._build_context``.
-    # ``start_script(args)`` resolves a filename through the REPL's
-    # script-path logic; ``run_script(path, profile, verbose)`` actually
-    # executes it (synchronously in CLI/MCP, threaded via Textual @work
-    # in TUI -- subclass overrides on the host class, not here).  The
-    # ``/run`` built-in handler reaches for both via this handle so
-    # one builtin covers all three hosts.
-    start_script: Callable | None = None  # (args: str) -> tuple[Path|None, CmdResult]
-    run_script: Callable | None = None    # (path, profile=False, verbose=False) -> None
-    # Post-dispatch observer plumbing for /run.record and any future
-    # feature that wants the same stream (audit log, repeat-last,
-    # MCP event stream).  Wired by TerminalHost._build_engine_api to
-    # the underlying ReplEngine methods of the same name.
-    add_post_dispatch_observer: Callable | None = None
-    # (cb: Callable[[str, CmdResult], None]) -> token
-    remove_post_dispatch_observer: Callable | None = None
-    # (token: Callable[[str, CmdResult], None]) -> None
-    # ``True`` if /run.record is currently active.  Source of truth
-    # is the recorder module's module-level state; this callable just
-    # forwards.  Used by the TUI Record button to decide which form
-    # of /run.record to dispatch (start vs stop) without holding its
-    # own state.
-    is_recording: Callable | None = None  # () -> bool
-    # Refresh the TUI's FindBar from the /find plugin's state.  The
-    # plugin computes search results, then calls this with a dict
-    # snapshot (or None to hide the bar) and the TUI re-renders.
-    # CLI/MCP hosts leave this None so /find no-ops there.
-    update_find_bar: Callable | None = None  # (state: dict | None) -> None
+
+    start_capture: Callable = lambda **kw: None
+    stop_capture: Callable = lambda: None
+    open_proto_debug: Callable = lambda path, script: None  # TUI: ProtoDebugScreen
+
+    run_script: Callable | None = None  # (path, profile, verbose); TUI via @work
+
+    xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
+
+    # open_picker(name "cfg"/"run"/"proto") -> CmdResult; opens the dialog.
+    open_picker: Callable | None = None
+    # update_find_bar(state dict | None) -> None; /find re-renders the FindBar.
+    update_find_bar: Callable | None = None
 
 
 # Backward-compat alias.  Existing code does ``from termapy.plugins import

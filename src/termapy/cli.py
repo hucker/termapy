@@ -268,7 +268,7 @@ class CLITerminal(TerminalHost):
     # -- Context and hooks ----------------------------------------------------
 
     def _setup_context(self) -> None:
-        """Build PluginContext and EngineAPI, wire to REPL."""
+        """Build PluginContext and EngineHandle, wire to REPL."""
         engine_api = self._build_engine_api()
 
         self.ctx = self._build_plugin_context(engine_api)

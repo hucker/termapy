@@ -22,7 +22,7 @@ All paths relative to `src/termapy/`.
 - `plugins.py` and `scripting.py` — zero Textual/pyserial deps
 - `repl.py` bridges plugins and app via `PluginContext` callbacks
 - Load order: builtins → global → per-config → app hooks (later overrides earlier)
-- External plugins use `PluginContext` only. `EngineAPI` is internal/unstable.
+- External plugins use `PluginContext` only. `EngineHandle` (`ctx.engine`) is internal/unstable.
 
 ## Config
 

@@ -1119,9 +1119,9 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _build_context(self) -> None:
-        """Build PluginContext and EngineAPI, wire to REPL."""
+        """Build PluginContext and EngineHandle, wire to REPL."""
         engine = self._build_engine_api()
-        # TUI-specific EngineAPI extensions
+        # TUI-specific EngineHandle extensions
         engine.confirm_save_cfg = self._hook_cfg_confirm
         engine.open_proto_debug = lambda path, script: self.call_later(
             self._open_proto_debug, path, script

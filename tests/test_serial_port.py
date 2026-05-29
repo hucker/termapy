@@ -289,6 +289,65 @@ class TestSerialReaderIdleFlush:
         assert result.lines == [], "not flushed - waiting for escape to complete"
 
 
+class TestSerialReaderUtf8Split:
+    """A multi-byte char split across reads decodes once, not as two U+FFFD."""
+
+    def test_two_byte_char_split_across_reads(self):
+        # Arrange -- 'é' is 0xC3 0xA9; split between the two reads.
+        reader = SerialReader()
+
+        # Act
+        result1 = reader.process(b"caf\xc3")
+        result2 = reader.process(b"\xa9\r\n")
+
+        # Assert
+        actual = result2.lines
+        expected = ["café"]
+        assert actual == expected, "split 2-byte char reassembled as 'café'"
+        assert result1.lines == [], "no line until newline arrives"
+
+    def test_four_byte_emoji_split_mid_stream(self):
+        # Arrange -- U+1F600 is 0xF0 0x9F 0x98 0x80; split inside the char,
+        # with more text after it on the same line.
+        reader = SerialReader()
+
+        # Act
+        reader.process(b"hi \xf0\x9f")
+        result = reader.process(b"\x98\x80 there\r\n")
+
+        # Assert
+        actual = result.lines
+        expected = ["hi \U0001f600 there"]
+        assert actual == expected, "split 4-byte emoji reassembled in place"
+
+    def test_split_emits_no_replacement_char(self):
+        # Arrange
+        reader = SerialReader()
+
+        # Act
+        reader.process(b"\xe2\x9c")  # first 2 bytes of '✓' (U+2713)
+        result = reader.process(b"\x93\r\n")  # final byte + EOL
+
+        # Assert
+        actual = result.lines
+        assert actual == ["✓"], "checkmark decoded whole"
+        assert "�" not in actual[0], "no replacement char from the split"
+
+    def test_truncated_multibyte_surfaces_on_idle(self):
+        # Arrange -- a dangling lead byte that never completes, then silence.
+        reader = SerialReader()
+        reader.process(b"caf\xc3")  # 0xC3 is held pending (incomplete 'é')
+        reader._last_rx = time.monotonic() - 0.3  # simulate 200ms+ silence
+
+        # Act
+        result = reader.process(b"")
+
+        # Assert -- the dangling byte flushes as U+FFFD instead of lingering.
+        actual = result.lines
+        expected = ["caf�"]
+        assert actual == expected, "truncated tail surfaces as replacement char on idle"
+
+
 class TestSerialReaderClearScreen:
     def test_clear_screen_detected(self):
         # Arrange

@@ -204,11 +204,11 @@ def engine_with_term(tmp_path):
     eng = ReplEngine(
         cfg, str(config_path), lambda t, c=None: writes.append((t, c))
     )
-    # ReplEngine.__init__ already loads builtins; wire ctx.engine.dispatch
+    # ReplEngine.__init__ already loads builtins; wire ctx.internal.dispatch
     # the way TerminalHost would, so legacy forwarders that delegate via
-    # ctx.engine.dispatch reach the REPL pipeline instead of the no-op
+    # ctx.internal.dispatch reach the REPL pipeline instead of the no-op
     # lambda default.
-    eng.ctx.engine.dispatch = eng.dispatch
+    eng.ctx.internal.dispatch = eng.dispatch
     # Real CLI/TUI hosts advertise interactive + gui_apps; legacy aliases
     # under test (/verbose, /term.verbose) declare needs.interactive=True.
     # Mirror the host capability set so the dispatcher allows them through.

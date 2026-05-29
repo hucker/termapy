@@ -33,7 +33,7 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
         else:
             ctx.io.output(text)
     if effects:
-        ctx.engine.apply_port_effects(effects)
+        ctx.internal.apply_port_effects(effects)
 
 
 # ── Handlers ────────────────────────────────────────────────────────────────
@@ -42,12 +42,12 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if name:
-        ctx.engine.update_port(name)
+        ctx.internal.update_port(name)
         return CmdResult.ok(value=name)
     # Bare /port -- TUI opens the port picker (matches clicking the
     # left title-bar button); CLI shows /help port.
-    if ctx.engine.open_picker is not None:
-        return ctx.engine.open_picker("port")
+    if ctx.internal.open_picker is not None:
+        return ctx.internal.open_picker("port")
     return _handler_help(ctx, args)
 
 
@@ -73,10 +73,10 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     # port opens with the requested settings.  Each branch is a no-op
     # when the user didn't supply that field.
     if baud is not None:
-        ctx.engine.apply_port_effects({"cfg_update": {"baud_rate": baud}})
+        ctx.internal.apply_port_effects({"cfg_update": {"baud_rate": baud}})
     if mode is not None:
         parity, byte_size, stop_bits = mode
-        ctx.engine.apply_port_effects(
+        ctx.internal.apply_port_effects(
             {
                 "cfg_update": {
                     "parity": parity,
@@ -86,14 +86,14 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
             }
         )
     if line_ending is not None:
-        ctx.engine.apply_port_effects(
+        ctx.internal.apply_port_effects(
             {"cfg_update": {"line_ending": line_ending}}
         )
     if echo is not None:
-        ctx.engine.apply_port_effects(
+        ctx.internal.apply_port_effects(
             {"cfg_update": {"echo_input": echo}}
         )
-    ctx.engine.connect(port)
+    ctx.internal.connect(port)
     return CmdResult.ok(value=port or "")
 
 
@@ -103,7 +103,7 @@ def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
     # still holds the name after disconnect, but capturing first
     # protects against any future cfg-mutation on disconnect.
     last_port = ctx.cfg["serial"]["port"] or ""
-    ctx.engine.disconnect()
+    ctx.internal.disconnect()
     return CmdResult.ok(value=last_port)
 
 

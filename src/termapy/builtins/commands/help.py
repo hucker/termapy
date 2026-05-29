@@ -262,8 +262,8 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     No underlining on this path -- it's an exact-match detail view,
     nothing is a "search hit" to highlight.
     """
-    prefix = ctx.engine.prefix
-    plugins = ctx.engine.plugins
+    prefix = ctx.internal.prefix
+    plugins = ctx.internal.plugins
 
     # NAME ────────────────────────────────────────────────────────────────────
     ctx.io.output_markup(_SECTION_FMT.format(text="NAME"))
@@ -434,8 +434,8 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     same columnar layout as the landscape view so users see one visual
     idiom across both modes.
     """
-    prefix = ctx.engine.prefix
-    plugins = ctx.engine.plugins
+    prefix = ctx.internal.prefix
+    plugins = ctx.internal.plugins
     words = [w for w in term.split() if w]
     ctx.io.output_markup(
         f"Candidates matching [{_CMD}]{_underline(term, words)}[/]:"
@@ -517,7 +517,7 @@ def _show_command_help(ctx: PluginContext, name: str,
     ``dev_mode`` routes exact matches to the developer docstring view
     instead of the normal DESCRIPTION.
     """
-    plugins = ctx.engine.plugins
+    plugins = ctx.internal.plugins
 
     # 1. Exact match wins.
     plugin = plugins.get(name)
@@ -535,13 +535,13 @@ def _show_command_help(ctx: PluginContext, name: str,
 
     # 3. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
-    candidates = _find_candidates(name, plugins, ctx.engine.prefix)
+    candidates = _find_candidates(name, plugins, ctx.internal.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
         return CmdResult.ok(value="\n".join(candidates))
 
     # 4. No hits anywhere -- hint at the deeper tool.
-    p = ctx.engine.prefix
+    p = ctx.internal.prefix
     return CmdResult.fail(
         msg=f"No command matches '{name}'. "
             f"Try {p}search {name} for a deeper search."
@@ -561,7 +561,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     hint when nothing matches.
 
     Args:
-        ctx: Plugin context for engine plugin registry and output.
+        ctx: Plugin context for the plugin registry and output.
         args: Optional command name (or search term) to look up.
     """
     # Preserve case: plugin names are conventionally lowercase, but device
@@ -570,7 +570,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # casing fall through to the forgiving candidate list, which does its
     # own case-insensitive matching internally.
     name = args.strip() if isinstance(args, str) else ""
-    prefix = ctx.engine.prefix
+    prefix = ctx.internal.prefix
     if name:
         return _show_command_help(ctx, name)
 
@@ -582,7 +582,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         "global": "User Plugins",
     }
 
-    all_plugins = ctx.engine.plugins
+    all_plugins = ctx.internal.plugins
 
     # ``--mcp`` narrows the landscape to commands an MCP client would see.
     # The MCP host advertises ``ENVIRONMENTS["MCP"]`` so we just check
@@ -616,7 +616,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         and not getattr(plugin, "hidden", False)
         and (mcp_caps is None or not plugin.needs.missing_from(mcp_caps))
     ]
-    directives = ctx.engine.directives or []
+    directives = ctx.internal.directives or []
     all_names = (
         [n for names in groups.values() for n, _ in names]
         + [n for n, _ in script_only]
@@ -768,7 +768,7 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     if not scripts:
         ctx.io.result("No .run scripts found.")
         return CmdResult.ok(value="")
-    prefix = ctx.engine.prefix
+    prefix = ctx.internal.prefix
     _render_scripts(ctx, scripts, prefix)
     ctx.io.result(f"{len(scripts)} scripts.")
     return CmdResult.ok(value="\n".join(p.stem for p in scripts))
@@ -780,7 +780,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
     Slim row layout that matches ``/help`` landscape (name + one-liner
     only) so users see one visual idiom across every listing context.
     """
-    all_plugins = ctx.engine.plugins
+    all_plugins = ctx.internal.plugins
     if not all_plugins:
         ctx.io.result("No plugins loaded.")
         return CmdResult.ok(value="")
@@ -810,7 +810,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
         [n for names in groups.values() for n, _ in names]
         + [n for n, _ in script_only]
     )
-    prefix = ctx.engine.prefix
+    prefix = ctx.internal.prefix
     cmd_w = _compute_cmd_w(all_names, prefix)
     sorted_sources = sorted(groups, key=lambda s: _SOURCE_ORDER.get(s, 3))
     first = True

@@ -46,12 +46,12 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     total_size = sum(Path(p).stat().st_size for p in paths)
     ctx.io.output(f"  YMODEM send: {len(paths)} file(s), {total_size} bytes -- Esc to cancel")
 
-    cancel = ctx.engine.xfer_cancel
+    cancel = ctx.internal.xfer_cancel
     if cancel:
         cancel.clear()
     with ctx.serial.io():
         ctx.serial.drain()
-        reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
+        reader = QueueByteReader(ctx.internal.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
             result = reader.getc(size, timeout=timeout or 1)
@@ -99,12 +99,12 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
 
     ctx.io.output(f"  YMODEM recv: waiting for data -> {out_dir} -- Esc to cancel")
 
-    cancel = ctx.engine.xfer_cancel
+    cancel = ctx.internal.xfer_cancel
     if cancel:
         cancel.clear()
     with ctx.serial.io():
         ctx.serial.drain()
-        reader = QueueByteReader(ctx.engine.rx_queue, cancel=cancel)
+        reader = QueueByteReader(ctx.internal.rx_queue, cancel=cancel)
 
         def read(size: int, timeout: float | None = None) -> bytes:
             result = reader.getc(size, timeout=timeout or 1)

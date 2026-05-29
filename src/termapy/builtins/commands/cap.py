@@ -131,7 +131,7 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
 
     path = _resolve_path(filename, ctx.fs.cap_dir)
 
-    started = ctx.engine.start_capture(
+    started = ctx.internal.start_capture(
         path=path,
         file_mode=file_mode,
         mode="text",
@@ -193,7 +193,7 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
 
     path = _resolve_path(filename, ctx.fs.cap_dir)
 
-    started = ctx.engine.start_capture(
+    started = ctx.internal.start_capture(
         path=path,
         file_mode=file_mode + "b",
         mode="bin",
@@ -302,7 +302,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
 
     path = _resolve_path(filename, ctx.fs.cap_dir)
 
-    started = ctx.engine.start_capture(
+    started = ctx.internal.start_capture(
         path=path,
         file_mode=raw_file_mode,
         mode="bin",
@@ -478,7 +478,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         path.parent.mkdir(parents=True, exist_ok=True)
 
     encoding = ctx.cfg.get("encoding", "utf-8")
-    cmd_prefix = ctx.engine.prefix
+    cmd_prefix = ctx.internal.prefix
 
     def extract(raw: str) -> str:
         if parse_re is None:
@@ -532,7 +532,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         getattr(name, align)(w) for name, w, align in header_cols
     ))
 
-    stop_event = ctx.engine.script_stop_event
+    stop_event = ctx.internal.script_stop_event
     samples_written = 0
     aborted_msg: str | None = None
 
@@ -616,10 +616,10 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
     """Stop an active capture.
 
-    Side-effect only; the engine's stop callback returns no path, so
+    Side-effect only; ``ctx.internal.stop_capture`` returns no path, so
     ``CmdResult.value`` is ``""`` rather than something synthetic.
     """
-    ctx.engine.stop_capture()
+    ctx.internal.stop_capture()
     return CmdResult.ok(value="")
 
 

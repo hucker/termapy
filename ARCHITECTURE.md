@@ -12,7 +12,7 @@ The whole system fits in your head once these pieces click. Each is detailed in 
 
 - **Plugin system** — almost every command is a plugin (a `.py` file exporting a `COMMAND`). The same API builds the built-ins and any user/device plugin, so command functionality is added by dropping a file, not editing the core.
 - **Hooks** — the small set of commands that need live frontend internals (Textual widgets, the screenshot surface, modals) are registered by the host instead of shipped as plugins. Everything else is a plugin.
-- **PluginContext** — the stable API every handler receives: five capability handles (`io`, `serial`, `fs`, `ui`, and the `engine` escape hatch) covering config, serial, filesystem, output/input, and global session state.
+- **PluginContext** — the stable API every handler receives: five handles — four capability domains (`io`, `serial`, `fs`, `ui`) plus the `internal` escape hatch — covering config, serial, filesystem, output/input, and global session state.
 - **Capabilities & frontend projections** — each frontend (TUI / CLI / MCP) advertises a `CapabilitySet`; commands declare what they `need`. The dispatcher gates calls, so the three frontends are *projections* of one engine through different capability sets and an unavailable command fails cleanly instead of mysteriously.
 - **Dispatch pipeline** — every input line follows one ordered path: *directive* → *transform* → REPL-vs-serial routing → *capability gate* → *handler* → **CmdResult**. New behavior attaches to a stage rather than becoming a special case.
 - **CmdResult & output levels** — every handler returns one uniform `CmdResult` (success / value / error / timing). The active output level (silent / quiet / normal / verbose) decides which channels actually render, so a single handler is correct from a quiet script to a verbose TUI to an MCP caller that wants only `value`.
@@ -83,7 +83,7 @@ src/termapy/
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
 ├── plugins/                # (2261 lines) Plugin system - capability-handle architecture
-│   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, EngineHandle
+│   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, InternalHandle
 │   ├── capabilities.py     #   CapabilitySet, MissingCapability
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
 │   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
@@ -159,13 +159,13 @@ Hooks and plugins share one registry and one dispatch path; a hook is just a lat
 
 ### PluginContext
 
-Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **capability handles**, each owning one domain:
+Every handler receives a `PluginContext`, the stable API boundary between plugins and the app. The context is a thin shell over five **handles** — four capability domains, plus `internal`, the privileged escape hatch that deliberately isn't a domain:
 
 - **`ctx.io`** — text in/out: the level-gated `result` / `output` / `status` channels (and their Rich-markup variants) plus the always-works `notify` / `status_bar` / `log` fallbacks.
 - **`ctx.serial`** — the serial connection: state (`is_connected`, `port`), I/O primitives (`write`, `read_raw`, `drain`, `wait_idle`), and passive `rx` / `tx` byte observers.
 - **`ctx.fs`** — the filesystem layer: the config-dir folders (`ss_dir`, `scripts_dir`, `proto_dir`, `cap_dir`) and `open_file()`.
 - **`ctx.ui`** — TUI-strict actions (`confirm`, `notify`, `clear_screen`, `exit_app`, `screenshot`); these raise `MissingCapability` in non-TUI frontends (CLI, MCP).
-- **`ctx.engine`** — the intentional escape hatch: an internal, unstable interface (`EngineHandle`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
+- **`ctx.internal`** — the intentional escape hatch: an internal, unstable interface (`InternalHandle`) for built-ins that need privileged frontend state (Textual, threads, pyserial handles) that can't be generified.
 
 The remaining members (`ctx.cfg`, `ctx.dispatch`, `ctx.ns`, `ctx.plugin_cfg`, `ctx.wait_for_match`) sit directly on the context. The full surface, by handle:
 
@@ -185,20 +185,20 @@ ctx.fs.ss_dir, ctx.fs.scripts_dir, ctx.fs.proto_dir, ctx.fs.cap_dir
 ctx.fs.open_file()                            # gated by gui_apps capability
 ctx.ui.confirm(), ctx.ui.notify()             # TUI-strict; raise MissingCapability in CLI
 ctx.ui.clear_screen(), ctx.ui.exit_app(), ctx.ui.screenshot()
-ctx.engine                                    # internal/unstable interface for built-ins
+ctx.internal                                    # internal/unstable interface for built-ins
 ctx.dispatch(cmd)                             # re-route a command through the pipeline
 ctx.wait_for_match(predicate, timeout)        # block until serial matches (gated)
 ctx.ns(name)                                  # session-scoped state dict (see below)
 ctx.plugin_cfg(name)                          # per-plugin persistent config
 ```
 
-**12 visible names** on `ctx`, down from ~50 flat fields. The split is by responsibility, not by syntax: each handle owns one capability domain a reader can hold in their head.
+**12 visible names** on `ctx`, down from ~50 flat fields. The split is by responsibility, not by syntax: four handles each own one capability domain a reader can hold in their head; the fifth, `internal`, is the deliberate exception — the privileged escape hatch for built-ins that isn't a domain.
 
 **Capability gating.** Some handle methods are gated on `CapabilitySet` flags. `ctx.ui.confirm()` requires `confirm_dialog`; `ctx.fs.open_file()` requires `gui_apps`; `ctx.wait_for_match()` requires `block_until`. Calling a gated method in an environment that didn't grant the capability raises `MissingCapability`, which the dispatcher converts to `CmdResult.fail`. Commands declare what they need with `Command(needs=CapabilitySet(...))`; the dispatcher refuses to invoke a handler whose `needs` aren't satisfied, so most capability mismatches fail loudly *before* the handler runs.
 
 **Two-tier output.** `ctx.io.notify()` and `ctx.io.status_bar()` are the always-works fallbacks (toast in TUI, plain print in CLI). `ctx.ui.notify()` and `ctx.ui.status_bar()` are TUI-strict variants that require the matching capability. Plugin authors pick by intent: "just communicate" → `ctx.io`, "I need a real toast" → `ctx.ui`.
 
-External plugins use `PluginContext` only. `ctx.engine` is the intentional escape hatch for built-ins; its surface may change. It actually serves **two jobs**:
+External plugins use `PluginContext` only. `ctx.internal` is the intentional escape hatch for built-ins; its surface may change. It actually serves **two jobs**:
 
 1. **Frontend escape hatch** — slots that genuinely need Textual / pyserial / threads. `confirm_save_cfg`, for instance, pops a TUI confirm modal — and is `None` in CLI/MCP, so the same `/cfg key value` falls back to `apply_cfg` and applies directly. Capture, proto-debug, the picker screens, and threaded script runs are here too.
 2. **Engine forwarders** — slots like `dispatch` / `apply_cfg` / `coerce_type` that just reach the live `ReplEngine`. They're *injected rather than imported* because `repl.py` imports the plugins package, so a plugin importing `repl` would be circular — there's no other way for a Textual-free, repl-free plugin to reach the running engine.
@@ -221,7 +221,7 @@ ctx.ns("flags")            - engine-owned toggles: echo, verbose, hex_mode
 
 The `flags` namespace is engine-reserved. Third-party plugins should use their own namespace name (conventionally the plugin name, e.g. `ctx.ns("myplugin")`). The engine's flag defaults are set once at context construction in `_build_context`; read sites access them with bare key lookups, so a missing key is a construction bug, not silent drift.
 
-Contrast with `ctx.engine`: `EngineHandle` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction - `engine` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
+Contrast with `ctx.internal`: `InternalHandle` holds Textual, threading, and pyserial handles that genuinely cannot be generified. Anything that's just a dict or a flag lives in a namespace instead. Looking at the field list of each is the fastest way to see the distinction - `ctx.internal` is the escape hatch for privileged frontend state, `ns()` is the uniform state primitive for everything else.
 
 #### Lifecycle hooks
 
@@ -234,7 +234,7 @@ on_script_start(ctx)  - when the outermost script begins (nested /run does NOT f
 on_script_stop(ctx)   - when the outermost script ends, including on /stop or error
 ```
 
-Script hooks fire only at the top level - nested `/run` inside a running script does not re-fire `on_script_start`. A plugin that clears state in `on_script_start` will not have its state wiped by inner scripts. Plugins that need per-file nesting can track depth themselves via `ctx.engine.in_script()`.
+Script hooks fire only at the top level - nested `/run` inside a running script does not re-fire `on_script_start`. A plugin that clears state in `on_script_start` will not have its state wiped by inner scripts. Plugins that need per-file nesting can track depth themselves via `ctx.internal.in_script()`.
 
 Hooks are stored in a flat list in load order (`ReplEngine._lifecycle_hooks`). `fire_lifecycle(name)` filters by name and calls matching handlers in registration order, catching exceptions per-hook so one bad plugin can't prevent later hooks from running. Errors surface through `ctx.status()`.
 

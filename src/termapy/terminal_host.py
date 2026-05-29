@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.defaults import cmd_prefix
-from termapy.plugins import CmdResult, EngineHandle, PluginContext
+from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.serial_port import eol_label
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ def _is_recording() -> bool:
 
     Imported here -- not at module import time -- so the terminal
     host has no static dependency on a specific built-in plugin.
-    The function is called via ``ctx.engine.is_recording()`` from
+    The function is called via ``ctx.internal.is_recording()`` from
     the TUI Record button to decide which form of /run.record to
     dispatch.
     """
@@ -155,7 +155,7 @@ class TerminalHost:
     ) -> None:
         """Run a .run script through the REPL engine (default: synchronous).
 
-        Used by the ``/run`` built-in (via ``ctx.engine.run_script``) so
+        Used by the ``/run`` built-in (via ``ctx.internal.run_script``) so
         one handler works in every host.  CLI and MCP inherit this
         synchronous default; ``SerialTerminal`` (TUI) overrides with a
         Textual ``@work(thread=True)`` variant that also posts the
@@ -271,16 +271,16 @@ class TerminalHost:
 
     # -- Context builders (subclass extends, not replaces) --------------------
 
-    def _build_engine_api(self) -> EngineHandle:
-        """Build an EngineHandle with the callbacks shared by all frontends.
+    def _build_internal_handle(self) -> InternalHandle:
+        """Build an InternalHandle with the callbacks shared by all frontends.
 
-        Subclasses should call ``super()._build_engine_api()`` then set
+        Subclasses should call ``super()._build_internal_handle()`` then set
         any frontend-specific fields on the returned object before passing
         it to ``_build_plugin_context()``.
         """
         from termapy.repl import ReplEngine
 
-        return EngineHandle(
+        return InternalHandle(
             prefix=cmd_prefix(self.cfg),
             plugins=self.repl._plugins,
             in_script=lambda: self.repl.in_script,
@@ -332,7 +332,7 @@ class TerminalHost:
             update_find_bar=None,
         )
 
-    def _build_plugin_context(self, engine_api: EngineHandle) -> PluginContext:
+    def _build_plugin_context(self, internal_handle: InternalHandle) -> PluginContext:
         """Build a PluginContext with the callbacks shared by all frontends.
 
         Subclasses should call ``super()._build_plugin_context(api)`` then
@@ -390,7 +390,7 @@ class TerminalHost:
         ctx = PluginContext(
             cfg=self.cfg,
             config_path=self.config_path,
-            engine=engine_api,
+            internal=internal_handle,
             io=io,
             serial=serial,
             fs=fs,

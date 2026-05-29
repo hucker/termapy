@@ -61,7 +61,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
             n = int(arg)
         except ValueError:
             return CmdResult.fail(
-                msg=f"Usage: {ctx.engine.prefix}log.dump [N]  (N>0 last N, N<0 first N)"
+                msg=f"Usage: {ctx.internal.prefix}log.dump [N]  (N>0 last N, N<0 first N)"
             )
         if n == 0:
             return CmdResult.fail(msg="Invalid line count: 0")

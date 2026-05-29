@@ -1041,7 +1041,7 @@ COMMAND = Command(
 )
 ```
 
-There is also `ctx.engine` which exposes internal engine state (sequence counters, config save, capture, etc.). This is used by built-in commands and may change between versions, so external plugins should avoid it.
+There is also `ctx.internal`, a privileged escape hatch for built-ins (config save, capture, port control, engine forwarders, etc.). This is used by built-in commands and may change between versions, so external plugins should avoid it.
 
 </details>
 

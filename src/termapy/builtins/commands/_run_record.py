@@ -10,7 +10,7 @@ declaration sit naturally next to the other run subs and properly
 populate ``/help run``'s subcommand listing.
 
 The recorder subscribes to ReplEngine's post-dispatch observer
-(``ctx.engine.add_post_dispatch_observer``).  Every successful
+(``ctx.internal.add_post_dispatch_observer``).  Every successful
 dispatch -- REPL command or device command -- is appended to the
 target file as raw text.  Failed dispatches and ``/run.record``
 itself are skipped.  The file is opened with ``mode="x"`` (exclusive
@@ -41,7 +41,7 @@ Design notes:
 - Module-level state.  A handler module is the natural home for
   "is anything recording right now?" since a single REPL has at
   most one active recorder.  The TUI Record button asks via
-  ``ctx.engine.is_recording()`` which forwards to ``is_active()``
+  ``ctx.internal.is_recording()`` which forwards to ``is_active()``
   below.
 """
 
@@ -73,7 +73,7 @@ def is_active() -> bool:
     """Return True iff a recording is currently in flight.
 
     Called from ``TerminalHost._is_recording`` (wired into the
-    engine handle as ``ctx.engine.is_recording``) so the TUI
+    internal handle as ``ctx.internal.is_recording``) so the TUI
     Record button can read state without importing this module
     statically.
     """
@@ -91,8 +91,8 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
         )
 
     if (
-        ctx.engine.add_post_dispatch_observer is None
-        or ctx.engine.remove_post_dispatch_observer is None
+        ctx.internal.add_post_dispatch_observer is None
+        or ctx.internal.remove_post_dispatch_observer is None
     ):
         # Defensive: hosts that don't wire the observer pair can't
         # record.  TerminalHost wires both, so the only way to hit
@@ -157,7 +157,7 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
         _active.file.flush()
         _active.line_count += 1
 
-    token = ctx.engine.add_post_dispatch_observer(_observe)
+    token = ctx.internal.add_post_dispatch_observer(_observe)
     _active = _Active(path=path, file=fh, line_count=0, observer=token)
     ctx.io.result(f"Recording to {path}")
     return CmdResult.ok(value=path)
@@ -173,8 +173,8 @@ def _stop(ctx: PluginContext) -> CmdResult:
     path = _active.path
     count = _active.line_count
     try:
-        if ctx.engine.remove_post_dispatch_observer is not None:
-            ctx.engine.remove_post_dispatch_observer(_active.observer)
+        if ctx.internal.remove_post_dispatch_observer is not None:
+            ctx.internal.remove_post_dispatch_observer(_active.observer)
         _active.file.close()
     finally:
         _active = None

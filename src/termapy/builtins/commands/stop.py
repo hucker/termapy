@@ -18,11 +18,11 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     boundary. Has no effect if no script is running.
 
     Args:
-        ctx: Plugin context for engine state and output.
+        ctx: Plugin context for state and output.
         args: Ignored (no arguments accepted).
     """
-    if ctx.engine.in_script():
-        ctx.engine.script_stop()
+    if ctx.internal.in_script():
+        ctx.internal.script_stop()
         ctx.io.output("Stopping script...")
         return CmdResult.ok(value="stopping")
     ctx.io.output("No script running.")

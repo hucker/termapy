@@ -26,7 +26,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "profiles"
 
 @pytest.fixture
 def env(tmp_path):
-    """Build an MCPHost so ctx.engine is wired (catalog + plugins available)."""
+    """Build an MCPHost so ctx.internal is wired (catalog + plugins available)."""
     cfg = dict(DEFAULT_CFG)
     cfg["port"] = ""
     config_path = tmp_path / "cfg" / "test.cfg"

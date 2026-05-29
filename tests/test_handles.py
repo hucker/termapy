@@ -2,7 +2,7 @@
 
 After Phase 3, ``PluginContext`` has no flat fields -- every
 host-provided callable lives on its capability-domain handle
-(``ctx.io``, ``ctx.serial``, ``ctx.fs``, ``ctx.ui``, ``ctx.engine``).
+(``ctx.io``, ``ctx.serial``, ``ctx.fs``, ``ctx.ui``, ``ctx.internal``).
 These tests verify that:
 
   - Every PluginContext gets the 5 handles by default (no None).
@@ -25,7 +25,7 @@ import pytest
 
 from termapy.plugins import (
     CapabilitySet,
-    EngineHandle,
+    InternalHandle,
     FilesystemHandle,
     IOHandle,
     MissingCapability,
@@ -70,7 +70,7 @@ class TestHandlesAreAttached:
         assert isinstance(ctx.serial, SerialHandle), "ctx.serial is a SerialHandle"
         assert isinstance(ctx.fs, FilesystemHandle), "ctx.fs is a FilesystemHandle"
         assert isinstance(ctx.ui, UIHandle), "ctx.ui is a UIHandle"
-        assert isinstance(ctx.engine, EngineHandle), "ctx.engine is an EngineHandle"
+        assert isinstance(ctx.internal, InternalHandle), "ctx.internal is an InternalHandle"
 
 
 class TestIOHandle:

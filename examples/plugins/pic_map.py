@@ -442,7 +442,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """Lookup an address in the loaded map file."""
     arg = args.strip()
     if not arg:
-        prefix = ctx.engine.prefix
+        prefix = ctx.internal.prefix
         ctx.io.output(f"Usage: {prefix}map 0xFFFF | {prefix}map.search main")
         ctx.io.output(f"  {prefix}map.path <path>   -- set map file (remembered)")
         ctx.io.output(f"  {prefix}map.load {{path}}  -- load/reload map file")

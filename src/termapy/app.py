@@ -1119,21 +1119,21 @@ class SerialTerminal(TerminalHost, App):
         )
 
     def _build_context(self) -> None:
-        """Build PluginContext and EngineHandle, wire to REPL."""
-        engine = self._build_engine_api()
-        # TUI-specific EngineHandle extensions
-        engine.confirm_save_cfg = self._hook_cfg_confirm
-        engine.open_proto_debug = lambda path, script: self.call_later(
+        """Build PluginContext and InternalHandle, wire to REPL."""
+        internal = self._build_internal_handle()
+        # TUI-specific InternalHandle extensions
+        internal.confirm_save_cfg = self._hook_cfg_confirm
+        internal.open_proto_debug = lambda path, script: self.call_later(
             self._open_proto_debug, path, script
         )
-        engine.start_capture = self._cap_start
-        engine.stop_capture = self._cap_stop
-        engine.directives = self.repl._directives
+        internal.start_capture = self._cap_start
+        internal.stop_capture = self._cap_stop
+        internal.directives = self.repl._directives
         # /find plugin calls this with a state snapshot to refresh
         # the FindBar widget (or None to hide it).
-        engine.update_find_bar = self._update_find_bar
+        internal.update_find_bar = self._update_find_bar
 
-        ctx = self._build_plugin_context(engine)
+        ctx = self._build_plugin_context(internal)
         # TUI-specific PluginContext overrides
         ctx.io._write = self._status
         ctx.io._write_markup = self._write_output_markup
@@ -2114,13 +2114,13 @@ class SerialTerminal(TerminalHost, App):
         """Toggle /run.record by dispatching the REPL command.
 
         The button stores no recording state of its own; it queries
-        ``ctx.engine.is_recording()`` (the single source of truth,
+        ``ctx.internal.is_recording()`` (the single source of truth,
         backed by the recorder builtin's module state) and dispatches
         the appropriate form of ``/run.record``.  All work -- file
         open, observer registration, state tracking, no-clobber
         guarantee -- lives in ``builtins/commands/_run_record.py``.
         """
-        is_rec = self.ctx.engine.is_recording
+        is_rec = self.ctx.internal.is_recording
         if is_rec is not None and is_rec():
             # Active: dispatch bare /run.record to stop.  The handler
             # closes the file, deregisters the observer, and prints
@@ -2158,7 +2158,7 @@ class SerialTerminal(TerminalHost, App):
             btn = self.query_one("#btn-record", Button)
         except NoMatches:
             return  # Record button hidden via record_enabled=false
-        is_rec = self.ctx.engine.is_recording
+        is_rec = self.ctx.internal.is_recording
         if is_rec is not None and is_rec():
             btn.label = "<Stop>"
             btn.variant = "error"
@@ -2642,8 +2642,8 @@ class SerialTerminal(TerminalHost, App):
     def _cap_start(self, *args, **kwargs) -> None:
         """Start a capture.  Implementation in ``capture_view``.
 
-        Stub kept on the App because the engine wires this as
-        ``engine.start_capture`` (bound-method reference).
+        Stub kept on the App because the host wires this onto
+        ``internal.start_capture`` (bound-method reference).
         Signature pass-through so this file stays unaware of the
         real arg list, which lives in ``capture_view._cap_start``.
         """
@@ -2653,8 +2653,8 @@ class SerialTerminal(TerminalHost, App):
     def _cap_stop(self) -> None:
         """Stop the current capture.  Implementation in ``capture_view``.
 
-        Stub kept on the App because the engine wires this as
-        ``engine.stop_capture`` and the cap-stop button looks it up
+        Stub kept on the App because the host wires this onto
+        ``internal.stop_capture`` and the cap-stop button looks it up
         by attribute name.
         """
         from termapy.capture_view import _cap_stop
@@ -3060,7 +3060,7 @@ class SerialTerminal(TerminalHost, App):
             ).placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         except SHUTDOWN_RACE:
             pass  # prefix changed before mount or during teardown
-        self.repl.ctx.engine.prefix = prefix
+        self.repl.ctx.internal.prefix = prefix
 
     def _sync_all_buttons(self) -> None:
         """Refresh all file-count button tooltips and custom buttons."""

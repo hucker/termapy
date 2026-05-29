@@ -1,9 +1,10 @@
-"""Capability-domain handles attached to ``PluginContext``.
+"""Handles attached to ``PluginContext``.
 
-Each module owns one handle class corresponding to one capability
-domain on ``ctx``.  Plugin authors interact with these via the
-attribute names ``ctx.io``, ``ctx.serial``, ``ctx.fs``, ``ctx.ui``,
-and ``ctx.engine``.
+Four modules own a capability-domain handle -- ``ctx.io``,
+``ctx.serial``, ``ctx.fs``, ``ctx.ui`` -- each a focused public
+namespace.  The fifth, ``ctx.internal`` (:class:`InternalHandle`), is
+deliberately not a domain: it's the privileged, unstable escape hatch
+for built-in plugins only.
 
 Each handle is a thin façade over the underlying flat fields on
 ``PluginContext`` -- they delegate to ``self._ctx.<x>`` so
@@ -19,7 +20,7 @@ See :class:`MissingCapability` in ``capabilities`` for the exception
 that gated methods raise when their capability is absent.
 """
 
-from termapy.plugins.handles.engine import EngineHandle
+from termapy.plugins.handles.internal import InternalHandle
 from termapy.plugins.handles.fs import FilesystemHandle
 from termapy.plugins.handles.io import IOHandle
 from termapy.plugins.handles.serial import SerialHandle
@@ -27,7 +28,7 @@ from termapy.plugins.handles.ui import UIHandle
 
 
 __all__ = [
-    "EngineHandle",
+    "InternalHandle",
     "FilesystemHandle",
     "IOHandle",
     "SerialHandle",

@@ -8,8 +8,8 @@ alongside the other top-level pieces.
 Each function takes the app as its first argument and reaches widget,
 timer, and engine state via ``app.X``.  Two of the six --
 ``_cap_start`` and ``_cap_stop`` -- are referenced from outside this
-module (the engine wires them as ``engine.start_capture`` /
-``engine.stop_capture`` in ``_build_context``, the cap-stop button
+module (the host wires them onto ``internal.start_capture`` /
+``internal.stop_capture`` in ``_build_context``, the cap-stop button
 binding looks them up by attribute name, and the capture engine's
 ``on_capture_done`` callback fires ``_cap_stop`` via
 ``call_from_thread``).  SerialTerminal keeps thin method stubs for

@@ -19,7 +19,7 @@ import json
 
 import pytest
 
-from termapy.plugins import CapabilitySet, EngineHandle, PluginContext
+from termapy.plugins import CapabilitySet, InternalHandle, PluginContext
 from termapy.repl import ReplEngine
 
 
@@ -56,7 +56,7 @@ def repl_env(tmp_path, monkeypatch):
         markup_output.append(text)
 
     engine = ReplEngine(cfg, str(config_path), write)
-    engine_api = EngineHandle(
+    internal_handle = InternalHandle(
         prefix="/",
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,
@@ -69,7 +69,7 @@ def repl_env(tmp_path, monkeypatch):
     ctx = PluginContext(
         cfg=cfg,
         config_path=str(config_path),
-        engine=engine_api,
+        internal=internal_handle,
         io=IOHandle(_write=write, _write_markup=write_markup),
         capabilities=CapabilitySet(
             interactive=True, gui_apps=True, serial_connected=True,

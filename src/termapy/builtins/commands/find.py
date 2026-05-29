@@ -8,7 +8,7 @@ bottom row.  ``/find.next`` and ``/find.prev`` step through the
 remaining matches; ``/find.clear`` or bare ``/find`` closes the bar.
 
 The bar is rendered by the TUI; the plugin only stores match state
-and asks the TUI to refresh via ``ctx.engine.update_find_bar``.
+and asks the TUI to refresh via ``ctx.internal.update_find_bar``.
 CLI/MCP hosts leave that callback ``None`` so this command becomes
 a no-op there (users have ``/grep`` for the same scrollback search,
 which IS supported in non-TUI hosts).
@@ -80,7 +80,7 @@ def current_state() -> dict | None:
 
 def _refresh(ctx: PluginContext) -> None:
     """Push current state to the TUI's FindBar (no-op in CLI/MCP)."""
-    cb = ctx.engine.update_find_bar
+    cb = ctx.internal.update_find_bar
     if cb is not None:
         cb(current_state())
 

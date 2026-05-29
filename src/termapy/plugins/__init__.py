@@ -86,7 +86,7 @@ from termapy.plugins.output_levels import (
     parse_output_level,
 )
 from termapy.plugins.handles import (
-    EngineHandle,
+    InternalHandle,
     FilesystemHandle,
     IOHandle,
     SerialHandle,
@@ -128,8 +128,8 @@ __all__ = [
     "PluginContext",
     "format_kv_lines",
     "parse_output_level",
-    # Capability-domain handles
-    "EngineHandle",
+    # Context handles (4 capability domains + the internal escape hatch)
+    "InternalHandle",
     "FilesystemHandle",
     "IOHandle",
     "SerialHandle",

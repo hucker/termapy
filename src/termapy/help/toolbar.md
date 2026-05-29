@@ -61,6 +61,7 @@ The bottom bar has buttons. Some appear based on context:
 | **Ctrl+Shift+1**–**5** | Same four, plus Edit Config on **5**                |
 | **Ctrl+L**             | Clear screen                                        |
 | **Ctrl+P**             | Open command palette                                |
+| **Ctrl+C** / **Cmd+C** | Copy selected text to the clipboard                 |
 | **F5**                 | Save SVG screenshot                                 |
 | **F6**                 | Open screenshot folder                              |
 | **F7**                 | Save text screenshot                                |
@@ -69,6 +70,16 @@ The bottom bar has buttons. Some appear based on context:
 
 The `Ctrl+Shift+digit` aliases work inside VS Code's integrated
 terminal, which intercepts some F-keys.
+
+## Copying text
+
+Drag across the main output window to select text, then press
+**Ctrl+C** (**Cmd+C** on macOS) to copy it to your clipboard.  The
+copy travels over the terminal's OSC 52 channel, so it lands on the
+clipboard of whatever machine your terminal is running on — including
+over SSH.  A few older terminals don't support OSC 52; if the copy
+does nothing, hold **Shift** (or **Alt** in some terminals) while
+dragging to use your terminal's own selection instead.
 
 ## Command palette
 

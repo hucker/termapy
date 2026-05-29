@@ -298,7 +298,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not tokens:
         return CmdResult.fail(msg="Usage: /search {--dev} <pattern>")
     pattern = " ".join(tokens)
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
 
     if _REGEX_META_RE.search(pattern):
         return _run_regex(ctx, pattern, include_dev, prefix)

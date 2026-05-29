@@ -1304,33 +1304,6 @@ class ReplEngine:
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
 
-    @staticmethod
-    def _coerce_type(value_str: str, existing: object) -> object:
-        """Coerce a string value to match the type of the existing config value.
-
-        Args:
-            value_str: Raw string from user input.
-            existing: Current config value whose type determines the conversion.
-
-        Returns:
-            Converted value matching the type of existing.
-
-        Raises:
-            ValueError: If conversion fails (e.g. non-boolean string for a bool field).
-        """
-        if isinstance(existing, bool):
-            from termapy.scripting import parse_bool
-
-            result = parse_bool(value_str)
-            if result is None:
-                raise ValueError(f"Expected bool, got '{value_str}'")
-            return result
-        if isinstance(existing, int):
-            return int(value_str)
-        if isinstance(existing, float):
-            return float(value_str)
-        return value_str
-
     def replace_cfg(self, cfg: dict, path: str) -> None:
         """Replace config wholesale (called by app on load/edit)."""
         self._cfg_data.clear()

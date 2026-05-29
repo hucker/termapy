@@ -114,7 +114,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
     warned = ctx.ns("legacy_warned")
     if "term.verbose" not in warned:
         warned["term.verbose"] = True
-        p = ctx.internal.prefix
+        p = ctx.prefix
         ctx.io.output(
             f"  Note: {p}term.verbose is legacy; use "
             f"{p}term.output (verbose|normal).",
@@ -375,7 +375,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     """
     text = args.strip()
     if not text:
-        return CmdResult.fail(msg=f"Usage: {ctx.internal.prefix}term.log <text>")
+        return CmdResult.fail(msg=f"Usage: {ctx.prefix}term.log <text>")
     ctx.io.log("#", text)
     # Return the logged text so scripts can confirm what was written.
     return CmdResult.ok(value=text)
@@ -414,7 +414,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """When /term is called bare, show the subcommand landscape."""
     arg = args.strip()
     if arg:
-        p = ctx.internal.prefix
+        p = ctx.prefix
         return CmdResult.fail(msg=f"Usage: {p}term.<subcommand>.  Try {p}term.info.")
     return ctx.dispatch("help term")
 

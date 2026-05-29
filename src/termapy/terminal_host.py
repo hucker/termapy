@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
-from termapy.defaults import cmd_prefix
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.serial_port import eol_label
 
@@ -278,15 +277,11 @@ class TerminalHost:
         any frontend-specific fields on the returned object before passing
         it to ``_build_plugin_context()``.
         """
-        from termapy.repl import ReplEngine
-
         return InternalHandle(
-            prefix=cmd_prefix(self.cfg),
             plugins=self.repl._plugins,
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             apply_cfg=self.repl._apply_cfg,
-            coerce_type=ReplEngine._coerce_type,
             dispatch=self.repl.dispatch,
             # set_proto_active intentionally not exposed -- the bare flag
             # setter is private; ``ctx.serial.io()`` is the public path.

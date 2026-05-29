@@ -3060,7 +3060,6 @@ class SerialTerminal(TerminalHost, App):
             ).placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         except SHUTDOWN_RACE:
             pass  # prefix changed before mount or during teardown
-        self.repl.ctx.internal.prefix = prefix
 
     def _sync_all_buttons(self) -> None:
         """Refresh all file-count button tooltips and custom buttons."""

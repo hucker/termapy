@@ -1,4 +1,4 @@
-"""Tests for ReplEngine internals: start_script, run_script, _coerce_type, properties."""
+"""Tests for ReplEngine internals: start_script, run_script, properties."""
 
 import json
 from pathlib import Path
@@ -28,43 +28,6 @@ def engine(tmp_path):
     flags["output_level"] = "verbose"
     flags["hex_mode"] = False
     return eng, output
-
-
-# -- _coerce_type ----------------------------------------------------------
-
-
-class TestCoerceType:
-    def test_bool_true_values(self):
-        for val in ("true", "1", "yes", "on", "True", "YES"):
-            actual = ReplEngine._coerce_type(val, False)
-            assert actual is True, "all truthy strings coerce to True"
-
-    def test_bool_false_values(self):
-        for val in ("false", "0", "no", "off", "False", "NO"):
-            actual = ReplEngine._coerce_type(val, True)
-            assert actual is False, "all falsy strings coerce to False"
-
-    def test_bool_invalid(self):
-        with pytest.raises(ValueError):  # non-bool string raises
-            ReplEngine._coerce_type("maybe", True)
-
-    def test_int(self):
-        actual = ReplEngine._coerce_type("42", 0)
-        assert actual == 42, "string coerced to int"
-        assert isinstance(actual, int), "type preserved as int"
-
-    def test_int_invalid(self):
-        with pytest.raises(ValueError):  # non-numeric string raises
-            ReplEngine._coerce_type("abc", 0)
-
-    def test_float(self):
-        actual = ReplEngine._coerce_type("3.14", 0.0)
-        assert actual == 3.14, "string coerced to float"
-        assert isinstance(actual, float), "type preserved as float"
-
-    def test_string(self):
-        actual = ReplEngine._coerce_type("hello", "default")
-        assert actual == "hello", "string passes through unchanged"
 
 
 # -- start_script ----------------------------------------------------------

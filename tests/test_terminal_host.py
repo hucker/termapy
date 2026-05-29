@@ -83,20 +83,13 @@ def host(tmp_path):
 # -- _build_internal_handle -------------------------------------------------------
 
 
-class TestBuildEngineApi:
+class TestBuildInternalHandle:
     def test_returns_internal_handle(self, host):
         # Act
         api = host._build_internal_handle()
 
         # Assert
         assert isinstance(api, InternalHandle), "returns InternalHandle instance"
-
-    def test_prefix_from_cfg(self, host):
-        # Act
-        api = host._build_internal_handle()
-
-        # Assert
-        assert api.prefix == "/", "prefix from cfg cmd_prefix"
 
     def test_connect_callback_wired(self, host):
         # Arrange

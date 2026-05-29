@@ -478,7 +478,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         path.parent.mkdir(parents=True, exist_ok=True)
 
     encoding = ctx.cfg.get("encoding", "utf-8")
-    cmd_prefix = ctx.internal.prefix
+    cmd_prefix = ctx.prefix
 
     def extract(raw: str) -> str:
         if parse_re is None:

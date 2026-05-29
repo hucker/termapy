@@ -312,7 +312,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
     cmd = parts[1]
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
     if cmd.startswith(prefix):
         # REPL command: dispatch with .silent suffix to suppress terminal
         # output, then use CmdResult.value.  The user doesn't want to see

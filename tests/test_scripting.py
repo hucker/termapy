@@ -7,6 +7,7 @@ import pytest
 
 from termapy.plugins import CmdResult
 from termapy.scripting import (
+    coerce_to_type,
     expand_template,
     parse_bool,
     parse_count_arg,
@@ -15,6 +16,43 @@ from termapy.scripting import (
     resolve_seq_filename,
     select_lines,
 )
+
+
+# ── coerce_to_type ───────────────────────────────────────────────
+
+
+class TestCoerceToType:
+    def test_bool_true_values(self):
+        for val in ("true", "1", "yes", "on", "True", "YES"):
+            actual = coerce_to_type(val, False)
+            assert actual is True, "all truthy strings coerce to True"
+
+    def test_bool_false_values(self):
+        for val in ("false", "0", "no", "off", "False", "NO"):
+            actual = coerce_to_type(val, True)
+            assert actual is False, "all falsy strings coerce to False"
+
+    def test_bool_invalid(self):
+        with pytest.raises(ValueError):  # non-bool string raises
+            coerce_to_type("maybe", True)
+
+    def test_int(self):
+        actual = coerce_to_type("42", 0)
+        assert actual == 42, "string coerced to int"
+        assert isinstance(actual, int), "type preserved as int"
+
+    def test_int_invalid(self):
+        with pytest.raises(ValueError):  # non-numeric string raises
+            coerce_to_type("abc", 0)
+
+    def test_float(self):
+        actual = coerce_to_type("3.14", 0.0)
+        assert actual == 3.14, "string coerced to float"
+        assert isinstance(actual, float), "type preserved as float"
+
+    def test_string(self):
+        actual = coerce_to_type("hello", "default")
+        assert actual == "hello", "string passes through unchanged"
 
 
 # ── expand_template ──────────────────────────────────────────────

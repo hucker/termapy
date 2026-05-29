@@ -23,6 +23,7 @@ from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_
 from termapy.folders import FOLDERS
 from termapy.help_dynamic import cfg_status, compose
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.scripting import coerce_to_type
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -63,7 +64,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # /cfg key value - validate and delegate for confirmation
     value_str = parts[1]
     try:
-        new_val = ctx.internal.coerce_type(value_str, container[key])
+        new_val = coerce_to_type(value_str, container[key])
     except (ValueError, TypeError) as e:
         return CmdResult.fail(msg=f"Type error: {e}")
     old_val = container[key]
@@ -114,7 +115,7 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     if container is None:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
     try:
-        new_val = ctx.internal.coerce_type(value_str, container[key])
+        new_val = coerce_to_type(value_str, container[key])
     except (ValueError, TypeError) as e:
         return CmdResult.fail(msg=f"Type error: {e}")
     ctx.internal.apply_cfg(key, new_val)
@@ -167,7 +168,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
         return CmdResult.fail(
-            msg=f"Usage: {ctx.internal.prefix}cfg.load <name>"
+            msg=f"Usage: {ctx.prefix}cfg.load <name>"
         )
     return ctx.internal.load_config(name)
 

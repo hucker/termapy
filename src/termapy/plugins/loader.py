@@ -292,7 +292,7 @@ def _make_interior_handler(
     """
 
     def _handler(ctx, args: str) -> None:
-        prefix = ctx.internal.prefix
+        prefix = ctx.prefix
         ctx.io._write(f"Subcommands of {prefix}{full_name}:")
         plugins = ctx.internal.plugins
         for child_name in children:

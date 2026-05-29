@@ -17,8 +17,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from termapy.defaults import DEFAULT_CMD_PREFIX
-
 
 @dataclass
 class InternalHandle:
@@ -52,7 +50,6 @@ class InternalHandle:
     # repl.py imports the plugins package -- a plugin importing repl would
     # be circular.  Nothing here is frontend-coupled.
 
-    prefix: str = DEFAULT_CMD_PREFIX
     plugins: dict = field(default_factory=dict)
     directives: list = field(default_factory=list)
 
@@ -63,7 +60,6 @@ class InternalHandle:
     dispatch: Callable = lambda _line: None
 
     apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog
-    coerce_type: Callable = lambda val, existing: val
     in_script: Callable = lambda: False
     start_script: Callable | None = None  # (args) -> (Path | None, CmdResult)
     # script_stop()/script_stop_event: signal the engine's script runner

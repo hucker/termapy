@@ -48,12 +48,10 @@ def repl_env(tmp_path, monkeypatch):
 
     engine = ReplEngine(cfg, str(config_path), write)
     internal_handle = InternalHandle(
-        prefix="/",
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
-        coerce_type=ReplEngine._coerce_type,
         dispatch=engine.dispatch,
     )
     def write_markup(text):

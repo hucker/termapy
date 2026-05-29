@@ -63,12 +63,10 @@ def ctx_with_tracker(tmp_path):
     engine = ReplEngine(cfg, str(config_path),
                         lambda t, c=None: output.append((t, c)))
     api = InternalHandle(
-        prefix="/",
         plugins=engine._plugins,
         in_script=lambda: engine.in_script,
         script_stop=lambda: engine._script_stop.set(),
         apply_cfg=engine._apply_cfg,
-        coerce_type=ReplEngine._coerce_type,
         dispatch=engine.dispatch,
     )
     tracker = _Tracker()
@@ -173,7 +171,7 @@ class TestEngineApiBareApiUnreachable:
 
     def test_internal_handle_has_no_set_proto_active(self):
         # Arrange / Act
-        api = InternalHandle(prefix="/", plugins={})
+        api = InternalHandle(plugins={})
 
         # Assert
         assert not hasattr(api, "set_proto_active"), (

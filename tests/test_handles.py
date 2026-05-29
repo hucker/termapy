@@ -73,6 +73,18 @@ class TestHandlesAreAttached:
         assert isinstance(ctx.internal, InternalHandle), "ctx.internal is an InternalHandle"
 
 
+class TestPrefixProperty:
+    """ctx.prefix derives the REPL prefix live from cfg."""
+
+    def test_defaults_to_slash(self):
+        actual = PluginContext().prefix
+        assert actual == "/", "default prefix is /"
+
+    def test_reads_cmd_prefix_from_cfg(self):
+        actual = PluginContext(cfg={"cmd_prefix": "!"}).prefix
+        assert actual == "!", "prefix reflects cfg cmd_prefix"
+
+
 class TestIOHandle:
     """IOHandle delegates to wired callables and respects output level."""
 

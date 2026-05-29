@@ -53,14 +53,12 @@ class EngineHandle:
     dispatch: Callable = lambda _line: None
 
     # ── Config ───────────────────────────────────────────────────────
-    save_cfg: Callable | None = (
-        None  # (key, val) -> confirm dialog; None = apply, no confirm
-    )
+    # save_cfg(key, val) -> confirm dialog; None = apply with no confirm.
+    save_cfg: Callable | None = None
     apply_cfg: Callable = lambda key, val: None  # set in-memory, no dialog
     coerce_type: Callable = lambda val, existing: val
-    load_config: Callable = lambda name: (
-        None
-    )  # resolve name + (re)connect; returns CmdResult
+    # load_config(name): resolve name + (re)connect; returns CmdResult.
+    load_config: Callable = lambda name: None
 
     # ── Serial port ──────────────────────────────────────────────────
     connect: Callable = lambda port=None: None
@@ -89,12 +87,10 @@ class EngineHandle:
     xfer_cancel: Any = None  # threading.Event - Escape cancels a transfer
 
     # ── TUI-only UI (None in CLI/MCP, so builtins fall through to text) ──
-    open_picker: Callable | None = (
-        None  # (name "cfg"/"run"/"proto") -> CmdResult; opens the dialog
-    )
-    update_find_bar: Callable | None = (
-        None  # (state dict | None) -> None; /find re-renders the FindBar
-    )
+    # open_picker(name "cfg"/"run"/"proto") -> CmdResult; opens the dialog.
+    open_picker: Callable | None = None
+    # update_find_bar(state dict | None) -> None; /find re-renders the FindBar.
+    update_find_bar: Callable | None = None
 
     # ── Post-dispatch observers (/run.record, audit, MCP stream) ─────
     # Wired to the ReplEngine methods of the same name.

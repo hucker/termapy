@@ -15,10 +15,9 @@ from termapy.plugins import CapabilitySet
 from termapy.repl import ReplEngine
 from termapy.run_legacy import _scan_line
 
-# Import the legacy forwarder plugins so their module-level
-# LEGACY_COMMANDS / LEGACY_REWRITES registrations run.  In production
-# this happens via the plugin loader at startup.
-import termapy.builtins.commands.verbose  # noqa: F401
+# Importing termapy.legacy (above) runs the module-level
+# LEGACY_COMMANDS / LEGACY_REWRITES registrations.  In production the
+# runtime forwarders are registered by ReplEngine._register_legacy_forwarders.
 
 
 # ── Scanner: simple renames ───────────────────────────────────────────────────

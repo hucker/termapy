@@ -318,6 +318,32 @@ class ReplEngine:
         for hook in result.lifecycle_hooks:
             self.register_lifecycle_hook(hook)
         self._register_script_commands()
+        self._register_legacy_forwarders()
+
+    def _register_legacy_forwarders(self) -> None:
+        """Register the hidden legacy command aliases centrally.
+
+        Old top-level commands that moved to a namespace (``/echo`` ->
+        ``/term.echo``, ``/line_no`` -> ``/term.line_no``,
+        ``/show_line_endings`` -> ``/term.line_endings``, ``/verbose`` ->
+        ``/term.output``) used to be one plugin file each.  They now live
+        in ``legacy.LEGACY_FORWARDERS`` and register here, once per
+        engine, so every frontend (TUI/CLI/MCP) gets them without four
+        extra files in ``builtins/commands/``.
+        """
+        from termapy.legacy import LEGACY_FORWARDERS
+
+        for fwd in LEGACY_FORWARDERS:
+            self.register_plugin(
+                PluginInfo(
+                    name=fwd.name,
+                    args=fwd.args,
+                    help=fwd.help,
+                    handler=fwd.handler,
+                    needs=fwd.needs,
+                    hidden=True,
+                )
+            )
 
     def _register_script_commands(self) -> None:
         """Register the blocking commands as first-class plugins.

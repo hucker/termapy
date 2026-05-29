@@ -56,6 +56,35 @@ def parse_bool(val: str) -> bool | None:
     return None
 
 
+def coerce_to_type(value_str: str, existing: object) -> object:
+    """Coerce a string to match the type of an existing value.
+
+    Used when a user supplies a config value as text and the target's
+    current value tells us the expected type (bool/int/float/str).
+
+    Args:
+        value_str: Raw string from user input.
+        existing: Current value whose type determines the conversion.
+
+    Returns:
+        ``value_str`` converted to the type of ``existing``.
+
+    Raises:
+        ValueError: If conversion fails (e.g. a non-boolean string for a
+            bool field, or a non-numeric string for an int/float field).
+    """
+    if isinstance(existing, bool):
+        result = parse_bool(value_str)
+        if result is None:
+            raise ValueError(f"Expected bool, got '{value_str}'")
+        return result
+    if isinstance(existing, int):
+        return int(value_str)
+    if isinstance(existing, float):
+        return float(value_str)
+    return value_str
+
+
 def expand_template(
     text: str, counters: dict[int, int], start_time: str = ""
 ) -> tuple[str, dict[int, int]]:

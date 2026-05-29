@@ -285,7 +285,7 @@ class TestCatalog:
             cat = build_catalog(host.ctx)
             cat_names = {c["name"] for c in cat["commands"]}
             # Assert
-            prefixed = host.ctx.internal.prefix + synthetic.name
+            prefixed = host.ctx.prefix + synthetic.name
             assert prefixed in cat_names, (
                 "hidden=True with no restrictive needs should appear in catalog"
             )

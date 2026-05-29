@@ -164,7 +164,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output_markup(line)
     # Discoverability hint: many users will reach for /mcp.info first when
     # learning the MCP surface; point them at the human-readable view.
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
     ctx.io.output_markup(
         f"  [dim](Use {prefix}help --mcp for the human-readable command "
         f"list, {prefix}mcp.catalog for raw JSON.)[/]"
@@ -240,7 +240,7 @@ def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
             n = int(arg)
         except ValueError:
             return CmdResult.fail(
-                msg=f"Usage: {ctx.internal.prefix}mcp.log.dump [N]  (N>0 last N, N<0 first N)"
+                msg=f"Usage: {ctx.prefix}mcp.log.dump [N]  (N>0 last N, N<0 first N)"
             )
         if n == 0:
             return CmdResult.fail(msg="Invalid line count: 0")

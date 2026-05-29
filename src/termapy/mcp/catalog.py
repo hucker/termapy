@@ -119,7 +119,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     return {
         "schema": CATALOG_SCHEMA_VERSION,
         "version": ver,
-        "prefix": ctx.internal.prefix,
+        "prefix": ctx.prefix,
         "profile_revision": active_profile.get("profile_revision", ""),
         "profile_date": active_profile.get("profile_date", ""),
         "device": active_profile.get("device", {}),
@@ -279,7 +279,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     """
     long_help_text = resolve_long_help(plugin, ctx)
     return {
-        "name": ctx.internal.prefix + plugin.name,
+        "name": ctx.prefix + plugin.name,
         "args": plugin.args or "",
         "help": plugin.help or "",
         "long_help": long_help_text,

@@ -22,6 +22,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable
 
+from termapy.defaults import cmd_prefix
 from termapy.plugins.capabilities import CapabilitySet
 from termapy.plugins.handles.internal import InternalHandle
 from termapy.plugins.handles.fs import FilesystemHandle
@@ -163,6 +164,7 @@ class PluginContext:
       - ``ns(name)``              -- session-scoped namespace dict
       - ``plugin_cfg(name)``      -- per-plugin persistent JSON config
       - ``flag(name)``            -- read a per-dispatch flag
+      - ``prefix``                -- property; active REPL command prefix (from cfg)
       - ``output_level``          -- property; current verbose/quiet/silent dial
 
     See the docstring on each handle module
@@ -322,6 +324,18 @@ class PluginContext:
         pc = PluginConfig(path)
         self._plugin_cfgs[name] = pc
         return pc
+
+    # -- Prefix ---------------------------------------------------------------
+
+    @property
+    def prefix(self) -> str:
+        """The active REPL command prefix (e.g. ``/``).
+
+        Derived live from ``ctx.cfg`` so a runtime ``cmd_prefix`` change is
+        reflected immediately -- handlers building usage strings should read
+        this rather than hard-coding ``/``.
+        """
+        return cmd_prefix(self.cfg)
 
     # -- Output level ---------------------------------------------------------
 

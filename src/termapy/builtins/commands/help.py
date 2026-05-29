@@ -262,7 +262,7 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
     No underlining on this path -- it's an exact-match detail view,
     nothing is a "search hit" to highlight.
     """
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
     plugins = ctx.internal.plugins
 
     # NAME ────────────────────────────────────────────────────────────────────
@@ -434,7 +434,7 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     same columnar layout as the landscape view so users see one visual
     idiom across both modes.
     """
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
     plugins = ctx.internal.plugins
     words = [w for w in term.split() if w]
     ctx.io.output_markup(
@@ -535,13 +535,13 @@ def _show_command_help(ctx: PluginContext, name: str,
 
     # 3. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
-    candidates = _find_candidates(name, plugins, ctx.internal.prefix)
+    candidates = _find_candidates(name, plugins, ctx.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
         return CmdResult.ok(value="\n".join(candidates))
 
     # 4. No hits anywhere -- hint at the deeper tool.
-    p = ctx.internal.prefix
+    p = ctx.prefix
     return CmdResult.fail(
         msg=f"No command matches '{name}'. "
             f"Try {p}search {name} for a deeper search."
@@ -570,7 +570,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # casing fall through to the forgiving candidate list, which does its
     # own case-insensitive matching internally.
     name = args.strip() if isinstance(args, str) else ""
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
     if name:
         return _show_command_help(ctx, name)
 
@@ -768,7 +768,7 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     if not scripts:
         ctx.io.result("No .run scripts found.")
         return CmdResult.ok(value="")
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
     _render_scripts(ctx, scripts, prefix)
     ctx.io.result(f"{len(scripts)} scripts.")
     return CmdResult.ok(value="\n".join(p.stem for p in scripts))
@@ -810,7 +810,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
         [n for names in groups.values() for n, _ in names]
         + [n for n, _ in script_only]
     )
-    prefix = ctx.internal.prefix
+    prefix = ctx.prefix
     cmd_w = _compute_cmd_w(all_names, prefix)
     sorted_sources = sorted(groups, key=lambda s: _SOURCE_ORDER.get(s, 3))
     first = True

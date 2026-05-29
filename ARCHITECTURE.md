@@ -190,9 +190,10 @@ ctx.dispatch(cmd)                             # re-route a command through the p
 ctx.wait_for_match(predicate, timeout)        # block until serial matches (gated)
 ctx.ns(name)                                  # session-scoped state dict (see below)
 ctx.plugin_cfg(name)                          # per-plugin persistent config
+ctx.prefix                                    # active REPL command prefix (derived from cfg)
 ```
 
-**12 visible names** on `ctx`, down from ~50 flat fields. The split is by responsibility, not by syntax: four handles each own one capability domain a reader can hold in their head; the fifth, `internal`, is the deliberate exception — the privileged escape hatch for built-ins that isn't a domain.
+**13 visible names** on `ctx`, down from ~50 flat fields. The split is by responsibility, not by syntax: four handles each own one capability domain a reader can hold in their head; the fifth, `internal`, is the deliberate exception — the privileged escape hatch for built-ins that isn't a domain.
 
 **Capability gating.** Some handle methods are gated on `CapabilitySet` flags. `ctx.ui.confirm()` requires `confirm_dialog`; `ctx.fs.open_file()` requires `gui_apps`; `ctx.wait_for_match()` requires `block_until`. Calling a gated method in an environment that didn't grant the capability raises `MissingCapability`, which the dispatcher converts to `CmdResult.fail`. Commands declare what they need with `Command(needs=CapabilitySet(...))`; the dispatcher refuses to invoke a handler whose `needs` aren't satisfied, so most capability mismatches fail loudly *before* the handler runs.
 
@@ -201,7 +202,7 @@ ctx.plugin_cfg(name)                          # per-plugin persistent config
 External plugins use `PluginContext` only. `ctx.internal` is the intentional escape hatch for built-ins; its surface may change. It actually serves **two jobs**:
 
 1. **Frontend escape hatch** — slots that genuinely need Textual / pyserial / threads. `confirm_save_cfg`, for instance, pops a TUI confirm modal — and is `None` in CLI/MCP, so the same `/cfg key value` falls back to `apply_cfg` and applies directly. Capture, proto-debug, the picker screens, and threaded script runs are here too.
-2. **Engine forwarders** — slots like `dispatch` / `apply_cfg` / `coerce_type` that just reach the live `ReplEngine`. They're *injected rather than imported* because `repl.py` imports the plugins package, so a plugin importing `repl` would be circular — there's no other way for a Textual-free, repl-free plugin to reach the running engine.
+2. **Engine forwarders** — slots like `dispatch` / `apply_cfg` / `in_script` that just reach the live `ReplEngine`. They're *injected rather than imported* because `repl.py` imports the plugins package, so a plugin importing `repl` would be circular — there's no other way for a Textual-free, repl-free plugin to reach the running engine.
 
 The genuinely pure work (e.g. the JSON config write behind `confirm_save_cfg`) stays in pure modules like `config.py`; only the frontend-coupled and engine-reachable orchestration lives on the handle.
 

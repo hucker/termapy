@@ -612,7 +612,7 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
     """
     from termapy.plugins import format_kv_lines
 
-    p = ctx.internal.prefix
+    p = ctx.prefix
     name = args.strip().lower()
     if not name:
         return CmdResult.fail(msg=f"Usage: {p}proto.crc.info <name>")
@@ -697,7 +697,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     registry = get_crc_registry()
     alg = registry.get(name)
     if alg is None:
-        p = ctx.internal.prefix
+        p = ctx.prefix
         ctx.io.output(f"Use '{p}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
@@ -1059,7 +1059,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             gen_kwargs["slice8"] = True
         result = gen(name, **gen_kwargs)
         if result is None:
-            p = ctx.internal.prefix
+            p = ctx.prefix
             ctx.io.output(
                 f"Unknown algorithm: {name}. "
                 f"Use {p}proto.crc.list to see available.",
@@ -1136,7 +1136,7 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     candidate CRC field and runs every catalogue algorithm against
     every plausible (width, endian) layout.  Reports the matches.
     """
-    p = ctx.internal.prefix
+    p = ctx.prefix
     usage = (
         f"Usage: {p}proto.crc.find [width=8|16|32|64] [endian=be|le] "
         "bin=<hex> | asc=<text>"
@@ -1300,7 +1300,7 @@ def _render_find_matches(
         ctx.io.output("  1 match:", "green")
     else:
         ctx.io.output(f"  {len(collapsed)} matches:", "yellow")
-    p = ctx.internal.prefix
+    p = ctx.prefix
     for name, w, endian, data_len, expected, aliases in collapsed:
         hex_w = w * 2
         width_bits = w * 8
@@ -1383,7 +1383,7 @@ def _proto_root_handler(ctx: PluginContext, args: str) -> CmdResult:
     subcommand.  This handler runs only when no subcommand matched.
     """
     if args.strip():
-        prefix = ctx.internal.prefix
+        prefix = ctx.prefix
         return CmdResult.fail(
             msg=f"Usage: {prefix}proto.<sub>  (try {prefix}proto.help)"
         )

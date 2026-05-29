@@ -435,7 +435,7 @@ def interpolate_help(text: str, prefix: str) -> str:
     Called by every help-rendering path (both short ``help=`` and
     long ``long_help=``) so the substitution is uniform.
 
-    ``prefix`` is a plain string (usually ``ctx.internal.prefix`` at the
+    ``prefix`` is a plain string (usually ``ctx.prefix`` at the
     call site) rather than a ``PluginContext``, because several help
     renderers already have the prefix in hand and don't need to thread
     ctx through just to reach it.
@@ -469,7 +469,7 @@ def resolve_long_help(plugin: PluginInfo, ctx: "PluginContext") -> str:
             hp = hp(ctx)
         except BoundaryException as e:
             hp = f"(dynamic help failed: {e})"
-    return interpolate_help(hp or "", ctx.internal.prefix)
+    return interpolate_help(hp or "", ctx.prefix)
 
 
 # Device commands live in ``active_profile.commands`` (dicts in the

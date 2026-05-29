@@ -104,8 +104,9 @@ The `COMMAND` object must be defined after all the functions it references.
 
 ## The PluginContext shape
 
-The `ctx` object is a thin shell over **five capability handles**, each
-owning one domain. Plugin authors see 12 visible names on `ctx`:
+The `ctx` object is a thin shell over **five handles** -- four capability
+domains plus the privileged `internal` escape hatch. Plugin authors see
+13 visible names on `ctx`:
 
 ```python
 def _handler(ctx, args):
@@ -126,6 +127,7 @@ def _handler(ctx, args):
 
     ctx.dispatch("/var.set X 5")              # re-route a command
     ctx.ns("my_plugin")["counter"] += 1       # session-scoped storage
+    ctx.io.output(f"Usage: {ctx.prefix}foo")  # active REPL prefix (from cfg)
 
     return CmdResult.ok(value=...)
 ```

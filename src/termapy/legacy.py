@@ -72,7 +72,7 @@ def make_forwarder(old_name: str, new_name: str) -> Callable:
         warned = ctx.ns("legacy_warned")
         if old_name not in warned:
             warned[old_name] = True
-            p = ctx.internal.prefix
+            p = ctx.prefix
             ctx.io._write(
                 f"  Note: {p}{old_name} is legacy; use {p}{new_name}.",
                 "yellow",
@@ -121,7 +121,7 @@ def _verbose_forwarder(ctx: PluginContext, args: str) -> CmdResult:
     warned = ctx.ns("legacy_warned")
     if "verbose" not in warned:
         warned["verbose"] = True
-        p = ctx.internal.prefix
+        p = ctx.prefix
         ctx.io.output(
             f"  Note: {p}verbose is legacy; use {p}term.output "
             f"(verbose|normal).",

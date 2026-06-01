@@ -111,7 +111,7 @@ Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
 | `F`    | IEEE 754 float   | `F1-4`              | `3.14`        |
 | `B`    | Bit field        | `B1.3`, `B1-2.7-9`  | `1`, `5`      |
 | `_`    | Padding (hidden) | `_:_3-4`            | *(skipped)*   |
-| `crc*` | CRC verify       | `CRC:crc16m_le`     | pass/fail     |
+| `crc*` | CRC verify       | `CRC:crc16-modbus_le`     | pass/fail     |
 
 Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or
 8-byte (F64). Byte indexing is 1-based. `H7-*` = wildcard to end of packet.

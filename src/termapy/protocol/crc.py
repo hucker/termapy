@@ -17,15 +17,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-# Adapt crcglot 0.8.0's public API to the shapes termapy's internal
-# callers (get_crc_registry, proto.py) have historically consumed:
+# Adapt crcglot's public API to the shapes termapy's internal callers
+# (get_crc_registry, proto.py) have historically consumed:
 #
-#   * crcglot 0.8.0 exposes the typed ``ALGORITHMS`` (dict[str,
+#   * crcglot exposes the typed ``ALGORITHMS`` (dict[str,
 #     AlgorithmInfo]); termapy's registry code reads dict-of-dicts
 #     ``CRC_CATALOGUE`` with ``entry["width"]`` access.  Rebuild that
 #     legacy shape here so internal callers don't all have to change.
-#   * crcglot renamed the compute helper ``_generic_crc`` ->
-#     ``generic_crc`` (made it public).  Alias it back.
+#   * Alias the compute helper to a leading-underscore name for
+#     backward-compatible internal imports.
 #
 # New termapy code should prefer ``from crcglot import ALGORITHMS,
 # generic_crc`` directly rather than these shims.

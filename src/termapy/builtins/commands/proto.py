@@ -883,14 +883,21 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     from termapy.protocol import GENERATORS, GENERATORS_FROM_ENTRY
     from termapy.protocol.crc import _generic_crc
 
-    use_table = ctx.flag("--table")
-    use_slice8 = ctx.flag("--slice8")
-
-    if use_slice8 and use_table:
+    # Variant resolution: crcglot 0.10's generators take one ``variant=``
+    # literal ("bitwise" / "table" / "slice8") instead of the separate
+    # boolean kwargs we used to pass.
+    if ctx.flag("--table") and ctx.flag("--slice8"):
         return CmdResult.fail(
             msg="--slice8 and --table are mutually exclusive (slice-by-8 "
             "already uses tables, just 8 of them)"
         )
+    if ctx.flag("--slice8"):
+        variant = "slice8"
+    elif ctx.flag("--table"):
+        variant = "table"
+    else:
+        variant = "bitwise"
+
     # --slice8 fallback, data-driven from crcglot's per-language variant
     # set.  A language gets --slice8 registered (see _build_one_crc_lang_
     # command) whenever it has a table-driven variant -- so if the user
@@ -898,7 +905,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     # fall back to --table with a one-line note rather than erroring.
     # Python is the one current case (table but no slice8): its note
     # calls out the measured 0.79x CPython regression specifically.
-    if use_slice8:
+    if variant == "slice8":
         from crcglot import LANGUAGES
         variants = LANGUAGES[lang].variants if lang in LANGUAGES else frozenset()
         if "slice8" not in variants:
@@ -913,8 +920,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                     "using --table instead."
                 )
             ctx.io.output(note, "yellow")
-            use_slice8 = False
-            use_table = True
+            variant = "table"
 
     # Parse all ``key=value`` tokens manually -- termapy's
     # registered-flag system is bool-only.  Anything that isn't a
@@ -977,7 +983,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             return CmdResult.fail(
                 msg="Custom CRC width must be 8, 16, 32, or 64"
             )
-        if use_slice8 and width not in (32, 64):
+        if variant == "slice8" and width not in (32, 64):
             return CmdResult.fail(
                 msg=f"--slice8 requires width=32 or 64 (got width={width}). "
                 "Slice-by-8 only makes sense at those widths."
@@ -1000,10 +1006,12 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             f"Custom CRC-{width} (poly=0x{poly:X}, init=0x{init:X}, "
             f"refin={refin}, refout={refout}, xorout=0x{xorout:X})"
         )
-        # crcglot 0.8.0's *_from_entry generators take a typed
-        # AlgorithmInfo, not a dict.
+        # crcglot's *_from_entry generators take a typed AlgorithmInfo,
+        # not a dict.  0.10 dropped the ``name`` field (the name is
+        # always the dict key in the catalogue); we still pass it
+        # separately to ``gen_entry(custom_name, entry, ...)`` below.
         entry = AlgorithmInfo(
-            name=custom_name, width=width, poly=poly, init=init,
+            width=width, poly=poly, init=init,
             refin=refin, refout=refout, xorout=xorout,
             check=check, desc=desc,
         )
@@ -1017,10 +1025,9 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         gen_entry = GENERATORS_FROM_ENTRY.get(lang)
         if gen_entry is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        gen_kwargs = {"table": use_table, "symbol": symbol}
-        if use_slice8:
-            gen_kwargs["slice8"] = True
-        result = gen_entry(custom_name, entry, **gen_kwargs)
+        result = gen_entry(
+            custom_name, entry, symbol=symbol, variant=variant,
+        )
     else:
         # ----- Catalogue lookup (existing path) -----
         name = name_tokens[0].lower() if name_tokens else ""
@@ -1044,7 +1051,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         gen = GENERATORS.get(lang)
         if gen is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        if use_slice8:
+        if variant == "slice8":
             # Fail early with a clear message rather than letting
             # generate_c / generate_rust raise ValueError later.
             from termapy.protocol.crc import CRC_CATALOGUE
@@ -1054,10 +1061,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                     msg=f"--slice8 requires width=32 or 64; {name} is "
                     f"width={entry['width']}"
                 )
-        gen_kwargs = {"table": use_table, "symbol": symbol}
-        if use_slice8:
-            gen_kwargs["slice8"] = True
-        result = gen(name, **gen_kwargs)
+        result = gen(name, symbol=symbol, variant=variant)
         if result is None:
             p = ctx.prefix
             ctx.io.output(

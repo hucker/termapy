@@ -1095,9 +1095,6 @@ class TestCrcPlugins:
         assert "crc16-xmodem" in registry
         assert "crc32" in registry
         assert "crc8" in registry
-        # Backward-compat aliases
-        assert "crc16m" in registry
-        assert "crc16x" in registry
         # Plugin entries
         assert "sum8" in registry
         assert "sum16" in registry
@@ -1119,15 +1116,6 @@ class TestCrcPlugins:
         expected = 0xCDC5  # known CRC for this frame
         assert actual == expected
 
-    def test_alias_matches_canonical(self):
-        """Backward-compat alias crc16m produces same result as crc16-modbus."""
-        reset_crc_registry()
-        registry = get_crc_registry()
-        data = b"123456789"
-        actual_alias = registry["crc16m"].compute(data)
-        actual_canonical = registry["crc16-modbus"].compute(data)
-        assert actual_alias == actual_canonical
-
     def test_empty_dir(self, tmp_path):
         """Empty directory returns no plugin algorithms."""
         algos = load_crc_plugins(tmp_path)
@@ -1137,13 +1125,14 @@ class TestCrcPlugins:
 # ── Generic CRC engine - reveng catalogue check values ─────────────────
 
 
-# Canonical names only (exclude aliases which are duplicate entries)
-_CANONICAL_NAMES = [n for n in CRC_CATALOGUE if n not in ("crc16m", "crc16x")]
+# crcglot 0.10 dropped the short termapy-side aliases; the catalogue is
+# canonical reveng names only now.
+_CANONICAL_NAMES = list(CRC_CATALOGUE)
 _CHECK_DATA = b"123456789"
 
 
 class TestGenericCrcEngine:
-    """Verify generic CRC engine against all 61 reveng catalogue check values."""
+    """Verify generic CRC engine against every reveng catalogue check value."""
 
     @pytest.mark.parametrize("name", _CANONICAL_NAMES)
     def test_catalogue_check_value(self, name):
@@ -1173,20 +1162,14 @@ class TestCrcCatalogue:
         assert isinstance(entry["desc"], str)  # desc must be a string
         assert len(entry["desc"]) > 0  # desc must not be empty
 
-    def test_aliases_inherit_desc(self):
-        """Backward-compatible aliases point to entries with desc."""
-        for alias in ("crc16m", "crc16x"):
-            entry = CRC_CATALOGUE[alias]
-            assert "desc" in entry  # alias entry has desc
-
-    def test_catalogue_count(self):
-        """Catalogue has expected number of canonical algorithms (20+30+12+7)."""
-        # 20 CRC-8 + 30 CRC-16 + 12 CRC-32 + 7 CRC-64 = 69 canonical
-        # (crc16m / crc16x aliases live outside _CANONICAL_NAMES).
-        actual = len(_CANONICAL_NAMES)
-        expected = 69
+    def test_catalogue_matches_crcglot(self):
+        """The shim's CRC_CATALOGUE mirrors crcglot.ALGORITHMS one-for-one."""
+        from crcglot import ALGORITHMS
+        actual = len(CRC_CATALOGUE)
+        expected = len(ALGORITHMS)
         assert actual == expected, (
-            f"catalogue size changed: expected {expected}, got {actual}"
+            f"shim catalogue size diverged from crcglot: "
+            f"{actual} vs {expected}"
         )
 
     def test_desc_is_short(self):
@@ -1315,10 +1298,10 @@ class TestParseFormatSpec:
         assert cols[0].byte_indices == [6]  # start index
 
     def test_crc_le(self):
-        """CRC with little-endian: crc16m_le."""
-        cols = parse_format_spec("CRC:crc16m_le")
+        """CRC with little-endian: crc16-modbus_le."""
+        cols = parse_format_spec("CRC:crc16-modbus_le")
         assert cols[0].type_code == "crc"
-        assert cols[0].crc_algo == "crc16m"
+        assert cols[0].crc_algo == "crc16-modbus"
         assert cols[0].crc_little_endian is True
 
     def test_crc_be(self):
@@ -1328,9 +1311,9 @@ class TestParseFormatSpec:
         assert cols[0].crc_little_endian is False
 
     def test_crc_with_range(self):
-        """CRC with explicit data range: crc16m_le(1-6)."""
-        cols = parse_format_spec("CRC:crc16m_le(1-6)")
-        assert cols[0].crc_algo == "crc16m"
+        """CRC with explicit data range: crc16-modbus_le(1-6)."""
+        cols = parse_format_spec("CRC:crc16-modbus_le(1-6)")
+        assert cols[0].crc_algo == "crc16-modbus"
         assert cols[0].crc_data_range == (0, 5)  # 1-based → 0-based
 
     def test_crc_hyphenated_name_le(self):
@@ -1354,7 +1337,7 @@ class TestParseFormatSpec:
 
     def test_multi_column(self):
         """Full Modbus spec parses multiple columns."""
-        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
         cols = parse_format_spec(spec)
         assert len(cols) == 5
         actual_names = [c.name for c in cols]
@@ -1491,7 +1474,7 @@ class TestApplyFormat:
         # Slave=1, Func=3, Addr=0, Count=10
         payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
         frame = _modbus_frame(payload)
-        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         headers, values = apply_format(frame, cols)
@@ -1508,7 +1491,7 @@ class TestApplyFormat:
         # 6 data bytes + 2 CRC bytes = 8 total
         payload = b"\x01\x02ABCD"
         frame = _modbus_frame(payload)
-        spec = "Data:h1-* CRC:crc16m_le"
+        spec = "Data:h1-* CRC:crc16-modbus_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         headers, values = apply_format(frame, cols)
@@ -1556,7 +1539,7 @@ class TestDiffColumns:
         payload = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x0A])
         frame = _modbus_frame(payload)
         mask = b"\xff" * len(frame)
-        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         _, _, _, statuses = diff_columns(frame, frame, mask, cols)
@@ -1571,7 +1554,7 @@ class TestDiffColumns:
         corrupted[-1] ^= 0xFF
         corrupted = bytes(corrupted)
         mask = b"\xff" * len(frame)
-        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16m_le"
+        spec = "Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
         cols = parse_format_spec(spec)
         reset_crc_registry()
         _, _, _, statuses = diff_columns(corrupted, frame, mask, cols)

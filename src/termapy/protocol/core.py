@@ -1047,8 +1047,8 @@ def _parse_crc_spec(type_body: str) -> ColumnSpec:
     """Parse a CRC type specification.
 
     Formats:
-    - ``crc16m_le`` - algorithm + endianness
-    - ``crc16m_le(1-6)`` - with explicit data range
+    - ``crc16-modbus_le`` - algorithm + endianness
+    - ``crc16-modbus_le(1-6)`` - with explicit data range
     - ``crc8`` - no endianness needed for 1-byte CRC
 
     Args:
@@ -1109,7 +1109,7 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
 
     Args:
         spec: Format spec string, e.g.
-            ``"Slave:H1 Func:H2 Addr:U3-4 CRC:crc16m_le"``.
+            ``"Slave:H1 Func:H2 Addr:U3-4 CRC:crc16-modbus_le"``.
 
     Returns:
         List of ColumnSpec, one per column.

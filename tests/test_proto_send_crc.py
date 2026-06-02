@@ -337,3 +337,87 @@ class TestSendCrcAlgorithms:
         # Assert
         actual = tx_bytes[0]
         assert actual == data + expected_bytes, "4-byte LE CRC appended"
+
+
+class TestSendDryRun:
+    """``--dry-run`` skips serial I/O and prints the bytes that would be sent."""
+
+    def test_dry_run_skips_write(self, send_env):
+        # Arrange
+        ctx, output, tx_bytes = send_env
+        ctx.active_flags = {"--dry-run"}
+
+        # Act
+        _cmd_send(ctx, "01 02 03")
+
+        # Assert
+        assert tx_bytes == [], "no bytes written to the port"
+        actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
+        assert actual_lines, "TX (dry-run) line shown"
+
+    def test_dry_run_value_is_frame_hex(self, send_env):
+        # Arrange -- crc16-modbus is refout=True so natural wire order is LE.
+        ctx, output, tx_bytes = send_env
+        ctx.active_flags = {"--dry-run"}
+        registry = get_crc_registry()
+        data = b"\x01\x03\x00\x00\x00\x0a"
+        crc_int = registry["crc16-modbus"].compute(data)
+        crc_le = crc_int.to_bytes(2, "big")[::-1]
+
+        # Act
+        result = _cmd_send(ctx, "crc16-modbus 01 03 00 00 00 0A")
+
+        # Assert
+        actual = result.value
+        expected = (data + crc_le).hex()
+        assert tx_bytes == [], "no bytes written"
+        assert actual == expected, "result.value carries the assembled frame as hex"
+
+    def test_dry_run_works_when_disconnected(self):
+        # Arrange -- is_connected returns False; --dry-run must still succeed.
+        from termapy.plugins import IOHandle, SerialHandle
+        output: list = []
+        tx_bytes: list = []
+        ctx = PluginContext(
+            internal=InternalHandle(),
+            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
+            serial=SerialHandle(
+                is_connected=lambda: False,
+                write=lambda data: tx_bytes.append(data),
+                read_raw=lambda timeout_ms=1000, frame_gap_ms=0: b"",
+            ),
+        )
+        ctx.ns("flags")["output_level"] = "normal"
+        ctx.active_flags = {"--dry-run"}
+
+        # Act
+        result = _cmd_send(ctx, "01 02 03")
+
+        # Assert
+        assert tx_bytes == [], "no bytes written when disconnected"
+        assert result.success, "dry-run succeeds without a connection"
+
+    def test_no_dry_run_when_disconnected_fails(self):
+        # Arrange -- no --dry-run, no connection: should refuse cleanly.
+        from termapy.plugins import IOHandle, SerialHandle
+        output: list = []
+        tx_bytes: list = []
+        ctx = PluginContext(
+            internal=InternalHandle(),
+            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
+            serial=SerialHandle(
+                is_connected=lambda: False,
+                write=lambda data: tx_bytes.append(data),
+            ),
+        )
+        ctx.ns("flags")["output_level"] = "normal"
+
+        # Act
+        result = _cmd_send(ctx, "01 02 03")
+
+        # Assert
+        actual = result.error
+        expected = "Not connected."
+        assert tx_bytes == [], "no bytes written"
+        assert not result.success, "handler reports failure"
+        assert actual == expected, "error matches the standard 'Not connected.' message"

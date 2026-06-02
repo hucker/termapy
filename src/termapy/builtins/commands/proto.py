@@ -358,7 +358,15 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     If the first word matches a known CRC algorithm (with optional
     ``_le``/``_be`` and ``_ascii`` suffixes), computes and appends the
-    CRC to the data before sending. Default byte order is LE.
+    CRC to the data before sending.  Default byte order follows the
+    algorithm's natural wire order (``refout=True`` -> LE, ``False``
+    -> BE); explicit ``_le`` / ``_be`` override it.
+
+    With ``--dry-run`` the handler does all the parsing and CRC
+    assembly, prints the bytes that would have been sent, and returns
+    without touching the serial port -- so it works without a connected
+    device and is the way to verify CRC byte order against a real
+    frame layout from the REPL.
 
     Args:
         ctx: Plugin context for serial I/O and output.
@@ -409,7 +417,9 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
 
-    if algo is not None and ctx.output_level == "verbose":
+    dry_run = ctx.flag("--dry-run")
+
+    if algo is not None and (dry_run or ctx.output_level == "verbose"):
         endian_label = "BE" if big_endian else "LE"
         mode_label = "ascii" if ascii_crc else "bin"
         ctx.io.output(
@@ -420,6 +430,29 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     # Build display string with delay markers
     all_data = b"".join(s for s in segments if isinstance(s, bytes))
     has_delays = any(isinstance(s, float) for s in segments)
+
+    if dry_run:
+        # Skip the actual write -- show the bytes that would have been
+        # sent and return.  Useful for verifying CRC byte order, frame
+        # layout, or scripted sends without a connected device.
+        if has_delays:
+            parts: list[str] = []
+            for s in segments:
+                if isinstance(s, bytes):
+                    parts.append(format_hex(s))
+                elif s >= 1.0:
+                    parts.append(f"[~{s:.1f}s]")
+                elif s >= 0.001:
+                    parts.append(f"[~{s * 1000:.0f}ms]")
+                else:
+                    parts.append(f"[~{s * 1_000_000:.0f}us]")
+            ctx.io.output(f"  TX (dry-run): {' '.join(parts)}")
+        else:
+            _display_bytes(ctx, "TX (dry-run)", all_data, binary=True)
+        return CmdResult.ok(value=all_data.hex())
+
+    if not ctx.serial.is_connected():
+        return CmdResult.fail(msg="Not connected.")
 
     with ctx.serial.io():
         ctx.serial.drain()
@@ -1523,10 +1556,15 @@ COMMAND = Command(
             handler=_proto_help_handler,
         ),
         "send": Command(
-            args='{algo[_le|_be][_ascii]} <hex|"text">',
+            args='{algo[_le|_be][_ascii]} <hex|"text"> {--dry-run}',
             help="Send raw bytes (with optional CRC), show response.",
             handler=_cmd_send,
-            needs=CapabilitySet(serial_connected=True),
+            flags={
+                "--dry-run": (
+                    "Print the bytes that would be sent without writing "
+                    "to the port (works without a connected device)."
+                ),
+            },
         ),
         "run": Command(
             args="<file.pro>",

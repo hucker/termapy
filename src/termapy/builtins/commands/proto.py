@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import fnmatch
 
@@ -22,6 +22,8 @@ from termapy.protocol import (
 )
 from termapy.protocol import CRC_CATALOGUE, get_crc_registry
 
+from crcglot import DetectResult, detect
+
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
@@ -33,28 +35,67 @@ if TYPE_CHECKING:
 # ---- Shared helpers --------------------------------------------------------
 
 
-def _display_bytes(
-    ctx: PluginContext, direction: str, data: bytes, binary: bool = False
-) -> None:
-    """Display TX or RX data as hex + smart text representation.
+_TEXT_ESCAPES = {
+    0x00: r"\0", 0x07: r"\a", 0x08: r"\b", 0x09: r"\t",
+    0x0A: r"\n", 0x0B: r"\v", 0x0C: r"\f", 0x0D: r"\r",
+    0x22: r"\"", 0x5C: "\\\\",
+}
 
-    Short packets (<=16 bytes) are shown on one line with hex and smart
-    format. Longer packets get a multi-line hex dump with ASCII sidebar.
+
+def _format_as_quoted_text(data: bytes) -> str:
+    """Render bytes as a quoted escape-string.
+
+    Printable ASCII passes through literally; common control bytes
+    use familiar escape sequences (``\\n``, ``\\r``, ``\\t``, ...);
+    everything else becomes ``\\xNN``.  Used as the ``--ascii``
+    rendering for byte-dump commands.
+    """
+    pieces: list[str] = []
+    for b in data:
+        if b in _TEXT_ESCAPES:
+            pieces.append(_TEXT_ESCAPES[b])
+        elif 0x20 <= b < 0x7F:
+            pieces.append(chr(b))
+        else:
+            pieces.append(f"\\x{b:02X}")
+    return '"' + "".join(pieces) + '"'
+
+
+def _display_bytes(
+    ctx: PluginContext,
+    direction: str,
+    data: bytes,
+    *,
+    as_text: bool = False,
+) -> None:
+    """Display TX or RX data.
+
+    Default: hex bytes followed by an ASCII sidebar (``|HELLO...|``)
+    showing printable chars literally and ``.`` for non-printable --
+    the standard hex-dump row, just on one line for short payloads
+    (<=16 bytes).  Longer payloads use the multi-line
+    :func:`format_hex_dump`.
+
+    ``as_text=True``: render the payload as a single quoted
+    escape-string (``TX: "AT\\r\\n"``).  Useful when you sent ASCII
+    text and want to verify the textual content; commands that wire a
+    ``--ascii`` flag pass it through here.
 
     Args:
         ctx: Plugin context for output.
-        direction: Label prefix - ``"TX"`` (cyan) or ``"RX"`` (yellow).
+        direction: Label prefix -- ``"TX"`` (cyan) or ``"RX"`` (yellow).
+            Variants like ``"TX (dry-run)"`` also get TX coloring.
         data: Raw bytes to display.
-        binary: Unused (kept for API compatibility).
+        as_text: Switch to escape-rendered text view.
     """
-    color = "cyan" if direction == "TX" else "yellow"
+    color = "cyan" if direction.startswith("TX") else "yellow"
+    if as_text:
+        ctx.io.output(f"  {direction}: {_format_as_quoted_text(data)}", color)
+        return
     if len(data) <= 16:
         hex_str = format_hex(data)
-        smart_str = format_smart(data)
-        if hex_str == smart_str:
-            ctx.io.output(f"  {direction}: {hex_str}", color)
-        else:
-            ctx.io.output(f"  {direction}: {hex_str}  {smart_str}", color)
+        sidebar = "".join(chr(b) if 0x20 <= b < 0x7F else "." for b in data)
+        ctx.io.output(f"  {direction}: {hex_str}  |{sidebar}|", color)
     else:
         ctx.io.output(f"  {direction} {len(data)} bytes:", color)
         for line in format_hex_dump(data):
@@ -291,6 +332,12 @@ def _parse_send_algo(
     Strips ``_le``/``_be`` (byte order) and ``_ascii`` (output format)
     suffixes from the name and looks up the base algorithm in the registry.
 
+    Without an explicit ``_le`` / ``_be`` suffix the result's
+    ``big_endian`` flag is derived from the algorithm's natural wire
+    order (``refout=True`` -> ``False``, i.e. low byte first;
+    ``refout=False`` -> ``True``, i.e. high byte first).  Explicit
+    suffixes still win when present.
+
     Args:
         name: First word from the command (e.g. ``"crc16-modbus_be_ascii"``).
         registry: CRC algorithm registry to match against.
@@ -300,11 +347,12 @@ def _parse_send_algo(
         if the name doesn't match any algorithm.
     """
     low = name.lower()
-    # Exact match first (some algo names contain underscores)
+    # Exact match first (some algo names contain underscores).  No
+    # suffix -> use the algorithm's natural wire order: refout=True
+    # means low byte first (LE wire), refout=False means high first (BE).
     if low in registry:
-        return low, False, False
+        return low, not registry[low].refout, False
 
-    big_endian = False
     ascii_crc = False
 
     # Strip _ascii suffix
@@ -312,14 +360,22 @@ def _parse_send_algo(
         ascii_crc = True
         low = low[:-6]
 
-    # Strip _le or _be suffix
+    # Strip _le or _be suffix.  ``None`` here means the user gave no
+    # explicit byte-order suffix; we derive from the algorithm below.
+    explicit_be: bool | None = None
     if low.endswith("_be"):
-        big_endian = True
+        explicit_be = True
         low = low[:-3]
     elif low.endswith("_le"):
+        explicit_be = False
         low = low[:-3]
 
     if low in registry:
+        big_endian = (
+            explicit_be
+            if explicit_be is not None
+            else not registry[low].refout
+        )
         return low, big_endian, ascii_crc
     return None, False, False
 
@@ -343,7 +399,15 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
 
     If the first word matches a known CRC algorithm (with optional
     ``_le``/``_be`` and ``_ascii`` suffixes), computes and appends the
-    CRC to the data before sending. Default byte order is LE.
+    CRC to the data before sending.  Default byte order follows the
+    algorithm's natural wire order (``refout=True`` -> LE, ``False``
+    -> BE); explicit ``_le`` / ``_be`` override it.
+
+    With ``--dry-run`` the handler does all the parsing and CRC
+    assembly, prints the bytes that would have been sent, and returns
+    without touching the serial port -- so it works without a connected
+    device and is the way to verify CRC byte order against a real
+    frame layout from the REPL.
 
     Args:
         ctx: Plugin context for serial I/O and output.
@@ -394,7 +458,10 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
 
-    if algo is not None and ctx.output_level == "verbose":
+    dry_run = ctx.flag("--dry-run")
+    ascii_view = ctx.flag("--ascii")
+
+    if algo is not None and (dry_run or ctx.output_level == "verbose"):
         endian_label = "BE" if big_endian else "LE"
         mode_label = "ascii" if ascii_crc else "bin"
         ctx.io.output(
@@ -405,6 +472,32 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     # Build display string with delay markers
     all_data = b"".join(s for s in segments if isinstance(s, bytes))
     has_delays = any(isinstance(s, float) for s in segments)
+
+    if dry_run:
+        # Skip the actual write -- show the bytes that would have been
+        # sent and return.  Useful for verifying CRC byte order, frame
+        # layout, or scripted sends without a connected device.
+        if has_delays:
+            parts: list[str] = []
+            for s in segments:
+                if isinstance(s, bytes):
+                    parts.append(
+                        _format_as_quoted_text(s) if ascii_view
+                        else format_hex(s)
+                    )
+                elif s >= 1.0:
+                    parts.append(f"[~{s:.1f}s]")
+                elif s >= 0.001:
+                    parts.append(f"[~{s * 1000:.0f}ms]")
+                else:
+                    parts.append(f"[~{s * 1_000_000:.0f}us]")
+            ctx.io.output(f"  TX (dry-run): {' '.join(parts)}")
+        else:
+            _display_bytes(ctx, "TX (dry-run)", all_data, as_text=ascii_view)
+        return CmdResult.ok(value=all_data.hex())
+
+    if not ctx.serial.is_connected():
+        return CmdResult.fail(msg="Not connected.")
 
     with ctx.serial.io():
         ctx.serial.drain()
@@ -428,7 +521,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                             parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
                 ctx.io.output_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
             else:
-                _display_bytes(ctx, "TX", all_data, binary=True)
+                _display_bytes(ctx, "TX", all_data, as_text=ascii_view)
 
         t0 = time.monotonic()
         for segment in segments:
@@ -440,7 +533,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
         elapsed_ms = (time.monotonic() - t0) * 1000
 
     if response:
-        _display_bytes(ctx, "RX", response, binary=True)
+        _display_bytes(ctx, "RX", response, as_text=ascii_view)
         if ctx.output_level == "verbose":
             ctx.io.output(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
@@ -883,14 +976,21 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     from termapy.protocol import GENERATORS, GENERATORS_FROM_ENTRY
     from termapy.protocol.crc import _generic_crc
 
-    use_table = ctx.flag("--table")
-    use_slice8 = ctx.flag("--slice8")
-
-    if use_slice8 and use_table:
+    # Variant resolution: crcglot 0.10's generators take one ``variant=``
+    # literal ("bitwise" / "table" / "slice8") instead of the separate
+    # boolean kwargs we used to pass.
+    if ctx.flag("--table") and ctx.flag("--slice8"):
         return CmdResult.fail(
             msg="--slice8 and --table are mutually exclusive (slice-by-8 "
             "already uses tables, just 8 of them)"
         )
+    if ctx.flag("--slice8"):
+        variant = "slice8"
+    elif ctx.flag("--table"):
+        variant = "table"
+    else:
+        variant = "bitwise"
+
     # --slice8 fallback, data-driven from crcglot's per-language variant
     # set.  A language gets --slice8 registered (see _build_one_crc_lang_
     # command) whenever it has a table-driven variant -- so if the user
@@ -898,7 +998,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     # fall back to --table with a one-line note rather than erroring.
     # Python is the one current case (table but no slice8): its note
     # calls out the measured 0.79x CPython regression specifically.
-    if use_slice8:
+    if variant == "slice8":
         from crcglot import LANGUAGES
         variants = LANGUAGES[lang].variants if lang in LANGUAGES else frozenset()
         if "slice8" not in variants:
@@ -913,8 +1013,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                     "using --table instead."
                 )
             ctx.io.output(note, "yellow")
-            use_slice8 = False
-            use_table = True
+            variant = "table"
 
     # Parse all ``key=value`` tokens manually -- termapy's
     # registered-flag system is bool-only.  Anything that isn't a
@@ -977,7 +1076,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             return CmdResult.fail(
                 msg="Custom CRC width must be 8, 16, 32, or 64"
             )
-        if use_slice8 and width not in (32, 64):
+        if variant == "slice8" and width not in (32, 64):
             return CmdResult.fail(
                 msg=f"--slice8 requires width=32 or 64 (got width={width}). "
                 "Slice-by-8 only makes sense at those widths."
@@ -1000,10 +1099,12 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             f"Custom CRC-{width} (poly=0x{poly:X}, init=0x{init:X}, "
             f"refin={refin}, refout={refout}, xorout=0x{xorout:X})"
         )
-        # crcglot 0.8.0's *_from_entry generators take a typed
-        # AlgorithmInfo, not a dict.
+        # crcglot's *_from_entry generators take a typed AlgorithmInfo,
+        # not a dict.  0.10 dropped the ``name`` field (the name is
+        # always the dict key in the catalogue); we still pass it
+        # separately to ``gen_entry(custom_name, entry, ...)`` below.
         entry = AlgorithmInfo(
-            name=custom_name, width=width, poly=poly, init=init,
+            width=width, poly=poly, init=init,
             refin=refin, refout=refout, xorout=xorout,
             check=check, desc=desc,
         )
@@ -1017,10 +1118,9 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         gen_entry = GENERATORS_FROM_ENTRY.get(lang)
         if gen_entry is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        gen_kwargs = {"table": use_table, "symbol": symbol}
-        if use_slice8:
-            gen_kwargs["slice8"] = True
-        result = gen_entry(custom_name, entry, **gen_kwargs)
+        result = gen_entry(
+            custom_name, entry, symbol=symbol, variant=variant,
+        )
     else:
         # ----- Catalogue lookup (existing path) -----
         name = name_tokens[0].lower() if name_tokens else ""
@@ -1044,7 +1144,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         gen = GENERATORS.get(lang)
         if gen is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        if use_slice8:
+        if variant == "slice8":
             # Fail early with a clear message rather than letting
             # generate_c / generate_rust raise ValueError later.
             from termapy.protocol.crc import CRC_CATALOGUE
@@ -1054,10 +1154,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                     msg=f"--slice8 requires width=32 or 64; {name} is "
                     f"width={entry['width']}"
                 )
-        gen_kwargs = {"table": use_table, "symbol": symbol}
-        if use_slice8:
-            gen_kwargs["slice8"] = True
-        result = gen(name, **gen_kwargs)
+        result = gen(name, symbol=symbol, variant=variant)
         if result is None:
             p = ctx.prefix
             ctx.io.output(
@@ -1101,14 +1198,15 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 def _parse_find_args(text: str) -> dict[str, str]:
     """Parse /proto.crc.find arguments.
 
-    ``bin=`` and ``asc=`` each consume everything after them to end of
-    line (a captured packet may contain spaces and can't be split by
-    whitespace).  ``width=`` and ``endian=`` are single-token filters
-    and must come before the bin/asc argument.
+    ``bin=`` and ``asc=`` each consume everything after them to end
+    of line (a captured packet may contain spaces and can't be split
+    by whitespace).  ``width=`` and ``endian=`` are single-token
+    filters and must come before the bin/asc argument.
 
     Returns a dict with keys ``mode`` ("bin" or "asc"), ``payload``
-    (the captured packet string), and optionally ``width`` / ``endian``.
-    Returns empty dict if neither bin= nor asc= is present.
+    (the captured packet string), and optionally ``width`` /
+    ``endian``.  Returns empty dict if neither bin= nor asc= is
+    present.
     """
     result: dict[str, str] = {}
     stripped = text.strip()
@@ -1131,10 +1229,18 @@ def _parse_find_args(text: str) -> dict[str, str]:
 def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     """Identify the CRC algorithm used in a captured packet.
 
-    Given the full packet as ``bin=<hex>`` or ``asc=<text>``, slices
-    trailing bytes (bin) or trailing hex-ASCII chars (asc) as the
-    candidate CRC field and runs every catalogue algorithm against
-    every plausible (width, endian) layout.  Reports the matches.
+    Two input modes:
+
+      - ``bin=<hex>``  -- a captured frame as hex bytes.
+      - ``asc=<text>`` -- a packet whose trailing chars are the
+        hex-encoded CRC.
+
+    The actual identification work is ``crcglot.detect``; termapy
+    just shuttles bytes in and formats the result.  Both modes
+    require a real captured frame -- there's no live "send and
+    detect" mode because constructing a valid query already requires
+    knowing the CRC algorithm (chicken/egg), so capture-from-sniffer
+    is the universally applicable path.
     """
     p = ctx.prefix
     usage = (
@@ -1155,186 +1261,146 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     endian_filter = kw.get("endian", "").lower()
     if endian_filter and endian_filter not in ("be", "le"):
         return CmdResult.fail(msg="Invalid endian: must be be or le")
+    # crcglot's detect uses "big" / "little" / "both" -- map from the
+    # shorter "be" / "le" that termapy exposes to users.
+    endian_arg: Literal["big", "little", "both"]
+    if endian_filter == "be":
+        endian_arg = "big"
+    elif endian_filter == "le":
+        endian_arg = "little"
+    else:
+        endian_arg = "both"
 
-    # CRC-64 widths searched by default alongside the smaller ones.
-    byte_widths = (width_filter // 8,) if width_filter else (1, 2, 4, 8)
-    endians = (endian_filter,) if endian_filter else ("be", "le")
-
-    if kw["mode"] == "bin":
+    mode = kw["mode"]
+    if mode == "bin":
         tokens = kw["payload"].split()
         try:
-            packet = bytes(int(t, 16) for t in tokens)
+            packet: bytes = bytes(int(t, 16) for t in tokens)
         except ValueError:
             return CmdResult.fail(msg="Invalid hex bytes in bin=")
-        return _render_find_matches(
-            ctx, _find_in_binary(packet, byte_widths, endians)
+        result = detect(packet, mode="binary", match="all", endian=endian_arg)
+        return _render_detect_result(
+            ctx, result, len(packet), width_filter, is_text=False,
         )
 
+    # mode == "asc"
     text = kw["payload"]
     if not text:
         return CmdResult.fail(msg="Empty asc= payload")
-    return _render_find_matches(ctx, _find_in_ascii(text, byte_widths))
+    result = _detect_ascii(text, endian_arg, width_filter)
+    return _render_detect_result(
+        ctx, result, len(text), width_filter, is_text=True,
+    )
 
 
-def _find_in_binary(
-    packet: bytes, byte_widths: tuple[int, ...], endians: tuple[str, ...]
-) -> list[tuple[str, int, str, int, int]]:
-    """Search for matching CRC algorithms in a binary packet.
+def _detect_ascii(
+    text: str,
+    endian_arg: Literal["big", "little", "both"],
+    width_filter: int | None,
+) -> DetectResult:
+    """Identify the CRC in an ``asc=``-style ASCII payload.
 
-    Each match is ``(algo_name, width_bytes, endian, data_len, expected)``.
+    Termapy's asc= convention: the last ``2N`` chars are a hex-encoded
+    N-byte CRC, the rest is data.  crcglot.detect's text mode wants an
+    explicit ``data <sep> hex`` separator, which the convention skips,
+    so this helper slices the trailing hex off for each plausible
+    width, encodes the head as UTF-8, and shuttles the binary
+    equivalent through ``detect``.  Pure data prep; detection itself
+    still goes upstream.
     """
-    registry = get_crc_registry()
-    matches: list[tuple[str, int, str, int, int]] = []
-    for w in byte_widths:
-        if len(packet) <= w:
-            continue
-        data = packet[:-w]
-        crc_bytes = packet[-w:]
-        candidates: list[tuple[str, int]] = []
-        if w == 1:
-            candidates.append(("-", crc_bytes[0]))
-        else:
-            for e in endians:
-                order = "big" if e == "be" else "little"
-                candidates.append((e, int.from_bytes(crc_bytes, order)))
-        for name, algo in registry.items():
-            if algo.width != w:
-                continue
-            computed = algo.compute(data)
-            for endian, expected in candidates:
-                if computed == expected:
-                    matches.append((name, w, endian, len(data), expected))
-    return matches
-
-
-def _find_in_ascii(
-    text: str, byte_widths: tuple[int, ...]
-) -> list[tuple[str, int, str, int, int]]:
-    """Search for matching CRC algorithms in an ASCII packet.
-
-    Assumes the CRC field is the trailing N hex characters (where
-    N = 2 * width_bytes).  No endian variation -- hex-ASCII encoding
-    is unambiguous at the integer level.
-    """
-    registry = get_crc_registry()
-    matches: list[tuple[str, int, str, int, int]] = []
-    for w in byte_widths:
+    widths_bytes = (width_filter // 8,) if width_filter else (1, 2, 4, 8)
+    seen: set[str] = set()
+    candidates: list = []
+    for w in widths_bytes:
         hex_len = w * 2
         if len(text) <= hex_len:
             continue
-        tail = text[-hex_len:]
         try:
-            expected = int(tail, 16)
+            crc_int = int(text[-hex_len:], 16)
         except ValueError:
-            continue  # trailing chars aren't hex; this width isn't a candidate
-        data = text[:-hex_len].encode("utf-8")
-        for name, algo in registry.items():
-            if algo.width != w:
-                continue
-            if algo.compute(data) == expected:
-                matches.append((name, w, "-", len(data), expected))
-    return matches
+            continue
+        packet = text[:-hex_len].encode("utf-8") + crc_int.to_bytes(w, "big")
+        result = detect(packet, mode="binary", match="all", endian=endian_arg)
+        for m in result.candidates:
+            if m.algorithm not in seen:
+                seen.add(m.algorithm)
+                candidates.append(m)
+    return DetectResult(matched=bool(candidates), candidates=tuple(candidates))
 
 
-def _dedupe_catalogue_aliases(
-    matches: list[tuple[str, int, str, int, int]],
-) -> list[tuple[str, int, str, int, int, list[str]]]:
-    """Collapse matches that share identical catalogue parameters.
-
-    crc16-modbus and crc16m (for example) are catalogue aliases for
-    the same algorithm -- same poly/init/refin/refout/xorout/width.
-    Reporting both as separate matches is noise.  Group them by the
-    parameter tuple, keep the shortest name as canonical, list the
-    rest as ``aliases``.
-
-    Names not in ``CRC_CATALOGUE`` (e.g. plugins like ``sum8``)
-    stand alone -- their ``compute`` is opaque so we can't compare
-    parameters.
-    """
-    groups: dict[tuple, list[tuple[str, int, str, int, int]]] = {}
-    for m in matches:
-        name = m[0]
-        entry = CRC_CATALOGUE.get(name)
-        if entry is None:
-            key = ("plugin", name, m[1], m[2])  # one group per plugin name
-        else:
-            key = (
-                entry["width"],
-                entry["poly"],
-                entry["init"],
-                entry["refin"],
-                entry["refout"],
-                entry["xorout"],
-                m[2],  # endian -- different endians are legitimately different matches
-                m[3],  # data_len
-            )
-        groups.setdefault(key, []).append(m)
-
-    collapsed: list[tuple[str, int, str, int, int, list[str]]] = []
-    for group in groups.values():
-        # Prefer the longer, more descriptive name as canonical
-        # (crc16-modbus > crc16m) -- matches what users expect to see.
-        names = sorted({g[0] for g in group}, key=lambda n: (-len(n), n))
-        canonical = names[0]
-        aliases = names[1:]
-        # pick one representative tuple for the other fields
-        rep = next(g for g in group if g[0] == canonical)
-        collapsed.append((canonical, rep[1], rep[2], rep[3], rep[4], aliases))
-    return collapsed
-
-
-def _render_find_matches(
+def _render_detect_result(
     ctx: PluginContext,
-    matches: list[tuple[str, int, str, int, int]],
+    result: DetectResult,
+    packet_len: int,
+    width_filter: int | None,
+    is_text: bool,
 ) -> CmdResult:
-    """Render the find results to the terminal."""
-    if not matches:
-        ctx.io.output("  No matches found.", "red")
-        ctx.io.output("  Packet may use a non-standard algorithm, a CRC field")
-        ctx.io.output("  that is not trailing, or be too short to identify.")
-        # Zero matches -- empty value lets scripts distinguish "no match"
-        # from "single hit" (the success branch returns the alg name).
+    """Render a ``crcglot.detect`` result to the terminal.
+
+    ``width_filter`` (None or 8/16/32/64) post-filters the candidate
+    list -- crcglot's ``algorithms`` glob would work, but a tiny
+    explicit filter sidesteps fnmatch corner cases.  ``is_text`` is
+    True for ``asc=`` input (the trailing field is hex-encoded, so the
+    "data" size is ``packet_len - 2 * width_bytes`` characters); False
+    for binary input (``packet_len - width_bytes`` bytes).
+    """
+    candidates = result.candidates
+    if width_filter is not None:
+        candidates = tuple(m for m in candidates if m.info.width == width_filter)
+
+    # Output-level model for /proto.crc.find:
+    #   result()  -- the *answer*: the match line(s), or "No matches found."
+    #   output()  -- supporting context (the explanation for the 0-case).
+    #   status()  -- educational hints (codegen tip, multi-match advice),
+    #                shown only under --verbose.
+    # The old "1 match:" / "N matches:" header was noise; the count is
+    # apparent from how many match lines follow.
+
+    if not candidates:
+        ctx.io.result("  No matches found.", "red")
+        ctx.io.output(
+            "  Packet may use a non-standard algorithm, a CRC field that"
+        )
+        ctx.io.output(
+            "  isn't trailing, or be too short to identify."
+        )
         return CmdResult.ok(value="")
-    collapsed = _dedupe_catalogue_aliases(matches)
-    if len(collapsed) == 1:
-        ctx.io.output("  1 match:", "green")
-    else:
-        ctx.io.output(f"  {len(collapsed)} matches:", "yellow")
+
     p = ctx.prefix
-    for name, w, endian, data_len, expected, aliases in collapsed:
-        hex_w = w * 2
-        width_bits = w * 8
-        endian_str = "" if endian == "-" else f"  endian={endian}"
-        alias_str = f"  (aka {', '.join(aliases)})" if aliases else ""
-        ctx.io.output_markup(
-            f"  [cyan]{name}[/]{alias_str}  "
-            f"width={width_bits}  field=last{w}  "
-            f"expected=0x{expected:0{hex_w}X}{endian_str}  "
-            f"data={data_len} bytes"
+    for m in candidates:
+        width_bits = m.info.width
+        width_bytes = (width_bits + 7) // 8
+        endian_str = (
+            f"  endian={m.endianness}" if m.endianness is not None else ""
         )
-    if len(collapsed) == 1:
-        name = collapsed[0][0]
-        ctx.io.output("")
-        ctx.io.output(
+        data_len = packet_len - (width_bytes * 2 if is_text else width_bytes)
+        unit = "chars" if is_text else "bytes"
+        ctx.io.result_markup(
+            f"  [cyan]{m.algorithm}[/]  "
+            f"width={width_bits}  field=last{width_bytes}"
+            f"{endian_str}  data={data_len} {unit}"
+        )
+    if len(candidates) == 1:
+        name = candidates[0].algorithm
+        ctx.io.status("")
+        ctx.io.status(
             f"  Generate source: {p}proto.crc.c {name}  "
-            f"(or .python / .rust)",
-            "dim",
+            f"(or .python / .rust)"
         )
-    if len(collapsed) > 1:
-        ctx.io.output("")
-        ctx.io.output(
-            "  Multiple matches usually means the packet is too short to",
-            "dim",
+    else:
+        ctx.io.status("")
+        ctx.io.status(
+            "  Multiple matches usually means the packet is too short to"
         )
-        ctx.io.output(
-            "  disambiguate.  Capture a second packet with a different CRC",
-            "dim",
+        ctx.io.status(
+            "  disambiguate.  Capture a second packet with a different CRC"
         )
-        ctx.io.output(
-            "  and intersect the match sets to narrow down.",
-            "dim",
+        ctx.io.status(
+            "  and intersect the match sets to narrow down."
         )
-    return CmdResult.ok(value=collapsed[0][0] if len(collapsed) == 1 else "")
+    return CmdResult.ok(
+        value=candidates[0].algorithm if len(candidates) == 1 else ""
+    )
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
@@ -1504,10 +1570,23 @@ COMMAND = Command(
             handler=_proto_help_handler,
         ),
         "send": Command(
-            args='{algo[_le|_be][_ascii]} <hex|"text">',
+            args=(
+                '{algo[_le|_be][_ascii]} <hex|"text"> '
+                "{--dry-run} {--ascii}"
+            ),
             help="Send raw bytes (with optional CRC), show response.",
             handler=_cmd_send,
-            needs=CapabilitySet(serial_connected=True),
+            flags={
+                "--dry-run": (
+                    "Print the bytes that would be sent without writing "
+                    "to the port (works without a connected device)."
+                ),
+                "--ascii": (
+                    "Render TX/RX as a quoted escape-string (e.g. "
+                    '"AT\\r\\n") instead of the default hex + ASCII '
+                    "sidebar.  Use when you're sending text."
+                ),
+            },
         ),
         "run": Command(
             args="<file.pro>",
@@ -1556,19 +1635,25 @@ COMMAND = Command(
                     handler=_crc_info,
                 ),
                 "find": Command(
-                    args="[width=8|16|32] [endian=be|le] bin=<hex> | asc=<text>",
+                    args=(
+                        "[width=8|16|32|64] [endian=be|le] "
+                        "bin=<hex> | asc=<text>"
+                    ),
                     help="Identify the CRC algorithm used in a captured packet.",
                     long_help=(
-                        "Given the full packet, tries every catalogue algorithm\n"
-                        "against each plausible trailing-CRC layout and reports\n"
-                        "the match(es).\n"
+                        "Identifies which catalogue algorithm produced the\n"
+                        "trailing CRC bytes of a packet, via crcglot.detect.\n"
+                        "Feed in a real captured frame (sniffer, scope, etc.):\n"
+                        "constructing a valid query already requires knowing\n"
+                        "the CRC algorithm, so the capture-from-the-wire path\n"
+                        "is the universally applicable workflow.\n"
                         "\n"
                         "bin=<hex>  - hex bytes, last 1/2/4 bytes = CRC field\n"
                         "asc=<text> - ASCII, last 2/4/8 chars = hex-encoded CRC\n"
                         "\n"
                         "Optional filters:\n"
-                        "  width=8|16|32  restrict CRC width\n"
-                        "  endian=be|le   restrict byte order (bin= only)\n"
+                        "  width=8|16|32|64  restrict CRC width\n"
+                        "  endian=be|le      restrict byte order\n"
                         "\n"
                         "Examples:\n"
                         "  {prefix}proto.crc.find bin=01 03 00 00 00 0A C5 CD\n"

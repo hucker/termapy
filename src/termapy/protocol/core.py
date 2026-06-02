@@ -964,7 +964,10 @@ class ColumnSpec:
             Single bit: ``int``. Multi-byte range: ``(start, end)`` tuple.
         wildcard: True if the spec ends with ``-*`` (variable length).
         crc_algo: CRC algorithm name (without ``_le``/``_be`` suffix), or None.
-        crc_little_endian: True if CRC uses ``_le`` suffix.
+        crc_little_endian: User's explicit byte-order intent.  ``True``
+            for an ``_le`` suffix, ``False`` for ``_be``, ``None`` when
+            no suffix was given (the writer then derives the natural
+            wire order from the algorithm's ``refout``).
         crc_data_range: Explicit ``(start, end)`` 0-based inclusive range
             for CRC computation, or None for auto-range.
     """
@@ -975,7 +978,7 @@ class ColumnSpec:
     bit: int | tuple[int, int] | None = None
     wildcard: bool = False
     crc_algo: str | None = None
-    crc_little_endian: bool = True
+    crc_little_endian: bool | None = None
     crc_data_range: tuple[int, int] | None = None
 
 
@@ -1047,9 +1050,18 @@ def _parse_crc_spec(type_body: str) -> ColumnSpec:
     """Parse a CRC type specification.
 
     Formats:
-    - ``crc16m_le`` - algorithm + endianness
-    - ``crc16m_le(1-6)`` - with explicit data range
-    - ``crc8`` - no endianness needed for 1-byte CRC
+    - ``crc16-modbus`` - algorithm only; uses the algorithm's natural
+      wire order (low byte first for ``refout=True`` algorithms like
+      Modbus / USB / CRC-32, high byte first for ``refout=False`` like
+      XMODEM / CCITT-FALSE).
+    - ``crc16-modbus_le`` - explicit little-endian (low byte first).
+      Redundant on Modbus-style algorithms but accepted for clarity;
+      overrides the default on ``refout=False`` algorithms.
+    - ``crc16-modbus_be`` - explicit big-endian (high byte first).
+      Use when a protocol wires the CRC opposite to the algorithm's
+      natural order.
+    - ``crc16-modbus(1-6)`` - with explicit data range.
+    - ``crc8`` - no endianness needed for 1-byte CRC.
 
     Args:
         type_body: Everything after ``Name:`` in the column spec.
@@ -1065,7 +1077,15 @@ def _parse_crc_spec(type_body: str) -> ColumnSpec:
     endian = m.group("endian")
     data_range_str = m.group("range")
 
-    little_endian = endian != "be"  # default to LE
+    # Explicit ``_le`` / ``_be`` sets the bool; no suffix leaves it None
+    # so the writer can derive the natural wire order from the algorithm's
+    # ``refout`` (the right answer for ~95% of protocols).
+    if endian == "le":
+        little_endian: bool | None = True
+    elif endian == "be":
+        little_endian = False
+    else:
+        little_endian = None
 
     data_range: tuple[int, int] | None = None
     if data_range_str:
@@ -1109,7 +1129,7 @@ def parse_format_spec(spec: str) -> list[ColumnSpec]:
 
     Args:
         spec: Format spec string, e.g.
-            ``"Slave:H1 Func:H2 Addr:U3-4 CRC:crc16m_le"``.
+            ``"Slave:H1 Func:H2 Addr:U3-4 CRC:crc16-modbus_le"``.
 
     Returns:
         List of ColumnSpec, one per column.
@@ -1229,8 +1249,15 @@ def _resolve_wildcards(
                 width = algo.width
                 crc_start = data_len - width
                 indices = list(range(crc_start, data_len))
-                # Reverse for little-endian
-                if col.crc_little_endian:
+                # Resolve byte order: an explicit ``_le`` / ``_be`` wins;
+                # otherwise use the algorithm's natural wire order
+                # (refout=True -> low byte first on the wire).
+                le = (
+                    col.crc_little_endian
+                    if col.crc_little_endian is not None
+                    else algo.refout
+                )
+                if le:
                     indices = list(reversed(indices))
                 new_col = ColumnSpec(
                     name=col.name,

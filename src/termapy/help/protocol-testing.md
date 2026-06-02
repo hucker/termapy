@@ -111,7 +111,7 @@ Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
 | `F`    | IEEE 754 float   | `F1-4`              | `3.14`        |
 | `B`    | Bit field        | `B1.3`, `B1-2.7-9`  | `1`, `5`      |
 | `_`    | Padding (hidden) | `_:_3-4`            | *(skipped)*   |
-| `crc*` | CRC verify       | `CRC:crc16m_le`     | pass/fail     |
+| `crc*` | CRC verify       | `CRC:crc16-modbus`  | pass/fail     |
 
 Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or
 8-byte (F64). Byte indexing is 1-based. `H7-*` = wildcard to end of packet.
@@ -127,6 +127,13 @@ Byte order in the spec IS the endianness - no separate flags needed:
 
 You read the spec the same way you read the protocol datasheet. Modbus
 devices are big-endian (`U2-3`), x86-based devices are little-endian (`U3-2`).
+
+CRC fields don't take byte indices -- they use the algorithm's natural
+wire order by default (low byte first for `refout=True` algorithms like
+Modbus, USB, CRC-32; high byte first for `refout=False` like XMODEM,
+CCITT-FALSE). Add `_le` or `_be` only when your protocol wires the CRC
+opposite to that natural order: `CRC:crc16-modbus_be` would mean
+"Modbus CRC, but the bytes go high-first on this particular wire."
 
 ### Bit fields
 
@@ -148,7 +155,7 @@ Example: a status byte where each bit means something:
 **Modbus RTU response** (read 2 holding registers):
 
 ```text
-"Slave:H1 Func:H2 Len:U3 Reg0:U4-5 Reg1:U6-7 CRC:crc16-modbus_le"
+"Slave:H1 Func:H2 Len:U3 Reg0:U4-5 Reg1:U6-7 CRC:crc16-modbus"
 ```
 
 Decodes `01 03 04 00 C8 01 F4 XX XX` to Slave:01 Func:03 Len:4
@@ -163,5 +170,5 @@ Reg0:200 Reg1:500 CRC:pass
 **Sensor with string ID and padding**:
 
 ```text
-"Serial:S1-8 _:_9-10 Temp:U11-12 Humid:U13-14 CRC:crc16x_be"
+"Serial:S1-8 _:_9-10 Temp:U11-12 Humid:U13-14 CRC:crc16-xmodem"
 ```

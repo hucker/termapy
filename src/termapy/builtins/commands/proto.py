@@ -1348,8 +1348,16 @@ def _render_detect_result(
     if width_filter is not None:
         candidates = tuple(m for m in candidates if m.info.width == width_filter)
 
+    # Output-level model for /proto.crc.find:
+    #   result()  -- the *answer*: the match line(s), or "No matches found."
+    #   output()  -- supporting context (the explanation for the 0-case).
+    #   status()  -- educational hints (codegen tip, multi-match advice),
+    #                shown only under --verbose.
+    # The old "1 match:" / "N matches:" header was noise; the count is
+    # apparent from how many match lines follow.
+
     if not candidates:
-        ctx.io.output("  No matches found.", "red")
+        ctx.io.result("  No matches found.", "red")
         ctx.io.output(
             "  Packet may use a non-standard algorithm, a CRC field that"
         )
@@ -1358,10 +1366,6 @@ def _render_detect_result(
         )
         return CmdResult.ok(value="")
 
-    if len(candidates) == 1:
-        ctx.io.output("  1 match:", "green")
-    else:
-        ctx.io.output(f"  {len(candidates)} matches:", "yellow")
     p = ctx.prefix
     for m in candidates:
         width_bits = m.info.width
@@ -1371,32 +1375,28 @@ def _render_detect_result(
         )
         data_len = packet_len - (width_bytes * 2 if is_text else width_bytes)
         unit = "chars" if is_text else "bytes"
-        ctx.io.output_markup(
+        ctx.io.result_markup(
             f"  [cyan]{m.algorithm}[/]  "
             f"width={width_bits}  field=last{width_bytes}"
             f"{endian_str}  data={data_len} {unit}"
         )
     if len(candidates) == 1:
         name = candidates[0].algorithm
-        ctx.io.output("")
-        ctx.io.output(
+        ctx.io.status("")
+        ctx.io.status(
             f"  Generate source: {p}proto.crc.c {name}  "
-            f"(or .python / .rust)",
-            "dim",
+            f"(or .python / .rust)"
         )
     else:
-        ctx.io.output("")
-        ctx.io.output(
-            "  Multiple matches usually means the packet is too short to",
-            "dim",
+        ctx.io.status("")
+        ctx.io.status(
+            "  Multiple matches usually means the packet is too short to"
         )
-        ctx.io.output(
-            "  disambiguate.  Capture a second packet with a different CRC",
-            "dim",
+        ctx.io.status(
+            "  disambiguate.  Capture a second packet with a different CRC"
         )
-        ctx.io.output(
-            "  and intersect the match sets to narrow down.",
-            "dim",
+        ctx.io.status(
+            "  and intersect the match sets to narrow down."
         )
     return CmdResult.ok(
         value=candidates[0].algorithm if len(candidates) == 1 else ""

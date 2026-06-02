@@ -131,4 +131,46 @@ class TestCrcFindCli:
             f"stdout: {result.stdout!r}"
         )
 
+    def test_normal_mode_suppresses_header_and_hint(self, tmp_path):
+        # Regression -- normal mode should NOT show the old "1 match:"
+        # header or the "Generate source" hint (both demoted under the
+        # answer/context/hints model: header dropped as noise, hint
+        # moved to verbose-only).
+        line = "/proto.crc.find bin=31 32 33 34 35 36 37 38 39 37 4B"
+
+        # Act
+        result = _run_cli(tmp_path, [line])
+
+        # Assert
+        out = result.stdout
+        assert "crc16-modbus" in out, (
+            f"match line still present at normal level. stdout: {out!r}"
+        )
+        assert "1 match" not in out, (
+            f"the 'N matches:' header should be gone. stdout: {out!r}"
+        )
+        assert "Generate source" not in out, (
+            f"the codegen hint should not show at normal level. "
+            f"stdout: {out!r}"
+        )
+
+    def test_verbose_mode_shows_generate_hint(self, tmp_path):
+        # The codegen hint lives at status level -- it only appears
+        # when the user opts into verbose output.
+        line = "/proto.crc.find.verbose bin=31 32 33 34 35 36 37 38 39 37 4B"
+
+        # Act
+        result = _run_cli(tmp_path, [line])
+
+        # Assert
+        out = result.stdout
+        assert "Generate source" in out, (
+            f"--verbose / .verbose should surface the codegen hint. "
+            f"stdout: {out!r}"
+        )
+        assert "/proto.crc.c crc16-modbus" in out, (
+            f"hint points at the per-language codegen command. "
+            f"stdout: {out!r}"
+        )
+
 

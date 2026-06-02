@@ -291,6 +291,12 @@ def _parse_send_algo(
     Strips ``_le``/``_be`` (byte order) and ``_ascii`` (output format)
     suffixes from the name and looks up the base algorithm in the registry.
 
+    Without an explicit ``_le`` / ``_be`` suffix the result's
+    ``big_endian`` flag is derived from the algorithm's natural wire
+    order (``refout=True`` -> ``False``, i.e. low byte first;
+    ``refout=False`` -> ``True``, i.e. high byte first).  Explicit
+    suffixes still win when present.
+
     Args:
         name: First word from the command (e.g. ``"crc16-modbus_be_ascii"``).
         registry: CRC algorithm registry to match against.
@@ -300,11 +306,12 @@ def _parse_send_algo(
         if the name doesn't match any algorithm.
     """
     low = name.lower()
-    # Exact match first (some algo names contain underscores)
+    # Exact match first (some algo names contain underscores).  No
+    # suffix -> use the algorithm's natural wire order: refout=True
+    # means low byte first (LE wire), refout=False means high first (BE).
     if low in registry:
-        return low, False, False
+        return low, not registry[low].refout, False
 
-    big_endian = False
     ascii_crc = False
 
     # Strip _ascii suffix
@@ -312,14 +319,22 @@ def _parse_send_algo(
         ascii_crc = True
         low = low[:-6]
 
-    # Strip _le or _be suffix
+    # Strip _le or _be suffix.  ``None`` here means the user gave no
+    # explicit byte-order suffix; we derive from the algorithm below.
+    explicit_be: bool | None = None
     if low.endswith("_be"):
-        big_endian = True
+        explicit_be = True
         low = low[:-3]
     elif low.endswith("_le"):
+        explicit_be = False
         low = low[:-3]
 
     if low in registry:
+        big_endian = (
+            explicit_be
+            if explicit_be is not None
+            else not registry[low].refout
+        )
         return low, big_endian, ascii_crc
     return None, False, False
 

@@ -71,14 +71,21 @@ class CrcAlgorithm:
     """Loaded CRC algorithm plugin.
 
     Attributes:
-        name: Algorithm identifier (e.g. ``"crc16m"``).
+        name: Algorithm identifier (e.g. ``"crc16-modbus"``).
         width: CRC width in bytes (1, 2, or 4).
         compute: Function that computes the CRC value.
+        refout: Reflect-output bit, also a strong indicator of the
+            algorithm's natural wire order (``refout=True`` -> bytes
+            flow low-first on the wire, like Modbus; ``refout=False``
+            -> high-first, like XMODEM).  Defaults to ``False`` for
+            plugin-supplied algorithms (sum8/sum16) which don't have a
+            real reflection step.
     """
 
     name: str
     width: int
     compute: Callable[[bytes], int]
+    refout: bool = False
 
 
 def builtins_crc_dir() -> Path:
@@ -163,7 +170,9 @@ def get_crc_registry() -> dict[str, CrcAlgorithm]:
         for name, entry in CRC_CATALOGUE.items():
             width_bytes = (entry["width"] + 7) // 8
             registry[name] = CrcAlgorithm(
-                name=name, width=width_bytes, compute=_make_crc_compute(entry),
+                name=name, width=width_bytes,
+                compute=_make_crc_compute(entry),
+                refout=entry["refout"],
             )
         # 2. Overlay plugins (sum8, sum16, user-custom)
         registry.update(load_crc_plugins(builtins_crc_dir()))

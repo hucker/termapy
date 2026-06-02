@@ -1,8 +1,9 @@
 """Tests for /proto.crc.find -- CRC algorithm identification.
 
-The pure functions ``_find_in_binary`` and ``_find_in_ascii`` are
-tested directly; the CLI wrapper is exercised via subprocess to
-catch integration breakage (parser, prefix, output formatting).
+The identification work itself is ``crcglot.detect`` (covered
+exhaustively in crcglot's own test suite); these tests verify
+termapy's three input modes (``bin=`` / ``asc=`` / ``cmd=``) and the
+dispatch + formatting wrapper around it.
 
 Known check values used throughout (CRCs of ``"123456789"``):
 
@@ -20,261 +21,25 @@ from pathlib import Path
 
 import pytest
 
-from termapy.builtins.commands.proto import (
-    _dedupe_catalogue_aliases,
-    _find_in_ascii,
-    _find_in_binary,
-)
+from termapy.builtins.commands.proto import _crc_find
 from termapy.defaults import DEFAULT_CFG
-from termapy.protocol import CRC_CATALOGUE
+from termapy.plugins import (
+    InternalHandle,
+    IOHandle,
+    PluginContext,
+    SerialHandle,
+)
+from termapy.protocol import get_crc_registry
 
 
 # ---------------------------------------------------------------------------
-# Pure-function tests
+# End-to-end CLI integration (bin= and asc= modes)
 # ---------------------------------------------------------------------------
 
 
-class TestFindInBinary:
-    """Binary-packet identification -- hex bytes with trailing CRC field."""
-
-    def test_modbus_little_endian(self):
-        # Arrange -- "123456789" + CRC-16/MODBUS=0x4B37 little-endian
-        packet = b"123456789" + bytes([0x37, 0x4B])
-
-        # Act
-        matches = _find_in_binary(packet, byte_widths=(1, 2, 4), endians=("be", "le"))
-
-        # Assert -- at least crc16-modbus appears, width=2, endian=le
-        actual_names = {name for name, w, endian, _, _ in matches}
-        assert "crc16-modbus" in actual_names, (
-            f"crc16-modbus must match this packet, got: {sorted(actual_names)}"
-        )
-        modbus = next(m for m in matches if m[0] == "crc16-modbus")
-        assert modbus[1] == 2, f"modbus width must be 2 bytes, got {modbus[1]}"
-        assert modbus[2] == "le", f"modbus endian must be le, got {modbus[2]}"
-        assert modbus[4] == 0x4B37, f"expected must be 0x4B37, got 0x{modbus[4]:X}"
-
-    def test_xmodem_big_endian(self):
-        # Arrange -- "123456789" + CRC-16/XMODEM=0x31C3 big-endian
-        packet = b"123456789" + bytes([0x31, 0xC3])
-
-        # Act
-        matches = _find_in_binary(packet, byte_widths=(1, 2, 4), endians=("be", "le"))
-
-        # Assert
-        actual_names = {name for name, w, endian, _, _ in matches}
-        assert "crc16-xmodem" in actual_names, (
-            f"crc16-xmodem must match this packet, got: {sorted(actual_names)}"
-        )
-        xmodem = next(m for m in matches if m[0] == "crc16-xmodem")
-        assert xmodem[2] == "be", f"xmodem endian must be be, got {xmodem[2]}"
-
-    def test_crc32_iso_hdlc(self):
-        # Arrange -- "123456789" + CRC-32=0xCBF43926 little-endian
-        packet = b"123456789" + bytes([0x26, 0x39, 0xF4, 0xCB])
-
-        # Act
-        matches = _find_in_binary(packet, byte_widths=(4,), endians=("be", "le"))
-
-        # Assert -- the standard crc32 entry should match little-endian
-        actual_names = {name for name, _, _, _, _ in matches}
-        assert "crc32" in actual_names, (
-            f"crc32 must match this packet, got: {sorted(actual_names)}"
-        )
-
-    def test_width_filter_restricts_search(self):
-        # Arrange -- same Modbus packet, but only ask for 8-bit candidates
-        packet = b"123456789" + bytes([0x37, 0x4B])
-
-        # Act
-        matches = _find_in_binary(packet, byte_widths=(1,), endians=("be", "le"))
-
-        # Assert -- no 16-bit modbus result; whatever matches (if any)
-        # must be width=1.
-        for name, w, _, _, _ in matches:
-            assert w == 1, f"width filter failed: {name} returned width={w}"
-
-    def test_packet_too_short_to_analyze(self):
-        # Arrange -- one byte can't hold data + CRC
-        packet = b"\x42"
-
-        # Act
-        matches = _find_in_binary(packet, byte_widths=(1, 2, 4), endians=("be", "le"))
-
-        # Assert
-        assert matches == [], (
-            f"packet shorter than smallest CRC field must yield no matches, "
-            f"got: {matches}"
-        )
-
-    def test_no_match_returns_empty(self):
-        # Arrange -- garbage CRC bytes that won't match any standard algorithm
-        packet = b"123456789" + bytes([0xDE, 0xAD])
-
-        # Act
-        matches = _find_in_binary(packet, byte_widths=(2,), endians=("be", "le"))
-
-        # Assert -- realistically the 62-algorithm sweep on 9 bytes of data
-        # may have a coincidental collision, so we don't assert exactly
-        # [].  What we CAN assert: no standard crc16 algorithm should
-        # claim this obviously-wrong CRC matches its canonical form.
-        # The test is light -- the point is the function returns without
-        # crashing and the return type is a list.
-        assert isinstance(matches, list), "matches must be a list"
-
-
-def _single_byte_algos() -> list[str]:
-    """Catalogue algorithm names whose CRC is a single byte (CRC-8)."""
-    return sorted(
-        n for n in CRC_CATALOGUE if (CRC_CATALOGUE[n]["width"] + 7) // 8 == 1
-    )
-
-
-def _roundtrip_cells() -> list[tuple[str, str]]:
-    """(algo, endian) cells for the roundtrip test -- meaningful ones only.
-
-    Multi-byte CRCs are tested in both byte orders.  Single-byte CRCs
-    have only one meaningful layout: a 1-byte check value is byte-
-    identical big- or little-endian, so a second "le" cell would build
-    the exact same packet and make the exact same assertion -- a pure
-    duplicate, not added coverage.  So single-byte algorithms get a
-    single "be" cell here; the endian-independence itself is asserted
-    once in ``test_single_byte_endian_independent`` rather than smeared
-    across N redundant roundtrip runs.
-    """
-    cells: list[tuple[str, str]] = []
-    for name in sorted(CRC_CATALOGUE):
-        width_bytes = (CRC_CATALOGUE[name]["width"] + 7) // 8
-        endians = ("be",) if width_bytes == 1 else ("be", "le")
-        cells.extend((name, e) for e in endians)
-    return cells
-
-
-class TestRoundtripEveryCatalogueAlgorithm:
-    """Every catalogue algorithm must be identifiable from a crafted packet.
-
-    For each CRC in ``CRC_CATALOGUE``, construct a packet of
-    ``"123456789"`` + the algorithm's catalogue check value (laid out
-    big- and, for multi-byte CRCs, little-endian) and feed it to
-    ``_find_in_binary``.  The algorithm name must appear in the result
-    set.
-    """
-
-    @pytest.mark.parametrize("algo_name,endian", _roundtrip_cells())
-    def test_roundtrip(self, algo_name, endian):
-        # Arrange -- build a packet: known data + the catalogue check value.
-        entry = CRC_CATALOGUE[algo_name]
-        width_bits = entry["width"]
-        width_bytes = (width_bits + 7) // 8
-        check = entry["check"]
-        order = "big" if endian == "be" else "little"
-        packet = b"123456789" + check.to_bytes(width_bytes, order)
-
-        # Act -- search across all widths + endians (simulate user's view).
-        # CRC-64 needs byte_width=8; include it so the 7 crc64-* algorithms
-        # get scanned by the parametrize sweep.
-        raw = _find_in_binary(
-            packet, byte_widths=(1, 2, 4, 8), endians=("be", "le")
-        )
-        collapsed = _dedupe_catalogue_aliases(raw)
-
-        # Assert -- algo_name must appear as a canonical name or alias.
-        all_names = set()
-        expected_endian = "-" if width_bytes == 1 else endian
-        for canonical, _, match_endian, _, _, aliases in collapsed:
-            all_names.add(canonical)
-            all_names.update(aliases)
-            if algo_name in {canonical, *aliases}:
-                assert match_endian == expected_endian, (
-                    f"{algo_name} packet ({endian}): find reported "
-                    f"endian={match_endian}, expected {expected_endian}"
-                )
-        assert algo_name in all_names, (
-            f"find must identify {algo_name} from a known-good {endian} "
-            f"packet, got: {sorted(all_names)}"
-        )
-
-    @pytest.mark.parametrize("algo_name", _single_byte_algos())
-    def test_single_byte_endian_independent(self, algo_name):
-        """A single-byte CRC packet is endian-independent.
-
-        This is the invariant that lets the roundtrip test cover
-        single-byte (CRC-8) algorithms with one cell instead of two:
-        laying the 1-byte check value into the packet big- vs little-
-        endian yields byte-identical packets.  Asserting it here -- once
-        per single-byte algorithm -- documents the assumption and would
-        catch a regression (e.g. if packet construction ever started
-        padding single-byte CRCs to a wider field).
-        """
-        # Arrange / Act
-        check = CRC_CATALOGUE[algo_name]["check"]
-        be_packet = b"123456789" + check.to_bytes(1, "big")
-        le_packet = b"123456789" + check.to_bytes(1, "little")
-
-        # Assert -- the two layouts are identical, so there is exactly
-        # one meaningful packet (and one find result) for a 1-byte CRC.
-        assert be_packet == le_packet, (
-            f"{algo_name}: single-byte CRC packet must be endian-"
-            f"independent, got be={be_packet!r} le={le_packet!r}"
-        )
-
-
-class TestFindInAscii:
-    """ASCII-packet identification -- trailing hex-ASCII CRC field."""
-
-    def test_modbus_hex_ascii_suffix(self):
-        # Arrange -- "123456789" + "4B37" (CRC-16/MODBUS in hex-ASCII)
-        text = "1234567894B37"
-
-        # Act
-        matches = _find_in_ascii(text, byte_widths=(1, 2, 4))
-
-        # Assert
-        actual_names = {name for name, _, _, _, _ in matches}
-        assert "crc16-modbus" in actual_names, (
-            f"crc16-modbus must match ASCII packet with trailing 4B37, "
-            f"got: {sorted(actual_names)}"
-        )
-        modbus = next(m for m in matches if m[0] == "crc16-modbus")
-        assert modbus[1] == 2, f"modbus width must be 2 bytes, got {modbus[1]}"
-        assert modbus[2] == "-", f"ASCII mode has no endian, got {modbus[2]!r}"
-
-    def test_non_hex_tail_skips_that_width(self):
-        # Arrange -- tail "ZZZZ" isn't valid hex, so width=16 is skipped
-        text = "helloZZZZ"
-
-        # Act -- must not crash even though some widths are unparsable
-        matches = _find_in_ascii(text, byte_widths=(1, 2, 4))
-
-        # Assert -- whatever matches (if any), each match's data length
-        # is positive (we actually sliced off something).
-        assert isinstance(matches, list), "matches must be a list"
-        for _, w, _, data_len, _ in matches:
-            assert data_len > 0, f"data_len must be positive, got {data_len}"
-            assert w * 2 <= len(text), (
-                f"CRC field ({w * 2} chars) can't exceed text length ({len(text)})"
-            )
-
-    def test_text_too_short_to_hold_crc(self):
-        # Arrange -- a 1-char string can't hold even an 8-bit hex-ASCII CRC
-        text = "x"
-
-        # Act
-        matches = _find_in_ascii(text, byte_widths=(1, 2, 4))
-
-        # Assert
-        assert matches == [], (
-            f"text shorter than smallest CRC hex field must yield no matches, "
-            f"got: {matches}"
-        )
-
-
-# ---------------------------------------------------------------------------
-# End-to-end CLI integration
-# ---------------------------------------------------------------------------
-
-
-def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    tmp_path: Path, script_lines: list[str]
+) -> subprocess.CompletedProcess[str]:
     """Invoke termapy --cli against a throwaway config and script."""
     proj_dir = tmp_path / "proj"
     proj_dir.mkdir(parents=True, exist_ok=True)
@@ -321,7 +86,7 @@ class TestCrcFindCli:
         # Act
         result = _run_cli(tmp_path, [line])
 
-        # Assert -- exits clean, crc16-modbus appears in stdout
+        # Assert
         actual_code = result.returncode
         expected_code = 0
         assert actual_code == expected_code, (
@@ -347,18 +112,17 @@ class TestCrcFindCli:
             f"stdout: {result.stdout!r}"
         )
 
-    def test_missing_both_bin_and_asc_fails(self, tmp_path):
+    def test_missing_input_mode_fails(self, tmp_path):
         # Arrange
         line = "/proto.crc.find"
 
         # Act
         result = _run_cli(tmp_path, [line])
 
-        # Assert -- exits clean (fail is a CmdResult.fail, not a crash)
-        # and the usage hint is printed.
+        # Assert -- fail is a CmdResult.fail (not a crash) and usage printed.
         assert result.returncode == 0, f"exit code: {result.returncode}"
         assert "Usage" in result.stdout, (
-            f"missing bin/asc must print usage. stdout: {result.stdout!r}"
+            f"missing bin/asc/cmd must print usage. stdout: {result.stdout!r}"
         )
 
     def test_invalid_hex_fails_gracefully(self, tmp_path):
@@ -371,5 +135,121 @@ class TestCrcFindCli:
         # Assert
         assert result.returncode == 0, f"exit code: {result.returncode}"
         assert "Invalid hex" in result.stdout, (
-            f"bad hex must produce 'Invalid hex' error. stdout: {result.stdout!r}"
+            f"bad hex must produce 'Invalid hex' error. "
+            f"stdout: {result.stdout!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# cmd= mode unit tests -- mock the serial handle so the test can verify
+# the parse + send + receive + detect path without a real device.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def find_env():
+    """PluginContext with a mocked serial that captures TX and replays a
+    canned RX through ``read_raw``.
+
+    ``response[0]`` is a mutable holder so individual tests can set the
+    fake response before calling the handler.
+    """
+    output: list[tuple[str, str | None]] = []
+    tx_bytes: list[bytes] = []
+    response: list[bytes] = [b""]
+
+    ctx = PluginContext(
+        internal=InternalHandle(),
+        io=IOHandle(
+            _write=lambda t, c=None: output.append((t, c)),
+            _write_markup=lambda t: output.append((t, "markup")),
+        ),
+        serial=SerialHandle(
+            is_connected=lambda: True,
+            write=lambda data: tx_bytes.append(data),
+            read_raw=lambda timeout_ms=1000, frame_gap_ms=0: response[0],
+        ),
+    )
+    return ctx, output, tx_bytes, response
+
+
+class TestCrcFindCmdMode:
+    """``cmd=`` sends a command, captures the response, runs detect on it."""
+
+    def test_cmd_mode_sends_and_detects(self, find_env):
+        # Arrange -- build a Modbus response: data + LE CRC (the algo's
+        # natural wire order), then drive the handler with cmd=<send>.
+        ctx, output, tx_bytes, response = find_env
+        registry = get_crc_registry()
+        data = b"\x01\x03\x04\x00\xc8\x01\xf4"
+        crc_int = registry["crc16-modbus"].compute(data)
+        crc_le = crc_int.to_bytes(2, "big")[::-1]
+        response[0] = data + crc_le
+
+        # Act
+        result = _crc_find(ctx, "cmd=01 03 00 00 00 0A")
+
+        # Assert
+        actual = result.value
+        expected = "crc16-modbus"
+        assert tx_bytes, "the command bytes were written to the port"
+        assert tx_bytes[0] == b"\x01\x03\x00\x00\x00\x0a", (
+            f"TX matches the cmd= payload, got: {tx_bytes[0]!r}"
+        )
+        assert actual == expected, (
+            f"single-match result.value carries the detected algo, "
+            f"got {actual!r}"
+        )
+
+    def test_cmd_mode_no_response_returns_empty(self, find_env):
+        # Arrange -- read_raw returns no bytes (silent device).
+        ctx, output, tx_bytes, response = find_env
+        response[0] = b""
+
+        # Act
+        result = _crc_find(ctx, "cmd=01 02 03")
+
+        # Assert
+        actual = result.value
+        expected = ""
+        no_response_lines = [t for t, _ in output if "no response" in t]
+        assert no_response_lines, "the 'no response' line is shown"
+        assert actual == expected, "value is empty when nothing arrived"
+
+    def test_cmd_mode_fails_when_disconnected(self):
+        # Arrange -- is_connected returns False.
+        output: list = []
+        ctx = PluginContext(
+            internal=InternalHandle(),
+            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
+            serial=SerialHandle(
+                is_connected=lambda: False,
+                write=lambda data: None,
+                read_raw=lambda timeout_ms=1000, frame_gap_ms=0: b"",
+            ),
+        )
+
+        # Act
+        result = _crc_find(ctx, "cmd=01 02 03")
+
+        # Assert
+        actual = result.error
+        expected = "Not connected."
+        assert not result.success, "handler reports failure"
+        assert actual == expected, (
+            f"error matches the standard 'Not connected.' message, "
+            f"got {actual!r}"
+        )
+
+    def test_cmd_empty_payload_fails(self, find_env):
+        # Arrange
+        ctx, _, _, _ = find_env
+
+        # Act
+        result = _crc_find(ctx, "cmd=")
+
+        # Assert
+        assert not result.success, "empty cmd= is rejected"
+        assert "Empty cmd=" in result.error, (
+            f"error mentions the empty payload, got {result.error!r}"
         )

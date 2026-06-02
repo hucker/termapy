@@ -23,7 +23,7 @@
     
     
       
-        <title>REPL commands - Termapy Help v0.70.0</title>
+        <title>REPL commands - Termapy Help v0.71.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.70.0" class="md-header__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.71.0" class="md-header__button md-logo" aria-label="Termapy Help v0.71.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.70.0
+            Termapy Help v0.71.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.70.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.71.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.71.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.70.0
+    Termapy Help v0.71.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1081,8 +1081,8 @@
 <td>Delete the session log file</td>
 </tr>
 <tr>
-<td><code>/log.dump {N}</code></td>
-<td>Print the session log (all, or last N lines) to the terminal</td>
+<td><code>/log.dump [N]</code></td>
+<td>Print the session log (all, or an N-line slice) to the terminal</td>
 </tr>
 <tr>
 <td><code>/log.fingerprint</code></td>
@@ -1329,8 +1329,8 @@
 <td>Save an SVG screenshot</td>
 </tr>
 <tr>
-<td><code>/ss.txt [name]</code></td>
-<td>Save a text screenshot</td>
+<td><code>/ss.txt [name] [N]</code></td>
+<td>Save a text screenshot (all, or an N-line slice)</td>
 </tr>
 <tr>
 <td><code>/stop</code></td>
@@ -1351,6 +1351,10 @@
 <tr>
 <td><code>/term.encoding {name}</code></td>
 <td>Show or set byte-decoding encoding (utf-8, latin-1, ...)</td>
+</tr>
+<tr>
+<td><code>/term.eol {cr\|lf\|crlf\|none}</code></td>
+<td>Show or set the line ending sent with commands (session override)</td>
 </tr>
 <tr>
 <td><code>/term.hex [on\|off]</code></td>
@@ -1434,6 +1438,9 @@
 </tr>
 </tbody>
 </table>
+<p><strong>Line counts:</strong> <code>/ss.txt</code>, <code>/log.dump</code>, and <code>/mcp.log.dump</code> take an
+optional <code>N</code>. <code>N&gt;0</code> saves/prints the <strong>last N</strong> lines (most recent),
+<code>N&lt;0</code> the <strong>first N</strong> (oldest); omit it for everything.</p>
 <h2 id="script-profiling">Script profiling<a class="headerlink" href="#script-profiling" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

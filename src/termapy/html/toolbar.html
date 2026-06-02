@@ -23,7 +23,7 @@
     
     
       
-        <title>Toolbar and shortcuts - Termapy Help v0.70.0</title>
+        <title>Toolbar and shortcuts - Termapy Help v0.71.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.70.0" class="md-header__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.71.0" class="md-header__button md-logo" aria-label="Termapy Help v0.71.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.70.0
+            Termapy Help v0.71.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.70.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.71.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.71.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.70.0
+    Termapy Help v0.71.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -528,6 +528,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Keyboard shortcuts
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copying-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Copying text
       </span>
     </span>
   </a>
@@ -956,6 +967,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#copying-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Copying text
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#command-palette" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1143,6 +1165,10 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 <td>Open command palette</td>
 </tr>
 <tr>
+<td><strong>Ctrl+C</strong> / <strong>Cmd+C</strong></td>
+<td>Copy selected text to the clipboard</td>
+</tr>
+<tr>
 <td><strong>F5</strong></td>
 <td>Save SVG screenshot</td>
 </tr>
@@ -1166,6 +1192,14 @@ of termapy's serial-port diagnostics, see <a href="ports.html">Serial ports</a>.
 </table>
 <p>The <code>Ctrl+Shift+digit</code> aliases work inside VS Code's integrated
 terminal, which intercepts some F-keys.</p>
+<h2 id="copying-text">Copying text<a class="headerlink" href="#copying-text" title="Permanent link">&para;</a></h2>
+<p>Drag across the main output window to select text, then press
+<strong>Ctrl+C</strong> (<strong>Cmd+C</strong> on macOS) to copy it to your clipboard.  The
+copy travels over the terminal's OSC 52 channel, so it lands on the
+clipboard of whatever machine your terminal is running on — including
+over SSH.  A few older terminals don't support OSC 52; if the copy
+does nothing, hold <strong>Shift</strong> (or <strong>Alt</strong> in some terminals) while
+dragging to use your terminal's own selection instead.</p>
 <h2 id="command-palette">Command palette<a class="headerlink" href="#command-palette" title="Permanent link">&para;</a></h2>
 <p>Press <strong>Ctrl+P</strong> (or <strong>Alt+P</strong> if your terminal captures Ctrl+P --
 VS Code's integrated terminal does) to open the command palette.

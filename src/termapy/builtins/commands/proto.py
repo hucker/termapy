@@ -35,28 +35,67 @@ if TYPE_CHECKING:
 # ---- Shared helpers --------------------------------------------------------
 
 
-def _display_bytes(
-    ctx: PluginContext, direction: str, data: bytes, binary: bool = False
-) -> None:
-    """Display TX or RX data as hex + smart text representation.
+_TEXT_ESCAPES = {
+    0x00: r"\0", 0x07: r"\a", 0x08: r"\b", 0x09: r"\t",
+    0x0A: r"\n", 0x0B: r"\v", 0x0C: r"\f", 0x0D: r"\r",
+    0x22: r"\"", 0x5C: "\\\\",
+}
 
-    Short packets (<=16 bytes) are shown on one line with hex and smart
-    format. Longer packets get a multi-line hex dump with ASCII sidebar.
+
+def _format_as_quoted_text(data: bytes) -> str:
+    """Render bytes as a quoted escape-string.
+
+    Printable ASCII passes through literally; common control bytes
+    use familiar escape sequences (``\\n``, ``\\r``, ``\\t``, ...);
+    everything else becomes ``\\xNN``.  Used as the ``--ascii``
+    rendering for byte-dump commands.
+    """
+    pieces: list[str] = []
+    for b in data:
+        if b in _TEXT_ESCAPES:
+            pieces.append(_TEXT_ESCAPES[b])
+        elif 0x20 <= b < 0x7F:
+            pieces.append(chr(b))
+        else:
+            pieces.append(f"\\x{b:02X}")
+    return '"' + "".join(pieces) + '"'
+
+
+def _display_bytes(
+    ctx: PluginContext,
+    direction: str,
+    data: bytes,
+    *,
+    as_text: bool = False,
+) -> None:
+    """Display TX or RX data.
+
+    Default: hex bytes followed by an ASCII sidebar (``|HELLO...|``)
+    showing printable chars literally and ``.`` for non-printable --
+    the standard hex-dump row, just on one line for short payloads
+    (<=16 bytes).  Longer payloads use the multi-line
+    :func:`format_hex_dump`.
+
+    ``as_text=True``: render the payload as a single quoted
+    escape-string (``TX: "AT\\r\\n"``).  Useful when you sent ASCII
+    text and want to verify the textual content; commands that wire a
+    ``--ascii`` flag pass it through here.
 
     Args:
         ctx: Plugin context for output.
-        direction: Label prefix - ``"TX"`` (cyan) or ``"RX"`` (yellow).
+        direction: Label prefix -- ``"TX"`` (cyan) or ``"RX"`` (yellow).
+            Variants like ``"TX (dry-run)"`` also get TX coloring.
         data: Raw bytes to display.
-        binary: Unused (kept for API compatibility).
+        as_text: Switch to escape-rendered text view.
     """
-    color = "cyan" if direction == "TX" else "yellow"
+    color = "cyan" if direction.startswith("TX") else "yellow"
+    if as_text:
+        ctx.io.output(f"  {direction}: {_format_as_quoted_text(data)}", color)
+        return
     if len(data) <= 16:
         hex_str = format_hex(data)
-        smart_str = format_smart(data)
-        if hex_str == smart_str:
-            ctx.io.output(f"  {direction}: {hex_str}", color)
-        else:
-            ctx.io.output(f"  {direction}: {hex_str}  {smart_str}", color)
+        sidebar = "".join(chr(b) if 0x20 <= b < 0x7F else "." for b in data)
+        ctx.io.output(f"  {direction}: {hex_str}  |{sidebar}|", color)
     else:
         ctx.io.output(f"  {direction} {len(data)} bytes:", color)
         for line in format_hex_dump(data):
@@ -420,6 +459,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Parse error: {e}")
 
     dry_run = ctx.flag("--dry-run")
+    ascii_view = ctx.flag("--ascii")
 
     if algo is not None and (dry_run or ctx.output_level == "verbose"):
         endian_label = "BE" if big_endian else "LE"
@@ -436,15 +476,15 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     if dry_run:
         # Skip the actual write -- show the bytes that would have been
         # sent and return.  Useful for verifying CRC byte order, frame
-        # layout, or scripted sends without a connected device.  Hex
-        # only (no smart-text rendering): dry-run is for byte-level
-        # verification, where "\0\0\0\n" instead of "00 00 00 0A" is
-        # noise.
+        # layout, or scripted sends without a connected device.
         if has_delays:
             parts: list[str] = []
             for s in segments:
                 if isinstance(s, bytes):
-                    parts.append(format_hex(s))
+                    parts.append(
+                        _format_as_quoted_text(s) if ascii_view
+                        else format_hex(s)
+                    )
                 elif s >= 1.0:
                     parts.append(f"[~{s:.1f}s]")
                 elif s >= 0.001:
@@ -453,7 +493,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                     parts.append(f"[~{s * 1_000_000:.0f}us]")
             ctx.io.output(f"  TX (dry-run): {' '.join(parts)}")
         else:
-            ctx.io.output(f"  TX (dry-run): {format_hex(all_data)}")
+            _display_bytes(ctx, "TX (dry-run)", all_data, as_text=ascii_view)
         return CmdResult.ok(value=all_data.hex())
 
     if not ctx.serial.is_connected():
@@ -481,7 +521,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                             parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
                 ctx.io.output_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
             else:
-                _display_bytes(ctx, "TX", all_data, binary=True)
+                _display_bytes(ctx, "TX", all_data, as_text=ascii_view)
 
         t0 = time.monotonic()
         for segment in segments:
@@ -493,7 +533,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
         elapsed_ms = (time.monotonic() - t0) * 1000
 
     if response:
-        _display_bytes(ctx, "RX", response, binary=True)
+        _display_bytes(ctx, "RX", response, as_text=ascii_view)
         if ctx.output_level == "verbose":
             ctx.io.output(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
     else:
@@ -1530,13 +1570,21 @@ COMMAND = Command(
             handler=_proto_help_handler,
         ),
         "send": Command(
-            args='{algo[_le|_be][_ascii]} <hex|"text"> {--dry-run}',
+            args=(
+                '{algo[_le|_be][_ascii]} <hex|"text"> '
+                "{--dry-run} {--ascii}"
+            ),
             help="Send raw bytes (with optional CRC), show response.",
             handler=_cmd_send,
             flags={
                 "--dry-run": (
                     "Print the bytes that would be sent without writing "
                     "to the port (works without a connected device)."
+                ),
+                "--ascii": (
+                    "Render TX/RX as a quoted escape-string (e.g. "
+                    '"AT\\r\\n") instead of the default hex + ASCII '
+                    "sidebar.  Use when you're sending text."
                 ),
             },
         ),

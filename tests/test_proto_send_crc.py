@@ -355,24 +355,43 @@ class TestSendDryRun:
         actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
         assert actual_lines, "TX (dry-run) line shown"
 
-    def test_dry_run_output_is_hex_only(self, send_env):
-        # Regression: dry-run prints hex bytes only, NOT the dual
-        # hex + "\0\0\0\n" smart-text rendering the live TX path uses.
+    def test_dry_run_default_uses_dot_sidebar(self, send_env):
+        # Regression: dry-run prints hex bytes + an ASCII sidebar
+        # (``|......|`` for non-printable), NOT the dual
+        # hex + "\0\0\0\n" smart-text rendering the old default used.
         ctx, output, _ = send_env
         ctx.active_flags = {"--dry-run"}
 
-        # Act -- a frame with non-printable bytes (00 / 0A) that would
-        # otherwise trigger the smart-text "\0\0\0\n" view.
+        # Act -- a frame entirely of non-printable bytes.
         _cmd_send(ctx, "crc16-modbus 01 03 00 00 00 0A")
 
         # Assert
         actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
         assert actual_lines, "TX (dry-run) line printed"
         line = actual_lines[0]
+        assert "|" in line and "......" in line, (
+            f"dot-sidebar present; got: {line!r}"
+        )
         assert '"' not in line, (
-            f"no smart-text rendering in dry-run; got: {line!r}"
+            f"no quoted escape-text in default mode; got: {line!r}"
         )
         assert "\\0" not in line, "no escape rendering of null bytes"
+
+    def test_dry_run_with_ascii_flag_uses_quoted_text(self, send_env):
+        # ``--ascii`` switches to the quoted escape-text rendering.
+        ctx, output, _ = send_env
+        ctx.active_flags = {"--dry-run", "--ascii"}
+
+        # Act -- mixed printable ("AT") + control bytes (\r\n).
+        _cmd_send(ctx, '"AT" 0D 0A')
+
+        # Assert
+        actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
+        assert actual_lines, "TX (dry-run) line printed"
+        line = actual_lines[0]
+        assert '"AT\\r\\n"' in line, (
+            f"--ascii renders as quoted escape-text; got: {line!r}"
+        )
 
     def test_dry_run_value_is_frame_hex(self, send_env):
         # Arrange -- crc16-modbus is refout=True so natural wire order is LE.

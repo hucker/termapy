@@ -2,8 +2,8 @@
 
 The identification work itself is ``crcglot.detect`` (covered
 exhaustively in crcglot's own test suite); these tests verify
-termapy's three input modes (``bin=`` / ``asc=`` / ``cmd=``) and the
-dispatch + formatting wrapper around it.
+termapy's two input modes (``bin=`` and ``asc=``) and the dispatch +
+formatting wrapper around it.
 
 Known check values used throughout (CRCs of ``"123456789"``):
 
@@ -21,15 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from termapy.builtins.commands.proto import _crc_find
 from termapy.defaults import DEFAULT_CFG
-from termapy.plugins import (
-    InternalHandle,
-    IOHandle,
-    PluginContext,
-    SerialHandle,
-)
-from termapy.protocol import get_crc_registry
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +114,7 @@ class TestCrcFindCli:
         # Assert -- fail is a CmdResult.fail (not a crash) and usage printed.
         assert result.returncode == 0, f"exit code: {result.returncode}"
         assert "Usage" in result.stdout, (
-            f"missing bin/asc/cmd must print usage. stdout: {result.stdout!r}"
+            f"missing bin/asc must print usage. stdout: {result.stdout!r}"
         )
 
     def test_invalid_hex_fails_gracefully(self, tmp_path):
@@ -140,116 +132,3 @@ class TestCrcFindCli:
         )
 
 
-# ---------------------------------------------------------------------------
-# cmd= mode unit tests -- mock the serial handle so the test can verify
-# the parse + send + receive + detect path without a real device.
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def find_env():
-    """PluginContext with a mocked serial that captures TX and replays a
-    canned RX through ``read_raw``.
-
-    ``response[0]`` is a mutable holder so individual tests can set the
-    fake response before calling the handler.
-    """
-    output: list[tuple[str, str | None]] = []
-    tx_bytes: list[bytes] = []
-    response: list[bytes] = [b""]
-
-    ctx = PluginContext(
-        internal=InternalHandle(),
-        io=IOHandle(
-            _write=lambda t, c=None: output.append((t, c)),
-            _write_markup=lambda t: output.append((t, "markup")),
-        ),
-        serial=SerialHandle(
-            is_connected=lambda: True,
-            write=lambda data: tx_bytes.append(data),
-            read_raw=lambda timeout_ms=1000, frame_gap_ms=0: response[0],
-        ),
-    )
-    return ctx, output, tx_bytes, response
-
-
-class TestCrcFindCmdMode:
-    """``cmd=`` sends a command, captures the response, runs detect on it."""
-
-    def test_cmd_mode_sends_and_detects(self, find_env):
-        # Arrange -- build a Modbus response: data + LE CRC (the algo's
-        # natural wire order), then drive the handler with cmd=<send>.
-        ctx, output, tx_bytes, response = find_env
-        registry = get_crc_registry()
-        data = b"\x01\x03\x04\x00\xc8\x01\xf4"
-        crc_int = registry["crc16-modbus"].compute(data)
-        crc_le = crc_int.to_bytes(2, "big")[::-1]
-        response[0] = data + crc_le
-
-        # Act
-        result = _crc_find(ctx, "cmd=01 03 00 00 00 0A")
-
-        # Assert
-        actual = result.value
-        expected = "crc16-modbus"
-        assert tx_bytes, "the command bytes were written to the port"
-        assert tx_bytes[0] == b"\x01\x03\x00\x00\x00\x0a", (
-            f"TX matches the cmd= payload, got: {tx_bytes[0]!r}"
-        )
-        assert actual == expected, (
-            f"single-match result.value carries the detected algo, "
-            f"got {actual!r}"
-        )
-
-    def test_cmd_mode_no_response_returns_empty(self, find_env):
-        # Arrange -- read_raw returns no bytes (silent device).
-        ctx, output, tx_bytes, response = find_env
-        response[0] = b""
-
-        # Act
-        result = _crc_find(ctx, "cmd=01 02 03")
-
-        # Assert
-        actual = result.value
-        expected = ""
-        no_response_lines = [t for t, _ in output if "no response" in t]
-        assert no_response_lines, "the 'no response' line is shown"
-        assert actual == expected, "value is empty when nothing arrived"
-
-    def test_cmd_mode_fails_when_disconnected(self):
-        # Arrange -- is_connected returns False.
-        output: list = []
-        ctx = PluginContext(
-            internal=InternalHandle(),
-            io=IOHandle(_write=lambda t, c=None: output.append((t, c))),
-            serial=SerialHandle(
-                is_connected=lambda: False,
-                write=lambda data: None,
-                read_raw=lambda timeout_ms=1000, frame_gap_ms=0: b"",
-            ),
-        )
-
-        # Act
-        result = _crc_find(ctx, "cmd=01 02 03")
-
-        # Assert
-        actual = result.error
-        expected = "Not connected."
-        assert not result.success, "handler reports failure"
-        assert actual == expected, (
-            f"error matches the standard 'Not connected.' message, "
-            f"got {actual!r}"
-        )
-
-    def test_cmd_empty_payload_fails(self, find_env):
-        # Arrange
-        ctx, _, _, _ = find_env
-
-        # Act
-        result = _crc_find(ctx, "cmd=")
-
-        # Assert
-        assert not result.success, "empty cmd= is rejected"
-        assert "Empty cmd=" in result.error, (
-            f"error mentions the empty payload, got {result.error!r}"
-        )

@@ -1158,20 +1158,19 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 def _parse_find_args(text: str) -> dict[str, str]:
     """Parse /proto.crc.find arguments.
 
-    ``bin=``, ``asc=``, and ``cmd=`` each consume everything after
-    them to end of line (a captured packet or a send-command may
-    contain spaces and can't be split by whitespace).  ``width=`` and
-    ``endian=`` are single-token filters and must come before the
-    bin/asc/cmd argument.
+    ``bin=`` and ``asc=`` each consume everything after them to end
+    of line (a captured packet may contain spaces and can't be split
+    by whitespace).  ``width=`` and ``endian=`` are single-token
+    filters and must come before the bin/asc argument.
 
-    Returns a dict with keys ``mode`` ("bin", "asc", or "cmd"),
-    ``payload`` (the captured packet or send-command string), and
-    optionally ``width`` / ``endian``.  Returns empty dict if none of
-    bin=/asc=/cmd= is present.
+    Returns a dict with keys ``mode`` ("bin" or "asc"), ``payload``
+    (the captured packet string), and optionally ``width`` /
+    ``endian``.  Returns empty dict if neither bin= nor asc= is
+    present.
     """
     result: dict[str, str] = {}
     stripped = text.strip()
-    for key in ("bin", "asc", "cmd"):
+    for key in ("bin", "asc"):
         marker = key + "="
         idx = stripped.find(marker)
         if idx != -1 and (idx == 0 or stripped[idx - 1].isspace()):
@@ -1190,22 +1189,23 @@ def _parse_find_args(text: str) -> dict[str, str]:
 def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     """Identify the CRC algorithm used in a captured packet.
 
-    Three input modes:
+    Two input modes:
 
       - ``bin=<hex>``  -- a captured frame as hex bytes.
       - ``asc=<text>`` -- a packet whose trailing chars are the
-        hex-encoded CRC (``crcglot.detect`` autodetects the wrapper).
-      - ``cmd=<send>`` -- send a command (same syntax as
-        ``/proto.send``), capture the response with idle-gap framing,
-        then detect.  Requires a connected port.
+        hex-encoded CRC.
 
-    The actual identification work is ``crcglot.detect``; termapy just
-    shuttles bytes in and formats the result.
+    The actual identification work is ``crcglot.detect``; termapy
+    just shuttles bytes in and formats the result.  Both modes
+    require a real captured frame -- there's no live "send and
+    detect" mode because constructing a valid query already requires
+    knowing the CRC algorithm (chicken/egg), so capture-from-sniffer
+    is the universally applicable path.
     """
     p = ctx.prefix
     usage = (
         f"Usage: {p}proto.crc.find [width=8|16|32|64] [endian=be|le] "
-        "bin=<hex> | asc=<text> | cmd=<send>"
+        "bin=<hex> | asc=<text>"
     )
     kw = _parse_find_args(args)
     if "mode" not in kw:
@@ -1243,47 +1243,13 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
             ctx, result, len(packet), width_filter, is_text=False,
         )
 
-    if mode == "asc":
-        text = kw["payload"]
-        if not text:
-            return CmdResult.fail(msg="Empty asc= payload")
-        result = _detect_ascii(text, endian_arg, width_filter)
-        return _render_detect_result(
-            ctx, result, len(text), width_filter, is_text=True,
-        )
-
-    # cmd= -- send, capture the response, detect on the response bytes.
-    cmd = kw["payload"]
-    if not cmd:
-        return CmdResult.fail(msg="Empty cmd= payload")
-    if not ctx.serial.is_connected():
-        return CmdResult.fail(msg="Not connected.")
-    try:
-        segments = parse_data_segments(cmd)
-    except ValueError as e:
-        return CmdResult.fail(msg=f"Parse error: {e}")
-
-    tx_bytes = b"".join(s for s in segments if isinstance(s, bytes))
-    _display_bytes(ctx, "TX", tx_bytes, binary=True)
-
-    with ctx.serial.io():
-        ctx.serial.drain()
-        for segment in segments:
-            if isinstance(segment, float):
-                _delay_at_least(segment)
-            else:
-                ctx.serial.write(segment)
-        # ``frame_gap_ms=50`` is termapy's standard idle-gap default --
-        # return as soon as the device goes silent, capped at one second.
-        response = ctx.serial.read_raw(1000, 50)
-
-    if not response:
-        ctx.io.output("  RX: (no response)", "red")
-        return CmdResult.ok(value="")
-    _display_bytes(ctx, "RX", response, binary=True)
-    result = detect(response, mode="binary", match="all", endian=endian_arg)
+    # mode == "asc"
+    text = kw["payload"]
+    if not text:
+        return CmdResult.fail(msg="Empty asc= payload")
+    result = _detect_ascii(text, endian_arg, width_filter)
     return _render_detect_result(
-        ctx, result, len(response), width_filter, is_text=False,
+        ctx, result, len(text), width_filter, is_text=True,
     )
 
 
@@ -1623,18 +1589,19 @@ COMMAND = Command(
                 "find": Command(
                     args=(
                         "[width=8|16|32|64] [endian=be|le] "
-                        "bin=<hex> | asc=<text> | cmd=<send>"
+                        "bin=<hex> | asc=<text>"
                     ),
                     help="Identify the CRC algorithm used in a captured packet.",
                     long_help=(
                         "Identifies which catalogue algorithm produced the\n"
                         "trailing CRC bytes of a packet, via crcglot.detect.\n"
+                        "Feed in a real captured frame (sniffer, scope, etc.):\n"
+                        "constructing a valid query already requires knowing\n"
+                        "the CRC algorithm, so the capture-from-the-wire path\n"
+                        "is the universally applicable workflow.\n"
                         "\n"
                         "bin=<hex>  - hex bytes, last 1/2/4 bytes = CRC field\n"
                         "asc=<text> - ASCII, last 2/4/8 chars = hex-encoded CRC\n"
-                        "cmd=<send> - send (same syntax as {prefix}proto.send),\n"
-                        "             read until idle (50ms gap, 1s cap), then\n"
-                        "             detect on the response\n"
                         "\n"
                         "Optional filters:\n"
                         "  width=8|16|32|64  restrict CRC width\n"
@@ -1643,7 +1610,6 @@ COMMAND = Command(
                         "Examples:\n"
                         "  {prefix}proto.crc.find bin=01 03 00 00 00 0A C5 CD\n"
                         "  {prefix}proto.crc.find asc=123456789 width=16\n"
-                        "  {prefix}proto.crc.find cmd=01 03 00 00 00 0A\n"
                     ),
                     handler=_crc_find,
                 ),

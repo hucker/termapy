@@ -355,6 +355,25 @@ class TestSendDryRun:
         actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
         assert actual_lines, "TX (dry-run) line shown"
 
+    def test_dry_run_output_is_hex_only(self, send_env):
+        # Regression: dry-run prints hex bytes only, NOT the dual
+        # hex + "\0\0\0\n" smart-text rendering the live TX path uses.
+        ctx, output, _ = send_env
+        ctx.active_flags = {"--dry-run"}
+
+        # Act -- a frame with non-printable bytes (00 / 0A) that would
+        # otherwise trigger the smart-text "\0\0\0\n" view.
+        _cmd_send(ctx, "crc16-modbus 01 03 00 00 00 0A")
+
+        # Assert
+        actual_lines = [t for t, _ in output if "TX (dry-run)" in t]
+        assert actual_lines, "TX (dry-run) line printed"
+        line = actual_lines[0]
+        assert '"' not in line, (
+            f"no smart-text rendering in dry-run; got: {line!r}"
+        )
+        assert "\\0" not in line, "no escape rendering of null bytes"
+
     def test_dry_run_value_is_frame_hex(self, send_env):
         # Arrange -- crc16-modbus is refout=True so natural wire order is LE.
         ctx, output, tx_bytes = send_env

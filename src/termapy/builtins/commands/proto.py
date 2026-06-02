@@ -434,7 +434,10 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
     if dry_run:
         # Skip the actual write -- show the bytes that would have been
         # sent and return.  Useful for verifying CRC byte order, frame
-        # layout, or scripted sends without a connected device.
+        # layout, or scripted sends without a connected device.  Hex
+        # only (no smart-text rendering): dry-run is for byte-level
+        # verification, where "\0\0\0\n" instead of "00 00 00 0A" is
+        # noise.
         if has_delays:
             parts: list[str] = []
             for s in segments:
@@ -448,7 +451,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                     parts.append(f"[~{s * 1_000_000:.0f}us]")
             ctx.io.output(f"  TX (dry-run): {' '.join(parts)}")
         else:
-            _display_bytes(ctx, "TX (dry-run)", all_data, binary=True)
+            ctx.io.output(f"  TX (dry-run): {format_hex(all_data)}")
         return CmdResult.ok(value=all_data.hex())
 
     if not ctx.serial.is_connected():

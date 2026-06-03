@@ -23,7 +23,7 @@
     
     
       
-        <title>Writing plugins - Termapy Help v0.70.0</title>
+        <title>Writing plugins - Termapy Help v0.71.0</title>
       
     
     
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.70.0" class="md-header__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.71.0" class="md-header__button md-logo" aria-label="Termapy Help v0.71.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.70.0
+            Termapy Help v0.71.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.70.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.70.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.71.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.71.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.70.0
+    Termapy Help v0.71.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1464,8 +1464,9 @@ device, read responses, write files, or chain other REPL commands.</p>
 <code>Termapy</code> looks for this specific name. If your file doesn't have a
 <code>COMMAND</code> object, it is silently skipped.</p>
 <h2 id="the-plugincontext-shape">The PluginContext shape<a class="headerlink" href="#the-plugincontext-shape" title="Permanent link">&para;</a></h2>
-<p>The <code>ctx</code> object is a thin shell over <strong>five capability handles</strong>, each
-owning one domain. Plugin authors see 12 visible names on <code>ctx</code>:</p>
+<p>The <code>ctx</code> object is a thin shell over <strong>five handles</strong> -- four capability
+domains plus the privileged <code>internal</code> escape hatch. Plugin authors see
+13 visible names on <code>ctx</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;encoding&quot;</span><span class="p">):</span>           <span class="c1"># plain config (read-only)</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="o">...</span>
@@ -1484,16 +1485,17 @@ owning one domain. Plugin authors see 12 visible names on <code>ctx</code>:</p>
 </span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>
 </span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="s2">&quot;/var.set X 5&quot;</span><span class="p">)</span>              <span class="c1"># re-route a command</span>
 </span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">ns</span><span class="p">(</span><span class="s2">&quot;my_plugin&quot;</span><span class="p">)[</span><span class="s2">&quot;counter&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>       <span class="c1"># session-scoped storage</span>
-</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>
-</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=...</span><span class="p">)</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Usage: </span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">prefix</span><span class="si">}</span><span class="s2">foo&quot;</span><span class="p">)</span>  <span class="c1"># active REPL prefix (from cfg)</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    <span class="k">return</span> <span class="n">CmdResult</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="n">value</span><span class="o">=...</span><span class="p">)</span>
 </span></code></pre></div>
 <p>The five handles:</p>
 <ul>
 <li><code>ctx.io</code> -- write to user (terminal, log, fallback notifications)</li>
-<li><code>ctx.serial</code> -- read/write the serial port, observe bytes</li>
+<li><code>ctx.serial</code> -- connect/disconnect, read/write the serial port, observe bytes</li>
 <li><code>ctx.fs</code> -- per-config directories and file opening</li>
 <li><code>ctx.ui</code> -- TUI-only operations (dialogs, screenshots); raises in CLI</li>
-<li><code>ctx.engine</code> -- internal SPI for built-ins; external plugins should avoid it</li>
+<li><code>ctx.internal</code> -- privileged escape hatch for built-ins; external plugins should avoid it</li>
 </ul>
 <h3 id="capability-gating">Capability gating<a class="headerlink" href="#capability-gating" title="Permanent link">&para;</a></h3>
 <p>Some handle methods are gated on <code>CapabilitySet</code> flags. Calling a gated
@@ -1944,8 +1946,8 @@ the matching capability on <code>Command.needs</code>.</p>
 <td>True when running under <code>--exec</code> (one-shot CLI mode)</td>
 </tr>
 <tr>
-<td><code>ctx.engine</code></td>
-<td>Internal SPI for built-ins; external plugins should avoid</td>
+<td><code>ctx.internal</code></td>
+<td>Privileged escape hatch for built-ins; external plugins should avoid</td>
 </tr>
 </tbody>
 </table>

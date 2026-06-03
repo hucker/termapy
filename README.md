@@ -1211,9 +1211,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2578 tests, 69% overall</summary>
+<summary><strong>Test coverage</strong> - 2476 tests, 69% overall</summary>
 
-2578 tests across 87 test files. Run with `uv run pytest`.
+2476 tests across 87 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC
@@ -1243,7 +1243,7 @@ generator permutation.
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~3600 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~2450 lines) are Textual UI and tested manually. The 69% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
+**UI code:** `app.py` (~3650 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~2450 lines) are Textual UI and tested manually. The 69% overall figure reflects these large untested UI files. Core logic coverage is higher; the focus has been on extracting business logic into testable modules and keeping UI as thin delegation.
 
 </details>
 

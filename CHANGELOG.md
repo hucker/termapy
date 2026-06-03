@@ -1,5 +1,178 @@
 # Changelog
 
+## 0.71.0 (2026-06-02)
+
+This release continues 0.70's "thin shuttle into crcglot" arc: crcglot
+bumps to 0.10, termapy adapts to its tightened API, and the
+long-standing CRC byte-order wart finally gets fixed.  Along the way
+the byte-dump display learned the standard hex-dump dot-sidebar style,
+`/proto.send` gained `--dry-run` and `--ascii`, and `/proto.crc.find`
+adopted a clean answer/context/hints output model.  Plus a quiet but
+consequential serial-display fix for multi-byte UTF-8 characters split
+across reads.
+
+### CRC byte-order default fixed
+
+The hardest-earned fix here.  Before 0.71 the protocol parser used a
+fixed little-endian default for CRC fields with no `_le` / `_be`
+suffix -- right for Modbus-family algorithms (`refout=True`) and
+*silently wrong* for the XMODEM / CCITT-FALSE / IBM-3740 family
+(`refout=False`).  A spec like `CRC:crc16-xmodem` produced
+little-endian bytes when the wire expected big-endian.
+
+Now the no-suffix default derives from the algorithm's `refout` --
+the right answer for the ~95% of protocols that serialize CRC bytes
+in the algorithm's natural direction.  `_le` and `_be` remain as
+explicit absolute overrides for the rare protocol that wires a CRC
+opposite to its natural order.
+
+Migration: explicit `_le` / `_be` keep working unchanged; specs that
+relied on the implicit LE default with a `refout=False` algorithm
+will silently switch to BE -- add explicit `_le` to those to preserve
+old behavior.  Demo `.pro` files all used explicit `_le` and remain
+correct.
+
+### crcglot 0.10
+
+The underlying upgrade brought two breaking changes:
+
+- **Codegen generators** dropped `table=bool` in favor of
+  `variant=Literal["bitwise","table","slice8"]`.  All
+  `/proto.crc.<lang>` paths updated.
+- **Short aliases removed** from the catalogue: `crc16m`, `crc16x`,
+  `crc16i`, etc.  The reveng canonical names (`crc16-modbus`,
+  `crc16-xmodem`, ...) are the only ones now.  Update any `.pro`
+  files or scripts that used the short forms.
+
+### `/proto.send --dry-run` and `--ascii`
+
+Two new flags on `/proto.send`:
+
+- **`--dry-run`** parses, computes the CRC, assembles the frame,
+  prints what would have been sent, and returns -- no serial I/O.
+  Works without a connected device, useful for verifying CRC byte
+  order or scripted sends.
+- **`--ascii`** renders TX / RX (and dry-run output) as a quoted
+  escape-string (`"AT\r\n"`) instead of hex, for protocols where the
+  payload is ASCII text.
+
+### `/proto.crc.find` rebuilt onto `crcglot.detect`
+
+The custom matching logic (~100 lines) is replaced by a thin shuttle
+into `crcglot.detect`.  Same `bin=` / `asc=` modes, same behavior,
+less code in termapy.  An in-development `cmd=` mode was dropped
+after evaluation: constructing a valid request to send a strict
+device already requires knowing the CRC algorithm, so the live-send
+workflow had a chicken/egg problem; `bin=<captured-hex>` is the
+universally applicable path.
+
+The output was also restructured on a deeper principle: a command has
+an **answer** and **supporting text**, and the verbosity dial decides
+which channel surfaces what.  For find:
+
+- `result()` (quiet+) -- the match line(s), or "No matches found."
+- `output()` (normal+) -- the explanation for the 0-case
+- `status()` (verbose only) -- the "Generate source: ..." codegen
+  pointer and the multi-match disambiguation advice
+
+The old `1 match:` / `N matches:` header was dropped as noise -- the
+count is apparent from how many match lines follow.
+
+### Byte-dump display: hex + ASCII sidebar by default
+
+Short binary payloads previously rendered as a confusing dual hex +
+"smart text" view: bytes like `00 00 00 0A` appeared as both
+`00 00 00 0A` and `"\0\0\0\n"` on the same line, where the right half
+could be misread as additional data.  Now short payloads use the
+standard hex-dump dot-sidebar that the long form already did:
+
+```text
+TX: 01 03 00 00 00 0A  |......|
+RX: 01 41 42 43 00 0D  |.ABC..|
+```
+
+You see embedded ASCII at a glance without parsing escapes.  `--ascii`
+on `/proto.send` opts into the quoted-escape view for genuinely-text
+payloads.
+
+### Serial UTF-8 split fix
+
+`SerialReader` now uses a stateful incremental decoder, so a
+multi-byte UTF-8 character split across two serial reads no longer
+becomes two U+FFFD replacement chars on each side of the split.  The
+issue mostly bit at low baud rates with emoji, box-drawing glyphs, or
+accented characters.  Tests cover split-at-line-boundary, 4-byte
+emoji split mid-line, no-replacement-char assertion, and
+truncated-tail-on-idle.  Caught by an external review.
+
+### `/cfg` and template-var v22 fix
+
+`/cfg baud_rate 9600` (and other `cfg["serial"]` keys) no longer
+crashes the TUI confirm modal with a KeyError.  The hook fell through
+to a flat `self.cfg[key]` lookup that didn't account for v22's nested
+layout; it now reads from the serial sub-dict.  Same fix applied to
+`CFG.PORT` / `CFG.BAUD` template variables that were silently empty
+post-v22.
+
+### Internal: `ctx.engine` → `ctx.internal`
+
+The privileged escape-hatch handle on `PluginContext` was renamed
+from `EngineHandle` (`ctx.engine`) to `InternalHandle`
+(`ctx.internal`).  The old name read like a peer of the four clean
+capability domains (`ctx.io` / `ctx.serial` / `ctx.fs` / `ctx.ui`)
+and named only half its job; the new name describes its actual
+invariant -- everything on it is internal / unstable / not part of
+the external plugin API.
+
+External plugins shouldn't have been using this handle, but if you
+did, the rename is mechanical.  The capability-domain handles are
+unaffected.
+
+While the rename was in flight, several members moved to better
+homes:
+
+- `ctx.internal.prefix` → `ctx.prefix` (live property derived from
+  cfg, no manual resync needed).
+- `ctx.internal.coerce_type` → `scripting.coerce_to_type`.
+- `ctx.internal.connect` / `disconnect` / `update_port` /
+  `apply_port_effects` / `rx_queue` → `ctx.serial.*`.
+
+What remains on `ctx.internal` is now genuine escape-hatch territory
+(TUI-only screens, engine forwarders) and documented as such.
+
+### Command-tree organization
+
+- **`/log` parent**: `/log.dump`, `/log.fingerprint`, `/log.show`
+  share a `/log` parent and a single source file.
+- **`/ver` → `/app.ver`**: the version command moved under `/app`; a
+  legacy `/ver` forwarder remains for one release cycle.
+- **`/term.eol <token>`**: set the sent line ending via named tokens
+  (`cr`, `lf`, `crlf`, `none`).
+- **Legacy command aliases centralized**: per-file forwarder plugins
+  are gone; aliases live in one `legacy.py` table that `ReplEngine`
+  registers at startup.
+
+### Documentation
+
+ARCHITECTURE.md gained a **Core Concepts** map, an explanation of
+the five `ctx` layers, an MCP frontend section, and a worked
+seq-plugin example showing state + lifecycle hooks together.  The
+"SPI" jargon was dropped.  The protocol-testing help doc records the
+new natural-wire-order CRC default.
+
+### Improvements and security
+
+- **Signed line-count selector** on `/ss.txt [N]` (and unified with
+  `/log.dump` / `/mcp.log.dump`): positive `N` = last N lines (matches
+  terminal/tail convention), negative `N` = first |N| lines, no arg =
+  everything.  Same flag set across all three.
+- **Ctrl+C clipboard copy** in the terminal pane is now documented in
+  the toolbar tooltip text; the feature itself was already wired, just
+  not surfaced.
+- **`rich` bumped to 15.0.0** and `textual` to 8.2.7.  No
+  user-visible behavior change in normal use.
+- **`idna` bumped to 3.17** for CVE-2026-45409.
+
 ## 0.70.0 (2026-05-28)
 
 The theme of this release is the CRC code generator growing up and

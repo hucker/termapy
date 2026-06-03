@@ -82,7 +82,7 @@ src/termapy/
 │   ├── catalog.py          #   JSON catalog + device-state resources
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
-├── plugins/                # (2261 lines) Plugin system - capability-handle architecture
+├── plugins/                # (2287 lines) Plugin system - capability-handle architecture
 │   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, InternalHandle
 │   ├── capabilities.py     #   CapabilitySet, MissingCapability
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
@@ -94,7 +94,7 @@ src/termapy/
 │   ├── matcher.py          #   match_profile_command, template_to_regex
 │   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
 │   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
-├── protocol/               # (2277 lines) Binary-protocol toolkit (library-shaped, no Textual)
+├── protocol/               # (2313 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
 │   ├── crc.py              #   crcglot catalogue shim (71 algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
@@ -104,7 +104,7 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (3625 lines) Textual TUI - UI, modals, app hooks
+├── app.py                  # (3634 lines) Textual TUI - UI, modals, app hooks
 ├── capture.py              # (336 lines)  Capture state machine - text, binary, format spec
 ├── cli.py                  # (1063 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
 ├── config.py               # (769 lines)  Config dirs, loading, validation, migration trigger
@@ -113,13 +113,13 @@ src/termapy/
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
-├── migration.py            # (504 lines)  Config schema migration chain (v17)
+├── migration.py            # (549 lines)  Config schema migration chain (v17)
 ├── port_control.py         # (1460 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1180 lines) Interactive protocol debug screen (Textual)
-├── repl.py                 # (1777 lines) REPL engine - dispatch, scripting, transforms
-├── scripting.py            # (278 lines)  Pure functions - templates, duration parsing, ANSI
+├── repl.py                 # (1776 lines) REPL engine - dispatch, scripting, transforms
+├── scripting.py            # (370 lines)  Pure functions - templates, duration parsing, ANSI
 ├── serial_engine.py        # (566 lines)  Serial connection lifecycle, reader loop orchestrator
-├── serial_port.py          # (306 lines)  Serial I/O wrapper + SerialReader data processor
+├── serial_port.py          # (329 lines)  Serial I/O wrapper + SerialReader data processor
 └── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
 ```
 

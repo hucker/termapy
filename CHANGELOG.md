@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.71.1 (2026-06-03)
+
+Maintenance release: absorb the crcglot 0.11 upgrade.
+
+### crcglot 0.11
+
+`AlgorithmInfo` gained a required `source` field that records the
+provenance of each algorithm's Rocksoft/Williams parameters
+(`"reveng"` for catalogue entries, free-form citation otherwise).
+termapy's `--custom` path in `/proto.crc.<lang>` builds
+`AlgorithmInfo` by hand from user-supplied parameters; it now passes
+`source="user"`, which is exactly what the user-supplied case
+warrants.  The constraint floor moves to `crcglot>=0.11.0`.
+
+No user-visible behavior change in either the catalogue or
+`--custom` code paths.
+
+0.11 also ships an optional `crcglot[mcp]` MCP server -- worth
+mentioning here because it foreshadows the question of how
+`termapy[mcp]` and `crcglot[mcp]` should compose for embedded
+LLM-assisted workflows.  Not addressed in this release.
+
 ## 0.71.0 (2026-06-02)
 
 This release continues 0.70's "thin shuttle into crcglot" arc: crcglot

@@ -1475,7 +1475,7 @@ wheels = [
 
 [[package]]
 name = "termapy"
-version = "0.71.0"
+version = "0.71.1"
 source = { editable = "." }
 dependencies = [
     { name = "crcglot" },
@@ -1510,7 +1510,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "crcglot", specifier = ">=0.10.0" },
+    { name = "crcglot", specifier = ">=0.11.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0,<2.0" },
     { name = "packaging", specifier = ">=24.0" },
     { name = "platformdirs", specifier = ">=4.0" },

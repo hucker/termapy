@@ -1103,10 +1103,14 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         # not a dict.  0.10 dropped the ``name`` field (the name is
         # always the dict key in the catalogue); we still pass it
         # separately to ``gen_entry(custom_name, entry, ...)`` below.
+        # 0.11 added a required ``source`` provenance string -- "reveng"
+        # for catalogue entries, free-form citation otherwise.  --custom
+        # params are exactly that: the user.
         entry = AlgorithmInfo(
             width=width, poly=poly, init=init,
             refin=refin, refout=refout, xorout=xorout,
             check=check, desc=desc,
+            source="user",
         )
         # Symbol resolution: explicit > file basename > name=.
         symbol = (

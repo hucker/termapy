@@ -53,9 +53,10 @@ dependencies = [
     # 0.10 dropped the short termapy-side aliases (crc16m, crc16x, ...)
     # from the catalogue and replaced the per-language ``table=bool``
     # kwarg on the codegen generators with ``variant=Literal["bitwise",
-    # "table", "slice8"]``.  termapy's call sites and docs are
-    # canonical-name + variant-keyword across the board, so pin >=0.10.
-    "crcglot>=0.10.0",
+    # "table", "slice8"]``.  0.11 added a required ``source`` field on
+    # ``AlgorithmInfo``; the --custom path in /proto.crc.<lang> passes
+    # ``source="user"``, which 0.10 rejects -- so pin >=0.11.
+    "crcglot>=0.11.0",
 ]
 
 [project.optional-dependencies]

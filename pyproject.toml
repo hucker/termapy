@@ -55,8 +55,11 @@ dependencies = [
     # kwarg on the codegen generators with ``variant=Literal["bitwise",
     # "table", "slice8"]``.  0.11 added a required ``source`` field on
     # ``AlgorithmInfo``; the --custom path in /proto.crc.<lang> passes
-    # ``source="user"``, which 0.10 rejects -- so pin >=0.11.
-    "crcglot>=0.11.0",
+    # ``source="user"``, which 0.10 rejects.  0.12 added Java as a
+    # codegen target; termapy's dynamic LANGUAGES loop picks it up
+    # automatically and the CLI gold file now expects /proto.crc.java,
+    # so the floor moves to 0.12.
+    "crcglot>=0.12.0",
 ]
 
 [project.optional-dependencies]

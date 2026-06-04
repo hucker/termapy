@@ -480,6 +480,7 @@ SUBCOMMANDS
   /proto.crc.find          Identify the CRC algorithm used in a captured packet.
   /proto.crc.go            Generate Go source code for a CRC algorithm.
   /proto.crc.info          Print algorithm parameters and description.
+  /proto.crc.java          Generate Java source code for a CRC algorithm.
   /proto.crc.list          List algorithms (optional glob filter).
   /proto.crc.python        Generate Python source code for a CRC algorithm.
   /proto.crc.rust          Generate Rust source code for a CRC algorithm.

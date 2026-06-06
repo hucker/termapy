@@ -135,10 +135,14 @@ class TestPythonSlice8Fallback:
             f"fallback note about --slice8 should appear in output; "
             f"got captured={captured}"
         )
-        # The emitted code should be table-driven (contains _TABLE),
-        # NOT slice-by-8 (would contain CRC_SLICE_TABLES).
+        # The emitted code should be table-driven (a 256-entry lookup
+        # table), NOT slice-by-8 (would contain CRC_SLICE_TABLES).
+        # crcglot 0.12 renamed the table variable from the generic
+        # ``_TABLE`` to a per-algorithm ``_crcglot_table_<name>`` for
+        # symbol uniqueness; check the family pattern instead of the
+        # exact old name.
         emitted = "".join(captured_markup)
-        assert "_TABLE = (" in emitted, (
+        assert "_crcglot_table_" in emitted, (
             "Python slice8 fallback should emit table-driven code "
             "(no Python slice-by-8 implementation exists)"
         )

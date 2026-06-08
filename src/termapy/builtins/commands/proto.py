@@ -914,7 +914,7 @@ def _write_crc_codegen_files(
 
 _CRC_CODEGEN_KV_KEYS = {
     "file", "width", "poly", "init", "refin", "refout",
-    "xorout", "name", "desc", "symbol",
+    "xorout", "name", "desc", "symbol", "style",
 }
 
 
@@ -1057,6 +1057,28 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     if symbol_override == "":
         return CmdResult.fail(msg="symbol= requires a value")
 
+    # Doc-comment style: crcglot 0.13+ exposes a per-language curated
+    # set (Python: plain/google/numpy/rest; C/Java: doxygen/...; Rust:
+    # rustdoc; TypeScript: jsdoc; etc).  Default ``plain`` is applied
+    # by crcglot when the kwarg is omitted, so we only forward when the
+    # user explicitly passes ``style=``.
+    style = kv.get("style")
+    if style == "":
+        return CmdResult.fail(msg="style= requires a value")
+    if style is not None:
+        from crcglot.comments.registry import (
+            comment_style_for,
+            styles_for_language,
+        )
+        try:
+            comment_style_for(lang, style)
+        except ValueError:
+            allowed = styles_for_language(lang)
+            return CmdResult.fail(
+                msg=f"Unknown style: {style} "
+                f"(allowed for {lang}: {', '.join(allowed)})"
+            )
+
     is_custom = "width" in kv
 
     if is_custom:
@@ -1122,51 +1144,104 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         gen_entry = GENERATORS_FROM_ENTRY.get(lang)
         if gen_entry is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        result = gen_entry(
-            custom_name, entry, symbol=symbol, variant=variant,
-        )
+        gen_kwargs: dict[str, object] = {"symbol": symbol, "variant": variant}
+        if style is not None:
+            gen_kwargs["comment_style"] = style
+        result = gen_entry(custom_name, entry, **gen_kwargs)
     else:
         # ----- Catalogue lookup (existing path) -----
-        name = name_tokens[0].lower() if name_tokens else ""
-        if not name:
+        names = [t.lower() for t in name_tokens]
+        if not names:
             return CmdResult.fail(
                 msg=(
-                    f"Usage: /proto.crc.{lang} <algorithm> [--table] "
-                    "[file=stem] [symbol=name]\n"
+                    f"Usage: /proto.crc.{lang} <algorithm> [name ...] "
+                    "[--table] [file=stem] [symbol=name] [style=STYLE]\n"
                     f"   or: /proto.crc.{lang} width=N poly=X "
                     "[init=...] [refin=...] [refout=...] [xorout=...] "
-                    "[name=...] [file=...] [symbol=...]"
+                    "[name=...] [file=...] [symbol=...] [style=STYLE]"
                 )
             )
-
-        # Symbol resolution: explicit > file basename > generator default.
-        symbol = (
-            symbol_override
-            or (_symbol_from_stem(file_stem) if file_stem else None)
-        )
 
         gen = GENERATORS.get(lang)
         if gen is None:
             return CmdResult.fail(msg=f"Unknown language: {lang}")
-        if variant == "slice8":
-            # Fail early with a clear message rather than letting
-            # generate_c / generate_rust raise ValueError later.
-            from termapy.protocol.crc import CRC_CATALOGUE
-            entry = CRC_CATALOGUE.get(name)
-            if entry is not None and entry["width"] not in (32, 64):
+
+        # Multi-algorithm bundle: call the generator once per algorithm,
+        # then merge via the language's combiner.  Mirrors crcglot's
+        # library-level "loop + combine" pattern (combine_<lang> in
+        # crcglot.lang.<lang>).  symbol= is rejected because there's no
+        # single symbol to override -- each bundled algorithm gets its
+        # own default symbol from its catalogue name.
+        if len(names) > 1:
+            if symbol_override is not None:
                 return CmdResult.fail(
-                    msg=f"--slice8 requires width=32 or 64; {name} is "
-                    f"width={entry['width']}"
+                    msg="symbol= not allowed when bundling multiple "
+                    "algorithms (each algorithm keeps its own symbol)"
                 )
-        result = gen(name, symbol=symbol, variant=variant)
-        if result is None:
-            p = ctx.prefix
-            ctx.io.output(
-                f"Unknown algorithm: {name}. "
-                f"Use {p}proto.crc.list to see available.",
-                "red",
+            if variant == "slice8":
+                from termapy.protocol.crc import CRC_CATALOGUE
+                for n in names:
+                    entry = CRC_CATALOGUE.get(n)
+                    if entry is not None and entry["width"] not in (32, 64):
+                        return CmdResult.fail(
+                            msg=f"--slice8 requires width=32 or 64; "
+                            f"{n} is width={entry['width']}"
+                        )
+            from crcglot import LANGUAGES
+            combiner = LANGUAGES[lang].combiner
+            gen_kwargs_each: dict[str, object] = {"variant": variant}
+            if style is not None:
+                gen_kwargs_each["comment_style"] = style
+            parts = []
+            for n in names:
+                part = gen(n, **gen_kwargs_each)
+                if part is None:
+                    p = ctx.prefix
+                    ctx.io.output(
+                        f"Unknown algorithm: {n}. "
+                        f"Use {p}proto.crc.list to see available.",
+                        "red",
+                    )
+                    return CmdResult.fail(msg=f"Unknown algorithm: {n}")
+                parts.append(part)
+            # Combined file stem: file= wins; otherwise a generic
+            # ``crcs`` plural so the stdout banner makes sense.
+            bundle_stem = file_stem or "crcs"
+            result = combiner(parts, bundle_stem)
+            name = bundle_stem
+        else:
+            name = names[0]
+
+            # Symbol resolution: explicit > file basename > generator default.
+            symbol = (
+                symbol_override
+                or (_symbol_from_stem(file_stem) if file_stem else None)
             )
-            return CmdResult.fail(msg=f"Unknown algorithm: {name}")
+
+            if variant == "slice8":
+                # Fail early with a clear message rather than letting
+                # generate_c / generate_rust raise ValueError later.
+                from termapy.protocol.crc import CRC_CATALOGUE
+                entry = CRC_CATALOGUE.get(name)
+                if entry is not None and entry["width"] not in (32, 64):
+                    return CmdResult.fail(
+                        msg=f"--slice8 requires width=32 or 64; {name} is "
+                        f"width={entry['width']}"
+                    )
+            gen_kwargs_single: dict[str, object] = {
+                "symbol": symbol, "variant": variant,
+            }
+            if style is not None:
+                gen_kwargs_single["comment_style"] = style
+            result = gen(name, **gen_kwargs_single)
+            if result is None:
+                p = ctx.prefix
+                ctx.io.output(
+                    f"Unknown algorithm: {name}. "
+                    f"Use {p}proto.crc.list to see available.",
+                    "red",
+                )
+                return CmdResult.fail(msg=f"Unknown algorithm: {name}")
 
     # ----- File output mode (file=STEM) -----
     if file_stem is not None:
@@ -1515,6 +1590,18 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
             f"for {info.display_name})."
         )
 
+    # Doc-comment styles per language (crcglot 0.13+).  ``plain`` is
+    # always available; the rest are language-specific (e.g. doxygen
+    # for C/Java, rustdoc for Rust, google/numpy/rest for Python).
+    from crcglot.comments.registry import styles_for_language
+    styles = tuple(styles_for_language(code))
+    styles_line = (
+        f"Doc-comment styles: {', '.join(styles)} (default: plain). "
+        f"Pass via style=NAME.\n"
+        if len(styles) > 1
+        else ""
+    )
+
     example_lines = [
         f"  {{prefix}}proto.crc.{code} crc16-modbus",
     ]
@@ -1523,6 +1610,17 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
     if has_slice8:
         example_lines.append(f"  {{prefix}}proto.crc.{code} crc32 --slice8")
     example_lines.append(f"  {{prefix}}proto.crc.{code} crc16-modbus file=my_crc")
+    # Doc-style + bundling examples only when the language supports
+    # multiple styles (avoids noise on verilog/vhdl which are plain-only).
+    if len(styles) > 1:
+        non_plain = next((s for s in styles if s != "plain"), None)
+        if non_plain is not None:
+            example_lines.append(
+                f"  {{prefix}}proto.crc.{code} crc32 style={non_plain}"
+            )
+    example_lines.append(
+        f"  {{prefix}}proto.crc.{code} crc16-modbus crc32 crc8 file=my_crcs"
+    )
 
     long_help = (
         f"Prints a self-contained {info.display_name} implementation for the\n"
@@ -1532,12 +1630,17 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         f"With ``file=STEM``, writes {ext_desc} to the current directory\n"
         f"instead of stdout.\n"
         f"\n"
-        f"Example:\n"
+        f"Pass two or more algorithm names to bundle them into a single\n"
+        f"output (each algorithm keeps its own symbol; ``symbol=`` is not\n"
+        f"allowed in bundle mode).\n"
+        f"\n"
+        + styles_line +
+        "Example:\n"
         + "\n".join(example_lines)
     )
 
     return Command(
-        args="<name> {file=stem}",
+        args="<name> {name ...} {file=stem} {symbol=name} {style=name}",
         flags=flags,
         help=f"Generate {info.display_name} source code for a CRC algorithm.",
         long_help=long_help,

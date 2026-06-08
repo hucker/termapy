@@ -57,9 +57,18 @@ dependencies = [
     # ``AlgorithmInfo``; the --custom path in /proto.crc.<lang> passes
     # ``source="user"``, which 0.10 rejects.  0.12 added Java as a
     # codegen target; termapy's dynamic LANGUAGES loop picks it up
-    # automatically and the CLI gold file now expects /proto.crc.java,
-    # so the floor moves to 0.12.
-    "crcglot>=0.12.0",
+    # automatically and the CLI gold file now expects /proto.crc.java.
+    # 0.13 added a per-language doc-comment style system
+    # (``comment_style=`` on every generator, per-language allowed set
+    # validated via ``crcglot.comments.registry.comment_style_for``)
+    # and a per-language ``combiner`` callable on ``LanguageInfo`` for
+    # bundling several algorithms into one file.  /proto.crc.<lang>
+    # exposes both via ``style=NAME`` and multi-positional ``<name>...``;
+    # the floor moves to 0.15.1 (the first release where the public
+    # registry helpers ``comment_style_for`` and ``styles_for_language``
+    # ship under ``crcglot.comments.registry``; 0.15.1 is a patch-level
+    # follow-up on 0.15.0 with no API change).
+    "crcglot>=0.15.1",
 ]
 
 [project.optional-dependencies]

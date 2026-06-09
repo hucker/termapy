@@ -318,18 +318,24 @@ class TestSendCrcAlgorithms:
         assert actual == data + bytes([expected_crc]), "1-byte CRC appended"
 
     def test_crc32(self, send_env):
-        # Arrange - use a CRC-32 algorithm
+        # Arrange - use a refout=True 4-byte CRC so the natural-wire
+        # default lands on LE.  Iterate the registry rather than naming
+        # a specific algorithm so the test survives reordering, but
+        # filter on refout=True (matches the v0.71 byte-order default:
+        # refout=True -> LE, refout=False -> BE).
         ctx, output, tx_bytes = send_env
         registry = get_crc_registry()
         crc32_name = next(
-            (n for n in registry if registry[n].width == 4), None
+            (n for n in registry
+             if registry[n].width == 4 and registry[n].refout),
+            None,
         )
         if crc32_name is None:
-            pytest.skip("No CRC-32 algorithm available")
+            pytest.skip("No refout=True 4-byte CRC available")
         algo = registry[crc32_name]
         data = b"\x01\x02\x03"
         expected_crc = algo.compute(data)
-        expected_bytes = expected_crc.to_bytes(4, "big")[::-1]  # LE default
+        expected_bytes = expected_crc.to_bytes(4, "big")[::-1]  # refout=True -> LE
 
         # Act
         _cmd_send(ctx, f"{crc32_name} 01 02 03")

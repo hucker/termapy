@@ -67,8 +67,14 @@ dependencies = [
     # the floor moves to 0.15.1 (the first release where the public
     # registry helpers ``comment_style_for`` and ``styles_for_language``
     # ship under ``crcglot.comments.registry``; 0.15.1 is a patch-level
-    # follow-up on 0.15.0 with no API change).
-    "crcglot>=0.15.1",
+    # follow-up on 0.15.0 with no API change).  0.16 / 0.17 ship
+    # internal refactors (combiner functions for the simple-string
+    # languages were consolidated to a shared ``combine_concat``;
+    # ``LanguageInfo.combiner`` still resolves the same per-language
+    # callable, so termapy's bundling path is unaffected).  Floor is
+    # tracked at the latest release so the lock pulls modern fixes
+    # and we surface any future API drift early.
+    "crcglot>=0.17.0",
 ]
 
 [project.optional-dependencies]

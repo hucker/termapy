@@ -972,13 +972,18 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     """
     from pathlib import Path
 
-    from crcglot import AlgorithmInfo
+    from crcglot import AlgorithmInfo, Crc
     from termapy.protocol import GENERATORS, GENERATORS_FROM_ENTRY
     from termapy.protocol.crc import _generic_crc
 
-    # Variant resolution: crcglot 0.10's generators take one ``variant=``
-    # literal ("bitwise" / "table" / "slice8") instead of the separate
-    # boolean kwargs we used to pass.
+    # Variant resolution: crcglot 0.10 introduced one ``variant=``
+    # literal ("bitwise" / "table" / "slice8") in place of separate
+    # boolean kwargs; 0.23 added ``"auto"`` and made it the upstream
+    # default (picks the fastest implementation per (language,
+    # width) -- slice8 at width 32/64, table at width >= 8, bitwise
+    # for sub-byte).  termapy mirrors the upstream default so bare
+    # /proto.crc.<lang> matches ``crcglot <lang>`` and ``--fast``.
+    # The --table / --slice8 flags still pin the variant explicitly.
     if ctx.flag("--table") and ctx.flag("--slice8"):
         return CmdResult.fail(
             msg="--slice8 and --table are mutually exclusive (slice-by-8 "
@@ -989,7 +994,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     elif ctx.flag("--table"):
         variant = "table"
     else:
-        variant = "bitwise"
+        variant = "auto"
 
     # --slice8 fallback, data-driven from crcglot's per-language variant
     # set.  A language gets --slice8 registered (see _build_one_crc_lang_
@@ -1107,8 +1112,14 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         # Compute the check value (CRC of "123456789") via the same
         # engine that powers the bundled catalogue.  Embedded in the
         # generated _self_test so downstream users can verify too.
+        # crcglot 0.23 narrowed generic_crc to take one Crc value
+        # object instead of seven positional ints.
         check = _generic_crc(
-            b"123456789", width, poly, init, refin, refout, xorout
+            b"123456789",
+            Crc(
+                width=width, poly=poly, init=init,
+                refin=refin, refout=refout, xorout=xorout,
+            ),
         )
 
         custom_name = kv.get("name") or "crc_custom"
@@ -1502,7 +1513,7 @@ Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
   /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
 
 CRC tools:
-  {prefix}proto.crc.list              - list all 62 algorithms
+  {prefix}proto.crc.list              - list all {crc_count} algorithms
   {prefix}proto.crc.list *modbus*     - filter by glob pattern
   {prefix}proto.crc.info crc16-modbus - show parameters for Modbus CRC
   {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
@@ -1518,7 +1529,11 @@ def _proto_folder_line(ctx: PluginContext) -> str:
 
 
 def _proto_long_help(ctx: PluginContext) -> str:
-    return compose(_proto_folder_line(ctx), _PROTO_PROSE)
+    # The catalogue size belongs to crcglot, not termapy; resolve it at
+    # help time so the example tracks the upstream catalogue.
+    from crcglot import ALGORITHMS
+    prose = _PROTO_PROSE.replace("{crc_count}", str(len(ALGORITHMS)))
+    return compose(_proto_folder_line(ctx), prose)
 
 
 def _proto_root_handler(ctx: PluginContext, args: str) -> CmdResult:

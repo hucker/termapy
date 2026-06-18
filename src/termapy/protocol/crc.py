@@ -30,6 +30,7 @@ from typing import Callable
 # New termapy code should prefer ``from crcglot import ALGORITHMS,
 # generic_crc`` directly rather than these shims.
 from crcglot import ALGORITHMS as _ALGORITHMS
+from crcglot import Crc as _Crc
 from crcglot import generic_crc as _generic_crc
 
 from termapy.plugins import BoundaryException
@@ -54,11 +55,15 @@ def _make_crc_compute(entry: dict) -> Callable[[bytes], int]:
     Returns:
         Function ``(data: bytes) -> int``.
     """
-    w, p, i, ri, ro, xo = (
-        entry["width"], entry["poly"], entry["init"],
-        entry["refin"], entry["refout"], entry["xorout"],
+    # crcglot 0.23 narrowed ``generic_crc`` to take a single ``Crc``
+    # (or ``AlgorithmInfo``) value object instead of seven positional
+    # ints.  Bind one ``Crc`` per entry at registry-build time so the
+    # hot path is still a single function call.
+    crc = _Crc(
+        width=entry["width"], poly=entry["poly"], init=entry["init"],
+        refin=entry["refin"], refout=entry["refout"], xorout=entry["xorout"],
     )
-    return lambda data: _generic_crc(data, w, p, i, ri, ro, xo)
+    return lambda data: _generic_crc(data, crc)
 
 
 # ---------------------------------------------------------------------------

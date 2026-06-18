@@ -32,6 +32,7 @@ from termapy.protocol import (
     load_crc_plugins,
     reset_crc_registry,
 )
+from crcglot import Crc
 from termapy.protocol.crc import _generic_crc  # private; explicit submodule
 from termapy.protocol import (
     builtins_viz_dir,
@@ -1137,15 +1138,16 @@ class TestGenericCrcEngine:
     @pytest.mark.parametrize("name", _CANONICAL_NAMES)
     def test_catalogue_check_value(self, name):
         """Generic engine matches reveng catalogue check value."""
+        # crcglot 0.23 narrowed generic_crc to (data, Crc) -- wrap the
+        # entry dict into a Crc value object before dispatching.
         entry = CRC_CATALOGUE[name]
         actual = _generic_crc(
             _CHECK_DATA,
-            entry["width"],
-            entry["poly"],
-            entry["init"],
-            entry["refin"],
-            entry["refout"],
-            entry["xorout"],
+            Crc(
+                width=entry["width"], poly=entry["poly"], init=entry["init"],
+                refin=entry["refin"], refout=entry["refout"],
+                xorout=entry["xorout"],
+            ),
         )
         expected = entry["check"]
         assert actual == expected  # {name}: {actual:#x} != {expected:#x}

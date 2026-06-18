@@ -71,10 +71,23 @@ dependencies = [
     # internal refactors (combiner functions for the simple-string
     # languages were consolidated to a shared ``combine_concat``;
     # ``LanguageInfo.combiner`` still resolves the same per-language
-    # callable, so termapy's bundling path is unaffected).  Floor is
-    # tracked at the latest release so the lock pulls modern fixes
-    # and we surface any future API drift early.
-    "crcglot>=0.17.0",
+    # callable, so termapy's bundling path is unaffected).  0.18-0.23
+    # is the biggest API expansion since 0.13: the variant ladder
+    # gained an ``"auto"`` default that picks the fastest
+    # implementation per (language, width), the catalogue grew from
+    # 62 to 100+ algorithms, and several brand-new top-level helpers
+    # landed -- ``compute`` / ``encode`` / ``verify`` /
+    # ``identify_trailer`` / ``reverse`` / ``CrcStream`` /
+    # ``has_faster_alternative`` / ``default_stem`` /
+    # ``LanguageInfo.variants_for_width(s)`` / ``Advisory``.  termapy
+    # tracks the auto-variant change here (no-flag /proto.crc.<lang>
+    # now emits the fastest variant per (lang, width) instead of
+    # bitwise, matching the upstream CLI's ``--fast`` default); the
+    # other new helpers are recorded for downstream awareness but not
+    # consumed yet (see Phase B in the bump plan).  Floor is tracked
+    # at the latest release so the lock pulls modern fixes and we
+    # surface any future API drift early.
+    "crcglot>=0.23.0",
 ]
 
 [project.optional-dependencies]

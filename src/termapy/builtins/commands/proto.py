@@ -1737,7 +1737,13 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         if not cmd_payload:
             return CmdResult.fail(msg="Empty cmd= payload")
         if count is None or count < 2:
-            return CmdResult.fail(msg="cmd= mode requires count=N (>=2)")
+            return CmdResult.fail(
+                msg=(
+                    "cmd= mode requires count=N (>=2). "
+                    'Try: /proto.crc.reverse cmd="<trigger>\\r" '
+                    "count=13 crc_bytes=<width-in-bytes>"
+                )
+            )
         if not ctx.serial.is_connected():
             return CmdResult.fail(msg="Not connected.")
         try:

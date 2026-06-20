@@ -732,3 +732,61 @@ class TestCfgContextVars:
         # Act / Assert -- empty string, no KeyError
         actual = var_mod._CONTEXT_VARS["CFG.PORT"]()
         assert actual == "", "no serial section -> empty, not a crash"
+
+
+# ── _handler_capture: failure path ────────────────────────────────────────────
+
+
+class TestHandlerCaptureFailurePath:
+    """When the inner ``ctx.dispatch()`` fails, _handler_capture must NOT
+    re-emit the same error -- the inner dispatch's
+    ``self.write(result.err_msg)`` already displayed it.  Returning
+    ``CmdResult.fail(msg=result.error)`` would make the outer dispatch
+    fire its own ``self.write(result.err_msg)`` for the same text,
+    double-printing the error.
+
+    Regression for the bug found in the ``$(rev) <- /proto.crc.reverse
+    cmd=...`` walkthrough where missing ``count=`` printed the same
+    error twice.  Fix at var.py: return ``CmdResult.fail(msg="")`` so
+    the outer dispatch's ``if result.error:`` check falls through.
+    """
+
+    def test_capture_fail_propagates_empty_message(self):
+        # Arrange -- minimal stub PluginContext where ctx.dispatch returns
+        # a failed CmdResult (simulating the inner .silent dispatch having
+        # already written the error to the screen).
+        from termapy.builtins.commands.var import _handler_capture
+        from termapy.plugins import CmdResult, IOHandle, PluginContext
+
+        captured_output: list[str] = []
+
+        def write(text, color="dim"):
+            captured_output.append(text)
+
+        def write_markup(text):
+            captured_output.append(text)
+
+        def stub_dispatch(cmd):
+            # Pretend the inner command failed; the inner dispatch's
+            # self.write already displayed this error (we don't simulate
+            # that side effect here -- the focus is on the OUTER behavior).
+            return CmdResult.fail(msg="cmd= mode requires count=N (>=2)")
+
+        ctx = PluginContext(
+            io=IOHandle(_write=write, _write_markup=write_markup),
+            dispatch=stub_dispatch,
+        )
+        ctx.cfg = {}
+
+        # Act -- /var.capture rev /proto.crc.reverse cmd=foo
+        result = _handler_capture(ctx, "rev /proto.crc.reverse cmd=foo")
+
+        # Assert -- failed (variable not assigned) and message is empty,
+        # so the outer dispatch's `if not result.success and result.error:`
+        # check at repl.py:1301 will NOT fire a second write.
+        assert not result.success, "capture must fail when inner fails"
+        assert result.error == "", (
+            f"capture must propagate failure with EMPTY error message "
+            f"so the outer dispatch doesn't double-print; "
+            f"got error={result.error!r}"
+        )

@@ -323,7 +323,17 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
             silent_cmd += " " + parts_cmd[1]
         result = ctx.dispatch(silent_cmd)
         if not result.success:
-            return CmdResult.fail(msg=result.error or f"Command failed: {cmd}")
+            # The inner dispatch already wrote the error via
+            # ``_dispatch_inner``'s unconditional `self.write(err_msg)`
+            # call (`.silent` only stubs ``ctx.io._write``, not
+            # ``self.write``).  Returning the same error text again
+            # via ``CmdResult.fail(msg=result.error)`` would make the
+            # outer dispatch's same `self.write` line fire a second
+            # time -- double-printing the error.  Suppress the outer
+            # write by returning an empty msg; the variable is still
+            # left unassigned (the user saw the error from the inner
+            # dispatch and knows the capture aborted).
+            return CmdResult.fail(msg="")
         value = result.value
     else:
         # Device command: send to serial and capture response

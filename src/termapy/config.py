@@ -730,7 +730,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     run_dir = demo_dir / "run"
     run_dir.mkdir(exist_ok=True)
     run_pkg = pkg / "run"
-    for name in ("welcome.run", "at_demo.run", "gps_demo.run", "smoke_test.run", "status_check.run", "var_demo.run", "expect_test.run", "doc_screenshots.run"):
+    for name in ("welcome.run", "at_demo.run", "gps_demo.run", "smoke_test.run", "status_check.run", "var_demo.run", "expect_test.run", "doc_screenshots.run", "crc_tour.run"):
         dest = run_dir / name
         if force or not dest.exists():
             src = run_pkg / name

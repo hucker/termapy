@@ -192,6 +192,7 @@ demo> /print === section: config folders ===
 demo> /run.list
     run/
       at_demo.run          --  AT Command Demo -- Walks through all demo device commands
+      crc_tour.run         --  crc_tour.run -- the whole /proto.crc.* API in one screen
       doc_screenshots.run  --  Generate documentation images
       expect_test.run      --  Expect command test
       gps_demo.run         --  GPS/NMEA Demo -- Query simulated GPS receiver
@@ -483,6 +484,7 @@ SUBCOMMANDS
   /proto.crc.java          Generate Java source code for a CRC algorithm.
   /proto.crc.list          List algorithms (optional glob filter).
   /proto.crc.python        Generate Python source code for a CRC algorithm.
+  /proto.crc.reverse       Recover the Rocksoft parameters of an unknown CRC.
   /proto.crc.rust          Generate Rust source code for a CRC algorithm.
   /proto.crc.typescript    Generate TypeScript source code for a CRC algorithm.
   /proto.crc.verify        Verify a packet's trailing CRC against a known algorithm.
@@ -694,6 +696,7 @@ demo> /print === section: help.run ===
 demo> /help.run
 -- Scripts --
   /run at_demo                  Walks through all demo device commands
+  /run crc_tour
   /run doc_screenshots          Generate documentation images
   /run expect_test              Expect command test
   /run gps_demo                 Query simulated GPS receiver
@@ -701,7 +704,7 @@ demo> /help.run
   /run status_check             Quick status check
   /run var_demo                 Set variables and use them in commands
   /run welcome                  Runs on connect via on_connect_cmd config
-  8 scripts.
+  9 scripts.
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
 demo> /help.plugin

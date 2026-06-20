@@ -1,0 +1,70 @@
+# crc_tour.run -- the whole /proto.crc.* API in one screen
+#
+# Runs against the bundled demo device.  Three threads:
+#   * Tool-use (calc / verify / codegen / send-with-CRC) -- the daily
+#     value, replaces having to write CRC code in your application.
+#   * Discovery (find) -- identify a CRC in bytes you didn't produce.
+#     Demonstrated via the demo's AT+RND random-packet emitter.
+#   * Reverse -- recover unknown CRC parameters algebraically.
+#     Demonstrated via AT+RND.CUSTOM (the demo emits packets using a
+#     secret non-catalogue polynomial).
+#
+# All three end with codegen so you walk away with working source.
+
+/print
+/print === CRC API tour ===
+
+/print
+/print [1] Reference: browse the catalogue
+/proto.crc.list *modbus*
+
+/print
+/print [2] Reference: look up an algorithm's parameters
+/proto.crc.info crc16-modbus
+
+/print
+/print [3] Compute: CRC over literal data
+/proto.crc.calc crc16-modbus 01 03 00 00 00 0A
+
+/print
+/print [4] Send-with-CRC: the demo answers a real Modbus query
+/proto.send crc16-modbus 01 03 00 00 00 0A
+/delay 100ms
+
+/print
+/print [5] Verify: a known packet against a known algorithm
+/proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 0A C5 CD
+
+/print
+/print [6] Discover: identify a random catalogue CRC from AT+RND
+$(crc) <- /proto.crc.find cmd="AT+RND\r"
+/print Detected algorithm: $(crc)
+
+/print
+/print [7] Codegen: generate C source for the detected algorithm
+/proto.crc.c $(crc) --small
+
+/print
+/print [8] Reverse: recover a non-catalogue CRC from AT+RND.CUSTOM
+/print     (the demo emits 13 packets using a secret polynomial;
+/print      crcglot.reverse_packets recovers it algebraically)
+$(rev) <- /proto.crc.reverse cmd="AT+RND.CUSTOM\r" count=13 crc_bytes=2
+
+/print
+/print [9] Codegen: generate C source for the recovered (custom) CRC
+/proto.crc.c $(rev)
+
+/print
+/print [10] Confirm: the demo's secret matches what reverse recovered
+AT+RND.CUSTOM.REVEAL
+
+/print
+/print === tour complete ===
+/print
+/print Pipeline idiom on display:
+/print   $(NAME) <- command  captures the command's value
+/print   /next-command $(NAME)  expands it
+/print
+/print calc / verify / codegen replace writing CRC code.
+/print find is for bytes you didn't produce.
+/print reverse is for bytes whose algorithm you don't know.

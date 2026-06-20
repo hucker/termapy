@@ -1396,7 +1396,7 @@ def _parse_find_args(text: str) -> dict[str, str]:
     """
     result: dict[str, str] = {}
     stripped = text.strip()
-    for key in ("bin", "asc"):
+    for key in ("bin", "asc", "cmd"):
         marker = key + "="
         idx = stripped.find(marker)
         if idx != -1 and (idx == 0 or stripped[idx - 1].isspace()):
@@ -1505,6 +1505,38 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
             ctx, result, len(packet), width_filter, is_text=False,
         )
 
+    if mode == "cmd":
+        # Send a trigger, capture the response, detect on it.  Useful
+        # when the device responds to a plain trigger (the demo's
+        # AT+RND, NMEA talkers, debug consoles, test equipment).  NOT
+        # useful against a strict CRC-validating slave where the
+        # trigger itself needs a valid CRC -- you'd already know the
+        # algorithm in that case.  Revived from commit c06476a.
+        if form is not None:
+            return CmdResult.fail(
+                msg="form= is not compatible with cmd= "
+                "(form= matches a wrapped frame; cmd= captures raw bytes -- "
+                "decode the captured response with form= via bin= afterwards)"
+            )
+        if not ctx.serial.is_connected():
+            return CmdResult.fail(msg="Not connected.")
+        send = kw["payload"]
+        if not send:
+            return CmdResult.fail(msg="Empty cmd= payload")
+        try:
+            segments = parse_data_segments(send)
+        except ValueError as e:
+            return CmdResult.fail(msg=f"Parse error: {e}")
+        captured = _send_and_capture(ctx, segments)
+        if captured is None:
+            return CmdResult.fail(msg="No response within timeout")
+        result = detect(
+            captured, mode="binary", match="all", endian=endian_arg,
+        )
+        return _render_detect_result(
+            ctx, result, len(captured), width_filter, is_text=False,
+        )
+
     # mode == "asc"
     if form is not None:
         return CmdResult.fail(
@@ -1519,6 +1551,42 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     return _render_detect_result(
         ctx, result, len(text), width_filter, is_text=True,
     )
+
+
+def _send_and_capture(
+    ctx: PluginContext,
+    segments: list,
+    timeout_ms: int = 1000,
+) -> bytes | None:
+    """Issue a send-spec on the port and read back one framed response.
+
+    Shared helper for the cmd= modes of /proto.crc.find and
+    /proto.crc.reverse.  ``segments`` is the parse_data_segments
+    output -- a mix of ``bytes`` (data) and ``float`` (inline delay
+    in seconds), same shape /proto.send consumes.  Returns the
+    captured bytes, or None when nothing arrives within ``timeout_ms``.
+
+    A single trailing CRLF (or bare LF) is stripped before returning
+    -- text-protocol responses (AT, NMEA, the demo's AT+RND) framed
+    that way come back ready for direct CRC analysis.  Binary frames
+    that happen to end with 0x0D 0x0A would lose two bytes, but the
+    1-in-65536 coincidence is rare enough to be the right default.
+    """
+    import time
+    with ctx.serial.io():
+        for segment in segments:
+            if isinstance(segment, float):
+                time.sleep(segment)
+            else:
+                ctx.serial.write(segment)
+        captured = ctx.serial.read_raw(timeout_ms)
+    if not captured:
+        return None
+    if captured.endswith(b"\r\n"):
+        captured = captured[:-2]
+    elif captured.endswith(b"\n"):
+        captured = captured[:-1]
+    return captured if captured else None
 
 
 def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
@@ -1587,6 +1655,168 @@ def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
         f"or {p}proto.crc.find to identify the actual algorithm."
     )
     return CmdResult.fail(msg="CRC mismatch")
+
+
+def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
+    """Recover the Rocksoft parameters of an unknown CRC algorithm.
+
+    Wraps ``crcglot.reverse_packets`` with ``std_algo_only=False`` so
+    algebraic recovery actually runs (the default catalogue-only
+    behaviour is what /proto.crc.find does; reverse's whole point is
+    handling the non-catalogue case).
+
+    Two invocation modes:
+
+    * Explicit packets -- 2+ captured packets as hex bytes:
+        /proto.crc.reverse [crc_bytes=N] [width=N] <p1-hex> <p2-hex> ...
+    * Capture mode -- issue a trigger N times against a connected
+      device and reverse on the responses:
+        /proto.crc.reverse cmd=<trigger> count=<N> [crc_bytes=N] [width=N]
+
+    On success, prints the recovered Rocksoft params AND returns them
+    as a copy-pasteable ``width=N poly=0xP init=... refin=... refout=...
+    xorout=... name=recovered`` kv string via ``CmdResult.ok(value=...)``
+    so the ``$(rev) <- /proto.crc.reverse ...`` capture syntax pipes
+    straight into ``/proto.crc.<lang> $(rev)`` codegen.
+    """
+    p = ctx.prefix
+    usage = (
+        f"Usage: {p}proto.crc.reverse [crc_bytes=N] [width=N] "
+        "<packet-hex> <packet-hex> ... | cmd=<trigger> count=<N>"
+    )
+
+    # Parse the args.  kv tokens (crc_bytes, width, count) are whitespace-
+    # separated and can appear anywhere.  cmd= eats to end-of-line like
+    # /proto.crc.find's cmd= -- it must therefore be the LAST token, but
+    # any preceding kv tokens are parsed first so users can write either
+    # ``cmd=...`` at the end OR ``count=N cmd=...`` etc.  Remaining
+    # non-kv tokens are explicit packet hex.
+    kv: dict[str, str] = {}
+    rest_text = args.strip()
+    cmd_payload: str | None = None
+    cmd_idx = rest_text.find("cmd=")
+    if cmd_idx != -1 and (cmd_idx == 0 or rest_text[cmd_idx - 1].isspace()):
+        cmd_payload = rest_text[cmd_idx + len("cmd="):].strip()
+        rest_text = rest_text[:cmd_idx].strip()
+    rest_tokens: list[str] = []
+    for tok in rest_text.split():
+        if "=" in tok:
+            k, v = tok.split("=", 1)
+            if k in ("crc_bytes", "width", "count"):
+                kv[k] = v
+                continue
+        rest_tokens.append(tok)
+    # In cmd= mode, count= might also have appeared INSIDE the cmd payload
+    # because cmd= ate the rest of the line.  Pull it back out if so:
+    # the trigger usually doesn't contain "count=" as legitimate data.
+    if cmd_payload is not None and " count=" in (" " + cmd_payload):
+        # Split off the trailing "count=N [crc_bytes=N] [width=N]" tail.
+        words = cmd_payload.split()
+        body_words: list[str] = []
+        for w in words:
+            if "=" in w and w.split("=", 1)[0] in (
+                "count", "crc_bytes", "width",
+            ):
+                k, v = w.split("=", 1)
+                kv[k] = v
+            else:
+                body_words.append(w)
+        cmd_payload = " ".join(body_words)
+
+    # Validate the kv ints.
+    try:
+        crc_bytes = int(kv["crc_bytes"]) if "crc_bytes" in kv else None
+        width = int(kv["width"]) if "width" in kv else None
+        count = int(kv["count"]) if "count" in kv else None
+    except ValueError:
+        return CmdResult.fail(msg="Invalid integer in crc_bytes / width / count")
+
+    # Build the packet list -- one path per mode.
+    packets: list[bytes] = []
+    if cmd_payload is not None:
+        if not cmd_payload:
+            return CmdResult.fail(msg="Empty cmd= payload")
+        if count is None or count < 2:
+            return CmdResult.fail(
+                msg=(
+                    "cmd= mode requires count=N (>=2). "
+                    'Try: /proto.crc.reverse cmd="<trigger>\\r" '
+                    "count=13 crc_bytes=<width-in-bytes>"
+                )
+            )
+        if not ctx.serial.is_connected():
+            return CmdResult.fail(msg="Not connected.")
+        try:
+            segments = parse_data_segments(cmd_payload)
+        except ValueError as e:
+            return CmdResult.fail(msg=f"Parse error: {e}")
+        for _ in range(count):
+            captured = _send_and_capture(ctx, segments)
+            if captured is None:
+                return CmdResult.fail(
+                    msg=f"No response on capture #{len(packets) + 1} of {count}"
+                )
+            packets.append(captured)
+    else:
+        if len(rest_tokens) < 2:
+            return CmdResult.fail(msg=usage)
+        try:
+            for tok in rest_tokens:
+                packets.append(bytes.fromhex(tok))
+        except ValueError:
+            return CmdResult.fail(msg="Invalid hex bytes in packet")
+        if len(packets) < 2:
+            return CmdResult.fail(msg="Need at least 2 packets to reverse")
+
+    # Dispatch to crcglot.reverse_packets.  Explicit branches instead of
+    # ``**kwargs`` so ty narrows the kwarg types correctly.
+    from crcglot import reverse_packets
+    try:
+        result = reverse_packets(
+            packets,
+            crc_bytes=crc_bytes,
+            width=width,
+            std_algo_only=False,
+        )
+    except ValueError as e:
+        return CmdResult.fail(msg=f"Reverse error: {e}")
+
+    if result.status in ("none", "underdetermined") or not result.candidates:
+        ctx.io.result(
+            f"  No model recovered (status={result.status})", "red",
+        )
+        if result.note:
+            ctx.io.output(f"  {result.note}")
+        return CmdResult.fail(msg=f"Reverse {result.status}")
+
+    # Pick the canonical (first) candidate.
+    c = result.candidates[0]
+    catalogue_str = (
+        f"  catalogue: {result.catalogue_name}"
+        if result.catalogue_name else ""
+    )
+    ambiguity_str = (
+        f"  ({len(result.candidates)} equivalent (init, xorout) labellings)"
+        if result.status == "equivalent" else ""
+    )
+    ctx.io.result_markup(
+        f"  [green]{result.status}[/]  "
+        f"width={c.width}  poly=0x{c.poly:0{(c.width + 3) // 4}X}  "
+        f"init=0x{c.init:0{(c.width + 3) // 4}X}  "
+        f"refin={c.refin}  refout={c.refout}  "
+        f"xorout=0x{c.xorout:0{(c.width + 3) // 4}X}"
+        f"{catalogue_str}{ambiguity_str}"
+    )
+    if result.note:
+        ctx.io.output(f"  {result.note}")
+
+    # Return a copy-pasteable kv string for the $(rev) <- ... pipeline.
+    kv_value = (
+        f"width={c.width} poly=0x{c.poly:X} init=0x{c.init:X} "
+        f"refin={str(c.refin).lower()} refout={str(c.refout).lower()} "
+        f"xorout=0x{c.xorout:X} name=recovered"
+    )
+    return CmdResult.ok(value=kv_value)
 
 
 def _detect_ascii(
@@ -2059,8 +2289,15 @@ COMMAND = Command(
                         "the CRC algorithm, so the capture-from-the-wire path\n"
                         "is the universally applicable workflow.\n"
                         "\n"
-                        "bin=<hex>  - hex bytes, last 1/2/4 bytes = CRC field\n"
-                        "asc=<text> - ASCII, last 2/4/8 chars = hex-encoded CRC\n"
+                        "bin=<hex>     - hex bytes, last 1/2/4 bytes = CRC field\n"
+                        "asc=<text>    - ASCII, last 2/4/8 chars = hex-encoded CRC\n"
+                        "cmd=<trigger> - send a trigger to the device, capture the\n"
+                        "                response, detect on it.  Useful with\n"
+                        "                devices that respond to a plain trigger\n"
+                        "                (the demo's AT+RND, NMEA talkers, debug\n"
+                        "                consoles); NOT useful for strict CRC-\n"
+                        "                validating slaves where the trigger\n"
+                        "                itself needs a valid CRC.\n"
                         "\n"
                         "Optional filters:\n"
                         "  width=8|16|32|64  restrict CRC width\n"
@@ -2073,6 +2310,7 @@ COMMAND = Command(
                         "  {prefix}proto.crc.find bin=01 03 00 00 00 0A C5 CD\n"
                         "  {prefix}proto.crc.find asc=123456789 width=16\n"
                         "  {prefix}proto.crc.find form=crclink bin=7B 22 74 22 3A 31 32 33 34 ...\n"
+                        "  {prefix}proto.crc.find cmd=AT+RND\n"
                     ),
                     handler=_crc_find,
                 ),
@@ -2104,6 +2342,39 @@ COMMAND = Command(
                         "  {prefix}proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 0A C5 CD"
                     ),
                     handler=_crc_verify,
+                ),
+                "reverse": Command(
+                    args=(
+                        "{crc_bytes=N} {width=N} "
+                        "<packet-hex> <packet-hex>... | cmd=<trigger> count=<N>"
+                    ),
+                    help="Recover the Rocksoft parameters of an unknown CRC.",
+                    long_help=(
+                        "Algebraic recovery via crcglot.reverse_packets.  Two\n"
+                        "modes:\n"
+                        "\n"
+                        "  Explicit packets -- 2+ captured packets as hex bytes,\n"
+                        "  pasted from a sniffer or scope log.  Needs at least\n"
+                        "  two frames of the same length plus one of a different\n"
+                        "  length so crcglot can pin the polynomial AND separate\n"
+                        "  init from xorout.\n"
+                        "\n"
+                        "  Capture mode -- send a trigger N times against a\n"
+                        "  connected device and reverse on the responses.  The\n"
+                        "  demo's AT+RND.CUSTOM is designed for this: it emits\n"
+                        "  packets at a deterministic length pattern so count=13\n"
+                        "  reliably recovers the secret polynomial.\n"
+                        "\n"
+                        "On success, returns the recovered params as a kv string\n"
+                        "via CmdResult.value, so it pipes straight into codegen:\n"
+                        "\n"
+                        "  $(rev) <- {prefix}proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2\n"
+                        "  {prefix}proto.crc.c $(rev)\n"
+                        "\n"
+                        "Example (explicit):\n"
+                        "  {prefix}proto.crc.reverse crc_bytes=2 010203AA55 040506BB66 0708CCAA"
+                    ),
+                    handler=_crc_reverse,
                 ),
                 # /proto.crc.<lang> commands are built dynamically from
                 # crcglot.LANGUAGES so every language crcglot ships gets a

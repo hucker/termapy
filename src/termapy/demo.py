@@ -63,6 +63,11 @@ class FakeSerial:
         self._gps_fix: bool = True
         self._gps_sats: int = 9
 
+        # AT+RND.CUSTOM call counter -- drives the deterministic
+        # payload-length cycle that satisfies crcglot.reverse_packets'
+        # "2+ same-length + 1+ different-length" requirement.
+        self._rnd_custom_n: int = 0
+
         # Virtual filesystem (flat, in-memory)
         self._vfs: dict[str, bytes] = dict(self._DEFAULT_VFS)
 
@@ -439,6 +444,9 @@ class FakeSerial:
 
         if upper.startswith("AT+YMODEM"):
             return self._handle_ymodem_cmd(cmd, upper)
+
+        if upper.startswith("AT+RND"):
+            return self._handle_rnd(upper)
 
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
@@ -954,6 +962,92 @@ class FakeSerial:
         # $PMTK001,cmd,3 = success acknowledgement
         body = f"PMTK001,{cmd_id},3"
         return self._nmea_sentence(body)
+
+    # -- Random packet emitter ----------------------------------------------
+    # Drives the CRC-tour walkthrough: AT+RND emits one packet using a
+    # randomly chosen catalogue algorithm (so /proto.crc.find can identify
+    # it), AT+RND.CUSTOM emits a packet using a deliberately non-catalogue
+    # secret polynomial (so /proto.crc.reverse can recover it), and
+    # AT+RND.CUSTOM.REVEAL prints the secret so the user can confirm.
+
+    # Curated catalogue set for AT+RND -- spans widths and endians.
+    _RND_ALGOS: tuple[str, ...] = (
+        "crc8",
+        "crc8-maxim",
+        "crc16-modbus",
+        "crc16-xmodem",
+        "crc32",
+        "crc32-bzip2",
+    )
+
+    # Secret custom Rocksoft polynomial for AT+RND.CUSTOM.  Chosen NOT to
+    # match any catalogue entry so reverse_packets has to recover it
+    # algebraically rather than via the catalogue tier.
+    _RND_CUSTOM_PARAMS: dict[str, int | bool] = {
+        "width": 16, "poly": 0x1A2B, "init": 0xABCD,
+        "refin": False, "refout": False, "xorout": 0x0000,
+    }
+
+    # Payload-length cycle for AT+RND.CUSTOM.  Two lengths repeat so
+    # crcglot.reverse_packets has the "2+ same-length frames" it needs to
+    # pin the polynomial; 24 appears third so init/xorout get separated.
+    _RND_CUSTOM_LENGTHS: tuple[int, ...] = (8, 16, 8, 16, 24)
+
+    def _custom_crc(self):
+        """Build the secret Crc value object from the params dict.
+
+        Split out for typing: ``**dict[str, int|bool]`` confuses ty's
+        Crc constructor narrowing, so we hand-pass each field.
+        """
+        from crcglot import Crc
+        return Crc(
+            width=16, poly=0x1A2B, init=0xABCD,
+            refin=False, refout=False, xorout=0x0000,
+        )
+
+    def _handle_rnd(self, upper: str) -> bytes:
+        """Dispatch AT+RND family commands.
+
+        The dispatcher already matched ``upper.startswith("AT+RND")``;
+        this method splits on the suffix.
+        """
+        from crcglot import compute, generic_crc
+
+        if upper == "AT+RND.CUSTOM.REVEAL":
+            p = self._RND_CUSTOM_PARAMS
+            body = (
+                f"width={p['width']} poly=0x{p['poly']:04X} "
+                f"init=0x{p['init']:04X} refin={str(p['refin']).lower()} "
+                f"refout={str(p['refout']).lower()} "
+                f"xorout=0x{p['xorout']:04X}"
+            )
+            return body.encode() + b"\r\n"
+
+        if upper == "AT+RND.CUSTOM":
+            length = self._RND_CUSTOM_LENGTHS[
+                self._rnd_custom_n % len(self._RND_CUSTOM_LENGTHS)
+            ]
+            self._rnd_custom_n += 1
+            payload = bytes(random.randint(0, 255) for _ in range(length))
+            crc_int = generic_crc(payload, self._custom_crc())
+            crc_bytes = crc_int.to_bytes(2, "big")
+            return payload + crc_bytes + b"\r\n"
+
+        if upper == "AT+RND":
+            algo_name = random.choice(self._RND_ALGOS)
+            length = random.randint(8, 32)
+            payload = bytes(random.randint(0, 255) for _ in range(length))
+            crc_int = compute(payload, algo_name)
+            # Catalogue algorithms vary in width; ceil-div to bytes.
+            from crcglot import ALGORITHMS
+            width_bytes = (ALGORITHMS[algo_name].width + 7) // 8
+            # Endian: emit big-endian for refout=False, little-endian for
+            # refout=True (the algorithm's natural wire order).
+            endian = "little" if ALGORITHMS[algo_name].refout else "big"
+            crc_bytes = crc_int.to_bytes(width_bytes, endian)
+            return payload + crc_bytes + b"\r\n"
+
+        return f"ERROR: Unknown AT+RND command '{upper}'\r\n".encode()
 
     # -- Virtual filesystem commands ----------------------------------------
 

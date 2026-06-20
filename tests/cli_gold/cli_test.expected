@@ -485,6 +485,7 @@ SUBCOMMANDS
   /proto.crc.python        Generate Python source code for a CRC algorithm.
   /proto.crc.rust          Generate Rust source code for a CRC algorithm.
   /proto.crc.typescript    Generate TypeScript source code for a CRC algorithm.
+  /proto.crc.verify        Verify a packet's trailing CRC against a known algorithm.
   /proto.crc.verilog       Generate Verilog source code for a CRC algorithm.
   /proto.crc.vhdl          Generate VHDL source code for a CRC algorithm.
 

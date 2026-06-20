@@ -28,7 +28,7 @@ Low time commitment: about 1 minute from scratch, or under 10 seconds if you alr
     curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
 
-2) Install termapy - **< 1 second**:
+2) Install termapy - **< 10 seconds**:
 
     ```sh
     uv tool install -q "termapy[all]"

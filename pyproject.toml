@@ -83,11 +83,22 @@ dependencies = [
     # tracks the auto-variant change here (no-flag /proto.crc.<lang>
     # now emits the fastest variant per (lang, width) instead of
     # bitwise, matching the upstream CLI's ``--fast`` default); the
-    # other new helpers are recorded for downstream awareness but not
-    # consumed yet (see Phase B in the bump plan).  Floor is tracked
-    # at the latest release so the lock pulls modern fixes and we
-    # surface any future API drift early.
-    "crcglot>=0.23.0",
+    # other new helpers are surfaced incrementally on the Phase B
+    # branch (``--small``/``--fast`` flags, ``naming=`` kv arg,
+    # trailer-hint on /proto.crc.find, ``has_faster_alternative``
+    # advisory on /proto.crc.calc, /proto.crc.verify command,
+    # ``variants_for_width(s)`` / ``default_stem`` migrations).
+    # 0.24 / 0.25 are API-stable absorbing releases; 0.25 adds
+    # ``crcglot.suggest_algorithms`` (a three-tier typo helper:
+    # exact prefix -> width family -> fuzzy match) wired into the
+    # five "Unknown algorithm:" error sites in proto.py for
+    # "did you mean: ..." hints, plus a ``crcglot.exceptions``
+    # module (``CrcglotError``, ``UnknownAlgorithmError`` subclassing
+    # both ``CrcglotError`` and ``ValueError`` for backward compat)
+    # recorded for a future follow-up; not consumed here.  Floor is
+    # tracked at the latest release so the lock pulls modern fixes
+    # and we surface any future API drift early.
+    "crcglot>=0.25.0",
 ]
 
 [project.optional-dependencies]

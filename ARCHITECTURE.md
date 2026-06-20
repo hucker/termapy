@@ -96,7 +96,7 @@ src/termapy/
 │   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
 ├── protocol/               # (2313 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
-│   ├── crc.py              #   crcglot catalogue shim (71 algorithms via crcglot pkg) + CRC plugin registry
+│   ├── crc.py              #   crcglot catalogue shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
 ├── usb/                    # (3913 lines) USB lookup tables (library-shaped)

@@ -37,6 +37,10 @@ All paths relative to `src/termapy/`.
 - Never edit files/folders on main branch.
 - Always merge with `--no-ff` to preserve branch history in the graph.
 
+## Library references
+
+- **crcglot conceptual map**: <https://raw.githubusercontent.com/hucker/crcglot/main/llms.txt> — pull this before working on `/proto.crc.*` integration; it summarises the four verbs (compute / detect-reverse / generate / encode-verify), the `LANGUAGES` and `ALGORITHMS` registries, and links to the per-surface docs.  Pinned to current crcglot floor (see `pyproject.toml`).
+
 ## Conventions
 
 - Plugin args: `""` = none, `{braces}` = optional, `<angle>` = required

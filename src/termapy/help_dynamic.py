@@ -157,6 +157,20 @@ def _serial_attr(ctx: _Ctx, name: str) -> Any:
     return getattr(ctx, name, None)
 
 
+def _internal_attr(ctx: _Ctx, name: str) -> Any:
+    """Look up a name on ctx.internal, falling back to ctx (for test fakes).
+
+    The raw pyserial handle lives on ``ctx.internal.port`` (not
+    ``ctx.serial``), so port-introspection helpers read it from here.
+    """
+    internal = getattr(ctx, "internal", None)
+    if internal is not None:
+        val = getattr(internal, name, None)
+        if val is not None:
+            return val
+    return getattr(ctx, name, None)
+
+
 def port_setting(ctx: _Ctx, attr: str) -> Any:
     """Return a live attribute from the pyserial port, or ``None`` if closed.
 
@@ -164,7 +178,7 @@ def port_setting(ctx: _Ctx, attr: str) -> Any:
     ``"bytesize"``, ``"parity"``, ``"stopbits"``).  Returns ``None``
     when ``ctx`` doesn't expose ``port`` or the port isn't open.
     """
-    port_fn = _serial_attr(ctx, "port")
+    port_fn = _internal_attr(ctx, "port")
     if port_fn is None:
         return None
     p = port_fn()
@@ -183,7 +197,7 @@ def port_status(ctx: _Ctx) -> str:
     is_connected = _serial_attr(ctx, "is_connected")
     if is_connected is None or not is_connected():
         return green("Not connected")
-    port_fn = _serial_attr(ctx, "port")
+    port_fn = _internal_attr(ctx, "port")
     p = port_fn() if port_fn else None
     if p is None:
         return green("Not connected")

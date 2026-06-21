@@ -279,6 +279,7 @@ class TerminalHost:
         """
         return InternalHandle(
             plugins=self.repl._plugins,
+            port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             in_script=lambda: self.repl.in_script,
             script_stop=lambda: self.repl._script_stop.set(),
             apply_cfg=self.repl._apply_cfg,
@@ -343,7 +344,6 @@ class TerminalHost:
 
         serial = SerialHandle(
             is_connected=lambda: self.engine.is_connected,
-            port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             connect=lambda port=None: self._connect(port),
             disconnect=lambda: self._disconnect(),
             update_port=lambda name: self._update_port(name),

@@ -618,7 +618,10 @@ class TerminalHost:
         if not self.repl.in_script:
             self.engine.serial_claimed = False
         if result:
-            self.status(f"Capture complete: {result.path} ({result.size_label})")
+            if result.error:
+                self.status(f"Capture aborted: {result.error} ({result.path})")
+            else:
+                self.status(f"Capture complete: {result.path} ({result.size_label})")
 
     # -- Help server ----------------------------------------------------------
 

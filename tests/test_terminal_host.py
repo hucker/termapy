@@ -447,6 +447,7 @@ class TestCapture:
         mock_result = MagicMock()
         mock_result.path = "/tmp/cap.txt"
         mock_result.size_label = "1.2 KB"
+        mock_result.error = ""
         host.capture.stop.return_value = mock_result
 
         # Act

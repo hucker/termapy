@@ -181,7 +181,9 @@ class CLITerminal(TerminalHost):
         self.capture = CaptureEngine(
             on_echo=lambda line: self.write(f"  {line}"),
             on_complete=lambda result: self.status(
-                f"Capture complete: {result.path} ({result.size_label})"
+                f"Capture aborted: {result.error} ({result.path})"
+                if result.error
+                else f"Capture complete: {result.path} ({result.size_label})"
             ),
         )
         self.engine = SerialEngine(

@@ -1998,7 +1998,7 @@ Send with CRC (algorithm name with optional _le/_be/_ascii suffixes):
   /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
 
 CRC tools:
-  {prefix}proto.crc.list              - list all {crc_count} algorithms
+  {prefix}proto.crc.list              - list all 100+ algorithms
   {prefix}proto.crc.list *modbus*     - filter by glob pattern
   {prefix}proto.crc.info crc16-modbus - show parameters for Modbus CRC
   {prefix}proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC
@@ -2014,11 +2014,10 @@ def _proto_folder_line(ctx: PluginContext) -> str:
 
 
 def _proto_long_help(ctx: PluginContext) -> str:
-    # The catalogue size belongs to crcglot, not termapy; resolve it at
-    # help time so the example tracks the upstream catalogue.
-    from crcglot import ALGORITHMS
-    prose = _PROTO_PROSE.replace("{crc_count}", str(len(ALGORITHMS)))
-    return compose(_proto_folder_line(ctx), prose)
+    # The catalogue size belongs to crcglot; the help text says "100+"
+    # rather than an exact count so it never drifts from the upstream
+    # catalogue.  The exact, filter-aware tally lives in /proto.crc.list.
+    return compose(_proto_folder_line(ctx), _PROTO_PROSE)
 
 
 def _proto_root_handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -2251,7 +2250,7 @@ COMMAND = Command(
         "crc": Command(
             help="Browse and compute CRC algorithms.",
             long_help=(
-                "All 64 named CRC algorithms come from the reveng CRC\n"
+                "More than 100 named CRC algorithms come from the reveng CRC\n"
                 "catalogue maintained by Greg Cook since 1999:\n"
                 "  https://reveng.sourceforge.io/crc-catalogue/all.htm\n"
                 "\n"

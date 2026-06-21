@@ -59,8 +59,14 @@ def _unescape(s: str) -> str:
 def parse_hex(text: str) -> bytes:
     """Parse a hex string into bytes.
 
-    Accepts space-separated hex pairs, optional ``0x`` prefixes, and commas.
-    Example: ``'01 03 00 0A'`` or ``'0x01, 0x03, 0x00, 0x0A'``.
+    Accepts whitespace- or comma-separated hex pairs and run-together hex,
+    each token with an optional ``0x`` prefix.  Examples: ``'01 03 00 0A'``,
+    ``'0x01, 0x03, 0x00, 0x0A'``, ``'0103000A'``.
+
+    Every token must be an even-length run of hex digits.  Malformed input
+    (an odd number of nibbles, or non-hex characters) raises rather than
+    silently dropping the bad part -- ``parse_hex('ABC')`` is a typo, not
+    ``b'\\xab'``.  Use :func:`parse_data` for mixed hex and quoted text.
 
     Args:
         text: Hex string to parse.
@@ -69,13 +75,21 @@ def parse_hex(text: str) -> bytes:
         Parsed bytes.
 
     Raises:
-        ValueError: If the string contains no valid hex bytes.
+        ValueError: If the string is empty/whitespace, or any token is not
+            a valid even-length run of hex digits.
     """
-    text = text.replace(",", " ")
-    tokens = _HEX_TOKEN.findall(text)
+    tokens = text.replace(",", " ").split()
     if not tokens:
         raise ValueError(f"No valid hex bytes in: {text!r}")
-    return bytes(int(t, 16) for t in tokens)
+    out = bytearray()
+    for tok in tokens:
+        body = tok[2:] if tok[:2].lower() == "0x" else tok
+        if not body or len(body) % 2 != 0 or any(
+            c not in "0123456789abcdefABCDEF" for c in body
+        ):
+            raise ValueError(f"Invalid hex byte: {tok!r}")
+        out.extend(int(body[i : i + 2], 16) for i in range(0, len(body), 2))
+    return bytes(out)
 
 
 def parse_data(text: str) -> bytes:

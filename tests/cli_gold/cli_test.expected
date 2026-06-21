@@ -463,7 +463,7 @@ NAME
   /proto.crc - Browse and compute CRC algorithms.
 
 DESCRIPTION
-  All 64 named CRC algorithms come from the reveng CRC
+  More than 100 named CRC algorithms come from the reveng CRC
   catalogue maintained by Greg Cook since 1999:
     https://reveng.sourceforge.io/crc-catalogue/all.htm
 
@@ -636,7 +636,7 @@ DESCRIPTION
     /proto.send crc16-modbus_be_ascii 01 03 00 00 00 0A   - BE CRC as hex text
 
   CRC tools:
-    /proto.crc.list              - list all 113 algorithms
+    /proto.crc.list              - list all 100+ algorithms
     /proto.crc.list *modbus*     - filter by glob pattern
     /proto.crc.info crc16-modbus - show parameters for Modbus CRC
     /proto.crc.calc crc16-modbus 01 03 00 00 00 01  - compute CRC

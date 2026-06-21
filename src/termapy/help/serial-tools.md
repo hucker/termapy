@@ -89,12 +89,12 @@ init, reflection, and xor-out parameters for every standardized CRC
 in practical use, and our test suite verifies each one against its
 published `check` value on every commit.
 
-64 algorithms are built in covering CRC-8, CRC-16, and CRC-32
-families (Modbus, XMODEM, CCITT, USB, and more).
+More than 100 algorithms are built in covering CRC-8, CRC-16, and
+CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
 
 REPL commands:
 
-- `/proto.crc.list` - show all 64 algorithms
+- `/proto.crc.list` - show all available algorithms
 - `/proto.crc.list *modbus*` - filter by pattern
 - `/proto.crc.info crc16-modbus` - show algorithm parameters
 - `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC

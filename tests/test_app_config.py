@@ -279,6 +279,28 @@ class TestLoadConfig:
         assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
+    def test_backfilled_mutable_default_is_deep_copied(self, tmp_path):
+        # Arrange -- a config missing custom_buttons; the backfill must
+        # deep-copy the default list, not alias the module-global DEFAULT_CFG
+        # (otherwise an in-session edit would corrupt the process-wide default).
+        config_path = tmp_path / "dev" / "dev.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps({"port": "COM3", "baud_rate": 9600}))
+
+        # Act
+        actual = load_config(str(config_path))
+
+        # Assert -- distinct object, and mutating it cannot reach DEFAULT_CFG
+        assert actual["custom_buttons"] is not DEFAULT_CFG["custom_buttons"], \
+            "backfilled list is a copy, not the module-global default"
+        expected_default_len = len(DEFAULT_CFG["custom_buttons"])
+        actual["custom_buttons"].append(
+            {"enabled": True, "name": "X", "command": "X", "tooltip": ""}
+        )
+        actual_default_len = len(DEFAULT_CFG["custom_buttons"])
+        assert actual_default_len == expected_default_len, \
+            "mutating the loaded config must not change DEFAULT_CFG"
+
 
 # -- SCRIPT_TEMPLATE -------------------------------------------------------
 

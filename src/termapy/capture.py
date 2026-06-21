@@ -34,6 +34,7 @@ class CaptureResult:
     path: Path
     byte_count: int
     raw: bool
+    error: str = ""  # non-empty if the capture aborted on a write failure
 
     @property
     def size_label(self) -> str:
@@ -85,6 +86,10 @@ class CaptureEngine:
         self._buf: bytearray = bytearray()
         self._hex_mode: bool = False
         self._hex_line_buf: str = ""
+        # Set to the OSError text if a write fails mid-capture; surfaced on
+        # CaptureResult so the host can report "aborted" and (binary mode)
+        # release the serial claim instead of silently truncating.
+        self._write_error: str = ""
 
     @property
     def active(self) -> bool:
@@ -156,6 +161,7 @@ class CaptureEngine:
         self._mode = mode
         self._raw = not columns
         self._bytes = 0
+        self._write_error = ""
         self._columns = columns or []
         self._record_size = record_size
         self._sep = sep
@@ -191,6 +197,7 @@ class CaptureEngine:
         path = self._path or Path("unknown")
         byte_count = self._bytes
         raw = self._raw
+        error = self._write_error
 
         try:
             self._fh.close()
@@ -199,7 +206,7 @@ class CaptureEngine:
 
         self._reset()
 
-        result = CaptureResult(path=path, byte_count=byte_count, raw=raw)
+        result = CaptureResult(path=path, byte_count=byte_count, raw=raw, error=error)
         if self._on_complete:
             self._on_complete(result)
         return result
@@ -235,19 +242,28 @@ class CaptureEngine:
         if len(self._buf) >= 4096:
             self._flush_bin()
 
-        return False
+        # A write failure during either flush above means the capture can't
+        # continue -- signal the caller to stop so the serial claim is
+        # released (binary mode) instead of silently swallowing every byte.
+        return bool(self._write_error)
 
-    def feed_text(self, lines: list[str]) -> None:
-        """Feed decoded text lines (text capture)."""
+    def feed_text(self, lines: list[str]) -> bool:
+        """Feed decoded text lines (text capture).
+
+        Returns:
+            True if a write failed and the caller should stop the capture.
+        """
         if not self._fh or self._mode != "text":
-            return
+            return False
         try:
             for text in lines:
                 self._fh.write(text + "\n")
                 self._bytes += len(text) + 1
             self._fh.flush()
-        except OSError:
-            pass
+        except OSError as e:
+            self._write_error = str(e)
+            return True
+        return False
 
     def get_progress(self) -> CaptureProgress | None:
         """Build a progress snapshot for UI display."""
@@ -282,8 +298,8 @@ class CaptureEngine:
             try:
                 self._fh.write(data)
                 self._bytes += len(data)
-            except OSError:
-                pass
+            except OSError as e:
+                self._write_error = str(e)
         elif self._record_size > 0:
             usable = len(data) - (len(data) % self._record_size)
             if usable > 0:
@@ -309,8 +325,8 @@ class CaptureEngine:
                 try:
                     self._fh.write(text)
                     self._bytes += usable
-                except OSError:
-                    pass
+                except OSError as e:
+                    self._write_error = str(e)
                 if self._echo and self._on_echo:
                     for line in lines:
                         self._on_echo(line)
@@ -334,3 +350,4 @@ class CaptureEngine:
         self._buf = bytearray()
         self._hex_mode = False
         self._hex_line_buf = ""
+        self._write_error = ""

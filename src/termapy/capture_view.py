@@ -106,10 +106,14 @@ def _cap_stop(app) -> None:
     app._cap_hide_progress()
 
     if result:
-        app._status(
-            f"Capture complete: {result.path} ({result.size_label})", "green"
-        )
-        app._log_line("#", f"capture end: {result.path} ({result.size_label})")
+        if result.error:
+            app._status(f"Capture aborted: {result.error} ({result.path})", "red")
+            app._log_line("#", f"capture aborted: {result.path} ({result.error})")
+        else:
+            app._status(
+                f"Capture complete: {result.path} ({result.size_label})", "green"
+            )
+            app._log_line("#", f"capture end: {result.path} ({result.size_label})")
     app._sync_cap_button()
 
 

@@ -2731,7 +2731,10 @@ class SerialTerminal(TerminalHost, App):
         # Text capture tap - feed ANSI-stripped lines to capture engine
         if self._capture.active and self._capture.mode == "text":
             stripped = [ANSI_RE.sub("", t) for t in lines]
-            self._capture.feed_text(stripped)
+            if self._capture.feed_text(stripped):
+                # Write failed mid-capture -- stop so the user sees the abort
+                # instead of silently losing the rest of the data.
+                self._cap_stop()
 
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:

@@ -398,3 +398,67 @@ class TestCaptureResult:
 
         # Assert
         assert result.size_label == "2.0 KB", "size_label shows KB"
+
+
+# -- Write-failure handling (bug 5) --------------------------------------------
+
+
+class _RaisingFile:
+    """Fake file handle whose write() raises OSError, e.g. the capture target
+    disk fills up or removable media is yanked mid-capture."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def write(self, *_args) -> int:
+        raise OSError("simulated write failure")
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class TestWriteFailure:
+    def test_text_write_failure_signals_stop_and_records_error(self, tmp_path):
+        # Arrange
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "out.txt", file_mode="w", mode="text", duration=5.0)
+        engine._fh = _RaisingFile()  # media vanishes mid-capture
+
+        # Act
+        actual_stop = engine.feed_text(["hello"])
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is True, "feed_text signals the caller to stop on write error"
+        assert result is not None, "stop returns a result"
+        assert "simulated write failure" in result.error, "write error surfaced on result"
+
+    def test_bin_write_failure_signals_stop_and_records_error(self, tmp_path):
+        # Arrange -- no byte target, so only a write error can signal stop
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0)
+        engine._fh = _RaisingFile()
+
+        # Act -- 4096 bytes triggers the periodic flush, which fails
+        actual_stop = engine.feed_bytes(b"\x00" * 4096)
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is True, "feed_bytes signals stop so the host releases the claim"
+        assert "simulated write failure" in result.error, "write error surfaced on result"
+
+    def test_successful_capture_has_no_error(self, tmp_path):
+        # Arrange
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "ok.txt", file_mode="w", mode="text", duration=5.0)
+
+        # Act
+        actual_stop = engine.feed_text(["hello"])
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is False, "no stop signal on a clean write"
+        assert result.error == "", "no error on a successful capture"

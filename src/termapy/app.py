@@ -542,6 +542,17 @@ class SerialTerminal(TerminalHost, App):
         self._show_line_numbers: bool = cfg.get("show_line_numbers", False)
         self._line_counter: int = 0
         self._xfer_cancel = threading.Event()
+        # Serializes command execution.  Every command path -- typed input,
+        # UI buttons, palette, and each script line -- funnels through
+        # _dispatch_single / _dispatch_quiet, which both mutate shared
+        # PluginContext state (serial.write, _call_level, active_flags,
+        # io._write) around the handler call.  Two workers running at once
+        # would stomp that save/restore, so a non-blocking re-entrant lock
+        # admits one dispatch at a time.  Non-blocking is required: the main
+        # thread must never block here or it would deadlock a worker waiting
+        # on call_from_thread.  Re-entrant so nested ctx.dispatch on the same
+        # thread is allowed.
+        self._dispatch_guard = threading.RLock()
         # True while /find is showing the frozen highlighted view.
         # New live data arrival (in _write_batch) flips this back
         # to False and restores #output.
@@ -2769,12 +2780,32 @@ class SerialTerminal(TerminalHost, App):
         inp.value = ""
         self._saved_placeholder = inp.placeholder
         inp.placeholder = "Running... escape to cancel"
+        self._set_input_busy(True)
         self._dispatch_on_thread_interactive(cmd)
 
     def _restore_input_placeholder(self) -> None:
         """Restore the command input placeholder after execution."""
         inp = self.query_one("#cmd", Input)
         inp.placeholder = self._saved_placeholder
+
+    def _set_input_busy(self, busy: bool) -> None:
+        """Grey out the prompt + bottom-bar buttons while a typed command runs.
+
+        Visual companion to ``_dispatch_guard``: the guard guarantees one
+        command at a time, and this makes that obvious on the common typed-
+        command path so a second Enter or button press is plainly
+        unavailable.  Skipped when a script overlay owns the bar -- scripts
+        manage their own Stop UI and must keep that button clickable.
+        """
+        try:
+            bar = self.query_one("#bottom-bar")
+            if bool(bar.query("#script-stop")):
+                return  # script overlay active; it owns the bar
+            bar.disabled = busy
+            if not busy:
+                self.query_one("#cmd", Input).focus()
+        except SHUTDOWN_RACE:
+            pass  # widget tree gone during teardown
 
     # -- Background dispatch gateway --------------------------------------------
     # One rule: every user command goes through a @work(thread=True) method
@@ -2797,6 +2828,10 @@ class SerialTerminal(TerminalHost, App):
             pass
         try:
             self.call_from_thread(self._restore_input_placeholder)
+        except RuntimeError:
+            pass
+        try:
+            self.call_from_thread(self._set_input_busy, False)
         except RuntimeError:
             pass
 
@@ -2843,22 +2878,33 @@ class SerialTerminal(TerminalHost, App):
         # Return the sent text so scripts can confirm what was written.
         return CmdResult.ok(value=text)
 
+    _BUSY_MSG = "Busy - a command is still running."
+
     def _dispatch_single(self, cmd: str) -> CmdResult:
         """Dispatch a single command (delegates to repl.dispatch_full).
 
         Safe to call from any thread - output helpers (_status,
-        _write_output_markup) detect their thread internally.
+        _write_output_markup) detect their thread internally.  Serialized
+        via _dispatch_guard so a second command on another thread is
+        refused rather than corrupting the shared PluginContext; nested
+        ctx.dispatch on the same thread re-enters freely.
         """
-        return self.repl.dispatch_full(
-            cmd,
-            log=self._log_line,
-            echo_markup=self._write_output_markup,
-            status=self._status,
-            serial_write=self._serial_write,
-            serial_write_raw=self._send_serial_raw,
-            is_connected=lambda: self.is_connected,
-            eol_label=eol_label,
-        )
+        if not self._dispatch_guard.acquire(blocking=False):
+            self._status(self._BUSY_MSG, "yellow")
+            return CmdResult.fail(msg=self._BUSY_MSG)
+        try:
+            return self.repl.dispatch_full(
+                cmd,
+                log=self._log_line,
+                echo_markup=self._write_output_markup,
+                status=self._status,
+                serial_write=self._serial_write,
+                serial_write_raw=self._send_serial_raw,
+                is_connected=lambda: self.is_connected,
+                eol_label=eol_label,
+            )
+        finally:
+            self._dispatch_guard.release()
 
     def _dispatch_quiet(self, cmd: str) -> CmdResult:
         """Dispatch without echoing the command line to the output.
@@ -2867,18 +2913,26 @@ class SerialTerminal(TerminalHost, App):
         that fires repeatedly from a click) where echoing every
         synthesized command would just clutter the scrollback.
         Status / serial / log paths are unchanged -- the only
-        suppression is the input-echo line.
+        suppression is the input-echo line.  Shares _dispatch_guard with
+        _dispatch_single so a button press during a running command is
+        refused instead of racing it.
         """
-        return self.repl.dispatch_full(
-            cmd,
-            log=self._log_line,
-            echo_markup=lambda _markup: None,
-            status=self._status,
-            serial_write=self._serial_write,
-            serial_write_raw=self._send_serial_raw,
-            is_connected=lambda: self.is_connected,
-            eol_label=eol_label,
-        )
+        if not self._dispatch_guard.acquire(blocking=False):
+            self._status(self._BUSY_MSG, "yellow")
+            return CmdResult.fail(msg=self._BUSY_MSG)
+        try:
+            return self.repl.dispatch_full(
+                cmd,
+                log=self._log_line,
+                echo_markup=lambda _markup: None,
+                status=self._status,
+                serial_write=self._serial_write,
+                serial_write_raw=self._send_serial_raw,
+                is_connected=lambda: self.is_connected,
+                eol_label=eol_label,
+            )
+        finally:
+            self._dispatch_guard.release()
 
     # Column at which the "# help text" comment starts in the /
     # popup.  Short command+args lines are left-padded to this

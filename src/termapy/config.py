@@ -4,6 +4,7 @@ Pure functions with no UI dependency. Used by app.py and tests.
 """
 
 import codecs
+import copy
 import json
 import os
 import re
@@ -572,7 +573,11 @@ def load_config(path: str) -> dict:
 
     for key, val in DEFAULT_CFG.items():
         if key not in cfg:
-            cfg[key] = val
+            # deepcopy so a mutable default (e.g. the custom_buttons list)
+            # backfilled into a user config isn't an alias of the module-
+            # global DEFAULT_CFG -- otherwise an in-session edit to the
+            # user's buttons would mutate the process-wide default.
+            cfg[key] = copy.deepcopy(val)
             changed = True
         elif isinstance(val, dict) and isinstance(cfg[key], dict):
             # One-level recursive backfill for nested-dict defaults
@@ -581,7 +586,7 @@ def load_config(path: str) -> dict:
             # siblings to "key missing" surprises at access sites.
             for sub_key, sub_val in val.items():
                 if sub_key not in cfg[key]:
-                    cfg[key][sub_key] = sub_val
+                    cfg[key][sub_key] = copy.deepcopy(sub_val)
                     changed = True
     cfg.pop("_migrated_from", None)  # clean up stale marker from older saves
     if changed:

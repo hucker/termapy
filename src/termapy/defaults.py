@@ -370,8 +370,8 @@ CFG_HELP: dict[str, tuple] = {
         _preview_markup,
     ),
     "default_ui": (
-        "Default UI mode when launching without --cli flag.",
-        "tui, cli. Default: tui",
+        "Default UI mode when launching without a mode flag.",
+        "tui, cli, vt100. Default: tui",
     ),
     "cmd_prefix": (
         "Prefix for local REPL commands.",

@@ -13,6 +13,7 @@ Select a topic:
 - [Configuration](config.md): JSON config, field reference, config management
 - [Serial ports](ports.md): picking a port, chip info, USB speed, latency tuning
 - [Command-line flags](cli.md): `--ports`, `--watch`, `--info`, and friends
+- [VT100 mode](vt100.md): raw ANSI passthrough for cursor-addressed devices
 - [Custom buttons](custom-buttons.md): adding toolbar buttons
 - [Toolbar and shortcuts](toolbar.md): buttons, keyboard shortcuts, command palette
 - [REPL commands](commands.md): full command reference table

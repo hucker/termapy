@@ -931,6 +931,23 @@ Passing a `.run` file to `--cli` automatically infers the config from the file's
 </details>
 
 <details>
+<summary><strong>VT100 mode</strong> - raw ANSI passthrough for cursor-addressed devices</summary>
+
+`termapy --vt100 <config>` drops the TUI entirely and pipes the device straight to your terminal, so output that uses terminal control beyond plain lines - cursor addressing, full-screen menus, `vi`/`top` on an embedded Linux console, bootloader UIs - renders and responds correctly. termapy doesn't emulate the terminal here; your terminal already is one, so it does the work (this is why it stays a passthrough, not a Textual widget).
+
+```sh
+termapy --vt100 my_device      # raw ANSI terminal on the configured port
+```
+
+It's a peer of CLI and TUI mode: set `"default_ui": "vt100"` in a config to make it the default, and `--vt100` overrides the config the same way `--cli` does. The byte pump is the vendored pyserial `miniterm`, which enables VT processing on Windows 10+ automatically.
+
+**Quit:** Ctrl+]. Menu (toggle echo, RTS/DTR, etc.): Ctrl+T.
+
+**Caveats:** needs a VT-capable host terminal (universal on macOS/Linux; Windows Terminal / VS Code / Win10+ on Windows; legacy `conhost` is iffy). Run it in a standalone terminal tab for zero extra key interception; VS Code's integrated terminal adds one layer (the same one any serial terminal faces there). For LLM-driven menu navigation, a headless emulator + MCP is the intended path, not passthrough.
+
+</details>
+
+<details>
 <summary><strong>Extending termapy</strong> - plugins, subcommands, visualizers</summary>
 
 ### Plugins

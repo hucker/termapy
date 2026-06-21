@@ -153,7 +153,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `title`                  | ` `                   | Title bar text (defaults to config filename)                                                |
 | `border_color`           | ` `                   | Title bar color (CSS name or hex like `#ff6600`)                                            |
 | `max_lines`              | `10000`               | Scrollback buffer size                                                                      |
-| `default_ui`             | `tui`                 | Default UI mode: `tui` or `cli`                                                             |
+| `default_ui`             | `tui`                 | Default UI mode: `tui`, `cli`, or `vt100`                                                   |
 | `cmd_prefix`             | `/`                   | Prefix for local REPL commands                                                              |
 | `cli_prompt`             | `$(CFG)>`             | Prompt string in CLI mode (supports variables)                                              |
 | `cli_echo_input`         | `false`               | Echo sent commands in CLI mode                                                              |

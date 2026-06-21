@@ -146,7 +146,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         "parity": {"N", "E", "O", "M", "S"},
         "stop_bits": {1, 1.5, 2},
         "flow_control": {"none", "rtscts", "xonxoff", "manual"},
-        "default_ui": {"tui", "cli"},
+        "default_ui": {"tui", "cli", "vt100"},
     }
     # Derived from DEFAULT_CFG so adding a new bool/int key to defaults
     # automatically picks up validation here -- no parallel list to drift.

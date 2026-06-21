@@ -68,9 +68,28 @@ class TestParseHex:
         with pytest.raises(ValueError, match="No valid hex"):
             parse_hex("")
 
-    def test_no_valid_hex_raises(self):
+    def test_whitespace_only_raises(self):
         with pytest.raises(ValueError, match="No valid hex"):
+            parse_hex("   ")
+
+    def test_no_valid_hex_raises(self):
+        with pytest.raises(ValueError, match="Invalid hex"):
             parse_hex("xyz")
+
+    def test_odd_nibble_raises(self):
+        # Regression: used to silently return b"\xab", dropping the "C".
+        with pytest.raises(ValueError, match="Invalid hex"):
+            parse_hex("ABC")
+
+    def test_misplaced_space_raises(self):
+        # Regression: "010 203" used to scavenge to b"\x01 " (0x01, 0x20).
+        with pytest.raises(ValueError, match="Invalid hex"):
+            parse_hex("010 203")
+
+    def test_embedded_garbage_raises(self):
+        # Regression: used to scrape 0x41 out of the junk and return b"A".
+        with pytest.raises(ValueError, match="Invalid hex"):
+            parse_hex("zz41zz")
 
 
 # ── parse_data ─────────────────────────────────────────────────────────────

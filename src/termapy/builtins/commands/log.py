@@ -155,7 +155,7 @@ def _serial_snapshot(ctx: PluginContext) -> list[str]:
     lines: list[str] = []
     ser = None
     try:
-        ser = ctx.serial.port()  # type: ignore[operator]
+        ser = ctx.internal.port()
     except Exception:
         ser = None
 

@@ -81,6 +81,14 @@ class InternalHandle:
     remove_post_dispatch_observer: Callable | None = None  # (token) -> None
     is_recording: Callable | None = None  # () -> bool; TUI Record button reads this
 
+    # Raw pyserial handle (serial.Serial | None).  The deliberate escape
+    # hatch for built-ins that need pyserial's own API -- DTR/RTS/CTS/DSR,
+    # break, byte-size/parity/stop-bits, in_waiting.  Kept OFF ctx.serial
+    # (the stable, third-party-facing handle) so external plugins can't
+    # couple to pyserial through the clean API; port_control is the seam
+    # that actually drives it.
+    port: Callable = lambda: None  # -> serial.Serial | None
+
     # ═══ Frontend escape hatch ════════════════════════════════════════
     # Genuinely need Textual or threads, which the plugin layer can't
     # import.  Wired by the host; several are None in CLI/MCP, so the

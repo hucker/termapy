@@ -127,25 +127,25 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
                 f"For chip info on {arg!r}, use /port.chip {arg}"
             )
         )
-    result = port_control.port_info(ctx.cfg, ctx.serial.port())
+    result = port_control.port_info(ctx.cfg, ctx.internal.port())
     _apply(ctx, result)
     return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
-    result = port_control.set_mode(ctx.serial.port(), ctx.cfg, args)
+    result = port_control.set_mode(ctx.internal.port(), ctx.cfg, args)
     _apply(ctx, result)
     return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
-    result = port_control.get_set_flow(ctx.serial.port(), ctx.cfg, args)
+    result = port_control.get_set_flow(ctx.internal.port(), ctx.cfg, args)
     _apply(ctx, result)
     return CmdResult.ok(value=_joined_value(result))
 
 
 def _handler_break(ctx: PluginContext, args: str) -> CmdResult:
-    result = port_control.send_break(ctx.serial.port(), args)
+    result = port_control.send_break(ctx.internal.port(), args)
     _apply(ctx, result)
     # Break is a pure side-effect.  Return the (typically empty / status)
     # message text so silent scripts get something deterministic instead
@@ -258,7 +258,7 @@ def _joined_value(result: port_control.Result) -> str:
 
 def _make_prop_handler(key: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        result = port_control.get_set_prop(ctx.serial.port(), ctx.cfg, key, args)
+        result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, key, args)
         _apply(ctx, result)
         # Only return value on read (no args); set returns prose not useful as value
         value = _read_value(result) if not args.strip() else ""
@@ -269,7 +269,7 @@ def _make_prop_handler(key: str):
 
 def _make_hw_handler(line: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
-        result = port_control.get_set_hw_line(ctx.serial.port(), line, args)
+        result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
         _apply(ctx, result)
         value = _read_value(result) if not args.strip() else ""
         return CmdResult.ok(value=value)
@@ -280,7 +280,7 @@ def _make_hw_handler(line: str):
 def _make_signal_handler(signal: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Signals are always read-only; extract value from the single msg
-        result = port_control.read_signal(ctx.serial.port(), signal, args)
+        result = port_control.read_signal(ctx.internal.port(), signal, args)
         _apply(ctx, result)
         return CmdResult.ok(value=_read_value(result))
 
@@ -382,7 +382,7 @@ def _port_hw_line_long_help(line: str, direction: str):
         # ctx.port is a callable returning a port-or-None, and
         # getattr(..., default) can't raise -- there's no real failure
         # mode here to catch.  A simple None-check suffices.
-        p = ctx.serial.port()
+        p = ctx.internal.port()
         value = getattr(p, line, "?") if p is not None else "?"
         if value is None:
             value = "?"

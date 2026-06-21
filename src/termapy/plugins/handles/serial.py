@@ -26,11 +26,15 @@ from typing import Any, Callable, Generator
 
 @dataclass
 class SerialHandle:
-    """Serial I/O: TX, RX, observers, claim/release, port introspection."""
+    """Serial I/O: TX, RX, observers, claim/release.
+
+    The raw pyserial object is deliberately NOT exposed here -- it lives on
+    ``ctx.internal.port`` (the explicitly-unstable, built-ins-only escape
+    hatch) so this stable handle stays free of pyserial coupling.
+    """
 
     # ── Connection state ─────────────────────────────────────────────
     is_connected: Callable = lambda: False
-    port: Callable = lambda: None  # -> serial.Serial | None
 
     # ── Connection lifecycle / port control ──────────────────────────
     # Host-orchestrated: connect/disconnect fire lifecycle hooks and

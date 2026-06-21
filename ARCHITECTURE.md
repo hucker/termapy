@@ -176,7 +176,7 @@ ctx.io.result_markup(), ctx.io.output_markup(),          # level-gated Rich-mark
     ctx.io.status_markup()
 ctx.io.notify(), ctx.io.status_bar()          # always-works fallbacks (no capability gate)
 ctx.io.log()                                  # session log
-ctx.serial.is_connected, ctx.serial.port      # serial state
+ctx.serial.is_connected                       # serial state
 ctx.serial.connect(), ctx.serial.disconnect() # connection lifecycle (host-orchestrated)
 ctx.serial.update_port(), ctx.serial.apply_port_effects()
 ctx.serial.write(), ctx.serial.read_raw()     # serial I/O primitives
@@ -188,6 +188,7 @@ ctx.fs.open_file()                            # gated by gui_apps capability
 ctx.ui.confirm(), ctx.ui.notify()             # TUI-strict; raise MissingCapability in CLI
 ctx.ui.clear_screen(), ctx.ui.exit_app(), ctx.ui.screenshot()
 ctx.internal                                    # internal/unstable interface for built-ins
+ctx.internal.port()                           # raw pyserial.Serial | None (built-ins only)
 ctx.dispatch(cmd)                             # re-route a command through the pipeline
 ctx.wait_for_match(predicate, timeout)        # block until serial matches (gated)
 ctx.ns(name)                                  # session-scoped state dict (see below)
@@ -445,7 +446,7 @@ Copy this shape for any plugin that needs per-session state with setup/reset sem
 | `ctx.io._write()`    | `RichLog.write(Text(...))`   | `Rich Console.print()`        |
 | `ctx.ui.confirm()`   | Modal dialog + `event.wait()`| `input()` prompt              |
 | `ctx.fs.open_file()` | `open_with_system()`         | `open_with_system()`          |
-| `ctx.serial.port`    | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
+| `ctx.internal.port`  | `self.ser` (via SerialEngine)| `engine.serial_port.port`     |
 | `/delay`             | `set_timer()` (non-blocking) | `time.sleep()` + progress bar |
 
 CLI-specific features: readline tab completion, shared command history, `/color on|off` toggle. CLI limitations: no `/grep` (no scrollback buffer), no `/edit.cfg` (no config editor modal).

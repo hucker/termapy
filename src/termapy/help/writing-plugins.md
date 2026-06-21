@@ -415,7 +415,6 @@ either directly.
 | Member | Description |
 | --- | --- |
 | `ctx.serial.is_connected()` | Returns `True` if the serial port is open |
-| `ctx.serial.port()` | The raw pyserial object, or `None` when disconnected |
 | `ctx.serial.io()` | Context manager for exclusive serial access |
 | `ctx.serial.drain()` | Discard stale bytes in the receive buffer |
 | `ctx.serial.write(data)` | Send raw bytes (no line ending added) |

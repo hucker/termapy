@@ -186,7 +186,7 @@ def build_device_state(
     from pathlib import Path
 
     # Port state.
-    port_obj = ctx.serial.port() if ctx.serial.is_connected() else None
+    port_obj = ctx.internal.port() if ctx.serial.is_connected() else None
     port_info: dict[str, Any] = {
         "name": ctx.cfg["serial"]["port"],
         "open": ctx.serial.is_connected(),

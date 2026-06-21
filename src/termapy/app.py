@@ -2650,26 +2650,33 @@ class SerialTerminal(TerminalHost, App):
 
     # ── File capture engine ──────────────────────────────────────────────────
 
-    def _cap_start(self, *args, **kwargs) -> None:
+    def _cap_start(self, *args, **kwargs):
         """Start a capture.  Implementation in ``capture_view``.
 
         Stub kept on the App because the host wires this onto
         ``internal.start_capture`` (bound-method reference).
         Signature pass-through so this file stays unaware of the
         real arg list, which lives in ``capture_view._cap_start``.
+
+        Marshalled to the main thread: the ``/cap`` command runs on the
+        dispatch worker thread, but ``_cap_start`` schedules Textual
+        timers and mounts the progress overlay, which require the event
+        loop.  ``_on_main`` runs it inline when already on the main thread.
         """
         from termapy.capture_view import _cap_start
-        _cap_start(self, *args, **kwargs)
+        return self._on_main(_cap_start, self, *args, **kwargs)
 
     def _cap_stop(self) -> None:
         """Stop the current capture.  Implementation in ``capture_view``.
 
         Stub kept on the App because the host wires this onto
         ``internal.stop_capture`` and the cap-stop button looks it up
-        by attribute name.
+        by attribute name.  Marshalled to the main thread for the same
+        reason as ``_cap_start`` -- ``/cap.stop`` arrives on the worker
+        thread but the overlay teardown is Textual work.
         """
         from termapy.capture_view import _cap_stop
-        _cap_stop(self)
+        self._on_main(_cap_stop, self)
     def _on_capture_complete(self, result: CaptureResult) -> None:
         """Called by CaptureEngine when capture finishes (unused for now)."""
         pass

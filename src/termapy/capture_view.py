@@ -82,7 +82,7 @@ def _cap_start(
         else:
             app._cap_timer = None
 
-    app._cap_show_progress()
+    _cap_show_progress(app)
     raw = not columns
     mode_label = "raw" if raw else ("fmt" if columns else "text")
     app._log_line("#", f"capture start: {path} mode={mode_label}")
@@ -103,7 +103,7 @@ def _cap_stop(app) -> None:
         app._cap_timer.stop()
         app._cap_timer = None
 
-    app._cap_hide_progress()
+    _cap_hide_progress(app)
 
     if result:
         if result.error:
@@ -130,7 +130,7 @@ def _cap_show_progress(app) -> None:
         stop_btn = Button("Stop", id="cap-stop", variant="error")
         bar.mount(label)
         bar.mount(stop_btn)
-        app._cap_progress_timer = app.set_interval(0.5, app._cap_update_progress)
+        app._cap_progress_timer = app.set_interval(0.5, lambda: _cap_update_progress(app))
         inp = app.query_one("#cmd", Input)
         inp.disabled = True
         inp.focus()

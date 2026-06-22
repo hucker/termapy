@@ -493,6 +493,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "border_color": "",
     "max_lines": 10000,
     "default_ui": "tui",
+    "vt100_hint": true,
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": false,

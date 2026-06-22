@@ -1,8 +1,8 @@
-"""Tests for vt100.py - pure cfg -> miniterm setting mappings and config resolution.
+"""Tests for vt100.py - settings/transform mappings, config resolution, streams.
 
-The byte pump itself is the vendored pyserial miniterm (its own concern),
-and raw passthrough is non-deterministic, so there is no CLI-gold entry.
-These tests cover the pure mapping helpers and the demo config resolution.
+The byte pump itself is the vendored pyserial miniterm (its own concern), so
+there is no CLI-gold entry. The transform tests are the ground-truth check that
+the passthrough relays device bytes verbatim (no real device required).
 """
 
 from __future__ import annotations
@@ -12,37 +12,12 @@ import sys
 from argparse import Namespace
 
 from termapy.vt100 import (
-    _line_ending_to_eol,
     _miniterm_settings,
+    _passthrough_transforms,
     _resolve_cfg,
+    _vscode_key_hint,
     run_vt100_mode,
 )
-
-
-class TestLineEndingToEol:
-    def test_cr(self):
-        # Assert
-        assert _line_ending_to_eol("\r") == "cr", "CR maps to miniterm 'cr'"
-
-    def test_lf(self):
-        # Assert
-        assert _line_ending_to_eol("\n") == "lf", "LF maps to miniterm 'lf'"
-
-    def test_crlf(self):
-        # Assert
-        assert _line_ending_to_eol("\r\n") == "crlf", "CRLF maps to miniterm 'crlf'"
-
-    def test_empty_falls_back_to_crlf(self):
-        # Assert
-        assert _line_ending_to_eol("") == "crlf", "no Enter translation -> default"
-
-    def test_nul_falls_back_to_crlf(self):
-        # Assert
-        assert _line_ending_to_eol(chr(0)) == "crlf", "NUL has no eol mode -> default"
-
-    def test_etx_falls_back_to_crlf(self):
-        # Assert
-        assert _line_ending_to_eol(chr(3)) == "crlf", "ETX has no eol mode -> default"
 
 
 class TestMinitermSettings:
@@ -54,8 +29,8 @@ class TestMinitermSettings:
         actual = _miniterm_settings(cfg)
 
         # Assert
-        expected = {"echo": True, "eol": "lf", "encoding": "latin-1"}
-        assert actual == expected, "cfg maps to miniterm settings"
+        expected = {"echo": True, "line_ending": "\n", "encoding": "latin-1"}
+        assert actual == expected, "cfg maps to passthrough settings"
 
     def test_defaults_when_keys_absent(self):
         # Arrange
@@ -65,7 +40,7 @@ class TestMinitermSettings:
         actual = _miniterm_settings(cfg)
 
         # Assert
-        expected = {"echo": False, "eol": "cr", "encoding": "utf-8"}
+        expected = {"echo": False, "line_ending": "\r", "encoding": "utf-8"}
         assert actual == expected, "missing keys fall back to cfg defaults"
 
     def test_echo_defaults_false(self):
@@ -77,6 +52,66 @@ class TestMinitermSettings:
 
         # Assert
         assert actual_echo is False, "echo_input absent -> False"
+
+
+def _apply_rx(transforms, text):
+    for t in transforms:
+        text = t.rx(text)
+    return text
+
+
+def _apply_tx(transforms, text):
+    for t in transforms:
+        text = t.tx(text)
+    return text
+
+
+class TestPassthroughTransforms:
+    """Ground truth for 'make it work right' without real hardware: a VT100
+    passthrough must relay device bytes verbatim and translate only Enter."""
+
+    # Canonical VT100/ANSI byte sequences a real device emits.
+    _SAMPLES = (
+        "\x1b[2J",                   # clear screen
+        "\x1b[10;5H",                # cursor to row 10, col 5
+        "\x1b[1;31mERROR\x1b[0m",    # bold red text
+        "line one\r\nline two\r\n",  # CRLF line endings
+        "load 10%\rload 50%\rload 100%\r",  # bare-CR progress redraw
+        "\x07\x08\t",                # BEL, BS, TAB control bytes
+    )
+
+    def test_rx_is_byte_verbatim(self):
+        # Arrange
+        rx, _tx = _passthrough_transforms("\r")
+
+        # Act / Assert: every received sequence reaches the terminal unchanged.
+        for sample in self._SAMPLES:
+            actual = _apply_rx(rx, sample)
+            assert actual == sample, f"RX must pass {sample!r} through verbatim"
+
+    def test_tx_translates_only_enter(self):
+        # Arrange
+        _rx, tx = _passthrough_transforms("\r")
+
+        # Act
+        enter = _apply_tx(tx, "\n")
+        typed = _apply_tx(tx, "AT+VER\n")
+        arrow = _apply_tx(tx, "\x1b[A")
+
+        # Assert
+        assert enter == "\r", "Enter translates to the cfg line ending"
+        assert typed == "AT+VER\r", "Enter after typed text becomes the line ending"
+        assert arrow == "\x1b[A", "non-Enter keys (arrow seq) pass through verbatim"
+
+    def test_tx_honors_crlf_line_ending(self):
+        # Arrange
+        _rx, tx = _passthrough_transforms("\r\n")
+
+        # Act
+        actual = _apply_tx(tx, "x\n")
+
+        # Assert
+        assert actual == "x\r\n", "line_ending CRLF sends CR+LF on Enter"
 
 
 class TestResolveCfgDemo:
@@ -172,3 +207,36 @@ class TestRunVt100ModeStreamRestore:
         assert sys.stdout is sentinel_out, "stdout restored after the session"
         assert sys.stderr is sentinel_err, "stderr restored after the session"
         assert result is None, "launch-flag vt100 returns None (quit)"
+
+
+class TestVscodeKeyHint:
+    def test_hint_shown_in_vscode(self, monkeypatch):
+        # Arrange
+        monkeypatch.setenv("TERM_PROGRAM", "vscode")
+
+        # Act
+        actual = _vscode_key_hint({})
+
+        # Assert
+        assert actual is not None, "VS Code terminal gets the key-capture tip"
+        assert "sendKeybindingsToShell" in actual, "tip names the fix setting"
+
+    def test_no_hint_outside_vscode(self, monkeypatch):
+        # Arrange
+        monkeypatch.delenv("TERM_PROGRAM", raising=False)
+
+        # Act
+        actual = _vscode_key_hint({})
+
+        # Assert
+        assert actual is None, "no tip when not in a VS Code terminal"
+
+    def test_opt_out_suppresses_hint(self, monkeypatch):
+        # Arrange -- under VS Code, but the user disabled the hint
+        monkeypatch.setenv("TERM_PROGRAM", "vscode")
+
+        # Act
+        actual = _vscode_key_hint({"vt100_hint": False})
+
+        # Assert
+        assert actual is None, "vt100_hint=false hides the tip even under VS Code"

@@ -3,8 +3,8 @@
 Drives ``FakeSerialVT100`` directly (no miniterm): write keystroke bytes,
 read the resulting frame, strip ANSI, and assert on the visible text. The
 input-driven transitions (menu navigation, opening a screen, adjusting the
-slider, the reboot confirm) are immediate and deterministic; the time-driven
-animations (gauge wiggle, progress fill, boot scroll) are not asserted here.
+slider) are immediate and deterministic; the time-driven animations (gauge
+wiggle, calibration progress fill) are not asserted here.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def test_initial_frame_is_menu():
     # Assert
     assert "Bassomatic v77" in text, "menu shows the device title"
     assert "> Status" in text, "first item is selected by default"
-    assert "Reboot" in text, "all menu items render"
+    assert "Calibration" in text, "all menu items render"
 
 
 def test_down_moves_selection():
@@ -73,7 +73,7 @@ def test_up_wraps_to_last_item():
     text = _frame(fake)
 
     # Assert
-    assert "> Reboot" in text, "up from the first item wraps to the last"
+    assert "> Calibration" in text, "up from the first item wraps to the last"
 
 
 def test_status_opens_gauges():
@@ -108,40 +108,20 @@ def test_calibration_shows_progress_bar():
     assert "0%" in text, "progress starts at zero"
 
 
-def test_network_shows_table():
-    # Act
-    text = _open_item(FakeSerialVT100(), 3)
-
-    # Assert
-    assert "eth0" in text, "network table lists interfaces"
-    assert "DOWN" in text, "network table shows a down link"
-
-
-def test_reboot_confirm_then_cancel():
-    # Arrange
+def test_calibration_redraws_in_place_with_cr():
+    # Arrange: enter calibration (the entry frame is consumed by _open_item)
     fake = FakeSerialVT100()
-    confirm = _open_item(fake, 4)
+    _open_item(fake, 2)
 
-    # Act
-    fake.write(b"n")  # decline
-    text = _frame(fake)
+    # Act: force the next animation tick so the bar advances, then read the
+    # update frame (move _last_frame into the past instead of sleeping).
+    fake._last_frame -= 1.0
+    n = fake.in_waiting
+    raw = fake.read(n).decode("utf-8", "replace")
 
-    # Assert
-    assert "Reboot the device now?" in confirm, "reboot asks for confirmation"
-    assert "> Reboot" in text, "declining returns to the menu"
-
-
-def test_reboot_yes_starts_boot():
-    # Arrange
-    fake = FakeSerialVT100()
-    _open_item(fake, 4)
-
-    # Act
-    fake.write(b"y")  # confirm
-    text = _frame(fake)
-
-    # Assert
-    assert "Rebooting" in text, "confirming starts the boot sequence"
+    # Assert: the update is an in-place CR redraw, not a full-screen repaint.
+    assert raw.startswith("\r"), "in-place update redraws with a bare CR"
+    assert "\x1b[2J" not in raw, "update must not clear/repaint the whole screen"
 
 
 def test_port_name_is_demo_vt100():

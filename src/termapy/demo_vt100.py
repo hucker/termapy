@@ -11,19 +11,19 @@ It's a small tour of terminal UI widgets behind a navigable menu (Up/Down or
 * **Status** - a live dashboard of colored bar **gauges** that animate.
 * **Motor control** - an adjustable **slider** (left/right or ``-``/``+``)
   whose RPM readout tracks the value.
-* **Calibration** - an animated **progress bar** that fills with step labels.
-* **Network** - a color-coded status **table**.
-* **Reboot** - a ``y``/``n`` **confirm dialog**, then a scrolling boot log.
+* **Calibration** - a **progress bar** that redraws in place with a bare
+  ``\\r`` (the classic serial pattern), doubling as a passthrough transparency
+  canary -- if ``\\r`` is rewritten, it scrolls instead of redrawing.
 
-The device speaks ANSI by **absolute cursor addressing** (``ESC[row;colH``)
-plus erase-line/erase-below, so frames contain no ``\\r``/``\\n`` and the
-receiver's EOL transform leaves them intact.
+Most screens speak ANSI by **absolute cursor addressing** (``ESC[row;colH``)
+plus erase-line/erase-below, so their frames carry no ``\\r``/``\\n``;
+Calibration is the deliberate exception (above).
 
 Duck-types ``serial.Serial`` by subclassing :class:`termapy.demo.FakeSerial`,
 which already provides the full port surface (control lines, ``in_waiting``,
 locked ``read``/``write``). Only the I/O behaviour is overridden here:
 ``write`` decodes keystrokes into navigation/redraws, and ``in_waiting`` ticks
-the time-driven animations (gauges, progress, boot scroll).
+the time-driven animations (status gauges, calibration progress).
 """
 
 from __future__ import annotations
@@ -34,18 +34,8 @@ import time
 from termapy.demo import FakeSerial
 
 # Menu label -> screen key (parallel tuples; index is the selection).
-_MENU_ITEMS = ("Status", "Motor control", "Calibration", "Network", "Reboot")
-_SCREENS = ("status", "motor", "calib", "network", "reboot")
-
-_BOOT_LINES = (
-    "Bassomatic v77 bootloader v1.3",
-    "  RAM check ............ OK",
-    "  Loading firmware ..... OK",
-    "  Mounting config ...... OK",
-    "  Starting services .... OK",
-    "  Sensors online",
-    "  Ready.",
-)
+_MENU_ITEMS = ("Status", "Motor control", "Calibration")
+_SCREENS = ("status", "motor", "calib")
 
 # ANSI helpers (SGR codes have zero display width, so line padding is always
 # computed on the plain text and color is wrapped around it).
@@ -68,8 +58,6 @@ class FakeSerialVT100(FakeSerial):
     _STATUS_DT = 0.25          # dashboard refresh interval (seconds)
     _CALIB_DT = 0.12           # calibration progress step interval
     _CALIB_STEP = 5            # percent added per calibration step
-    _NET_DT = 0.30             # network spinner interval
-    _BOOT_DT = 0.18            # boot-log line reveal interval
 
     def __init__(self, baudrate: int = 115200) -> None:
         super().__init__(baudrate=baudrate, port="DEMO_VT100")
@@ -80,13 +68,12 @@ class FakeSerialVT100(FakeSerial):
         self._screen = "menu"
         self._sel = 0
         self._keybuf = bytearray()
-        self._frame_n = 0           # generic animation counter (gauges, spinner)
+        self._frame_n = 0           # animation counter (status gauges)
         self._t0 = time.monotonic()
         self._last_frame = 0.0
         self._motor = 40            # motor slider, percent
         self._calib = 0             # calibration progress, percent
-        self._reboot_phase = "confirm"  # "confirm" | "booting"
-        self._boot_n = 0            # boot-log lines revealed
+        self._calib_drawn = False   # has the calib screen done its full draw?
 
     # -- serial.Serial overrides -------------------------------------------
 
@@ -133,17 +120,8 @@ class FakeSerialVT100(FakeSerial):
         if scr == "status" and dt >= self._STATUS_DT:
             self._frame_n += 1
             return True
-        if scr == "network" and dt >= self._NET_DT:
-            self._frame_n += 1
-            return True
         if scr == "calib" and dt >= self._CALIB_DT and self._calib < 100:
             self._calib = min(100, self._calib + self._CALIB_STEP)
-            return True
-        if scr == "reboot" and self._reboot_phase == "booting" and dt >= self._BOOT_DT:
-            if self._boot_n < len(_BOOT_LINES):
-                self._boot_n += 1
-            else:
-                self._screen = "menu"  # one beat after the last line, return
             return True
         return False
 
@@ -154,7 +132,7 @@ class FakeSerialVT100(FakeSerial):
 
         Returns:
             A list drawn from ``up``/``down``/``left``/``right``/``select``/
-            ``back``/``yes``/``no``. Unknown keys are ignored. An incomplete
+            ``back``. Unknown keys are ignored. An incomplete
             escape sequence at the end of the buffer is left for next time.
         """
         keys: list[str] = []
@@ -187,10 +165,6 @@ class FakeSerialVT100(FakeSerial):
                 keys.append("left")
             elif b0 in (ord("l"), ord("+"), ord("=")):
                 keys.append("right")
-            elif b0 in (ord("y"), ord("Y")):
-                keys.append("yes")
-            elif b0 in (ord("n"), ord("N")):
-                keys.append("no")
             elif b0 in (ord("q"), 0x08, 0x7F):  # q / Backspace / Delete
                 keys.append("back")
         return keys
@@ -220,15 +194,6 @@ class FakeSerialVT100(FakeSerial):
                 self._motor = min(100, self._motor + 5)
                 return True
             return False
-        if scr == "reboot" and self._reboot_phase == "confirm":
-            if key == "yes":
-                self._reboot_phase = "booting"
-                self._boot_n = 0
-                self._last_frame = time.monotonic()
-                return True
-            if key == "no":
-                self._screen = "menu"
-                return True
         return False
 
     def _open(self, screen: str) -> None:
@@ -240,21 +205,23 @@ class FakeSerialVT100(FakeSerial):
             self._motor = 40
         elif screen == "calib":
             self._calib = 0
-        elif screen == "reboot":
-            self._reboot_phase = "confirm"
-            self._boot_n = 0
+            self._calib_drawn = False
 
     # -- rendering ---------------------------------------------------------
 
     def _render(self) -> bytes:
-        """Render the current screen as an absolutely-positioned ANSI frame."""
+        """Render the current screen.
+
+        Most screens are absolutely positioned (``ESC[row;colH``). Calibration
+        is the exception -- it redraws in place with a bare ``\\r`` (see
+        ``_calib_frame``), so it doubles as a passthrough transparency canary.
+        """
+        if self._screen == "calib":
+            return self._calib_frame()
         renderers = {
             "menu": self._menu_lines,
             "status": self._status_lines,
             "motor": self._motor_lines,
-            "calib": self._calib_lines,
-            "network": self._network_lines,
-            "reboot": self._reboot_lines,
         }
         lines = renderers.get(self._screen, self._menu_lines)()
         parts = [f"\x1b[{i + 1};1H{line}\x1b[K" for i, line in enumerate(lines)]
@@ -344,7 +311,26 @@ class FakeSerialVT100(FakeSerial):
             self._hint("Left/Right adjust   q back   Ctrl-] quit"),
         ]
 
-    def _calib_lines(self) -> list[str]:
+    def _calib_frame(self) -> bytes:
+        """Calibration redraws in place with a bare ``\\r`` -- the classic
+        serial progress-bar pattern, unlike the other screens' absolute
+        positioning.
+
+        It doubles as a transparency canary: if the passthrough ever rewrites
+        ``\\r`` (the EOL-transform bug), the bar scrolls instead of redrawing in
+        place -- visible proof in any real terminal that bytes go through raw.
+        """
+        line = self._calib_progress_line()
+        if self._calib_drawn:
+            # In-place update: CR returns to column 1; overwrite the bar line.
+            return ("\r" + line).encode("utf-8")
+        self._calib_drawn = True
+        head = f"{_CYAN}Calibration{_RESET}  -  bare-\\r redraw   (q back, Ctrl-] quit)"
+        # Full draw: clear, header (CRLF), blank line, then the bar line LAST so
+        # the cursor stays on it for the CR-based updates that follow.
+        return f"\x1b[2J\x1b[H{head}\r\n\r\n{line}".encode("utf-8")
+
+    def _calib_progress_line(self) -> str:
         pct = self._calib
         if pct >= 100:
             label = "Complete"
@@ -354,53 +340,5 @@ class FakeSerialVT100(FakeSerial):
             label = "Measuring offsets"
         else:
             label = "Writing calibration"
-        plain_bar, col_bar = self._bar(pct / 100, 30)
-        return [
-            self._box(),
-            self._title(" Calibration "),
-            self._row(""),
-            self._row(f"  {label} ..."),
-            self._color_row(f"  [{plain_bar}] {pct:3d}%", f"  [{col_bar}] {pct:3d}%"),
-            self._row(""),
-            self._box(),
-            self._hint(("done   q back" if pct >= 100 else "calibrating   q cancel") + "   Ctrl-] quit"),
-        ]
-
-    def _network_lines(self) -> list[str]:
-        spinner = "|/-\\"[self._frame_n % 4]
-        ifaces = (("eth0", True), ("wlan0", True), ("ppp0", False), ("can0", True))
-        lines = [
-            self._box(),
-            self._title(" Network "),
-            self._row(""),
-            self._row("  Iface     Link"),
-            self._row("  -------   ----"),
-        ]
-        for name, up in ifaces:
-            txt = "UP" if up else "DOWN"
-            col = _GREEN if up else _RED
-            plain = f"  {name:<8}  {txt}"
-            colored = f"  {name:<8}  {col}{txt}{_RESET}"
-            lines.append(self._color_row(plain, colored))
-        lines += [self._row(""), self._row(f"  scanning {spinner}"), self._box()]
-        lines.append(self._hint("q back   Ctrl-] quit"))
-        return lines
-
-    def _reboot_lines(self) -> list[str]:
-        if self._reboot_phase == "confirm":
-            return [
-                self._box(),
-                self._title(" Reboot "),
-                self._row(""),
-                self._row("  Reboot the device now?"),
-                self._row(""),
-                self._row("    y = yes      n = no"),
-                self._row(""),
-                self._box(),
-                self._hint("y/n   Ctrl-] quit"),
-            ]
-        lines = [self._box(), self._title(" Rebooting "), self._row("")]
-        for i in range(len(_BOOT_LINES)):
-            lines.append(self._row("  " + _BOOT_LINES[i] if i < self._boot_n else ""))
-        lines += [self._row(""), self._box(), self._hint("rebooting   Ctrl-] quit")]
-        return lines
+        _, col_bar = self._bar(pct / 100, 30)
+        return f"  [{col_bar}] {pct:3d}%  {label}\x1b[K"

@@ -18,47 +18,82 @@ third key-interception layer; see VT100_BUILD_PLAN.md sections 3/6).
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-# cfg line_ending bytes -> miniterm EOL mode. Only CR/LF/CRLF have clean
-# miniterm equivalents; anything else (NUL, ETX, empty, multi-byte) has no
-# Enter-key translation, so fall back to miniterm's own default.
-_EOL_MAP = {"\r": "cr", "\n": "lf", "\r\n": "crlf"}
-
-
-def _line_ending_to_eol(line_ending: str) -> str:
-    """Map a cfg ``line_ending`` byte string to a miniterm EOL mode.
-
-    Args:
-        line_ending: The literal bytes termapy appends to sent lines
-            (e.g. ``"\\r"``, ``"\\n"``, ``"\\r\\n"``).
-
-    Returns:
-        One of ``"cr"``/``"lf"``/``"crlf"`` -- the keys miniterm's
-        ``EOL_TRANSFORMATIONS`` accepts. Unmappable values (NUL, ETX,
-        empty, multi-byte combos) fall back to ``"crlf"``.
-    """
-    return _EOL_MAP.get(line_ending, "crlf")
-
-
 def _miniterm_settings(cfg: dict) -> dict:
-    """Map a config dict to miniterm-relevant settings.
+    """Map a config dict to the settings the passthrough needs.
 
-    Pure (no I/O), so the cfg -> miniterm argument mapping is unit-testable
-    without constructing a ``Miniterm`` (which would grab the real console).
+    Pure (no I/O), so the cfg -> settings mapping is unit-testable without
+    constructing a ``Miniterm`` (which would grab the real console).
 
     Args:
         cfg: Loaded config dict.
 
     Returns:
-        ``{"echo": bool, "eol": str, "encoding": str}``.
+        ``{"echo": bool, "line_ending": str, "encoding": str}``.
     """
     return {
         "echo": cfg.get("echo_input", False),
-        "eol": _line_ending_to_eol(cfg.get("line_ending", "\r")),
+        "line_ending": cfg.get("line_ending", "\r"),
         "encoding": cfg.get("encoding", "utf-8"),
     }
+
+
+def _vscode_key_hint(cfg: dict) -> str | None:
+    """One-line tip when --vt100 runs in a VS Code terminal, else None.
+
+    VS Code's integrated terminal can intercept some keys (function keys,
+    certain Ctrl/Shift chords) before they reach the device. We surface the
+    one-setting fix rather than read VS Code's own settings to auto-suppress
+    -- that's layered JSONC across OS-specific paths (and remote/WSL), so the
+    ``vt100_hint`` cfg opt-out is the robust lever instead.
+
+    Args:
+        cfg: Loaded config dict (reads ``vt100_hint``, default True).
+
+    Returns:
+        The tip string (newline-terminated), or None when disabled via
+        ``vt100_hint`` or not running under VS Code.
+    """
+    if not cfg.get("vt100_hint", True):
+        return None
+    if os.environ.get("TERM_PROGRAM") != "vscode":
+        return None
+    return (
+        "note: in the VS Code terminal some keys can be captured by VS Code "
+        "before the device.  If a key never arrives, set\n"
+        '      "terminal.integrated.sendKeybindingsToShell": true  '
+        "(or vt100_hint=false to hide this).\n"
+    )
+
+
+def _passthrough_transforms(line_ending: str):
+    """Build miniterm ``(rx, tx)`` transform lists for raw VT100 passthrough.
+
+    VT100 passthrough must be byte-transparent: the device's bytes have to
+    reach the terminal *unchanged*, or cursor control and bare-``\\r`` redraws
+    (progress bars, spinners) get corrupted. miniterm's default EOL transform
+    rewrites ``\\r``/``\\n`` -- e.g. ``eol='cr'`` (what a cfg ``line_ending`` of
+    ``"\\r"`` would select) turns every received ``\\r`` into ``\\n``, doubling
+    ``\\r\\n`` lines and breaking in-place redraws. So we replace it:
+
+    - **rx**: empty -- received bytes pass through verbatim.
+    - **tx**: translate only Enter (``\\n``) to the cfg ``line_ending``; every
+      other typed byte (letters, arrow-key escape sequences) is left as-is.
+
+    Returns:
+        ``(rx_transformations, tx_transformations)`` to assign onto a
+        ``Miniterm`` instance (overriding its EOL-derived defaults).
+    """
+    from termapy.vendor.serial.tools.miniterm import Transform
+
+    class _EnterEOL(Transform):
+        def tx(self, text):
+            return text.replace("\n", line_ending)
+
+    return [], [_EnterEOL()]
 
 
 def _resolve_cfg(args) -> dict:
@@ -160,12 +195,19 @@ def run_vt100_mode(args) -> str | None:
     saved_stdout, saved_stderr = sys.stdout, sys.stderr
     term = None
     try:
-        term = Miniterm(port, echo=settings["echo"], eol=settings["eol"])
+        term = Miniterm(port, echo=settings["echo"])
         # Miniterm.__init__ leaves rx_decoder/tx_encoder UNSET; reader()/
         # writer() AttributeError on the first byte unless we set both here
         # (miniterm's own main() does the same before start()).
         term.set_rx_encoding(settings["encoding"])
         term.set_tx_encoding(settings["encoding"])
+        # Raw byte-transparent passthrough: device bytes reach the terminal
+        # verbatim (no CR/LF rewriting); only Enter is translated to the cfg
+        # line ending. Replaces miniterm's EOL transform -- see
+        # _passthrough_transforms.
+        term.rx_transformations, term.tx_transformations = _passthrough_transforms(
+            settings["line_ending"]
+        )
         term.exit_character = chr(0x1d)   # Ctrl-]  -> exit / back to the TUI
         # Disable miniterm's Ctrl-T settings menu so nothing pyserial-flavoured
         # leaks: set the menu key to a value the user won't type, so Ctrl-T
@@ -182,6 +224,9 @@ def run_vt100_mode(args) -> str | None:
             f"termapy VT100  |  {port.name} {port.baudrate} "
             f"{port.bytesize}{port.parity}{port.stopbits}  |  {exit_hint}\n"
         )
+        hint = _vscode_key_hint(cfg)
+        if hint:
+            sys.stderr.write(hint)
 
         term.start()
         try:

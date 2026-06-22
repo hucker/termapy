@@ -1296,11 +1296,24 @@ class SerialTerminal(TerminalHost, App):
         if self.cfg.get("auto_reconnect"):
             self._auto_reconnect()
 
-    @work(thread=True)
     def _auto_reconnect(self) -> None:
+        """Start the auto-reconnect worker unless one is already running.
+
+        Called only on the main thread -- directly from _on_connect_failed,
+        or via call_from_thread from the reader's on_disconnect -- so the
+        guard is race-free: _reconnecting is checked and set before the
+        worker spawns.  Without it a second disconnect would launch a
+        duplicate reconnect loop contending on the shared stop_event.
+        """
+        if self._reconnecting:
+            return
+        self._reconnecting = True
+        self._run_reconnect()
+
+    @work(thread=True)
+    def _run_reconnect(self) -> None:
         """Background thread: retry connecting until success or stop."""
         self._engine.stop_event.clear()
-        self._reconnecting = True
         try:
             success = self._engine.reconnect_loop(
                 on_status=lambda msg: self.call_from_thread(

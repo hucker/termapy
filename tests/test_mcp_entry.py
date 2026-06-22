@@ -86,7 +86,7 @@ class TestLazyImport:
 
 @pytest.mark.slow  # subprocess-spawning + MCP server startup (~1-2s each)
 class TestMcpDispatch:
-    def test_mcp_dispatch_with_sdk_exits_cleanly_on_eof(self):
+    def test_mcp_dispatch_with_sdk_exits_cleanly_on_eof(self, tmp_path):
         """--mcp with the SDK installed runs the stdio server.
 
         Phase 3 made --mcp a real FastMCP stdio server.  When stdin
@@ -101,13 +101,19 @@ class TestMcpDispatch:
             from mcp.server.fastmcp import FastMCP  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; nothing to dispatch")
-        # Act — close stdin immediately so FastMCP sees EOF.
+        # Act — close stdin immediately so FastMCP sees EOF.  Run in an
+        # isolated, empty cfg dir so startup can't auto-detect a real config
+        # and attempt a serial connect (slow, hardware-dependent).  The
+        # timeout is generous on purpose: this cold-starts a fresh process
+        # that imports the whole MCP/pydantic/anyio stack, which under
+        # full-suite CPU load can blow a tight budget (flaky TimeoutExpired).
         result = subprocess.run(
-            [sys.executable, "-m", "termapy", "--mcp"],
+            [sys.executable, "-m", "termapy", "--mcp", "--cfg-dir", str(tmp_path)],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=30,
             input="",
+            cwd=str(tmp_path),
         )
         # Assert — clean shutdown: no Python traceback in stderr.
         assert "Traceback" not in result.stderr, (

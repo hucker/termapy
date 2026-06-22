@@ -64,9 +64,10 @@ def _miniterm_settings(cfg: dict) -> dict:
 def _resolve_cfg(args) -> dict:
     """Resolve the config for vt100 mode (mirrors the cli.py resolution).
 
-    demo -> bundled demo cfg; positional -> resolve; else -> find in
-    ``termapy_cfg/``. Unlike CLI there is no zero-config REPL fallback:
-    passthrough needs a real port, so "no config" is a hard error.
+    demo -> in-memory cfg on the interactive ``DEMO_VT100`` device;
+    positional -> resolve; else -> find in ``termapy_cfg/``. Unlike CLI
+    there is no zero-config REPL fallback: passthrough needs a real port,
+    so "no config" is a hard error.
 
     Args:
         args: Parsed argparse namespace (uses ``demo``/``config``).
@@ -76,17 +77,23 @@ def _resolve_cfg(args) -> dict:
 
     Exits the process with a message on any resolution/load failure.
     """
-    from termapy.config import (
-        CONFIG_LOAD_ERRORS,
-        cfg_dir,
-        load_config,
-        setup_demo_config,
-    )
+    from termapy.config import CONFIG_LOAD_ERRORS, load_config
     from termapy.config_resolve import find_config, resolve_config
 
-    if args.demo:
-        config_path: str | None = str(setup_demo_config(cfg_dir(), force=True))
-    elif args.config:
+    # --demo (launch flag) or /demo.vt100 (TUI switch) both select the VT100
+    # widget-tour device: a cursor-addressed menu/dashboard rather than the
+    # line-oriented AT device that --demo picks in tui/cli mode. In-memory
+    # cfg, no disk write; the caller's args.config is left untouched so a
+    # /demo.vt100 round-trip restores the original device in the TUI.
+    if args.demo or getattr(args, "_vt100_demo", False):
+        from termapy.defaults import default_cfg
+
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO_VT100"
+        cfg["title"] = "VT100 demo"
+        return cfg
+
+    if args.config:
         config_path = resolve_config(args.config)
         if config_path is None:
             print(
@@ -123,15 +130,18 @@ def run_vt100_mode(args) -> str | None:
         args: Parsed argparse namespace.
 
     Returns:
-        ``None`` on exit. Ctrl-] quits the process (no return-to-TUI in
-        Phase 1). The signature matches ``_run_cli_mode``/``_run_tui_mode``
-        so entry.py's mode loop can switch on the return value later.
+        The mode to switch to on exit: ``"tui"`` when entered from the TUI
+        (``/vt100`` / ``/demo.vt100``, signalled by ``args._vt100_return_to``)
+        so Ctrl-] is a reversible toggle, else ``None`` to quit the process
+        (the ``--vt100`` launch case). Matches ``_run_cli_mode`` /
+        ``_run_tui_mode`` so entry.py's mode loop can switch on the value.
     """
     import serial as _serial
 
     from termapy.config import open_serial
     from termapy.vendor.serial.tools.miniterm import Miniterm
 
+    return_to = getattr(args, "_vt100_return_to", None)
     cfg = _resolve_cfg(args)
     settings = _miniterm_settings(cfg)
 
@@ -141,33 +151,56 @@ def run_vt100_mode(args) -> str | None:
         print(f"termapy: cannot open serial port: {e}", file=sys.stderr)
         sys.exit(1)
 
-    term = Miniterm(port, echo=settings["echo"], eol=settings["eol"])
-    # Miniterm.__init__ leaves rx_decoder/tx_encoder UNSET; reader()/writer()
-    # AttributeError on the first byte unless we set both here (miniterm's own
-    # main() does the same before start()).
-    term.set_rx_encoding(settings["encoding"])
-    term.set_tx_encoding(settings["encoding"])
-    term.exit_character = chr(0x1d)   # Ctrl-]  -> quit
-    term.menu_character = chr(0x14)   # Ctrl-T  -> miniterm menu
-
-    # Banner on stderr; stdout is reserved for the device stream.
-    sys.stderr.write(
-        f"--- termapy vt100 on {port.name}  {port.baudrate},"
-        f"{port.bytesize},{port.parity},{port.stopbits} ---\n"
-    )
-    sys.stderr.write("--- Quit: Ctrl+]  |  Menu: Ctrl+T ---\n")
-
-    term.start()
+    # miniterm's Windows Console swaps sys.stdout/sys.stderr for UTF-8 wrappers
+    # and never restores them (its own main() exits the process, so it never
+    # had to). We reuse the process across mode switches, so a second /vt100
+    # entry would call Console() with the leftover wrapper -- which has no
+    # .buffer -- and crash. Save and restore them around the session. On POSIX
+    # this is a harmless no-op (that Console doesn't touch sys.stdout).
+    saved_stdout, saved_stderr = sys.stdout, sys.stderr
+    term = None
     try:
-        term.join(True)        # wait on the transmitter until Ctrl-]
-    except KeyboardInterrupt:
-        pass
-    term.join()                # then drain/stop the receiver
-    sys.stderr.write("\n--- exit ---\n")
-    try:
-        term.console.cleanup()  # restore termios on POSIX (no-op on Win base)
-    except Exception:
-        # Teardown is best-effort; never crash on console restore.
-        pass
-    term.close()               # closes the serial port
-    return None
+        term = Miniterm(port, echo=settings["echo"], eol=settings["eol"])
+        # Miniterm.__init__ leaves rx_decoder/tx_encoder UNSET; reader()/
+        # writer() AttributeError on the first byte unless we set both here
+        # (miniterm's own main() does the same before start()).
+        term.set_rx_encoding(settings["encoding"])
+        term.set_tx_encoding(settings["encoding"])
+        term.exit_character = chr(0x1d)   # Ctrl-]  -> exit / back to the TUI
+        # Disable miniterm's Ctrl-T settings menu so nothing pyserial-flavoured
+        # leaks: set the menu key to a value the user won't type, so Ctrl-T
+        # (and every other key) passes straight through to the device. Keeps
+        # the passthrough reading as a native termapy view.
+        term.menu_character = chr(0x00)
+
+        # Clean, termapy-branded banner on stderr (stdout is the device
+        # stream); no mention of miniterm or its menu.
+        exit_hint = (
+            "Ctrl+] returns to termapy" if return_to == "tui" else "Ctrl+] to exit"
+        )
+        sys.stderr.write(
+            f"termapy VT100  |  {port.name} {port.baudrate} "
+            f"{port.bytesize}{port.parity}{port.stopbits}  |  {exit_hint}\n"
+        )
+
+        term.start()
+        try:
+            term.join(True)        # wait on the transmitter until Ctrl-]
+        except KeyboardInterrupt:
+            pass
+        term.join()                # then drain/stop the receiver
+        sys.stderr.write(
+            "\nreturning to termapy...\n" if return_to == "tui" else "\nexit\n"
+        )
+    finally:
+        if term is not None:
+            try:
+                term.console.cleanup()  # restore termios on POSIX (no-op on Win)
+            except Exception:
+                # Teardown is best-effort; never crash on console restore.
+                pass
+            term.close()           # closes the serial port
+        else:
+            port.close()           # Miniterm never took ownership of the port
+        sys.stdout, sys.stderr = saved_stdout, saved_stderr
+    return return_to

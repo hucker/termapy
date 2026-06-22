@@ -413,12 +413,16 @@ def main() -> None:
         if mode not in ("cli", "tui", "vt100"):
             mode = "tui"
 
+    prev_mode = None
     while mode:
         if mode == "cli":
             result = _run_cli_mode(args)
         elif mode == "vt100":
             from termapy.vt100 import run_vt100_mode
 
+            # Entered from the TUI (/vt100, /demo.vt100) -> Ctrl-] returns to
+            # the TUI (reversible toggle).  Launched via --vt100 -> quits.
+            args._vt100_return_to = "tui" if prev_mode == "tui" else None
             result = run_vt100_mode(args)
         elif mode == "tui":
             from termapy.app import _run_tui_mode
@@ -428,6 +432,7 @@ def main() -> None:
             break
         if result is None:
             break
+        prev_mode = mode
         mode = result
         args.cli = mode == "cli"
         args.run = None  # don't re-run a script on switch

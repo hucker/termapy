@@ -520,6 +520,9 @@ class SerialTerminal(TerminalHost, App):
     ) -> None:
         super().__init__()
         self.switch_to: str | None = None
+        # When switching to vt100 mode, whether to force the DEMO_VT100
+        # widget-tour device (/demo.vt100) instead of the current device.
+        self._switch_vt100_demo: bool = False
         self.config_path = config_path
         self.open_editor_on_start = open_editor
         self.show_picker_on_start = show_picker
@@ -1717,6 +1720,24 @@ class SerialTerminal(TerminalHost, App):
         # Mode switch is intercepted by the outer mode loop; no value
         # to capture reaches a script.
         return CmdResult.ok(value="cli")
+
+    def _switch_to_vt100(self, demo: bool = False) -> CmdResult:
+        """Switch to VT100 passthrough mode - sets flags and exits TUI.
+
+        The outer mode loop sees the switch, runs ``run_vt100_mode``, and
+        (because we came from the TUI) returns here on Ctrl-] -- a reversible
+        toggle like ``/cli`` <-> ``/tui``.
+
+        Args:
+            demo: When True (``/demo.vt100``), force the ``DEMO_VT100``
+                widget-tour device instead of the currently loaded device.
+                The current config is still restored on return to the TUI.
+        """
+        self.switch_to = "vt100"
+        self._switch_vt100_demo = demo
+        self._switch_config_path = self.config_path
+        self.exit()
+        return CmdResult.ok(value="vt100")
 
     def _start_demo(self, args: str = "") -> CmdResult:
         """Set up and switch to the built-in demo device config.
@@ -3618,6 +3639,7 @@ def _run_tui_mode(args) -> str | None:
         _reset_terminal()
         if app.switch_to:
             args.config = app.config_path
+            args._vt100_demo = app._switch_vt100_demo
         return app.switch_to
 
     if args.config:
@@ -3648,6 +3670,7 @@ def _run_tui_mode(args) -> str | None:
         _reset_terminal()
         if app.switch_to:
             args.config = app.config_path
+            args._vt100_demo = app._switch_vt100_demo
         return app.switch_to
 
     config_path, show_picker = _find_config()
@@ -3669,6 +3692,7 @@ def _run_tui_mode(args) -> str | None:
         _reset_terminal()
         if app.switch_to:
             args.config = app.config_path
+            args._vt100_demo = app._switch_vt100_demo
         return app.switch_to
     elif show_picker:
         cfg = default_cfg()
@@ -3682,6 +3706,7 @@ def _run_tui_mode(args) -> str | None:
         _reset_terminal()
         if app.switch_to:
             args.config = app.config_path
+            args._vt100_demo = app._switch_vt100_demo
         return app.switch_to
     else:
         from termapy.config import setup_demo_config
@@ -3702,6 +3727,7 @@ def _run_tui_mode(args) -> str | None:
         _reset_terminal()
         if app.switch_to:
             args.config = app.config_path
+            args._vt100_demo = app._switch_vt100_demo
         return app.switch_to
 
 

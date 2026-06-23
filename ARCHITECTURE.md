@@ -111,6 +111,7 @@ src/termapy/
 ├── defaults.py             # (556 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
 ├── demo.py                 # (1690 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
+├── demo_vt100.py           # (406 lines)  Interactive ANSI widget-tour sim (DEMO_VT100 port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── migration.py            # (549 lines)  Config schema migration chain (v17)
@@ -120,7 +121,8 @@ src/termapy/
 ├── scripting.py            # (370 lines)  Pure functions - templates, duration parsing, ANSI
 ├── serial_engine.py        # (566 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py          # (329 lines)  Serial I/O wrapper + SerialReader data processor
-└── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
+├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
+└── vt100.py                # (173 lines)  --vt100 ANSI passthrough - raw serial <-> host terminal via miniterm
 ```
 
 ## The plugin system
@@ -456,6 +458,12 @@ CLI-specific features: readline tab completion, shared command history, `/color 
 `termapy --mcp` runs a third frontend (`MCPHost`): an MCP stdio server that exposes the same `ReplEngine`, `PluginContext`, and built-in plugins to an LLM client rather than to a human. Like CLI mode it has no Textual, so the `ctx.ui.*` handle raises `MissingCapability`; everything else (serial I/O, plugins, scripting) is the same engine the TUI uses. This is why MCP is a first-class audience for the project, not a bolt-on: an LLM drives the device through the identical command pipeline a support engineer types into.
 
 A client discovers what a device can do from a JSON **catalog** (`mcp/catalog.py`) — the command list plus device-state resources — and invokes commands through a single `run_command` tool that dispatches them down the normal pipeline. When a v2 device **profile** is loaded (`profile/`), requests and responses are *shaped* by the profile (typed arguments in, structured fields out) instead of returned as raw text. Each cfg-with-profile is served by its own `--mcp` process; there is no hot-swap, so a client config lists one entry per device. The session log is inspectable inline with `/mcp.log.dump`. For the catalog schema, profile shaping, and the destructive-action approval gate, see `mcp/catalog.py`, `mcp/server.py`, and `help/authoring-profiles.md`.
+
+## VT100 mode (`vt100.py`)
+
+`termapy --vt100` is the one mode that does **not** go through `ReplEngine` / `PluginContext`. It is a raw passthrough for devices that emit terminal control beyond plain lines (cursor addressing, full-screen menus, `vi`/`top`, bootloader UIs): the surface is *already* a terminal, so the right move is to hand it the byte stream and let it emulate, rather than run an emulator. `run_vt100_mode` resolves the config (mirroring the CLI resolver), opens the raw pyserial object via the shared `open_serial` path (no `SerialEngine`, no `SerialReader`), and hands it to the vendored pyserial `Miniterm` (`vendor/serial/tools/miniterm.py`), which owns the read/write loop and enables VT processing on Windows 10+. It is Textual-free by design: dropping the TUI avoids stacking a third key-interception layer (VS Code → Textual → widget), which is why interactive VT100 is *not* built inside the TUI. miniterm is treated as a hidden implementation detail: `run_vt100_mode` replaces its banner with a termapy-branded line and disables its Ctrl-T settings menu (menu key set to an inert value, so Ctrl-T passes through to the device), so the passthrough reads as a native termapy view rather than "you dropped into pyserial." It also saves/restores `sys.stdout`/`sys.stderr` around the session, because miniterm's Windows console swaps them and never restores them -- required for re-entry across mode switches. `vt100` is a peer mode of `cli`/`tui` — selected by the `--vt100` flag or `"default_ui": "vt100"`, resolved in `entry.py`'s mode loop. It is also a reversible toggle from the TUI (`/vt100` for the current device, `/demo.vt100` for the demo), mirroring `/cli` <-> `/tui`: `app._switch_to_vt100()` sets `switch_to="vt100"` and exits; the mode loop tracks the previous mode and tells `run_vt100_mode` to return `"tui"` (so Ctrl-] comes back) when entered from the TUI, or `None` (quit) when launched via the flag. Driving such a device from an LLM is a separate, future concern (a headless emulator over MCP), deliberately not this passthrough.
+
+To show the mode doing something a terminal-aware frontend uniquely can, `--vt100 --demo` resolves (in-memory, no disk write) to the reserved `DEMO_VT100` port, backed by `demo_vt100.py`'s `FakeSerialVT100`. It subclasses `FakeSerial` for the serial duck-type surface and overrides only the I/O: `write` decodes keystrokes (arrows/`jk`/Enter/`q`) into navigation, and `in_waiting` ticks a live redraw. Frames are absolutely positioned (`ESC[row;colH`) so they carry no `\r`/`\n` and survive the RX EOL transform.
 
 ## Key data flows
 

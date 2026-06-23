@@ -42,6 +42,7 @@ Here is an example config for a device called `iot_device`:
     "border_color": "blue",
     "max_lines": 10000,
     "default_ui": "tui",
+    "vt100_hint": true,
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": false,
@@ -153,7 +154,8 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `title`                  | ` `                   | Title bar text (defaults to config filename)                                                |
 | `border_color`           | ` `                   | Title bar color (CSS name or hex like `#ff6600`)                                            |
 | `max_lines`              | `10000`               | Scrollback buffer size                                                                      |
-| `default_ui`             | `tui`                 | Default UI mode: `tui` or `cli`                                                             |
+| `default_ui`             | `tui`                 | Default UI mode: `tui`, `cli`, or `vt100`                                                   |
+| `vt100_hint`             | `true`                | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide)                      |
 | `cmd_prefix`             | `/`                   | Prefix for local REPL commands                                                              |
 | `cli_prompt`             | `$(CFG)>`             | Prompt string in CLI mode (supports variables)                                              |
 | `cli_echo_input`         | `false`               | Echo sent commands in CLI mode                                                              |

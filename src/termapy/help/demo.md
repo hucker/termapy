@@ -14,6 +14,19 @@ Or from within termapy:
 - `/demo`: switch to the demo config (creates it if needed)
 - `/demo.force`: reset demo to defaults and switch to it
 
+## VT100 demo (interactive ANSI UI)
+
+```sh
+termapy --vt100 --demo
+```
+
+Paired with `--vt100`, `--demo` connects to a different simulated device (the
+reserved `DEMO_VT100` port): instead of the line-oriented AT device above, it
+draws a colored, cursor-addressed **menu** (arrow keys / `j`/`k` to move, Enter
+to open) and a live **status dashboard** (`q` returns). It exists to show what
+VT100 passthrough renders that plain line output can't. Quit with Ctrl-]. See
+[VT100 mode](vt100.md).
+
 ## What you get
 
 The demo creates a complete project at `termapy_cfg/demo/` with:

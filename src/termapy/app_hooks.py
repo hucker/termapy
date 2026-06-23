@@ -457,6 +457,22 @@ def register_tui_hooks(app) -> None:
         needs=CapabilitySet(interactive=True),
     )
     app.repl.register_hook(
+        "vt100",
+        "",
+        "Switch to VT100 passthrough on the current device (Ctrl-] returns).",
+        lambda ctx, args: app._switch_to_vt100(),
+        source="app",
+        needs=CapabilitySet(interactive=True),
+    )
+    app.repl.register_hook(
+        "demo.vt100",
+        "",
+        "Switch to the VT100 widget-tour demo device (Ctrl-] returns).",
+        lambda ctx, args: app._switch_to_vt100(demo=True),
+        source="app",
+        needs=CapabilitySet(interactive=True),
+    )
+    app.repl.register_hook(
         "tui",
         "",
         "Already in TUI mode.",

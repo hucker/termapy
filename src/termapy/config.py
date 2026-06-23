@@ -685,6 +685,10 @@ def open_serial(cfg: dict) -> Any:
         from termapy.demo_ndjson import FakeSerialNDJSON
 
         return FakeSerialNDJSON(baudrate=serial_cfg["baud_rate"])
+    if name == "DEMO_VT100":
+        from termapy.demo_vt100 import FakeSerialVT100
+
+        return FakeSerialVT100(baudrate=serial_cfg["baud_rate"])
     if name == "DEMO_FAIL":
         raise OSError("DEMO_FAIL: simulated open failure")
 

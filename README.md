@@ -493,6 +493,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "border_color": "",
     "max_lines": 10000,
     "default_ui": "tui",
+    "vt100_hint": true,
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": false,
@@ -927,6 +928,28 @@ Passing a `.run` file to `--cli` automatically infers the config from the file's
 - Mouse interaction, modal dialogs, custom buttons
 
 **Exit:** `/exit`, `/quit`, or Ctrl+C.
+
+</details>
+
+<details>
+<summary><strong>VT100 mode</strong> - raw ANSI passthrough for cursor-addressed devices</summary>
+
+`termapy --vt100 <config>` drops the TUI entirely and pipes the device straight to your terminal, so output that uses terminal control beyond plain lines - cursor addressing, full-screen menus, `vi`/`top` on an embedded Linux console, bootloader UIs - renders and responds correctly. termapy doesn't emulate the terminal here; your terminal already is one, so it does the work (this is why it stays a passthrough, not a Textual widget).
+
+```sh
+termapy --vt100 my_device      # raw ANSI terminal on the configured port
+termapy --vt100 --demo         # no hardware: an interactive ANSI menu/dashboard
+```
+
+`--vt100 --demo` connects to a simulated VT100 device that draws a colored, cursor-addressed menu (arrow keys to move, Enter to open) and a live status dashboard - the quickest way to see what passthrough buys you over plain line output. Quit with Ctrl-].
+
+It's a peer of CLI and TUI mode: set `"default_ui": "vt100"` in a config to make it the default, and `--vt100` overrides the config the same way `--cli` does. The byte pump is the vendored pyserial `miniterm`, which enables VT processing on Windows 10+ automatically.
+
+It's also a reversible toggle from inside the TUI, like `/cli` <-> `/tui`: `/vt100` hands the current device to a passthrough terminal, and `/demo.vt100` jumps to the widget tour. In both cases Ctrl-] returns you to the TUI (when launched from the shell with `--vt100`, Ctrl-] quits instead).
+
+**Exit:** Ctrl+] (or back to the TUI, if entered via `/vt100`). Every other key, including Ctrl+T, goes straight to the device - miniterm's settings menu is disabled so the session reads as a native termapy view.
+
+**Caveats:** needs a VT-capable host terminal (universal on macOS/Linux; Windows Terminal / VS Code / Win10+ on Windows; legacy `conhost` is iffy). Run it in a standalone terminal tab for zero extra key interception; VS Code's integrated terminal adds one layer (the same one any serial terminal faces there). For LLM-driven menu navigation, a headless emulator + MCP is the intended path, not passthrough.
 
 </details>
 

@@ -107,6 +107,15 @@ class FakeSerial:
         self._port = value
 
     @property
+    def name(self) -> str:
+        """Device name, mirroring ``serial.Serial.name`` (== ``port``).
+
+        pyserial always exposes ``.name``; code that duck-types a serial
+        port (e.g. the vendored miniterm used by ``--vt100``) reads it.
+        """
+        return self._port
+
+    @property
     def baudrate(self) -> int:
         """Baud rate."""
         return self._baudrate

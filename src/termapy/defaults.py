@@ -46,6 +46,7 @@ DEFAULT_CFG = {
     "border_color": "",
     "max_lines": 10000,
     "default_ui": "tui",
+    "vt100_hint": True,
     "cmd_prefix": DEFAULT_CMD_PREFIX,
     "cli_prompt": "$(CFG)> ",
     "cli_echo_input": False,
@@ -370,8 +371,13 @@ CFG_HELP: dict[str, tuple] = {
         _preview_markup,
     ),
     "default_ui": (
-        "Default UI mode when launching without --cli flag.",
-        "tui, cli. Default: tui",
+        "Default UI mode when launching without a mode flag.",
+        "tui, cli, vt100. Default: tui",
+    ),
+    "vt100_hint": (
+        "Show a one-line tip in --vt100 mode when run from a VS Code "
+        "terminal, where VS Code can capture some keys before the device.",
+        "Valid: true, false",
     ),
     "cmd_prefix": (
         "Prefix for local REPL commands.",

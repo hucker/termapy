@@ -80,6 +80,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--vt100",
+        action="store_true",
+        help=(
+            "Raw VT100/ANSI passthrough terminal (no TUI): pipe the device "
+            "straight to your terminal so cursor-addressed menus, vi, top, "
+            "etc. render. Quit with Ctrl+]."
+        ),
+    )
+    parser.add_argument(
         "--run",
         default=None,
         metavar="SCRIPT",
@@ -377,6 +386,8 @@ def main() -> None:
     # default_ui.
     if args.cli:
         mode = "cli"
+    elif args.vt100:
+        mode = "vt100"
     else:
         _peek_cfg = None
         # Best-effort peek at the config to choose initial UI mode.
@@ -399,12 +410,20 @@ def main() -> None:
             # ValueError: json.JSONDecodeError is a ValueError subclass.
             pass
         mode = (_peek_cfg or {}).get("default_ui", "tui")
-        if mode not in ("cli", "tui"):
+        if mode not in ("cli", "tui", "vt100"):
             mode = "tui"
 
+    prev_mode = None
     while mode:
         if mode == "cli":
             result = _run_cli_mode(args)
+        elif mode == "vt100":
+            from termapy.vt100 import run_vt100_mode
+
+            # Entered from the TUI (/vt100, /demo.vt100) -> Ctrl-] returns to
+            # the TUI (reversible toggle).  Launched via --vt100 -> quits.
+            args._vt100_return_to = "tui" if prev_mode == "tui" else None
+            result = run_vt100_mode(args)
         elif mode == "tui":
             from termapy.app import _run_tui_mode
 
@@ -413,6 +432,7 @@ def main() -> None:
             break
         if result is None:
             break
+        prev_mode = mode
         mode = result
         args.cli = mode == "cli"
         args.run = None  # don't re-run a script on switch

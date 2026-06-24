@@ -1,7 +1,7 @@
 # VT100 / terminal support — build plan (decisions locked)
 
-**Status:** authoritative implementation handoff. Supersedes the exploratory
-`VT100_PLAN.md` (options menu). Untracked draft — no commit yet.
+**Status:** shipped (Option A1 merged). Complements the exploratory
+`docs/vt100-design.md` (options menu / decision record).
 **Audience:** a fresh implementation context (and future-you). Read top to bottom,
 confirm the Open Decisions (§8), then start Phase 1.
 
@@ -233,7 +233,7 @@ core has unit tests.
 
 ## 11. Fresh-context kickoff prompt (copy-paste into a new session)
 
-> We're implementing VT100/terminal support in termapy. **Read `VT100_BUILD_PLAN.md` first**
+> We're implementing VT100/terminal support in termapy. **Read `docs/vt100-build-plan.md` first**
 > — it has the locked design decisions, the phased build, and code anchors.
 >
 > Locked context (don't re-litigate): hard constraint is win/mac/linux; **do not build

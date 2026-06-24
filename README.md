@@ -83,7 +83,7 @@ PuTTY works. So does minicom, screen, and CoolTerm. Use them if they do what you
 - **Plugin system.** Add custom commands with a simple Python API. Drop a file in a folder, define a handler, done. Includes examples to get started.
 - **Everything in one folder.** Each device config gets its own subfolder with logs, screenshots, scripts, and plugins. Check it into git so the whole team has the same config.
 
-See [COMPARISON.md](COMPARISON.md) for a detailed feature comparison against RealTerm, CoolTerm, Tera Term, Docklight, and HTerm.
+See the [detailed feature comparison](docs/comparison.md) against RealTerm, CoolTerm, Tera Term, Docklight, and HTerm.
 
 </details>
 

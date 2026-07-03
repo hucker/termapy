@@ -119,14 +119,14 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     ]
     name_width = max(len(n) for n, _ in entries)
 
-    ctx.io._write("  run/")
+    ctx.io.output("  run/")
     out_lines: list[str] = []
     for name, summary in entries:
         if summary:
             line = f"    {name:<{name_width}}  --  {summary}"
         else:
             line = f"    {name}"
-        ctx.io._write(line)
+        ctx.io.output(line)
         out_lines.append(f"{name}\t{summary}" if summary else name)
     return CmdResult.ok(value="\n".join(out_lines))
 

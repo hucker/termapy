@@ -13,7 +13,7 @@ Windows 10+). We open the raw pyserial object via the shared ``open_serial``
 path -- no termapy SerialReader; miniterm owns the read loop in passthrough.
 
 No Textual import: dropping the TUI layer is the whole point (it avoids a
-third key-interception layer; see VT100_BUILD_PLAN.md sections 3/6).
+third key-interception layer; see docs/vt100-build-plan.md sections 3/6).
 """
 
 from __future__ import annotations

@@ -325,7 +325,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
         if not result.success:
             # The inner dispatch already wrote the error via
             # ``_dispatch_inner``'s unconditional `self.write(err_msg)`
-            # call (`.silent` only stubs ``ctx.io._write``, not
+            # call (`.silent` only stubs the io write primitive, not
             # ``self.write``).  Returning the same error text again
             # via ``CmdResult.fail(msg=result.error)`` would make the
             # outer dispatch's same `self.write` line fire a second

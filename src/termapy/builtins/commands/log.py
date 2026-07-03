@@ -272,10 +272,10 @@ def _handler_fingerprint(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.log("#", line)
 
     # Brief confirmation on screen; full content is in the log.
-    ctx.io._write(f"  Fingerprint written to log ({len(lines)} lines).", "green")
+    ctx.io.result(f"  Fingerprint written to log ({len(lines)} lines).")
 
     if show:
-        ctx.io._write("")
+        ctx.io.output("")
         for line in lines:
             ctx.io.output(line)
 
@@ -312,7 +312,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     if not Path(path).exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
     open_with_system(path)
-    ctx.io._write(f"  Opening {Path(path).name}", "green")
+    ctx.io.result(f"  Opening {Path(path).name}")
     return CmdResult.ok(value=path)
 
 

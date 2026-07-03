@@ -461,10 +461,13 @@ class TestWindowsCreate:
         assert "termapy.ico" in shortcut_script, (
             "IconLocation points at bundled termapy.ico"
         )
-        # Path normalization differs across hosts (Windows backslashes
-        # vs POSIX forward slashes when running the test on Linux).
-        # Compare as Path objects so the separator doesn't matter.
-        assert Path(result.value) == Path("C:/Users/test/Desktop/Demo_Device.lnk"), (
+        # CmdResult.ok stores str(Path(value).resolve()).  On the real
+        # Windows target that leaves the absolute "C:\\..." path unchanged,
+        # but on a POSIX CI host "C:/..." is a *relative* path, so resolve()
+        # prepends the cwd.  Assert the meaningful tail (drive + full path),
+        # separator-normalized, rather than the host-dependent prefix.
+        got = str(result.value).replace("\\", "/")
+        assert got.endswith("C:/Users/test/Desktop/Demo_Device.lnk"), (
             f"CmdResult.value is the resolved Desktop path, got: {result.value!r}"
         )
 

@@ -10,6 +10,7 @@ import pytest
 
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
+from termapy.plugins import CapabilitySet
 
 pytestmark = pytest.mark.slow  # subprocess-spawning + CLITerminal end-to-end
 
@@ -389,6 +390,13 @@ class TestHookRunProfile:
         newest = prof_dir / "newer.csv"
         newest.write_text("")
         os.utime(newest, (2_000_000.0, 2_000_000.0))
+        # /run.profile.show opens the file in a desktop viewer, so it needs
+        # gui_apps.  Headless CI has no DISPLAY (gui_apps=False); grant it
+        # explicitly -- this test verifies the "open newest" behaviour, not
+        # the capability gate.
+        cli.ctx.capabilities = cli.ctx.capabilities.union(
+            CapabilitySet(gui_apps=True)
+        )
 
         # Act
         with patch("termapy.run_profile_hooks.open_with_system") as mock_open:
@@ -402,6 +410,13 @@ class TestHookRunProfile:
         # Arrange
         prof_dir = cli._prof_dir()
         assert prof_dir is not None, "fixture cfg gives prof_dir"
+        # /run.profile.explore opens the folder in the file manager, so it
+        # needs gui_apps.  Headless CI has no DISPLAY (gui_apps=False); grant
+        # it explicitly -- this test verifies the "open prof/ dir" behaviour,
+        # not the capability gate.
+        cli.ctx.capabilities = cli.ctx.capabilities.union(
+            CapabilitySet(gui_apps=True)
+        )
 
         # Act
         with patch("termapy.run_profile_hooks.open_with_system") as mock_open:

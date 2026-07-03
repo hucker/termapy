@@ -95,10 +95,17 @@ dependencies = [
     # "did you mean: ..." hints, plus a ``crcglot.exceptions``
     # module (``CrcglotError``, ``UnknownAlgorithmError`` subclassing
     # both ``CrcglotError`` and ``ValueError`` for backward compat)
-    # recorded for a future follow-up; not consumed here.  Floor is
+    # recorded for a future follow-up; not consumed here.  0.26
+    # tightens custom-parameter validation at construction (width
+    # 1..64, poly/init/xorout must fit the width -- silent masking
+    # is now a ``ValueError`` naming the field and range, which
+    # /proto.crc's custom= path surfaces verbatim) and publishes the
+    # self-test vectors as typed data (``self_test_vectors`` /
+    # ``SELF_TEST_INPUTS``; recorded for a future follow-up, not
+    # consumed here).  Floor is
     # tracked at the latest release so the lock pulls modern fixes
     # and we surface any future API drift early.
-    "crcglot>=0.25.0",
+    "crcglot>=0.26.0",
 ]
 
 [project.optional-dependencies]

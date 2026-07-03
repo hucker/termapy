@@ -29,7 +29,7 @@ Requires the `[mcp]` install extra (or `[all]`).  See [Installation](installatio
 A "device setup" is a [config folder](getting-started.md) that holds everything termapy needs to talk to one specific piece of hardware.  For MCP use, two files matter:
 
 | File                  | Purpose                                                                            | Required?   |
-|-----------------------|------------------------------------------------------------------------------------|-------------|
+| --------------------- | ---------------------------------------------------------------------------------- | ----------- |
 | `<name>.cfg`          | Port, baud rate, line ending, etc.                                                 | Yes         |
 | `<name>.profile.json` | Command schema: how requests are sent and how responses are parsed into typed JSON | Recommended |
 
@@ -60,7 +60,7 @@ A device profile declares what commands the device understands and how its respo
 
 The authoritative, machine-readable schema ships inside the package as [`profile/schema.json`](https://github.com/hucker/termapy/blob/main/src/termapy/profile/schema.json) -- point an LLM at it (or feed it into your MCP client's context) to draft, audit, or validate profiles automatically.
 
-Minimal example -- one parameterless command and one with an enum-typed parameter:
+Minimal example -- one parameter-less command and one with an enum-typed parameter:
 
 ```json
 {
@@ -103,7 +103,7 @@ Minimal example -- one parameterless command and one with an enum-typed paramete
 }
 ```
 
-`temp` is parameterless: the LLM calls `run_command("temp")`, termapy sends `temp\r\n` and waits for a reply like `Temperature: 23 C`.  The regex skips the prefix and unit, extracts the digits, the `types` map coerces them to `int`, and the call returns `value={"celsius": 23}`.
+`temp` is parameter-less: the LLM calls `run_command("temp")`, termapy sends `temp\r\n` and waits for a reply like `Temperature: 23 C`.  The regex skips the prefix and unit, extracts the digits, the `types` map coerces them to `int`, and the call returns `value={"celsius": 23}`.
 
 `set_led` takes one argument: the LLM calls `run_command("set_led", state="on")`, termapy formats the wire bytes via `send_template` (`led on\r\n`), waits for the literal `OK` reply, and returns success.  The `types` block declares the reusable `on_off` enum; `typed_args` references it, so the LLM sees `state: "on" | "off"` in the tool definition.  `safety: mutable` means it changes device state but doesn't trigger the destructive-confirmation gate.
 
@@ -185,13 +185,13 @@ Edit-restart-test cycle: edit termapy source, restart the MCP client, the new co
 
 ## Troubleshooting
 
-| Symptom                                          | Likely cause                                                                                                                                                                |
-|--------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Client shows no termapy tool                     | MCP client config not reloaded -- restart the client.  In Claude Code, also check the registration scope (see above)                                                        |
-| `--mcp requires the 'mcp' optional dependency`   | Missing extra: `uv tool install "termapy[all]"`                                                                                                                             |
-| `run_command` returns raw text, not typed JSON   | No profile loaded; legacy fallthrough is sending bytes but not shaping the response.  Check `/mcp.info` for the profile revision; if blank, the profile didn't auto-load    |
-| Profile doesn't auto-load on connect             | Check the convention path (`<cfg_dir>/<cfg_name>.profile.json`) or set `profile_path` explicitly.  The session log will tell you                                            |
-| Need to see what the server is doing             | Add `--mcp-verbose` to args; tees the session log to stderr                                                                                                                 |
+| Symptom                                        | Likely cause                                                                                                                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Client shows no termapy tool                   | MCP client config not reloaded -- restart the client.  In Claude Code, also check the registration scope (see above)                                                     |
+| `--mcp requires the 'mcp' optional dependency` | Missing extra: `uv tool install "termapy[all]"`                                                                                                                          |
+| `run_command` returns raw text, not typed JSON | No profile loaded; legacy fallthrough is sending bytes but not shaping the response.  Check `/mcp.info` for the profile revision; if blank, the profile didn't auto-load |
+| Profile doesn't auto-load on connect           | Check the convention path (`<cfg_dir>/<cfg_name>.profile.json`) or set `profile_path` explicitly.  The session log will tell you                                         |
+| Need to see what the server is doing           | Add `--mcp-verbose` to args; tees the session log to stderr                                                                                                              |
 
 The session log lives at `<cfg_dir>/mcp/session.log`.  Every dispatch, every TX/RX, every error is recorded there.  Open it with `/mcp.log` (system viewer), `/mcp.log.dump` (inline), or `/mcp.log.path` (just the path).
 

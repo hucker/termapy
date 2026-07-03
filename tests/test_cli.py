@@ -47,6 +47,21 @@ def cli(tmp_path):
     return CLITerminal(cfg, str(config_path), no_color=True, term_width=80)
 
 
+def _grant_gui_apps(cli):
+    """Grant the gui_apps capability on the CLI context.
+
+    /run.profile.show and .explore are gated on gui_apps in two places:
+    the command's ``needs`` (read from ctx.capabilities by the dispatcher)
+    and ``ctx.fs.open_file`` (read from ctx.fs.capabilities).  CapabilitySet
+    is frozen, so union a fresh set and assign both snapshots -- mirroring
+    what PluginContext.__post_init__ does at construction.  Lets these tests
+    exercise the open behaviour on a headless host (CI has no DISPLAY).
+    """
+    caps = cli.ctx.capabilities.union(CapabilitySet(gui_apps=True))
+    cli.ctx.capabilities = caps
+    cli.ctx.fs.capabilities = caps
+
+
 # -- Output methods ----------------------------------------------------------
 
 
@@ -390,41 +405,41 @@ class TestHookRunProfile:
         newest = prof_dir / "newer.csv"
         newest.write_text("")
         os.utime(newest, (2_000_000.0, 2_000_000.0))
-        # /run.profile.show opens the file in a desktop viewer, so it needs
-        # gui_apps.  Headless CI has no DISPLAY (gui_apps=False); grant it
-        # explicitly -- this test verifies the "open newest" behaviour, not
-        # the capability gate.
-        cli.ctx.capabilities = cli.ctx.capabilities.union(
-            CapabilitySet(gui_apps=True)
-        )
+        _grant_gui_apps(cli)
+        # Record what gets opened through the real ctx.fs.open_file seam:
+        # the host wires _open_file_impl to open_with_system; swap in a real
+        # recorder so the handler runs end-to-end but nothing launches.  No
+        # mock -- opened is a plain list, _open_file_impl is the seam field.
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = opened.append
 
         # Act
-        with patch("termapy.run_profile_hooks.open_with_system") as mock_open:
-            result = cli.repl.dispatch("run.profile.show")
+        result = cli.repl.dispatch("run.profile.show")
 
         # Assert
+        actual = Path(result.value)
+        expected = newest.resolve()
         assert result.success, "show succeeds when prof/ has files"
-        mock_open.assert_called_once_with(str(newest)), "opens the newest .csv"
+        assert actual == expected, f"returns newest .csv path, got {actual}"
+        assert opened == [str(newest)], "opened the newest .csv via ctx.fs.open_file"
 
     def test_explore_opens_prof_dir(self, cli):
         # Arrange
         prof_dir = cli._prof_dir()
         assert prof_dir is not None, "fixture cfg gives prof_dir"
-        # /run.profile.explore opens the folder in the file manager, so it
-        # needs gui_apps.  Headless CI has no DISPLAY (gui_apps=False); grant
-        # it explicitly -- this test verifies the "open prof/ dir" behaviour,
-        # not the capability gate.
-        cli.ctx.capabilities = cli.ctx.capabilities.union(
-            CapabilitySet(gui_apps=True)
-        )
+        _grant_gui_apps(cli)
+        opened: list[str] = []
+        cli.ctx.fs._open_file_impl = opened.append
 
         # Act
-        with patch("termapy.run_profile_hooks.open_with_system") as mock_open:
-            result = cli.repl.dispatch("run.profile.explore")
+        result = cli.repl.dispatch("run.profile.explore")
 
         # Assert
+        actual = Path(result.value)
+        expected = prof_dir.resolve()
         assert result.success, "explore succeeds"
-        mock_open.assert_called_once_with(str(prof_dir)), "opens prof/ folder"
+        assert actual == expected, f"returns prof/ dir path, got {actual}"
+        assert opened == [str(prof_dir)], "opened prof/ folder via ctx.fs.open_file"
 
     def test_cmd_empty_fails_with_usage(self, cli, capsys):
         # Act

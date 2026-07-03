@@ -22,7 +22,6 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from termapy.config import open_with_system
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
 
@@ -85,7 +84,7 @@ def _hook_run_profile_show(app, ctx, args: str) -> CmdResult:
         return CmdResult.fail(msg="No profile files found.")
     newest = profs[-1]
     ctx.io._write(f"Opening {newest.name}")
-    open_with_system(str(newest))
+    ctx.fs.open_file(str(newest))
     return CmdResult.ok(value=newest)
 
 
@@ -124,7 +123,7 @@ def _hook_run_profile_explore(app, ctx, args: str) -> CmdResult:
         ctx.io._write("No config loaded.", "red")
         return CmdResult.fail(msg="No config loaded.")
     prof_dir.mkdir(exist_ok=True)
-    open_with_system(str(prof_dir))
+    ctx.fs.open_file(str(prof_dir))
     return CmdResult.ok(value=prof_dir)
 
 

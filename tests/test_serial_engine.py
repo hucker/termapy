@@ -782,3 +782,42 @@ class TestFindPortHolder:
         expected_path = "/dev/tty.usbserial-XYZ"
         assert actual_path == expected_path, \
             "absolute path passed through untouched"
+
+
+class TestTeardownContract:
+    """Pins the timing invariant that keeps the port-teardown race unreachable.
+
+    ``disconnect`` and the reader's ``finally`` both close the shared
+    ``_port_obj``; the reader wins only because it signals ``reader_stopped``
+    within one read-timeout, comfortably inside ``READER_STOP_WAIT_S``.  If a
+    future change raised the read timeout toward (or past) the stop wait, the
+    race documented in serial_engine could arm.  These tests fail first, in CI,
+    so that change gets a real reader-thread join instead.
+    """
+
+    def test_read_timeout_is_well_below_stop_wait(self):
+        # Arrange -- both numbers come from their real source of truth.
+        from termapy.config import SERIAL_READ_TIMEOUT_S
+        from termapy.serial_engine import READER_STOP_WAIT_S
+
+        # Act -- the reader needs one read-timeout to unblock plus headroom for
+        # line processing and thread scheduling; require a 3x margin.
+        safety_factor = 3
+        headroom_needed = SERIAL_READ_TIMEOUT_S * safety_factor
+
+        # Assert
+        assert headroom_needed <= READER_STOP_WAIT_S, (
+            f"port read timeout {SERIAL_READ_TIMEOUT_S}s is too close to the "
+            f"teardown wait {READER_STOP_WAIT_S}s (needs <= 1/{safety_factor}); "
+            f"disconnect could race the reader for _port_obj -- switch to a "
+            f"reader-thread join before raising the read timeout"
+        )
+
+    def test_stop_wait_is_positive(self):
+        # Arrange / Act
+        from termapy.serial_engine import READER_STOP_WAIT_S
+
+        # Assert -- a zero/negative wait would make disconnect never yield to
+        # the reader, defeating the single-owner-close contract outright.
+        actual = READER_STOP_WAIT_S
+        assert actual > 0, "teardown wait must be a positive duration"

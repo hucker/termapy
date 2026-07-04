@@ -68,7 +68,7 @@ from termapy.plugins import (
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.capture import CaptureEngine, CaptureResult
-from termapy.serial_engine import SerialEngine
+from termapy.serial_engine import READER_STOP_WAIT_S, SerialEngine
 from termapy.serial_port import eol_label
 from termapy.repl import ReplEngine
 from termapy.terminal_host import TerminalHost
@@ -1261,6 +1261,10 @@ class SerialTerminal(TerminalHost, App):
         self.repl.fire_lifecycle("on_app_stop")
         self._save_history()
         self._disconnect()
+        # Shutdown drain: _disconnect already waited on the reader; this is a
+        # short final settle before we close the log fh, not the reconnect
+        # correctness gate (that one is _connect below, keyed off the contract
+        # constant).  The process is exiting either way.
         self._engine.reader_stopped.wait(timeout=0.2)
         if self.log_fh:
             self.log_fh.close()
@@ -1269,7 +1273,10 @@ class SerialTerminal(TerminalHost, App):
     def _connect(self, port: str | None = None) -> bool:
         if self.is_connected:
             return False
-        self._engine.reader_stopped.wait(timeout=0.3)
+        # Reconnect correctness gate: wait for any prior reader to fully stop
+        # (and release the shared port handle) before opening a new one.  Keyed
+        # off the same contract constant as engine teardown.
+        self._engine.reader_stopped.wait(timeout=READER_STOP_WAIT_S)
         return super()._connect(port)
 
     def _on_connected(self, message: str) -> None:

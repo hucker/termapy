@@ -34,6 +34,14 @@ CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
 
 _LOCAL_DIR_NAME = "termapy_cfg"
 
+# Read timeout for every opened serial port.  Deliberately small so the
+# reader loop's blocking ``read()`` returns promptly and can notice the
+# stop signal.  This bound is load-bearing for teardown correctness: it
+# must stay well below ``serial_engine.READER_STOP_WAIT_S`` (see the
+# teardown note in serial_engine.disconnect).  ``test_serial_engine``
+# pins the margin so a future change here cannot silently arm the race.
+SERIAL_READ_TIMEOUT_S = 0.05
+
 
 def _os_default_cfg_dir() -> Path:
     """OS-standard config directory (auto-created if missing).
@@ -703,7 +711,7 @@ def open_serial(cfg: dict) -> Any:
         stopbits=serial_cfg["stop_bits"],
         rtscts=(fc == "rtscts"),
         xonxoff=(fc == "xonxoff"),
-        timeout=0.05,
+        timeout=SERIAL_READ_TIMEOUT_S,
     )
 
 

@@ -37,7 +37,20 @@ def _build_parser() -> argparse.ArgumentParser:
         _version = "unknown"
 
     parser = argparse.ArgumentParser(
-        description="TUI serial terminal with ANSI color support"
+        description="TUI serial terminal with ANSI color support",
+        # No prefix abbreviation: without it, argparse silently expands
+        # `--port COM3` to `--ports COM3` (a print-and-exit flag), so a
+        # perfectly reasonable-looking invocation lists ports and exits 0
+        # instead of doing anything with the command that followed.
+        allow_abbrev=False,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "exit codes (one-shot --exec / --run):\n"
+            "  0    success -- the command or script ran and reported success\n"
+            "  1    failure -- command failed, could not connect, or config error\n"
+            "  2    usage error -- bad arguments (e.g. --run and --exec together)\n"
+            "  130  interrupted with Ctrl+C"
+        ),
     )
     parser.add_argument(
         "--version",

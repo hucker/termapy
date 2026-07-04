@@ -211,7 +211,7 @@ def assert_zero_lint() -> None:
             f"refusing to release with lint issues: "
             f"ruff={ruff}, ty={ty}.  Fix on a chore branch first."
         )
-    ok(f"lint clean (ruff=0, ty=0)")
+    ok("lint clean (ruff=0, ty=0)")
 
 
 def ty_badge_color(count: int) -> str:
@@ -310,9 +310,13 @@ def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
     # <details> summary line and the body line right below it.  Both
     # the test count and the overall % get refreshed each release so
     # the README can't silently drift from the actual figure.
+    # ``cov_percent`` is the coverage config's reported number, which omits
+    # app.py/dialogs/builtins (see pyproject [tool.coverage.run]) -- i.e.
+    # core-module coverage, NOT whole-repo.  The wording says "core-module"
+    # rather than "overall" on purpose; don't revert it to "overall".
     text = re.sub(
-        r"<strong>Test coverage</strong> - \d+ tests, \d+% overall",
-        f"<strong>Test coverage</strong> - {test_count} tests, {cov_percent}% overall",
+        r"<strong>Test coverage</strong> - \d+ tests, \d+% core-module coverage",
+        f"<strong>Test coverage</strong> - {test_count} tests, {cov_percent}% core-module coverage",
         text,
         count=1,
     )
@@ -323,11 +327,11 @@ def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
         count=1,
     )
     # The discussion paragraph below the test-count line references the
-    # same overall figure ("The N% overall figure reflects...") -- keep
+    # same figure ("The N% core-module figure is measured with...") -- keep
     # both in sync.
     text = re.sub(
-        r"The \d+% overall figure",
-        f"The {cov_percent}% overall figure",
+        r"The \d+% core-module figure",
+        f"The {cov_percent}% core-module figure",
         text,
         count=1,
     )

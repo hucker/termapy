@@ -319,7 +319,7 @@ class TestScriptTemplate:
 
     def test_has_example_commands(self):
         actual = SCRIPT_TEMPLATE.format(name="x")
-        assert "/sleep" in actual, "contains REPL example"
+        assert "/delay" in actual, "contains REPL example"
 
 
 # -- Custom button config validation ----------------------------------------
@@ -356,8 +356,8 @@ class TestCustomButtonConfig:
     def test_command_split(self):
         """Simulate the \\n split used in _run_custom_button."""
         # Arrange
-        raw = "ATZ\\nAT+INFO\\n/sleep 500ms"
-        expected = ["ATZ", "AT+INFO", "/sleep 500ms"]
+        raw = "ATZ\\nAT+INFO\\n/delay 500ms"
+        expected = ["ATZ", "AT+INFO", "/delay 500ms"]
 
         # Act
         actual = [c.strip() for c in raw.split("\\n") if c.strip()]

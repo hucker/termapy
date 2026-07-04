@@ -518,7 +518,7 @@ SCRIPT_TEMPLATE = """\
 # All other lines are sent to the serial device
 #
 # Example:
-# /sleep 500ms
+# /delay 500ms
 # AT+INFO
 """
 

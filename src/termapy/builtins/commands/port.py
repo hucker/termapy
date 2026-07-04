@@ -616,7 +616,7 @@ COMMAND = Command(
                 ),
                 "driver": Command(
                     args="{name|*}",
-                    help="Show kernel driver name (Linux only).",
+                    help="Show the OS driver name (Linux + Windows).",
                     handler=_make_chip_field_handler("driver"),
                 ),
                 "latency_timer": Command(

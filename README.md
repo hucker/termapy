@@ -463,7 +463,7 @@ Add toolbar buttons that send commands, run scripts, or chain multiple actions. 
 {
     "custom_buttons": [
         {"enabled": true, "name": "Reset", "command": "ATZ", "tooltip": "Reset device"},
-        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n/sleep 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
+        {"enabled": true, "name": "Init", "command": "ATZ\\nAT+BAUD=115200\\n/delay 500ms\\nAT+INFO", "tooltip": "Full init sequence"},
         {"enabled": true, "name": "Status", "command": "/run status_check.run", "tooltip": "Run status script"}
     ]
 }

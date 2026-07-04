@@ -18,6 +18,22 @@ from termapy.capture import CaptureEngine
 from termapy.plugins import BoundaryException
 from termapy.serial_port import SerialPort, SerialReader
 
+# How long ``disconnect`` (and the app's reconnect gate) waits for the
+# reader loop to signal ``reader_stopped`` before closing the port.
+#
+# Teardown-ownership contract: ``disconnect`` and the reader's ``finally``
+# both close/null the *shared* ``_port_obj``, so exactly one must win.  The
+# reader wins because it always signals ``reader_stopped`` within roughly
+# one ``config.SERIAL_READ_TIMEOUT_S`` (a blocking ``read()`` cannot stall
+# longer) plus a little line processing -- comfortably inside this window.
+# The invariant that keeps this race unreachable is therefore
+# ``SERIAL_READ_TIMEOUT_S << READER_STOP_WAIT_S``; ``test_serial_engine``
+# pins the margin.  If that ever inverts, ``disconnect`` could close the
+# handle while the reader is still mid-read and, after a reconnect, a stale
+# reader's ``finally`` could close a *newer* port -- switch to a real
+# reader-thread join before raising the read timeout.
+READER_STOP_WAIT_S = 0.3
+
 
 def _find_port_holder(port_name: str) -> str | None:
     """Return the process holding ``port_name``, or None if unavailable.
@@ -266,9 +282,10 @@ class SerialEngine:
 
     @serial_claimed.setter
     def serial_claimed(self, value: bool) -> None:
+        # The reader is built with ``serial_claimed=lambda: self._serial_claimed``
+        # (a live view of this field), so setting the field is enough -- there is
+        # no separate reader-side copy to keep in sync.
         self._serial_claimed = value
-        if self._reader:
-            self._reader._serial_claimed = lambda: value
 
     def add_rx_observer(self, cb: Callable[[bytes], None]) -> None:
         """Register a callback that receives every raw RX byte chunk.
@@ -380,10 +397,18 @@ class SerialEngine:
         return True
 
     def disconnect(self) -> None:
-        """Signal the reader to stop, wait, and close the port."""
+        """Signal the reader to stop, wait, and close the port.
+
+        Normally the reader observes ``_stop_event`` and closes ``_port_obj``
+        itself within one read-timeout, so the wait below returns with the
+        handle already gone and the ``if self._port_obj`` branch is skipped.
+        Closing here is the fallback for the reader-never-started case.  See
+        ``READER_STOP_WAIT_S`` for the timing contract that keeps these two
+        closers from racing.
+        """
         import serial as _serial
         self._stop_event.set()
-        self._reader_stopped.wait(timeout=0.3)
+        self._reader_stopped.wait(timeout=READER_STOP_WAIT_S)
         if self._port_obj:
             # Close can raise if the device already vanished; nothing
             # to recover from during disconnect, just drop the handle.
@@ -465,6 +490,11 @@ class SerialEngine:
                 if not data:
                     time.sleep(0.01)
         finally:
+            # Primary closer of the shared handle: on the normal stop path
+            # the reader reaches here first and ``disconnect`` finds nothing
+            # to close.  Safe only while READER_STOP_WAIT_S dominates the read
+            # timeout (see that constant); the trailing ``reader_stopped.set``
+            # is what releases the waiter in ``disconnect``.
             if self._port_obj:
                 try:
                     self._port_obj.close()

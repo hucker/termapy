@@ -281,7 +281,16 @@ diff shape before proceeding** — this commit is the template every later migra
 
 **Phase 2 — `/repeat`** (adds `int` with `min=1`, exercises required-vs-default).
 
-**Phase 3 — `/profile`** subcommands that take `timeout=`/`cmd=`.
+**Phase 3 — `/profile`** subcommands.  Outcome (done): migrated `/profile.validate`
+(a clean required positional `<path>` -- the first positional-required exercise).
+`/profile.load` was **deliberately left hand-rolled** -- it is a three-way shape
+dispatch (empty=reload / bare-path=file / `cmd=`=device) whose `{path|cmd=<command>}`
+synopsis expresses a *mutual exclusion* the synthesized synopsis cannot (it would
+degrade to independent optionals and shift edge disambiguation, e.g. filenames
+containing `=`).  Forcing it would make the docs worse, so this is the first real
+use of the escape hatch (a comment on the command anchors the reason here).
+`/profile.save`'s only "Usage" is a state error (no cfg to derive a default path),
+not argument parsing -- no migration value.
 
 **Phase 4 — `/cap`** (largest win: 4 subcommands, enum-with-alias `mode`/`sep`,
 positional `<file>`, required duration, rest `cmd`). Retire `_extract_keyword_sections` /

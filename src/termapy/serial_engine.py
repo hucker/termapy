@@ -128,7 +128,10 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
                 lines.append(f"  {candidate}: ambiguous (multiple SN matches)")
             else:
                 lines.append(f"  {candidate}: matched via {reason}")
-        facts = _gather_all_chip_facts()
+        # fast=True: this builds a "what's plugged in" hint after a failed
+        # connect and reads only identity fields -- never probe (opening
+        # every port here would disturb bystander boards mid-error).
+        facts = _gather_all_chip_facts(fast=True)
         if facts:
             conn = ", ".join(
                 f"{f.device} ({f.manufacturer or '?'}, SN {f.serial or 'n/a'})"

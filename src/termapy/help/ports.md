@@ -136,19 +136,44 @@ is a one-line change.
 
 `/port.info` and `/port.chip.in_use` report whether another process has
 the port open.  Termapy's own connection counts as "in use," so if you
-see `yes` while termapy is connected, that's expected.
+see `yes` while termapy is connected, that's expected.  This is handy
+when a port is held by something with no visible window -- for example an
+MCP server (`termapy --mcp`) running in the background.
 
-If you see `yes` when termapy is *not* connected, something else on
-your system has the handle:
+**How in-use is detected, and why it's on-demand.**  Detecting in-use
+means asking "can this port be opened?", and *opening* a serial port
+asserts DTR/RTS -- which resets Arduino/ESP32 boards wired for
+auto-reset.  So termapy never opens a port you didn't ask about:
 
-- On Linux: `lsof /dev/ttyUSB0` tells you which process.
+- **Listing and connecting never open bystander ports.**  `/port.list`,
+  plain `termapy --ports`, the port picker, and resolving a config's
+  port (including the auto-reconnect loop) read identity only and open
+  nothing.
+- **Linux / macOS:** in-use is read from `lsof` -- it inspects the
+  kernel's open-file table without opening the port, so it is always
+  safe *and* it names the holder (e.g. `yes (python (PID 8842))`, i.e.
+  that MCP server).  It appears in `/port.info`, `/port.chip.in_use`,
+  `termapy --ports --json`, and live in `termapy --ports --watch`.
+- **Windows:** there is no non-invasive equivalent, so in-use is shown
+  only on explicit request (`/port.info`, `/port.chip.in_use`,
+  `--ports --json`) and the probe opens the port briefly with DTR/RTS
+  held de-asserted to minimise disturbance.  `--ports --watch` therefore
+  shows presence and identity but not in-use on Windows (it will not
+  strobe DTR several times a second).
+
+If you see `yes` when termapy is *not* connected, something else has the
+handle:
+
+- On Linux: `lsof /dev/ttyUSB0` tells you which process (this is exactly
+  what `/port.info` uses).
 - On Windows: Task Manager → Details tab → enable the "Handles" column,
   or use Process Explorer from Sysinternals.
 
-Common culprits: a previous termapy session that didn't clean up,
-another terminal app (PuTTY, Tera Term, Arduino IDE, the Arduino Serial
-Monitor), a vendor-supplied serial monitor or flashing tool, or
-occasionally a Windows service that claims COM ports silently.
+Common culprits: a previous termapy session that didn't clean up, an MCP
+server still running, another terminal app (PuTTY, Tera Term, Arduino
+IDE, the Arduino Serial Monitor), a vendor-supplied serial monitor or
+flashing tool, or occasionally a Windows service that claims COM ports
+silently.
 
 ## When you hit "Permission denied" on Linux
 

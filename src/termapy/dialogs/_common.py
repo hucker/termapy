@@ -50,7 +50,10 @@ def _populate_port_option_list(
     if not ports:
         ol.add_option(Option("(no ports found)", disabled=True))
         return
-    facts_list = [port_control.gather_chip_facts(p.device) for p in ports]
+    # fast=True: the picker table has no in_use column, and this runs on
+    # the Textual main thread -- probing here would both freeze the UI and
+    # (on Windows) open every listed port, pulsing DTR on auto-reset boards.
+    facts_list = [port_control.gather_chip_facts(p.device, fast=True) for p in ports]
     facts_list = [f for f in facts_list if f is not None]
     if not facts_list:
         ol.add_option(Option("(no ports found)", disabled=True))

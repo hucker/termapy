@@ -283,7 +283,9 @@ def list_ports() -> Result:
 
     from termapy.port_format import format_table
 
-    facts_list = _gather_all_chip_facts()
+    # fast=True: the /port.list table has no in_use column, so don't run
+    # the invasive probe just to discard the result.
+    facts_list = _gather_all_chip_facts(fast=True)
     if not facts_list:
         return _result([_msg("No serial ports found", "yellow")])
     row_width = shutil.get_terminal_size((80, 24)).columns
@@ -639,29 +641,48 @@ def _normalize_windows_location(loc: str) -> str:
 
 
 def _check_in_use(device: str, connected_port: str = "") -> str:
-    """Return 'yes', 'yes (this session)', or 'no'.
+    """Report whether another process holds *device* -- non-invasively where possible.
 
-    If *device* matches *connected_port*, the port is known to be open
-    by this termapy session - return immediately without probing.  This
-    avoids the Windows issue where a process can re-open its own COM
-    port, which would falsely report "no".
+    Returns ``"yes (this session)"``, ``"yes ..."``, or ``"no"``.
 
-    For other ports, try to open briefly.  If the open succeeds, nothing
-    else has the port.  If it fails, something else has it open.
+    IMPORTANT: callers must only reach this on an *explicit* monitoring
+    surface.  Resolution and plain enumeration pass ``fast=True`` so this
+    never runs for them -- on Windows it opens the port, and opening a
+    bystander port asserts DTR/RTS, which resets Arduino/ESP32 auto-reset
+    boards.
+
+    - If *device* is the port this session already holds, report that
+      without probing (never open our own port to test it).
+    - Linux/macOS: ``lsof`` (via ``_find_port_holder``) reads the kernel
+      open-file table and never opens the port, so it cannot disturb any
+      board -- and it names the holder, which is exactly what you want
+      when an MCP server has grabbed a port with no visible terminal
+      running (``"yes (python (PID 8842))"``).
+    - Windows: no non-invasive equivalent exists, so briefly open the
+      port with DTR and RTS held de-asserted -- the least-invasive probe
+      available (avoids pulsing the auto-reset line).
     """
     if connected_port and device == connected_port:
         return "yes (this session)"
-    try:
-        import serial
+    if sys.platform != "win32":
+        # Non-invasive: lsof never opens the port.  Names the holder.
+        from termapy.serial_engine import _find_port_holder
 
-        s = serial.Serial(
-            port=device,
-            timeout=0,
-            write_timeout=0,
-            rtscts=False,
-            dsrdtr=False,
-            xonxoff=False,
-        )
+        holder = _find_port_holder(device)
+        return f"yes ({holder})" if holder else "no"
+    # Windows: create closed, de-assert DTR/RTS, then open so the DCB
+    # applies DTR_CONTROL_DISABLE / RTS_CONTROL_DISABLE instead of the
+    # pyserial default (both ENABLE), which is what pulses auto-reset.
+    import serial
+
+    s = serial.Serial()
+    try:
+        s.port = device
+        s.timeout = 0
+        s.write_timeout = 0
+        s.dtr = False
+        s.rts = False
+        s.open()
         s.close()
         return "no"
     except (OSError, serial.SerialException):
@@ -744,8 +765,15 @@ def _facts_from_port_info(
     return facts
 
 
-def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | None:
+def gather_chip_facts(
+    port_name: str, connected_port: str = "", *, fast: bool = False
+) -> ChipFacts | None:
     """Look up the named port and return all known facts about it.
+
+    ``fast=True`` skips the ``in_use``/``permissions`` probe (which opens
+    the port on Windows -- see ``_check_in_use``).  Pass it from any
+    surface that doesn't display ``in_use`` so single-port lookups stay
+    non-invasive.
 
     Honors ``TERMAPY_DEMO_FLEET``: when set, searches the synthetic
     fleet instead of real enumeration.  See ``_build_demo_fleet``.
@@ -766,7 +794,7 @@ def gather_chip_facts(port_name: str, connected_port: str = "") -> ChipFacts | N
 
     for p in comports():
         if p.device == port_name:
-            return _facts_from_port_info(p, connected_port)
+            return _facts_from_port_info(p, connected_port, fast=fast)
     # OS didn't enumerate it; fall back to synthesizing a record for
     # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
     # `termapy --info DEMO` work without hardware.
@@ -981,11 +1009,19 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
     Honors ``TERMAPY_DEMO_FLEET`` automatically because
     ``_gather_all_chip_facts()`` does.
 
+    Uses ``fast=True``: resolution matches on identity fields only
+    (``device`` / ``serial`` -- see ``_match_candidate``) and must never
+    trigger the ``_check_in_use`` probe, which opens every other
+    enumerated port and asserts DTR/RTS on it (a reset on Arduino/ESP32
+    auto-reset boards).  Since ``open_serial`` calls this on every connect
+    and the reconnect loop calls it every 2.5 s, probing here would strobe
+    DTR on bystander devices -- so identity-only resolution is both
+    sufficient and required.
+
     Args:
         spec: The raw ``cfg["serial"]["port"]`` value, post-env-expansion.
-        connected_port: The currently-connected port (used for the
-            ``in_use`` annotation inside ``ChipFacts``; not consulted by
-            resolution itself).
+        connected_port: The currently-connected port.  With ``fast=True``
+            this is unused by resolution (kept for signature stability).
 
     Returns:
         A device name suitable for opening (e.g. ``"COM3"``,
@@ -997,7 +1033,7 @@ def resolve_port(spec: str, connected_port: str = "") -> str:
             more connected devices.  The caller is expected to surface
             this as a user-facing error rather than silently picking one.
     """
-    facts = _gather_all_chip_facts(connected_port)
+    facts = _gather_all_chip_facts(connected_port, fast=True)
     candidates = spec.split("|")
     for candidate in candidates:
         result = _match_candidate(candidate, facts)
@@ -1023,7 +1059,10 @@ def resolve_port_trace(
     can build a single message that describes every candidate in one
     go.
     """
-    facts = _gather_all_chip_facts(connected_port)
+    # fast=True for the same safety reason as resolve_port: tracing must
+    # not open bystander ports (identity fields are all _match_candidate
+    # reads).
+    facts = _gather_all_chip_facts(connected_port, fast=True)
     trace: list[tuple[str, str | None]] = []
     for candidate in spec.split("|"):
         try:

@@ -15,6 +15,7 @@ from termapy.plugins import (
     interpolate_help,
     resolve_long_help,
 )
+from termapy.plugins.params import render_parameters_block
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -299,6 +300,15 @@ def _render_man_page(ctx: PluginContext, name: str, plugin,
             # so markup in long_help passes through.
             for line in lh.strip().splitlines():
                 ctx.io.output_markup(f"  {line}")
+
+    # PARAMETERS ──────────────────────────────────────────────────────────────
+    # Synthesized from Command.params -- the single source of truth for a
+    # declared command's arguments (synopsis above comes from the same list).
+    if plugin.params:
+        ctx.io.output_markup("")
+        ctx.io.output_markup(_SECTION_FMT.format(text="PARAMETERS"))
+        for line in render_parameters_block(plugin.params):
+            ctx.io.output_markup(line)
 
     # FLAGS ───────────────────────────────────────────────────────────────────
     rows = _canonical_flags(plugin)

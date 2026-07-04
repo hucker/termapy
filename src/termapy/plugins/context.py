@@ -204,6 +204,10 @@ class PluginContext:
     # ── Internal storage (not part of the plugin-author API) ─────────
     # Per-dispatch flag set populated by ReplEngine.dispatch.
     active_flags: set[str] = field(default_factory=set)
+    # Per-dispatch coerced parameter values (Command.params); read via
+    # ``ctx.arg()``.  Save/restored (not cleared) around the handler so a
+    # nested ``ctx.dispatch()`` doesn't strand the outer command's params.
+    bound_params: dict[str, Any] = field(default_factory=dict)
     # Per-call output-level override; cleared after dispatch.
     _call_level: str | None = None
     # Namespace registry for session-scoped state.
@@ -287,6 +291,26 @@ class PluginContext:
             True if the flag was present on the invocation.
         """
         return name in self.active_flags
+
+    def arg(self, name: str, default: Any = None) -> Any:
+        """Return the parsed value of a declared parameter for this dispatch.
+
+        Handlers declare parameters on ``Command(params=[...])``; the
+        dispatcher parses, coerces, and validates them (failing before the
+        handler runs) and records the coerced values here.  A declared
+        parameter is always present after a successful dispatch -- absent
+        optionals hold their ``default`` -- so the ``default`` argument only
+        matters when reading a name the command didn't declare.
+
+        Args:
+            name: The declared parameter name (lowercase).
+            default: Returned if ``name`` was not a declared parameter.
+
+        Returns:
+            The coerced value (e.g. float seconds for a ``duration`` param,
+            the canonical string for an ``enum``).
+        """
+        return self.bound_params.get(name, default)
 
     def plugin_cfg(self, name: str) -> PluginConfig:
         """Return a persistent config object for a plugin.

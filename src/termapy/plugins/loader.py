@@ -31,6 +31,7 @@ from termapy.plugins.command import (
     TransformInfo,
     interpolate_help,
 )
+from termapy.plugins.params import synthesize_synopsis
 
 
 def builtins_dir() -> Path:
@@ -257,9 +258,15 @@ def _flatten_command(
     if not handler:
         return result
 
+    # When a command declares params, its help synopsis is synthesized from
+    # them (a params command has no hand-written args string -- enforced in
+    # Command.__post_init__).  The synthesized synopsis flows through the same
+    # ``args`` field, so help/catalog consumers see no shape change.
+    args = synthesize_synopsis(node.params) if node.params else node.args
+
     info = PluginInfo(
         name=full_name,
-        args=node.args,
+        args=args,
         help=node.help,
         long_help=node.long_help,
         handler=handler,
@@ -269,6 +276,7 @@ def _flatten_command(
         flags=dict(node.flags),
         needs=node.needs,
         hidden=node.hidden,
+        params=node.params,
     )
     result.insert(0, info)
     return result

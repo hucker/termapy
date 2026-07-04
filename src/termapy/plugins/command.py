@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
 
 from termapy.plugins.capabilities import CapabilitySet
+from termapy.plugins.params import ParamSpec, validate_param_specs
 
 if TYPE_CHECKING:
     from termapy.plugins.context import PluginContext
@@ -210,6 +211,29 @@ class Command:
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
     hidden: bool = False
+    params: list[ParamSpec] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Validate the parameter declaration at construction (== load) time.
+
+        A broken ``params`` declaration should fail loudly when the plugin is
+        imported/loaded, not at first dispatch.  ``params``-free commands
+        (the default) skip all of this and are byte-identical to before.
+        """
+        if not self.params:
+            return
+        validate_param_specs(self.params, self.name)
+        # Command-level cross-checks (need fields beyond ``params``):
+        if self.args:
+            raise ValueError(
+                f"/{self.name or '<command>'}: declare params OR a hand-written "
+                f"args string, not both (args is synthesized from params)"
+            )
+        if self.raw_args:
+            raise ValueError(
+                f"/{self.name or '<command>'}: params are unsupported on "
+                f"raw_args=True commands (they skip REPL transforms)"
+            )
 
 
 @dataclass
@@ -424,6 +448,7 @@ class PluginInfo:
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
     hidden: bool = False
+    params: list[ParamSpec] = field(default_factory=list)
 
 
 def interpolate_help(text: str, prefix: str) -> str:

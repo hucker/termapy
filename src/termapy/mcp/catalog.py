@@ -278,7 +278,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     device commands sent verbatim.
     """
     long_help_text = resolve_long_help(plugin, ctx)
-    return {
+    entry: dict[str, Any] = {
         "name": ctx.prefix + plugin.name,
         "args": plugin.args or "",
         "help": plugin.help or "",
@@ -289,6 +289,22 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
         "source": plugin.source or "built-in",
         "raw_args": bool(plugin.raw_args),
     }
+    # Structured, typed argument schema for commands that declare params --
+    # parity with device commands' ``typed_args``.  Omitted (not empty) for
+    # commands that haven't been migrated, so their entry shape is unchanged.
+    if plugin.params:
+        entry["params"] = [
+            {
+                "name": p.name,
+                "type": p.type,
+                "required": p.required,
+                "default": p.default,
+                "help": p.help,
+                "values": [ev.canonical for ev in p.values],
+            }
+            for p in plugin.params
+        ]
+    return entry
 
 
 def _device_descriptor_from_spec(

@@ -459,42 +459,6 @@ SUBCOMMANDS
   /cfg.list       List all config files.
   /cfg.load       Load a different config in this session (hot-swap).
   /cfg.show       Open the current config file in the system viewer.
-demo> /help proto.crc
-NAME
-  /proto.crc - Browse and compute CRC algorithms.
-
-DESCRIPTION
-  More than 100 named CRC algorithms come from the reveng CRC
-  catalogue maintained by Greg Cook since 1999:
-    https://reveng.sourceforge.io/crc-catalogue/all.htm
-
-  Every algorithm is verified against its catalogue check
-  value (the CRC of the ASCII string '123456789') on every
-  test run.  See /credits for full attribution.
-
-AVAILABLE
-  TUI: yes   CLI: yes   MCP: yes
-
-SUBCOMMANDS
-  /proto.crc.c             Generate C / C++ source code for a CRC algorithm.
-  /proto.crc.calc          Compute CRC over hex bytes, text, or file.
-  /proto.crc.csharp        Generate C# source code for a CRC algorithm.
-  /proto.crc.find          Identify the CRC algorithm used in a captured packet.
-  /proto.crc.go            Generate Go source code for a CRC algorithm.
-  /proto.crc.info          Print algorithm parameters and description.
-  /proto.crc.java          Generate Java source code for a CRC algorithm.
-  /proto.crc.list          List algorithms (optional glob filter).
-  /proto.crc.python        Generate Python source code for a CRC algorithm.
-  /proto.crc.reverse       Recover the Rocksoft parameters of an unknown CRC.
-  /proto.crc.rust          Generate Rust source code for a CRC algorithm.
-  /proto.crc.typescript    Generate TypeScript source code for a CRC algorithm.
-  /proto.crc.verify        Verify a packet's trailing CRC against a known algorithm.
-  /proto.crc.verilog       Generate Verilog source code for a CRC algorithm.
-  /proto.crc.vhdl          Generate VHDL source code for a CRC algorithm.
-
-SEE ALSO
-  /proto.debug, /proto.dump, /proto.explore, /proto.help, /proto.hex, /proto.info, /proto.list, /proto.run, /proto.send,
-/proto.show, /proto
 demo> /help var
 NAME
   /var - List user variables, or show one by name.

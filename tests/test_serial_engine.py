@@ -1,7 +1,6 @@
 """Tests for SerialEngine - connection lifecycle and reader loop."""
 
 import threading
-import time
 
 import pytest
 
@@ -138,33 +137,38 @@ class TestProperties:
 
 
 class TestReadLoop:
-    @pytest.mark.flaky
     def test_read_loop_receives_lines(self):
-        # Arrange
+        # Arrange - FakeSerial enqueues the reply synchronously on write, so
+        # it is already waiting to be read.
         engine, _, _ = _make_engine()
         engine.connect()
-
-        # Send a command to generate a response
         engine.port_obj.write(b"AT\r")
-        time.sleep(0.05)
 
-        lines_received = []
+        lines_received: list[str] = []
+        got_ok = threading.Event()
 
-        def run():
-            engine.read_loop(on_lines=lines_received.extend)
+        def on_lines(lines):
+            lines_received.extend(lines)
+            if any("OK" in line for line in lines):
+                got_ok.set()
 
-        # Act - run reader in a thread, stop after brief delay
-        t = threading.Thread(target=run, daemon=True)
+        # Act - run the reader until it delivers the reply, then stop it.
+        # Waiting on the event (not a fixed sleep) is deterministic: it
+        # returns the instant the line arrives and only times out on a real
+        # failure to read.
+        t = threading.Thread(
+            target=lambda: engine.read_loop(on_lines=on_lines), daemon=True
+        )
         t.start()
-        time.sleep(0.3)
+        delivered = got_ok.wait(timeout=2.0)
         engine.stop_event.set()
         t.join(timeout=1.0)
 
         # Assert
+        assert delivered is True, "reader delivered an OK line within 2s"
         assert len(lines_received) > 0, "got some output"
         assert any("OK" in line for line in lines_received), "AT should produce OK"
 
-    @pytest.mark.flaky
     def test_read_loop_stops_on_event(self):
         # Arrange
         engine, _, _ = _make_engine()
@@ -173,14 +177,16 @@ class TestReadLoop:
         def run():
             engine.read_loop()
 
-        # Act
+        # Act - the reader signals reader_stopped from its finally, so wait on
+        # that instead of guessing a sleep before/after setting the stop flag.
         t = threading.Thread(target=run, daemon=True)
         t.start()
-        time.sleep(0.1)
         engine.stop_event.set()
+        stopped = engine.reader_stopped.wait(timeout=2.0)
         t.join(timeout=1.0)
 
         # Assert
+        assert stopped is True, "reader signaled stopped within 2s"
         assert not t.is_alive(), "thread exited"
         assert engine.reader_stopped.is_set(), "flag set"
 
@@ -296,61 +302,66 @@ class TestRxObservers:
         # Act / Assert - should not raise
         engine.remove_rx_observer(lambda data: None)
 
-    @pytest.mark.flaky
     def test_observer_receives_rx_data(self):
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
         received = []
-        engine.add_rx_observer(lambda data: received.append(data))
+        got_data = threading.Event()
 
-        # Send a command to generate a response
-        engine.port_obj.write(b"AT\r")
-        time.sleep(0.05)
+        def observer(data):
+            received.append(data)
+            got_data.set()
 
-        # Act - run the reader briefly
+        engine.add_rx_observer(observer)
+        engine.port_obj.write(b"AT\r")  # reply enqueued synchronously
+
+        # Act - run the reader until the observer fires, then stop.
         t = threading.Thread(
             target=lambda: engine.read_loop(on_lines=lambda lines: None),
             daemon=True,
         )
         t.start()
-        time.sleep(0.3)
+        fired = got_data.wait(timeout=2.0)
         engine.stop_event.set()
         t.join(timeout=2)
 
         # Assert
+        assert fired is True, "observer fired within 2s"
         assert len(received) > 0, "observer should have received RX data"
         assert all(isinstance(d, bytes) for d in received), "data should be bytes"
         engine.disconnect()
 
-    @pytest.mark.flaky
     def test_exception_in_observer_does_not_block_others(self):
         # Arrange
         engine, _, _ = _make_engine()
         engine.connect()
         received = []
+        got_data = threading.Event()
 
         def bad_observer(data):
             raise ValueError("boom")
 
+        def good_observer(data):
+            received.append(data)
+            got_data.set()
+
         engine.add_rx_observer(bad_observer)
-        engine.add_rx_observer(lambda data: received.append(data))
+        engine.add_rx_observer(good_observer)
+        engine.port_obj.write(b"AT\r")  # reply enqueued synchronously
 
-        # Send a command to generate a response
-        engine.port_obj.write(b"AT\r")
-        time.sleep(0.05)
-
-        # Act
+        # Act - run the reader until the good observer fires, then stop.
         t = threading.Thread(
             target=lambda: engine.read_loop(on_lines=lambda lines: None),
             daemon=True,
         )
         t.start()
-        time.sleep(0.3)
+        fired = got_data.wait(timeout=2.0)
         engine.stop_event.set()
         t.join(timeout=2)
 
         # Assert - second observer should still receive data
+        assert fired is True, "second observer fired despite the first raising"
         assert len(received) > 0, "second observer should work despite first raising"
         engine.disconnect()
 
@@ -522,7 +533,6 @@ class TestReconnectLoop:
         assert len(statuses) > 0, "should have received status updates"
         assert all("Connecting" in s for s in statuses), "status should show connecting"
 
-    @pytest.mark.flaky
     def test_reconnect_loop_cancelled(self):
         # Arrange - use a port that always fails
         capture = CaptureEngine()
@@ -531,18 +541,24 @@ class TestReconnectLoop:
             capture=capture,
             open_fn=lambda c: (_ for _ in ()).throw(OSError("no port")),
         )
+        attempted = threading.Event()
 
-        # Act - cancel after brief delay
+        # Act - let the loop make at least one (failing) attempt, then cancel.
+        # Gating the cancel on the status callback (not a sleep) guarantees the
+        # loop was actually running when we stopped it.
         def run():
-            return engine.reconnect_loop(interval=0.5)
+            return engine.reconnect_loop(
+                interval=0.5, on_status=lambda msg: attempted.set()
+            )
 
         t = threading.Thread(target=run, daemon=True)
         t.start()
-        time.sleep(0.3)
+        started = attempted.wait(timeout=2.0)
         engine.stop_event.set()
         t.join(timeout=2.0)
 
         # Assert
+        assert started is True, "reconnect loop attempted within 2s"
         assert not t.is_alive(), "thread should have exited"
 
 

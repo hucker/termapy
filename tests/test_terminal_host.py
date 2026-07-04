@@ -95,7 +95,8 @@ class TestBuildSerialHandle:
         serial.connect("COM1")
 
         # Assert
-        host._connect.assert_called_once_with("COM1"), "connect delegates to host"
+        # connect delegates to host (the mock method raises on mismatch)
+        host._connect.assert_called_once_with("COM1")
 
     def test_disconnect_callback_wired(self, host):
         # Arrange
@@ -106,7 +107,8 @@ class TestBuildSerialHandle:
         serial.disconnect()
 
         # Assert
-        host._disconnect.assert_called_once(), "disconnect delegates to host"
+        # disconnect delegates to host
+        host._disconnect.assert_called_once()
 
     def test_apply_port_effects_wired(self, host):
         # Arrange
@@ -117,7 +119,8 @@ class TestBuildSerialHandle:
         serial.apply_port_effects({"cfg_update": {"port": "COM2"}})
 
         # Assert
-        host._apply_port_effects.assert_called_once(), "apply_port_effects delegates"
+        # apply_port_effects delegates to host
+        host._apply_port_effects.assert_called_once()
 
 
 class TestBuildInternalHandle:
@@ -137,8 +140,8 @@ class TestBuildInternalHandle:
         api.start_capture(mode="text", path="/tmp/x")
 
         # Assert
-        host._start_capture.assert_called_once_with(mode="text", path="/tmp/x"), \
-            "start_capture delegates to host"
+        # start_capture delegates to host
+        host._start_capture.assert_called_once_with(mode="text", path="/tmp/x")
 
     def test_script_stop_event_wired(self, host):
         # Act
@@ -193,8 +196,8 @@ class TestBuildPluginContext:
         ctx.serial.write(b"\x01\x02")
 
         # Assert
-        host.engine.serial_port.write.assert_called_once_with(b"\x01\x02"), \
-            "serial.write delegates through host"
+        # serial.write delegates through host
+        host.engine.serial_port.write.assert_called_once_with(b"\x01\x02")
 
     def test_directories_wired(self, host):
         # Arrange
@@ -292,7 +295,8 @@ class TestSerialIO:
         host._serial_write(b"hello")
 
         # Assert
-        host.engine.notify_tx.assert_not_called(), "no notify when no port"
+        # no notify when no port
+        host.engine.notify_tx.assert_not_called()
 
     def test_serial_write_with_port(self, host):
         # Arrange
@@ -302,10 +306,10 @@ class TestSerialIO:
         host._serial_write(b"\x01\x02")
 
         # Assert
-        host.engine.serial_port.write.assert_called_once_with(b"\x01\x02"), \
-            "bytes written to port"
-        host.engine.notify_tx.assert_called_once_with(b"\x01\x02"), \
-            "TX observers notified"
+        # bytes written to port
+        host.engine.serial_port.write.assert_called_once_with(b"\x01\x02")
+        # TX observers notified
+        host.engine.notify_tx.assert_called_once_with(b"\x01\x02")
 
     def test_serial_send_appends_line_ending(self, host):
         # Arrange
@@ -316,8 +320,8 @@ class TestSerialIO:
 
         # Assert
         expected = b"AT\r"
-        host.engine.serial_port.write.assert_called_once_with(expected), \
-            "text + line_ending encoded and written"
+        # text + line_ending encoded and written
+        host.engine.serial_port.write.assert_called_once_with(expected)
 
     def test_serial_send_custom_encoding(self, host):
         # Arrange
@@ -330,8 +334,8 @@ class TestSerialIO:
 
         # Assert
         expected = b"OK\n"
-        host.engine.serial_port.write.assert_called_once_with(expected), \
-            "custom encoding and line ending used"
+        # custom encoding and line ending used
+        host.engine.serial_port.write.assert_called_once_with(expected)
 
 
 # -- _serial_write_raw -------------------------------------------------------
@@ -358,10 +362,10 @@ class TestSerialWriteRaw:
 
         # Assert
         expected = b"AT\r"
-        host.engine.serial_port.write.assert_called_once_with(expected), \
-            "raw text + line ending written"
-        host.engine.notify_tx.assert_called_once_with(expected), \
-            "TX observers notified"
+        # raw text + line ending written
+        host.engine.serial_port.write.assert_called_once_with(expected)
+        # TX observers notified
+        host.engine.notify_tx.assert_called_once_with(expected)
 
 
 # -- _dispatch ---------------------------------------------------------------
@@ -490,8 +494,8 @@ class TestHookHelpOpen:
 
         # Assert
         assert result.success is True, "succeeds for empty topic (index)"
-        mock_open.assert_called_once_with("http://127.0.0.1:8080/index.html"), \
-            "opens index.html"
+        # opens index.html
+        mock_open.assert_called_once_with("http://127.0.0.1:8080/index.html")
 
 
 # -- _ensure_help_server -----------------------------------------------------
@@ -551,8 +555,8 @@ class TestHookRaw:
 
         # Assert
         assert result.success is True, "succeeds"
-        host.engine.serial_port.write.assert_called_once_with(b"AT"), \
-            "raw bytes sent to port"
+        # raw bytes sent to port
+        host.engine.serial_port.write.assert_called_once_with(b"AT")
 
 
 # -- _hook_log_delete ---------------------------------------------------------

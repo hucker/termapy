@@ -49,25 +49,39 @@ PORT_PROPS = {
 }
 
 # Regex for mode strings like N81, E71, O81.5
+# Parity-first ("N81"): termapy's original form.  Parity is N/E/O/M/S,
+# data bits 5-8, stop bits 1 / 1.5 / 2.
 _MODE_RE = re.compile(r"^([NEOMS])([5-8])(1\.5|[12])$", re.IGNORECASE)
+# Data-bits-first ("8N1"): the near-universal serial convention (PuTTY,
+# Tera Term, minicom, screen).  Same three fields, first two swapped.
+_MODE_RE_DATABITS_FIRST = re.compile(r"^([5-8])([NEOMS])(1\.5|[12])$", re.IGNORECASE)
 
 
 def parse_mode(mode: str) -> tuple[str, int, float] | None:
-    """Parse a serial mode string like 'N81' into (parity, byte_size, stop_bits).
+    """Parse a serial mode string into ``(parity, byte_size, stop_bits)``.
 
-    Args:
-        mode: Mode string, e.g. 'N81', 'E71', 'O81.5'.
+    Accepts both field orderings; they can't collide because one starts
+    with a parity letter and the other with a data-bits digit:
+
+    * parity-first -- ``'N81'``, ``'E71'``, ``'O81.5'``
+    * data-bits-first -- ``'8N1'``, ``'7E1'``, ``'8O1.5'`` (the conventional
+      form most serial tools use)
+
+    Parity is N/E/O/M/S, data bits 5-8, stop bits 1 / 1.5 / 2.
 
     Returns:
         Tuple of (parity, byte_size, stop_bits), or None if invalid.
     """
-    m = _MODE_RE.match(mode.strip())
-    if not m:
-        return None
-    parity = m.group(1).upper()
-    byte_size = int(m.group(2))
-    stop_bits = float(m.group(3))
-    return parity, byte_size, stop_bits
+    s = mode.strip()
+    m = _MODE_RE.match(s)
+    if m:
+        parity, byte_size, stop_bits = m.group(1), m.group(2), m.group(3)
+    else:
+        m = _MODE_RE_DATABITS_FIRST.match(s)
+        if not m:
+            return None
+        byte_size, parity, stop_bits = m.group(1), m.group(2), m.group(3)
+    return parity.upper(), int(byte_size), float(stop_bits)
 
 
 #: Line-ending tokens accepted by /port.connect.  Values are the literal
@@ -91,19 +105,21 @@ def parse_open_args(
 ]:
     """Parse /port.connect arguments.
 
-    Syntax: ``{name} {baud} {mode} {line_ending} {echo}``.  The port
-    name, if supplied, MUST be the first token -- everything else is
-    order-independent.  All fields are optional; unspecified values
-    fall back to the current cfg values at the call site.
+    Syntax: ``{port=<name> | <name>} {baud} {mode} {line_ending} {echo}``.
+    A *bare* port name, if supplied, MUST be the first token.  The
+    explicit ``port=<name>`` form may appear anywhere and forces the value
+    to be the port -- use it for a purely-numeric serial number, which a
+    bare token would otherwise read as a baud rate.  Everything else is
+    order-independent; all fields optional (unspecified -> current cfg).
 
-    Token classification (after the first token):
+    Token classification:
 
+    * ``port=<name>`` -- explicit port (device / SN / ``SN|COM`` chain / URL)
     * ``cr`` / ``lf`` / ``crlf`` -- line ending
     * ``echo`` / ``noecho`` -- echo_input toggle
-    * ``N81`` / ``E71`` / etc. -- serial mode (parse_mode)
+    * ``N81`` / ``8N1`` / etc. -- serial mode, either field order (parse_mode)
     * purely numeric -- baud rate
-    * anything else is an error (would previously have been interpreted
-      as a second port name)
+    * a bare first token matching none of the above -- port name
 
     Args:
         args: Raw argument string from the REPL.
@@ -128,9 +144,21 @@ def parse_open_args(
         return (None, None, None, None, None, msg)
 
     for token in args.split():
-        # Port name is always first, or not supplied at all.  We decide
-        # on the first token: if it classifies as one of the later
-        # fields, there's no port; otherwise it's the port name.
+        # Explicit port=<name> may appear anywhere and wins outright --
+        # the escape hatch for a numeric SN that a bare token would read
+        # as baud.  Case-insensitive key, value kept verbatim.
+        if token[:5].lower() == "port=":
+            if port is not None:
+                return _err(f"Duplicate port: {token}")
+            value = token[5:]
+            if not value:
+                return _err("port= requires a value")
+            port = value
+            first = False  # the port slot is now filled
+            continue
+        # Otherwise a bare port name is always first, or not supplied at
+        # all.  We decide on the first token: if it classifies as one of
+        # the later fields, there's no port; otherwise it's the port name.
         if first:
             first = False
             # Peek each classifier before falling through to "port".

@@ -415,6 +415,24 @@ class TestParseMode:
     def test_just_digits(self):
         assert parse_mode("9600") is None, "baud rate should not parse as mode"
 
+    def test_databits_first_8n1(self):
+        # Act -- the conventional order (data bits first)
+        actual = parse_mode("8N1")
+
+        # Assert
+        expected = ("N", 8, 1.0)
+        assert actual == expected, (
+            f"8N1 (data-bits-first) must parse like N81, got {actual}"
+        )
+
+    def test_databits_first_fractional_stop(self):
+        # Act
+        actual = parse_mode("7E1.5")
+
+        # Assert
+        expected = ("E", 7, 1.5)
+        assert actual == expected, f"7E1.5 parses to {expected}, got {actual}"
+
 
 # ── parse_open_args ─────────────────────────────────────────────────────────
 
@@ -432,6 +450,41 @@ class TestParseOpenArgs:
         assert le is None, "line_ending should be None"
         assert echo is None, "echo should be None"
         assert err is None, "no error expected"
+
+    def test_8n1_first_token_is_mode_not_port(self):
+        # 8N1 now parses as a mode; before, the unrecognized "8N1" was
+        # treated as a port name -> "Cannot open 8N1".
+        port, baud, mode, le, echo, err = parse_open_args("8N1")
+
+        assert err is None, "8N1 is a valid mode, not an error"
+        assert mode == ("N", 8, 1.0), f"8N1 -> mode, got {mode}"
+        assert port is None, "8N1 must not be treated as a port name"
+
+    def test_port_equals_forces_numeric_serial(self):
+        # port= is the explicit escape hatch for a numeric SN that a bare
+        # token would otherwise read as a baud rate.
+        port, baud, mode, le, echo, err = parse_open_args("port=0001 9600")
+
+        assert err is None, "port=0001 9600 parses cleanly"
+        assert port == "0001", f"port= forces the value as the port, got {port!r}"
+        assert baud == 9600, f"the bare 9600 is still baud, got {baud}"
+
+    def test_bare_numeric_still_baud(self):
+        # Unchanged: a bare numeric first token is baud (use port= for an SN).
+        port, baud, _, _, _, err = parse_open_args("0001")
+
+        assert err is None, "bare 0001 parses as baud"
+        assert port is None and baud == 1, (
+            f"bare numeric is baud, got port={port} baud={baud}"
+        )
+
+    def test_port_equals_requires_value(self):
+        *_, err = parse_open_args("port=")
+        assert err and "value" in err, f"empty port= is an error, got {err!r}"
+
+    def test_duplicate_port_rejected(self):
+        *_, err = parse_open_args("COM3 port=0001")
+        assert err and "Duplicate port" in err, f"two ports is an error, got {err!r}"
 
     def test_port_and_baud(self):
         # Act

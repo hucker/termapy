@@ -338,62 +338,62 @@ class TestParseKeywords:
         )
 
         # Assert
-        assert actual["timeout"] == "2s"  # normalized despite spaces
-        assert actual["match"] == "OK"  # normalized despite spaces
+        assert actual["timeout"] == "2s", "normalized despite spaces"
+        assert actual["match"] == "OK", "normalized despite spaces"
 
     def test_no_keywords_gives_positional(self):
         # Act
         actual = parse_keywords("just positional", {"timeout"})
 
         # Assert
-        assert actual["_positional"] == "just positional"  # no keywords matched
+        assert actual["_positional"] == "just positional", "no keywords matched"
 
     def test_unknown_keyword_goes_to_positional(self):
         # Act
         actual = parse_keywords("foo=bar match=OK", {"match"}, rest_keyword="match")
 
         # Assert
-        assert actual["match"] == "OK"  # recognized keyword
-        assert actual["_positional"] == "foo=bar"  # unrecognized → positional
+        assert actual["match"] == "OK", "recognized keyword"
+        assert actual["_positional"] == "foo=bar", "unrecognized \u2192 positional"
 
     def test_missing_rest_keyword(self):
         # Act
         actual = parse_keywords("timeout=2s", {"timeout", "match"}, rest_keyword="match")
 
         # Assert
-        assert "match" not in actual  # rest keyword absent
-        assert actual["timeout"] == "2s"  # other keyword present
+        assert "match" not in actual, "rest keyword absent"
+        assert actual["timeout"] == "2s", "other keyword present"
 
     def test_case_insensitive(self):
         # Act
         actual = parse_keywords("Timeout=2s Match=OK", {"timeout", "match"}, rest_keyword="match")
 
         # Assert
-        assert actual["timeout"] == "2s"  # case-insensitive match
-        assert actual["match"] == "OK"  # case-insensitive match
+        assert actual["timeout"] == "2s", "case-insensitive match"
+        assert actual["match"] == "OK", "case-insensitive match"
 
     def test_only_rest_keyword(self):
         # Act
         actual = parse_keywords("match=device is ready", {"match"}, rest_keyword="match")
 
         # Assert
-        assert actual["match"] == "device is ready"  # rest keyword only
+        assert actual["match"] == "device is ready", "rest keyword only"
 
     def test_empty_string(self):
         # Act
         actual = parse_keywords("", {"timeout", "match"}, rest_keyword="match")
 
         # Assert
-        assert "match" not in actual  # nothing parsed
-        assert "timeout" not in actual  # nothing parsed
+        assert "match" not in actual, "nothing parsed"
+        assert "timeout" not in actual, "nothing parsed"
 
     def test_no_rest_keyword_specified(self):
         # Act
         actual = parse_keywords("timeout=2s quiet=on", {"timeout", "quiet"})
 
         # Assert
-        assert actual["timeout"] == "2s"  # keyword extracted
-        assert actual["quiet"] == "on"  # keyword extracted
+        assert actual["timeout"] == "2s", "keyword extracted"
+        assert actual["quiet"] == "on", "keyword extracted"
 
 
 # ── CmdResult ───────────────────────────────────────────────────
@@ -408,17 +408,17 @@ class TestCmdResult:
 
     def test_fail_with_message(self):
         actual = CmdResult.fail(msg="bad input")
-        assert actual.success is False  # failure
-        assert actual.error == "bad input"  # error message
+        assert actual.success is False, "failure"
+        assert actual.error == "bad input", "error message"
 
     def test_fail_no_message(self):
         actual = CmdResult.fail()
-        assert actual.success is False  # failure
-        assert actual.error == ""  # no message
+        assert actual.success is False, "failure"
+        assert actual.error == "", "no message"
 
     def test_default_is_success(self):
         actual = CmdResult()
-        assert actual.success is True  # default = success
+        assert actual.success is True, "default = success"
 
     def test_elapsed_mutable(self):
         # Arrange
@@ -443,7 +443,7 @@ class TestCmdResult:
 
     def test_value_set(self):
         actual = CmdResult(value="0.35.0")
-        assert actual.value == "0.35.0"  # value captured
+        assert actual.value == "0.35.0", "value captured"
 
     def test_path_auto_resolved(self):
         # Path values auto-convert to absolute strings via the

@@ -440,7 +440,7 @@ expect: 02
 """
         settings, steps = parse_proto_script(script)
         assert settings["timeout_ms"] == 2000
-        assert steps[1].timeout_ms == 2000  # inherits default
+        assert steps[1].timeout_ms == 2000, "inherits default"
 
     def test_at_frame_gap_directive(self):
         script = "@frame_gap 100ms"
@@ -454,7 +454,7 @@ timeout: 500ms
 expect: 01 02
 """
         _, steps = parse_proto_script(script)
-        assert steps[0].timeout_ms == 500  # override, not default
+        assert steps[0].timeout_ms == 500, "override, not default"
 
     def test_timeout_resets_after_expect(self):
         """Per-step timeout only applies to the next expect."""
@@ -465,8 +465,8 @@ expect: 01
 expect: 02
 """
         _, steps = parse_proto_script(script)
-        assert steps[0].timeout_ms == 500  # overridden
-        assert steps[1].timeout_ms == 1000  # back to default
+        assert steps[0].timeout_ms == 500, "overridden"
+        assert steps[1].timeout_ms == 1000, "back to default"
 
     def test_text_in_send(self):
         script = 'send: "HELLO\\r"'
@@ -523,7 +523,7 @@ expect: 01 06 00 01 00 03 98 0B
         assert settings["timeout_ms"] == 1000
         assert settings["frame_gap_ms"] == 50
         # Assert step count
-        assert len(steps) == 5  # send, expect, delay, send, expect
+        assert len(steps) == 5, "send, expect, delay, send, expect"
         # Assert step types
         actual_actions = [s.action for s in steps]
         expected_actions = ["send", "expect", "delay", "send", "expect"]
@@ -678,7 +678,7 @@ expect = '"FB8d\\r\\n"'
 '''
         script = parse_toml_script(toml)
 
-        assert script.tests[0].setup == ["echo off"]  # cmd → setup
+        assert script.tests[0].setup == ["echo off"], "cmd \u2192 setup"
         assert script.tests[0].teardown == []
 
     def test_per_test_timeout(self):
@@ -700,7 +700,7 @@ expect = "04"
         script = parse_toml_script(toml)
 
         assert script.tests[0].timeout_ms == 200
-        assert script.tests[1].timeout_ms == 1000  # default
+        assert script.tests[1].timeout_ms == 1000, "default"
 
     def test_binary_detection(self):
         """binary flag is True for hex, False for quoted text."""
@@ -804,10 +804,10 @@ expect = "01 AA BB"
         script = parse_toml_script(toml)
 
         # Assert
-        assert script.send_fmt == "Slave:H1 Func:H2"  # script-level parsed
-        assert script.expect_fmt == "Slave:H1 Data:H2-*"  # script-level parsed
-        assert script.tests[0].send_fmt == "Slave:H1 Func:H2"  # inherited
-        assert script.tests[0].expect_fmt == "Slave:H1 Data:H2-*"  # inherited
+        assert script.send_fmt == "Slave:H1 Func:H2", "script-level parsed"
+        assert script.expect_fmt == "Slave:H1 Data:H2-*", "script-level parsed"
+        assert script.tests[0].send_fmt == "Slave:H1 Func:H2", "inherited"
+        assert script.tests[0].expect_fmt == "Slave:H1 Data:H2-*", "inherited"
 
     def test_per_test_override(self):
         """Per-test send_fmt/expect_fmt override script-level defaults."""
@@ -827,8 +827,8 @@ expect_fmt = "Custom:H1 Data:H2"
         script = parse_toml_script(toml)
 
         # Assert
-        assert script.tests[0].send_fmt == "Custom:H1 Func:H2"  # overridden
-        assert script.tests[0].expect_fmt == "Custom:H1 Data:H2"  # overridden
+        assert script.tests[0].send_fmt == "Custom:H1 Func:H2", "overridden"
+        assert script.tests[0].expect_fmt == "Custom:H1 Data:H2", "overridden"
 
     def test_default_empty(self):
         """Missing send_fmt/expect_fmt default to empty string."""
@@ -843,10 +843,10 @@ expect = "02"
         script = parse_toml_script(toml)
 
         # Assert
-        assert script.send_fmt == ""  # no script-level fmt
-        assert script.expect_fmt == ""  # no script-level fmt
-        assert script.tests[0].send_fmt == ""  # no per-test fmt
-        assert script.tests[0].expect_fmt == ""  # no per-test fmt
+        assert script.send_fmt == "", "no script-level fmt"
+        assert script.expect_fmt == "", "no script-level fmt"
+        assert script.tests[0].send_fmt == "", "no per-test fmt"
+        assert script.tests[0].expect_fmt == "", "no per-test fmt"
 
     def test_send_fmt_only(self):
         """Only send_fmt set, expect_fmt defaults to empty."""
@@ -863,8 +863,8 @@ expect = "01 AA"
         script = parse_toml_script(toml)
 
         # Assert
-        assert script.tests[0].send_fmt == "Addr:H1 Cmd:H2"  # inherited
-        assert script.tests[0].expect_fmt == ""  # not set
+        assert script.tests[0].send_fmt == "Addr:H1 Cmd:H2", "inherited"
+        assert script.tests[0].expect_fmt == "", "not set"
 
 
 # ── viz field parsing ────────────────────────────────────────────────────
@@ -958,7 +958,7 @@ expect = "02"
         fmt, parsed = load_proto_script(toml)
 
         assert fmt == "toml"
-        assert hasattr(parsed, "tests")  # assert ProtoScript
+        assert hasattr(parsed, "tests"), "assert ProtoScript"
 
     def test_flat_fallback(self):
         """Flat format used when TOML parse fails."""
@@ -1021,7 +1021,7 @@ class TestDiffBytes:
         mask = b"\xff"
         result = diff_bytes(expected, actual, mask)
 
-        assert result == ["match"]  # extra bytes not in diff list
+        assert result == ["match"], "extra bytes not in diff list"
 
     def test_empty_both(self):
         """Empty expected and actual → empty result."""
@@ -1036,7 +1036,7 @@ class TestDiffBytes:
         mask = b"\xff\x00\xff"
         result = diff_bytes(expected, actual, mask)
 
-        assert result == ["match", "wildcard", "mismatch"]  # extra byte not in diff
+        assert result == ["match", "wildcard", "mismatch"], "extra byte not in diff"
 
 
 # ── overflow_count ────────────────────────────────────────────────────
@@ -1045,19 +1045,19 @@ class TestDiffBytes:
 class TestOverflowCount:
     def test_no_overflow(self):
         actual = overflow_count(b"\x01\x02\x03", b"\x01\x02\x03")
-        assert actual == 0  # same length, no overflow
+        assert actual == 0, "same length, no overflow"
 
     def test_actual_shorter(self):
         actual = overflow_count(b"\x01\x02\x03", b"\x01")
-        assert actual == 0  # shorter is not overflow
+        assert actual == 0, "shorter is not overflow"
 
     def test_overflow(self):
         actual = overflow_count(b"\x01", b"\x01\x02\x03")
-        assert actual == 2  # 2 extra bytes
+        assert actual == 2, "2 extra bytes"
 
     def test_empty_expected(self):
         actual = overflow_count(b"", b"\x01\x02")
-        assert actual == 2  # all bytes are overflow
+        assert actual == 2, "all bytes are overflow"
 
 
 class TestFormatDiffMarkupOverflow:
@@ -1069,7 +1069,7 @@ class TestFormatDiffMarkupOverflow:
             token_fn=lambda b: f"{b:02X} ",
             missing_token="?? ",
         )
-        assert "OVR" not in result  # no overflow indicator
+        assert "OVR" not in result, "no overflow indicator"
 
     def test_overflow_appends_ovr_tag(self):
         result = format_diff_markup(
@@ -1079,7 +1079,7 @@ class TestFormatDiffMarkupOverflow:
             token_fn=lambda b: f"{b:02X} ",
             missing_token="?? ",
         )
-        assert "OVR+2" in result  # overflow indicator present
+        assert "OVR+2" in result, "overflow indicator present"
 
 
 # ── Packet Visualizer Tests ──────────────────────────────────────────
@@ -1169,7 +1169,7 @@ class TestGenericCrcEngine:
             ),
         )
         expected = entry["check"]
-        assert actual == expected  # {name}: {actual:#x} != {expected:#x}
+        assert actual == expected, "{name}: {actual:#x} != {expected:#x}"
 
 
 class TestCrcCatalogue:
@@ -1179,9 +1179,9 @@ class TestCrcCatalogue:
     def test_every_entry_has_desc(self, name):
         """Every catalogue entry has a non-empty desc string."""
         entry = CRC_CATALOGUE[name]
-        assert "desc" in entry  # missing desc field
-        assert isinstance(entry["desc"], str)  # desc must be a string
-        assert len(entry["desc"]) > 0  # desc must not be empty
+        assert "desc" in entry, "missing desc field"
+        assert isinstance(entry["desc"], str), "desc must be a string"
+        assert len(entry["desc"]) > 0, "desc must not be empty"
 
     def test_catalogue_matches_crcglot(self):
         """The shim's CRC_CATALOGUE mirrors crcglot.ALGORITHMS one-for-one."""
@@ -1197,7 +1197,7 @@ class TestCrcCatalogue:
         """Description strings should be concise one-liners."""
         for name in _CANONICAL_NAMES:
             desc = CRC_CATALOGUE[name]["desc"]
-            assert len(desc) <= 80  # desc too long: {name}
+            assert len(desc) <= 80, "desc too long: {name}"
 
 
 # ── extract_fmt_title ────────────────────────────────────────────────────
@@ -1210,32 +1210,32 @@ class TestExtractFmtTitle:
             "Title:Modbus_RTU Slave:H1 Func:H2")
 
         # Assert
-        assert actual_title == "Modbus RTU"  # underscores replaced with spaces
-        assert actual_spec == "Slave:H1 Func:H2"  # title stripped from spec
+        assert actual_title == "Modbus RTU", "underscores replaced with spaces"
+        assert actual_spec == "Slave:H1 Func:H2", "title stripped from spec"
 
     def test_no_title(self):
         # Act
         actual_title, actual_spec = extract_fmt_title("Slave:H1 Func:H2")
 
         # Assert
-        assert actual_title == ""  # no title found
-        assert actual_spec == "Slave:H1 Func:H2"  # spec unchanged
+        assert actual_title == "", "no title found"
+        assert actual_spec == "Slave:H1 Func:H2", "spec unchanged"
 
     def test_title_only(self):
         # Act
         actual_title, actual_spec = extract_fmt_title("Title:My_Custom_View")
 
         # Assert
-        assert actual_title == "My Custom View"  # title extracted
-        assert actual_spec == ""  # no remaining spec
+        assert actual_title == "My Custom View", "title extracted"
+        assert actual_spec == "", "no remaining spec"
 
     def test_single_word_title(self):
         # Act
         actual_title, actual_spec = extract_fmt_title("Title:Modbus Slave:H1")
 
         # Assert
-        assert actual_title == "Modbus"  # no underscores to replace
-        assert actual_spec == "Slave:H1"  # remaining spec
+        assert actual_title == "Modbus", "no underscores to replace"
+        assert actual_spec == "Slave:H1", "remaining spec"
 
 
 # ── Format Spec Parsing ──────────────────────────────────────────────────
@@ -1250,7 +1250,7 @@ class TestParseFormatSpec:
         assert len(cols) == 1
         assert cols[0].name == "Slave"
         assert cols[0].type_code == "H"
-        assert cols[0].byte_indices == [0]  # 1-based → 0-based
+        assert cols[0].byte_indices == [0], "1-based \u2192 0-based"
 
     def test_hex_range(self):
         """Hex range: H3-4 (ascending = big-endian)."""
@@ -1298,12 +1298,12 @@ class TestParseFormatSpec:
         cols = parse_format_spec("Mode:B1-2.7-9")
         assert cols[0].type_code == "B"
         assert cols[0].byte_indices == [0, 1]
-        assert cols[0].bit == (7, 9)  # bit range tuple
+        assert cols[0].bit == (7, 9), "bit range tuple"
 
     def test_bit_field_multi_byte_descending(self):
         """Multi-byte bit field descending bytes: B2-1.4-6."""
         cols = parse_format_spec("Flags:B2-1.4-6")
-        assert cols[0].byte_indices == [1, 0]  # descending = LE
+        assert cols[0].byte_indices == [1, 0], "descending = LE"
         assert cols[0].bit == (4, 6)
 
     def test_padding_type(self):
@@ -1316,7 +1316,7 @@ class TestParseFormatSpec:
         """Wildcard: H7-*."""
         cols = parse_format_spec("Data:H7-*")
         assert cols[0].wildcard is True
-        assert cols[0].byte_indices == [6]  # start index
+        assert cols[0].byte_indices == [6], "start index"
 
     def test_crc_le(self):
         """CRC with little-endian: crc16-modbus_le."""
@@ -1335,7 +1335,7 @@ class TestParseFormatSpec:
         """CRC with explicit data range: crc16-modbus_le(1-6)."""
         cols = parse_format_spec("CRC:crc16-modbus_le(1-6)")
         assert cols[0].crc_algo == "crc16-modbus"
-        assert cols[0].crc_data_range == (0, 5)  # 1-based → 0-based
+        assert cols[0].crc_data_range == (0, 5), "1-based \u2192 0-based"
 
     def test_crc_hyphenated_name_le(self):
         """CRC with hyphenated catalogue name: crc16-modbus_le."""
@@ -1402,7 +1402,7 @@ class TestApplyFormat:
         """Two-byte unsigned decimal big-endian."""
         cols = parse_format_spec("Addr:U1-2")
         headers, values = apply_format(b"\x00\x0A", cols)
-        assert values == ["10"]  # 0x000A = 10
+        assert values == ["10"], "0x000A = 10"
 
     def test_signed_negative(self):
         """Signed decimal shows sign."""
@@ -1434,7 +1434,7 @@ class TestApplyFormat:
         cols = parse_format_spec("Enable:B1.0 Error:B1.7")
         # byte 0 = 0x81 = 10000001
         _, values = apply_format(b"\x81", cols)
-        assert values == ["1", "1"]  # bit 0 = 1, bit 7 = 1
+        assert values == ["1", "1"], "bit 0 = 1, bit 7 = 1"
 
     def test_bit_field_multi_byte_value(self):
         """Multi-byte bit field extracts value from bit range."""
@@ -1449,7 +1449,7 @@ class TestApplyFormat:
         # Assert
         actual = int(values[0])
         expected = 3
-        assert actual == expected  # bits 7-9 of 0x0180 = 3
+        assert actual == expected, "bits 7-9 of 0x0180 = 3"
 
     def test_bit_field_multi_byte_all_ones(self):
         """Multi-byte bit field with all bits set in range."""
@@ -1463,7 +1463,7 @@ class TestApplyFormat:
         # Assert
         actual = int(values[0])
         expected = 15
-        assert actual == expected  # bits 4-7 all set = 15
+        assert actual == expected, "bits 4-7 all set = 15"
 
     def test_padding_skipped_in_output(self):
         """Padding columns are not included in headers or values."""
@@ -1475,8 +1475,8 @@ class TestApplyFormat:
         headers, values = apply_format(data, cols)
 
         # Assert
-        assert headers == ["A", "B"]  # padding skipped
-        assert values == ["01", "04"]  # only non-padding values
+        assert headers == ["A", "B"], "padding skipped"
+        assert values == ["01", "04"], "only non-padding values"
 
     def test_wildcard_expands(self):
         """Wildcard h1-* expands to cover all bytes (spaced per-byte hex)."""
@@ -1500,10 +1500,10 @@ class TestApplyFormat:
         reset_crc_registry()
         headers, values = apply_format(frame, cols)
         assert headers == ["Slave", "Func", "Addr", "Count", "CRC"]
-        assert values[0] == "01"  # Slave
-        assert values[1] == "03"  # Func
-        assert values[2] == "0"   # Addr
-        assert values[3] == "10"  # Count
+        assert values[0] == "01", "Slave"
+        assert values[1] == "03", "Func"
+        assert values[2] == "0", "Addr"
+        assert values[3] == "10", "Count"
         # CRC should be a 4-char hex string
         assert len(values[4]) == 4
 
@@ -1542,9 +1542,9 @@ class TestDiffColumns:
         mask = b"\xff\xff\xff\xff"
         cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4")
         _, _, _, statuses = diff_columns(actual, expected, mask, cols)
-        assert statuses[0] == "match"      # Slave matches
-        assert statuses[1] == "mismatch"   # Func differs
-        assert statuses[2] == "match"      # Addr matches
+        assert statuses[0] == "match", "Slave matches"
+        assert statuses[1] == "mismatch", "Func differs"
+        assert statuses[2] == "match", "Addr matches"
 
     def test_wildcard_column(self):
         """Wildcard mask bytes → column status is 'wildcard' (dimmed)."""
@@ -1553,7 +1553,7 @@ class TestDiffColumns:
         mask = b"\xff\x00\xff"
         cols = parse_format_spec("A:H1 B:H2 C:H3")
         _, _, _, statuses = diff_columns(actual, expected, mask, cols)
-        assert statuses[1] == "wildcard"  # wildcard byte, dimmed display
+        assert statuses[1] == "wildcard", "wildcard byte, dimmed display"
 
     def test_crc_verify_pass(self):
         """CRC column shows 'match' when CRC is valid."""
@@ -1564,7 +1564,7 @@ class TestDiffColumns:
         cols = parse_format_spec(spec)
         reset_crc_registry()
         _, _, _, statuses = diff_columns(frame, frame, mask, cols)
-        assert statuses[-1] == "match"  # CRC valid
+        assert statuses[-1] == "match", "CRC valid"
 
     def test_crc_verify_fail(self):
         """CRC column shows 'mismatch' when CRC is corrupt."""
@@ -1579,7 +1579,7 @@ class TestDiffColumns:
         cols = parse_format_spec(spec)
         reset_crc_registry()
         _, _, _, statuses = diff_columns(corrupted, frame, mask, cols)
-        assert statuses[-1] == "mismatch"  # CRC invalid
+        assert statuses[-1] == "mismatch", "CRC invalid"
 
     def test_padding_skipped_in_diff(self):
         """Padding columns are excluded from diff output."""
@@ -1592,8 +1592,8 @@ class TestDiffColumns:
         headers, _, _, statuses = diff_columns(data, data, mask, cols)
 
         # Assert
-        assert headers == ["A", "B"]  # padding not in output
-        assert len(statuses) == 2  # only 2 columns
+        assert headers == ["A", "B"], "padding not in output"
+        assert len(statuses) == 2, "only 2 columns"
 
 
 # ── Hex View Column API ──────────────────────────────────────────────────
@@ -1635,9 +1635,9 @@ class TestHexViewColumns:
         reset_crc_registry()
         _, _, act_values, statuses = diff_columns(
             b"\x01\xFF", b"\x01\x02", b"\xff\xff")
-        assert statuses == ["mixed"]  # per-byte markup
-        assert "01" in act_values[0]  # matching byte present
-        assert "FF" in act_values[0]  # mismatched byte present
+        assert statuses == ["mixed"], "per-byte markup"
+        assert "01" in act_values[0], "matching byte present"
+        assert "FF" in act_values[0], "mismatched byte present"
 
 
 # ── Text View Column API ─────────────────────────────────────────────────

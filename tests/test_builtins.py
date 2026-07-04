@@ -1741,9 +1741,9 @@ class TestGrep:
 
         # Assert - default cap is 100
         texts = [t for t, _ in output]
-        assert any("first 100 of 150" in t for t in texts)  # assert cap message
+        assert any("first 100 of 150" in t for t in texts), "assert cap message"
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
-        assert len(grep_lines) == 100  # assert only 100 lines output
+        assert len(grep_lines) == 100, "assert only 100 lines output"
 
     def test_grep_max_output_from_config(self, repl_env):
         # Arrange - set custom max_grep_lines
@@ -1757,9 +1757,9 @@ class TestGrep:
 
         # Assert - cap uses config value
         texts = [t for t, _ in output]
-        assert any("first 5 of 20" in t for t in texts)  # assert config cap message
+        assert any("first 5 of 20" in t for t in texts), "assert config cap message"
         grep_lines = [t for t in texts if "grep:" in t and "|" in t]
-        assert len(grep_lines) == 5  # assert only 5 lines output
+        assert len(grep_lines) == 5, "assert only 5 lines output"
 
 
 # -- /cls -----------------------------------------------------------------
@@ -1776,7 +1776,7 @@ class TestCls:
         engine.dispatch("cls")
 
         # Assert
-        assert len(cleared) == 1  # clear_screen called
+        assert len(cleared) == 1, "clear_screen called"
 
 
 # -- /show_line_endings ---------------------------------------------------
@@ -1792,7 +1792,7 @@ class TestEol:
         engine.dispatch("show_line_endings")
 
         # Assert
-        assert cfg["show_line_endings"] is True  # toggled on
+        assert cfg["show_line_endings"] is True, "toggled on"
 
     def test_eol_toggle_off(self, repl_env):
         # Arrange
@@ -1803,7 +1803,7 @@ class TestEol:
         engine.dispatch("show_line_endings")
 
         # Assert
-        assert cfg["show_line_endings"] is False  # toggled off
+        assert cfg["show_line_endings"] is False, "toggled off"
 
     def test_eol_explicit_on(self, repl_env):
         # Arrange
@@ -1814,7 +1814,7 @@ class TestEol:
         engine.dispatch("show_line_endings on")
 
         # Assert
-        assert cfg["show_line_endings"] is True  # set to on
+        assert cfg["show_line_endings"] is True, "set to on"
 
     def test_eol_explicit_off(self, repl_env):
         # Arrange
@@ -1825,7 +1825,7 @@ class TestEol:
         engine.dispatch("show_line_endings off")
 
         # Assert
-        assert cfg["show_line_endings"] is False  # set to off
+        assert cfg["show_line_endings"] is False, "set to off"
 
 
 # -- /cap (arg parsing) ---------------------------------------------------
@@ -1878,7 +1878,7 @@ class TestCapArgParsing:
         )
 
         # Assert
-        assert result["fmt"] == "A:U1-2 B:F3-6"  # multi-word fmt preserved
+        assert result["fmt"] == "A:U1-2 B:F3-6", "multi-word fmt preserved"
         assert result["records"] == "10"
 
     def test_cap_text_missing_timeout(self, repl_env):
@@ -1889,7 +1889,7 @@ class TestCapArgParsing:
         engine.dispatch("cap.text data.txt")
 
         # Assert
-        assert any("Usage" in t for t, _ in output)  # shows usage
+        assert any("Usage" in t for t, _ in output), "shows usage"
 
     def test_cap_bin_missing_bytes(self, repl_env):
         # Arrange
@@ -1899,7 +1899,7 @@ class TestCapArgParsing:
         engine.dispatch("cap.bin data.bin")
 
         # Assert
-        assert any("Usage" in t for t, _ in output)  # shows usage
+        assert any("Usage" in t for t, _ in output), "shows usage"
 
     def test_cap_struct_missing_fmt(self, repl_env):
         # Arrange
@@ -1909,7 +1909,7 @@ class TestCapArgParsing:
         engine.dispatch("cap.struct data.csv records=50")
 
         # Assert
-        assert any("Usage" in t for t, _ in output)  # shows usage
+        assert any("Usage" in t for t, _ in output), "shows usage"
 
     def test_cap_stop_no_capture(self, repl_env):
         # Arrange
@@ -1926,7 +1926,7 @@ class TestCapArgParsing:
         assert _parse_mode({"mode": "n"}) == "w"
         assert _parse_mode({"mode": "append"}) == "a"
         assert _parse_mode({"mode": "a"}) == "a"
-        assert _parse_mode({}) == "w"  # default is new
+        assert _parse_mode({}) == "w", "default is new"
         assert _parse_mode({"mode": "bad"}) is None
 
 
@@ -2165,8 +2165,8 @@ class TestCapStructHandler:
         # Assert
         assert len(captures) == 1
         assert captures[0]["mode"] == "bin"
-        assert len(captures[0]["columns"]) == 1  # one column
-        assert captures[0]["record_size"] == 2  # U1-2 = 2 bytes
+        assert len(captures[0]["columns"]) == 1, "one column"
+        assert captures[0]["record_size"] == 2, "U1-2 = 2 bytes"
 
     def test_cap_struct_with_cmd(self, repl_env):
         # Arrange
@@ -2185,7 +2185,7 @@ class TestCapStructHandler:
         # Assert
         assert len(captures) == 1
         assert len(dispatched) == 1
-        assert dispatched[0] == "AT+DUMP 50"  # cmd dispatched after capture starts
+        assert dispatched[0] == "AT+DUMP 50", "cmd dispatched after capture starts"
 
     def test_cap_struct_invalid_fmt(self, repl_env):
         # Arrange
@@ -2223,7 +2223,7 @@ class TestExit:
         engine.dispatch("exit")
 
         # Assert
-        assert len(exited) == 1  # exit_app called
+        assert len(exited) == 1, "exit_app called"
 
 
 # -- /confirm -------------------------------------------------------------
@@ -2250,8 +2250,8 @@ class TestConfirm:
         engine.dispatch("confirm Are you sure?")
 
         # Assert
-        assert any("Cancelled" in t for t, _ in output)  # shows cancelled
-        assert engine._script_stop.is_set()  # script stop triggered
+        assert any("Cancelled" in t for t, _ in output), "shows cancelled"
+        assert engine._script_stop.is_set(), "script stop triggered"
 
     def test_confirm_default_message(self, repl_env):
         # Arrange
@@ -2263,7 +2263,7 @@ class TestConfirm:
         engine.dispatch("confirm")
 
         # Assert
-        assert messages == ["Continue?"]  # default message
+        assert messages == ["Continue?"], "default message"
 
     def test_confirm_custom_message(self, repl_env):
         # Arrange
@@ -2275,7 +2275,7 @@ class TestConfirm:
         engine.dispatch("confirm Deploy to production?")
 
         # Assert
-        assert messages == ["Deploy to production?"]  # custom message
+        assert messages == ["Deploy to production?"], "custom message"
 
 
 # -- /cfg (read operations) -----------------------------------------------
@@ -2305,7 +2305,7 @@ class TestCfgRead:
 
         # Assert
         texts = [t for t, _ in output]
-        assert any("COM4" in t for t in texts)  # shows port value
+        assert any("COM4" in t for t in texts), "shows port value"
 
     def test_cfg_unknown_key(self, repl_env):
         # Arrange
@@ -2327,7 +2327,7 @@ class TestCfgRead:
         engine.dispatch("cfg.info")
 
         # Assert - should output something about the config
-        assert len(output) > 0  # produced some output
+        assert len(output) > 0, "produced some output"
 
     def test_cfg_dump(self, repl_env):
         # Arrange
@@ -2338,7 +2338,7 @@ class TestCfgRead:
 
         # Assert - should dump JSON
         texts = [t for t, _ in output]
-        assert any("port" in t for t in texts)  # JSON includes port
+        assert any("port" in t for t in texts), "JSON includes port"
 
 
 class TestCfgHandlerValues:

@@ -403,7 +403,7 @@ class TestSessionTimeVars:
 
         # Assert - SESSION_DATE is YYYY-MM-DD format
         assert "SESSION_DATE" in _VARS
-        assert len(_VARS["SESSION_DATE"]) == 10  # YYYY-MM-DD
+        assert len(_VARS["SESSION_DATE"]) == 10, "YYYY-MM-DD"
         assert _VARS["SESSION_DATE"][4] == "-"
 
     def test_sets_session_time(self):
@@ -412,7 +412,7 @@ class TestSessionTimeVars:
 
         # Assert - SESSION_TIME is HH:MM:SS format
         assert "SESSION_TIME" in _VARS
-        assert len(_VARS["SESSION_TIME"]) == 8  # HH:MM:SS
+        assert len(_VARS["SESSION_TIME"]) == 8, "HH:MM:SS"
         assert _VARS["SESSION_TIME"][2] == ":"
 
     def test_sets_session_datetime(self):
@@ -459,7 +459,7 @@ class TestDynamicTimeVars:
         # Assert - expanded to current date
         assert "$(DATE)" not in actual
         assert "today: " in actual
-        assert len(actual) == len("today: ") + 10  # YYYY-MM-DD
+        assert len(actual) == len("today: ") + 10, "YYYY-MM-DD"
 
     def test_time_expands_without_being_set(self):
         # Act
@@ -467,7 +467,7 @@ class TestDynamicTimeVars:
 
         # Assert - expanded to current time
         assert "$(TIME)" not in actual
-        assert actual[len("now: ") + 2] == ":"  # HH:MM:SS format
+        assert actual[len("now: ") + 2] == ":", "HH:MM:SS format"
 
     def test_datetime_expands_without_being_set(self):
         # Act
@@ -645,9 +645,9 @@ class TestDirectiveIntegration:
         engine, _ = _make_engine(tmp_path)
 
         # Assert - at least one directive registered
-        assert len(engine._directives) >= 1  # directive registered
+        assert len(engine._directives) >= 1, "directive registered"
         names = [d.name for d in engine._directives]
-        assert "var_assign" in names  # var_assign specifically
+        assert "var_assign" in names, "var_assign specifically"
 
     def test_run_directives_rewrites_assignment(self, tmp_path):
         """run_directives should rewrite $(VAR) = value to var.set."""
@@ -682,7 +682,7 @@ class TestDirectiveIntegration:
 
         # Assert - warning with helpful message
         assert actual.action == "warn"
-        assert "$(PORT)" in actual.payload  # suggests correct syntax
+        assert "$(PORT)" in actual.payload, "suggests correct syntax"
 
     def test_run_directives_errors_on_empty_value(self, tmp_path):
         """run_directives should return error for $(VAR) = with no value."""

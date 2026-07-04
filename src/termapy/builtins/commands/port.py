@@ -94,6 +94,16 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
             {"cfg_update": {"echo_input": echo}}
         )
     ctx.serial.connect(port)
+    if not ctx.serial.is_connected():
+        # The port did not open (bad name, in use, ...).  Report failure so
+        # scripts and MCP see it instead of a false success -- the original
+        # bug was returning ok() unconditionally.  _connect already showed
+        # the specific reason via its status line, so use msg="" to avoid
+        # printing that same error a second time (see var.py's
+        # capture-abort pattern).  Note: a /port.connect issued while
+        # already connected only re-applies cfg settings and stays
+        # connected -- that is not a failure and falls through to ok().
+        return CmdResult.fail(msg="")
     return CmdResult.ok(value=port or "")
 
 

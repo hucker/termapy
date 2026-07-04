@@ -251,7 +251,10 @@ def run_ports(args: argparse.Namespace) -> None:
     from termapy import port_control
     from termapy.port_format import format_table
 
-    all_facts = port_control._gather_all_chip_facts()
+    # The table has no in_use column; only --json surfaces it.  So probe
+    # (fast=False) only for --json -- non-invasive via lsof on POSIX, and
+    # a hardened opt-in open on Windows.  Plain --ports never opens a port.
+    all_facts = port_control._gather_all_chip_facts(fast=not getattr(args, "json", False))
 
     if args.ports and args.ports != "*":
         all_facts = [f for f in all_facts if f.device == args.ports]
@@ -352,10 +355,22 @@ def run_watch(args: argparse.Namespace) -> None:
     """
     from termapy import port_control
 
+    # In-use monitoring is the point of --watch (seeing a port get claimed
+    # by, e.g., an MCP server with no visible terminal).  On POSIX the probe
+    # is non-invasive (lsof) and safe to run every tick, so populate in_use
+    # and the state column works.  On Windows the only probe is an actual
+    # open, which at 5 Hz would strobe DTR on every auto-reset board -- so
+    # there we stay fast (presence + identity only; state column shows '-').
+    watch_fast = sys.platform == "win32"
+
     banner_ts = datetime.now().strftime("%H:%M:%S")
-    initial = {f.device: f for f in port_control._gather_all_chip_facts(fast=True)}
+    initial = {
+        f.device: f
+        for f in port_control._gather_all_chip_facts(fast=watch_fast)
+    }
+    note = " (in-use not shown on Windows)" if watch_fast else ""
     print(
-        f"[{banner_ts}] monitoring {len(initial)} port(s); Ctrl+C to exit"
+        f"[{banner_ts}] monitoring {len(initial)} port(s); Ctrl+C to exit{note}"
     )
     for device in sorted(initial):
         print(_format_state_line(" ", initial[device]))
@@ -365,7 +380,8 @@ def run_watch(args: argparse.Namespace) -> None:
         while True:
             time.sleep(_WATCH_INTERVAL_S)
             current = {
-                f.device: f for f in port_control._gather_all_chip_facts(fast=True)
+                f.device: f
+                for f in port_control._gather_all_chip_facts(fast=watch_fast)
             }
             _emit_diff(previous, current)
             previous = current

@@ -836,7 +836,7 @@ class TestResolvePort:
         # burn-in on cheap CP2102 / CH340 clones).
         import termapy.port_control as pc
 
-        def _ambiguous_fleet(connected_port: str = ""):
+        def _ambiguous_fleet(connected_port: str = "", *, fast: bool = False):
             return [
                 ChipFacts(
                     device="COM3", manufacturer="CH340", serial="0001",
@@ -923,7 +923,7 @@ class TestResolvePortTrace:
         # candidates is ambiguous.
         import termapy.port_control as pc
 
-        def _ambiguous_fleet(connected_port: str = ""):
+        def _ambiguous_fleet(connected_port: str = "", *, fast: bool = False):
             return [
                 ChipFacts(device="COM3", serial="0001"),
                 ChipFacts(device="COM7", serial="0001"),

@@ -1024,7 +1024,7 @@ class TestPortsFlag:
         # we still monkeypatch for this one.
         monkeypatch.setattr("sys.argv", ["termapy", "--ports"])
         import termapy.port_control as pc
-        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda: [])
+        monkeypatch.setattr(pc, "_gather_all_chip_facts", lambda *a, **k: [])
         from termapy.entry import main
 
         # Act

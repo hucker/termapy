@@ -38,6 +38,7 @@ from termapy.profile import (
     save_profile,
     validate_profile,
 )
+from termapy.plugins.params import ParamSpec
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
@@ -147,10 +148,7 @@ def _default_save_path(ctx: PluginContext) -> Path | None:
 
 def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
     """Validate a profile file against the schema and report errors."""
-    path_str = args.strip()
-    if not path_str:
-        return CmdResult.fail(msg="Usage: /profile.validate <path>")
-    path = Path(path_str)
+    path = Path(ctx.arg("path"))
     if not path.exists():
         return CmdResult.fail(msg=f"Profile not found: {path}")
     try:
@@ -392,7 +390,6 @@ COMMAND = Command(
     handler=None,
     sub_commands={
         "validate": Command(
-            args="<path>",
             help="Validate an MCP device profile (.json or .toml).",
             long_help=(
                 "Schema-validate a profile against profile.schema.json. "
@@ -401,7 +398,20 @@ COMMAND = Command(
                 "--validate-profile <path>' from the shell."
             ),
             handler=_handler_validate,
+            params=[
+                ParamSpec(
+                    "path", "path", positional=True, required=True,
+                    help="profile file to validate (.json or .toml)",
+                ),
+            ],
         ),
+        # NOT migrated to declarative params, deliberately (see
+        # docs/param-spec-implementation.md, Phase 3 note): /profile.load is a
+        # three-way shape dispatch (empty=reload / bare-path=file /
+        # cmd==device) and its "{path|cmd=<command>}" synopsis expresses a
+        # mutual exclusion the synthesized synopsis can't -- params would parse
+        # it but document it as independent optionals and shift edge
+        # disambiguation.  Hand-rolled parsing stays; this is the escape hatch.
         "load": Command(
             args="{path|cmd=<command>}",
             help=(

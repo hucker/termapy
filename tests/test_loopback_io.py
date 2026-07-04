@@ -220,3 +220,59 @@ class TestLoopbackEncoding:
         assert cap_bytes == b"\xe9", (
             f"latin-1 'é' must encode to 0xE9, got {cap_bytes!r}"
         )
+
+
+class TestLoopbackCliReaderTaps:
+    """CLI's serial reader must feed the expect watcher and text capture.
+
+    Both are fed from the host's line batch (the TUI does this in
+    ``app._write_batch``).  Before ``CLITerminal._start_reader``'s
+    ``on_lines`` grew the same taps, ``/expect`` timed out and
+    ``/cap.text`` recorded nothing in CLI mode -- while ``/cap.bin``
+    worked because binary capture is fed at the byte level in
+    ``serial_port.read``.  These tests drive the real ``loop://`` path
+    and would fail against the pre-fix reader.
+    """
+
+    def test_text_capture_records_rx(self, tmp_path):
+        # Arrange -- capture text for a bounded window, send a line that
+        # the loopback echoes back into that window.
+        lines = [
+            "/cap.text out.txt timeout=800ms",
+            "hello-text-2607",
+            "/delay 1000ms",
+        ]
+
+        # Act
+        result = _run_cli(tmp_path, {}, lines)
+
+        # Assert
+        assert result.returncode == 0, (
+            f"exit {result.returncode}; stderr={result.stderr!r}"
+        )
+        cap = _cap_file(tmp_path, "out.txt").read_text(encoding="utf-8")
+        assert "hello-text-2607" in cap, (
+            f"CLI text capture must record the loopback echo, got {cap!r}"
+        )
+
+    def test_expect_matches_rx(self, tmp_path):
+        # Arrange -- send a line, then /expect its echo.  feed_lines
+        # buffers retroactively, so the match holds even if the echo
+        # lands before the predicate is installed.
+        lines = [
+            "hello-expect-2607",
+            "/expect timeout=2s match=hello-expect",
+        ]
+
+        # Act
+        result = _run_cli(tmp_path, {}, lines)
+
+        # Assert
+        actual = result.stdout.lower()
+        assert result.returncode == 0, (
+            f"/expect should match the echo, not time out; "
+            f"exit {result.returncode}, stderr={result.stderr!r}"
+        )
+        assert "matched" in actual, (
+            f"expected an expect-match message, got {result.stdout!r}"
+        )

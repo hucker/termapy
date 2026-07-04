@@ -533,6 +533,32 @@ class TestConnect:
         )
         assert cli.engine.is_connected, "engine connected after override"
 
+    def test_port_connect_command_reports_failure(self, cli):
+        # R2607-02: the /port.connect COMMAND must return a failing
+        # CmdResult when the port can't open.  It previously returned ok()
+        # unconditionally, so scripts and MCP saw a false success.
+        # DEMO_FAIL is the reserved simulated-open-failure port.
+        # Arrange
+        cli.cfg["serial"]["port"] = "DEMO_FAIL"
+        cli.repl._cfg_data["serial"]["port"] = "DEMO_FAIL"
+
+        # Act
+        result = cli.repl.dispatch("port.connect")
+
+        # Assert
+        assert not result.success, (
+            "connect must report failure when the port cannot open"
+        )
+        assert not cli.engine.is_connected, "engine remains disconnected on failure"
+
+    def test_port_connect_command_reports_success(self, cli):
+        # Act -- the happy path still returns ok.
+        result = cli.repl.dispatch("port.connect DEMO")
+
+        # Assert
+        assert result.success, "connect to DEMO reports success"
+        assert cli.engine.is_connected, "engine connected after a successful connect"
+
     def test_disconnect_not_connected(self, cli, capsys):
         # Arrange -- fixture is disconnected by default.
         # Act

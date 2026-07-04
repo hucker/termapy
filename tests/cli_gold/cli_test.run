@@ -138,7 +138,6 @@ $(BAUD) <- /port.baud_rate
 /help echo
 /help port
 /help cfg
-/help proto.crc
 /help var
 /help cap
 /help ss

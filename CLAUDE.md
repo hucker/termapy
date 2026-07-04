@@ -99,7 +99,8 @@ uv run termapy --cfg-dir . # use cwd for configs
 ## CLI Gold Test
 
 - `tests/cli_gold/cli_test.run` — deterministic script exercising ~100 commands
-- `tests/cli_gold/cli_test.expected` — gold standard output (476 lines)
+- `tests/cli_gold/cli_test.expected` — gold standard output (~780 lines; grows as commands are added, so this is approximate)
+- Deliberately does NOT exercise `/help proto.crc`: its SUBCOMMANDS block is generated from `crcglot.LANGUAGES`, so a crcglot language addition would redden the gold with no termapy change. Stable proto.crc coverage (`/proto.crc.info`, `.calc`) stays; the help renderer is covered by the other `/help <cmd>` pages.
 - Regenerating the gold file requires manual review — the expected output is the source of truth for CLI regression testing
 - Only deterministic commands allowed — no timestamps, random values, or hardware-dependent output
 - No Unicode in output strings — use ASCII only (hyphens, not em dashes)

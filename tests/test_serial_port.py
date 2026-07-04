@@ -53,16 +53,15 @@ class TestProperties:
 
 
 class TestWrite:
-    @pytest.mark.flaky
     def test_write_sends_data(self, port_env):
         # Arrange
         sp, fake, _, _ = port_env
 
-        # Act
+        # Act - FakeSerial enqueues the reply synchronously on write, and
+        # fake.read blocks up to its own timeout for data, so no sleep needed.
         sp.write(b"AT\r")
 
         # Assert - read back from FakeSerial's response
-        time.sleep(0.05)
         data = fake.read(1024)
         assert b"OK" in data, "FakeSerial responded to AT command"
 

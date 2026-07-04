@@ -15,18 +15,25 @@ pytestmark = pytest.mark.slow  # full CLI subprocess + ~100-command gold compare
 GOLD_DIR = Path(__file__).parent / "cli_gold"
 
 
-def _run_cli_script(script_name: str, tmp_path: Path) -> str:
-    """Run a .run script via CLI mode and return stdout.
+def _run_cli_script(
+    script_name: str, tmp_path: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run a .run script via CLI mode and return the completed process.
+
+    Returns the whole ``CompletedProcess`` (not just stdout) so the caller
+    can assert on the exit code and stderr as well: a run that produces the
+    right stdout but crashes late (nonzero exit) or leaks a traceback would
+    otherwise slip past a stdout-only comparison.
 
     Args:
         script_name: Name of the .run file in tests/cli_gold/.
         tmp_path: Temp directory for isolated demo config.
 
     Returns:
-        Captured stdout as a string with normalized line endings.
+        The completed subprocess (stdout/stderr captured as text).
     """
     script_path = GOLD_DIR / script_name
-    result = subprocess.run(
+    return subprocess.run(
         [
             sys.executable, "-c",
             "import sys; "
@@ -40,7 +47,6 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> str:
         text=True,
         timeout=30,
     )
-    return result.stdout
 
 
 _VERBOSE_RE = re.compile(r"^\s*\[\d+/\d+\]")
@@ -81,7 +87,20 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
         tmp_path: Temp directory for isolated demo config.
     """
     # Act
-    actual_text = _run_cli_script(script_name, tmp_path)
+    result = _run_cli_script(script_name, tmp_path)
+
+    # A clean gold run exits 0 and writes nothing to stderr; check both
+    # before the stdout diff so a late crash or a leaked traceback is
+    # reported as itself instead of hiding behind a confusing output diff.
+    assert result.returncode == 0, (
+        f"CLI exited {result.returncode} (expected 0); "
+        f"stderr:\n{result.stderr}"
+    )
+    assert "Traceback (most recent call last)" not in result.stderr, (
+        f"CLI leaked a traceback to stderr:\n{result.stderr}"
+    )
+
+    actual_text = result.stdout
     actual = _normalize(actual_text)
 
     # Expected

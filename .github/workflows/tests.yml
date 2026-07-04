@@ -19,7 +19,13 @@ jobs:
         # PATH) moved out to the standalone crcglot package in 2026-05;
         # they run in crcglot's own CI now.  Termapy keeps a tiny
         # wrapper smoke test that doesn't need any toolchain.
-        run: uv run --python ${{ matrix.python-version }} pytest
+        #
+        # --extra mcp installs the MCP SDK so the ~180 tests guarded by
+        # pytest.importorskip("mcp") actually run.  Without it they are
+        # silently uncollected and the MCP server (mcp/server.py etc.) has
+        # zero CI coverage.  The `web` extra gates no tests, so it is not
+        # needed here.
+        run: uv run --python ${{ matrix.python-version }} --extra mcp pytest
 
   coverage:
     runs-on: ubuntu-latest
@@ -27,7 +33,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - name: Run tests with coverage
-        run: uv run --python 3.14 pytest --cov=termapy --cov-report=xml:coverage.xml
+        # --extra mcp so the MCP tests run and mcp/* is counted in coverage
+        # (previously 0% in CI because those tests were uncollected).
+        run: uv run --python 3.14 --extra mcp pytest --cov=termapy --cov-report=xml:coverage.xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

@@ -15,7 +15,7 @@ serial-debugging work.
 ## Conventions
 
 - **Filename:** `YYYY-MM-DD-vX.Y.Z-<model>.md` — date first (sorts chronologically), then the version reviewed, then the primary reviewer model. Time-of-day may be appended (`YYYY-MM-DD-HHMM-...`) if more than one pass lands on a day.
-- **Append-only:** a review file is **frozen once merged**. It is a point-in-time record, not a living document. Later changes (a finding fixed in a later release, an erratum) go under a trailing `## Addenda` section as dated entries — never by editing the body.
+- **Append-only + remediation log:** a review's *body* is **frozen once merged** — it is the point-in-time assessment and must not be edited. Progress is recorded in the trailing `## Addenda` section instead: a running remediation log of dated entries (`R…`/`K…` finding id → FIXED on `main` / released, with the commit). **Fold each addendum entry into the same commit/branch as the fix**, so fixing a finding and recording it land together. Errata go here too.
 - **Grading:** every claim carries a grade — **Verified** (reproduced or exact-path read by the orchestrator), **Reported** (agent-cited, plausible, not independently re-verified), or **Assessment** (judgment / external comparison, basis stated). The fitness verdict keys off Verified findings.
 - **Credibility metadata:** each file's header records the date, version, commit SHA, host/hardware, the model(s) used, the method, and — for honesty — whether the pass was complete and whether the verification stage ran.
 - **Not published:** these are internal engineering records and are intentionally **not** in the mkdocs/site nav. Publishing one externally is a per-file decision.

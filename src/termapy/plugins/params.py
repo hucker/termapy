@@ -14,7 +14,7 @@ argument string into either a bound ``dict`` or a single error reason.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from termapy.scripting import parse_duration, parse_keywords
 
@@ -75,9 +75,6 @@ class ParamSpec:
 
 
 # -- Coercion -------------------------------------------------------------------
-# Each coercer takes (spec, text) and returns (ok, value) on success or
-# (False, reason) on failure.  Reason phrasing is the fixed vocabulary from
-# param-fail-message -- do not improvise variants.
 
 CoerceResult = tuple[bool, Any]
 
@@ -101,63 +98,42 @@ def _range_check(spec: ParamSpec, value: float) -> CoerceResult:
     return True, value
 
 
-def _coerce_str(spec: ParamSpec, text: str) -> CoerceResult:
-    return True, text
-
-
-def _coerce_int(spec: ParamSpec, text: str) -> CoerceResult:
-    try:
-        value = int(text)
-    except ValueError:
-        return False, f"invalid {spec.name}: {text!r} (expected an integer)"
-    return _range_check(spec, value)
-
-
-def _coerce_float(spec: ParamSpec, text: str) -> CoerceResult:
-    try:
-        value = float(text)
-    except ValueError:
-        return False, f"invalid {spec.name}: {text!r} (expected a number)"
-    return _range_check(spec, value)
-
-
-def _coerce_duration(spec: ParamSpec, text: str) -> CoerceResult:
-    try:
-        seconds = parse_duration(text)
-    except ValueError:
-        return False, (
-            f"invalid {spec.name}: {text!r} (expected duration, e.g. 500ms, 1.5s)"
-        )
-    return True, seconds
-
-
-def _coerce_enum(spec: ParamSpec, text: str) -> CoerceResult:
-    low = text.lower()
-    for ev in spec.values:
-        if low == ev.canonical.lower() or low in {a.lower() for a in ev.aliases}:
-            return True, ev.canonical
-    canon = ", ".join(ev.canonical for ev in spec.values)
-    return False, f"invalid {spec.name}: {text!r} (expected one of: {canon})"
-
-
-# ``path`` and ``command`` are identity strings (no resolution / no case-fold);
-# resolution stays in handlers where cap-dir vs scripts-dir differ.
-COERCERS: dict[str, Callable[[ParamSpec, str], CoerceResult]] = {
-    "str": _coerce_str,
-    "int": _coerce_int,
-    "float": _coerce_float,
-    "duration": _coerce_duration,
-    "enum": _coerce_enum,
-    "path": _coerce_str,
-    "command": _coerce_str,
-}
-
-TYPES = frozenset(COERCERS)
+# str / path / command are identity (no resolution, no case-fold -- resolution
+# stays in handlers where cap-dir vs scripts-dir differ).
+TYPES = frozenset({"str", "int", "float", "duration", "enum", "path", "command"})
+_IDENTITY = frozenset({"str", "path", "command"})
+_NUMERIC = {"int": (int, "an integer"), "float": (float, "a number")}
 
 
 def coerce_value(spec: ParamSpec, text: str) -> CoerceResult:
-    """Coerce a raw token per the spec's type.  Returns ``(ok, value|reason)``."""
-    return COERCERS[spec.type](spec, text)
+    """Coerce a raw token per the spec's type -- ``(ok, value|reason)``.
+
+    Reason phrasing is the fixed vocabulary from param-fail-message; do not
+    improvise variants.
+    """
+    kind = spec.type
+    if kind in _IDENTITY:
+        return True, text
+    if kind in _NUMERIC:
+        convert, noun = _NUMERIC[kind]
+        try:
+            value = convert(text)
+        except ValueError:
+            return False, f"invalid {spec.name}: {text!r} (expected {noun})"
+        return _range_check(spec, value)
+    if kind == "duration":
+        try:
+            return True, parse_duration(text)
+        except ValueError:
+            return False, (
+                f"invalid {spec.name}: {text!r} (expected duration, e.g. 500ms, 1.5s)"
+            )
+    low = text.lower()  # enum
+    for ev in spec.values:
+        if low == ev.canonical.lower() or low in {a.lower() for a in ev.aliases}:
+            return True, ev.canonical
+    allowed = ", ".join(ev.canonical for ev in spec.values)
+    return False, f"invalid {spec.name}: {text!r} (expected one of: {allowed})"
 
 
 # -- Declaration validation (fires at load, via Command.__post_init__) ----------
@@ -282,44 +258,38 @@ def _type_hint(spec: ParamSpec) -> str:
     }[spec.type]
 
 
-def _synopsis_token(spec: ParamSpec) -> str:
-    if spec.positional:
-        core = f"<{spec.name}>"
-    else:
-        core = f"{spec.name}={_type_hint(spec)}"
-    return core if spec.required else f"{{{core}}}"
+def _token(spec: ParamSpec) -> str:
+    """The ``<name>`` / ``name=<hint>`` core, without optional braces."""
+    return f"<{spec.name}>" if spec.positional else f"{spec.name}={_type_hint(spec)}"
+
+
+def _rest_last(params: list[ParamSpec]) -> list[ParamSpec]:
+    """Declared order, with the rest param (if any) moved to the end."""
+    return [p for p in params if not p.rest] + [p for p in params if p.rest]
 
 
 def synthesize_synopsis(params: list[ParamSpec]) -> str:
-    """Build the ``args``-style synopsis line from ``params``.
-
-    Non-rest params in declared order, the rest param last (matching the
-    existing ``Command.args`` convention).
-    """
-    head = [_synopsis_token(p) for p in params if not p.rest]
-    tail = [_synopsis_token(p) for p in params if p.rest]
-    return " ".join(head + tail)
+    """Build the ``args``-style synopsis line from ``params`` (rest param last)."""
+    parts = []
+    for p in _rest_last(params):
+        core = _token(p)
+        parts.append(core if p.required else f"{{{core}}}")
+    return " ".join(parts)
 
 
 def _format_default(spec: ParamSpec) -> str:
-    value = spec.default
-    if value is None:
+    if spec.default is None:
         return ""
-    if spec.type == "duration":
-        return f"{_fmt_num(value)}s"
-    return str(value)
+    return f"{_fmt_num(spec.default)}s" if spec.type == "duration" else str(spec.default)
 
 
 def render_parameters_block(params: list[ParamSpec]) -> list[str]:
     """Render the ``PARAMETERS`` help lines: ``name=<hint>  help (default: X)``.
 
-    Rest param rendered last; the name column is padded to align the help text.
+    Rest param last; the name column is padded to align the help text.
     """
-    ordered = [p for p in params if not p.rest] + [p for p in params if p.rest]
-    tokens = [
-        f"{p.name}={_type_hint(p)}" if not p.positional else f"<{p.name}>"
-        for p in ordered
-    ]
+    ordered = _rest_last(params)
+    tokens = [_token(p) for p in ordered]
     width = max((len(t) for t in tokens), default=0)
     lines: list[str] = []
     for spec, token in zip(ordered, tokens):

@@ -97,7 +97,7 @@ COMMAND = Command(
             help="pause between iterations, e.g. 100ms (default: no delay)",
         ),
         ParamSpec(
-            "var", "str", default="REPEAT_N",
+            "var", "str", default="REPEAT_N", hint="<name>",
             help="variable name for the iteration index",
         ),
         ParamSpec("cmd", "command", required=True, rest=True, help="command to repeat"),

@@ -81,6 +81,7 @@ class ParamSpec:
     required: bool = False
     default: Any = None           # post-coercion value (e.g. 1.0 for "1s")
     help: str = ""                # one line; feeds help + MCP catalog
+    hint: str = ""                # override synopsis type-hint (e.g. "<name>")
     positional: bool = False      # consumed from positional tokens, in declared order
     rest: bool = False            # consumes to end of line; at most one; must sort last
     values: tuple = ()            # enum only: EnumValue entries (see param-type-enum)

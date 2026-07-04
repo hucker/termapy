@@ -219,6 +219,12 @@ class TestSynopsisAndBlock:
         actual = synthesize_synopsis(params)
         assert actual == "{mode=new|append}", "enum hint is canonical|canonical"
 
+    def test_hint_override_beats_generic_type_hint(self):
+        # A str param's generic hint is <value>; hint= makes it descriptive.
+        params = [ParamSpec("var", "str", default="x", hint="<name>")]
+        actual = synthesize_synopsis(params)
+        assert actual == "{var=<name>}", "hint= overrides the generic <value> str hint"
+
     def test_parameters_block_shows_defaults_and_flags(self):
         params = [
             ParamSpec("count", "int", default=1, help="number of pings"),

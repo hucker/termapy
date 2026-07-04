@@ -336,6 +336,24 @@ def expand_env_str(text: str) -> str:
     return _ENV_RE.sub(_replace, text)
 
 
+# Config keys whose value is a command string dispatched on connect
+# (TUI/CLI/MCP all run these through the normal REPL pipeline).  They are
+# deliberately NOT env-expanded at load time: doing so bypasses the
+# per-command env gate and puts $(env.X) values on the wire for bare
+# device commands -- the $(env.PATH) incident class.  Dispatched normally,
+# the env_var transform expands $(env.X) for repl commands but not for
+# device text (env.py's TRANSFORM has no ``serial`` variant), so these keys
+# follow the same env-to-wire rule as typed input.
+_ENV_EXPAND_EXCLUDED_KEYS = frozenset(
+    {
+        "on_connect_cmd",
+        "tui_on_connect_cmd",
+        "cli_on_connect_cmd",
+        "mcp_on_connect_cmd",
+    }
+)
+
+
 def expand_env_cfg(cfg: dict) -> dict:
     """Expand $(env.NAME) in string values of a config dict, recursively.
 
@@ -344,7 +362,8 @@ def expand_env_cfg(cfg: dict) -> dict:
     section) get expanded too -- the v22 migration nested pyserial
     keys under ``cfg["serial"]``, so a top-level-only expander
     silently stopped working for serial keys.  Non-string, non-dict
-    values are left untouched.
+    values are left untouched, as are the connect-command keys in
+    ``_ENV_EXPAND_EXCLUDED_KEYS`` (see that constant).
 
     Args:
         cfg: Config dict to expand in place.
@@ -353,6 +372,8 @@ def expand_env_cfg(cfg: dict) -> dict:
         The same dict with string values expanded.
     """
     for key, val in cfg.items():
+        if key in _ENV_EXPAND_EXCLUDED_KEYS:
+            continue
         if isinstance(val, str) and "$(" in val:
             cfg[key] = expand_env_str(val)
         elif isinstance(val, dict):

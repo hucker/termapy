@@ -102,6 +102,20 @@ Both forms are valid and do slightly different things:
   env value (whatever it is, even a wrong SN) is tried first, then
   `COM3` if resolution fails. The idiomatic form for port specs.
 
+### Env vars never reach the wire automatically
+
+`$(env.NAME)` expands in config values (like `port` above) and in REPL
+commands (`/print $(env.HOME)`, `/var set x $(env.TOKEN)`), but **not in
+bare device commands** -- typing `AT+X=$(env.SECRET)` sends the literal
+text, never the value, so environment secrets stay off the serial wire.
+
+The `on_connect_cmd` family (`on_connect_cmd`, `tui_`/`cli_`/`mcp_on_connect_cmd`)
+follows exactly this rule: each line is dispatched as if you had typed it,
+so `/`-commands in it expand `$(env.X)` while device commands do not. They
+are deliberately **not** pre-expanded at config-load time -- if you need an
+env value in a connect-time device command, put it in a user variable via a
+`/`-command first (`$(NAME)` user variables *do* expand on the wire).
+
 See [ports.md](ports.md#stable-port-specs) for the full port-spec
 grammar, and [Using with Git](using-git.md) for team workflow
 details.

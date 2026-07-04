@@ -449,6 +449,36 @@ class TestExpandEnvCfg:
         assert actual["baud_rate"] == 9600, "int unchanged"
         assert actual["auto_connect"] is True, "bool unchanged"
 
+    def test_skips_connect_command_keys(self, monkeypatch):
+        # Arrange -- the *_on_connect_cmd keys are dispatched through the REPL
+        # on connect, where the env gate applies per command (repl commands
+        # expand $(env.X), bare device text does not).  Pre-expanding them
+        # here would put env values on the wire for device commands -- the
+        # $(env.PATH) incident class -- so they must be left literal.
+        monkeypatch.setenv("OCC_TEST", "SECRET")
+        cfg = {
+            "on_connect_cmd": "AT+TOKEN=$(env.OCC_TEST)",
+            "tui_on_connect_cmd": "$(env.OCC_TEST)",
+            "cli_on_connect_cmd": "$(env.OCC_TEST)",
+            "mcp_on_connect_cmd": "$(env.OCC_TEST)",
+            "log_file": "$(env.OCC_TEST).log",
+        }
+
+        # Act
+        actual = expand_env_cfg(cfg)
+
+        # Assert -- connect-command keys left literal; ordinary values expand
+        assert actual["on_connect_cmd"] == "AT+TOKEN=$(env.OCC_TEST)", \
+            "on_connect_cmd not pre-expanded (env gated at dispatch)"
+        assert actual["tui_on_connect_cmd"] == "$(env.OCC_TEST)", \
+            "tui_on_connect_cmd not pre-expanded"
+        assert actual["cli_on_connect_cmd"] == "$(env.OCC_TEST)", \
+            "cli_on_connect_cmd not pre-expanded"
+        assert actual["mcp_on_connect_cmd"] == "$(env.OCC_TEST)", \
+            "mcp_on_connect_cmd not pre-expanded"
+        assert actual["log_file"] == "SECRET.log", \
+            "ordinary cfg values still expand"
+
 
 class TestLoadConfigEnvExpansion:
     def test_expands_env_in_loaded_config(self, tmp_path, monkeypatch):

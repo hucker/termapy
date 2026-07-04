@@ -756,7 +756,7 @@ class TestWaitForMatch:
         t.join(timeout=2.0)
 
         # Assert
-        assert result[0] == "OK"  # matched via feed_lines
+        assert result[0] == "OK", "matched via feed_lines"
 
     def test_regex_predicate(self, engine):
         """Regex predicate matches correctly."""
@@ -772,7 +772,7 @@ class TestWaitForMatch:
         )
 
         # Assert
-        assert actual == "+TEMP: 23.5C"  # regex matched
+        assert actual == "+TEMP: 23.5C", "regex matched"
 
 
 class TestFeedLines:
@@ -786,20 +786,20 @@ class TestFeedLines:
 
         # Assert
         actual = list(eng._recent_lines)
-        assert actual == ["OK"]  # ANSI stripped
+        assert actual == ["OK"], "ANSI stripped"
 
     def test_buffers_without_predicate(self, engine):
         """Lines are buffered even when no predicate is active."""
         # Arrange
         eng, _ = engine
-        assert eng._expect_predicate is None  # no predicate
+        assert eng._expect_predicate is None, "no predicate"
 
         # Act
         eng.feed_lines(["line1", "line2"])
 
         # Assert
         actual = list(eng._recent_lines)
-        assert actual == ["line1", "line2"]  # buffered
+        assert actual == ["line1", "line2"], "buffered"
 
 
 class TestParseFlags:

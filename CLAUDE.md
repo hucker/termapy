@@ -91,7 +91,7 @@ uv run termapy --cfg-dir . # use cwd for configs
 - AAA comments (`# Arrange`, `# Act`, `# Assert`) for non-trivial tests
 - Assert comments required
 - Assert order: `actual == expected`
-- Assert messages required — every `assert` includes a message describing the failure.
+- Assert messages required for non-obvious asserts — state the *intent* (what a failure means), not a restatement of the expression, which pytest already prints. Self-documenting value-checks (e.g. `assert parsed.field == expected` in a parse test whose name conveys the scenario) are exempt. When an assert carries an explanatory comment, make it the message instead (`assert x == 500  # override` → `assert x == 500, "override"`). Suite compliance is ~94% by this standard, not 100% by an absolute one.
 - Non-trivial: use `actual`/`expected` variables
 - Multiple checks: `actual_x == expected_x` pattern
 - Avoid mocking and monkey-patching.  Confirmation required!

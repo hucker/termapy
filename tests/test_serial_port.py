@@ -478,4 +478,4 @@ class TestSerialReaderReset:
         result = reader.process(b"new\r\n")
 
         # Assert
-        assert result.lines == ["new"]  # no leftover from before reset
+        assert result.lines == ["new"], "no leftover from before reset"

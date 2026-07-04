@@ -660,6 +660,20 @@ class CLITerminal(TerminalHost):
                 if self.no_color:
                     line = strip_ansi(line)
                 self._raw(line)
+            # Expect-watcher tap (mirrors app._write_batch): without this,
+            # /expect never sees incoming serial data in CLI mode and always
+            # times out, even though the TUI and MCP frontends feed it.
+            self.repl.feed_lines(lines)
+            # Text-capture tap (mirrors app._write_batch): binary capture is
+            # fed at the byte level in serial_port.read, but *text* capture is
+            # fed from the host's line batch.  The TUI does this; CLI must too,
+            # or /cap.text silently records nothing received from the port.
+            if self.capture.active and self.capture.mode == "text":
+                stripped = [strip_ansi(t) for t in lines]
+                if self.capture.feed_text(stripped):
+                    # Write failed mid-capture -- stop so the abort is visible
+                    # instead of silently dropping the rest.
+                    self._stop_capture()
 
         reader_thread = threading.Thread(
             target=self.engine.read_loop,

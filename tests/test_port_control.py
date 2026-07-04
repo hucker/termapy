@@ -737,6 +737,8 @@ from termapy.port_control import (  # noqa: E402
     MATCH_RESERVED,
     MATCH_SERIAL,
     MATCH_URL,
+    chip_field,
+    chip_info,
     resolve_port,
     resolve_port_trace,
 )
@@ -858,6 +860,48 @@ class TestResolvePort:
         assert "0001" in str(exc.value), "SN named in exception message"
         assert "COM3" in str(exc.value) and "COM7" in str(exc.value), \
             "both devices mentioned in exception message"
+
+
+class TestChipInfoResolvesSnSpec:
+    """R2607-03: /port.chip and /port.chip.<field> must resolve an SN /
+    fallback spec (like /port.info does) before the literal-device lookup.
+
+    gather_chip_facts matches literal device names only, so without
+    resolution these failed with "No port matching" under an SN-based
+    config -- even while connected.  Uses the demo fleet (COM3 SN
+    A1B2C3D4, an FTDI FT232R).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _use_demo_fleet(self, monkeypatch):
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+    def test_chip_info_resolves_serial_number(self):
+        # Arrange -- SN-based config: current_port is the SN, nothing typed.
+        # Act
+        msgs, _ = chip_info("", "A1B2C3D4", connected_port="COM3")
+
+        # Assert
+        texts = [t for t, _ in msgs]
+        assert not any("No port matching" in t for t in texts), (
+            "chip_info must resolve the SN, not report no match"
+        )
+        assert any("COM3" in t for t in texts), (
+            "resolves the SN to its device (COM3) and dumps its facts"
+        )
+
+    def test_chip_field_resolves_serial_number(self):
+        # Act -- /port.chip.model under an SN config.
+        msgs, _ = chip_field("model", "", "A1B2C3D4", connected_port="COM3")
+
+        # Assert
+        texts = [t for t, _ in msgs]
+        assert not any("No port matching" in t for t in texts), (
+            "chip_field must resolve the SN, not report no match"
+        )
+        assert any("FT232R" in t or "FTDI" in t for t in texts), (
+            f"returns the resolved device's model field, got {texts}"
+        )
 
 
 class TestResolvePortTrace:

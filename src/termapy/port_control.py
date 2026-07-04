@@ -1167,7 +1167,12 @@ def chip_info(arg: str, current_port: str, connected_port: str = "") -> Result:
     target = arg or current_port
     if not target:
         return _result([_msg("No current port set.", "red")])
-    facts = gather_chip_facts(target, connected_port)
+    # Resolve an SN / fallback-chain spec (e.g. "A1B2C3D4" or "SN|COM3") to
+    # a real device first -- gather_chip_facts matches literal device names
+    # only, so without this /port.chip fails under an SN-based config even
+    # while connected (port_info already resolves; this brings /port.chip
+    # into line).
+    facts = gather_chip_facts(resolve_port(target, connected_port), connected_port)
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     return _result(_format_facts_full(facts))
@@ -1208,7 +1213,9 @@ def chip_field(
     target = arg or current_port
     if not target:
         return _result([_msg("No current port set.", "red")])
-    facts = gather_chip_facts(target, connected_port)
+    # Resolve SN / fallback specs before the literal-name lookup (see
+    # chip_info -- keeps /port.chip.<field> working under an SN config).
+    facts = gather_chip_facts(resolve_port(target, connected_port), connected_port)
     if facts is None:
         return _result([_msg(f"No port matching {target!r}", "yellow")])
     value = getattr(facts, field)

@@ -6,27 +6,29 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CapabilitySet, CmdResult, Command
-from termapy.scripting import parse_duration, parse_keywords
+from termapy.plugins.params import ParamSpec
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
+# Declarative parameters -- the dispatcher parses/coerces/validates these and
+# fails with a synthesized usage message before the handler runs.  Shared by
+# /ping and /ping.quiet.  ``timeout`` default is 0.25 == 250ms (post-coercion
+# float seconds); the old hand-written help claimed "1s", which was drift.
+_PING_PARAMS = [
+    ParamSpec("count", "int", default=1, min=1, help="number of pings"),
+    ParamSpec(
+        "timeout", "duration", default=0.25, help="response timeout per ping"
+    ),
+    ParamSpec("cmd", "command", required=True, rest=True, help="command to send"),
+]
+
+
 def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult:
-    kw = parse_keywords(args, {"cmd", "count", "timeout"}, rest_keyword="cmd")
-    cmd = kw.get("cmd", "")
-    if not cmd:
-        return CmdResult.fail(msg="Usage: /ping {count=<N>} {timeout=<dur>} cmd=<command>")
-    try:
-        count = int(kw.get("count", "1"))
-    except ValueError:
-        return CmdResult.fail(msg="Ping: count must be an integer")
-    if count < 1:
-        return CmdResult.fail(msg="Ping: count must be >= 1")
-    try:
-        timeout_ms = int(parse_duration(kw.get("timeout", "250ms")) * 1000)
-    except ValueError as e:
-        return CmdResult.fail(msg=f"Ping: {e}")
+    cmd = ctx.arg("cmd")
+    count = ctx.arg("count")
+    timeout_ms = int(ctx.arg("timeout") * 1000)  # param is float seconds
     times: list[float] = []
     for i in range(count):
         with ctx.serial.io():
@@ -69,33 +71,23 @@ def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     "Send a command and measure response time.",
     name="ping",
-    args="{count=<N>} {timeout=<dur>} cmd=<command>",
     long_help=(
         "Sends a command to the device and measures round-trip time,\n"
-        "repeating for count iterations.  Reports min/max/mean timing.\n"
-        "\n"
-        "Parameters:\n"
-        "  cmd=<command>     REQUIRED command to send (must be last)\n"
-        "  count=<N>         number of pings (default: 1)\n"
-        "  timeout=<dur>     response timeout per ping (default: 1s)"
+        "repeating for count iterations.  Reports min/max/mean timing."
     ),
     handler=_handler,
     needs=CapabilitySet(serial_connected=True),
+    params=_PING_PARAMS,
     sub_commands={
         "quiet": Command(
             "Ping without showing device response.",
             long_help=(
                 "Same as {prefix}ping but suppresses the device response text;\n"
-                "only the timing summary is printed.\n"
-                "\n"
-                "Parameters:\n"
-                "  cmd=<command>     REQUIRED command to send (must be last)\n"
-                "  count=<N>         number of pings (default: 1)\n"
-                "  timeout=<dur>     response timeout per ping (default: 1s)"
+                "only the timing summary is printed."
             ),
             handler=_handler_quiet,
-            args="{count=<N>} {timeout=<dur>} cmd=<command>",
             needs=CapabilitySet(serial_connected=True),
+            params=_PING_PARAMS,
         ),
     },
 )

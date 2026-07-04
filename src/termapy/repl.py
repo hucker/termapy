@@ -35,6 +35,7 @@ from termapy.plugins import (
     builtins_dir,
     load_plugins_from_dir,
 )
+from termapy.plugins.params import parse_params, synthesize_synopsis
 from termapy.scripting import expand_template, parse_duration, parse_keywords
 
 
@@ -1248,10 +1249,29 @@ class ReplEngine:
                 result = CmdResult.fail(msg=flag_error)
                 self.write(result.err_msg, "red")
                 return result
+            # Declarative params: parse/coerce/validate before touching the
+            # context, so a bad-argument failure returns without having
+            # mutated ctx.  Commands with no declared params opt out entirely
+            # (bound stays empty; args passes through unchanged).
+            bound_params: dict = {}
+            if plugin.params:
+                bound_params, param_error = parse_params(plugin.params, args)
+                if param_error:
+                    usage = synthesize_synopsis(plugin.params)
+                    result = CmdResult.fail(
+                        msg=f"/{name}: {param_error}\nUsage: /{name} {usage}"
+                    )
+                    self.write(result.err_msg, "red")
+                    return result
             self.ctx.active_flags = active_flags
             # Save+restore the level (rather than reset to None) so a
             # nested dispatch inside the handler -- e.g. /run cascading
             # into the script's commands -- inherits this call's level.
+            # bound_params follows the same save/restore discipline (NOT the
+            # active_flags set-then-clear) so a nested ctx.dispatch() can't
+            # strand the outer command's parsed params.
+            saved_bound_params = self.ctx.bound_params
+            self.ctx.bound_params = bound_params
             saved_call_level = self.ctx._call_level
             if call_level is not None:
                 self.ctx._call_level = call_level
@@ -1289,6 +1309,7 @@ class ReplEngine:
                 result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
             finally:
                 self.ctx.active_flags = set()
+                self.ctx.bound_params = saved_bound_params
                 self.ctx._call_level = saved_call_level
         else:
             suggestion = _suggest_command(name, self._plugins, self.prefix)

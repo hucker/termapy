@@ -2450,7 +2450,8 @@ class TestRepeat:
 
         # Assert - error about missing count
         actual = [t for t, _ in output]
-        assert any("Count is required" in t for t in actual), f"expected 'Count is required' error, got: {actual}"
+        assert any("missing required parameter 'count'" in t for t in actual), \
+            f"expected missing-count error, got: {actual}"
 
     def test_missing_cmd(self, repl_env):
         # Arrange
@@ -2481,9 +2482,9 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=0 cmd=AT")
 
-        # Assert - error about count > 0
+        # Assert - error about count below the minimum
         actual = [t for t, _ in output]
-        assert any("> 0" in t for t in actual), f"expected '> 0' error, got: {actual}"
+        assert any(">= 1" in t for t in actual), f"expected '>= 1' error, got: {actual}"
 
     def test_count_negative(self, repl_env):
         # Arrange
@@ -2492,9 +2493,9 @@ class TestRepeat:
         # Act
         engine.dispatch("repeat count=-1 cmd=AT")
 
-        # Assert - error about count > 0
+        # Assert - error about count below the minimum
         actual = [t for t, _ in output]
-        assert any("> 0" in t for t in actual), f"expected '> 0' error, got: {actual}"
+        assert any(">= 1" in t for t in actual), f"expected '>= 1' error, got: {actual}"
 
     def test_invalid_delay(self, repl_env):
         # Arrange

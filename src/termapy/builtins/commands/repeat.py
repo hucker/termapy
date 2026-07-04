@@ -6,7 +6,7 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command
-from termapy.scripting import parse_duration, parse_keywords
+from termapy.plugins.params import ParamSpec
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -38,34 +38,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context.
-        args: Keyword arguments: count, delay, var, cmd.
+        args: Unused -- parameters arrive via ``ctx.arg()`` (see ``params``).
     """
-    kw = parse_keywords(args, {"count", "delay", "var", "cmd"}, rest_keyword="cmd")
-
-    cmd = kw.get("cmd", "")
-    if not cmd:
-        return CmdResult.fail(
-            msg="Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>"
-        )
-
-    count_str = kw.get("count", "")
-    if not count_str:
-        return CmdResult.fail(msg="Count is required")
-    try:
-        count = int(count_str)
-    except ValueError:
-        return CmdResult.fail(msg=f"Count must be an integer: {count_str}")
-    if count < 1:
-        return CmdResult.fail(msg=f"Count must be > 0: {count}")
-
-    delay_s = 0.0
-    if "delay" in kw:
-        try:
-            delay_s = parse_duration(kw["delay"])
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-
-    var_name = kw.get("var", "REPEAT_N")
+    cmd = ctx.arg("cmd")
+    count = ctx.arg("count")
+    delay_s = ctx.arg("delay")  # float seconds (0.0 == no delay)
+    var_name = ctx.arg("var")
 
     from termapy.builtins.commands.var import _VARS
 
@@ -104,19 +82,24 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="repeat",
-    args="count=<N> {delay=<dur>} {var=<name>} cmd=<command>",
     help="Repeat a command N times with optional delay (escape to cancel).",
     long_help=(
         "Runs a command count times in sequence, optionally with a delay\n"
         "between iterations.  Press Escape to cancel.  If var= is given,\n"
         "the current iteration index (1..N) is available as $(var) in\n"
-        "the command.\n"
-        "\n"
-        "Parameters:\n"
-        "  cmd=<command>     REQUIRED command to repeat (must be last)\n"
-        "  count=<N>         REQUIRED number of repetitions\n"
-        "  delay=<dur>       pause between iterations, e.g. 100ms (default: no delay)\n"
-        "  var=<name>        variable name for the iteration index"
+        "the command."
     ),
     handler=_handler,
+    params=[
+        ParamSpec("count", "int", required=True, min=1, help="number of repetitions"),
+        ParamSpec(
+            "delay", "duration", default=0.0,
+            help="pause between iterations, e.g. 100ms (default: no delay)",
+        ),
+        ParamSpec(
+            "var", "str", default="REPEAT_N",
+            help="variable name for the iteration index",
+        ),
+        ParamSpec("cmd", "command", required=True, rest=True, help="command to repeat"),
+    ],
 )

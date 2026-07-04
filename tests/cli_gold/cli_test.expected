@@ -742,11 +742,14 @@ demo> /print iteration $(I)
 demo> /print iteration $(I)
   iteration 3
 demo> /repeat cmd=AT
-  Error: Count is required
+  Error: /repeat: missing required parameter 'count'
+Usage: /repeat count=<N> {delay=<dur>} {var=<value>} cmd=<command>
 demo> /repeat count=0 cmd=AT
-  Error: Count must be > 0: 0
+  Error: /repeat: count must be >= 1 (got 0)
+Usage: /repeat count=<N> {delay=<dur>} {var=<value>} cmd=<command>
 demo> /repeat count=abc cmd=AT
-  Error: Count must be an integer: abc
+  Error: /repeat: invalid count: 'abc' (expected an integer)
+Usage: /repeat count=<N> {delay=<dur>} {var=<value>} cmd=<command>
 demo> /print === section: env vars ===
   === section: env vars ===
 demo> /env.set TEST_VAR hello_world

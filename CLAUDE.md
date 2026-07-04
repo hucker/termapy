@@ -91,9 +91,10 @@ uv run termapy --cfg-dir . # use cwd for configs
 - AAA comments (`# Arrange`, `# Act`, `# Assert`) for non-trivial tests
 - Assert comments required
 - Assert order: `actual == expected`
-- Assert messages required — every `assert` must include a message string describing what failed
+- Assert messages required — every `assert` includes a message describing the failure.
 - Non-trivial: use `actual`/`expected` variables
 - Multiple checks: `actual_x == expected_x` pattern
+- Avoid mocking and monkey-patching.  Confirmation required!
 
 ## CLI Gold Test
 

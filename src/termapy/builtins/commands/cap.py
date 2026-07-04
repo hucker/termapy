@@ -8,11 +8,19 @@ from typing import TYPE_CHECKING
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.protocol import parse_format_spec
 from termapy.scripting import parse_duration, parse_keywords, resolve_seq_filename
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
+
+# Shared enum vocabularies for the declarative-param capture subcommands
+# (text/bin).  ``mode`` maps to a file-open mode in the handler; ``on/off``
+# is a two-state toggle.  struct/hex/poll still parse by hand (see their
+# COMMAND entries), so ``_parse_mode`` below stays for them.
+_MODE_VALUES = (EnumValue("new", ("n",)), EnumValue("append", ("a",)))
+_ONOFF_VALUES = (EnumValue("on"), EnumValue("off"))
 
 _KEYWORDS = {
     "mode=", "bytes=", "records=", "sep=", "echo=", "cmd=", "fmt=", "timeout=",
@@ -94,35 +102,14 @@ def _resolve_path(filename: str, cap_dir: Path) -> Path | None:
 def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
     """Capture decoded serial text to a file for a timed duration.
 
-    Syntax: /cap.text <file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=...}
-
-    Args:
-        ctx: Plugin context.
-        args: Command arguments.
+    Parameters are declared on the command (see ``params`` in COMMAND) and
+    read via ``ctx.arg``; the dispatcher validates them before we run.
     """
-    sections = _extract_keyword_sections(args)
-    positional = sections.get("_positional", "").split()
-
-    if len(positional) < 1 or "timeout" not in sections:
-        return CmdResult.fail(
-            msg="Usage: /cap.text <file> timeout=<dur> {mode=new|append} "
-            "{echo=on|off} {cmd=... (must be last)}"
-        )
-
-    filename = positional[0]
-    file_mode = _parse_mode(sections)
-    if file_mode is None:
-        return CmdResult.fail(
-            msg=f"Invalid mode: {sections['mode']!r}. Use new/n or append/a."
-        )
-
-    try:
-        seconds = parse_duration(sections["timeout"])
-    except ValueError as e:
-        return CmdResult.fail(msg=str(e))
-
-    cmd = sections.get("cmd", "")
-    echo = sections.get("echo", "off").lower() == "on"
+    filename = ctx.arg("file")
+    seconds = ctx.arg("timeout")  # required duration -> float seconds
+    file_mode = "w" if ctx.arg("mode") == "new" else "a"
+    echo = ctx.arg("echo") == "on"
+    cmd = ctx.arg("cmd")
 
     try:
         filename = resolve_seq_filename(filename, ctx.fs.cap_dir)
@@ -150,41 +137,13 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     """Capture raw binary bytes to a file.
 
-    Syntax: /cap.bin <file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=...}
-
-    Args:
-        ctx: Plugin context.
-        args: Command arguments.
+    Parameters are declared on the command and read via ``ctx.arg``.
     """
-    sections = _extract_keyword_sections(args)
-    positional = sections.get("_positional", "").split()
-
-    if len(positional) < 1 or "bytes" not in sections:
-        return CmdResult.fail(
-            msg="Usage: /cap.bin <file> bytes=<N> {mode=new|append} "
-            "{timeout=<dur>} {cmd=... (must be last)}"
-        )
-
-    filename = positional[0]
-    file_mode = _parse_mode(sections)
-    if file_mode is None:
-        return CmdResult.fail(
-            msg=f"Invalid mode: {sections['mode']!r}. Use new/n or append/a."
-        )
-
-    try:
-        cap_bytes = int(sections["bytes"])
-    except ValueError:
-        return CmdResult.fail(msg=f"Invalid bytes: {sections['bytes']!r}")
-
-    timeout_s = 0.0
-    if "timeout" in sections:
-        try:
-            timeout_s = parse_duration(sections["timeout"])
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-
-    cmd = sections.get("cmd", "")
+    filename = ctx.arg("file")
+    cap_bytes = ctx.arg("bytes")
+    file_mode = "w" if ctx.arg("mode") == "new" else "a"
+    timeout_s = ctx.arg("timeout")  # optional duration -> float seconds (0.0 = none)
+    cmd = ctx.arg("cmd")
 
     try:
         filename = resolve_seq_filename(filename, ctx.fs.cap_dir)
@@ -739,28 +698,16 @@ def _cap_long_help_with_prose(prose: str):
     return _long
 
 
+# Prose only -- the parameter table is synthesized from Command.params
+# (param-help-noduplicate).
 _CAP_TEXT_PROSE = (
     "Passively captures all text arriving from the device for a\n"
-    "fixed duration.  Use {prefix}cap.stop to end early.\n"
-    "\n"
-    "Parameters:\n"
-    "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
-    "  timeout=<dur>     REQUIRED duration, e.g. 3s, 500ms, 1.5s\n"
-    "  mode=new|append   file mode (default: new)\n"
-    "  echo=on|off       also print captured text to terminal (default off)\n"
-    "  cmd=...           command to send after capture starts (must be last)"
+    "fixed duration.  Use {prefix}cap.stop to end early."
 )
 
 _CAP_BIN_PROSE = (
     "Captures a fixed number of raw bytes to a binary file.  Ends\n"
-    "when the byte count is reached or the optional timeout expires.\n"
-    "\n"
-    "Parameters:\n"
-    "  <file>            REQUIRED output filename (relative to cap/ dir)\n"
-    "  bytes=<N>         REQUIRED target byte count\n"
-    "  mode=new|append   file mode (default: new)\n"
-    "  timeout=<dur>     safety timeout, e.g. 10s (default: no timeout)\n"
-    "  cmd=...           command to send after capture starts (must be last)"
+    "when the byte count is reached or the optional timeout expires."
 )
 
 _CAP_STRUCT_PROSE = (
@@ -875,18 +822,40 @@ COMMAND = Command(
     handler=None,
     sub_commands={
         "text": Command(
-            args="<file> timeout=<dur> {mode=new|append} {echo=on|off} {cmd=... (must be last)}",
             help="Capture serial text to a file for a timed duration.",
             long_help=_cap_long_help_with_prose(_CAP_TEXT_PROSE),
             handler=_handler_text,
             needs=CapabilitySet(serial_connected=True),
+            params=[
+                ParamSpec("file", "path", positional=True, required=True,
+                          help="output filename (relative to cap/ dir)"),
+                ParamSpec("timeout", "duration", required=True,
+                          help="how long to capture, e.g. 3s, 500ms"),
+                ParamSpec("mode", "enum", default="new", values=_MODE_VALUES,
+                          help="file mode"),
+                ParamSpec("echo", "enum", default="off", values=_ONOFF_VALUES,
+                          help="also print captured text to the terminal"),
+                ParamSpec("cmd", "command", rest=True, default="",
+                          help="command to send after capture starts"),
+            ],
         ),
         "bin": Command(
-            args="<file> bytes=<N> {mode=new|append} {timeout=<dur>} {cmd=... (must be last)}",
             help="Capture raw binary bytes.",
             long_help=_cap_long_help_with_prose(_CAP_BIN_PROSE),
             handler=_handler_bin,
             needs=CapabilitySet(serial_connected=True),
+            params=[
+                ParamSpec("file", "path", positional=True, required=True,
+                          help="output filename (relative to cap/ dir)"),
+                ParamSpec("bytes", "int", required=True,
+                          help="target byte count"),
+                ParamSpec("mode", "enum", default="new", values=_MODE_VALUES,
+                          help="file mode"),
+                ParamSpec("timeout", "duration", default=0.0,
+                          help="safety timeout, e.g. 10s (default: none)"),
+                ParamSpec("cmd", "command", rest=True, default="",
+                          help="command to send after capture starts"),
+            ],
         ),
         "struct": Command(
             args="<file> fmt=<spec> records=<N> {mode=new|append} {sep=...} {echo=on|off} {timeout=<dur>} {cmd=... (must be last)}",

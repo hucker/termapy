@@ -18,7 +18,7 @@ All paths relative to `src/termapy/`.
 
 ## Architecture
 
-- `app.py` is the monolith — only file that imports Textual
+- Textual is confined to the UI layer: `app.py` (the main app) plus `dialogs/`, `widgets.py`, `capture_view.py`, `title_bar.py`, `proto_debug.py`, etc. Core modules (`repl.py`, `plugins.py`, `scripting.py`) never import Textual
 - `plugins.py` and `scripting.py` — zero Textual/pyserial deps
 - `repl.py` bridges plugins and app via `PluginContext` callbacks
 - Load order: builtins → global → per-config → app hooks (later overrides earlier)
@@ -165,7 +165,7 @@ Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
 - coverage percent (parsed from `pytest --cov` `TOTAL` line)
 - ty diagnostic count + badge color
 - ARCHITECTURE.md per-module line counts
-- rounded UI line counts in README ("app.py ~4225 lines, ...")
+- rounded UI line counts in README ("app.py ~3650 lines, ...")
 
 No RC versions, no leading `v` in the version arg, never run from anywhere but main. Scripts are stdlib-only and fail loud. See script docstrings for details.
 

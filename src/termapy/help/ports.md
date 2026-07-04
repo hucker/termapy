@@ -62,7 +62,8 @@ hand-curated table covers the common USB-serial bridge chips (FTDI,
 Silicon Labs, WCH / CH340-CH341, Microchip, Prolific, CP210x, etc.)
 with datasheet-sourced model name, USB speed class (full vs high),
 and the maximum baud rate the chip silicon supports.  That data
-fills the `Chip` and `Max baud` columns the picker shows.
+fills the `Chip` column the picker shows and the max-baud value in
+`/port.info`.
 
 The bundled snapshot ships with each termapy release.  If you want
 a fresher one, upgrade termapy through the normal channel
@@ -129,7 +130,7 @@ printed so you can identify the chip manually against the USB-IF
 database (`https://the-sz.com/products/usbid/`).
 
 The table is a plain Python dict in
-`src/termapy/port_control.py` (`USB_SERIAL_CHIPS`).  Adding a new chip
+`src/termapy/usb/chips.py` (`USB_SERIAL_CHIPS`).  Adding a new chip
 is a one-line change.
 
 ## When you hit "In use" and can't connect

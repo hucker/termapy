@@ -44,7 +44,7 @@ Each button object has these fields:
 - Plain text is sent to the serial device (e.g. `"ATZ"`)
 - Commands starting with `/` run as REPL commands (e.g. `"/run test.run"`)
 - Use `\n` to chain multiple commands (e.g. `"ATZ\nAT+INFO"`)
-- Mixed serial and REPL commands work: `"ATZ\n/sleep 500ms\nAT+INFO"`
+- Mixed serial and REPL commands work: `"ATZ\n/delay 500ms\nAT+INFO"`
 
 Custom buttons appear in the toolbar between the hardware buttons and the
 system buttons (Log, SS, Cap, Exit), with a small gap separating them.

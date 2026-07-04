@@ -49,6 +49,9 @@ class ParamSpec:
             (e.g. ``0.25`` for a ``"250ms"`` duration -- NOT the raw string;
             it is bound directly, never re-coerced).
         help: One-line description; feeds ``/help`` and the MCP catalog.
+        hint: Override the synopsis type-hint (e.g. ``"<name>"``, ``"<file>"``)
+            when the generic per-type hint (``<value>`` for ``str``) is less
+            descriptive than the parameter warrants.  Empty = use the default.
         positional: Bound from positional tokens in declared order (no
             ``name=``).  Positional values cannot contain spaces.
         rest: Consumes to end of line; at most one per command; must not also
@@ -63,6 +66,7 @@ class ParamSpec:
     required: bool = False
     default: Any = None
     help: str = ""
+    hint: str = ""
     positional: bool = False
     rest: bool = False
     values: tuple[EnumValue, ...] = ()
@@ -264,6 +268,8 @@ def parse_params(
 
 
 def _type_hint(spec: ParamSpec) -> str:
+    if spec.hint:
+        return spec.hint
     if spec.type == "enum":
         return "|".join(ev.canonical for ev in spec.values)
     return {

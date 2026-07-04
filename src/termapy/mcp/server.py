@@ -984,11 +984,17 @@ def _dispatch_via_profile(
         )
         return result
 
-    # Destructive commands MUST require human-in-the-loop approval.
-    # The MCP host can't show a UI, so we surface a structured failure
-    # the LLM client can elicit confirmation for, then retry with
-    # confirm=True.  Marker fields in the value let well-behaved
-    # clients render a confirmation prompt rather than just an error.
+    # Best-effort confirmation courtesy -- NOT a security boundary.  A
+    # profile-declared destructive command returns a structured failure so
+    # a cooperating client can confirm with the human, then retry with
+    # confirm=True.  This is honor-system on purpose: the LLM sets
+    # confirm= itself, and raw /term.send / unclassified commands bypass
+    # it entirely.  termapy is a bridge -- it surfaces the safety metadata
+    # a profile declares; real device safety belongs to the device.  The
+    # marker fields let well-behaved clients render a prompt.  (Future,
+    # when a real hazardous device justifies it: a proper MCP elicitation
+    # handshake + a richer safety/hazard vocabulary in the profile schema
+    # -- both device-agnostic mechanisms, not device policy in the bridge.)
     safety = spec.get("safety", "safe")
     if safety == "destructive" and not confirm:
         result = CmdResult.fail(

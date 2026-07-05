@@ -36,7 +36,12 @@ from termapy.plugins import (
     load_plugins_from_dir,
 )
 from termapy.plugins.params import parse_params, synthesize_synopsis
-from termapy.scripting import expand_template, parse_duration, parse_keywords
+from termapy.scripting import (
+    expand_template,
+    format_duration,
+    parse_duration,
+    parse_keywords,
+)
 
 
 def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
@@ -204,26 +209,25 @@ class ScriptCtx:
     def record(self, label: str, elapsed: float) -> None:
         """Record timing for profile and verbose output."""
         if self.verbose:
-            fmt = f"{elapsed:.6f}" if elapsed < 0.001 else f"{elapsed:.3f}"
-            self.w(f"[{self.step}/{self.total}] {label} ({fmt}s)")
+            self.w(f"[{self.step}/{self.total}] {label} ({format_duration(elapsed)})")
         if self.profile and self.prof_fh:
             self.profile_times.append((label, elapsed))
+            # Raw seconds -- the .prof file is a data format, not display.
             self.prof_fh.write(f"{elapsed:.6f},{label}\n")
 
     def finish(self, script_name: str) -> None:
         """Display summary after successful script completion."""
         if self.verbose:
             elapsed = time.perf_counter() - self.script_t0
-            fmt = f"{elapsed:.6f}" if elapsed < 0.001 else f"{elapsed:.3f}"
-            self.w(f"Script {script_name} done ({fmt}s)")
+            self.w(f"Script {script_name} done ({format_duration(elapsed)})")
         if self.profile and self.profile_times and self.prof_fh and self.prof_path:
             total_t = sum(t for _, t in self.profile_times)
-            fmt = f"{total_t:.6f}" if total_t < 0.001 else f"{total_t:.3f}"
             self.prof_fh.flush()
             for line in self.prof_path.read_text(encoding="utf-8").splitlines():
                 self.w(line)
             self.w(
-                f"── {fmt}s total ({len(self.profile_times)} commands) -> {self.prof_name} ──"
+                f"── {format_duration(total_t)} total "
+                f"({len(self.profile_times)} commands) -> {self.prof_name} ──"
             )
 
 
@@ -401,7 +405,7 @@ class ReplEngine:
                 match = ctx.wait_for_match(predicate, timeout=timeout_s)
                 if match is None:
                     return CmdResult.fail(
-                        msg=f'Expect "{pattern}" timeout after {timeout_s}s'
+                        msg=f'Expect "{pattern}" timeout after {format_duration(timeout_s)}'
                     )
                 return CmdResult.ok(value=match)
 

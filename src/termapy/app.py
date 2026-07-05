@@ -128,7 +128,7 @@ class CommandSuggester(Suggester):
         return None
 
 
-from termapy.scripting import ANSI_RE  # noqa: E402 - used for log stripping
+from termapy.scripting import ANSI_RE, format_duration  # noqa: E402
 
 
 # Single source of truth for top-row hotkeys.
@@ -3582,10 +3582,11 @@ def _run_proto_headless(args) -> None:
     # Print summary
     s = results["summary"]
     total, passed, failed = s["total"], s["passed"], s["failed"]
-    elapsed = s["elapsed_ms"]
+    elapsed_ms = s["elapsed_ms"]
     status = "PASS" if failed == 0 else "FAIL"
     print(
-        f"{results['meta']['script_name']}: {passed}/{total} {status} ({elapsed:.0f}ms)"
+        f"{results['meta']['script_name']}: {passed}/{total} {status} "
+        f"({format_duration(elapsed_ms / 1000)})"
     )
 
     sys.exit(0 if failed == 0 else 1)

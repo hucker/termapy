@@ -26,6 +26,7 @@ from termapy.widgets import StrongCheckbox
 
 from termapy.config import cfg_data_dir, open_with_system
 from termapy.plugins import BoundaryException
+from termapy.scripting import format_duration
 from termapy.protocol import expand_result_template
 from termapy.protocol.runner import _build_test_result  # private
 from termapy.protocol import (
@@ -432,7 +433,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                 # and gives a clear error if the invariant ever breaks.
                 assert actual_data is not None, "passed implies response data"
                 lines.append(Text(
-                    f"  PASS ({len(actual_data)} bytes, {elapsed_ms:.0f}ms)",
+                    f"  PASS ({len(actual_data)} bytes, {format_duration(elapsed_ms / 1000)})",
                     style="bold italic bright_green"))
             else:
                 lines.append(Text("  FAIL", style="bold italic red"))
@@ -830,7 +831,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             f"         TX:  {tx}",
             f"         EXP: {exp}",
             f"         RX:  {rx}",
-            f"         Time: {elapsed_ms:.0f}ms",
+            f"         Time: {format_duration(elapsed_ms / 1000)}",
         ]
         # Log visualizer column data
         for viz in vizs:
@@ -1061,7 +1062,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                     if run_num > 1 and delay_s > 0:
                         self.app.call_from_thread(
                             self._set_status,
-                            f"Delay {delay_s * 1000:.0f}ms "
+                            f"Delay {format_duration(delay_s)} "
                             f"({run_num}/{repeat})...", "bold yellow")
                         time.sleep(delay_s)
 

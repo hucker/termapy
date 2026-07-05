@@ -9,6 +9,7 @@ from termapy.plugins import CmdResult
 from termapy.scripting import (
     coerce_to_type,
     expand_template,
+    format_duration,
     parse_bool,
     parse_count_arg,
     parse_duration,
@@ -250,6 +251,29 @@ class TestParseDurationMs:
 
     def test_bare_zero(self):
         assert parse_duration_ms("0") == 0, "bare 0 = 0ms"
+
+
+# ── format_duration ──────────────────────────────────────────────
+
+
+class TestFormatDuration:
+    def test_microseconds(self):
+        assert format_duration(0.00048) == "480us", "sub-ms renders as us"
+
+    def test_milliseconds(self):
+        assert format_duration(0.025) == "25ms", "sub-second renders as whole ms"
+
+    def test_seconds_two_decimals(self):
+        assert format_duration(1.5) == "1.50s", ">= 1s renders as 2dp seconds"
+
+    def test_boundary_one_millisecond(self):
+        assert format_duration(0.001) == "1ms", "exactly 1ms crosses into the ms tier"
+
+    def test_boundary_one_second(self):
+        assert format_duration(1.0) == "1.00s", "exactly 1s crosses into the s tier"
+
+    def test_zero(self):
+        assert format_duration(0.0) == "0us", "zero renders as 0us"
 
 
 # ── resolve_seq_filename ────────────────────────────────────────

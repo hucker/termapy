@@ -98,96 +98,96 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-    "config_version": 23,
-    "default_ui": "tui",
-    "vt100_hint": true,
-    "title": "Demo Device",
-    "border_color": "",
-    "max_lines": 10000,
-    "cmd_prefix": "/",
-    "cli_prompt": "$(CFG)> ",
-    "cli_echo_input": false,
-    "cli_completion": true,
-    "config_read_only": false,
-    "profile_path": "",
-    "serial": {
-        "port": "DEMO",
-        "baud_rate": 115200,
-        "custom_baud": false,
-        "byte_size": 8,
-        "parity": "N",
-        "stop_bits": 1,
-        "flow_control": "none"
-    },
-    "encoding": "utf-8",
-    "cmd_delay_ms": 0,
-    "protocol": "text",
-    "ndjson_field_routing": {
-        "response_id": "id",
-        "error_field": "error",
-        "event_field": "event"
-    },
-    "default_response_timeout_ms": 1000,
-    "auto_connect": true,
-    "auto_reconnect": false,
-    "on_connect_cmd": "",
-    "tui_on_connect_cmd": "/run welcome",
-    "cli_on_connect_cmd": "/run welcome",
-    "mcp_on_connect_cmd": "",
-    "line_ending": "\r",
-    "send_bare_enter": false,
-    "echo_input": false,
-    "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
-    "log_file": "",
-    "show_timestamps": false,
-    "show_line_endings": false,
-    "show_line_numbers": false,
-    "hex_mode": false,
-    "request_mode": false,
-    "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
-    "validate_typed_args": false,
-    "file_xfer_root": "",
-    "cfg_enabled": true,
-    "run_enabled": true,
-    "proto_enabled": true,
-    "record_enabled": true,
-    "show_traceback": true,
-    "proto_frame_gap_ms": 50,
-    "proto_results_template": "{name}_results.json",
-    "max_grep_lines": 100,
-    "custom_buttons": [
-        {
-            "enabled": true,
-            "name": "Demo Help",
-            "command": "/cls\\n/help",
-            "tooltip": "Show all commands (termapy + device)"
-        },
-        {
-            "enabled": true,
-            "name": "AT Demo",
-            "command": "/cls\\n/run at_demo.run",
-            "tooltip": "Run all AT commands with delays"
-        },
-        {
-            "enabled": true,
-            "name": "Info",
-            "command": "/cfg.info",
-            "tooltip": "Project info"
-        },
-        {
-            "enabled": true,
-            "name": "Probe",
-            "command": "/probe",
-            "tooltip": "Demo plugin: query the device"
-        },
-        {
-            "enabled": true,
-            "name": "TempPlot",
-            "command": "/temp_plot 30",
-            "tooltip": "Demo plugin: temperature sparkline"
-        }
-    ]
-}
+      "config_version": 23,
+      "default_ui": "tui",
+      "vt100_hint": true,
+      "title": "Demo Device",
+      "border_color": "",
+      "max_lines": 10000,
+      "cmd_prefix": "/",
+      "cli_prompt": "$(CFG)> ",
+      "cli_echo_input": false,
+      "cli_completion": true,
+      "config_read_only": false,
+      "profile_path": "",
+      "serial": {
+          "port": "DEMO",
+          "baud_rate": 115200,
+          "custom_baud": false,
+          "byte_size": 8,
+          "parity": "N",
+          "stop_bits": 1,
+          "flow_control": "none"
+      },
+      "encoding": "utf-8",
+      "cmd_delay_ms": 0,
+      "protocol": "text",
+      "ndjson_field_routing": {
+          "response_id": "id",
+          "error_field": "error",
+          "event_field": "event"
+      },
+      "default_response_timeout_ms": 1000,
+      "auto_connect": true,
+      "auto_reconnect": false,
+      "on_connect_cmd": "",
+      "tui_on_connect_cmd": "/run welcome",
+      "cli_on_connect_cmd": "/run welcome",
+      "mcp_on_connect_cmd": "",
+      "line_ending": "\r",
+      "send_bare_enter": false,
+      "echo_input": false,
+      "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
+      "log_file": "",
+      "show_timestamps": false,
+      "show_line_endings": false,
+      "show_line_numbers": false,
+      "hex_mode": false,
+      "request_mode": false,
+      "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+      "validate_typed_args": false,
+      "file_xfer_root": "",
+      "cfg_enabled": true,
+      "run_enabled": true,
+      "proto_enabled": true,
+      "record_enabled": true,
+      "show_traceback": true,
+      "proto_frame_gap_ms": 50,
+      "proto_results_template": "{name}_results.json",
+      "max_grep_lines": 100,
+      "custom_buttons": [
+          {
+              "enabled": true,
+              "name": "Demo Help",
+              "command": "/cls\\n/help",
+              "tooltip": "Show all commands (termapy + device)"
+          },
+          {
+              "enabled": true,
+              "name": "AT Demo",
+              "command": "/cls\\n/run at_demo.run",
+              "tooltip": "Run all AT commands with delays"
+          },
+          {
+              "enabled": true,
+              "name": "Info",
+              "command": "/cfg.info",
+              "tooltip": "Project info"
+          },
+          {
+              "enabled": true,
+              "name": "Probe",
+              "command": "/probe",
+              "tooltip": "Demo plugin: query the device"
+          },
+          {
+              "enabled": true,
+              "name": "TempPlot",
+              "command": "/temp_plot 30",
+              "tooltip": "Demo plugin: temperature sparkline"
+          }
+      ]
+  }
 demo> /print === section: config folders ===
   === section: config folders ===
 demo> /run.list
@@ -725,6 +725,10 @@ demo> /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
           2         0.1
           3         0.2
   Poll complete (3 samples)
+demo> /cap.poll fmt=bogus cmd=AT
+  Error: /cap.poll: invalid fmt: 'bogus' (expected one of: csv, json)
+  Usage: /cap.poll {count=<N>} {delay=<dur>} {file=<path>} {labels=<value>} {regex=<value>} {fmt=csv|json}
+{timeout=<dur>} cmd=<command>
 demo> /print === section: repeat ===
   === section: repeat ===
 demo> /repeat count=3 cmd=/print hello
@@ -743,13 +747,19 @@ demo> /print iteration $(I)
   iteration 3
 demo> /repeat cmd=AT
   Error: /repeat: missing required parameter 'count'
-Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
 demo> /repeat count=0 cmd=AT
   Error: /repeat: count must be >= 1 (got 0)
-Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
 demo> /repeat count=abc cmd=AT
   Error: /repeat: invalid count: 'abc' (expected an integer)
-Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+  Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+demo> /repeat count=1 delay=xyz cmd=AT
+  Error: /repeat: invalid delay: 'xyz' (expected duration, e.g. 500ms, 1.5s)
+  Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
+demo> /repeat foo count=1 cmd=AT
+  Error: /repeat: unexpected argument: 'foo'
+  Usage: /repeat count=<N> {delay=<dur>} {var=<name>} cmd=<command>
 demo> /print === section: env vars ===
   === section: env vars ===
 demo> /env.set TEST_VAR hello_world

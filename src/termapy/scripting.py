@@ -120,11 +120,24 @@ def expand_template(
     return result, new_counters
 
 
-def parse_duration(text: str) -> float:
+_DURATION_UNITS = {"us": 1e-6, "ms": 1e-3, "s": 1.0}
+
+
+def parse_duration(text: str, *, default_unit: str | None = None) -> float:
     """Parse a duration string to seconds.
 
+    This is the single duration parser for the whole app.  A bare ``0`` is
+    zero regardless of unit.  Any other unitless value is rejected in the
+    user-facing grammar (``default_unit=None``); protocol and config callers
+    pass ``default_unit="ms"`` so a bare number -- as it arrives from ``.pro``
+    directives and JSON profile fields -- is read as milliseconds.
+    ``parse_duration_ms`` wraps this for callers that want whole milliseconds.
+
     Args:
-        text: Duration string like '500ms', '1s', '1.5s'.
+        text: Duration like '500us', '25ms', '1.5s', or (with ``default_unit``
+            set) a bare number.
+        default_unit: 'us'/'ms'/'s' to apply to a unitless number, or None to
+            require an explicit unit.
 
     Returns:
         Duration in seconds as a float.
@@ -133,14 +146,30 @@ def parse_duration(text: str) -> float:
         ValueError: If the input doesn't match a valid duration format.
     """
     text = text.strip().lower()
-    m = re.match(r"^(\d+(?:\.\d+)?)\s*(us|ms|s)$", text)
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*(us|ms|s)?$", text)
     if not m:
         raise ValueError(f"Invalid duration: {text!r}. Use e.g. 500us, 25ms, 1.5s")
     value = float(m.group(1))
     unit = m.group(2)
-    if unit == "us":
-        return value / 1_000_000.0
-    return value / 1000.0 if unit == "ms" else value
+    if unit is None:
+        if value == 0.0:
+            return 0.0
+        if default_unit is None:
+            raise ValueError(
+                f"Invalid duration: {text!r}. Use e.g. 500us, 25ms, 1.5s"
+            )
+        unit = default_unit
+    return value * _DURATION_UNITS[unit]
+
+
+def parse_duration_ms(text: str) -> int:
+    """Parse a duration to whole milliseconds (protocol/config grammar).
+
+    A bare number is read as milliseconds -- matching the values that come
+    from ``.pro`` directives and JSON profile fields.  Rounds to the nearest
+    millisecond.
+    """
+    return round(parse_duration(text, default_unit="ms") * 1000)
 
 
 # ── Line selection (shared count scheme) ──────────────────────────────────────

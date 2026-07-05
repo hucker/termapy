@@ -12,6 +12,7 @@ from termapy.scripting import (
     parse_bool,
     parse_count_arg,
     parse_duration,
+    parse_duration_ms,
     parse_keywords,
     resolve_seq_filename,
     select_lines,
@@ -209,6 +210,46 @@ class TestParseDuration:
     def test_empty(self):
         with pytest.raises(ValueError):  # empty string rejected
             parse_duration("")
+
+    def test_bare_zero(self):
+        # The one unitless value the user-facing grammar accepts: 0 is zero
+        # regardless of unit, so `timeout=0` / `/delay 0` work without a unit.
+        assert parse_duration("0") == 0.0, "bare 0 = 0 seconds"
+
+    def test_bare_zero_fractional(self):
+        assert parse_duration("0.0") == 0.0, "0.0 = 0 seconds"
+
+    def test_default_unit_reads_bare_number(self):
+        # Protocol/config grammar: a unitless number is read in default_unit.
+        assert parse_duration("50", default_unit="ms") == 0.05, "bare 50 = 50ms"
+
+    def test_default_unit_yields_to_explicit_unit(self):
+        actual = parse_duration("2s", default_unit="ms")
+        assert actual == 2.0, "an explicit unit overrides default_unit"
+
+    def test_default_unit_still_rejects_non_numeric(self):
+        with pytest.raises(ValueError):  # a bad token is invalid in any mode
+            parse_duration("fast", default_unit="ms")
+
+
+# ── parse_duration_ms ────────────────────────────────────────────
+
+
+class TestParseDurationMs:
+    def test_bare_is_milliseconds(self):
+        assert parse_duration_ms("50") == 50, "bare number = ms"
+
+    def test_seconds_unit(self):
+        assert parse_duration_ms("1.5s") == 1500, "1.5s = 1500ms"
+
+    def test_milliseconds_unit(self):
+        assert parse_duration_ms("500ms") == 500, "500ms = 500ms"
+
+    def test_microseconds_round_to_whole_ms(self):
+        assert parse_duration_ms("2000us") == 2, "2000us = 2ms"
+
+    def test_bare_zero(self):
+        assert parse_duration_ms("0") == 0, "bare 0 = 0ms"
 
 
 # ── resolve_seq_filename ────────────────────────────────────────

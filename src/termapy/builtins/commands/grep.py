@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins.params import ParamSpec
 from termapy.scripting import ANSI_RE as _ANSI_RE
 
 if TYPE_CHECKING:
@@ -65,11 +66,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context for screen text access and output.
-        args: Regex pattern string to search for.
+        args: Unused -- the pattern arrives via ``ctx.arg`` (see ``params``).
     """
-    pattern = args.strip()
-    if not pattern:
-        return CmdResult.fail(msg="Usage: /grep <pattern>")
+    pattern = ctx.arg("pattern")
     prefix = cmd_prefix(ctx.cfg)
     grep_cmd = f"{prefix}grep"
 
@@ -108,7 +107,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="grep",
-    args="<pattern>",
     help="Search the scrollback for lines matching a pattern (case-insensitive regex).",
     long_help="""\
 Searches all visible terminal output using Python regex syntax.
@@ -127,4 +125,8 @@ highlighted lines and arrow-button paging), /search (search the
 command-help corpus rather than the scrollback).""",
     handler=_handler,
     needs=CapabilitySet(interactive=True),  # scrollback only exists interactively
+    params=[
+        ParamSpec("pattern", "str", positional=True, rest=True, required=True,
+                  help="case-insensitive regex to search the scrollback for"),
+    ],
 )

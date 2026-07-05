@@ -167,10 +167,6 @@ def validate_param_specs(params: list[ParamSpec], command_name: str) -> None:
         seen.add(spec.name)
         if spec.rest:
             rest_count += 1
-            if spec.positional:
-                raise ValueError(
-                    f"{label}: parameter {spec.name!r} cannot be both rest and positional"
-                )
         if spec.type == "command" and not spec.rest:
             raise ValueError(
                 f"{label}: command-type parameter {spec.name!r} must set rest=True "
@@ -184,6 +180,15 @@ def validate_param_specs(params: list[ParamSpec], command_name: str) -> None:
             )
     if rest_count > 1:
         raise ValueError(f"{label}: at most one rest=True parameter (got {rest_count})")
+    # A positional-rest (a positional that consumes the whole remaining line,
+    # so the value may contain spaces) must be the last positional.
+    positionals = [p for p in params if p.positional]
+    for spec in positionals[:-1]:
+        if spec.rest:
+            raise ValueError(
+                f"{label}: positional-rest parameter {spec.name!r} must be the "
+                f"last positional"
+            )
 
 
 # -- Parse (runs per dispatch, only when params is non-empty) --------------------
@@ -201,24 +206,37 @@ def parse_params(
     """
     positional_specs = [p for p in params if p.positional]
     keyword_specs = [p for p in params if not p.positional]
-    rest_spec = next((p for p in params if p.rest), None)
+    kw_rest = next((p for p in keyword_specs if p.rest), None)
+    pos_rest = (
+        positional_specs[-1]
+        if positional_specs and positional_specs[-1].rest
+        else None
+    )
 
     keywords = {p.name for p in keyword_specs}
-    rest_keyword = rest_spec.name if rest_spec else ""
+    rest_keyword = kw_rest.name if kw_rest else ""
     sections = parse_keywords(args, keywords, rest_keyword=rest_keyword)
 
     bound: dict[str, Any] = {}
 
-    # Positional params, bound in declared order from the leftover tokens.
+    # Positional params.  A trailing positional-rest consumes the whole
+    # remainder as one value (so a path/command/regex may contain spaces);
+    # fixed positionals before it take one whitespace token each.
     positional_tokens = sections.get("_positional", "").split()
-    for i, spec in enumerate(positional_specs):
-        if i >= len(positional_tokens):
-            break
-        ok, value = coerce_value(spec, positional_tokens[i])
+    n_fixed = len(positional_specs) - 1 if pos_rest else len(positional_specs)
+    for i in range(min(n_fixed, len(positional_tokens))):
+        ok, value = coerce_value(positional_specs[i], positional_tokens[i])
         if not ok:
             return {}, value
-        bound[spec.name] = value
-    if len(positional_tokens) > len(positional_specs):
+        bound[positional_specs[i].name] = value
+    if pos_rest:
+        remainder = " ".join(positional_tokens[n_fixed:])
+        if remainder:
+            ok, value = coerce_value(pos_rest, remainder)
+            if not ok:
+                return {}, value
+            bound[pos_rest.name] = value
+    elif len(positional_tokens) > len(positional_specs):
         extra = positional_tokens[len(positional_specs)]
         return {}, f"unexpected argument: {extra!r}"
 

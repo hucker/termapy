@@ -156,8 +156,15 @@ first, exactly as today, and after level-suffix/level-flag resolution — do NOT
    `positional=True` params in declaration order. **Positional values cannot contain spaces**
    (whitespace is the token boundary) — this matches every current site (`cap` does
    `positional[0]`), so NG-5 holds; state it, don't "fix" it. Extra positional tokens after
-   all positional params are bound → dispatch failure (see param-fail-message). A `rest=True`
-   positional-tail is not supported in v1; use a keyword rest param.
+   all positional params are bound → dispatch failure (see param-fail-message).
+   **Positional-rest** (added in the Phase-5 sweep): a positional param with
+   `rest=True` is the *last* positional and consumes the whole remaining line as
+   one value, so a command/regex/path may contain spaces (`/os ls -la`,
+   `/grep foo bar`, `/profile.validate my file.json`).  It is mutually exclusive
+   with a keyword rest (both would claim "the rest").  This was surfaced by a
+   real regression: the Phase-3 `/profile.validate` migration used a plain
+   positional `<path>`, which whitespace-split spaced paths — positional-rest is
+   the fix.
 3. Coerce each bound value per its type. First failure short-circuits.
 4. Check `required` params are present.
 5. Apply `default` for absent optional params (defaults are already-coerced values;

@@ -39,9 +39,18 @@ class TestDeclarationValidation:
                 [ParamSpec("a", rest=True), ParamSpec("b", rest=True)], "cmd"
             )
 
-    def test_rest_and_positional(self):
-        with pytest.raises(ValueError, match="cannot be both rest and positional"):
-            validate_param_specs([ParamSpec("a", rest=True, positional=True)], "cmd")
+    def test_positional_rest_is_allowed(self):
+        # A single positional-rest (whole-line value, may contain spaces) is
+        # valid -- it's how /os, /grep, /profile.validate take their argument.
+        validate_param_specs([ParamSpec("cmd", positional=True, rest=True)], "os")
+
+    def test_positional_rest_must_be_last(self):
+        with pytest.raises(ValueError, match="must be the last positional"):
+            validate_param_specs(
+                [ParamSpec("a", positional=True, rest=True),
+                 ParamSpec("b", positional=True)],
+                "cmd",
+            )
 
     def test_enum_without_values(self):
         with pytest.raises(ValueError, match="enum parameter 'm' has no values"):
@@ -191,6 +200,14 @@ class TestParseParams:
         bound, err = parse_params(spec, "out.txt timeout=1s")
         assert (err, bound) == (None, {"file": "out.txt", "timeout": 1.0}), \
             "positional bound in order, keyword alongside"
+
+    def test_positional_rest_keeps_spaces(self):
+        # A positional-rest takes the whole remaining line, so an OS command
+        # or regex with spaces survives (fixes the whitespace-split regression).
+        spec = [ParamSpec("cmd", "str", positional=True, rest=True, required=True)]
+        bound, err = parse_params(spec, "ls -la /tmp")
+        assert (err, bound) == (None, {"cmd": "ls -la /tmp"}), \
+            "positional-rest keeps the whole line intact"
 
 
 # -- param-help-synth -----------------------------------------------------------

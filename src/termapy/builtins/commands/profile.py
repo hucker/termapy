@@ -400,7 +400,7 @@ COMMAND = Command(
             handler=_handler_validate,
             params=[
                 ParamSpec(
-                    "path", "path", positional=True, required=True,
+                    "path", "path", positional=True, rest=True, required=True,
                     help="profile file to validate (.json or .toml)",
                 ),
             ],

@@ -13,7 +13,7 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Callable, Literal
 
-from termapy.scripting import parse_duration
+from termapy.scripting import parse_duration, parse_duration_ms
 
 from termapy.protocol.crc import get_crc_registry
 
@@ -512,16 +512,6 @@ class Step:
     binary: bool = False
 
 
-def _parse_duration_ms(text: str) -> int:
-    """Parse a duration string like '500ms' or '1.5s' to milliseconds."""
-    text = text.strip().lower()
-    if text.endswith("ms"):
-        return int(float(text[:-2]))
-    if text.endswith("s"):
-        return int(float(text[:-1]) * 1000)
-    return int(text)
-
-
 def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
     """Parse a ``.pro`` script into settings and steps.
 
@@ -571,11 +561,11 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
             if key == "timeout":
                 if not val:
                     raise ValueError(f"Line {lineno}: invalid directive: {line}")
-                settings["timeout_ms"] = _parse_duration_ms(val)
+                settings["timeout_ms"] = parse_duration_ms(val)
             elif key == "frame_gap":
                 if not val:
                     raise ValueError(f"Line {lineno}: invalid directive: {line}")
-                settings["frame_gap_ms"] = _parse_duration_ms(val)
+                settings["frame_gap_ms"] = parse_duration_ms(val)
             elif key == "strip_ansi":
                 settings["strip_ansi"] = True
             elif key == "quiet":
@@ -601,7 +591,7 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
         if key == "label":
             current_label = val
         elif key == "timeout":
-            current_timeout = _parse_duration_ms(val)
+            current_timeout = parse_duration_ms(val)
         elif key == "send":
             data = parse_data(val)
             is_binary = not val.strip().startswith('"')
@@ -638,7 +628,7 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
             steps.append(
                 Step(
                     action="delay",
-                    timeout_ms=_parse_duration_ms(val),
+                    timeout_ms=parse_duration_ms(val),
                     label=current_label,
                 )
             )
@@ -656,7 +646,7 @@ def parse_proto_script(text: str) -> tuple[dict, list[Step]]:
             steps.append(
                 Step(
                     action="flush",
-                    timeout_ms=_parse_duration_ms(val),
+                    timeout_ms=parse_duration_ms(val),
                     label=current_label,
                 )
             )
@@ -766,9 +756,9 @@ def parse_toml_script(text: str) -> ProtoScript:
     default_timeout = 1000
     frame_gap_ms = 50
     if "timeout" in doc:
-        default_timeout = _parse_duration_ms(str(doc["timeout"]))
+        default_timeout = parse_duration_ms(str(doc["timeout"]))
     if "frame_gap" in doc:
-        frame_gap_ms = _parse_duration_ms(str(doc["frame_gap"]))
+        frame_gap_ms = parse_duration_ms(str(doc["frame_gap"]))
 
     script = ProtoScript(
         name=doc.get("name", ""),
@@ -801,7 +791,7 @@ def parse_toml_script(text: str) -> ProtoScript:
 
         timeout = default_timeout
         if "timeout" in entry:
-            timeout = _parse_duration_ms(str(entry["timeout"]))
+            timeout = parse_duration_ms(str(entry["timeout"]))
 
         # Per-test setup/teardown - support both list and legacy "cmd" string
         test_setup: list[str] = entry.get("setup", [])

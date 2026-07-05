@@ -122,10 +122,8 @@ def coerce_value(spec: ParamSpec, text: str) -> CoerceResult:
             return False, f"invalid {spec.name}: {text!r} (expected {noun})"
         return _range_check(spec, value)
     if kind == "duration":
-        if text == "0":
-            return True, 0.0  # bare 0 is zero regardless of unit; parse_duration wants a unit
         try:
-            return True, parse_duration(text)
+            return True, parse_duration(text)  # bare 0 accepted; a unit is required otherwise
         except ValueError:
             return False, (
                 f"invalid {spec.name}: {text!r} (expected duration, e.g. 500ms, 1.5s)"

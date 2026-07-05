@@ -10,15 +10,17 @@ from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.protocol import parse_format_spec
-from termapy.scripting import parse_duration, parse_keywords, resolve_seq_filename
+from termapy.scripting import parse_duration, resolve_seq_filename
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-# Shared enum vocabularies for the declarative-param capture subcommands
-# (text/bin).  ``mode`` maps to a file-open mode in the handler; ``on/off``
-# is a two-state toggle.  struct/hex/poll still parse by hand (see their
-# COMMAND entries), so ``_parse_mode`` below stays for them.
+# Shared enum vocabularies for the declarative-param capture subcommands.
+# ``mode`` maps to a file-open mode in the handler; ``on/off`` is a toggle.
+# text/bin/wire use declarative params.  struct/hex stay hand-rolled for a
+# genuine reason (the fmt= grammar -- see ``_handler_structured``); poll is
+# still hand-rolled but its grammar DOES fit params (a pending migration, not
+# a wall).  ``_parse_mode`` below serves struct/hex.
 _MODE_VALUES = (EnumValue("new", ("n",)), EnumValue("append", ("a",)))
 _ONOFF_VALUES = (EnumValue("on"), EnumValue("off"))
 
@@ -179,6 +181,15 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
         args: Command arguments.
         hex_mode: If True, parse hex text lines instead of raw bytes.
     """
+    # Hand-rolled (not declarative params) for ONE genuine reason: fmt= takes a
+    # format spec whose value CONTAINS SPACES and is FOLLOWED BY MORE KEYWORDS
+    # (fmt=Temp:U1-2 Pressure:F3-6 records=5).  That "keyword value with spaces,
+    # mid-line" shape is outside the param spec's grammar (a keyword value is one
+    # token; only the single rest param consumes spaces, and it must be last).
+    # The spec syntax is space-separated by definition (protocol.parse_format_spec,
+    # shared with profile format_spec types), so we can't tokenize it without
+    # changing a syntax used elsewhere.  Everything else here (file/mode/records/
+    # bytes/sep/echo/timeout/cmd) would fit params fine -- fmt= is the whole wall.
     label = "cap.hex" if hex_mode else "cap.struct"
     sections = _extract_keyword_sections(args)
     positional = sections.get("_positional", "").split()
@@ -618,14 +629,8 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     """
     import time as _time
 
-    kw = parse_keywords(args, {"cmd", "wait_gap"}, rest_keyword="cmd")
-    cmd = kw.get("cmd", "").strip()
-    if not cmd:
-        return CmdResult.fail(msg="Usage: /cap.wire {wait_gap=<dur>} cmd=<command>")
-    try:
-        wait_gap_s = parse_duration(kw.get("wait_gap", "50ms"))
-    except ValueError as e:
-        return CmdResult.fail(msg=f"Invalid wait_gap: {e}")
+    cmd = ctx.arg("cmd")
+    wait_gap_s = ctx.arg("wait_gap")  # float seconds
 
     tx = bytearray()
     rx = bytearray()
@@ -887,14 +892,21 @@ COMMAND = Command(
             handler=_handler_stop,
         ),
         "wire": Command(
-            args="{wait_gap=<dur>} cmd=<command>",
             help="Run a command and show TX/RX bytes as inline hex + repr.",
             # Plain string -- /cap.wire is inline-only, no file output, so
             # the "N files in cap/" prefix that other cap.* commands use
             # would be misleading.
             long_help=_CAP_WIRE_PROSE,
             handler=_handler_wire,
+            # raw_args keeps cmd= literal (no $(VAR) expansion); params still
+            # parse it (raw_args skips only transforms, not param parsing).
             raw_args=True,
+            params=[
+                ParamSpec("wait_gap", "duration", default=0.05,
+                          help="idle-gap that signals the device is done (e.g. 200ms)"),
+                ParamSpec("cmd", "command", rest=True, required=True,
+                          help="command to run and watch on the wire"),
+            ],
         ),
         **build_folder_subcommands("cap"),
     },

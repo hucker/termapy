@@ -77,9 +77,12 @@ class TestDeclarationValidation:
         with pytest.raises(ValueError, match="not both"):
             Command("h", name="c", args="<x>", params=[ParamSpec("a")])
 
-    def test_command_params_on_raw_args_rejected(self):
-        with pytest.raises(ValueError, match="raw_args"):
-            Command("h", name="c", raw_args=True, params=[ParamSpec("a")])
+    def test_command_params_on_raw_args_allowed(self):
+        # raw_args skips only the $(VAR) transform step, NOT param parsing, so
+        # a raw_args command may declare params -- values arrive literal, which
+        # is what raw_args wants (e.g. /cap.wire keeps cmd= unexpanded).
+        cmd = Command("h", name="c", raw_args=True, params=[ParamSpec("a", default="")])
+        assert cmd.raw_args is True, "raw_args + params coexist"
 
     def test_valid_declaration_builds(self):
         # Arrange / Act -- should not raise

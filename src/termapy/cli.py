@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import textwrap
 import threading
 import time
 from pathlib import Path
@@ -240,17 +241,24 @@ class CLITerminal(TerminalHost):
     def status(self, text: str, color: str = "") -> None:
         """Write an indented status message.
 
+        The two-space gutter marks termapy's own output apart from raw
+        device bytes (which print flush-left).  It is applied to *every*
+        line so a multi-line message -- an ``Error:`` with its ``Usage:``
+        continuation, or a ``/cfg.dump`` block -- stays aligned instead
+        of leaving continuation lines flush-left at column 0.
+
         When ``color`` is given, ``text`` is treated as plain content
         and escaped before the wrapper (see ``write``).  Avoids a
         cascade failure when an error message contains literal
         ``[/]`` (e.g. a Rich MarkupError repeated as ``err_msg``).
         """
+        indented = textwrap.indent(text, "  ")
         if color:
             from rich.markup import escape
 
-            self.console.print(f"  [{color}]{escape(text)}[/]")
+            self.console.print(f"[{color}]{escape(indented)}[/]")
         else:
-            self.console.print(f"  {text}")
+            self.console.print(indented)
 
     def _raw(self, text: str, end: str = "\n") -> None:
         """Write raw text to stdout, bypassing Rich markup."""

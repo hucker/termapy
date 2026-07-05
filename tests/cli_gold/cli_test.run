@@ -152,6 +152,8 @@ $(BAUD) <- /port.baud_rate
 # ── REPL: cap.poll ──────────────────────────────────────────────────────────
 /print === section: cap.poll ===
 /cap.poll count=3 delay=0 --notime cmd=AT+RAMP
+# param error: enum value not in the allowed set (fails at parse, deterministic)
+/cap.poll fmt=bogus cmd=AT
 
 # ── REPL: repeat ────────────────────────────────────────────────────────────
 /print === section: repeat ===
@@ -160,6 +162,9 @@ $(BAUD) <- /port.baud_rate
 /repeat cmd=AT
 /repeat count=0 cmd=AT
 /repeat count=abc cmd=AT
+# more param errors: bad duration value, and an unexpected positional token
+/repeat count=1 delay=xyz cmd=AT
+/repeat foo count=1 cmd=AT
 
 # ── REPL: environment variables ─────────────────────────────────────────────
 /print === section: env vars ===

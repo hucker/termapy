@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 # Shared enum vocabularies for the declarative-param capture subcommands.
 # ``mode`` maps to a file-open mode in the handler; ``on/off`` is a toggle.
-# text/bin/wire use declarative params.  struct/hex stay hand-rolled for a
-# genuine reason (the fmt= grammar -- see ``_handler_structured``); poll is
-# still hand-rolled but its grammar DOES fit params (a pending migration, not
-# a wall).  ``_parse_mode`` below serves struct/hex.
+# text/bin/wire/poll all use declarative params.  ONLY struct/hex stay
+# hand-rolled, for a genuine reason (the fmt= grammar -- see the comment on
+# ``_handler_structured``).  ``_extract_keyword_sections`` / ``_parse_mode``
+# below exist solely for those two.
 _MODE_VALUES = (EnumValue("new", ("n",)), EnumValue("append", ("a",)))
 _ONOFF_VALUES = (EnumValue("on"), EnumValue("off"))
 
@@ -304,28 +304,6 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
 # ── /cap.poll handler ────────────────────────────────────────────────────────
 
 
-_POLL_KWS = ("count=", "delay=", "file=", "labels=", "regex=", "fmt=", "timeout=")
-
-
-def _parse_poll_args(args: str) -> dict[str, str]:
-    """Parse /cap.poll args.  cmd= must be last; everything after it is the command."""
-    result: dict[str, str] = {}
-    if "cmd=" not in args:
-        return result
-    before, cmd = args.split("cmd=", 1)
-    result["cmd"] = cmd.strip()
-    # Parse the remaining keywords (space-separated key=value).
-    # --overwrite / --notime flags are handled as first-class flags and
-    # stripped by the dispatcher before this parser ever runs.
-    for tok in before.split():
-        lower = tok.lower()
-        for kw in _POLL_KWS:
-            if lower.startswith(kw):
-                result[kw.rstrip("=")] = tok[len(kw):]
-                break
-    return result
-
-
 def _safe_filename(text: str) -> str:
     """Derive a safe filename stem from a command string."""
     import re as _re
@@ -353,53 +331,21 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
     import time as _time
     from datetime import datetime
 
-    sections = _parse_poll_args(args)
-    if "cmd" not in sections:
-        return CmdResult.fail(
-            msg="Usage: /cap.poll {count=N} {delay=<dur>} {file=<name>} "
-            "{labels=<names>} {parse=<regex>} {fmt=csv|json} "
-            "{timeout=<dur>} {overwrite} cmd=<commands> (must be last)"
-        )
-
-    # Commands - newline-separated
-    cmds = [c.strip() for c in sections["cmd"].replace("\\n", "\n").split("\n") if c.strip()]
+    # Type parsing/validation (count int+min, delay/timeout duration, fmt enum)
+    # is done by the dispatcher from ``params``; read the coerced values here.
+    cmds = [c.strip() for c in ctx.arg("cmd").replace("\\n", "\n").split("\n") if c.strip()]
     if not cmds:
         return CmdResult.fail(msg="cmd= must have at least one command")
 
-    # Count (default 60)
-    try:
-        count = int(sections.get("count", "60"))
-    except ValueError:
-        return CmdResult.fail(msg=f"Invalid count: {sections['count']!r}")
-    if count <= 0:
-        return CmdResult.fail(msg="Count must be positive")
+    count = ctx.arg("count")                       # int, default 60, min 1
+    delay_s = ctx.arg("delay")                     # duration seconds (0 = as fast as possible)
+    timeout_ms = int(ctx.arg("timeout") * 1000)    # duration seconds -> ms
+    fmt = ctx.arg("fmt")                           # enum -> "csv" | "json"
 
-    # Delay (default 1s; 0 means "as fast as possible")
-    delay_raw = sections.get("delay", "1s").strip()
-    if delay_raw == "0":
-        delay_s = 0.0
-    else:
-        try:
-            delay_s = parse_duration(delay_raw)
-        except ValueError as e:
-            return CmdResult.fail(msg=f"Invalid delay: {e}")
-    if delay_s < 0:
-        return CmdResult.fail(msg="Delay must be non-negative")
-
-    # Timeout (default 1s)
-    try:
-        timeout_ms = int(parse_duration(sections.get("timeout", "1s")) * 1000)
-    except ValueError as e:
-        return CmdResult.fail(msg=f"Invalid timeout: {e}")
-
-    # Format
-    fmt = sections.get("fmt", "csv").lower()
-    if fmt not in ("csv", "json"):
-        return CmdResult.fail(msg=f"Invalid fmt: {fmt!r}. Use csv or json.")
-
-    # Labels (default: command strings)
-    if "labels" in sections:
-        labels = sections["labels"].split()
+    # Labels (default: command strings) -- domain checks stay here.
+    labels_raw = ctx.arg("labels")
+    if labels_raw:
+        labels = labels_raw.split()
         if len(labels) != len(cmds):
             return CmdResult.fail(
                 msg=f"labels count ({len(labels)}) must match cmd count ({len(cmds)})"
@@ -414,9 +360,10 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 
     # Regex for value extraction from command response
     parse_re = None
-    if "regex" in sections:
+    regex = ctx.arg("regex")
+    if regex:
         try:
-            parse_re = _re.compile(sections["regex"])
+            parse_re = _re.compile(regex)
         except _re.error as e:
             return CmdResult.fail(msg=f"Invalid regex: {e}")
 
@@ -424,8 +371,9 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
     path: Path | None = None
     overwrite = ctx.flag("--overwrite")
     notime = ctx.flag("--notime")
-    if "file" in sections:
-        name = sections["file"]
+    file_name = ctx.arg("file")
+    if file_name:
+        name = file_name
         p = Path(name)
         if not p.is_absolute():
             p = ctx.fs.cap_dir / name
@@ -755,21 +703,6 @@ _CAP_POLL_PROSE = (
     "cmd= is newline-separated for multiple columns:\n"
     "  {prefix}cap.poll cmd=AT+BAT\\nAT+TEMP\n"
     "\n"
-    "Parameters:\n"
-    "  cmd=<commands>    REQUIRED, must be last.  \\n-separated list.\n"
-    "  count=<N>         number of samples (default: 60)\n"
-    "  delay=<dur>       between samples, e.g. 500ms (default: 1s).\n"
-    "                    Use delay=0 to go as fast as possible.\n"
-    "  file=<name>       output file.  Without this, results only\n"
-    "                    print to the terminal.\n"
-    "  labels=<names>    space-separated column names (identifier\n"
-    "                    chars only).  Defaults to the cmd strings.\n"
-    "  regex=<pattern>   regex to extract value from each response\n"
-    "                    (e.g. regex=[-\\d.]+ pulls 23.4 from '+TEMP: 23.4C')\n"
-    "  fmt=csv|json      output format (default: csv).  json writes\n"
-    "                    JSON Lines (.jsonl).\n"
-    "  timeout=<dur>     per-command response timeout (default: 1s)\n"
-    "\n"
     "Without regex=, the first sample must be numeric or the command\n"
     "aborts.  With regex=, non-matching responses become empty values."
 )
@@ -877,7 +810,6 @@ COMMAND = Command(
             needs=CapabilitySet(serial_connected=True),
         ),
         "poll": Command(
-            args="{count=N} {delay=<dur>} {file=<name>} {labels=<names>} {regex=<pattern>} {fmt=csv|json} {timeout=<dur>} cmd=<commands> (must be last)",
             flags={
                 "--overwrite": "Overwrite existing file instead of auto-numbering.",
                 "--notime": "Omit the timestamp column (useful for tests).",
@@ -885,7 +817,28 @@ COMMAND = Command(
             help="Poll commands on a schedule, display (and optionally save) results.",
             long_help=_cap_long_help_with_prose(_CAP_POLL_PROSE),
             handler=_handler_poll,
+            # raw_args keeps cmd= literal (device commands, no $(VAR) expansion);
+            # params still parse the keywords + rest (raw_args skips only transforms).
             raw_args=True,
+            params=[
+                ParamSpec("count", "int", default=60, min=1,
+                          help="number of ticks"),
+                ParamSpec("delay", "duration", default=1.0,
+                          help="delay between ticks (0 = as fast as possible)"),
+                ParamSpec("file", "path", default="",
+                          help="output CSV/JSONL file (terminal-only if omitted)"),
+                ParamSpec("labels", "str", default="",
+                          help="space-separated column labels (default: the commands)"),
+                ParamSpec("regex", "str", default="",
+                          help="regex to extract a value from each response"),
+                ParamSpec("fmt", "enum", default="csv",
+                          values=(EnumValue("csv"), EnumValue("json")),
+                          help="output format"),
+                ParamSpec("timeout", "duration", default=1.0,
+                          help="per-command response timeout"),
+                ParamSpec("cmd", "command", rest=True, required=True,
+                          help="newline-separated commands to poll"),
+            ],
         ),
         "stop": Command(
             help="Stop an active capture.",

@@ -129,6 +129,12 @@ class TestCoercion:
         assert ok is False, "bad duration rejected"
         assert "expected duration" in reason, "duration hint in message"
 
+    def test_duration_bare_zero(self):
+        # A bare "0" is unambiguously zero (parse_duration itself wants a unit);
+        # /cap.poll delay=0 relies on this.
+        actual = coerce_value(ParamSpec("t", "duration"), "0")
+        assert actual == (True, 0.0), "bare 0 duration -> 0.0"
+
     def test_enum_alias_returns_canonical(self):
         spec = ParamSpec(
             "m", "enum", values=(EnumValue("new", ("n",)), EnumValue("append", ("a",)))

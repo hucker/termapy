@@ -2,6 +2,7 @@
 
 import json
 import re
+from datetime import datetime
 
 import pytest
 
@@ -10,6 +11,7 @@ from termapy.scripting import (
     coerce_to_type,
     expand_template,
     format_duration,
+    format_timestamp,
     parse_bool,
     parse_count_arg,
     parse_duration,
@@ -153,6 +155,20 @@ class TestExpandTemplate:
         assert actual == "20260305_100000_1", "both placeholders expanded"
         assert actual_counters[1] == 1, "counter incremented"
 
+    def test_clock_placeholder(self):
+        actual, _ = expand_template("t_{clock}", {})
+        assert re.search(r"t_\d{2}:\d{2}:\d{2}\.\d{3}$", actual), (
+            "{clock} substitutes an HH:MM:SS.mmm wall-clock time"
+        )
+
+    def test_elapsed_placeholder(self):
+        actual, _ = expand_template("t_{elapsed}", {}, elapsed_s=1.5)
+        assert actual == "t_1.50s", "{elapsed} renders elapsed_s via format_duration"
+
+    def test_elapsed_default_zero(self):
+        actual, _ = expand_template("t_{elapsed}", {})
+        assert actual == "t_0us", "{elapsed} is 0 when no start reference is given"
+
     def test_hierarchical_script_sequence(self):
         """Simulate a typical script: two sections with two steps each."""
         c: dict[int, int] = {}
@@ -274,6 +290,21 @@ class TestFormatDuration:
 
     def test_zero(self):
         assert format_duration(0.0) == "0us", "zero renders as 0us"
+
+
+# ── format_timestamp ─────────────────────────────────────────────
+
+
+class TestFormatTimestamp:
+    def test_millisecond_precision(self):
+        dt = datetime(2026, 7, 5, 14, 30, 22, 123456)
+        assert format_timestamp(dt) == "14:30:22.123", "HH:MM:SS.mmm, us truncated to ms"
+
+    def test_defaults_to_now_shape(self):
+        actual = format_timestamp()
+        assert re.fullmatch(r"\d{2}:\d{2}:\d{2}\.\d{3}", actual), (
+            "no-arg call renders the current time as HH:MM:SS.mmm"
+        )
 
 
 # ── resolve_seq_filename ────────────────────────────────────────

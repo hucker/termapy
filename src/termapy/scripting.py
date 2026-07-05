@@ -86,18 +86,27 @@ def coerce_to_type(value_str: str, existing: object) -> object:
 
 
 def expand_template(
-    text: str, counters: dict[int, int], start_time: str = ""
+    text: str,
+    counters: dict[int, int],
+    start_time: str = "",
+    *,
+    elapsed_s: float | None = None,
 ) -> tuple[str, dict[int, int]]:
-    """Expand {seqN}, {seqN+}, {datetime}, {starttime} placeholders in text.
+    """Expand {seqN}, {seqN+}, {datetime}, {starttime}, {clock}, {elapsed}.
 
     Counters start at 0. {seqN+} pre-increments counter N and substitutes
     the new value. Incrementing level N resets all levels < N to 0.
     {seqN} without + substitutes the current value.
 
+    {datetime} is a filename-safe stamp (YYYYmmdd_HHMMSS); {clock} is the
+    wall-clock time (HH:MM:SS.mmm); {starttime} is the frozen start stamp;
+    {elapsed} is the time since start, rendered via ``format_duration``.
+
     Args:
         text: Template string containing placeholders.
         counters: Current sequence counter values keyed by level.
         start_time: Timestamp string set once at script start.
+        elapsed_s: Seconds since start for {elapsed}; 0 when not in a run.
 
     Returns:
         Tuple of (expanded_text, updated_counters). Input dict is not mutated.
@@ -114,9 +123,13 @@ def expand_template(
         return str(new_counters.get(level, 0))
 
     result = re.sub(r"\{seq(\d+)(\+)?\}", replace_seq, text)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    result = result.replace("{datetime}", ts)
+    now = datetime.now()
+    result = result.replace("{datetime}", now.strftime("%Y%m%d_%H%M%S"))
     result = result.replace("{starttime}", start_time)
+    if "{clock}" in result:
+        result = result.replace("{clock}", format_timestamp(now))
+    if "{elapsed}" in result:
+        result = result.replace("{elapsed}", format_duration(elapsed_s or 0.0))
     return result, new_counters
 
 
@@ -192,6 +205,24 @@ def format_duration(seconds: float) -> str:
     if seconds < 1.0:
         return f"{seconds * 1000:.0f}ms"
     return f"{seconds:.2f}s"
+
+
+def format_timestamp(dt: datetime | None = None) -> str:
+    """Render a wall-clock timestamp as ``HH:MM:SS.mmm`` (millisecond precision).
+
+    The single wall-clock formatter: used by the ``show_timestamps`` line
+    prefix and the ``{clock}`` template placeholder.  Defaults to the current
+    local time when ``dt`` is omitted.
+
+    Args:
+        dt: The moment to render, or None for ``datetime.now()``.
+
+    Returns:
+        ``HH:MM:SS.mmm`` (microseconds truncated to milliseconds).
+    """
+    if dt is None:
+        dt = datetime.now()
+    return dt.strftime("%H:%M:%S.%f")[:-3]
 
 
 # ── Line selection (shared count scheme) ──────────────────────────────────────

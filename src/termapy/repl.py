@@ -1355,18 +1355,23 @@ class ReplEngine:
             self._after_cfg(key, new_val)
 
     def _expand_template(self, text: str) -> str:
-        """Expand ``{seqN}``, ``{seqN+}``, ``{datetime}``, ``{starttime}``.
+        """Expand ``{seqN}``, ``{datetime}``, ``{starttime}``, ``{clock}``, ``{elapsed}``.
 
-        Reads the seq counter state from ``ctx.ns("seq")``.  Integer keys
-        are counters; the string key ``_start_time`` is the timestamp for
-        ``{starttime}``.  After expansion, writes the updated counters
-        back in place so the namespace dict identity is preserved for any
-        cached references.
+        Reads the seq counter state from ``ctx.ns("seq")``.  Integer keys are
+        counters; the string keys ``_start_time`` / ``_start_perf`` hold the
+        frozen stamp for ``{starttime}`` and the raw monotonic clock behind
+        ``{elapsed}``.  After expansion, writes the updated counters back in
+        place so the namespace dict identity is preserved for any cached
+        references.
         """
         seq_ns = self.ctx.ns("seq")
         start_time = seq_ns.get("_start_time", "")
+        start_perf = seq_ns.get("_start_perf")
+        elapsed_s = None if start_perf is None else time.monotonic() - start_perf
         counters = {k: v for k, v in seq_ns.items() if isinstance(k, int)}
-        result, new_counters = expand_template(text, counters, start_time)
+        result, new_counters = expand_template(
+            text, counters, start_time, elapsed_s=elapsed_s
+        )
         for k in list(seq_ns):
             if isinstance(k, int):
                 del seq_ns[k]

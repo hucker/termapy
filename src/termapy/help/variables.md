@@ -126,17 +126,30 @@ details.
 | `/env.set <n> <v>`   | Set a session-scoped environment variable|
 | `/env.reload`        | Re-snapshot variables from the OS        |
 
-## Sequence counters
+## Template placeholders
 
-Auto-incrementing counters for scripts (useful for numbered filenames):
+Curly-brace placeholders expand in scripts, filenames, and commands --
+distinct from `$(NAME)` variables. Sequence counters auto-increment; the
+time placeholders are dynamic.
 
 ```text
-/ss.svg capture_{seq1+}    # capture_1.svg, capture_2.svg, ...
-AT+READ {seq2+}            # independent counter
+/ss.svg capture_{seq1+}          # capture_1.svg, capture_2.svg, ...
+AT+READ {seq2+}                  # independent counter
+/print [{clock}] done in {elapsed}
 ```
 
-Use `{seqN+}` to increment and substitute, `{seqN}` to substitute
-without incrementing. Counters 1--9 are available.
+| Placeholder   | Description                                                 |
+| ------------- | ----------------------------------------------------------- |
+| `{seqN+}`     | Increment counter N (1--9) and substitute the new value     |
+| `{seqN}`      | Substitute counter N without incrementing                   |
+| `{datetime}`  | Current date-time, filename-safe (`YYYYmmdd_HHMMSS`)        |
+| `{clock}`     | Current wall-clock time (`HH:MM:SS.mmm`)                    |
+| `{starttime}` | Start-time stamp, frozen at script (or app) start           |
+| `{elapsed}`   | Time since start (e.g. `1.50s`), via the duration formatter |
+
+Incrementing counter N resets all lower counters to 0. `{starttime}` and
+`{elapsed}` measure from script start inside a run, or from app start when
+typed interactively.
 
 | Command      | Description                       |
 | ------------ | --------------------------------- |

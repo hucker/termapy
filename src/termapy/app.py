@@ -128,7 +128,7 @@ class CommandSuggester(Suggester):
         return None
 
 
-from termapy.scripting import ANSI_RE, format_duration  # noqa: E402
+from termapy.scripting import ANSI_RE, format_duration, format_timestamp  # noqa: E402
 
 
 # Single source of truth for top-row hotkeys.
@@ -2772,8 +2772,7 @@ class SerialTerminal(TerminalHost, App):
             if show_ln:
                 prefix += f"{self._line_counter:>5} | "
             if show_ts:
-                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                prefix += f"[{ts}] "
+                prefix += f"[{format_timestamp()}] "
             if hex_mode:
                 hex_str = " ".join(
                     f"{b:02X}" for b in text.encode(enc, errors="replace")

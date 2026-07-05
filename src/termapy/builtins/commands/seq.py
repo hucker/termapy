@@ -14,6 +14,7 @@ The leading underscore on ``_start_time`` is a convention signalling
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -34,8 +35,12 @@ def on_app_start(ctx: PluginContext) -> None:
 
     Fires once after plugins load and the context is wired.  Counters
     start empty; they are created on first ``{seqN+}`` expansion.
+    ``_start_time`` is the frozen string for ``{starttime}``; ``_start_perf``
+    is the raw monotonic clock behind ``{elapsed}``.
     """
-    ctx.ns("seq")["_start_time"] = _now()
+    seq = ctx.ns("seq")
+    seq["_start_time"] = _now()
+    seq["_start_perf"] = time.monotonic()
 
 
 def on_script_start(ctx: PluginContext) -> None:
@@ -48,6 +53,7 @@ def on_script_start(ctx: PluginContext) -> None:
     seq = ctx.ns("seq")
     seq.clear()
     seq["_start_time"] = _now()
+    seq["_start_perf"] = time.monotonic()
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -74,8 +80,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
     """Reset all sequence counters to zero.
 
-    Preserves ``_start_time`` so ``{starttime}`` keeps working until
-    the next script starts.
+    Preserves ``_start_time`` and ``_start_perf`` so ``{starttime}`` and
+    ``{elapsed}`` keep working until the next script starts.
 
     Args:
         ctx: Plugin context for state and output.
@@ -83,8 +89,11 @@ def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
     """
     seq = ctx.ns("seq")
     start_time = seq.get("_start_time", "")
+    start_perf = seq.get("_start_perf")
     seq.clear()
     seq["_start_time"] = start_time
+    if start_perf is not None:
+        seq["_start_perf"] = start_perf
     ctx.io.output("Sequence counters reset.")
     return CmdResult.ok(value="reset")
 

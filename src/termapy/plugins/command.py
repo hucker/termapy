@@ -223,17 +223,20 @@ class Command:
         if not self.params:
             return
         validate_param_specs(self.params, self.name)
-        # Command-level cross-checks (need fields beyond ``params``):
+        # args and params are two ways to declare the same thing -- pick one.
         if self.args:
             raise ValueError(
                 f"/{self.name or '<command>'}: declare params OR a hand-written "
                 f"args string, not both (args is synthesized from params)"
             )
-        if self.raw_args:
-            raise ValueError(
-                f"/{self.name or '<command>'}: params are unsupported on "
-                f"raw_args=True commands (they skip REPL transforms)"
-            )
+        # NOTE: params ARE allowed on raw_args=True commands.  raw_args only
+        # skips the $(VAR)/$(env) *transform* step (in dispatch_full, upstream);
+        # it does not skip flag or param parsing, so a raw_args command can
+        # declare params and still receive its values literally (untransformed)
+        # -- which is exactly what raw_args wants.  The declarer is responsible
+        # for a param-compatible grammar: a command whose literal args use bare
+        # ``-flag`` tokens (e.g. /search's ``-term`` exclusion) must stay
+        # hand-rolled, since flag parsing would consume them.
 
 
 @dataclass

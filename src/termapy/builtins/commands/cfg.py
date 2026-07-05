@@ -23,6 +23,7 @@ from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_
 from termapy.folders import FOLDERS
 from termapy.help_dynamic import cfg_status, compose
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins.params import ParamSpec
 from termapy.scripting import coerce_to_type
 
 if TYPE_CHECKING:
@@ -103,14 +104,11 @@ def _find_cfg_container(cfg, key: str):
 def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     """Set a config key immediately without confirmation dialog.
 
-    Args:
-        ctx: Plugin context for config access and output.
-        args: ``"key value"`` string (both required).
+    Parameters arrive via ``ctx.arg`` (see ``params``); ``value`` is a
+    positional-rest so a config value may contain spaces.
     """
-    parts = args.strip().split(None, 1)
-    if not parts or len(parts) < 2:
-        return CmdResult.fail(msg="Usage: /cfg.auto <key> <value>")
-    key, value_str = parts[0], parts[1]
+    key = ctx.arg("key")
+    value_str = ctx.arg("value")
     container = _find_cfg_container(ctx.cfg, key)
     if container is None:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
@@ -435,9 +433,14 @@ COMMAND = Command(
     handler=_handler,
     sub_commands={
         "auto": Command(
-            args="<key> <value>",
             help="Set immediately (no confirmation).",
             handler=_handler_auto,
+            params=[
+                ParamSpec("key", "str", positional=True, required=True,
+                          help="config key to set"),
+                ParamSpec("value", "str", positional=True, rest=True, required=True,
+                          help="new value (may contain spaces)"),
+            ],
         ),
         "list": Command(
             help="List all config files.",

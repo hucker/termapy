@@ -56,6 +56,44 @@ All paths relative to `src/termapy/`.
 - Toggles/values = args (`echo on`, `cfg baudrate 9600`)
 - Handlers that produce scriptable data must return `CmdResult.ok(value=...)` — without it, scripts in quiet mode get nothing. See `CmdResult` docstring in `plugins.py`.
 
+## Declarative Command Parameters (`Command.params`) vs hand-rolled
+
+Some commands declare their args as `params=[ParamSpec(...)]` (the dispatcher
+parses/coerces/validates + synthesizes usage/help/MCP-schema); others parse `args`
+by hand. This split is **intentional** — use this rule, and if a command is
+hand-rolled where a reader might expect params, leave a one-line comment saying
+why (anchored to this section). See `docs/param-spec-implementation.md` and
+`plugins/params.py`.
+
+**Use `params` when** the grammar is positional tokens + `key=value` keywords +
+at most one *rest* (a whole-line value, or a keyword that runs to end-of-line).
+Composes fine with flags, subcommands, level-suffixes (`.silent`), and
+`raw_args=True` (raw_args skips only the `$(VAR)`/`$(env)` transform step, not
+param parsing, so values arrive literal — e.g. `/cap.wire`). This is the default
+for any multi-arg command.
+
+**Keep it hand-rolled (documented boundary) when:**
+
+- **Variable-arity mode dispatch** with a mutual-exclusion synopsis — `profile.load`
+  (`{path|cmd=<command>}`: path XOR cmd XOR empty), bare `/cfg` (picker/query/set).
+- **A keyword value with spaces followed by more keywords** — `cap.struct`/`cap.hex`
+  `fmt=Temp:U1-2 Pressure:F3-6 records=5` (the spec syntax is space-separated by
+  definition, shared via `protocol.parse_format_spec`).
+- **Bare `-flag`-style literal grammar** flag parsing would eat — `search`'s `-term`.
+- **Variadic positional lists** — `ymodem.send <file> {file2} ...`.
+- **An ordering constraint** where a state check must precede arg validation —
+  `os_cmd` (env-gate before the arg check).
+
+**Also weigh:**
+
+- **Direct-handler unit tests** (`_handler(ctx, "raw args")`) must move to the
+  dispatch contract when a command migrates — factor that cost into go/no-go
+  (why `/env.set` was left hand-rolled).
+- **Trivial single-arg** commands are net-zero-value to migrate (the parse is a
+  one-liner); do it only if the typed MCP schema genuinely matters.
+- Within one file, prefer all-params or clearly-documented holdouts — don't
+  cherry-pick subcommands without a "why" comment (see `cap.py`).
+
 ## Error Messages (`CmdResult.fail(msg=...)`)
 
 - Sentence case: capitalize the first letter (`"Count is required"`, not `"count is required"`)

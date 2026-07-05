@@ -172,6 +172,28 @@ def parse_duration_ms(text: str) -> int:
     return round(parse_duration(text, default_unit="ms") * 1000)
 
 
+def format_duration(seconds: float) -> str:
+    """Render a duration for humans: '480us', '25ms', or '1.50s'.
+
+    Sub-millisecond values show whole microseconds, sub-second values show
+    whole milliseconds, and anything >= 1s shows seconds to two decimals.
+    This is the single display formatter for elapsed times, delays, and
+    timeouts; raw data fields (``CmdResult.elapsed_s``, the ``.prof`` CSV,
+    a results dict's ``elapsed_ms``) stay numeric.
+
+    Args:
+        seconds: A duration in seconds.
+
+    Returns:
+        A compact human-readable string with a unit suffix.
+    """
+    if seconds < 0.001:
+        return f"{seconds * 1_000_000:.0f}us"
+    if seconds < 1.0:
+        return f"{seconds * 1000:.0f}ms"
+    return f"{seconds:.2f}s"
+
+
 # ── Line selection (shared count scheme) ──────────────────────────────────────
 
 # A line-count token: an optional sign followed by digits.  Shared by every

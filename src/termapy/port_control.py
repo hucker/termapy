@@ -26,6 +26,7 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
 )
+from termapy.scripting import format_duration
 
 # Type alias for message lists: (text, color_or_None)
 Msg = tuple[str, str | None]
@@ -1529,6 +1530,6 @@ def send_break(ser: Any | None, args: str) -> Result:
             )
     try:
         ser.send_break(duration=duration)
-        return _result([_msg(f"Break sent ({int(duration * 1000)}ms)")])
+        return _result([_msg(f"Break sent ({format_duration(duration)})")])
     except OSError as e:
         return _result([_msg(f"Break error: {e}", "red")])

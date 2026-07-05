@@ -47,6 +47,7 @@ from termapy.plugins import (
     PluginContext,
 )
 from termapy.repl import ReplEngine
+from termapy.scripting import format_duration
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
 
@@ -675,7 +676,7 @@ class MCPHost(TerminalHost):
                         result = await asyncio.wait_for(fut, timeout=timeout_s)
                     except (asyncio.TimeoutError, FutTimeout):
                         result = CmdResult.fail(
-                            msg=f"timeout after {timeout_s}s"
+                            msg=f"timeout after {format_duration(timeout_s)}"
                         )
             finally:
                 output_lines = _buffer.get() or []
@@ -1166,7 +1167,7 @@ def _dispatch_via_profile(
         return result
 
     if not text:
-        result = CmdResult.fail(msg=f"No response within {timeout_s:.2f}s")
+        result = CmdResult.fail(msg=f"No response within {format_duration(timeout_s)}")
         result.elapsed_s = elapsed
         return result
 

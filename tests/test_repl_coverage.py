@@ -214,7 +214,7 @@ class TestScriptCtxRecord:
         sctx.record("fast", 0.0005)
 
         # Assert
-        assert "0.000500" in output[0], "sub-ms uses 6 decimal places"
+        assert "500us" in output[0], "sub-ms renders as whole microseconds"
 
 
 # -- ScriptCtx.finish -------------------------------------------------------

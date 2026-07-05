@@ -27,6 +27,7 @@ from crcglot import DetectResult, detect
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.scripting import format_duration
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -185,7 +186,7 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
 
             t0 = time.monotonic()
             response = ctx.serial.read_raw(tc.timeout_ms, frame_gap)
-            elapsed_ms = (time.monotonic() - t0) * 1000
+            elapsed_s = time.monotonic() - t0
             if script.strip_ansi:
                 response = strip_ansi(response)
 
@@ -194,7 +195,7 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
                 ctx.io.output(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
                 if match_response(tc.expect_data, response, tc.expect_mask):
                     ctx.io.output(
-                        f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
+                        f"  PASS ({len(response)} bytes, {format_duration(elapsed_s)})",
                         "bright_green",
                     )
                     pass_count += 1
@@ -202,7 +203,10 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
                     ctx.io.output("  FAIL", "red")
                     fail_count += 1
             else:
-                ctx.io.output(f"  Actual:   (timeout after {tc.timeout_ms}ms)", "red")
+                ctx.io.output(
+                    f"  Actual:   (timeout after {format_duration(tc.timeout_ms / 1000)})",
+                    "red",
+                )
                 ctx.io.output("  FAIL", "red")
                 fail_count += 1
 
@@ -287,7 +291,7 @@ def _run_flat_script(
 
                 t0 = time.monotonic()
                 response = ctx.serial.read_raw(step.timeout_ms, frame_gap)
-                elapsed_ms = (time.monotonic() - t0) * 1000
+                elapsed_s = time.monotonic() - t0
                 if do_strip_ansi:
                     response = strip_ansi(response)
 
@@ -298,7 +302,7 @@ def _run_flat_script(
                     )
                     if match_response(step.data, response, step.mask):
                         ctx.io.output(
-                            f"  PASS ({len(response)} bytes, {elapsed_ms:.0f}ms)",
+                            f"  PASS ({len(response)} bytes, {format_duration(elapsed_s)})",
                             "bright_green",
                         )
                         pass_count += 1
@@ -306,7 +310,10 @@ def _run_flat_script(
                         ctx.io.output("  FAIL", "red")
                         fail_count += 1
                 else:
-                    ctx.io.output(f"  Actual:   (timeout after {step.timeout_ms}ms)", "red")
+                    ctx.io.output(
+                        f"  Actual:   (timeout after {format_duration(step.timeout_ms / 1000)})",
+                        "red",
+                    )
                     ctx.io.output("  FAIL", "red")
                     fail_count += 1
 
@@ -485,12 +492,8 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                         _format_as_quoted_text(s) if ascii_view
                         else format_hex(s)
                     )
-                elif s >= 1.0:
-                    parts.append(f"[~{s:.1f}s]")
-                elif s >= 0.001:
-                    parts.append(f"[~{s * 1000:.0f}ms]")
                 else:
-                    parts.append(f"[~{s * 1_000_000:.0f}us]")
+                    parts.append(f"[~{format_duration(s)}]")
             ctx.io.output(f"  TX (dry-run): {' '.join(parts)}")
         else:
             _display_bytes(ctx, "TX (dry-run)", all_data, as_text=ascii_view)
@@ -513,12 +516,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
                         else:
                             parts.append(f"[cyan]{hex_str}[/]  [dim]{smart_str}[/]")
                     else:
-                        if s >= 1.0:
-                            parts.append(f"[dim][~{s:.1f}s][/]")
-                        elif s >= 0.001:
-                            parts.append(f"[dim][~{s * 1000:.0f}ms][/]")
-                        else:
-                            parts.append(f"[dim][~{s * 1_000_000:.0f}us][/]")
+                        parts.append(f"[dim][~{format_duration(s)}][/]")
                 ctx.io.output_markup(f"  [cyan]TX:[/] {' '.join(parts)}")
             else:
                 _display_bytes(ctx, "TX", all_data, as_text=ascii_view)
@@ -530,12 +528,12 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
             else:
                 ctx.serial.write(segment)
         response = ctx.serial.read_raw(1000)
-        elapsed_ms = (time.monotonic() - t0) * 1000
+        elapsed_s = time.monotonic() - t0
 
     if response:
         _display_bytes(ctx, "RX", response, as_text=ascii_view)
         if ctx.output_level == "verbose":
-            ctx.io.output(f"  ({len(response)} bytes, {elapsed_ms:.0f}ms)")
+            ctx.io.output(f"  ({len(response)} bytes, {format_duration(elapsed_s)})")
     else:
         ctx.io.output("  RX: (no response)", "red")
     # Return the response bytes as a hex string so scripts can

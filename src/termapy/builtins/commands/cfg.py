@@ -45,6 +45,11 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for config access and output.
         args: Optional ``"key"`` or ``"key value"`` string.
     """
+    # Hand-rolled (not declarative params, unlike the /cfg.auto sibling): this
+    # is a variable-arity mode dispatch -- bare /cfg opens the picker, `/cfg key`
+    # queries, `/cfg key value` sets -- which params' fixed synopsis can't
+    # express (see CLAUDE.md "Declarative Command Parameters").  /cfg.load is
+    # likewise a trivial single positional kept hand-rolled.
     parts = args.strip().split(None, 1)
     # Bare /cfg -- TUI opens the Cfg picker dialog (matches the
     # title-bar button); CLI shows /help cfg.  Use /cfg.dump to print

@@ -27,6 +27,7 @@ from crcglot import DetectResult, detect
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.scripting import format_duration
 
 if TYPE_CHECKING:
@@ -873,6 +874,52 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=crc_hex)
 
 
+# Endianness selector shared with crcglot's detect/reverse verbs.  Canonical
+# values are what crcglot expects; be/le are aliases so the spelling matches the
+# ``endian=be|le`` the other /proto.crc.* commands already use.
+_ENDIAN_VALUES = (
+    EnumValue("both"),
+    EnumValue("big", aliases=("be",)),
+    EnumValue("little", aliases=("le",)),
+)
+
+
+def _crc_detect(ctx: PluginContext, args: str) -> CmdResult:
+    """Name the catalogue CRC on a single captured frame.
+
+    Asks ``crcglot.detect`` which known catalogue algorithm produced the
+    trailing bytes of ONE frame -- the fast single-frame counterpart to
+    ``/proto.crc.reverse`` (algebraic recovery of an unknown CRC from
+    several frames) and ``/proto.crc.find`` (catalogue search by params).
+
+    Returns the matched algorithm name(s) via ``CmdResult.value`` so a hit
+    pipes straight into ``.calc`` / ``.verify`` / codegen.
+    """
+    from crcglot import detect
+
+    frame = ctx.arg("frame")
+    endian = ctx.arg("endian")
+    data, _is_hex = _parse_crc_data(frame)
+    if not data:
+        return CmdResult.fail(msg="Frame is empty.")
+    result = detect(data, match="all", endian=endian)
+    if not result.matched:
+        ctx.io.output("No catalogue CRC matched the trailing bytes.")
+        if result.trailer_hint:
+            ctx.io.output(f"  Trailer hint: {result.trailer_hint}")
+        p = ctx.prefix
+        ctx.io.output(
+            f"  Try {p}proto.crc.reverse with 2+ frames to recover a custom CRC,"
+        )
+        ctx.io.output(
+            f"  or {p}proto.crc.find to search the catalogue by parameters."
+        )
+        return CmdResult.ok(value="")
+    names: list[str] = []
+    for m in result.candidates:
+        ctx.io.output(f"  {m.algorithm}  (endian={m.endianness})")
+        names.append(m.algorithm)
+    return CmdResult.ok(value=" ".join(names))
 
 
 def _write_crc_codegen_files(
@@ -2310,6 +2357,39 @@ COMMAND = Command(
                         "  {prefix}proto.crc.find cmd=AT+RND\n"
                     ),
                     handler=_crc_find,
+                ),
+                "detect": Command(
+                    params=[
+                        ParamSpec(
+                            "endian",
+                            type="enum",
+                            values=_ENDIAN_VALUES,
+                            default="both",
+                            help="trailer byte order to test",
+                        ),
+                        ParamSpec(
+                            "frame",
+                            type="str",
+                            positional=True,
+                            rest=True,
+                            required=True,
+                            hint="<packet-hex>",
+                            help="one captured frame (payload + trailing CRC), hex bytes",
+                        ),
+                    ],
+                    help="Name the catalogue CRC on a single captured frame.",
+                    long_help=(
+                        "Ask crcglot.detect which known catalogue algorithm\n"
+                        "produced the trailing bytes of ONE frame -- the fast,\n"
+                        "single-frame counterpart to {prefix}proto.crc.reverse\n"
+                        "(algebraic recovery of an UNKNOWN CRC from several\n"
+                        "frames) and {prefix}proto.crc.find (search the\n"
+                        "catalogue by parameters).\n"
+                        "\n"
+                        "Example:\n"
+                        "  {prefix}proto.crc.detect 01 03 00 00 00 0A C5 CD"
+                    ),
+                    handler=_crc_detect,
                 ),
                 "calc": Command(
                     args="<name> {data}",

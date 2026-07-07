@@ -1,10 +1,12 @@
 """Tests for the user-defined variables plugin (var.py)."""
 
 import json
+import re
 
 import pytest
 
 from termapy.builtins.commands.var import (
+    _FROZEN_MOMENTS,
     _VARS,
     _VAR_REF_RE,
     check_bare_dollar,
@@ -19,10 +21,12 @@ from termapy.repl import ReplEngine
 
 @pytest.fixture(autouse=True)
 def _clean_vars():
-    """Clear variables before and after each test."""
+    """Clear variables (and the SESSION frozen moment) before and after each test."""
     _VARS.clear()
+    _FROZEN_MOMENTS.pop("SESSION", None)
     yield
     _VARS.clear()
+    _FROZEN_MOMENTS.pop("SESSION", None)
 
 
 # ── expand_vars ──────────────────────────────────────────────────────────────
@@ -398,44 +402,62 @@ class TestSessionTimeVars:
     """Tests for $(SESSION_DATE), $(SESSION_TIME), $(SESSION_DATETIME)."""
 
     def test_sets_session_date(self):
-        # Act
+        # Act - freeze the SESSION moment, then read via expansion
         set_start_time_vars()
+        actual = expand_vars("$(SESSION_DATE)")
 
-        # Assert - SESSION_DATE is YYYY-MM-DD format
-        assert "SESSION_DATE" in _VARS
-        assert len(_VARS["SESSION_DATE"]) == 10, "YYYY-MM-DD"
-        assert _VARS["SESSION_DATE"][4] == "-"
+        # Assert - SESSION_DATE renders YYYY-MM-DD
+        assert len(actual) == 10, "YYYY-MM-DD"
+        assert actual[4] == "-", "YYYY-MM-DD separator"
 
     def test_sets_session_time(self):
         # Act
         set_start_time_vars()
+        actual = expand_vars("$(SESSION_TIME)")
 
-        # Assert - SESSION_TIME is HH:MM:SS format
-        assert "SESSION_TIME" in _VARS
-        assert len(_VARS["SESSION_TIME"]) == 8, "HH:MM:SS"
-        assert _VARS["SESSION_TIME"][2] == ":"
+        # Assert - SESSION_TIME renders HH:MM:SS
+        assert len(actual) == 8, "HH:MM:SS"
+        assert actual[2] == ":", "HH:MM:SS separator"
 
     def test_sets_session_datetime(self):
         # Act
         set_start_time_vars()
+        date = expand_vars("$(SESSION_DATE)")
+        time = expand_vars("$(SESSION_TIME)")
+        datetime_str = expand_vars("$(SESSION_DATETIME)")
 
-        # Assert - SESSION_DATETIME contains both date and time
-        assert "SESSION_DATETIME" in _VARS
-        assert _VARS["SESSION_DATE"] in _VARS["SESSION_DATETIME"]
-        assert _VARS["SESSION_TIME"] in _VARS["SESSION_DATETIME"]
+        # Assert - SESSION_DATETIME contains both the date and the time
+        assert date in datetime_str, "datetime carries the frozen date"
+        assert time in datetime_str, "datetime carries the frozen time"
 
-    def test_cleared_by_clear_vars(self):
-        """Verify clear_vars removes session vars (they must be re-set explicitly)."""
+    def test_not_frozen_until_set(self):
+        """SESSION_* stays literal until the session start is frozen."""
+        # Act - no set_start_time_vars() call
+        actual = expand_vars("$(SESSION_DATETIME)")
+
+        # Assert - unresolved, left literal
+        assert actual == "$(SESSION_DATETIME)", "SESSION is unset until frozen"
+
+    def test_survives_clear_vars(self):
+        """SESSION is a frozen moment, not a user var -- clear_vars leaves it."""
         # Arrange
         set_start_time_vars()
 
         # Act
         clear_vars()
+        actual = expand_vars("$(SESSION_DATETIME)")
 
-        # Assert - clear_vars removes everything including session vars
-        assert "SESSION_DATE" not in _VARS
-        assert "SESSION_TIME" not in _VARS
-        assert "SESSION_DATETIME" not in _VARS
+        # Assert - still resolves after clearing user variables
+        assert actual != "$(SESSION_DATETIME)", "SESSION persists across clear_vars"
+
+    def test_custom_format(self):
+        """A :fmt override applies to the frozen SESSION moment."""
+        # Act
+        set_start_time_vars()
+        actual = expand_vars("$(SESSION_DATE:%Y%m%d)")
+
+        # Assert - colon-free filename-safe rendering, 8 digits
+        assert len(actual) == 8 and actual.isdigit(), "YYYYmmdd"
 
     def test_expandable_in_strings(self):
         # Arrange
@@ -444,9 +466,9 @@ class TestSessionTimeVars:
         # Act
         actual = expand_vars("Started: $(SESSION_DATETIME)")
 
-        # Assert - session vars expanded like any other variable
-        assert "$(SESSION_DATETIME)" not in actual
-        assert _VARS["SESSION_DATETIME"] in actual
+        # Assert - session var expanded inline
+        assert "$(SESSION_DATETIME)" not in actual, "placeholder replaced"
+        assert actual.startswith("Started: "), "surrounding text preserved"
 
 
 class TestDynamicTimeVars:
@@ -499,6 +521,96 @@ class TestDynamicTimeVars:
         assert "$(DATE)" not in actual
         assert "$(TIME)" not in actual
         assert "$(DATETIME)" not in actual
+
+
+class TestDatetimeFormatSpec:
+    """Tests for the $(NAME:strftime) format-spec on datetime vars."""
+
+    def test_filename_safe_datetime(self):
+        # Act - the headline use: a colon-free stamp for filenames
+        actual = expand_vars("$(DATETIME:%Y%m%d_%H%M%S)")
+
+        # Assert - YYYYmmdd_HHMMSS, no colons
+        assert re.fullmatch(r"\d{8}_\d{6}", actual), "filename-safe stamp"
+
+    def test_format_may_contain_colons(self):
+        # Act - the format itself has colons; we split on the FIRST colon only
+        actual = expand_vars("$(TIME:%H:%M:%S)")
+
+        # Assert - HH:MM:SS reproduced from the format's own colons
+        assert re.fullmatch(r"\d{2}:\d{2}:\d{2}", actual), "colon format survives"
+
+    def test_partial_format(self):
+        # Act
+        actual = expand_vars("$(TIME:%H%M)")
+
+        # Assert - just hour+minute, four digits
+        assert re.fullmatch(r"\d{4}", actual), "HHMM"
+
+    def test_format_on_frozen_var(self):
+        # Act - :fmt works on frozen moments too
+        set_start_time_vars()
+        actual = expand_vars("$(SESSION_DATETIME:%Y%m%d)")
+
+        # Assert
+        assert re.fullmatch(r"\d{8}", actual), "frozen moment, custom format"
+
+    def test_format_on_non_datetime_var_is_literal(self):
+        # Arrange - a :fmt on a user var is meaningless
+        _VARS["PORT"] = "COM7"
+
+        # Act
+        actual = expand_vars("$(PORT:%H)")
+
+        # Assert - left literal so the misuse is visible (not "COM7", not a time)
+        assert actual == "$(PORT:%H)", "fmt only applies to datetime vars"
+
+    def test_bare_var_still_uses_default_format(self):
+        # Act - no colon: default format still applies
+        actual = expand_vars("$(DATE)")
+
+        # Assert - default YYYY-MM-DD
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", actual), "default format intact"
+
+
+class TestRetiredPlaceholders:
+    """Back-compat: {clock}/{datetime} rewrite to $() form inside expand_vars.
+
+    The rewrite lives at the head of the $() transform so it runs before
+    expansion and works transparently on both REPL and device lines.
+    """
+
+    def test_datetime_rewrites_and_expands(self):
+        # Act - {datetime} -> $(DATETIME:%Y%m%d_%H%M%S) -> expanded in one pass
+        actual = expand_vars("run_{datetime}.log")
+
+        # Assert - filename-safe stamp, no leftover placeholder
+        assert re.fullmatch(r"run_\d{8}_\d{6}\.log", actual), (
+            "{datetime} rewrites to the filename-safe stamp"
+        )
+
+    def test_clock_rewrites_and_expands(self):
+        # Act - {clock} -> $(TIME) -> expanded
+        actual = expand_vars("at {clock}")
+
+        # Assert
+        assert re.fullmatch(r"at \d{2}:\d{2}:\d{2}", actual), "{clock} rewrites to $(TIME)"
+
+    def test_both_in_one_line(self):
+        # Act
+        actual = expand_vars("{clock} {datetime}")
+
+        # Assert - both rewritten and expanded
+        assert re.fullmatch(r"\d{2}:\d{2}:\d{2} \d{8}_\d{6}", actual), "both rewritten"
+
+    def test_per_run_placeholders_untouched(self):
+        # Act - {seqN}/{starttime}/{elapsed} are not $() vars; pass through verbatim
+        actual = expand_vars("cap_{seq1+}_{starttime}_{elapsed}")
+
+        # Assert - left for the scripting-template expander downstream
+        assert actual == "cap_{seq1+}_{starttime}_{elapsed}", (
+            "per-run placeholders are not rewritten by the $() transform"
+        )
 
 
 # ── DirectiveResult (isolated) ───────────────────────────────────────────────

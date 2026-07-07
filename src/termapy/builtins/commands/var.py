@@ -15,8 +15,11 @@ if TYPE_CHECKING:
 # Module-level variable storage - cleared on script start.
 _VARS: dict[str, str] = {}
 
-# Match $(NAME) or $(NAME.SUB) - letters, digits, underscore, dots
-_VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)")
+# Match $(NAME) or $(NAME.SUB), with an optional :strftime format on
+# datetime-valued vars -- e.g. $(DATETIME:%Y%m%d_%H%M%S).  The format runs
+# to the closing paren and may itself contain colons (%H:%M:%S), so we split
+# on the FIRST colon only; group(2) is None when no format is given.
+_VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)(?::([^)]*))?\)")
 
 # Match $(NAME) = value assignment (with or without spaces around =)
 _VAR_ASSIGN_RE = re.compile(r"^\$\(([A-Za-z_][A-Za-z0-9_]*)\)\s*=\s*(.+)$")
@@ -43,16 +46,14 @@ def clear_vars() -> None:
 
 
 def set_start_time_vars() -> None:
-    """Set $(SESSION_DATE), $(SESSION_TIME), and $(SESSION_DATETIME).
+    """Freeze the SESSION_* datetime moment.
 
     Called once when a top-level script starts (Scripts button / Run menu).
-    These are NOT reset by interactive ``/run`` calls so they reflect
-    the original start time of the session.
+    Frozen here and NOT refreshed by interactive ``/run`` calls, so
+    $(SESSION_DATE/TIME/DATETIME) reflect the original session start.  The
+    moment is stored raw; format is applied on read (default or ``:fmt``).
     """
-    now = datetime.now()
-    _VARS["SESSION_DATE"] = now.strftime("%Y-%m-%d")
-    _VARS["SESSION_TIME"] = now.strftime("%H:%M:%S")
-    _VARS["SESSION_DATETIME"] = now.strftime("%Y-%m-%d %H:%M:%S")
+    _FROZEN_MOMENTS["SESSION"] = datetime.now()
 
 
 def rewrite_assignment(line: str) -> str | None:
@@ -109,12 +110,14 @@ def check_bare_dollar(line: str) -> str | None:
     return None
 
 
-# Launch-time variables - frozen when the module loads (app start).
-_LAUNCH_TIME = datetime.now()
+# Frozen datetime moments, keyed by concept.  LAUNCH is frozen when the
+# module loads (app start); SESSION is frozen by ``set_start_time_vars`` at
+# the top-level script boundary.  Each exposes $(<CONCEPT>_DATE/TIME/DATETIME)
+# and honours an optional :fmt override -- format is applied on read.
+_FROZEN_MOMENTS: dict[str, datetime] = {"LAUNCH": datetime.now()}
+
+# Non-datetime launch vars (plain strings, no :fmt).
 _LAUNCH_VARS: dict[str, str] = {
-    "LAUNCH_DATE": _LAUNCH_TIME.strftime("%Y-%m-%d"),
-    "LAUNCH_TIME": _LAUNCH_TIME.strftime("%H:%M:%S"),
-    "LAUNCH_DATETIME": _LAUNCH_TIME.strftime("%Y-%m-%d %H:%M:%S"),
     "FRONT_END": "unknown",
 }
 
@@ -162,12 +165,40 @@ def register_cfg_vars(
     set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
     set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
 
-# Dynamic built-in variables - resolved at expansion time.
-_DYNAMIC_VARS: dict[str, str] = {
+# Default strftime formats for the datetime vars.  A base name (DATE/TIME/
+# DATETIME) resolves to the current clock; a CONCEPT_ prefix (LAUNCH_/SESSION_)
+# resolves to that frozen moment.  All accept an optional :fmt override.
+_DT_DEFAULTS: dict[str, str] = {
     "DATE": "%Y-%m-%d",
     "TIME": "%H:%M:%S",
     "DATETIME": "%Y-%m-%d %H:%M:%S",
 }
+
+
+def _resolve_datetime_var(name: str, fmt: str | None) -> str | None:
+    """Resolve a datetime var to a formatted string, or None if not one.
+
+    Handles the dynamic clock (``DATE``/``TIME``/``DATETIME`` -> now) and the
+    frozen moments (``LAUNCH_*`` / ``SESSION_*``).  ``fmt`` overrides the
+    per-base default when given.
+
+    Args:
+        name: The variable name (e.g. ``DATETIME``, ``SESSION_DATE``).
+        fmt: Optional strftime override; None uses the base default.
+
+    Returns:
+        The formatted timestamp, or None if ``name`` is not a datetime var.
+    """
+    base = _DT_DEFAULTS.get(name)
+    if base is not None:
+        return datetime.now().strftime(fmt or base)
+    concept, _, tail = name.partition("_")
+    default = _DT_DEFAULTS.get(tail)
+    moment = _FROZEN_MOMENTS.get(concept)
+    if default is not None and moment is not None:
+        return moment.strftime(fmt or default)
+    return None
+
 
 # Context variables - resolved via callable at expansion time.
 _CONTEXT_VARS: dict[str, Callable[[], str]] = {}
@@ -180,14 +211,26 @@ def set_context_var(name: str, fn: Callable[[], str]) -> None:
 
 _ESCAPE_SENTINEL = "\x00"
 
+# Retired ambient wall-clock placeholders -> their $() equivalents.  These
+# moved out of the {} scripting-template system when $() gained :fmt; the
+# rewrite happens here, at the head of the $() transform, so the emitted
+# $(TIME)/$(DATETIME:...) expands in the same pass and works transparently on
+# both REPL and device lines.  {seqN}/{starttime}/{elapsed} are NOT here --
+# they remain per-run stamps in the scripting layer.  Back-compat shim;
+# retire in a future major once the v24 migration has aged out.
+_RETIRED_PLACEHOLDERS = {
+    "{clock}": "$(TIME)",
+    "{datetime}": "$(DATETIME:%Y%m%d_%H%M%S)",
+}
+
 
 def expand_vars(text: str) -> str:
     """Expand $(NAME) references in a string.
 
-    Resolution order:
-    1. User-defined variables in ``_VARS``
-    2. Dynamic built-ins (``$(DATE)``, ``$(TIME)``, ``$(DATETIME)``) - current clock
-    3. Unknown names are left as literal ``$(NAME)``
+    Resolution order (no :fmt): user vars -> launch strings -> datetime vars
+    (dynamic clock + frozen LAUNCH_/SESSION_ moments) -> context vars -> left
+    literal.  A ``:fmt`` suffix (e.g. ``$(DATETIME:%Y%m%d_%H%M%S)``) applies
+    only to datetime vars; on any other name it is left literal.
 
     Use ``\\$`` to escape a literal ``$`` (e.g. ``\\$(PORT)`` -> ``$(PORT)``).
 
@@ -197,20 +240,31 @@ def expand_vars(text: str) -> str:
     Returns:
         String with known variables expanded.
     """
+    # Back-compat: rewrite retired {clock}/{datetime} to their $() form first,
+    # so the emitted references expand below in this same pass.
+    if "{clock}" in text or "{datetime}" in text:
+        for old, new in _RETIRED_PLACEHOLDERS.items():
+            text = text.replace(old, new)
     # Swap \$ -> sentinel so the regex doesn't see it as a var reference
     text = text.replace("\\$", _ESCAPE_SENTINEL)
 
     def _replace(m: re.Match) -> str:
         name = m.group(1)
+        fmt = m.group(2)  # None unless a :format suffix was given
+        if fmt is not None:
+            # A :fmt suffix is only meaningful on datetime vars; anything
+            # else is left literal so the misuse is visible.
+            dt = _resolve_datetime_var(name, fmt)
+            return dt if dt is not None else m.group(0)
         val = _VARS.get(name)
         if val is not None:
             return val
         val = _LAUNCH_VARS.get(name)
         if val is not None:
             return val
-        fmt = _DYNAMIC_VARS.get(name)
-        if fmt is not None:
-            return datetime.now().strftime(fmt)
+        dt = _resolve_datetime_var(name, None)
+        if dt is not None:
+            return dt
         ctx_fn = _CONTEXT_VARS.get(name)
         if ctx_fn is not None:
             return ctx_fn()
@@ -219,6 +273,18 @@ def expand_vars(text: str) -> str:
     text = _VAR_REF_RE.sub(_replace, text)
     # Restore sentinel -> literal $
     return text.replace(_ESCAPE_SENTINEL, "$")
+
+
+def _datetime_var_names() -> list[tuple[str, str]]:
+    """(name, tag) for every datetime var: dynamic clock + frozen moments.
+
+    Used by ``/var`` listing.  Frozen concepts appear only once frozen
+    (SESSION shows up after a top-level script starts).
+    """
+    names = [(base, "dynamic") for base in _DT_DEFAULTS]
+    for concept in sorted(_FROZEN_MOMENTS):
+        names.extend((f"{concept}_{base}", concept.lower()) for base in _DT_DEFAULTS)
+    return names
 
 
 # -- Handlers ----------------------------------------------------------------
@@ -239,9 +305,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         if val is None:
             val = _LAUNCH_VARS.get(name)
         if val is None:
-            fmt = _DYNAMIC_VARS.get(name)
-            if fmt is not None:
-                val = datetime.now().strftime(fmt)
+            val = _resolve_datetime_var(name, None)
         if val is None:
             ctx_fn = _CONTEXT_VARS.get(name)
             if ctx_fn is not None:
@@ -251,9 +315,6 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.ok(value=str(val))
         ctx.io.output(f"  $({name}) - not defined", "red")
         return CmdResult.ok(value="")
-    if not _VARS and not _LAUNCH_VARS and not _DYNAMIC_VARS and not _CONTEXT_VARS:
-        ctx.io.output("  (no variables defined)")
-        return CmdResult.ok(value="")
     lines: list[str] = []
     for k in sorted(_VARS):
         ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{_VARS[k]}[/]")
@@ -261,10 +322,9 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     for k in sorted(_LAUNCH_VARS):
         ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{_LAUNCH_VARS[k]}[/]  [dim](launch)[/]")
         lines.append(f"{k}={_LAUNCH_VARS[k]}")
-    now = datetime.now()
-    for k, fmt in sorted(_DYNAMIC_VARS.items()):
-        rendered = now.strftime(fmt)
-        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim](dynamic)[/]")
+    for k, tag in _datetime_var_names():
+        rendered = _resolve_datetime_var(k, None) or ""
+        ctx.io.output_markup(f"  [cyan]$({k})[/] = [green]{rendered}[/]  [dim]({tag})[/]")
         lines.append(f"{k}={rendered}")
     for k in sorted(_CONTEXT_VARS):
         rendered = _CONTEXT_VARS[k]()
@@ -375,12 +435,12 @@ def _var_state_line(ctx: PluginContext) -> str:
     # long_help contract.
     _ = ctx
     user = len(_VARS)
-    launch = len(_LAUNCH_VARS)
-    dyn = len(_DYNAMIC_VARS)
+    dt = len(_datetime_var_names())
     ctxv = len(_CONTEXT_VARS)
+    launch = len(_LAUNCH_VARS)
     return green(
-        f"Currently defined: {user} user, {launch} launch, "
-        f"{dyn} dynamic, {ctxv} context"
+        f"Currently defined: {user} user, {dt} datetime, "
+        f"{ctxv} context, {launch} launch"
     )
 
 
@@ -408,6 +468,11 @@ Dynamic variables (current clock at point of use):
   $(DATE)              - current date (YYYY-MM-DD)
   $(TIME)              - current time (HH:MM:SS)
   $(DATETIME)          - current date and time
+
+Custom format (any datetime variable, strftime after a colon):
+  $(DATETIME:%Y%m%d_%H%M%S)  - filename-safe stamp (colon-free)
+  $(TIME:%H%M)               - hour+minute only
+  $(SESSION_DATE:%d-%b)      - works on frozen vars too
 
 Launch variables (frozen when the app starts):
   $(LAUNCH_DATE)       - app start date

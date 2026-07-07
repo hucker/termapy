@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### `$()` gains `strftime` formats; `{datetime}`/`{clock}` retired
+
+The `$()` variable system's datetime variables now take an optional
+`strftime` format after a colon -- `$(DATETIME:%Y%m%d_%H%M%S)` produces a
+filename-safe, colon-free stamp. This works on the dynamic clock
+(`$(DATE)`, `$(TIME)`, `$(DATETIME)`) and the frozen `$(LAUNCH_*)` /
+`$(SESSION_*)` moments alike.
+
+With that in place, the two ambient wall-clock template placeholders were
+retired from the `{}` scripting-template system, which is now cleanly
+scoped to **per-script-run stamps** (`{seqN}`, `{starttime}`, `{elapsed}`):
+
+- `{clock}` -> `$(TIME)`
+- `{datetime}` -> `$(DATETIME:%Y%m%d_%H%M%S)`
+
+Migration is automatic: the `$()` expander transparently rewrites the old
+placeholders in live and scripted input (both REPL and device lines), and
+**config schema v24** rewrites them in the `*_on_connect_cmd` chains on load.
+The proto results filename template (`proto_results_template`) keeps its own
+`{datetime}` -- it is a separate Python `str.format` placeholder, not part of
+the `{}` system.
+
 ## 0.71.1 (2026-06-03)
 
 Maintenance release: absorb the crcglot 0.11 upgrade.

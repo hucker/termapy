@@ -384,6 +384,8 @@ Run `/run setup_modbus.run` then `/run test_registers.run`. The variables persis
 
 Each group also has `_DATE` and `_TIME` variants (e.g. `$(LAUNCH_DATE)`, `$(SESSION_TIME)`).
 
+Any datetime variable takes an optional `strftime` format after a colon — `$(DATETIME:%Y%m%d_%H%M%S)` yields a filename-safe, colon-free stamp (the default `$(DATETIME)` has colons). This replaces the retired `{datetime}` / `{clock}` template placeholders; old scripts and configs are migrated automatically.
+
 **vs. environment variables:** `$(env.NAME)` pulls from the OS environment and works in config files. `$(NAME)` is for user-defined session variables in commands and scripts. Both use the `$(...)` syntax. The `env.` prefix is required to access environment variables explicitly.
 
 **Escaping:** Use `\$` to prevent expansion of a single reference, or `/raw` to skip expansion for an entire line.
@@ -488,7 +490,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 23,
+    "config_version": 24,
     "title": "",
     "border_color": "",
     "max_lines": 10000,

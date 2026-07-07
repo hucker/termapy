@@ -65,6 +65,20 @@ AT+ADDR=$(ADDR)
 **Session** variables are set once when a script launches from the
 Scripts button or Run menu.
 
+### Custom time formats
+
+Any datetime variable accepts a `strftime` format after a colon. The
+format runs to the closing paren and may contain its own colons:
+
+```text
+$(DATETIME:%Y%m%d_%H%M%S)   # 20260707_143000 -- filename-safe (no colons)
+$(TIME:%H%M)                # 1430
+$(SESSION_DATE:%d-%b)       # 07-Jul -- works on frozen vars too
+```
+
+This is the way to get a colon-free timestamp for filenames, since the
+default `$(DATETIME)` (`2026-07-07 14:30:00`) contains colons and spaces.
+
 ## Environment variables
 
 Access OS environment variables with `$(env.NAME)` syntax. This is
@@ -128,28 +142,37 @@ details.
 
 ## Template placeholders
 
-Curly-brace placeholders expand in scripts, filenames, and commands --
-distinct from `$(NAME)` variables. Sequence counters auto-increment; the
-time placeholders are dynamic.
+Curly-brace `{}` placeholders are **per-script-run stamps**: the
+auto-incrementing sequence counters plus this run's start time and elapsed
+time. They are the counterpart to `$(NAME)` variables, which substitute
+**ambient values** (config, environment, wall-clock). The rule:
+
+- `{}` = per-run: counters (`{seqN}`), run start (`{starttime}`), elapsed
+  (`{elapsed}`). Refreshed at each outermost script boundary.
+- `$()` = ambient: everything else, including the wall clock. For a
+  current-time stamp use `$(DATETIME:...)`, not a `{}` placeholder.
 
 ```text
 /ss.svg capture_{seq1+}          # capture_1.svg, capture_2.svg, ...
 AT+READ {seq2+}                  # independent counter
-/print [{clock}] done in {elapsed}
+/print done in {elapsed}
 ```
 
 | Placeholder   | Description                                                 |
 | ------------- | ----------------------------------------------------------- |
 | `{seqN+}`     | Increment counter N (1--9) and substitute the new value     |
 | `{seqN}`      | Substitute counter N without incrementing                   |
-| `{datetime}`  | Current date-time, filename-safe (`YYYYmmdd_HHMMSS`)        |
-| `{clock}`     | Current wall-clock time (`HH:MM:SS.mmm`)                    |
-| `{starttime}` | Start-time stamp, frozen at script (or app) start           |
+| `{starttime}` | This run's start stamp, frozen at script (or app) start     |
 | `{elapsed}`   | Time since start (e.g. `1.50s`), via the duration formatter |
 
 Incrementing counter N resets all lower counters to 0. `{starttime}` and
 `{elapsed}` measure from script start inside a run, or from app start when
 typed interactively.
+
+> The former `{datetime}` and `{clock}` placeholders were retired: they were
+> ambient wall-clock stamps, so they moved to `$()` as
+> `$(DATETIME:%Y%m%d_%H%M%S)` and `$(TIME)`. Old scripts and configs are
+> rewritten automatically.
 
 | Command      | Description                       |
 | ------------ | --------------------------------- |

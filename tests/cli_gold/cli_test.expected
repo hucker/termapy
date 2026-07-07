@@ -98,7 +98,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 23,
+      "config_version": 24,
       "default_ui": "tui",
       "vt100_hint": true,
       "title": "Demo Device",
@@ -467,7 +467,7 @@ SYNOPSIS
   /var {name}
 
 DESCRIPTION
-  Currently defined: 0 user, 4 launch, 3 dynamic, 15 context
+  Currently defined: 0 user, 6 datetime, 15 context, 1 launch
 
   User-defined variables use $(NAME) syntax (case-sensitive).
 
@@ -492,6 +492,11 @@ DESCRIPTION
     $(DATE)              - current date (YYYY-MM-DD)
     $(TIME)              - current time (HH:MM:SS)
     $(DATETIME)          - current date and time
+
+  Custom format (any datetime variable, strftime after a colon):
+    $(DATETIME:%Y%m%d_%H%M%S)  - filename-safe stamp (colon-free)
+    $(TIME:%H%M)               - hour+minute only
+    $(SESSION_DATE:%d-%b)      - works on frozen vars too
 
   Launch variables (frozen when the app starts):
     $(LAUNCH_DATE)       - app start date

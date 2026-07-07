@@ -104,8 +104,13 @@ dependencies = [
     # ``SELF_TEST_INPUTS``; recorded for a future follow-up, not
     # consumed here).  Floor is
     # tracked at the latest release so the lock pulls modern fixes
-    # and we surface any future API drift early.
-    "crcglot>=0.26.0",
+    # and we surface any future API drift early.  0.27 shipped the
+    # frontend-neutral ``VERBS`` manifest (every verb + parameter as plain
+    # data -- types, enums, defaults, help); 0.28 added ``call_verb`` (invoke
+    # a verb from its manifest param names, returning a JSON-ready wire dict).
+    # termapy renders both into typed ``/proto.crc.*`` commands via
+    # ``builtins/commands/_crc_verbs.py``, so the floor moves to 0.28.0.
+    "crcglot>=0.28.0",
 ]
 
 [project.optional-dependencies]

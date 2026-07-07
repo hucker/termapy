@@ -1006,11 +1006,26 @@ class TestLoadConfigMalformed:
 
 class TestRunCheck:
     def _run(self, *args):
-        """Run termapy --check via subprocess and return (returncode, stdout)."""
-        import subprocess
+        """Run termapy --check via subprocess and return (returncode, stdout).
 
+        Spawns the interpreter directly (``sys.executable -c``) rather than
+        ``uv run termapy``.  The console script ``termapy:run`` is exactly
+        ``termapy.entry.main`` (see ``src/termapy/__init__.py``), so this is
+        behaviourally identical -- but it skips uv's implicit re-sync, which
+        tries to rewrite ``termapy.exe``.  A running termapy session locks that
+        launcher on Windows, so ``uv run`` would otherwise fail with empty
+        output whenever a live session is present.
+        """
+        import subprocess
+        import sys
+
+        argv = ["termapy", "--check", *args]
         result = subprocess.run(
-            ["uv", "run", "termapy", "--check", *args],
+            [
+                sys.executable, "-c",
+                f"import sys; sys.argv = {argv!r}; "
+                "from termapy.entry import main; main()",
+            ],
             capture_output=True,
             text=True,
             timeout=10,

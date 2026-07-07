@@ -130,16 +130,6 @@ class TestExpandTemplate:
         assert original[1] == 3, "original dict unchanged"
         assert actual_new[1] == 4, "new dict has incremented value"
 
-    def test_datetime_placeholder(self):
-        actual, _ = expand_template("t_{datetime}", {})
-        assert re.match(r"t_\d{8}_\d{6}$", actual), "YYYYmmdd_HHMMSS format"
-
-    def test_mixed_seq_and_datetime(self):
-        actual, actual_counters = expand_template("{seq1+}_{datetime}", {})
-        parts = actual.split("_", 1)
-        assert parts[0] == "1", "seq counter value"
-        assert re.match(r"\d{8}_\d{6}$", parts[1]), "datetime portion"
-
     def test_starttime_placeholder(self):
         actual, _ = expand_template("t_{starttime}", {}, start_time="20260305_100000")
         assert actual == "t_20260305_100000", "start time substituted"
@@ -154,12 +144,6 @@ class TestExpandTemplate:
         )
         assert actual == "20260305_100000_1", "both placeholders expanded"
         assert actual_counters[1] == 1, "counter incremented"
-
-    def test_clock_placeholder(self):
-        actual, _ = expand_template("t_{clock}", {})
-        assert re.search(r"t_\d{2}:\d{2}:\d{2}\.\d{3}$", actual), (
-            "{clock} substitutes an HH:MM:SS.mmm wall-clock time"
-        )
 
     def test_elapsed_placeholder(self):
         actual, _ = expand_template("t_{elapsed}", {}, elapsed_s=1.5)

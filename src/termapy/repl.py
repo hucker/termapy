@@ -1355,7 +1355,7 @@ class ReplEngine:
             self._after_cfg(key, new_val)
 
     def _expand_template(self, text: str) -> str:
-        """Expand ``{seqN}``, ``{datetime}``, ``{starttime}``, ``{clock}``, ``{elapsed}``.
+        """Expand ``{seqN}``, ``{starttime}``, ``{elapsed}``.
 
         Reads the seq counter state from ``ctx.ns("seq")``.  Integer keys are
         counters; the string keys ``_start_time`` / ``_start_perf`` hold the

@@ -92,15 +92,16 @@ def expand_template(
     *,
     elapsed_s: float | None = None,
 ) -> tuple[str, dict[int, int]]:
-    """Expand {seqN}, {seqN+}, {datetime}, {starttime}, {clock}, {elapsed}.
+    """Expand the per-run placeholders {seqN}, {seqN+}, {starttime}, {elapsed}.
 
     Counters start at 0. {seqN+} pre-increments counter N and substitutes
     the new value. Incrementing level N resets all levels < N to 0.
     {seqN} without + substitutes the current value.
 
-    {datetime} is a filename-safe stamp (YYYYmmdd_HHMMSS); {clock} is the
-    wall-clock time (HH:MM:SS.mmm); {starttime} is the frozen start stamp;
-    {elapsed} is the time since start, rendered via ``format_duration``.
+    {starttime} is the frozen per-run start stamp; {elapsed} is the time
+    since start, rendered via ``format_duration``.  Ambient wall-clock
+    stamps are NOT handled here -- they live in the $() variable system
+    ($(TIME), $(DATETIME:%Y%m%d_%H%M%S)), which runs before this expander.
 
     Args:
         text: Template string containing placeholders.
@@ -123,11 +124,7 @@ def expand_template(
         return str(new_counters.get(level, 0))
 
     result = re.sub(r"\{seq(\d+)(\+)?\}", replace_seq, text)
-    now = datetime.now()
-    result = result.replace("{datetime}", now.strftime("%Y%m%d_%H%M%S"))
     result = result.replace("{starttime}", start_time)
-    if "{clock}" in result:
-        result = result.replace("{clock}", format_timestamp(now))
     if "{elapsed}" in result:
         result = result.replace("{elapsed}", format_duration(elapsed_s or 0.0))
     return result, new_counters
@@ -211,8 +208,7 @@ def format_timestamp(dt: datetime | None = None) -> str:
     """Render a wall-clock timestamp as ``HH:MM:SS.mmm`` (millisecond precision).
 
     The single wall-clock formatter: used by the ``show_timestamps`` line
-    prefix and the ``{clock}`` template placeholder.  Defaults to the current
-    local time when ``dt`` is omitted.
+    prefix.  Defaults to the current local time when ``dt`` is omitted.
 
     Args:
         dt: The moment to render, or None for ``datetime.now()``.

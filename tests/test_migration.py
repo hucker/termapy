@@ -583,6 +583,61 @@ def test_v22_to_v23_does_not_rewrite_verbose_or_argument_text():
     )
 
 
+def test_v23_to_v24_rewrites_placeholders_in_all_on_connect_fields():
+    """v23->v24 rewrites {clock}/{datetime} -> $() in every on-connect chain."""
+    # Arrange
+    cfg = {
+        "config_version": 23,
+        "on_connect_cmd": "/log.start run_{datetime}.log",
+        "tui_on_connect_cmd": "/print {clock}",
+        "cli_on_connect_cmd": "/print {clock} {datetime}",
+        "mcp_on_connect_cmd": "AT+SET {datetime}",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert
+    assert result["on_connect_cmd"] == "/log.start run_$(DATETIME:%Y%m%d_%H%M%S).log", (
+        "{datetime} -> $(DATETIME:%Y%m%d_%H%M%S)"
+    )
+    assert result["tui_on_connect_cmd"] == "/print $(TIME)", "{clock} -> $(TIME)"
+    assert result["cli_on_connect_cmd"] == "/print $(TIME) $(DATETIME:%Y%m%d_%H%M%S)", (
+        "both placeholders rewritten in one chain"
+    )
+    assert result["mcp_on_connect_cmd"] == "AT+SET $(DATETIME:%Y%m%d_%H%M%S)", (
+        "{datetime} rewritten in a device command too"
+    )
+
+
+def test_v23_to_v24_leaves_proto_results_template_alone():
+    """proto_results_template's {datetime} is a str.format placeholder -- untouched."""
+    # Arrange -- the proto template is a different mechanism, not the {} scripting system
+    cfg = {
+        "config_version": 23,
+        "proto_results_template": "{name}-{proto_name}-{datetime}.json",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert -- verbatim, its {datetime} kept
+    assert result["proto_results_template"] == "{name}-{proto_name}-{datetime}.json", (
+        "proto_results_template must not be rewritten"
+    )
+
+
+def test_v23_to_v24_preserves_per_run_placeholders():
+    """{seqN}/{starttime}/{elapsed} in a chain are per-run stamps -- not rewritten."""
+    # Arrange
+    cfg = {
+        "config_version": 23,
+        "on_connect_cmd": "/ss.svg cap_{seq1+}_{starttime}",
+    }
+    # Act
+    result = migrate_config(cfg)
+    # Assert -- untouched; only the ambient wall-clock placeholders moved
+    assert result["on_connect_cmd"] == "/ss.svg cap_{seq1+}_{starttime}", (
+        "per-run placeholders stay in the {} scripting system"
+    )
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.
@@ -594,9 +649,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labelled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 6, (
-        f"v17 -> v23 covers six migrators "
-        f"(17->18, 18->19, 19->20, 20->21, 21->22, 22->23); "
+    assert len(steps) == 7, (
+        f"v17 -> v24 covers seven migrators "
+        f"(17->18, 18->19, 19->20, 20->21, 21->22, 22->23, 23->24); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -606,6 +661,7 @@ def test_migration_steps_recorded_per_version():
         "v20 -> v21",
         "v21 -> v22",
         "v22 -> v23",
+        "v23 -> v24",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -625,8 +681,8 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 3, (
-        f"three steps (v20->v21, v21->v22, v22->v23); got {steps!r}"
+    assert len(steps) == 4, (
+        f"four steps (v20->v21, v21->v22, v22->v23, v23->v24); got {steps!r}"
     )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"

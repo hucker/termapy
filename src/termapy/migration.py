@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 23
+CURRENT_CONFIG_VERSION = 24
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -504,6 +504,57 @@ def _migrate_v22_to_v23(cfg: dict) -> dict:
 
 
 MIGRATIONS[22] = _migrate_v22_to_v23
+
+
+# Ambient wall-clock placeholders retired from the {} scripting-template
+# system in v24; they moved to the $() variable system (which gained a :fmt
+# suffix).  {seqN}/{starttime}/{elapsed} stay as per-run stamps and are NOT
+# rewritten.  Plain token swaps -- the placeholders are unambiguous.
+_RETIRED_PLACEHOLDERS = {
+    "{clock}": "$(TIME)",
+    "{datetime}": "$(DATETIME:%Y%m%d_%H%M%S)",
+}
+
+
+def _rewrite_placeholders_in_chain(text: str) -> str:
+    """Rewrite retired {clock}/{datetime} placeholders to their $() form.
+
+    Applies to the on-connect command chains, whose lines used to run
+    through the scripting-template expander.  Round-trip-safe.
+    """
+    if not isinstance(text, str):
+        return text
+    for old, new in _RETIRED_PLACEHOLDERS.items():
+        if old in text:
+            text = text.replace(old, new)
+    return text
+
+
+def _migrate_v23_to_v24(cfg: dict) -> dict:
+    """Rewrite {clock}/{datetime} to $() form in on-connect command chains.
+
+    The ambient wall-clock template placeholders ``{clock}`` and
+    ``{datetime}`` were retired from the scripting-template system; they now
+    live in the ``$()`` variable system as ``$(TIME)`` and
+    ``$(DATETIME:%Y%m%d_%H%M%S)`` (the variable system gained a ``:fmt``
+    suffix so it can emit a filename-safe, colon-free stamp).  A runtime
+    directive keeps old scripts working; this migration makes the four
+    ``*_on_connect_cmd`` chains permanent so ``/cfg.dump`` shows the
+    canonical form.  ``proto_results_template`` is intentionally left alone
+    -- its ``{datetime}`` is a separate Python ``str.format`` placeholder.
+    """
+    for key in (
+        "on_connect_cmd",
+        "tui_on_connect_cmd",
+        "cli_on_connect_cmd",
+        "mcp_on_connect_cmd",
+    ):
+        if key in cfg:
+            cfg[key] = _rewrite_placeholders_in_chain(cfg[key])
+    return cfg
+
+
+MIGRATIONS[23] = _migrate_v23_to_v24
 
 
 def migrate_config(cfg: dict) -> dict:

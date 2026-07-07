@@ -1568,11 +1568,7 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
         send = kw["payload"]
         if not send:
             return CmdResult.fail(msg="Empty cmd= payload")
-        try:
-            segments = parse_data_segments(send)
-        except ValueError as e:
-            return CmdResult.fail(msg=f"Parse error: {e}")
-        captured = _send_and_capture(ctx, segments)
+        captured = _send_and_capture(ctx, [_encode_device_cmd(ctx, send)])
         if captured is None:
             return CmdResult.fail(msg="No response within timeout")
         result = detect(
@@ -1596,6 +1592,19 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     return _render_detect_result(
         ctx, result, len(text), width_filter, is_text=True,
     )
+
+
+def _encode_device_cmd(ctx: PluginContext, text: str) -> bytes:
+    """Encode a ``cmd=`` trigger for find/reverse, sent verbatim as a command.
+
+    The trigger goes out exactly as if typed at the prompt: the configured line
+    ending is appended when it isn't already present.  That is why ``cmd=`` takes
+    a bare command (``cmd=AT+RND.CUSTOM``) with no quoting and no explicit ``\\r``.
+    """
+    line_ending = ctx.cfg.get("line_ending", "\r")
+    if not text.endswith(line_ending):
+        text += line_ending
+    return text.encode(ctx.cfg.get("encoding", "utf-8"))
 
 
 def _send_and_capture(
@@ -1791,10 +1800,7 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             )
         if not ctx.serial.is_connected():
             return CmdResult.fail(msg="Not connected.")
-        try:
-            segments = parse_data_segments(cmd_payload)
-        except ValueError as e:
-            return CmdResult.fail(msg=f"Parse error: {e}")
+        segments = [_encode_device_cmd(ctx, cmd_payload)]
         for _ in range(count):
             captured = _send_and_capture(ctx, segments)
             if captured is None:
@@ -1834,24 +1840,23 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.output(f"  {result.note}")
         return CmdResult.fail(msg=f"Reverse {result.status}")
 
-    # Pick the canonical (first) candidate.
+    # Canonical (first) candidate -- feeds the $(rev) pipeline value below.
     c = result.candidates[0]
     catalogue_str = (
         f"  catalogue: {result.catalogue_name}"
         if result.catalogue_name else ""
     )
-    ambiguity_str = (
-        f"  ({len(result.candidates)} equivalent (init, xorout) labellings)"
-        if result.status == "equivalent" else ""
-    )
-    ctx.io.result_markup(
-        f"  [green]{result.status}[/]  "
-        f"width={c.width}  poly=0x{c.poly:0{(c.width + 3) // 4}X}  "
-        f"init=0x{c.init:0{(c.width + 3) // 4}X}  "
-        f"refin={c.refin}  refout={c.refout}  "
-        f"xorout=0x{c.xorout:0{(c.width + 3) // 4}X}"
-        f"{catalogue_str}{ambiguity_str}"
-    )
+    # Display EVERY candidate.  For an ``equivalent`` result these are the
+    # (init, xorout) labellings that reproduce the captured codewords
+    # identically (same poly/refin/refout); the note below explains the class.
+    for cand in result.candidates:
+        w = (cand.width + 3) // 4
+        ctx.io.result_markup(
+            f"  [green]{result.status}[/]  "
+            f"width={cand.width}  poly=0x{cand.poly:0{w}X}  "
+            f"init=0x{cand.init:0{w}X}  refin={cand.refin}  refout={cand.refout}  "
+            f"xorout=0x{cand.xorout:0{w}X}{catalogue_str}"
+        )
     if result.note:
         ctx.io.output(f"  {result.note}")
 

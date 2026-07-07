@@ -11,11 +11,14 @@ accordingly so the fast suite skips them.
 
 Covers:
 
-* ``/proto.crc.find cmd=AT+RND\\r`` resolves to one of the curated
-  catalogue algorithms the demo emits.
-* ``/proto.crc.reverse cmd=AT+RND.CUSTOM\\r count=13 crc_bytes=2``
+* ``/proto.crc.find cmd=AT+RND`` resolves to one of the curated
+  catalogue algorithms the demo emits.  cmd= sends the bare trigger
+  verbatim -- the configured line ending is auto-appended -- so there
+  is no quoting and no explicit ``\\r``.
+* ``/proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2``
   recovers a polynomial that matches the demo's
-  ``AT+RND.CUSTOM.REVEAL`` output.
+  ``AT+RND.CUSTOM.REVEAL`` output, and lists every equivalent
+  (init, xorout) labelling.
 * ``$(rev) <- /proto.crc.reverse ...`` capture pipeline -- the
   returned value drops straight into a subsequent
   ``/proto.crc.c $(rev)`` codegen invocation.
@@ -71,7 +74,7 @@ class TestFindCmdMode:
 
     def test_cmd_at_rnd_resolves_to_curated_algorithm(self, tmp_path):
         # Act
-        result = _run_cli(tmp_path, ['/proto.crc.find cmd="AT+RND\\r"'])
+        result = _run_cli(tmp_path, ["/proto.crc.find cmd=AT+RND"])
 
         # Assert -- one of the curated algorithms appears.  Don't pin
         # which one (the demo picks randomly).
@@ -101,7 +104,7 @@ class TestReverseCmdMode:
         # the recovered ones (equivalent (init, xorout) labelling) but
         # the polynomial is uniquely determined.
         lines = [
-            '/proto.crc.reverse cmd="AT+RND.CUSTOM\\r" count=13 crc_bytes=2',
+            "/proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2",
             "AT+RND.CUSTOM.REVEAL",
         ]
 
@@ -122,6 +125,13 @@ class TestReverseCmdMode:
         assert "width=16" in result.stdout, (
             f"reverse should recover width=16; stdout: {result.stdout!r}"
         )
+        # Fix: reverse lists EVERY (init, xorout) labelling, not just the
+        # first.  The demo's poly carries a 1-bit (x+1) ambiguity, so two
+        # labellings are recovered and both must be printed.
+        assert result.stdout.count("init=0x") >= 2, (
+            f"reverse should list all equivalent labellings, not just one; "
+            f"stdout: {result.stdout!r}"
+        )
         # The REVEAL line confirms the demo's secret matches what we
         # expected the test to drive against.
         assert "poly=0x1A2B" in result.stdout, (
@@ -136,8 +146,7 @@ class TestReverseCmdMode:
         # depending on how crcglot renders the table) -- check for the
         # secret poly value either way.
         lines = [
-            '$(rev) <- /proto.crc.reverse cmd="AT+RND.CUSTOM\\r" '
-            "count=13 crc_bytes=2",
+            "$(rev) <- /proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2",
             "/proto.crc.c $(rev)",
         ]
 

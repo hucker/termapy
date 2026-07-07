@@ -1,17 +1,15 @@
-"""Tests for /proto.crc.detect -- single-frame catalogue CRC identification.
+"""Tests for /proto.crc.detect -- generated from crcglot.VERBS.
 
-Drives the real command through ``ReplEngine`` dispatch (params ->
-``crcglot.detect``) and asserts the wiring: a known frame resolves to its
-catalogue name, the ``endian`` enum alias works, and a missing frame yields
-the uniform param error.  crcglot owns the detection maths (and tests it);
-these prove only that termapy plumbs a frame in and a name out.
+The command's params are generated from ``crcglot.VERBS['detect']`` and it
+executes via ``crcglot.call_verb``, returning the JSON-ready wire dict as JSON
+in ``CmdResult.value``.  These drive the real command through ``ReplEngine``
+dispatch and prove only the termapy plumbing -- a frame in, the manifest-typed
+params through, a structured result out.  crcglot owns (and tests) the maths.
 """
 from __future__ import annotations
 
 from termapy.repl import ReplEngine
 
-# A real CRC-16/MODBUS frame: payload 01 03 00 00 00 0A + little-endian
-# trailer C5 CD (built with crcglot in the scratchpad, verified by detect).
 MODBUS_FRAME = "01 03 00 00 00 0a c5 cd"
 
 
@@ -30,15 +28,17 @@ class TestCrcDetect:
         # Assert
         assert result.success, "detect ran cleanly"
         assert "crc16-modbus" in result.value, (
-            "value names the matched catalogue algorithm so it can pipe onward"
+            "the wire-dict value carries the matched catalogue algorithm"
         )
 
-    def test_endian_alias_le_resolves(self):
-        # Act -- 'le' is an alias for the canonical 'little'
-        result = _engine().dispatch(f"proto.crc.detect endian=le {MODBUS_FRAME}")
+    def test_endian_enum_little(self):
+        # Act -- 'little' is a crcglot enum value, typed straight from the manifest
+        result = _engine().dispatch(f"proto.crc.detect endian=little {MODBUS_FRAME}")
 
         # Assert
-        assert "crc16-modbus" in result.value, "le alias reaches the little-endian detect"
+        assert "crc16-modbus" in result.value, (
+            "the manifest-generated endian enum reaches the little-endian detect"
+        )
 
     def test_missing_frame_is_uniform_param_error(self):
         # Act
@@ -47,5 +47,5 @@ class TestCrcDetect:
         # Assert
         assert not result.success, "a missing required frame fails"
         assert "missing required parameter 'frame'" in result.error, (
-            "the declared param produces the uniform dispatcher error"
+            "the manifest-declared frame param produces the uniform dispatcher error"
         )

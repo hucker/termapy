@@ -214,6 +214,54 @@ def assert_zero_lint() -> None:
     ok("lint clean (ruff=0, ty=0)")
 
 
+def assert_no_bad_suppressions() -> None:
+    """Hard-fail if a suppression added since the last release is undisciplined.
+
+    A suppression (``# noqa`` / ``# ty: ignore`` / ``# type: ignore`` /
+    ``# pragma: no cover``) is sometimes the right call, but it must never be
+    the *easy* one.  Every suppression introduced since the previous tag must
+    name a specific rule code AND carry a trailing reason; otherwise it's an
+    unexamined override and the release aborts.  Pre-existing suppressions in
+    untouched code are not policed here -- only what the diff introduces.
+    """
+    import suppression_audit
+
+    tag = suppression_audit.previous_tag(REPO_ROOT)
+    if tag is None:
+        ok("suppression gate skipped (no prior tag)")
+        return
+    offenders = [
+        s for s in suppression_audit.added_since(tag, REPO_ROOT) if s.is_offender
+    ]
+    if offenders:
+        listing = "\n".join(f"    {s.describe()}" for s in offenders)
+        die(
+            f"refusing to release: {len(offenders)} suppression(s) added since "
+            f"{tag} lack a rule code and/or a reason:\n{listing}\n"
+            "  Every suppression must name its rule and say why "
+            "(e.g. `# noqa: BLE001 -- boundary thread`)."
+        )
+    ok(f"suppression gate clean (no bare/reason-less additions since {tag})")
+
+
+def update_suppression_count() -> None:
+    """Refresh the suppression count in ARCHITECTURE.md's Suppressions section."""
+    import suppression_audit
+
+    total = len(suppression_audit.scan_tree(REPO_ROOT))
+    path = REPO_ROOT / "ARCHITECTURE.md"
+    text = path.read_text(encoding="utf-8")
+    new_text, n = re.subn(
+        r"\d+( lint/type/coverage pragmas in)",
+        rf"{total}\g<1>",
+        text, count=1,
+    )
+    if n != 1:
+        die("ARCHITECTURE.md is missing the Suppressions count line to refresh.")
+    path.write_text(new_text, encoding="utf-8")
+    ok(f"ARCHITECTURE.md suppression count updated ({total})")
+
+
 def ty_badge_color(count: int) -> str:
     """Return the shields.io color name for a given ty issue count.
 
@@ -693,6 +741,7 @@ def main() -> None:
     assert_main_in_sync_with_origin()
     assert_tag_does_not_exist(version)
     assert_zero_lint()
+    assert_no_bad_suppressions()
     ok("git state is clean and ready")
 
     step(2, "Cutting release branch...")
@@ -709,6 +758,7 @@ def main() -> None:
     cov_percent = measure_coverage_percent()
     update_architecture_md(test_count)
     update_readme_md(test_count, ty_count, cov_percent)
+    update_suppression_count()
 
     step(5, "Refreshing generated docs (config examples, credits sync)...")
     from update_doc_configs import update_doc_configs

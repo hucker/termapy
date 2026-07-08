@@ -61,7 +61,7 @@ src/termapy/
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)
-├── dialogs/                # (2448 lines) Modal screens - one file per dialog
+├── dialogs/                # (2451 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
 │   ├── cfg_confirm.py      #   CfgConfirm
 │   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (~461 lines, the big one)
@@ -78,11 +78,11 @@ src/termapy/
 │   └── welcome_dialog.py   #   WelcomeDialog
 ├── help/                   #              Markdown help pages (source for HTML build)
 ├── html/                   #              Generated HTML help
-├── mcp/                    # (1912 lines) MCP stdio server
+├── mcp/                    # (1935 lines) MCP stdio server
 │   ├── catalog.py          #   JSON catalog + device-state resources
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
-├── plugins/                # (2287 lines) Plugin system - capability-handle architecture
+├── plugins/                # (2683 lines) Plugin system - capability-handle architecture
 │   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, InternalHandle
 │   ├── capabilities.py     #   CapabilitySet, MissingCapability
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
@@ -94,7 +94,7 @@ src/termapy/
 │   ├── matcher.py          #   match_profile_command, template_to_regex
 │   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
 │   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
-├── protocol/               # (2313 lines) Binary-protocol toolkit (library-shaped, no Textual)
+├── protocol/               # (2322 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
 │   ├── crc.py              #   crcglot catalogue shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
@@ -104,22 +104,22 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (3634 lines) Textual TUI - UI, modals, app hooks
-├── capture.py              # (336 lines)  Capture state machine - text, binary, format spec
-├── cli.py                  # (1063 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
-├── config.py               # (769 lines)  Config dirs, loading, validation, migration trigger
-├── defaults.py             # (556 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
-├── demo.py                 # (1690 lines) Simulated device for --demo mode (FakeSerial)
+├── app.py                  # (3744 lines) Textual TUI - UI, modals, app hooks
+├── capture.py              # (353 lines)  Capture state machine - text, binary, format spec
+├── cli.py                  # (1087 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
+├── config.py               # (807 lines)  Config dirs, loading, validation, migration trigger
+├── defaults.py             # (562 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
+├── demo.py                 # (1793 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
 ├── demo_vt100.py           # (406 lines)  Interactive ANSI widget-tour sim (DEMO_VT100 port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
-├── migration.py            # (549 lines)  Config schema migration chain (v17)
-├── port_control.py         # (1460 lines) Pure serial port control functions - no Textual
-├── proto_debug.py          # (1180 lines) Interactive protocol debug screen (Textual)
-├── repl.py                 # (1776 lines) REPL engine - dispatch, scripting, transforms
-├── scripting.py            # (370 lines)  Pure functions - templates, duration parsing, ANSI
-├── serial_engine.py        # (566 lines)  Serial connection lifecycle, reader loop orchestrator
+├── migration.py            # (600 lines)  Config schema migration chain (v17)
+├── port_control.py         # (1535 lines) Pure serial port control functions - no Textual
+├── proto_debug.py          # (1181 lines) Interactive protocol debug screen (Textual)
+├── repl.py                 # (1806 lines) REPL engine - dispatch, scripting, transforms
+├── scripting.py            # (452 lines)  Pure functions - templates, duration parsing, ANSI
+├── serial_engine.py        # (599 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py          # (329 lines)  Serial I/O wrapper + SerialReader data processor
 ├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
 └── vt100.py                # (173 lines)  --vt100 ANSI passthrough - raw serial <-> host terminal via miniterm

@@ -1039,7 +1039,7 @@ class SerialTerminal(TerminalHost, App):
             style="bold green",
         ))
         output.write(Text(
-            "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Edit Config.",
+            "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Open Config.",
             style="bold green",
         ))
         output.write(Text(

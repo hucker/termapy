@@ -165,9 +165,10 @@ AT+READ {seq2+}                  # independent counter
 | `{starttime}` | This run's start stamp, frozen at script (or app) start     |
 | `{elapsed}`   | Time since start (e.g. `1.50s`), via the duration formatter |
 
-Incrementing counter N resets all lower counters to 0. `{starttime}` and
-`{elapsed}` measure from script start inside a run, or from app start when
-typed interactively.
+`seq1` is the top level; incrementing counter N resets all deeper
+(higher-numbered) counters to 0, so bumping an outer level restarts the inner
+ones. `{starttime}` and `{elapsed}` measure from script start inside a run, or
+from app start when typed interactively.
 
 > The former `{datetime}` and `{clock}` placeholders were retired: they were
 > ambient wall-clock stamps, so they moved to `$()` as

@@ -1504,7 +1504,10 @@ class SerialTerminal(TerminalHost, App):
             message: Text to display in the confirmation dialog.
 
         Returns:
-            True if the user clicked Yes, False otherwise.
+            True if the user clicked Yes; False otherwise.  The
+            main-thread misuse path (see THREADING) also returns False
+            -- it fails closed, so a /confirm gate never proceeds
+            unconfirmed.
         """
         result: list[bool] = [False]
         event = Event()
@@ -1521,8 +1524,11 @@ class SerialTerminal(TerminalHost, App):
         try:
             self.call_from_thread(_show)
         except RuntimeError:
+            # Misuse: /confirm invoked from the main thread. Fail closed --
+            # return False (not confirmed) so a gated command aborts instead
+            # of running unconfirmed. Mirrors MCP mode's fail-fast _confirm.
             self._status("/confirm can only be used in scripts.", "yellow")
-            return True
+            return False
         event.wait()
         return result[0]
 

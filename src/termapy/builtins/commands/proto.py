@@ -1616,9 +1616,13 @@ def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
 
     # Optional endian= prefix; default big to match crcglot's verify().
     endianness: Literal["big", "little"] = "big"
-    for token, value in (("endian=be", "big"), ("endian=le", "little")):
+    endian_tokens: tuple[tuple[str, Literal["big", "little"]], ...] = (
+        ("endian=be", "big"),
+        ("endian=le", "little"),
+    )
+    for token, value in endian_tokens:
         if rest.startswith(token + " "):
-            endianness = value  # type: ignore[assignment]
+            endianness = value
             rest = rest[len(token):].strip()
             break
 

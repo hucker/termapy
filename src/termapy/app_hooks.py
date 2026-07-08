@@ -162,7 +162,7 @@ def _hook_delay(app, ctx, args: str) -> CmdResult:
 
     Short delays (< 1s) block on ``time.sleep`` and print a single
     "done" status.  Longer delays mount a progress bar at the bottom
-    of the terminal that updates every 100ms.
+    of the terminal that updates every 250ms.
 
     Args:
         app: The SerialTerminal instance.

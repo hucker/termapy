@@ -93,31 +93,31 @@ class TestExpandTemplate:
         assert actual_counters[1] == 2, "final counter value"
 
     def test_cascade_reset(self):
-        """Incrementing seq2 resets seq1 to 0."""
-        actual, actual_counters = expand_template("t_{seq2+}_{seq1+}", {1: 3, 2: 1})
-        assert actual == "t_2_1", "seq2 incremented, seq1 reset then incremented"
-        assert actual_counters[1] == 1, "seq1 was reset to 0, then incremented"
-        assert actual_counters[2] == 2, "seq2 incremented from 1"
+        """Incrementing seq1 (the top level) resets seq2 to 0."""
+        actual, actual_counters = expand_template("t_{seq1+}_{seq2+}", {1: 1, 2: 3})
+        assert actual == "t_2_1", "seq1 incremented, seq2 reset then incremented"
+        assert actual_counters[1] == 2, "seq1 incremented from 1"
+        assert actual_counters[2] == 1, "seq2 was reset to 0, then incremented"
 
     def test_cascade_three_levels(self):
-        """Incrementing seq3 resets seq1 and seq2."""
+        """Incrementing seq1 resets the deeper seq2 and seq3."""
         # Arrange
-        counters = {1: 5, 2: 3, 3: 1}
+        counters = {1: 1, 2: 3, 3: 5}
 
         # Act
-        actual, actual_counters = expand_template("{seq3+}_{seq2}_{seq1}", counters)
+        actual, actual_counters = expand_template("{seq1+}_{seq2}_{seq3}", counters)
 
         # Assert
-        assert actual == "2_0_0", "seq3 incremented, lower levels reset"
-        assert actual_counters[1] == 0, "seq1 reset"
+        assert actual == "2_0_0", "seq1 incremented, deeper levels reset"
+        assert actual_counters[1] == 2, "seq1 incremented"
         assert actual_counters[2] == 0, "seq2 reset"
-        assert actual_counters[3] == 2, "seq3 incremented"
+        assert actual_counters[3] == 0, "seq3 reset"
 
     def test_read_after_cascade(self):
-        """After cascade reset, reading lower counter returns 0."""
-        _, c = expand_template("{seq2+}", {1: 5, 2: 0})
-        actual, _ = expand_template("{seq2}_{seq1+}", c)
-        assert actual == "1_1", "seq2 reads 1, seq1 increments from 0"
+        """After a parent bump resets a deeper counter, reading it returns 0."""
+        _, c = expand_template("{seq1+}", {1: 5, 2: 3})
+        actual, _ = expand_template("{seq2}_{seq1}", c)
+        assert actual == "0_6", "seq2 reads 0 (reset by seq1+), seq1 holds at 6"
 
     def test_does_not_mutate_input(self):
         # Arrange
@@ -154,23 +154,26 @@ class TestExpandTemplate:
         assert actual == "t_0us", "{elapsed} is 0 when no start reference is given"
 
     def test_hierarchical_script_sequence(self):
-        """Simulate a typical script: two sections with two steps each."""
+        """Simulate a typical script: two sections with two steps each.
+
+        seq1 is the section (top level), seq2 the step (deeper level).
+        """
         c: dict[int, int] = {}
 
         # Section 1, step 1
-        actual, c = expand_template("t_{seq2+}_{seq1+}", c)
+        actual, c = expand_template("t_{seq1+}_{seq2+}", c)
         assert actual == "t_1_1", "first section, first step"
 
         # Section 1, step 2
-        actual, c = expand_template("t_{seq2}_{seq1+}", c)
+        actual, c = expand_template("t_{seq1}_{seq2+}", c)
         assert actual == "t_1_2", "first section, second step"
 
-        # Section 2, step 1 (seq2+ resets seq1)
-        actual, c = expand_template("t_{seq2+}_{seq1+}", c)
+        # Section 2, step 1 (seq1+ resets the deeper seq2)
+        actual, c = expand_template("t_{seq1+}_{seq2+}", c)
         assert actual == "t_2_1", "second section resets step counter"
 
         # Section 2, step 2
-        actual, c = expand_template("t_{seq2}_{seq1+}", c)
+        actual, c = expand_template("t_{seq1}_{seq2+}", c)
         assert actual == "t_2_2", "second section, second step"
 
 

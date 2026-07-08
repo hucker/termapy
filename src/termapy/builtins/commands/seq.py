@@ -106,16 +106,19 @@ Sequence counters are used in script templates for auto-numbering.
 Placeholders:
   {seq1+}  - increment counter 1, then substitute its value
   {seq1}   - substitute counter 1 without incrementing
-  {seq2+}  - independent counter 2 (any digit 0-9)
+  {seq2+}  - deeper counter 2 (any digit 0-9; seq1 is the top level)
 
-Counters start at 0. Incrementing a higher-level counter resets
-all lower-level counters (e.g. {seq1+} resets seq2, seq3, etc.).
+Counters start at 0. seq1 is the top level, seq2 the next, and so on.
+Incrementing {seqN+} resets every deeper (higher-numbered) counter to 0,
+so bumping an outer level restarts the inner ones (e.g. {seq1+} resets
+seq2, seq3, ...). Always use + on the level you emit: a fresh level
+counts 0 -> 1 on its first +.
 
 Use cases:
-  Automatic test numbering in scripts:
-    Test {seq1+}           -> Test 1, Test 2, Test 3, ...
-    Test {seq1}.{seq2+}    -> Test 1.1, Test 1.2, ...
-    Test {seq1+}.{seq2+}   -> Test 2.1 (seq2 resets on seq1 increment)
+  Test numbering (seq1 = section, seq2 = step):
+    {seq1+}.{seq2+}   -> 1.1  (new section, first step)
+    {seq1}.{seq2+}    -> 1.2  (same section, next step)
+    {seq1+}.{seq2+}   -> 2.1  (new section resets the step, then +)
 
   Automatic file naming (e.g. screenshots in a script):
     /ss.txt capture_{seq1+}  -> capture_1.txt, capture_2.txt, ..."""

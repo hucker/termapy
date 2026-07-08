@@ -337,9 +337,9 @@ demo> /seq
 demo> /print seq1={seq1+} seq2={seq2+}
   seq1=1 seq2=1
 demo> /print seq1={seq1+} seq2={seq2}
-  seq1=1 seq2=1
+  seq1=2 seq2=0
 demo> /seq
-  Counters: seq1=1, seq2=1
+  Counters: seq1=2, seq2=0
 demo> /seq.reset
   Sequence counters reset.
 demo> /seq

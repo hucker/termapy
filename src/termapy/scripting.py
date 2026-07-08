@@ -94,9 +94,11 @@ def expand_template(
 ) -> tuple[str, dict[int, int]]:
     """Expand the per-run placeholders {seqN}, {seqN+}, {starttime}, {elapsed}.
 
-    Counters start at 0. {seqN+} pre-increments counter N and substitutes
-    the new value. Incrementing level N resets all levels < N to 0.
-    {seqN} without + substitutes the current value.
+    Counters start at 0. seq1 is the top (most significant) level, seq2 the
+    next, and so on. {seqN+} pre-increments counter N and substitutes the new
+    value, resetting every deeper (higher-numbered) level > N to 0 -- so
+    bumping an outer level restarts the inner ones. {seqN} without + substitutes
+    the current value.
 
     {starttime} is the frozen per-run start stamp; {elapsed} is the time
     since start, rendered via ``format_duration``.  Ambient wall-clock
@@ -118,8 +120,10 @@ def expand_template(
         level = int(m.group(1))
         if m.group(2) == "+":
             new_counters[level] = new_counters.get(level, 0) + 1
+            # seq1 is the top level: bumping level N restarts every deeper
+            # (higher-numbered) counter.
             for k in list(new_counters):
-                if k < level:
+                if k > level:
                     new_counters[k] = 0
         return str(new_counters.get(level, 0))
 

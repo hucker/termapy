@@ -1,28 +1,102 @@
 # Changelog
 
-## Unreleased
+## 0.72.0 (2026-07-07)
 
-### `$()` gains `strftime` formats; `{datetime}`/`{clock}` retired
+A large release: a new declarative command-parameter system, a `--vt100`
+ANSI passthrough mode, a big CRC/crcglot expansion, a unified time layer,
+and the remediation of the 2026-07-03 adversarial fitness review. Config
+schema advances to v24 (auto-migrated on load).
 
-The `$()` variable system's datetime variables now take an optional
-`strftime` format after a colon -- `$(DATETIME:%Y%m%d_%H%M%S)` produces a
-filename-safe, colon-free stamp. This works on the dynamic clock
-(`$(DATE)`, `$(TIME)`, `$(DATETIME)`) and the frozen `$(LAUNCH_*)` /
-`$(SESSION_*)` moments alike.
+### Declarative command parameters
 
-With that in place, the two ambient wall-clock template placeholders were
-retired from the `{}` scripting-template system, which is now cleanly
-scoped to **per-script-run stamps** (`{seqN}`, `{starttime}`, `{elapsed}`):
+Commands can now declare their arguments as typed parameter specs. The
+dispatcher parses, coerces, and validates them, and synthesizes the usage
+line, the help text, and the MCP tool schema from one source -- so a
+command's terminal help, its error messages, and the schema an LLM sees
+can no longer drift apart. Migrated: `/ping`, `/repeat`,
+`/profile.validate`, `/cap.text`, `/cap.bin`, `/cap.wire`, `/cap.poll`,
+`/cfg.auto`, `/grep`. Parameters compose with flags, subcommands,
+level-suffixes, and a whole-line "positional rest" value. Commands with
+genuinely irregular grammars (e.g. `/cap.struct`, `/profile.load`) stay
+hand-rolled by design, each with a one-line note explaining why.
 
-- `{clock}` -> `$(TIME)`
-- `{datetime}` -> `$(DATETIME:%Y%m%d_%H%M%S)`
+### --vt100 ANSI passthrough mode
 
-Migration is automatic: the `$()` expander transparently rewrites the old
-placeholders in live and scripted input (both REPL and device lines), and
-**config schema v24** rewrites them in the `*_on_connect_cmd` chains on load.
-The proto results filename template (`proto_results_template`) keeps its own
-`{datetime}` -- it is a separate Python `str.format` placeholder, not part of
-the `{}` system.
+A new `--vt100` mode passes raw ANSI/VT100 through to the terminal, for
+devices that drive a full-screen UI. It ships with an interactive
+`DEMO_VT100` demo device (a 3-screen widget tour) and a VS Code
+key-capture hint; the TUI toggle is reversible.
+
+### CRC / crcglot 0.11 -> 0.28
+
+The CRC subsystem tracks crcglot from 0.11 to 0.28:
+
+- The catalogue grew from ~62 to 100+ algorithms.
+- Generated code now defaults to the fastest implementation per (language,
+  width) instead of always bitwise; `--small` forces the compact bitwise
+  form and `--fast` the table form.
+- `/proto.crc.detect` -- name a known CRC from a single frame.
+- `/proto.crc.reverse` -- recover an unknown/custom CRC's parameters from
+  captured frames, listing every equivalent (init, xorout) labelling.
+- `/proto.crc.verify` -- check a frame against a named algorithm.
+- Live capture: `cmd=` on `/proto.crc.find` and `.reverse` sends a raw
+  trigger to the device (line ending auto-appended, no quoting) and
+  identifies the CRC in the response.
+- `/proto.crc.<lang>` gained doc-comment styles (`style=`), multi-algorithm
+  file bundling, and `naming=` control; the codegen roster covers eight
+  languages (C, C#, Go, Python, Rust, TypeScript, Verilog, VHDL).
+- Unknown-algorithm errors now suggest close matches ("did you mean ...").
+- A demo `/proto.crc.*` tour (an AT+RND emitter) walks the whole flow.
+
+The crcglot floor is now `>=0.28.0`.
+
+### Time and variables
+
+- One duration parser and one display formatter (`format_duration`) back
+  every human-readable elapsed/delay/timeout value, so durations render
+  consistently everywhere.
+- `$()` datetime variables take an optional `strftime` format after a
+  colon: `$(DATETIME:%Y%m%d_%H%M%S)` yields a filename-safe, colon-free
+  stamp -- on the dynamic clock and the frozen `$(LAUNCH_*)` /
+  `$(SESSION_*)` moments alike.
+- The `{}` scripting-template system is now cleanly scoped to per-run
+  stamps: sequence counters (`{seqN}`), `{starttime}`, and the new
+  `{elapsed}`. The ambient `{datetime}` placeholder was retired in favour
+  of `$(DATETIME:%Y%m%d_%H%M%S)`; existing scripts keep working (the `$()`
+  expander rewrites it transparently on both REPL and device lines) and
+  existing configs are migrated on load by config schema v24. The proto
+  results filename template keeps its own `{datetime}` -- a separate Python
+  `str.format` placeholder, unrelated to the `{}` system.
+- **Sequence-counter reset direction corrected (behavior change).** `{seqN+}`
+  now resets the *deeper* (higher-numbered) counters, so `seq1` is the top
+  level and hierarchical numbering reads left-to-right: `{seq1+}.{seq2+}` ->
+  `1.1`, and bumping `{seq1+}` restarts the step counter. This fixes a
+  long-standing inversion (present since the first commit) where the code
+  reset the *lower*-numbered counters, contradicting `/help seq` and standard
+  outline numbering. Scripts that relied on the old direction must swap their
+  counter digits.
+
+### Reliability (2026-07-03 review remediation)
+
+- Port resolution and enumeration are non-invasive -- listing or resolving
+  a port no longer opens it.
+- `/port.connect` reports a failure when the port can't open (previously it
+  could report success); it accepts 8N1-style mode order and a `port=`
+  identifier. `/port.chip` resolves serial-number and fallback specs.
+- TUI command dispatch is serialized; capture aborts on write failure
+  instead of silently truncating, and capture start/stop runs on the main
+  thread.
+- Config defaults are deep-copied on backfill (no aliasing of the shared
+  default dict); `parse_hex` rejects malformed input instead of scavenging
+  digits; auto-reconnect is guarded against double-spawn; an env-to-wire
+  gate keeps `$(env.X)` values from reaching a device implicitly.
+- CI runs the MCP test suite and the Linux platform tests; main is green.
+
+### Docs
+
+- New MCP Server and VT100 help pages.
+- The params-vs-hand-rolled decision rule is documented, and the
+  adversarial review series is tracked under `docs/review/`.
 
 ## 0.71.1 (2026-06-03)
 

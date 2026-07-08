@@ -19,18 +19,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.43">
+      <meta name="generator" content="zensical-0.0.47">
     
     
       
-        <title>Serial ports - Termapy Help v0.71.1</title>
+        <title>Serial ports - Termapy Help v0.72.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.fba56155.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.5e19f6ca.min.css">
       
         
           
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.71.1" class="md-header__button md-logo" aria-label="Termapy Help v0.71.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.72.0" class="md-header__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.71.1
+            Termapy Help v0.72.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.71.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.71.1" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.72.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.71.1
+    Termapy Help v0.72.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -618,6 +618,32 @@
   
   
     <li class="md-nav__item">
+      <a href="./vt100.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  VT100 Mode
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="./custom-buttons.html" class="md-nav__link">
         
   
@@ -886,6 +912,32 @@
     
   
   Device Help
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./mcp-server.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP Server
 
     
   </span>
@@ -1296,7 +1348,8 @@ hand-curated table covers the common USB-serial bridge chips (FTDI,
 Silicon Labs, WCH / CH340-CH341, Microchip, Prolific, CP210x, etc.)
 with datasheet-sourced model name, USB speed class (full vs high),
 and the maximum baud rate the chip silicon supports.  That data
-fills the <code>Chip</code> and <code>Max baud</code> columns the picker shows.</p>
+fills the <code>Chip</code> column the picker shows and the max-baud value in
+<code>/port.info</code>.</p>
 <p>The bundled snapshot ships with each termapy release.  If you want
 a fresher one, upgrade termapy through the normal channel
 (<code>uv tool upgrade termapy</code> or <code>pip install -U termapy</code>) — termapy's
@@ -1346,23 +1399,48 @@ your chip isn't in the table, <code>/port.chip</code> reports <code>model: unkno
 printed so you can identify the chip manually against the USB-IF
 database (<code>https://the-sz.com/products/usbid/</code>).</p>
 <p>The table is a plain Python dict in
-<code>src/termapy/port_control.py</code> (<code>USB_SERIAL_CHIPS</code>).  Adding a new chip
+<code>src/termapy/usb/chips.py</code> (<code>USB_SERIAL_CHIPS</code>).  Adding a new chip
 is a one-line change.</p>
 <h2 id="when-you-hit-in-use-and-cant-connect">When you hit "In use" and can't connect<a class="headerlink" href="#when-you-hit-in-use-and-cant-connect" title="Permanent link">&para;</a></h2>
 <p><code>/port.info</code> and <code>/port.chip.in_use</code> report whether another process has
 the port open.  Termapy's own connection counts as "in use," so if you
-see <code>yes</code> while termapy is connected, that's expected.</p>
-<p>If you see <code>yes</code> when termapy is <em>not</em> connected, something else on
-your system has the handle:</p>
+see <code>yes</code> while termapy is connected, that's expected.  This is handy
+when a port is held by something with no visible window -- for example an
+MCP server (<code>termapy --mcp</code>) running in the background.</p>
+<p><strong>How in-use is detected, and why it's on-demand.</strong>  Detecting in-use
+means asking "can this port be opened?", and <em>opening</em> a serial port
+asserts DTR/RTS -- which resets Arduino/ESP32 boards wired for
+auto-reset.  So termapy never opens a port you didn't ask about:</p>
 <ul>
-<li>On Linux: <code>lsof /dev/ttyUSB0</code> tells you which process.</li>
+<li><strong>Listing and connecting never open bystander ports.</strong>  <code>/port.list</code>,
+  plain <code>termapy --ports</code>, the port picker, and resolving a config's
+  port (including the auto-reconnect loop) read identity only and open
+  nothing.</li>
+<li><strong>Linux / macOS:</strong> in-use is read from <code>lsof</code> -- it inspects the
+  kernel's open-file table without opening the port, so it is always
+  safe <em>and</em> it names the holder (e.g. <code>yes (python (PID 8842))</code>, i.e.
+  that MCP server).  It appears in <code>/port.info</code>, <code>/port.chip.in_use</code>,
+  <code>termapy --ports --json</code>, and live in <code>termapy --ports --watch</code>.</li>
+<li><strong>Windows:</strong> there is no non-invasive equivalent, so in-use is shown
+  only on explicit request (<code>/port.info</code>, <code>/port.chip.in_use</code>,
+  <code>--ports --json</code>) and the probe opens the port briefly with DTR/RTS
+  held de-asserted to minimise disturbance.  <code>--ports --watch</code> therefore
+  shows presence and identity but not in-use on Windows (it will not
+  strobe DTR several times a second).</li>
+</ul>
+<p>If you see <code>yes</code> when termapy is <em>not</em> connected, something else has the
+handle:</p>
+<ul>
+<li>On Linux: <code>lsof /dev/ttyUSB0</code> tells you which process (this is exactly
+  what <code>/port.info</code> uses).</li>
 <li>On Windows: Task Manager → Details tab → enable the "Handles" column,
   or use Process Explorer from Sysinternals.</li>
 </ul>
-<p>Common culprits: a previous termapy session that didn't clean up,
-another terminal app (PuTTY, Tera Term, Arduino IDE, the Arduino Serial
-Monitor), a vendor-supplied serial monitor or flashing tool, or
-occasionally a Windows service that claims COM ports silently.</p>
+<p>Common culprits: a previous termapy session that didn't clean up, an MCP
+server still running, another terminal app (PuTTY, Tera Term, Arduino
+IDE, the Arduino Serial Monitor), a vendor-supplied serial monitor or
+flashing tool, or occasionally a Windows service that claims COM ports
+silently.</p>
 <h2 id="when-you-hit-permission-denied-on-linux">When you hit "Permission denied" on Linux<a class="headerlink" href="#when-you-hit-permission-denied-on-linux" title="Permanent link">&para;</a></h2>
 <p>Your user needs to be in the <code>dialout</code> group (Debian/Ubuntu) or <code>uucp</code>
 group (Arch/Fedora).  Add yourself and log out / back in:</p>
@@ -1537,10 +1615,10 @@ the full list.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.b6b7e04f.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.6e5f0216.min.js"></script>
+      <script src="./assets/javascripts/bundle.0df4f2d0.min.js"></script>
       
     
   </body>

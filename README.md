@@ -4,7 +4,7 @@
 
 **Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
 
-**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-69%25-yellow)](https://coverage.readthedocs.io/)
+**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-70%25-yellow)](https://coverage.readthedocs.io/)
 
 Pronounced "ter-map-ee"
 
@@ -1236,9 +1236,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2480 tests, 69% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2726 tests, 70% core-module coverage</summary>
 
-2480 tests across 87 test files. Run with `uv run pytest`.
+2726 tests across 97 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC
@@ -1268,7 +1268,7 @@ generator permutation.
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~3650 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~2450 lines) are Textual UI and tested manually (Textual Pilot + the CLI gold test), not unit-tested. The 69% core-module figure is measured with `app.py`, `dialogs/`, and `builtins/` **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted), coverage is **~61%**; the ~8-point gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
+**UI code:** `app.py` (~3750 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~2450 lines) are Textual UI and tested manually (Textual Pilot + the CLI gold test), not unit-tested. The 70% core-module figure is measured with `app.py`, `dialogs/`, and `builtins/` **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted), coverage is **~61%**; the ~8-point gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
 
 </details>
 

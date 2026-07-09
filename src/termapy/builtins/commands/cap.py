@@ -359,7 +359,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         labels = cmds[:]
 
     # Regex for value extraction from command response
-    parse_re = None
+    parse_re: _re.Pattern[str] | None = None
     regex = ctx.arg("regex")
     if regex:
         try:

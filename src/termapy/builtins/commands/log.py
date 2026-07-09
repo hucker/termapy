@@ -161,7 +161,7 @@ def _serial_snapshot(ctx: PluginContext) -> list[str]:
 
     connected = False
     try:
-        connected = bool(ctx.serial.is_connected())  # type: ignore[operator]
+        connected = bool(ctx.serial.is_connected())
     except Exception:
         pass
 

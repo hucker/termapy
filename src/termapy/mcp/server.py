@@ -567,7 +567,7 @@ class MCPHost(TerminalHost):
 
         def watch() -> None:
             try:
-                compiled = _re.compile(pattern)
+                compiled: _re.Pattern[str] = _re.compile(pattern)
 
                 def predicate(line: str) -> bool:
                     return bool(compiled.search(line))

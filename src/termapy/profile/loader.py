@@ -117,7 +117,7 @@ def validate_profile(profile: dict) -> ValidationResult:
             ],
         )
     try:
-        import jsonschema  # type: ignore[import-untyped]
+        import jsonschema
     except ImportError:
         return _builtin_validate(profile)
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))

@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 from termapy.folders import FOLDER_PATTERNS
 
 if TYPE_CHECKING:
-    from termapy.plugins import PluginContext  # noqa: F401 (referenced in docstrings)
+    from termapy.plugins import PluginContext  # noqa: F401 -- referenced in docstrings
 
 # Helpers in this module are intentionally duck-typed: they work with
 # real PluginContext instances, test fakes, or anything that exposes

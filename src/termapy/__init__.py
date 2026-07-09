@@ -1,4 +1,4 @@
-import termapy.vendor  # noqa: F401 - register vendored pyserial before anything imports serial
+import termapy.vendor  # noqa: F401 -- register vendored pyserial before anything imports serial
 
 # Import the CLI entry from termapy.entry, NOT termapy.app.  The entry
 # module is Textual-free so ``termapy --ports`` (and friends) don't pay

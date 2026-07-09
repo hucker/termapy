@@ -53,7 +53,7 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
             ver = version("termapy")
         except PackageNotFoundError:
             ver = "unknown"
-    except ImportError:  # pragma: no cover - importlib.metadata is stdlib
+    except ImportError:  # pragma: no cover -- importlib.metadata is stdlib
         ver = "unknown"
 
     plugins = ctx.internal.plugins

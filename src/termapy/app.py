@@ -128,6 +128,7 @@ class CommandSuggester(Suggester):
         return None
 
 
+# scripting import kept below the completer classes above (placement, not a cycle).
 from termapy.scripting import ANSI_RE, format_duration, format_timestamp  # noqa: E402
 
 
@@ -1516,7 +1517,7 @@ class SerialTerminal(TerminalHost, App):
 
             self.push_screen(
                 ConfirmDialog(message), callback=_on_result
-            )  # ty: ignore[no-matching-overload]
+            )  # ty: ignore[no-matching-overload] -- no (screen, callback=) overload
 
         try:
             self.call_from_thread(_show)
@@ -1805,7 +1806,7 @@ class SerialTerminal(TerminalHost, App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(  # ty: ignore[no-matching-overload]
+        self.push_screen(  # ty: ignore[no-matching-overload] -- no (screen, callback=) overload
             ConfirmDialog(f"Delete {label} '{name}'?"),
             callback=_on_confirm,
         )
@@ -2494,7 +2495,7 @@ class SerialTerminal(TerminalHost, App):
             except OSError as e:
                 self._status(f"Delete failed: {e}", "red")
 
-        self.push_screen(  # ty: ignore[no-matching-overload]
+        self.push_screen(  # ty: ignore[no-matching-overload] -- no (screen, callback=) overload
             ConfirmDialog(f"Delete {Path(log_path).name}?"),
             callback=on_confirmed,
         )
@@ -3307,7 +3308,7 @@ class SerialTerminal(TerminalHost, App):
         # positionally + callback=on_result collides.  The lambda hands
         # call_from_thread a single callable instead.
         self._on_main(
-            lambda: self.push_screen(  # ty: ignore[no-matching-overload]
+            lambda: self.push_screen(  # ty: ignore[no-matching-overload] -- see note above
                 CfgConfirm(key, old_val, new_val), callback=on_result
             )
         )
@@ -3594,7 +3595,7 @@ def _run_proto_headless(args) -> None:
 def _run_web_mode(args) -> None:
     """Serve the TUI in a web browser via textual-serve."""
     try:
-        from textual_serve.server import Server  # ty: ignore[unresolved-import]
+        from textual_serve.server import Server  # ty: ignore[unresolved-import] -- [web] extra
     except ImportError:
         print("Error: --web requires textual-serve.")
         print("  pip install termapy[web]")

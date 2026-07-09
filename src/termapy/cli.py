@@ -70,7 +70,7 @@ class _TermapyCompleter(Completer):
         self._scripts_dir = Path(config_path).parent / "run"
         self._file_cmds = (f"{prefix}run ", f"{prefix}run.edit ")
 
-    def get_completions(self, document, complete_event):  # noqa: ARG002
+    def get_completions(self, document, complete_event):  # noqa: ARG002 -- prompt_toolkit interface
         """Yield completions for the current input."""
         line = document.text
 

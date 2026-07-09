@@ -1211,7 +1211,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     # ``_build_server``.  Verifying ``mcp.server.fastmcp`` is what we'll
     # actually import shuts that door.
     try:
-        from mcp.server.fastmcp import FastMCP  # noqa: F401
+        from mcp.server.fastmcp import FastMCP  # noqa: F401 -- existence check; see comment above
     except ImportError:
         print(_INSTALL_HINT, file=sys.stderr)
         sys.exit(1)
@@ -1256,7 +1256,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     if cfg["serial"]["port"]:
         try:
             host._connect()
-        except (OSError, Exception) as exc:  # noqa: BLE001 - boundary
+        except (OSError, Exception) as exc:  # noqa: BLE001 -- boundary
             host._log_line(f"! Auto-connect failed: {exc}")
 
     server = _build_server(host)
@@ -1282,7 +1282,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
             continue
         try:
             _orig_handlers[sig] = _signal.signal(sig, _term_handler)
-        except (ValueError, OSError):  # noqa: PERF203 - small set
+        except (ValueError, OSError):  # noqa: PERF203 -- small set
             # Not in main thread on Windows, etc.  Skip.
             pass
 

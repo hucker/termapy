@@ -393,7 +393,7 @@ def parse_keywords(
 # ── Sequence-numbered filenames ───────────────────────────────────────────────
 
 _SEQ_RE = re.compile(r"\$\(n(0+)\)")
-from termapy.folders import SEQ_FILE as _SEQ_FILE  # noqa: E402
+from termapy.folders import SEQ_FILE as _SEQ_FILE  # noqa: E402 -- with the seq-filename code below
 _MAX_SEQ_WIDTH = 3
 
 

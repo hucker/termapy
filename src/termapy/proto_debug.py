@@ -777,7 +777,7 @@ class ProtoDebugScreen(ModalScreen[None]):
     def _open_log(self) -> None:
         """Open the log file for the duration of a test run."""
         try:
-            self._log_file = open(self._log_path, "a")  # noqa: SIM115
+            self._log_file = open(self._log_path, "a")  # noqa: SIM115 -- persistent log handle
         except OSError:
             self._log_file = None
 

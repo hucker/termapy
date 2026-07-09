@@ -29,7 +29,7 @@ from textual.widgets import Button
 SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401
+    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
 
 
 def _hotkey_label(btn_id: str) -> str:

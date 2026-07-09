@@ -31,7 +31,7 @@ from termapy.defaults import cmd_prefix
 from termapy.dialogs import PortPicker
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401
+    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
 
 
 def show_config_info(app, path: str) -> None:

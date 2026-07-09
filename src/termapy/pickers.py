@@ -38,7 +38,7 @@ from termapy.dialogs import (
 from termapy.plugins import CmdResult
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401
+    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
 
 
 def on_config_result(app, result: tuple | None) -> None:

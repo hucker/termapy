@@ -1211,7 +1211,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     # ``_build_server``.  Verifying ``mcp.server.fastmcp`` is what we'll
     # actually import shuts that door.
     try:
-        from mcp.server.fastmcp import FastMCP  # noqa: F401
+        from mcp.server.fastmcp import FastMCP  # noqa: F401 -- existence check; see comment above
     except ImportError:
         print(_INSTALL_HINT, file=sys.stderr)
         sys.exit(1)

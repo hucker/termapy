@@ -174,6 +174,9 @@ extra-paths = ["src/termapy/vendor"]
 exclude = ["src/termapy/vendor/**"]
 
 [tool.ruff]
+# 100 (not the black-default 88) buys room for inline suppression reasons
+# (`# noqa: CODE -- why`) and generally-descriptive names without wrapping.
+line-length = 100
 # Vendored pyserial uses wildcard imports, lowercase l/I/O variable
 # names, and other patterns we don't own.  Skip lint entirely; same
 # reasoning as the ty exclude above.

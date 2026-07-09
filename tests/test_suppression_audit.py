@@ -16,6 +16,8 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 from suppression_audit import (  # noqa: E402 -- scripts/ prepended to sys.path above
     classify,
     counts_by_form,
+    gate_offenders,
+    reason_above,
     scan_tree,
 )
 
@@ -114,3 +116,46 @@ class TestScanTree:
         assert all("vendor" not in s.file.split("/") for s in found), (
             "vendored suppressions are excluded from the count"
         )
+
+
+class TestPrecedingReason:
+    """The gate accepts a reason inline OR on the comment line directly above."""
+
+    def _write(self, tmp_path, text):
+        (tmp_path / "sample.py").write_text(text, encoding="utf-8")
+
+    def test_reason_on_line_above_clears_the_gate(self, tmp_path):
+        # Arrange -- coded suppression, no inline reason, reason comment above
+        self._write(tmp_path, "# deferred to dodge an import cycle\nx = y  # noqa: E402\n")
+        supp = classify("sample.py", 2, "x = y  # noqa: E402")
+
+        # Act
+        # Assert
+        assert reason_above(supp, tmp_path), "the comment above is the reason"
+        assert gate_offenders([supp], tmp_path) == [], "reason-above clears the gate"
+
+    def test_code_line_above_is_not_a_reason(self, tmp_path):
+        # Arrange -- the line above is code, not a comment
+        self._write(tmp_path, "x = 1\ny = z  # noqa: E402\n")
+        supp = classify("sample.py", 2, "y = z  # noqa: E402")
+
+        # Assert
+        assert not reason_above(supp, tmp_path), "code above is not a reason"
+        assert gate_offenders([supp], tmp_path) == [supp], "still an offender"
+
+    def test_suppression_above_does_not_excuse(self, tmp_path):
+        # Arrange -- the line above is itself a suppression, not a reason
+        self._write(tmp_path, "a = f()  # noqa: F401\nb = g()  # noqa: E402\n")
+        supp = classify("sample.py", 2, "b = g()  # noqa: E402")
+
+        # Assert -- stacked suppressions can't excuse each other
+        assert not reason_above(supp, tmp_path), "a suppression above isn't a reason"
+
+    def test_bare_fails_even_with_a_reason_above(self, tmp_path):
+        # Arrange -- reason comment above, but the suppression itself is bare
+        self._write(tmp_path, "# explanation here\nz = h()  # type: ignore\n")
+        supp = classify("sample.py", 2, "z = h()  # type: ignore")
+
+        # Assert -- a missing rule code fails regardless of a reason above
+        assert supp.is_bare, "no bracketed code = bare"
+        assert gate_offenders([supp], tmp_path) == [supp], "bare fails the gate"

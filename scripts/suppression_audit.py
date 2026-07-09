@@ -4,7 +4,8 @@ Counts lint / type / coverage suppressions in ``src/termapy`` (excluding the
 vendored ``vendor/`` tree) and gates newly-added ones.  The philosophy: a
 suppression is sometimes the right call, but it must never be the *easy* call.
 So every suppression introduced since the previous release must carry a
-specific rule code AND a trailing reason -- otherwise release_prep aborts.
+specific rule code AND a reason -- inline (``-- why``), or on the comment line
+directly above it -- otherwise release_prep aborts.
 
 Forms recognized:
   # ty: ignore[code]      (ty type checker)
@@ -90,6 +91,45 @@ def classify(file: str, line_no: int, source_line: str) -> Suppression | None:
     return None
 
 
+def reason_above(supp: Suppression, repo_root: Path = REPO_ROOT) -> bool:
+    """True if the comment line directly above the suppression is a reason.
+
+    A long suppression line can't always fit an inline ``-- reason`` under the
+    line limit, so the repo convention is to put the justification on the
+    comment line just above (e.g. app.py's deferred-import E402).  That line
+    must be a plain comment with words -- and must NOT itself be a suppression,
+    so two stacked suppressions can't excuse each other.
+    """
+    path = repo_root / supp.file
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+    idx = supp.line - 2  # 0-based index of the line above (supp.line is 1-based)
+    if idx < 0 or idx >= len(lines):
+        return False
+    above = lines[idx].strip()
+    if not above.startswith("#") or not re.search(r"[A-Za-z]", above):
+        return False
+    return classify(supp.file, idx + 1, lines[idx]) is None
+
+
+def gate_offenders(
+    supps: list[Suppression], repo_root: Path = REPO_ROOT
+) -> list[Suppression]:
+    """Suppressions that fail the gate.
+
+    A suppression fails if it is bare (no rule code -- a reason can't excuse a
+    missing code), or if it carries no reason either inline or on the comment
+    line directly above it.
+    """
+    offenders: list[Suppression] = []
+    for s in supps:
+        if s.is_bare or (not s.has_reason and not reason_above(s, repo_root)):
+            offenders.append(s)
+    return offenders
+
+
 def scan_tree(repo_root: Path = REPO_ROOT) -> list[Suppression]:
     """Every suppression in src/termapy, excluding the vendored tree."""
     src = repo_root / SRC_REL
@@ -171,7 +211,7 @@ def _main(argv: list[str]) -> int:
             print(f"  {form:<12} {by_form[form]}")
 
     if args.since:
-        offenders = [s for s in added_since(args.since) if s.is_offender]
+        offenders = gate_offenders(added_since(args.since))
         if offenders:
             print(f"\nGATE FAILED: {len(offenders)} new suppression(s) "
                   f"since {args.since} lack a rule code and/or a reason:")

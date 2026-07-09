@@ -220,9 +220,10 @@ def assert_no_bad_suppressions() -> None:
     A suppression (``# noqa`` / ``# ty: ignore`` / ``# type: ignore`` /
     ``# pragma: no cover``) is sometimes the right call, but it must never be
     the *easy* one.  Every suppression introduced since the previous tag must
-    name a specific rule code AND carry a trailing reason; otherwise it's an
-    unexamined override and the release aborts.  Pre-existing suppressions in
-    untouched code are not policed here -- only what the diff introduces.
+    name a specific rule code AND carry a reason -- inline, or on the comment
+    line directly above it; otherwise it's an unexamined override and the
+    release aborts.  Pre-existing suppressions in untouched code are not
+    policed here -- only what the diff introduces.
     """
     import suppression_audit
 
@@ -230,9 +231,9 @@ def assert_no_bad_suppressions() -> None:
     if tag is None:
         ok("suppression gate skipped (no prior tag)")
         return
-    offenders = [
-        s for s in suppression_audit.added_since(tag, REPO_ROOT) if s.is_offender
-    ]
+    offenders = suppression_audit.gate_offenders(
+        suppression_audit.added_since(tag, REPO_ROOT), REPO_ROOT
+    )
     if offenders:
         listing = "\n".join(f"    {s.describe()}" for s in offenders)
         die(

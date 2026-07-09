@@ -2368,11 +2368,11 @@ class SerialTerminal(TerminalHost, App):
     ) -> None:
         """Scroll target RichLog so ``line_no`` lands at viewport middle.
 
-        With the v2 design (matches visibly highlighted in the
-        frozen view), middle is preferred over top: the user can
-        see context above and below the current match, and the
-        [reverse bold] styling makes the current line easy to spot
-        regardless of vertical position.
+        With the v2 design (matches highlighted with ``[reverse]`` in
+        the frozen view), middle is preferred over top: the user sees
+        context above and below the current match.  All matches share
+        the same styling, so centering -- not a distinct style -- is
+        what identifies the current one.
 
         Always centers, even if the line is already visible.  An
         earlier "keep visible if already in viewport" optimization

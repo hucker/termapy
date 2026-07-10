@@ -669,7 +669,7 @@ class ReplEngine:
 
         encoding = self.cfg.get("encoding", "utf-8")
         line_ending = self.cfg.get("line_ending", "\r")
-        timeout_ms = int(self.cfg.get("response_timeout_ms", 1000))
+        timeout_ms = int(self.cfg.get("default_response_timeout_ms", 1000))
         payload = (command + line_ending).encode(encoding)
 
         t0 = _time.perf_counter()

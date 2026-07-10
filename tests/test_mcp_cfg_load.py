@@ -191,6 +191,46 @@ class TestZeroConfigMcpHost:
             "old alpha log path cleared"
 
 
+class TestCfgLoadIdentity:
+    """Regression: after /cfg.load, host.cfg and the engine's cfg must be
+    ONE object.
+
+    Pre-fix bug: ``_switch_to_cfg_path`` rebound ``self.cfg`` to the dict
+    freshly loaded from disk while ``replace_cfg`` refreshed the engine's
+    original dict in place.  From then on every session write
+    (``_apply_cfg``: /cfg.auto, /term.request, port changes) landed in
+    the engine's dict while ctx.cfg -- rebuilt from host.cfg -- served a
+    stale snapshot.  Symptom: ``/cfg.auto default_response_timeout_ms
+    5000`` printed ``(session)`` but ``/cfg default_response_timeout_ms``
+    still answered 1000.
+    """
+
+    def test_host_and_engine_share_one_dict_after_load(self, host):
+        # Act
+        host._load_config("beta")
+
+        # Assert -- identity, not equality: the fixed invariant
+        assert host.cfg is host.repl._cfg_data, \
+            "host.cfg rebinds to the engine's dict, not the transient load"
+
+    def test_session_set_visible_to_cfg_query_after_load(self, host):
+        # Arrange
+        host._load_config("beta")
+
+        # Act -- the user-facing sequence: /cfg.auto then /cfg <key>
+        set_result = host.repl.dispatch(
+            "cfg.auto default_response_timeout_ms 5000"
+        )
+        query = host.repl.dispatch("cfg default_response_timeout_ms")
+
+        # Assert
+        assert set_result.success, f"set failed: {set_result.error}"
+        actual = query.value
+        expected = "5000"
+        assert actual == expected, \
+            "session set is visible through the ctx.cfg read path"
+
+
 class TestCfgLoadFiresOnConnected:
     """Regression: /cfg.load auto-connect must call _on_connected().
 

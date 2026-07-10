@@ -269,6 +269,36 @@ class TestExecRequestMode:
         envelope = result.value
         assert envelope["result"] == "5.5", "result stripped"
 
+    def test_read_window_uses_cfg_default_response_timeout(self, repl_env):
+        # Arrange -- cfg carries a non-default response window.
+        # Regression: the executor used to read the nonexistent key
+        # "response_timeout_ms", so the cfg value never reached read_raw
+        # and the window was silently hardwired to 1000 ms.
+        engine, ctx, cfg, _, _ = repl_env
+        cfg["default_response_timeout_ms"] = 2500
+        fake = _FakeSerial(response=b"OK")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        engine._exec_request_mode("slow_help")
+
+        # Assert
+        assert fake.read_calls == [2500], \
+            "cfg default_response_timeout_ms reaches the read window"
+
+    def test_read_window_falls_back_to_1000_without_cfg_key(self, repl_env):
+        # Arrange -- fixture cfg deliberately lacks the key
+        engine, ctx, cfg, _, _ = repl_env
+        assert "default_response_timeout_ms" not in cfg, "precondition"
+        fake = _FakeSerial(response=b"OK")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        engine._exec_request_mode("anything")
+
+        # Assert
+        assert fake.read_calls == [1000], "fallback window is 1000 ms"
+
 
 class TestDeviceErrorDetection:
     """request_err_pattern detects device-side error responses."""

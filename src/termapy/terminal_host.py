@@ -573,7 +573,13 @@ class TerminalHost:
             self.engine.disconnect()
         self.repl.replace_cfg(cfg, config_path)
         self.config_path = config_path
-        self.cfg = cfg
+        # One cfg object, three views: replace_cfg refreshed the engine's
+        # dict in place, so rebind to THAT dict -- not the transient
+        # ``cfg`` loaded from disk.  Binding ``cfg`` here forks identity:
+        # session writes (``_apply_cfg``: /cfg.auto, /term.request, port
+        # changes) land in the engine's dict while ctx.cfg reads a stale
+        # snapshot forever after.
+        self.cfg = self.repl._cfg_data
         self._setup_context()
         self.repl.fire_lifecycle("on_config_load")
         # auto_connect lives in the newly-loaded cfg -- if the user's

@@ -246,10 +246,16 @@ def assert_no_bad_suppressions() -> None:
 
 
 def update_suppression_count() -> None:
-    """Refresh the suppression count in ARCHITECTURE.md's Suppressions section."""
+    """Refresh the ARCHITECTURE.md suppression count and print the inventory.
+
+    The full per-line inventory (location, form, remediation status) is
+    printed to the release log so the operator can eyeball every override
+    at release time -- not just the total.
+    """
     import suppression_audit
 
-    total = len(suppression_audit.scan_tree(REPO_ROOT))
+    supps = suppression_audit.scan_tree(REPO_ROOT)
+    total = len(supps)
     path = REPO_ROOT / "ARCHITECTURE.md"
     text = path.read_text(encoding="utf-8")
     new_text, n = re.subn(
@@ -261,6 +267,9 @@ def update_suppression_count() -> None:
         die("ARCHITECTURE.md is missing the Suppressions count line to refresh.")
     path.write_text(new_text, encoding="utf-8")
     ok(f"ARCHITECTURE.md suppression count updated ({total})")
+    info(f"Suppression inventory ({total}):")
+    for line in suppression_audit.format_list(supps, REPO_ROOT):
+        print(line)
 
 
 def ty_badge_color(count: int) -> str:

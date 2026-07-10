@@ -195,11 +195,40 @@ def counts_by_form(supps: list[Suppression]) -> dict[str, int]:
     return out
 
 
+def suppression_status(supp: Suppression, repo_root: Path = REPO_ROOT) -> str:
+    """One-token remediation status for the --list / release display."""
+    if supp.is_bare:
+        return "BARE"
+    if supp.has_reason:
+        return "ok"
+    if reason_above(supp, repo_root):
+        return "ok(above)"
+    return "NO-REASON"
+
+
+def format_list(supps: list[Suppression], repo_root: Path = REPO_ROOT) -> list[str]:
+    """Render one aligned line per suppression: location, form[code], status."""
+    if not supps:
+        return []
+    loc_w = max(len(f"{s.file}:{s.line}") for s in supps)
+    tag_w = max(len(f"{s.form}[{s.code or '-'}]") for s in supps)
+    lines: list[str] = []
+    for s in supps:
+        loc = f"{s.file}:{s.line}".ljust(loc_w)
+        tag = f"{s.form}[{s.code or '-'}]".ljust(tag_w)
+        lines.append(f"  {loc}  {tag}  {suppression_status(s, repo_root)}")
+    return lines
+
+
 def _main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--since", metavar="TAG",
         help="Gate: fail if suppressions added since TAG are bare or reason-less.",
+    )
+    parser.add_argument(
+        "--list", action="store_true",
+        help="Print every suppression with its file:line, form, and status.",
     )
     args = parser.parse_args(argv)
 
@@ -209,6 +238,11 @@ def _main(argv: list[str]) -> int:
     for form in ("ty-ignore", "type-ignore", "noqa", "pragma"):
         if by_form.get(form):
             print(f"  {form:<12} {by_form[form]}")
+
+    if args.list:
+        print()
+        for line in format_list(total):
+            print(line)
 
     if args.since:
         offenders = gate_offenders(added_since(args.since))

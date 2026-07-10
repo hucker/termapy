@@ -16,9 +16,11 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 from suppression_audit import (  # noqa: E402 -- scripts/ prepended to sys.path above
     classify,
     counts_by_form,
+    format_list,
     gate_offenders,
     reason_above,
     scan_tree,
+    suppression_status,
 )
 
 
@@ -159,3 +161,49 @@ class TestPrecedingReason:
         # Assert -- a missing rule code fails regardless of a reason above
         assert supp.is_bare, "no bracketed code = bare"
         assert gate_offenders([supp], tmp_path) == [supp], "bare fails the gate"
+
+
+class TestListView:
+    """The --list status view: suppression_status + format_list."""
+
+    def test_status_inline_reason_is_ok(self):
+        # Act
+        s = classify("f.py", 1, "x = f()  # noqa: BLE001 -- boundary")
+
+        # Assert
+        assert suppression_status(s) == "ok", "coded + inline reason reads ok"
+
+    def test_status_bare(self):
+        # Act
+        s = classify("f.py", 1, "x = f()  # noqa")
+
+        # Assert
+        assert suppression_status(s) == "BARE", "no rule code -> BARE"
+
+    def test_status_above_and_none(self, tmp_path):
+        # Arrange -- one with a reason above, one with nothing
+        (tmp_path / "sample.py").write_text(
+            "# the reason\nx = y  # noqa: E402\nz = w  # noqa: E402\n",
+            encoding="utf-8",
+        )
+        with_above = classify("sample.py", 2, "x = y  # noqa: E402")
+        without = classify("sample.py", 3, "z = w  # noqa: E402")
+
+        # Assert
+        assert suppression_status(with_above, tmp_path) == "ok(above)", "reason on line above"
+        assert suppression_status(without, tmp_path) == "NO-REASON", "no reason anywhere"
+
+    def test_format_list_one_line_each_and_aligned(self):
+        # Arrange
+        supps = [
+            classify("a.py", 1, "x  # noqa: F401 -- keep"),
+            classify("bb.py", 22, "y  # ty: ignore[assignment] -- narrow"),
+        ]
+
+        # Act
+        lines = format_list(supps)
+
+        # Assert -- one rendered line per suppression, columns padded to equal width
+        assert len(lines) == 2, "one line per suppression"
+        assert "a.py:1" in lines[0] and "bb.py:22" in lines[1], "locations shown"
+        assert lines[0].index("ok") == lines[1].index("ok"), "status column is aligned"

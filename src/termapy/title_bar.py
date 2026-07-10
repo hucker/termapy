@@ -185,7 +185,10 @@ def update_port(app, port: str) -> None:
     that persists changes.  This keeps $(env.NAME) templates intact.
     """
     import copy
-    cfg = copy.deepcopy(app.cfg)
+    # app.cfg is a read-only MappingProxyType view (ReplEngine owns the dict).
+    # dict() un-proxies the top level so deepcopy can build a fully mutable
+    # copy; deepcopy chokes on a mappingproxy ("cannot pickle 'mappingproxy'").
+    cfg = copy.deepcopy(dict(app.cfg))
     cfg["serial"]["port"] = port
     app._switch_config(cfg, app.config_path)
     if app.is_connected:

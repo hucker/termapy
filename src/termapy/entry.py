@@ -233,6 +233,13 @@ def _build_parser() -> argparse.ArgumentParser:
              "and exit.  Exit 0 if valid, 1 with errors otherwise.",
     )
     parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="With --validate-profile: treat compatibility warnings "
+             "(unknown fields, non-canonical values) as errors and exit 1. "
+             "For CI and pre-commit hooks, where nobody reads warnings.",
+    )
+    parser.add_argument(
         "--mcp",
         action="store_true",
         help="Run as a stdio MCP (Model Context Protocol) server.  Stdout "
@@ -250,14 +257,16 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run_validate_profile(path_str: str) -> None:
+def _run_validate_profile(path_str: str, strict: bool = False) -> None:
     """Validate a profile file against the schema and exit.
 
     Exits 0 on valid, 1 with line-numbered errors otherwise.  Lint
     warnings (unknown fields and non-canonical values, which degrade
     per the compatibility policy in docs/profile-spec.md) print to
-    stderr but never affect the exit code.  Stays Textual-free -- the
-    validator only needs ``profile.py`` and optionally ``jsonschema``.
+    stderr; they affect the exit code only under ``--strict``, the
+    CI/pre-commit mode where a misspelled field must stop the build
+    instead of scrolling by.  Stays Textual-free -- the validator only
+    needs ``profile.py`` and optionally ``jsonschema``.
     """
     from termapy.profile import load_profile, validate_profile
 
@@ -273,6 +282,13 @@ def _run_validate_profile(path_str: str) -> None:
     result = validate_profile(profile)
     for w in result.warnings:
         print(f"  warning: {w}", file=sys.stderr)
+    if result.ok and result.warnings and strict:
+        print(
+            f"FAIL: {p} ({len(result.warnings)} warning(s) escalated by "
+            f"--strict)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if result.ok:
         n = len(profile.get("commands", {})) if isinstance(profile, dict) else 0
         suffix = f", {len(result.warnings)} warning(s)" if result.warnings else ""
@@ -304,7 +320,7 @@ def main() -> None:
         from termapy.cli_flags import run_chips
         run_chips(args)
     if args.validate_profile is not None:
-        _run_validate_profile(args.validate_profile)
+        _run_validate_profile(args.validate_profile, strict=args.strict)
 
     # --cfg-dir writes a module-global; do this before anything else
     # that might resolve configs.

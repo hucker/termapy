@@ -118,6 +118,12 @@ A tier name termapy doesn't recognize is treated as `destructive`
 (confirmation required): if a future spec revision adds a stronger
 tier, older hosts gate it instead of silently running it.
 
+Because unknown fields and values load with warnings rather than
+errors, a typo (`"saftey"`) won't stop a load — the warning carries a
+did-you-mean suggestion, and `termapy --validate-profile <path>
+--strict` turns warnings into a failing exit code for CI and
+pre-commit hooks. Run it on every profile you edit.
+
 When in doubt between `mutable` and `destructive`: **err on the side
 of `destructive`**.  Friction is recoverable; data loss isn't.
 

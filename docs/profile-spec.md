@@ -75,9 +75,18 @@ then device-fetched beats hand-authored).
 
 New optional fields may appear within major version 2 at any level.
 Consumers MUST ignore fields they do not recognize. Linters and
-validators SHOULD surface them as warnings (never errors) so authors
-catch typos — termapy reports them as "compatibility warnings" on
-`/profile.load` and `/profile.validate`.
+validators SHOULD surface them as warnings (never errors on load) so
+authors catch typos — termapy reports them as "compatibility warnings"
+on `/profile.load` and `/profile.validate`, with a did-you-mean
+suggestion when an unknown name is edit-distance close to a canonical
+one (`unknown field 'saftey' … did you mean 'safety'?`).
+
+Tolerance is a *wire* property, not an *authoring* one: in CI or a
+pre-commit hook, run `termapy --validate-profile <path> --strict` to
+escalate warnings to a failing exit code. That is the intended home
+for typo enforcement — the strict check runs where the author is, not
+on the consuming host, so a fleet of deployed consumers never bricks
+on a profile from a newer producer.
 
 ### 3.3 Additive evolution: unknown values
 
@@ -85,7 +94,7 @@ Open vocabularies degrade with **defined semantics** instead of
 failing. A conforming consumer MUST implement this table:
 
 | Field | Canonical values | Unrecognized value behaves as |
-|---|---|---|
+| --- | --- | --- |
 | `response.format` | `none, text, literal, lines, regex, json` | `text` — return the raw response string. Data stays usable; shape is the most conservative one. |
 | `safety` | `safe, readonly, mutable, destructive` | `destructive` — require confirmation. A future stronger-than-destructive tier must gate on old hosts, not silently run. |
 | `types.<name>.kind` | `enum, int_range, float_range, str_length, pattern, format_spec` | Fail-closed at *dispatch*: the profile loads, but any argument declared with that type refuses to send ("cannot validate → do not transmit"). |
@@ -113,7 +122,7 @@ yet. Producers may set them; consumers preserve and may surface them.
 ## 4. Top level
 
 | Field | Type | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `profile_version` | int, required in practice | Must be `2` (§3.1). |
 | `profile_revision` | semver string | Content version; drives precedence. |
 | `profile_date` | `YYYY-MM-DD` | Precedence tiebreaker. |
@@ -190,7 +199,7 @@ profile's top-level `types` block.
 A custom type is `{kind, help?, ...}` with per-kind fields:
 
 | kind | Required fields | Accepts |
-|---|---|---|
+| --- | --- | --- |
 | `enum` | `values` (str/number/bool; stringified) | exact match against the list |
 | `int_range` | `min`, `max` | integer within bounds |
 | `float_range` | `min`, `max` | float within bounds |
@@ -217,7 +226,7 @@ performed. Declare it whenever a bare number would be ambiguous.
 means the command has no contract (literal write, no shaped value).
 
 | format | Waits | Produces | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `none` | verify-silence window | `{"sent": true}` | The contract says *no reply*. Default window 100 ms; any non-whitespace output inside it fails the contract (catches stale profiles and firmware regressions). `timeout_ms: 0` opts out of waiting entirely (true fire-and-forget). |
 | `text` | yes | the whole response as one string | Unstructured human-oriented output: help screens, dumps, diagnostics. No pattern needed. Also the degrade target for unknown formats. |
 | `literal` | yes | the stripped text, if it equals `pattern` | Fixed acknowledgements (`OK`). |
@@ -242,7 +251,7 @@ means the command has no contract (literal write, no shaped value).
 ### 7.2 Coercion (normative)
 
 | name | Rule | On failure |
-|---|---|---|
+| --- | --- | --- |
 | `int` | base-10 `int()` | raw string passes through |
 | `float` | `float()` | raw string |
 | `hex` | base-16 `int()` | raw string |

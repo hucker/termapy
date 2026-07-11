@@ -759,6 +759,47 @@ class TestCompatibilityWarnings:
         assert result.ok is True, f"unit metadata validates: {result.errors}"
         assert result.warnings == [], "unit fields are canonical, not warned"
 
+    def test_misspelled_field_warning_suggests_correction(self):
+        # Arrange -- the dangerous typo class: a misspelled `safety`
+        # key silently un-gates a command, so the warning must point
+        # straight at the fix.
+        profile = {
+            "commands": {"X": {"help": "h", "saftey": "destructive"}}
+        }
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert result.ok is True, "typo'd field still loads (warn, not fail)"
+        assert any(
+            "saftey" in w and "did you mean 'safety'" in w
+            for w in result.warnings
+        ), "warning carries a did-you-mean suggestion"
+
+    def test_misspelled_value_warning_suggests_correction(self):
+        # Arrange
+        profile = {
+            "commands": {"X": {"help": "h", "safety": "destructiv"}}
+        }
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        assert any(
+            "destructiv" in w and "did you mean 'destructive'" in w
+            for w in result.warnings
+        ), "value typos get suggestions too"
+
+    def test_unrelated_unknown_field_has_no_suggestion(self):
+        # Arrange -- a genuinely novel field (plausibly from a newer
+        # spec) should not get a spurious did-you-mean.
+        profile = {"commands": {"X": {"help": "h", "telemetry_channel": 2}}}
+        # Act
+        result = validate_profile(profile)
+        # Assert
+        warning = next(w for w in result.warnings if "telemetry_channel" in w)
+        assert "did you mean" not in warning, (
+            "no suggestion when nothing is edit-distance close"
+        )
+
     def test_builtin_validator_is_structural_only(self):
         # Arrange -- direct call to the no-jsonschema fallback: vocab
         # deviations must NOT be errors there either (they are warnings
@@ -896,6 +937,52 @@ class TestValidateProfileCli:
         assert "OK" in result.stdout, "OK verdict on stdout"
         assert "warning" in result.stderr, "warning surfaced on stderr"
         assert "safety" in result.stderr, "warning names the field"
+
+    def test_cli_strict_escalates_warnings_to_failure(self, tmp_path):
+        # Arrange -- same warning-only profile as above; --strict is
+        # the CI mode where a typo must stop the build.
+        newer = tmp_path / "newer.profile.json"
+        newer.write_text(
+            json.dumps({
+                "profile_version": 2,
+                "commands": {"X": {"help": "h", "saftey": "destructive"}},
+            }),
+            encoding="utf-8",
+        )
+        # Act
+        result = subprocess.run(
+            [sys.executable, "-m", "termapy",
+             "--validate-profile", str(newer), "--strict"],
+            capture_output=True,
+            text=True,
+        )
+        # Assert
+        assert result.returncode == 1, "--strict turns warnings into failure"
+        assert "FAIL" in result.stderr, "FAIL verdict under --strict"
+        assert "did you mean 'safety'" in result.stderr, (
+            "suggestion surfaced where CI logs show it"
+        )
+
+    def test_cli_strict_passes_clean_profile(self, tmp_path):
+        # Arrange
+        clean = tmp_path / "clean.profile.json"
+        clean.write_text(
+            json.dumps({
+                "profile_version": 2,
+                "commands": {"X": {"help": "h", "safety": "readonly"}},
+            }),
+            encoding="utf-8",
+        )
+        # Act
+        result = subprocess.run(
+            [sys.executable, "-m", "termapy",
+             "--validate-profile", str(clean), "--strict"],
+            capture_output=True,
+            text=True,
+        )
+        # Assert
+        assert result.returncode == 0, "--strict passes a warning-free profile"
+        assert "OK" in result.stdout, "OK verdict"
 
     def test_cli_missing_file_exits_1(self):
         # Arrange

@@ -263,6 +263,20 @@ def _is_extension_key(key: Any) -> bool:
     )
 
 
+def _suggest(name: str, candidates: Any) -> str:
+    """Return ``; did you mean 'x'?`` for the closest candidate, or ``""``.
+
+    Spelling errors are the main way a tolerated-unknown slips past an
+    author (a misspelled ``safety`` key silently un-gates a command),
+    so every warning about an unknown name carries the nearest
+    canonical one when the edit distance is plausibly a typo.
+    """
+    import difflib
+
+    matches = difflib.get_close_matches(name, list(candidates), n=1, cutoff=0.6)
+    return f"; did you mean {matches[0]!r}?" if matches else ""
+
+
 def _warn_unknown(obj: Any, level: str, loc: str, out: list[str]) -> None:
     """Append a warning per unknown key in ``obj`` at schema ``level``."""
     known = _known_keys().get(level)
@@ -270,7 +284,10 @@ def _warn_unknown(obj: Any, level: str, loc: str, out: list[str]) -> None:
         return
     for k in obj:
         if k not in known and not _is_extension_key(k):
-            out.append(f"{loc}: unknown field {k!r} (ignored by this host)")
+            out.append(
+                f"{loc}: unknown field {k!r} "
+                f"(ignored by this host{_suggest(k, known)})"
+            )
 
 
 def _warn_coercions(types_map: Any, loc: str, out: list[str]) -> None:
@@ -281,7 +298,8 @@ def _warn_coercions(types_map: Any, loc: str, out: list[str]) -> None:
         if isinstance(coercion, str) and coercion.lower() not in COERCION_NAMES:
             out.append(
                 f"{loc}/{group}: unrecognized coercion {coercion!r} "
-                f"(value will stay a raw string)"
+                f"(value will stay a raw string"
+                f"{_suggest(coercion, COERCION_NAMES)})"
             )
 
 
@@ -294,7 +312,8 @@ def _warn_command(name: str, spec: Any, loc: str, out: list[str]) -> None:
     if isinstance(safety, str) and safety not in SAFETY_TIERS:
         out.append(
             f"{loc}/safety: unrecognized tier {safety!r} "
-            f"(treated as destructive: confirmation required)"
+            f"(treated as destructive: confirmation required"
+            f"{_suggest(safety, SAFETY_TIERS)})"
         )
     for i, ta in enumerate(spec.get("typed_args") or []):
         _warn_unknown(ta, "typed_arg", f"{loc}/typed_args/{i}", out)
@@ -306,7 +325,8 @@ def _warn_command(name: str, spec: Any, loc: str, out: list[str]) -> None:
         if isinstance(fmt, str) and fmt not in RESPONSE_FORMATS:
             out.append(
                 f"{rloc}/format: unrecognized format {fmt!r} "
-                f"(treated as 'text': raw response string)"
+                f"(treated as 'text': raw response string"
+                f"{_suggest(fmt, RESPONSE_FORMATS)})"
             )
         _warn_coercions(response.get("types"), f"{rloc}/types", out)
         _warn_coercions(response.get("line_types"), f"{rloc}/line_types", out)
@@ -346,7 +366,8 @@ def collect_warnings(profile: dict) -> list[str]:
             if isinstance(kind, str) and kind not in kinds:
                 out.append(
                     f"{tloc}/kind: unrecognized kind {kind!r} (profile loads; "
-                    f"args of this type refuse at dispatch)"
+                    f"args of this type refuse at dispatch"
+                    f"{_suggest(kind, kinds)})"
                 )
     commands = profile.get("commands")
     if isinstance(commands, dict):

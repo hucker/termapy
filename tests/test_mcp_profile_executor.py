@@ -234,6 +234,85 @@ class TestLinesFormat:
         assert actual == expected, "terminator excluded; later lines dropped"
 
 
+class TestTextFormat:
+    def test_returns_raw_joined_text(self, host):
+        # Arrange -- format=text: unstructured human-oriented output,
+        # no pattern needed.  Value is the newline-joined response.
+        _load_profile(host, _profile_with({
+            "HELP": {
+                "help": "Help screen.",
+                "response": {"format": "text", "timeout_ms": 200},
+            },
+        }))
+        _reply_after_send(host, ["Commands:", "  rev  Show revision"])
+        # Act
+        result = asyncio.run(host.run_command_async("HELP", "normal", 5.0))
+        # Assert
+        actual = result["value"]
+        expected = "Commands:\n  rev  Show revision"
+        assert result["success"] is True, "text format succeeds"
+        assert actual == expected, "raw text handed back unchanged"
+
+    def test_unknown_format_degrades_to_text(self, host):
+        # Arrange -- compatibility policy: a format name from a newer
+        # spec revision degrades to text on this host instead of
+        # failing, so the data stays usable.
+        _load_profile(host, _profile_with({
+            "STATUS": {
+                "help": "Status.",
+                "response": {"format": "tabular_v3", "timeout_ms": 200},
+            },
+        }))
+        _reply_after_send(host, ["all good"])
+        # Act
+        result = asyncio.run(host.run_command_async("STATUS", "normal", 5.0))
+        # Assert
+        assert result["success"] is True, "unknown format never fails the call"
+        assert result["value"] == "all good", "degraded to raw text"
+
+
+class TestUnknownSafetyTier:
+    def test_unknown_tier_refuses_without_confirm(self, host):
+        # Arrange -- fail-safe degrade: a tier this host doesn't know
+        # (e.g. a future stronger-than-destructive level) must gate.
+        _load_profile(host, _profile_with({
+            "SPIN": {
+                "help": "Spin the motor.",
+                "safety": "hazardous",
+                "response": {"format": "none", "timeout_ms": 0},
+            },
+        }))
+        # Act
+        result = asyncio.run(host.run_command_async("SPIN", "normal", 5.0))
+        # Assert
+        value = result["value"]
+        assert result["success"] is False, "unknown tier gates like destructive"
+        assert value["needs_confirmation"] is True, "confirmation marker set"
+        assert value["safety"] == "hazardous", "raw declared tier surfaced"
+        assert "unrecognized" in result["error"], (
+            "error explains the tier was unrecognized"
+        )
+        assert host._sent == [], "no bytes hit the wire"
+
+    def test_unknown_tier_runs_with_confirm(self, host):
+        # Arrange -- after the human approves, the command proceeds
+        # exactly like a confirmed destructive one.
+        _load_profile(host, _profile_with({
+            "SPIN": {
+                "help": "Spin the motor.",
+                "safety": "hazardous",
+                "response": {"format": "none", "timeout_ms": 0},
+            },
+        }))
+        # Act
+        result = asyncio.run(
+            host.run_command_async("SPIN", "normal", 5.0, confirm=True)
+        )
+        # Assert
+        assert result["success"] is True, "confirm=true releases the gate"
+        assert host._sent == [b"SPIN\r\n"], "bytes went out after approval"
+
+
 class TestJsonFormat:
     def test_returns_parsed_object(self, host):
         # Arrange

@@ -253,9 +253,11 @@ def _build_parser() -> argparse.ArgumentParser:
 def _run_validate_profile(path_str: str) -> None:
     """Validate a profile file against the schema and exit.
 
-    Exits 0 on valid, 1 with line-numbered errors otherwise.  Stays
-    Textual-free -- the validator only needs ``profile.py`` and
-    optionally ``jsonschema``.
+    Exits 0 on valid, 1 with line-numbered errors otherwise.  Lint
+    warnings (unknown fields and non-canonical values, which degrade
+    per the compatibility policy in docs/profile-spec.md) print to
+    stderr but never affect the exit code.  Stays Textual-free -- the
+    validator only needs ``profile.py`` and optionally ``jsonschema``.
     """
     from termapy.profile import load_profile, validate_profile
 
@@ -269,9 +271,12 @@ def _run_validate_profile(path_str: str) -> None:
         print(f"termapy: parse error: {e}", file=sys.stderr)
         sys.exit(1)
     result = validate_profile(profile)
+    for w in result.warnings:
+        print(f"  warning: {w}", file=sys.stderr)
     if result.ok:
         n = len(profile.get("commands", {})) if isinstance(profile, dict) else 0
-        print(f"OK: {p} ({n} commands)")
+        suffix = f", {len(result.warnings)} warning(s)" if result.warnings else ""
+        print(f"OK: {p} ({n} commands{suffix})")
         sys.exit(0)
     print(f"FAIL: {p}", file=sys.stderr)
     for err in result.errors:

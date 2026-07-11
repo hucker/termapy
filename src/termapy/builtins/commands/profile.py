@@ -84,6 +84,14 @@ def _apply_profile(
         for err in result.errors:
             ctx.io.output(f"    - {err}", "yellow")
         return CmdResult.fail(msg=f"{len(result.errors)} validation error(s)")
+    # Warnings never block a load: they flag unknown fields and
+    # non-canonical values that degrade per the compatibility policy.
+    if result.warnings:
+        ctx.io.output(
+            f"  {len(result.warnings)} compatibility warning(s):", "yellow"
+        )
+        for w in result.warnings:
+            ctx.io.output(f"    - {w}", "yellow")
 
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
     ns.clear()
@@ -156,6 +164,12 @@ def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
     except (OSError, ValueError) as e:
         return CmdResult.fail(msg=f"Parse error: {e}")
     result = validate_profile(profile)
+    if result.warnings:
+        ctx.io.output(
+            f"  {len(result.warnings)} compatibility warning(s):", "yellow"
+        )
+        for w in result.warnings:
+            ctx.io.output(f"    - {w}", "yellow")
     if result.ok:
         n = len(profile.get("commands", {})) if isinstance(profile, dict) else 0
         ctx.io.result(f"Valid profile.  {n} commands.", "green")

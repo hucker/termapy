@@ -6,9 +6,10 @@ MCP bridge consumes profiles to give LLMs structured device control:
 typed JSON in, typed JSON out, with safety gating.
 
 This page is for **anyone authoring a profile** — engineers writing
-one by hand, and LLMs drafting one from a help dump.  It's the
-single source of truth for the schema, the safety taxonomy, and
-the rules.
+one by hand, and LLMs drafting one from a help dump.  For the
+normative format specification (matching rules, timing semantics,
+and the forward-compatibility policy), see `docs/profile-spec.md`
+in the repository; this page is the practical guide.
 
 Note: AI such as Claude Code can do a pretty good job of sending commands interactively
 without a profile at all, just looking at any help text or sample responses that you give it. It
@@ -113,20 +114,30 @@ on the tool call (which a well-behaved client elicits from the user).
 The other tiers are documentation that helps the LLM and the
 engineer reason about the device.
 
+A tier name termapy doesn't recognize is treated as `destructive`
+(confirmation required): if a future spec revision adds a stronger
+tier, older hosts gate it instead of silently running it.
+
 When in doubt between `mutable` and `destructive`: **err on the side
 of `destructive`**.  Friction is recoverable; data loss isn't.
 
 ### `response` (object, optional)
 
-Describes how to parse the device's reply.  Five formats:
+Describes how to parse the device's reply.  Six formats:
 
 | `format`  | What it does                                                              | Returned `value` shape         |
 | --------- | ------------------------------------------------------------------------- | ------------------------------ |
 | `none`    | Verify silence: wait briefly (default 100 ms), fail if the device replies | `{"sent": true, "cmd": "..."}` |
+| `text`    | Whole reply as one unstructured string — help screens, dumps, diagnostics | the raw string                 |
 | `literal` | Reply must equal `pattern` exactly                                        | the string (or fail)           |
 | `regex`   | `re.search(pattern, response)` — named groups + `types` coerce to dict    | `{"celsius": 23.4, ...}`       |
 | `lines`   | Collect lines until `terminator` regex matches or idle gap                | `["line1", "line2", ...]`      |
 | `json`    | Parse the full response as one JSON document                              | the parsed value               |
+
+A format name termapy doesn't recognize degrades to `text` — the
+call still returns the raw response instead of failing, so profiles
+written for a newer spec stay usable.  Prefer `text` over the old
+catch-all `regex` pattern `(?s)(?P<text>.*)`.
 
 Common patterns:
 
@@ -154,7 +165,16 @@ erases.
 Maps regex named-group names to type coercions.  Recognized type
 strings: `int`, `float`, `bool`, `hex` (parses base-16), `str`
 (default).  Failed coercions silently fall back to the raw string —
-the LLM gets *something* even on bad data.
+the LLM gets *something* even on bad data.  Unrecognized coercion
+names behave as `str`.
+
+### `response.units` / `typed_args[].unit` (optional)
+
+Unit-of-measure metadata: `"units": {"mv": "mV"}` on a response,
+`"unit": "ms"` on an argument.  Purely descriptive — no conversion
+happens — but it is exactly what an LLM needs to interpret a bare
+number like `-287` (centi-degrees? volts?).  Declare it whenever a
+value's unit isn't obvious from the name.
 
 ### `send_template` (string, optional)
 

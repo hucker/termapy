@@ -747,3 +747,105 @@ class TestCaptureResourceSecurity:
         # Act / Assert
         with pytest.raises(ValueError, match="traversal"):
             read("../../../../etc/passwd")
+
+
+# ── Bare-slot capture exposure ──────────────────────────────────────────────
+
+
+class TestBareSlotCaptureExposure:
+    """A zero-config slot (no cfg loaded) must expose NO capture surface.
+
+    Regression guard for the CWD-exposure bug: without a cfg,
+    ``ctx.fs.cap_dir`` falls back to the process working directory, so
+    the device_state resource once listed -- and the capture resource
+    once served -- every file in the server's launch directory
+    (``.pypirc``, ``.secrets``, keys).  ``MCPHost._active_cap_dir``
+    returns None until a cfg is loaded; the three capture surfaces gate
+    on it.
+    """
+
+    @pytest.fixture
+    def bare_host(self, tmp_path, monkeypatch):
+        # Arrange -- a bare host (config_path="") whose CWD contains a
+        # secret, mimicking a server launched from a source tree.
+        secret_dir = tmp_path / "launch_dir"
+        secret_dir.mkdir()
+        (secret_dir / ".secrets").write_text("API_KEY=hunter2", encoding="utf-8")
+        (secret_dir / ".pypirc").write_text("[pypi]", encoding="utf-8")
+        monkeypatch.chdir(secret_dir)
+        cfg = dict(DEFAULT_CFG)
+        cfg["port"] = ""
+        return MCPHost(cfg, "", verbose=False)
+
+    def test_active_cap_dir_is_none_without_cfg(self, bare_host):
+        # Act / Assert
+        assert bare_host._active_cap_dir() is None, (
+            "bare slot has no captures directory"
+        )
+
+    def test_active_cap_dir_is_set_with_cfg(self, host):
+        # Arrange / Act -- the standard fixture has a tmp cfg loaded.
+        actual = host._active_cap_dir()
+        # Assert
+        assert actual is not None, "loaded cfg yields a real captures dir"
+        assert actual == Path(host.ctx.fs.cap_dir), "matches ctx.fs.cap_dir"
+
+    def test_device_state_lists_no_captures_on_bare_slot(self, bare_host):
+        # Arrange -- exactly the call the device_state resource makes.
+        from termapy.mcp.catalog import build_device_state
+
+        # Act
+        state = build_device_state(
+            bare_host.ctx, captures_dir=bare_host._active_cap_dir()
+        )
+        # Assert -- the CWD secrets must NOT appear.
+        assert state["captures"] == [], (
+            "bare slot lists no capture artifacts (would leak CWD otherwise)"
+        )
+
+    def test_explicit_none_lists_nothing_even_with_cwd_files(self, bare_host):
+        # Arrange -- prove the None path ignores ctx.fs.cap_dir (=CWD),
+        # independent of the host method, so the builder itself is safe.
+        from termapy.mcp.catalog import build_device_state
+
+        # Act
+        state = build_device_state(bare_host.ctx, captures_dir=None)
+        # Assert
+        names = {c["name"] for c in state["captures"]}
+        assert ".secrets" not in names and ".pypirc" not in names, (
+            "captures_dir=None never lists the working directory"
+        )
+
+    def test_capture_read_refuses_on_bare_slot(self, bare_host):
+        # Arrange -- the resource's guard: _active_cap_dir() None -> refuse.
+        # Mirrors the inline-guard style of TestCaptureResourceSecurity.
+        def read(filename: str) -> str:
+            active = bare_host._active_cap_dir()
+            if active is None:
+                raise FileNotFoundError(
+                    "No captures available: load a cfg first."
+                )
+            cap_dir = active.resolve()
+            target = (cap_dir / filename).resolve()
+            if not target.is_relative_to(cap_dir):
+                raise ValueError("traversal")
+            return target.read_text("utf-8")
+
+        # Act / Assert -- even a plain filename that exists in CWD refuses.
+        with pytest.raises(FileNotFoundError, match="load a cfg"):
+            read(".secrets")
+
+    def test_loaded_cfg_still_lists_captures(self, host):
+        # Arrange -- regression: the fix must not break the normal path.
+        from termapy.mcp.catalog import build_device_state
+
+        cap_dir = Path(host.ctx.fs.cap_dir)
+        cap_dir.mkdir(parents=True, exist_ok=True)
+        (cap_dir / "adc_000.csv").write_text("1,2,3", encoding="utf-8")
+        # Act -- same call shape as the resource, with a loaded cfg.
+        state = build_device_state(
+            host.ctx, captures_dir=host._active_cap_dir()
+        )
+        # Assert
+        names = {c["name"] for c in state["captures"]}
+        assert "adc_000.csv" in names, "loaded cfg still lists its captures"

@@ -16,6 +16,8 @@ import json
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
+from pathlib import Path
+
 from termapy.plugins import CapabilitySet, resolve_long_help
 from termapy.profile import TypeRegistry, typedef_to_catalog
 
@@ -23,6 +25,13 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext, PluginInfo
 
 CATALOG_SCHEMA_VERSION: int = 1
+
+# Sentinel for build_device_state(captures_dir=...): distinguishes "the
+# caller did not specify a dir, fall back to ctx.fs.cap_dir" (legacy
+# direct-call behavior) from "the caller passed None, meaning no
+# captures are available" (the MCP host's answer for a bare, cfg-less
+# slot -- see MCPHost._active_cap_dir).
+_CAP_DIR_UNSET: Any = object()
 
 
 # ── Catalog ─────────────────────────────────────────────────────────────────
@@ -155,6 +164,7 @@ def build_device_state(
     async_errors: list | None = None,
     banner_seen: bool = False,
     banner_text: str = "",
+    captures_dir: Any = _CAP_DIR_UNSET,
 ) -> dict[str, Any]:
     """Snapshot of everything the bridge knows about the device right now.
 
@@ -179,12 +189,17 @@ def build_device_state(
             Empty until Phase 5+ NDJSON pipeline.
         async_errors: Unsolicited errors captured between calls.
             Empty until Phase 5+.
+        captures_dir: Directory whose files are listed as capture
+            artifacts, or ``None`` to list none.  Omit entirely to fall
+            back to ``ctx.fs.cap_dir`` (legacy behavior for direct
+            callers/tests).  The MCP host passes an explicit value: the
+            real cap dir when a cfg is loaded, ``None`` for a bare slot
+            -- never CWD, which would expose the server's launch
+            directory as readable resources.
 
     Returns:
         Dict suitable for ``json.dumps(..., indent=2)``.
     """
-    from pathlib import Path
-
     # Port state.
     port_obj = ctx.internal.port() if ctx.serial.is_connected() else None
     port_info: dict[str, Any] = {
@@ -224,9 +239,14 @@ def build_device_state(
             "banner_text": banner_text or "",
         }
 
-    # Capture artifacts (live read of cap_dir).
+    # Capture artifacts (live read of cap_dir).  Resolve which dir to
+    # list: an explicit captures_dir wins (None => list nothing, the
+    # bare-slot answer); omitted falls back to ctx.fs.cap_dir.
     captures: list[dict[str, Any]] = []
-    cap_dir = Path(ctx.fs.cap_dir) if ctx.fs.cap_dir else None
+    if captures_dir is _CAP_DIR_UNSET:
+        cap_dir = Path(ctx.fs.cap_dir) if ctx.fs.cap_dir else None
+    else:
+        cap_dir = Path(captures_dir) if captures_dir is not None else None
     if cap_dir and cap_dir.exists():
         for p in sorted(cap_dir.iterdir()):
             if p.is_file():

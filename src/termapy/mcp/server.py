@@ -205,6 +205,24 @@ class MCPHost(TerminalHost):
         else:
             self._log_path = None
 
+    def _active_cap_dir(self) -> Path | None:
+        """Return the captures directory, or None when no cfg is loaded.
+
+        Captures are per-config (``<cfg_dir>/cap``).  With no cfg,
+        ``ctx.fs.cap_dir`` falls back to the process CWD
+        (``ReplEngine._data_subdir``), which for a server launched from
+        a source tree is the repo root -- listing or serving it as MCP
+        capture resources would expose arbitrary files (``.env``,
+        ``.pypirc``, keys) from the launch directory.  A bare slot
+        therefore has NO captures surface until a cfg is loaded, exactly
+        as ``_mcp_dir``/logging are suppressed until then.  Gate on
+        ``config_path`` (set reliably by ``_switch_to_cfg_path``), not
+        on ``cap_dir.exists()`` -- CWD always exists.
+        """
+        if not self.config_path:
+            return None
+        return Path(self.ctx.fs.cap_dir)
+
     # -- TerminalHost overrides -----------------------------------------------
 
     # Note: ``_setup_context`` runs ``_refresh_log_paths`` (see below).
@@ -617,7 +635,11 @@ class MCPHost(TerminalHost):
             # it, profile-mapped responses would duplicate: once as
             # ``value.<group>``, once as an entry in ``async_events``.
             self._call_active.set()
-            cap_before = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
+            # Artifact diffing only when a cfg is loaded; a bare slot's
+            # cap dir is CWD and must not be snapshotted (see
+            # _active_cap_dir).  None => no before/after, no artifacts.
+            art_cap_dir = self._active_cap_dir()
+            cap_before = _snapshot_cap_dir(art_cap_dir) if art_cap_dir else {}
             line = command.strip()
             # Output-level routing: set ctx._call_level directly for the
             # duration of this dispatch.  Earlier this path appended a
@@ -686,8 +708,11 @@ class MCPHost(TerminalHost):
                 # pipeline -- they're genuinely unsolicited.
                 self._call_active.clear()
 
-            cap_after = _snapshot_cap_dir(Path(self.ctx.fs.cap_dir))
-            artifacts = _new_artifacts(cap_before, cap_after, Path(self.ctx.fs.cap_dir))
+            if art_cap_dir:
+                cap_after = _snapshot_cap_dir(art_cap_dir)
+                artifacts = _new_artifacts(cap_before, cap_after, art_cap_dir)
+            else:
+                artifacts = []
 
             # Track for device_state resource.  ISO 8601 timestamp matches
             # the spec's "<at>" field; UTC with explicit Z avoids TZ surprises.
@@ -835,13 +860,25 @@ def _build_server(host: MCPHost) -> Any:
             async_errors=host._async_errors,
             banner_seen=host._banner_seen,
             banner_text=host._banner_text,
+            captures_dir=host._active_cap_dir(),
         )
 
     # ── capture resources ──────────────────────────────────────────────────-
     @server.resource("termapy://capture/{filename}")
     def capture_resource(filename: str) -> str:
-        """Read a capture artifact from cap_dir.  Path-traversal guarded."""
-        cap_dir = Path(host.ctx.fs.cap_dir).resolve()
+        """Read a capture artifact from cap_dir.  Path-traversal guarded.
+
+        Refuses outright when no cfg is loaded: a bare slot has no
+        captures directory, and its ``ctx.fs.cap_dir`` fallback is the
+        process CWD -- serving files from there would leak the server's
+        launch directory (see ``MCPHost._active_cap_dir``).
+        """
+        active = host._active_cap_dir()
+        if active is None:
+            raise FileNotFoundError(
+                "No captures available: load a cfg first (/cfg.load <name>)."
+            )
+        cap_dir = active.resolve()
         target = (cap_dir / filename).resolve()
         if not target.is_relative_to(cap_dir):
             raise ValueError(f"Path traversal blocked: {filename!r}")

@@ -113,6 +113,18 @@ Full schema, response formats (`none`, `literal`, `lines`, `regex`, `json`), the
 
 When the MCP server connects to its port, it auto-loads the profile from `profile_path` or the convention path.  On disconnect, device-specific state (active profile, catalog, event buffers) is wiped, so reconnecting cleanly re-loads the profile.
 
+### What an MCP client can and can't reach
+
+The MCP server runs with no interactive session, so termapy's capability gate blocks a whole class of host access that only makes sense for a human at a terminal:
+
+- **Shell escape (`/os`)** is unreachable under MCP (needs an interactive session) *and* separately gated by `TERMAPY_OS_CMD_ENABLED`.
+- **File viewers / editors / explorers** (`/show <path>`, `/edit`, `/cfg.explore`, the folder `.show`/`.explore` verbs) are unreachable -- they need a local desktop.
+- **Capture reads** (`termapy://capture/<name>`) and **`.dump` commands** (`/cap.dump`, `/run.dump`, ...) are contained to the config folder; an absolute path or `../` is refused.  Reading files elsewhere is what `/show` is for, and `/show` is gated off.
+- **Environment access is off under MCP by default.**  `/env` (which would dump every variable) and the `$(env.NAME)` expansion are refused unless you opt in with `TERMAPY_MCP_ENV_ENABLED=1` in the server's shell -- env vars routinely hold secrets, and an MCP peer is remote/automated.  Like `/os`, the flag lives in the environment, not the cfg, so a cfg can't grant itself the read.
+- **Destructive device commands** (profile `safety: destructive`) refuse to run without an explicit `confirm=true`, which a well-behaved client elicits from the user.
+
+Wire-level device control (send bytes, read responses, run profiled commands) is of course available -- that's the point.  The gates above are about *host* access, not device access.
+
 ---
 
 ## Part 2: Hooking termapy into an MCP client

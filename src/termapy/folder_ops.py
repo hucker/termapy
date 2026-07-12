@@ -118,7 +118,21 @@ def _make_dump_handler(folder: str, pattern: str):
             return CmdResult.fail(msg="No config loaded.")
         name = args.strip()
         if name:
-            path = data_dir / name
+            # Containment: .dump reads files from within the folder only.
+            # ``data_dir / name`` with an absolute name (or ``../``) would
+            # otherwise escape to any path on disk -- an arbitrary-file
+            # read for an MCP client (/cap.dump C:\\Users\\me\\.secrets).
+            # Resolve and verify the target stays inside the folder, the
+            # same guard the MCP capture resource uses.  /show is the
+            # command for reading files outside the config dir, and it is
+            # capability-gated.
+            path = (data_dir / name).resolve()
+            try:
+                inside = path.is_relative_to(data_dir.resolve())
+            except OSError:
+                inside = False
+            if not inside:
+                return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
             if not path.exists():
                 return CmdResult.fail(msg=f"File not found: {name}")
         else:

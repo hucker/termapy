@@ -7,6 +7,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from termapy.env_flags import env_access_blocked
 from termapy.help_dynamic import compose, green
 from termapy.plugins import CmdResult, Command, Transform
 
@@ -15,6 +16,14 @@ if TYPE_CHECKING:
 
 # Snapshot environment at plugin load time - frozen for the session.
 _ENV = dict(os.environ)
+
+# Shared refusal message so the command handlers and the transform speak
+# with one voice about why env access is off.
+_MCP_BLOCKED_MSG = (
+    "Environment access is disabled under MCP.  Set "
+    "TERMAPY_MCP_ENV_ENABLED=1 in the server's shell to enable "
+    "$(env.NAME) expansion and /env."
+)
 
 
 def _cli_transform(text: str) -> str:
@@ -32,6 +41,13 @@ def _cli_transform(text: str) -> str:
     Returns:
         String with known placeholders replaced.
     """
+    # Under MCP without opt-in, refuse to expand rather than leak a
+    # single variable at a time (/print $(env.AWS_SECRET_ACCESS_KEY)).
+    # Only raise when the text actually contains a placeholder, so
+    # ordinary commands pass through untouched.
+    if env_access_blocked() and "$(env." in text:
+        raise ValueError(_MCP_BLOCKED_MSG)
+
     def _replace(m: re.Match) -> str:
         name = m.group(1)
         fallback = m.group(2)
@@ -60,6 +76,8 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Optional variable name or glob pattern to filter by.
     """
+    if env_access_blocked():
+        return CmdResult.fail(msg=_MCP_BLOCKED_MSG)
     pattern = args.strip()
     if pattern:
         if any(c in pattern for c in "*?[]"):
@@ -95,6 +113,8 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: ``"NAME value"`` string (both required).
     """
+    if env_access_blocked():
+        return CmdResult.fail(msg=_MCP_BLOCKED_MSG)
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
         return CmdResult.fail(msg="Usage: /env.set <name> <value>")
@@ -115,6 +135,8 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Unused.
     """
+    if env_access_blocked():
+        return CmdResult.fail(msg=_MCP_BLOCKED_MSG)
     _ENV.clear()
     _ENV.update(os.environ)
     ctx.io.output(f"Environment reloaded ({len(_ENV)} vars).", "green")

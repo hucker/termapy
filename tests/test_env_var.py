@@ -245,3 +245,100 @@ class TestEnvCommands:
         assert int(result.value) == len(_ENV), (
             "reload returns the post-reload variable count for scripting"
         )
+
+
+class TestMcpEnvGate:
+    """Under MCP, environment access is off unless TERMAPY_MCP_ENV_ENABLED.
+
+    The gate exists because an MCP client is a remote/automated peer and
+    env vars routinely hold secrets: a bare /env would dump them all,
+    and $(env.NAME) would leak them one at a time.  Interactive hosts
+    (CLI/TUI) are never gated -- the marker (`_under_mcp`) is only set by
+    the --mcp server entry.
+    """
+
+    def _ctx(self):
+        output = []
+        from termapy.plugins import IOHandle
+        return (
+            PluginContext(io=IOHandle(_write=lambda t, c=None: output.append((t, c)))),
+            output,
+        )
+
+    def test_not_under_mcp_allows_everything(self, monkeypatch):
+        # Arrange -- default process state: not under MCP.
+        from termapy import env_flags
+
+        monkeypatch.setattr(env_flags, "_under_mcp", False)
+        _ENV["GATE_PORT"] = "COM5"
+        ctx, _ = self._ctx()
+        # Act / Assert -- transform expands, /env lists.
+        assert _cli_transform("open $(env.GATE_PORT)") == "open COM5", (
+            "CLI/TUI path expands env normally"
+        )
+        assert _handler_list(ctx, "GATE_PORT").success, "/env works off-MCP"
+
+    def test_under_mcp_without_flag_blocks_transform(self, monkeypatch):
+        # Arrange -- under MCP, opt-in flag off.
+        from termapy import env_flags
+
+        monkeypatch.setattr(env_flags, "_under_mcp", True)
+        monkeypatch.setattr(env_flags, "MCP_ENV_ENABLED", False)
+        _ENV["SECRET_TOKEN"] = "shhh"
+        # Act / Assert -- single-var leak refused.
+        with pytest.raises(ValueError, match="disabled under MCP"):
+            _cli_transform("/print $(env.SECRET_TOKEN)")
+
+    def test_under_mcp_without_flag_passes_plain_text(self, monkeypatch):
+        # Arrange -- a command with no placeholder must still flow.
+        from termapy import env_flags
+
+        monkeypatch.setattr(env_flags, "_under_mcp", True)
+        monkeypatch.setattr(env_flags, "MCP_ENV_ENABLED", False)
+        # Act / Assert -- no $(env.) => untouched, no raise.
+        assert _cli_transform("rev") == "rev", (
+            "plain commands are unaffected by the env gate"
+        )
+
+    def test_under_mcp_without_flag_blocks_env_list(self, monkeypatch):
+        # Arrange
+        from termapy import env_flags
+
+        monkeypatch.setattr(env_flags, "_under_mcp", True)
+        monkeypatch.setattr(env_flags, "MCP_ENV_ENABLED", False)
+        ctx, _ = self._ctx()
+        # Act -- the mass-dump command.
+        result = _handler_list(ctx, "")
+        # Assert
+        assert not result.success, "/env refused under MCP"
+        assert "TERMAPY_MCP_ENV_ENABLED" in result.error, (
+            "refusal names the opt-in flag"
+        )
+
+    def test_under_mcp_with_flag_allows(self, monkeypatch):
+        # Arrange -- operator opted in.
+        from termapy import env_flags
+
+        monkeypatch.setattr(env_flags, "_under_mcp", True)
+        monkeypatch.setattr(env_flags, "MCP_ENV_ENABLED", True)
+        _ENV["OPTIN_PORT"] = "COM9"
+        ctx, _ = self._ctx()
+        # Act / Assert
+        assert _cli_transform("open $(env.OPTIN_PORT)") == "open COM9", (
+            "opt-in restores $(env.NAME) expansion under MCP"
+        )
+        assert _handler_list(ctx, "OPTIN_PORT").success, "/env works with opt-in"
+
+    def test_mark_under_mcp_latches(self, monkeypatch):
+        # Arrange -- start clean.
+        from termapy import env_flags
+
+        monkeypatch.setattr(env_flags, "_under_mcp", False)
+        monkeypatch.setattr(env_flags, "MCP_ENV_ENABLED", False)
+        assert env_flags.env_access_blocked() is False, "off-MCP not blocked"
+        # Act -- the server entry's one-way latch.
+        env_flags.mark_under_mcp()
+        # Assert
+        assert env_flags.env_access_blocked() is True, (
+            "marking MCP mode (no flag) blocks env access"
+        )

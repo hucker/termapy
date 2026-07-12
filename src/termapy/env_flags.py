@@ -20,10 +20,21 @@ The two flags:
   v0.65; retired to env-var-only in v0.66 because cfg-level policy
   cannot defend against a cfg that simply flips its own flag.
 
-Both are evaluated **once at import time** and cached as
-module-level constants.  Plugin code mutating ``os.environ`` at
-runtime cannot retroactively flip a decision the loader already made
--- the result has been captured in a local Python variable.
+- ``TERMAPY_MCP_ENV_ENABLED``: when truthy, process-environment access
+  (``/env`` / ``/env.list`` and the ``$(env.NAME)`` transform) is
+  allowed while running as an MCP server.  Default off: an MCP client
+  is a remote/automated peer, and environment variables routinely hold
+  secrets (API tokens, credentials), so a bare ``/env`` would dump them
+  all in one call.  Interactive hosts (CLI/TUI) are the user's own
+  shell and are never gated -- the gate applies only under ``--mcp``.
+  Same env-var-not-cfg rationale as ``/os``: a hostile cfg must not be
+  able to grant itself the read.
+
+The ``*_ENABLED`` / ``*_ONLY`` policy flags are evaluated **once at
+import time** and cached as module-level constants.  Plugin code
+mutating ``os.environ`` at runtime cannot retroactively flip a decision
+the loader already made -- the result has been captured in a local
+Python variable.
 
 Truthy vocabulary (case-insensitive): ``1``, ``true``, ``yes``,
 ``on``.  Anything else, including unset and empty string, is false.
@@ -50,6 +61,46 @@ def _truthy(value: str | None) -> bool:
 # would defeat the design -- they are intentionally NOT functions.
 TRUSTED_PLUGINS_ONLY: bool = _truthy(os.environ.get("TERMAPY_TRUSTED_PLUGINS_ONLY"))
 OS_CMD_ENABLED: bool = _truthy(os.environ.get("TERMAPY_OS_CMD_ENABLED"))
+MCP_ENV_ENABLED: bool = _truthy(os.environ.get("TERMAPY_MCP_ENV_ENABLED"))
 
 
-__all__ = ["TRUSTED_PLUGINS_ONLY", "OS_CMD_ENABLED", "_truthy"]
+# Runtime marker (NOT a frozen policy constant): set once by the MCP
+# server entry point so ctx-less code -- specifically the $(env.NAME)
+# transform, a pure string function with no PluginContext -- can tell it
+# is running under --mcp.  Command handlers that DO have a ctx can read
+# ``ctx.capabilities.interactive`` instead; this exists for the paths
+# that can't.  Left False for CLI/TUI/tests, so they are never gated.
+_under_mcp: bool = False
+
+
+def mark_under_mcp() -> None:
+    """Record that this process is serving MCP.  Called once at startup.
+
+    Idempotent.  Deliberately a one-way latch: nothing clears it, because
+    a process that has begun speaking the MCP wire protocol never becomes
+    an interactive session.
+    """
+    global _under_mcp
+    _under_mcp = True
+
+
+def env_access_blocked() -> bool:
+    """True when process-environment access must be refused right now.
+
+    The policy: block iff we are under MCP and the operator has not
+    opted in via ``TERMAPY_MCP_ENV_ENABLED``.  Interactive hosts
+    (``_under_mcp`` False) are never blocked.  Consulted by both the
+    ``/env*`` command handlers and the ``$(env.NAME)`` transform so the
+    two share one decision.
+    """
+    return _under_mcp and not MCP_ENV_ENABLED
+
+
+__all__ = [
+    "TRUSTED_PLUGINS_ONLY",
+    "OS_CMD_ENABLED",
+    "MCP_ENV_ENABLED",
+    "mark_under_mcp",
+    "env_access_blocked",
+    "_truthy",
+]

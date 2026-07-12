@@ -1216,6 +1216,15 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
         print(_INSTALL_HINT, file=sys.stderr)
         sys.exit(1)
 
+    # Latch the process into MCP mode before any command can run so the
+    # ctx-less $(env.NAME) transform and the /env handlers refuse
+    # environment access unless TERMAPY_MCP_ENV_ENABLED is set.  Done
+    # here (the sole --mcp entry) rather than in MCPHost.__init__ so
+    # unit tests that construct a host don't flip the global.
+    from termapy.env_flags import mark_under_mcp
+
+    mark_under_mcp()
+
     # Lazy-import config helpers so termapy.mcp.server stays cheap.
     from termapy.config import load_config
     from termapy.config_resolve import find_config, resolve_config

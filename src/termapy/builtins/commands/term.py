@@ -46,7 +46,17 @@ def _flag_toggle(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
 
 
 def _handler_echo(ctx: PluginContext, args: str) -> CmdResult:
+    # Device-command echo: echo of what's sent to the wire (bare commands
+    # + /term.send).  Backed by cfg["echo_input"]; the flag is the session
+    # state seeded from it.
     return _flag_toggle(ctx, args, "echo")
+
+
+def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
+    # REPL/slash-command echo (/cfg, /help, ...).  Distinct from device
+    # echo; a session-only flag (no cfg key), default per-host (on for the
+    # TUI, off for CLI/MCP -- see TerminalHost._init_flags).
+    return _flag_toggle(ctx, args, "echo_repl")
 
 
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
@@ -440,8 +450,13 @@ COMMAND = Command(
     sub_commands={
         "echo": Command(
             args="{on|off}",
-            help="Toggle echoing of sent commands in terminal output.",
+            help="Toggle echo of device commands sent to the wire (cfg echo_input).",
             handler=_handler_echo,
+        ),
+        "echo_repl": Command(
+            args="{on|off}",
+            help="Toggle echo of REPL/slash commands like /cfg (session only).",
+            handler=_handler_echo_repl,
         ),
         "send": Command(
             args="<text>",

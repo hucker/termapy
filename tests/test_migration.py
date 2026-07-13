@@ -638,6 +638,24 @@ def test_v23_to_v24_preserves_per_run_placeholders():
     )
 
 
+def test_v24_to_v25_drops_cli_echo_input():
+    """Migration v24->v25 removes the dead cli_echo_input key.
+
+    REPL-command echo moved to a session-only flag (echo_repl) with no cfg
+    key, so the migration only prunes the retired cli_echo_input.
+    """
+    # Arrange
+    cfg = {"config_version": 24, "port": "COM4", "cli_echo_input": True}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert "cli_echo_input" not in result, "dead cli_echo_input removed"
+    assert "echo_repl" not in result, "echo_repl is a session flag, not a cfg key"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.
@@ -649,9 +667,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labelled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 7, (
-        f"v17 -> v24 covers seven migrators "
-        f"(17->18, 18->19, 19->20, 20->21, 21->22, 22->23, 23->24); "
+    assert len(steps) == 8, (
+        f"v17 -> v25 covers eight migrators "
+        f"(17->18, 18->19, 19->20, 20->21, 21->22, 22->23, 23->24, 24->25); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -662,6 +680,7 @@ def test_migration_steps_recorded_per_version():
         "v21 -> v22",
         "v22 -> v23",
         "v23 -> v24",
+        "v24 -> v25",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -681,8 +700,8 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 4, (
-        f"four steps (v20->v21, v21->v22, v22->v23, v23->v24); got {steps!r}"
+    assert len(steps) == 5, (
+        f"five steps (v20->v21, v21->v22, v22->v23, v23->v24, v24->v25); got {steps!r}"
     )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"

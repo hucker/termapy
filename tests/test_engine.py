@@ -237,6 +237,7 @@ class TestRunScript:
         # Seed the `flags` namespace (would be done by app.py._build_context).
         flags = ctx.ns("flags")
         flags["echo"] = True
+        flags["echo_repl"] = True
         flags["output_level"] = "verbose"
         flags["hex_mode"] = False
         script = tmp_path / "test.run"
@@ -563,6 +564,7 @@ class TestDispatchFull:
         # Seed the `flags` namespace (would be done by app.py._build_context).
         flags = ctx.ns("flags")
         flags["echo"] = True
+        flags["echo_repl"] = True
         flags["output_level"] = "verbose"
         flags["hex_mode"] = False
 
@@ -623,15 +625,16 @@ class TestDispatchFull:
         assert len(writes) == 0, "not through normal serial_write"
 
     def test_echo_off_suppresses_output(self, dispatch_env):
-        # Arrange
+        # Arrange -- /help is a REPL command, so its echo is gated by
+        # echo_repl (device-command echo lives on the separate `echo` flag).
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
-        eng.ctx.ns("flags")["echo"] = False
+        eng.ctx.ns("flags")["echo_repl"] = False
 
         # Act
         do("/help")
 
         # Assert
-        assert len(echoed) == 0, "no echo when disabled"
+        assert len(echoed) == 0, "no REPL echo when echo_repl disabled"
 
     def test_not_connected_blocks_send(self, dispatch_env):
         # Arrange
@@ -706,6 +709,47 @@ class TestDispatchFull:
 
         # Assert - .silent commands should not be echoed even with echo on
         assert not any("echo.silent" in t for t in echoed), "suppressed"
+
+    def test_device_echo_follows_echo_flag_not_echo_repl(self, dispatch_env):
+        # Arrange - device-command echo is gated by `echo`; turning REPL
+        # echo off must not silence it (the two echoes are independent).
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        flags = eng.ctx.ns("flags")
+        flags["echo"] = True
+        flags["echo_repl"] = False
+
+        # Act
+        do("ATZ")
+
+        # Assert
+        assert any("ATZ" in t for t in echoed), "device command echoed on echo flag"
+
+    def test_device_echo_off_when_echo_flag_off(self, dispatch_env):
+        # Arrange - echo off suppresses device echo even with echo_repl on.
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        flags = eng.ctx.ns("flags")
+        flags["echo"] = False
+        flags["echo_repl"] = True
+
+        # Act
+        do("ATZ")
+
+        # Assert
+        assert not any("ATZ" in t for t in echoed), "no device echo when echo off"
+
+    def test_repl_echo_follows_echo_repl_not_echo_flag(self, dispatch_env):
+        # Arrange - REPL/slash echo is gated by echo_repl; device echo off
+        # must not silence it (the two echoes are independent).
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+        flags = eng.ctx.ns("flags")
+        flags["echo"] = False
+        flags["echo_repl"] = True
+
+        # Act
+        do("/help")
+
+        # Assert
+        assert any("/help" in t for t in echoed), "REPL command echoed on echo_repl flag"
 
 
 # ── wait_for_match / feed_lines ──────────────────────────────────

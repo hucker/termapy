@@ -23,11 +23,14 @@ AT+LED on
 AT+LED off
 
 # ── REPL: print and echo ────────────────────────────────────────────────────
+# /term.echo governs echo of DEVICE commands; /term.echo_repl governs echo of
+# REPL/slash commands like /print (see the two-echo split).  This section
+# toggles the REPL echo since it exercises slash commands.
 /print === section: print and echo ===
-/echo off
-/print echo is off - this should appear
-/echo on
-/print echo is on - this should appear with echo line
+/term.echo_repl off
+/print repl echo is off - this output appears, with no command-echo above it
+/term.echo_repl on
+/print repl echo is on - this output appears with its command-echo above it
 
 # ── REPL: variables (set/use/clear, but don't list all - times are dynamic)
 /print === section: variables ===

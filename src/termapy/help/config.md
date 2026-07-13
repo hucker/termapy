@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 24,
+    "config_version": 25,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -45,7 +45,6 @@ Here is an example config for a device called `iot_device`:
     "vt100_hint": true,
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
-    "cli_echo_input": false,
     "cli_completion": true,
     "config_read_only": false,
     "profile_path": "",
@@ -137,7 +136,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `cli_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`)                |
 | `mcp_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in MCP mode. Common: `echo off` to silence device   |
 | `profile_path`           | ` `                   | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention     |
-| `echo_input`             | `false`               | Show sent commands in the terminal output                                                   |
+| `echo_input`             | `false`               | Echo device commands sent to the wire (bare + `/term.send`). Toggle: `/term.echo`           |
 | `echo_input_fmt`         | `[purple]> {cmd}[/]`  | Rich markup format for echoed commands                                                      |
 | `log_file`               | ` `                   | Session log path (defaults to `<name>.log` in config subfolder)                             |
 | `show_timestamps`        | `false`               | Prefix lines with `[HH:MM:SS.mmm]`                                                          |
@@ -158,7 +157,6 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `vt100_hint`             | `true`                | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide)                      |
 | `cmd_prefix`             | `/`                   | Prefix for local REPL commands                                                              |
 | `cli_prompt`             | `$(CFG)>`             | Prompt string in CLI mode (supports variables)                                              |
-| `cli_echo_input`         | `false`               | Echo sent commands in CLI mode                                                              |
 | `cli_completion`         | `true`                | Enable CLI tab completion, auto-suggest, and help toolbar                                   |
 | `config_read_only`       | `false`               | Disable Edit button in pickers (`/cfg` still changes in-memory values)                      |
 | `cfg_enabled`            | `true`                | Show the Cfg button in the title bar                                                        |

@@ -401,16 +401,50 @@ class TerminalHost:
         # capabilities into the handles automatically.
         return ctx
 
-    def _init_flags(self, echo: bool = True) -> None:
+    def _init_flags(
+        self, echo_repl: bool = True, device_echo_allowed: bool = True
+    ) -> None:
         """Initialise the ``flags`` namespace with shared engine defaults.
 
+        There are two independent local echoes, gated by two flags:
+
+          - ``flags["echo"]`` -- echo of *device* commands (what's sent to
+            the wire: bare commands + /term.send).  Seeded from
+            ``cfg["echo_input"]`` -- the "cfg seeds the flag" pattern that
+            ``hex_mode`` uses below -- so it persists per config.  Toggled
+            by ``/term.echo`` (alias ``/echo``).
+          - ``flags["echo_repl"]`` -- echo of *slash / REPL* commands
+            (``/cfg``, ``/help``, ...).  A session-only flag with a
+            per-host default (below); not cfg-backed.  Toggled by
+            ``/term.echo_repl``.
+
+        Kept separate on purpose: at a device prompt you usually want to
+        see the commands you send (device echo) but not the REPL meta
+        commands.  Device echo (#1, the device parroting your bytes) is a
+        device-side concern, not modelled here.
+
+        REPL echo is session-only (no cfg key) because its right default is
+        per-host, which a single cfg key can't express: the TUI clears its
+        input on Enter, so echoing keeps a scrollback record; the CLI's OS
+        terminal already shows the typed line, so app-echo would duplicate
+        it.  Hence TUI passes ``echo_repl=True``, CLI/MCP ``False``.
+
         Args:
-            echo: Initial echo state (True for TUI, False for CLI).
+            echo_repl: Per-host default for REPL/slash-command echo (True
+                for the TUI, False for the CLI and MCP).
+            device_echo_allowed: Whether this host may echo device commands
+                at all.  True (TUI/CLI) seeds ``flags["echo"]`` from
+                ``cfg["echo_input"]``; False (MCP, headless) forces it off
+                regardless of cfg.
         """
         from termapy.plugins import DEFAULT_OUTPUT_LEVEL
 
         flags = self.ctx.ns("flags")
-        flags.setdefault("echo", echo)
+        flags.setdefault(
+            "echo",
+            self.cfg.get("echo_input", False) if device_echo_allowed else False,
+        )
+        flags.setdefault("echo_repl", echo_repl)
         flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
         flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
 

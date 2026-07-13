@@ -244,30 +244,77 @@ class TestBuildPluginContext:
 
 
 class TestInitFlags:
-    def test_echo_true(self, host):
-        # Arrange
+    def test_device_echo_seeded_from_cfg_when_allowed(self, host):
+        # Arrange -- device_echo_allowed=True (TUI/CLI); flags["echo"] is
+        # seeded from cfg['echo_input'], the same pattern as hex_mode.
+        host.cfg["echo_input"] = True
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
         # Act
-        host._init_flags(echo=True)
+        host._init_flags(device_echo_allowed=True)
 
         # Assert
         flags = host.ctx.ns("flags")
-        assert flags["echo"] is True, "echo set to True"
+        assert flags["echo"] is True, "echo seeded True from cfg['echo_input']"
         assert flags["output_level"] == "normal", "output_level defaults to normal"
 
-    def test_echo_false(self, host):
-        # Arrange
+    def test_device_echo_off_when_cfg_off(self, host):
+        # Arrange -- host may echo, but cfg says off -> flag off.
+        host.cfg["echo_input"] = False
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
         # Act
-        host._init_flags(echo=False)
+        host._init_flags(device_echo_allowed=True)
+
+        # Assert
+        assert host.ctx.ns("flags")["echo"] is False, (
+            "echo seeded from cfg (off) even when the host may echo"
+        )
+
+    def test_device_echo_forced_off_for_non_echoing_host(self, host):
+        # Arrange -- MCP passes device_echo_allowed=False; force off
+        # regardless of cfg (no terminal to echo to).
+        host.cfg["echo_input"] = True
+        api = host._build_internal_handle()
+        host.ctx = host._build_plugin_context(api)
+
+        # Act
+        host._init_flags(device_echo_allowed=False)
+
+        # Assert
+        assert host.ctx.ns("flags")["echo"] is False, (
+            "echo forced off for MCP even when cfg['echo_input'] is True"
+        )
+
+    def test_echo_repl_from_host_default_not_cfg(self, host):
+        # Arrange -- echo_repl is session-only with a per-host default:
+        # TUI passes True, CLI/MCP False.  It is not read from cfg.
+        host.cfg["echo_input"] = False  # device echo unrelated to repl echo
+        api = host._build_internal_handle()
+        host.ctx = host._build_plugin_context(api)
+
+        # Act
+        host._init_flags(echo_repl=True)
 
         # Assert
         flags = host.ctx.ns("flags")
-        assert flags["echo"] is False, "echo set to False for CLI"
+        assert flags["echo_repl"] is True, "echo_repl set from the host default"
+        assert flags["echo"] is False, "device echo independent of repl echo"
+
+    def test_echo_repl_off_by_host_default(self, host):
+        # Arrange -- CLI/MCP pass echo_repl=False.
+        api = host._build_internal_handle()
+        host.ctx = host._build_plugin_context(api)
+
+        # Act
+        host._init_flags(echo_repl=False)
+
+        # Assert
+        assert host.ctx.ns("flags")["echo_repl"] is False, (
+            "echo_repl off when the host default is False"
+        )
 
     def test_hex_mode_from_cfg(self, host):
         # Arrange
@@ -377,7 +424,7 @@ class TestDispatch:
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
         host.repl.set_context(host.ctx)
-        host._init_flags(echo=False)
+        host._init_flags()  # echo state irrelevant to this delegation test
         host.repl.register_hook(
             "ping", "", "test", lambda ctx, args: CmdResult.ok(value="pong"),
             source="test",

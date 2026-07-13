@@ -841,9 +841,11 @@ class TestDispatchFullEchoGating:
     """
 
     def test_request_mode_off_uses_legacy_echo(self, repl_env):
-        # Arrange -- echo_input on, request_mode off: legacy echo fires.
+        # Arrange -- echo flag on (/echo), request_mode off: legacy echo
+        # fires.  The bare-command echo now reads the live flag, not
+        # cfg['echo_input'] (which seeds the flag at init).
         engine, ctx, cfg, output, markup = repl_env
-        cfg["echo_input"] = True
+        ctx.ns("flags")["echo"] = True
         cfg["request_mode"] = False
         ctx.serial.is_connected = lambda: True
         captured: list[bytes] = []

@@ -394,10 +394,11 @@ class MCPHost(TerminalHost):
         )
         self.ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
         self.repl.set_context(self.ctx)
-        # MCP runs without echoing typed input (there's no human typing).
+        # MCP runs without echoing typed input (there's no human typing):
+        # REPL echo off, and device echo forced off regardless of cfg.
         # Default output_level "quiet" so Claude gets results, not
         # progress chatter.  Per-call override via run_command(output=...).
-        self._init_flags(echo=False)
+        self._init_flags(echo_repl=False, device_echo_allowed=False)
         self.ctx.ns("flags")["output_level"] = "quiet"
         self._register_hooks()
 

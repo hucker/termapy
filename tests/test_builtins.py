@@ -134,6 +134,51 @@ class TestEcho:
         assert engine.ctx.ns("flags")["echo"] is True, "toggled back on"
 
 
+# -- /term.echo_repl ------------------------------------------------------
+
+
+class TestEchoRepl:
+    """echo_repl gates REPL/slash-command echo, separately from `echo`."""
+
+    def test_echo_repl_on(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        engine.ctx.ns("flags")["echo_repl"] = False
+
+        # Act
+        engine.dispatch("term.echo_repl on")
+
+        # Assert
+        assert engine.ctx.ns("flags")["echo_repl"] is True, "echo_repl enabled"
+        assert any("on" in t for t, _ in output), "confirmation shown"
+
+    def test_echo_repl_off(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+        engine.ctx.ns("flags")["echo_repl"] = True
+
+        # Act
+        engine.dispatch("term.echo_repl off")
+
+        # Assert
+        assert engine.ctx.ns("flags")["echo_repl"] is False, "echo_repl disabled"
+        assert any("off" in t for t, _ in output), "confirmation shown"
+
+    def test_echo_repl_toggle_independent_of_echo(self, repl_env):
+        # Arrange - toggling echo_repl must not disturb the device-echo flag.
+        engine, _, _, output = repl_env
+        flags = engine.ctx.ns("flags")
+        flags["echo"] = True
+        flags["echo_repl"] = False
+
+        # Act - bare invocation toggles
+        engine.dispatch("term.echo_repl")
+
+        # Assert
+        assert flags["echo_repl"] is True, "echo_repl toggled on"
+        assert flags["echo"] is True, "device-echo flag untouched"
+
+
 # -- /print ---------------------------------------------------------------
 
 

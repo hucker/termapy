@@ -224,7 +224,7 @@ Built-ins use namespaces as worked examples of the pattern:
 ```text
 ctx.ns("seq")              - sequence counters, mutated by {seqN+} template expansion
 ctx.ns("target_commands")  - device commands imported via /include
-ctx.ns("flags")            - engine-owned toggles: echo, verbose, hex_mode
+ctx.ns("flags")            - engine-owned toggles: echo, echo_repl, output_level, hex_mode
 ```
 
 The `flags` namespace is engine-reserved. Third-party plugins should use their own namespace name (conventionally the plugin name, e.g. `ctx.ns("myplugin")`). The engine's flag defaults are set once at context construction in `_build_context`; read sites access them with bare key lookups, so a missing key is a construction bug, not silent drift.

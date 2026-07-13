@@ -994,13 +994,17 @@ class ReplEngine:
         _log = log or (lambda _d, _t: None)
         _echo = echo_markup or (lambda _t: None)
         _status = status or (lambda _t, _c: None)
-        echo_on = self.ctx.ns("flags")["echo"]
+        # REPL/slash-command echo (/cfg, /help, /raw, directives, warnings)
+        # is governed by echo_repl -- distinct from device-command echo
+        # (self.echo / cfg echo_input), which fires on the bare-line path.
+        # .get: a context built without _init_flags (some tests) lacks it.
+        echo_repl_on = self.ctx.ns("flags").get("echo_repl", False)
 
         # 1. /raw bypass - no transforms, no directives
         if cmd.startswith(prefix + "raw "):
             raw_text = cmd[len(prefix) + 4 :]
             _log(">", cmd)
-            if echo_on:
+            if echo_repl_on:
                 _echo(f"[cyan]> {cmd}[/]")
             if serial_write_raw:
                 serial_write_raw(raw_text)
@@ -1012,19 +1016,19 @@ class ReplEngine:
         result = self.run_directives(cmd)
         if result.action == "rewrite":
             _log(">", cmd)
-            if echo_on:
+            if echo_repl_on:
                 _echo(f"[cyan]> {cmd}[/]")
             return self.dispatch(result.payload)
         if result.action == "warn":
             _log(">", cmd)
-            if echo_on:
+            if echo_repl_on:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Warning: {result.payload}", "yellow")
             # Internal: warnings come back without a value to capture.
             return CmdResult.ok(value="")
         if result.action == "error":
             _log(">", cmd)
-            if echo_on:
+            if echo_repl_on:
                 _echo(f"[cyan]> {cmd}[/]")
             _status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
@@ -1045,7 +1049,7 @@ class ReplEngine:
             # against that: an empty command has no first token to inspect
             # for ".silent", so just echo unconditionally.
             first_word = repl_cmd.split()[0] if repl_cmd.split() else ""
-            if echo_on and ".silent" not in first_word:
+            if echo_repl_on and ".silent" not in first_word:
                 _echo_cmd(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
@@ -1084,7 +1088,12 @@ class ReplEngine:
         # executor will render a JSON-form request envelope instead so
         # the session log stays all-JSON in that mode.  Same intent
         # ("show what was typed"), different rendering.
-        if self.cfg.get("echo_input") and not self.cfg.get("request_mode"):
+        #
+        # Read the live echo flag (``self.echo``), not ``cfg["echo_input"]``
+        # -- so ``/echo`` governs bare device commands the same way it
+        # governs slash commands (which read the flag above).  The cfg key
+        # seeds the flag at init; the flag is the session truth.
+        if self.echo and not self.cfg.get("request_mode"):
             echo_text = cmd
             if self.cfg.get("show_line_endings", False) and eol_label:
                 le = self.cfg.get("line_ending", "\r")
@@ -1771,7 +1780,13 @@ class ReplEngine:
 
     @property
     def echo(self) -> bool:
+        """Live device-command echo (echo of what's sent to the wire)."""
         return self.ctx.ns("flags")["echo"]
+
+    @property
+    def echo_repl(self) -> bool:
+        """Live REPL/slash-command echo (/cfg, /help, ...)."""
+        return self.ctx.ns("flags").get("echo_repl", False)
 
     @property
     def in_script(self) -> bool:

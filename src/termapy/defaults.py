@@ -49,7 +49,6 @@ DEFAULT_CFG = {
     "vt100_hint": True,
     "cmd_prefix": DEFAULT_CMD_PREFIX,
     "cli_prompt": "$(CFG)> ",
-    "cli_echo_input": False,
     "cli_completion": True,
     "config_read_only": False,
     "profile_path": "",
@@ -85,7 +84,12 @@ DEFAULT_CFG = {
     "line_ending": "\r",
     # Input
     "send_bare_enter": False,
-    # Input echo
+    # Input echo of device commands sent to the wire (bare lines +
+    # /term.send).  A separate session-only flag, echo_repl, governs echo
+    # of REPL/slash commands (/cfg, /help, ...) -- it has no cfg key
+    # because its default is per-host (see TerminalHost._init_flags).
+    # (Device-side echo, where the device parrots your bytes, is a device
+    # concern and not modelled here.)
     "echo_input": False,
     "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
     # Logging
@@ -364,7 +368,10 @@ CFG_HELP: dict[str, tuple] = {
         "Send line ending when Enter pressed with no input.",
         "Valid: true, false",
     ),
-    "echo_input": ("Echo sent commands in the terminal output.", "Valid: true, false"),
+    "echo_input": (
+        "Echo device commands sent to the wire (toggle: /term.echo).",
+        "Valid: true, false",
+    ),
     "echo_input_fmt": (
         "Rich markup format for echoed commands.",
         "{cmd} is replaced. Example: [purple]> {cmd}[/]",
@@ -386,10 +393,6 @@ CFG_HELP: dict[str, tuple] = {
     "cli_prompt": (
         "Prompt string for CLI mode input.",
         "Default: '> '",
-    ),
-    "cli_echo_input": (
-        "Echo sent commands in CLI mode (readline already shows input).",
-        "true, false. Default: false",
     ),
     "cli_completion": (
         "Enable CLI tab completion, auto-suggest, and help toolbar.",

@@ -500,7 +500,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 24,
+    "config_version": 25,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -508,7 +508,6 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "vt100_hint": true,
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
-    "cli_echo_input": false,
     "cli_completion": true,
     "config_read_only": false,
     "profile_path": "",
@@ -580,7 +579,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `auto_reconnect`      | `false`                | Retry every 2.5s if the port drops or fails to open (does not control startup)                           |
 | `on_connect_cmd`      | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
 | `profile_path`        | `""`                   | Explicit path to a v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention lookup |
-| `echo_input`          | `false`                | Echo sent commands locally                                                                               |
+| `echo_input`          | `false`                | Echo device commands sent to the wire (bare lines + `/term.send`). Toggle: `/term.echo`                  |
 | `echo_input_fmt`      | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
 | `log_file`            | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
 | `show_timestamps`     | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
@@ -1246,9 +1245,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2783 tests, 71% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2800 tests, 71% core-module coverage</summary>
 
-2783 tests across 98 test files. Run with `uv run pytest`.
+2800 tests across 98 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

@@ -304,7 +304,10 @@ class CLITerminal(TerminalHost):
         self.ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
 
         self.repl.set_context(self.ctx)
-        self._init_flags(echo=False)
+        # CLI: REPL echo off by default -- the OS terminal already shows the
+        # typed line, so app-echo would duplicate it (scripts opt in with
+        # /term.echo_repl).  Device echo follows cfg echo_input.
+        self._init_flags(echo_repl=False)
         if self.output_level is not None:
             self.ctx.ns("flags")["output_level"] = self.output_level
 

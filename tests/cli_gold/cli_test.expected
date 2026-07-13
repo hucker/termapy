@@ -32,12 +32,11 @@ OK
 demo> AT+LED off
 OK
   === section: print and echo ===
-    Note: /echo is legacy; use /term.echo.
   off
-  echo is off - this should appear
+  repl echo is off - this output appears, with no command-echo above it
   on
-demo> /print echo is on - this should appear with echo line
-  echo is on - this should appear with echo line
+demo> /print repl echo is on - this output appears with its command-echo above it
+  repl echo is on - this output appears with its command-echo above it
 demo> /print === section: variables ===
   === section: variables ===
 > $(DEVICE) = BASSOMATIC
@@ -98,7 +97,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 24,
+      "config_version": 25,
       "default_ui": "tui",
       "vt100_hint": true,
       "title": "Demo Device",
@@ -106,7 +105,6 @@ demo> /cfg.dump
       "max_lines": 10000,
       "cmd_prefix": "/",
       "cli_prompt": "$(CFG)> ",
-      "cli_echo_input": false,
       "cli_completion": true,
       "config_read_only": false,
       "profile_path": "",
@@ -378,7 +376,7 @@ demo> /print === section: help ===
   === section: help ===
 demo> /help echo
 NAME
-  /echo - Toggle REPL command echo. Use /echo.silent to set without echoing.
+  /echo - Toggle echo of device commands sent to the wire. Use /echo.silent to set without echoing.
 
 SYNOPSIS
   /echo {on|off}

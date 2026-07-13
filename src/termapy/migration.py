@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 24
+CURRENT_CONFIG_VERSION = 25
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -72,6 +72,11 @@ DEPRECATED_CFG: dict[str, str] = {
     "os_cmd_enabled": (
         "retired in v19; /os is now gated by the TERMAPY_OS_CMD_ENABLED "
         "env var.  Set it to 1 in your shell to enable shell escapes."
+    ),
+    # v24 -> v25: removal
+    "cli_echo_input": (
+        "removed in v25 (was never wired to a consumer); use echo_input "
+        "for device-command echo, and /term.echo_repl for REPL-command echo"
     ),
 }
 
@@ -555,6 +560,22 @@ def _migrate_v23_to_v24(cfg: dict) -> dict:
 
 
 MIGRATIONS[23] = _migrate_v23_to_v24
+
+
+def _migrate_v24_to_v25(cfg: dict) -> dict:
+    """Retire the unused ``cli_echo_input`` config key.
+
+    ``echo_input`` now scopes to DEVICE-command echo (bare lines +
+    ``/term.send``) only; REPL/slash-command echo moved to a session-only
+    flag (``echo_repl``, toggled by ``/term.echo_repl``) with no cfg key.
+    ``cli_echo_input`` was added in v9 but never wired to a consumer, so it
+    is dropped.
+    """
+    cfg.pop("cli_echo_input", None)
+    return cfg
+
+
+MIGRATIONS[24] = _migrate_v24_to_v25
 
 
 def migrate_config(cfg: dict) -> dict:

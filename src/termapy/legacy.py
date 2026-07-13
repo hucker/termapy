@@ -165,7 +165,8 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
     LegacyForwarder(
         "echo",
         "{on|off}",
-        "Toggle REPL command echo. Use {prefix}echo.silent to set without echoing.",
+        "Toggle echo of device commands sent to the wire. "
+        "Use {prefix}echo.silent to set without echoing.",
         make_forwarder("echo", "term.echo"),
         CapabilitySet(interactive=True),  # legacy alias for human typing
     ),

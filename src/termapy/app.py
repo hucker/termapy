@@ -1189,7 +1189,9 @@ class SerialTerminal(TerminalHost, App):
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg
         self.ctx = ctx
-        self._init_flags(echo=True)
+        # TUI: REPL echo on (input clears on Enter, so echo keeps a
+        # scrollback record).  Device echo follows cfg echo_input.
+        self._init_flags(echo_repl=True)
         if self._initial_output_level is not None:
             ctx.ns("flags")["output_level"] = self._initial_output_level
 
@@ -2915,7 +2917,7 @@ class SerialTerminal(TerminalHost, App):
         Args:
             text: Literal text to send.
         """
-        if self.cfg.get("echo_input"):
+        if self.repl.echo:  # live echo flag, not cfg (see _init_flags)
             fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
             echo_text = text
             if self.cfg.get("show_line_endings", False):

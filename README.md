@@ -97,6 +97,10 @@ See the [detailed feature comparison](docs/comparison.md) against RealTerm, Cool
 
 </details>
 
+## Security
+
+Termapy runs with your privileges and does whatever you — or a connected MCP client — tell it, so point it at devices, profiles, and MCP clients you trust. The MCP server is **sandboxed by default**: host access beyond the serial device — files outside the config directory, network sockets, environment variables — is refused unless you opt in per-class with the `TERMAPY_MCP_*` environment variables, keeping an automated agent confined. A hostile device or profile can at worst hang a session.
+
 <details>
 <summary><strong>The basics</strong> - keyboard shortcuts, title bar, REPL commands</summary>
 

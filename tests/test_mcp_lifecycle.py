@@ -40,6 +40,18 @@ DEMO_NDJSON_PROFILE = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _unconfined_mcp(monkeypatch):
+    """Run the lifecycle tests unconfined.
+
+    These exercise profile-load-from-path, banners, and disconnect as
+    *features*; loading the demo profile fixture (an absolute path) would
+    otherwise be refused by the MCP filesystem sandbox.  The sandbox
+    itself is tested in test_fs_sandbox.py.
+    """
+    monkeypatch.setattr("termapy.env_flags.MCP_FS_UNCONFINED", True)
+
+
 # ── Profile schema rejects the retired `transport` block ────────────────────
 
 

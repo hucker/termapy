@@ -227,6 +227,9 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
 
 def _load_from_file(ctx: PluginContext, path_str: str) -> CmdResult:
     """Load a profile from disk and install it as the active profile."""
+    # Reading an arbitrary path is a parse/existence oracle under MCP;
+    # contain to the sandbox unless the operator opted out.
+    ctx.fs.guard_external_path(path_str, "Profile path")
     path = Path(path_str)
     if not path.exists():
         return CmdResult.fail(msg=f"Profile not found: {path}")
@@ -283,6 +286,9 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="No profile loaded.")
     args = args.strip()
     if args:
+        # Contain to the config sandbox under MCP; the default path below
+        # (co-located with the cfg) is always in-sandbox.
+        ctx.fs.guard_external_path(args, "Save path")
         path = Path(args)
     else:
         default = _default_save_path(ctx)

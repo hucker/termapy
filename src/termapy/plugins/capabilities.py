@@ -194,6 +194,25 @@ class CapabilitySet:
     #        with ``TERMAPY_GUI=1`` / ``TERMAPY_GUI=0``.  Not MCP.
     gui_apps: bool = False
 
+    # What:  Handler may resolve a caller-supplied path OUTSIDE the
+    #        per-config sandbox -- an absolute path or ``..`` traversal
+    #        (e.g. ``/cap.text file=<abs>``, ``/profile.save <abs>``,
+    #        ``/log.dump`` of a ``log_file`` outside the cfg dir).  When
+    #        absent, ``ctx.fs.resolve`` contains names to the folder and
+    #        refuses escapes.  Confines an automated peer to the config
+    #        sandbox without touching device control.
+    # Where: CLI, TUI (the operator IS the caller, on their own machine).
+    #        MCP only when ``TERMAPY_MCP_FS_UNCONFINED`` is set.
+    filesystem_unconfined: bool = False
+
+    # What:  Handler may open a NETWORK connection -- pyserial
+    #        serial-over-URL "ports" (``socket://``, ``rfc2217://``) via
+    #        ``/port.connect``.  When absent, a URL port is refused so an
+    #        automated peer can't open arbitrary outbound TCP (egress /
+    #        exfil); physical device ports are unaffected.
+    # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_NET_EGRESS`` is set.
+    network_egress: bool = False
+
     def satisfied_by(self, provided: "CapabilitySet") -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(
@@ -287,6 +306,10 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
     SSH in and out and reload termapy get fresh detection.
     """
     gui = detect_gui_apps()
+    # MCP host confinement is per-class opt-in from the server's shell;
+    # mirror it here so /help AVAILABLE reflects the running policy.
+    from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
+
     return {
         # TUI (Textual app): everything an interactive desktop terminal has.
         "TUI": CapabilitySet(
@@ -297,11 +320,22 @@ def _build_environments() -> dict[str, "CapabilitySet"]:
             confirm_dialog=True,
             ui_notify=True,
             status_bar=True,
+            filesystem_unconfined=True,
+            network_egress=True,
         ),
         # CLI (interactive REPL or --run script): interactive but no Textual UI.
-        "CLI": CapabilitySet(interactive=True, gui_apps=gui),
-        # MCP (stdio server): no human, no display.  Pure machine-driven.
-        "MCP": CapabilitySet(),
+        "CLI": CapabilitySet(
+            interactive=True,
+            gui_apps=gui,
+            filesystem_unconfined=True,
+            network_egress=True,
+        ),
+        # MCP (stdio server): no human, no display.  Host access beyond the
+        # device is sandboxed unless the operator opts in per-class.
+        "MCP": CapabilitySet(
+            filesystem_unconfined=MCP_FS_UNCONFINED,
+            network_egress=MCP_NET_EGRESS,
+        ),
     }
 
 

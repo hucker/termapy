@@ -232,6 +232,20 @@ class PluginContext:
         Set them here so hosts don't have to remember.
         """
         self.io.output_level_fn = lambda: self.output_level
+        self.sync_capabilities()
+
+    def sync_capabilities(self) -> None:
+        """Re-snapshot ``self.capabilities`` into the capability handles.
+
+        ``FilesystemHandle`` and ``UIHandle`` hold a snapshot of the
+        host's ``CapabilitySet`` (so their runtime gates -- ``fs.resolve``,
+        ``fs.open_file``, ``ui.confirm`` -- read the right one).  Hosts
+        that build the context first and assign ``ctx.capabilities``
+        afterward (app.py / cli.py / mcp) MUST call this so the snapshot
+        follows the reassignment; otherwise the handles keep the default
+        (all-restrictive) set and, e.g., a CLI operator would be sandboxed
+        by ``fs.resolve``.  Called once by ``__post_init__`` too.
+        """
         self.fs.capabilities = self.capabilities
         self.ui.capabilities = self.capabilities
 

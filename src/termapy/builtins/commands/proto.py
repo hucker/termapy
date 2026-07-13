@@ -1349,6 +1349,17 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 
     # ----- File output mode (file=STEM) -----
     if file_stem is not None:
+        # Writing generated source to the cwd is a host-filesystem write
+        # outside the config sandbox; refuse under the MCP sandbox (the
+        # inline/stdout mode below still works for a confined peer).
+        if not ctx.capabilities.filesystem_unconfined:
+            return CmdResult.fail(
+                msg=(
+                    "Writing generated files to disk is disabled under the "
+                    "MCP sandbox. Omit file= to get the source inline, or set "
+                    "TERMAPY_MCP_FS_UNCONFINED=1 in the server's shell."
+                )
+            )
         written = _write_crc_codegen_files(result, lang, file_stem, Path.cwd())
         ctx.io.output(
             f"Wrote {', '.join(str(p.name) for p in written)}", "green"

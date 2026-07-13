@@ -25,8 +25,15 @@ FIXTURES = Path(__file__).parent / "fixtures" / "profiles"
 
 
 @pytest.fixture
-def env(tmp_path):
-    """Build an MCPHost so ctx.internal is wired (catalog + plugins available)."""
+def env(tmp_path, monkeypatch):
+    """Build an MCPHost so ctx.internal is wired (catalog + plugins available).
+
+    These tests exercise the profile load/save *feature* against fixture
+    files outside the tmp sandbox, so the host runs unconfined (an
+    operator/opted-in posture); the MCP filesystem sandbox itself is
+    tested separately in test_fs_sandbox.py.
+    """
+    monkeypatch.setattr("termapy.env_flags.MCP_FS_UNCONFINED", True)
     cfg = dict(DEFAULT_CFG)
     cfg["port"] = ""
     config_path = tmp_path / "cfg" / "test.cfg"

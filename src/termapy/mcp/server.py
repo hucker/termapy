@@ -362,8 +362,19 @@ class MCPHost(TerminalHost):
         self.ctx.wait_for_match = self.repl.wait_for_match
         # Capabilities: baseline + block_until (for /expect).  Keeps
         # tui_mode/confirm_dialog/etc. off so commands that need a
-        # screen still fail-fast.
-        self.ctx.capabilities = CapabilitySet(block_until=True)
+        # screen still fail-fast.  Host access beyond the device is
+        # sandboxed: filesystem_unconfined / network_egress stay off
+        # unless the operator opts in per-class from the server's shell
+        # (secure default, power by opt-in -- same shape as the /env and
+        # /os gates).
+        from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
+
+        self.ctx.capabilities = CapabilitySet(
+            block_until=True,
+            filesystem_unconfined=MCP_FS_UNCONFINED,
+            network_egress=MCP_NET_EGRESS,
+        )
+        self.ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
         self.repl.set_context(self.ctx)
         # MCP runs without echoing typed input (there's no human typing).
         # Default output_level "quiet" so Claude gets results, not

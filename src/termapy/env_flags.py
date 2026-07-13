@@ -63,6 +63,16 @@ TRUSTED_PLUGINS_ONLY: bool = _truthy(os.environ.get("TERMAPY_TRUSTED_PLUGINS_ONL
 OS_CMD_ENABLED: bool = _truthy(os.environ.get("TERMAPY_OS_CMD_ENABLED"))
 MCP_ENV_ENABLED: bool = _truthy(os.environ.get("TERMAPY_MCP_ENV_ENABLED"))
 
+# Per-class opt-ins that lift the MCP host sandbox.  Default off: an MCP
+# client is a remote/automated peer, so host access beyond the device is
+# refused unless the operator opts in from the server's shell.  Each maps
+# to one restrictive capability the MCP host grants only when set (see
+# mcp/server.py); interactive hosts (CLI/TUI) grant both unconditionally.
+#   MCP_FS_UNCONFINED -> filesystem_unconfined (paths outside the cfg dir)
+#   MCP_NET_EGRESS    -> network_egress (serial-over-URL socket://, rfc2217://)
+MCP_FS_UNCONFINED: bool = _truthy(os.environ.get("TERMAPY_MCP_FS_UNCONFINED"))
+MCP_NET_EGRESS: bool = _truthy(os.environ.get("TERMAPY_MCP_NET_EGRESS"))
+
 
 # Runtime marker (NOT a frozen policy constant): set once by the MCP
 # server entry point so ctx-less code -- specifically the $(env.NAME)
@@ -100,6 +110,8 @@ __all__ = [
     "TRUSTED_PLUGINS_ONLY",
     "OS_CMD_ENABLED",
     "MCP_ENV_ENABLED",
+    "MCP_FS_UNCONFINED",
+    "MCP_NET_EGRESS",
     "mark_under_mcp",
     "env_access_blocked",
     "_truthy",

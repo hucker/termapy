@@ -493,16 +493,23 @@ COMMAND = Command(
             help="Show /cfg help.",
             handler=_handler_help,
         ),
+        # Desktop/menu launchers only make sense on a graphical host, and
+        # creating one spawns a subprocess (PowerShell on Windows).  Gate
+        # the whole family on gui_apps -- like /cfg.show / /cfg.explore --
+        # so a headless MCP peer can't write a launcher or spawn a process.
+        # (needs is per-command: subcommands don't inherit the parent's.)
         "icon": Command(
             args="{--force}",
             help="Create a desktop / menu launcher for the current cfg.",
             long_help=_ICON_LONG_HELP,
             handler=_icon_handler,
             flags=_ICON_FLAGS,
+            needs=CapabilitySet(gui_apps=True),
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_icon_handler_remove,
+                    needs=CapabilitySet(gui_apps=True),
                 ),
                 "list": Command(
                     help=(
@@ -510,6 +517,7 @@ COMMAND = Command(
                         "can see."
                     ),
                     handler=_icon_handler_list,
+                    needs=CapabilitySet(gui_apps=True),
                 ),
             },
         ),

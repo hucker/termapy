@@ -210,6 +210,48 @@ class TestMcpHostSandboxed:
             "refusal cites containment"
         )
 
+    def test_crc_calc_absolute_path_refused(self, tmp_path):
+        # Arrange -- crc.calc reads a file when its data arg is a path,
+        # an existence/size/CRC oracle.
+        host = _mcp_host(tmp_path)
+        # Act
+        result = host.repl.dispatch(rf"proto.crc.calc crc32 {tmp_path}\secret")
+        # Assert
+        assert not result.success, "crc.calc file-read refused under sandbox"
+        assert "sandbox" in result.error, "refusal cites the sandbox"
+
+    def test_crc_calc_literal_data_still_works(self, tmp_path):
+        # Arrange -- literal hex bytes are not a path; the guard is a no-op.
+        host = _mcp_host(tmp_path)
+        # Act
+        result = host.repl.dispatch("proto.crc.calc crc32 01 02 03 04")
+        # Assert
+        assert result.success, "literal-data crc.calc is unaffected by the sandbox"
+
+    def test_cfg_icon_filtered_from_catalog(self, tmp_path):
+        # Arrange -- icon spawns a subprocess / writes a desktop launcher;
+        # gated on gui_apps, which MCP lacks, so it drops out of the catalog.
+        from termapy.mcp.catalog import build_catalog
+
+        host = _mcp_host(tmp_path)
+        # Act
+        names = {c["name"] for c in build_catalog(host.ctx)["commands"]}
+        # Assert
+        assert "/cfg.icon" not in names, (
+            "cfg.icon is gated out of the MCP catalog (needs gui_apps)"
+        )
+
+    def test_cfg_icon_dispatch_refused(self, tmp_path):
+        # Arrange
+        host = _mcp_host(tmp_path)
+        # Act
+        result = host.repl.dispatch("cfg.icon")
+        # Assert -- the dispatch capability gate refuses it (not "unknown").
+        assert not result.success, "cfg.icon refused at dispatch under MCP"
+        assert "unknown" not in result.error.lower(), (
+            "refused for capability, not command-not-found"
+        )
+
 
 class TestMcpHostOptedIn:
     @pytest.fixture

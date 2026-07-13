@@ -802,6 +802,10 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
         is_hex = False
     else:
         data_str = parts[1]
+        # A file argument reads host bytes (an existence/size/CRC oracle);
+        # contain it to the sandbox under MCP.  Literal hex/text data is
+        # not a path, so this is a no-op for the normal case.
+        ctx.fs.guard_external_path(data_str, "CRC data path")
         # Check if the data argument is a file path
         candidate = Path(data_str)
         if candidate.is_file():

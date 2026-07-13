@@ -90,12 +90,15 @@ def _parse_mode(sections: dict[str, str]) -> str | None:
     return None
 
 
-def _resolve_path(filename: str, cap_dir: Path) -> Path | None:
-    """Resolve sequence numbering and path for a capture filename."""
-    path = Path(filename)
-    if not path.is_absolute():
-        path = cap_dir / filename
-    return path.resolve()
+def _resolve_path(ctx: PluginContext, filename: str) -> Path:
+    """Resolve a capture filename to a contained path under ``cap/``.
+
+    Routes through ``ctx.fs.resolve`` so an absolute path or ``..`` is
+    refused under the MCP sandbox (raises ``MissingCapability``, which the
+    dispatcher converts to a clean failure); the operator at a CLI/TUI
+    (``filesystem_unconfined``) keeps host-wide capture paths as before.
+    """
+    return ctx.fs.resolve(filename, "cap")
 
 
 # ── /cap.text handler ────────────────────────────────────────────────────────
@@ -118,7 +121,7 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(filename, ctx.fs.cap_dir)
+    path = _resolve_path(ctx, filename)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -152,7 +155,7 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(filename, ctx.fs.cap_dir)
+    path = _resolve_path(ctx, filename)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -270,7 +273,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(filename, ctx.fs.cap_dir)
+    path = _resolve_path(ctx, filename)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -374,9 +377,9 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
     file_name = ctx.arg("file")
     if file_name:
         name = file_name
-        p = Path(name)
-        if not p.is_absolute():
-            p = ctx.fs.cap_dir / name
+        # Contain to cap/ (raises under the MCP sandbox for an absolute
+        # path or ``..``; unconfined operator hosts keep host-wide paths).
+        p = ctx.fs.resolve(name, "cap")
         ext = ".csv" if fmt == "csv" else ".jsonl"
         if p.suffix.lower() not in (".csv", ".json", ".jsonl"):
             p = p.with_suffix(ext)

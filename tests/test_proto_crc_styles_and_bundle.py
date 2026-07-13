@@ -24,7 +24,7 @@ kwargs through.
 from __future__ import annotations
 
 from termapy.builtins.commands.proto import _crc_codegen
-from termapy.plugins import IOHandle, PluginContext
+from termapy.plugins import CapabilitySet, IOHandle, PluginContext
 
 
 def _build_stub_ctx():
@@ -46,6 +46,10 @@ def _build_stub_ctx():
     ctx = PluginContext(
         io=IOHandle(_write=write, _write_markup=write_markup),
         active_flags={},
+        # Codegen-to-file is an operator/CLI feature; run unconfined so the
+        # MCP filesystem sandbox (tested in test_fs_sandbox.py) doesn't gate
+        # the file= write under test here.
+        capabilities=CapabilitySet(filesystem_unconfined=True),
     )
     return ctx, captured, captured_markup
 

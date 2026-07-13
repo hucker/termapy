@@ -1180,7 +1180,11 @@ class SerialTerminal(TerminalHost, App):
             tui_mode=True,
             interactive=True,
             gui_apps=detect_gui_apps(),
+            # The operator is the caller on their own machine: no sandbox.
+            filesystem_unconfined=True,
+            network_egress=True,
         )
+        ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
 
         self.repl.set_context(ctx)
         self.repl._after_cfg = self._refresh_after_cfg

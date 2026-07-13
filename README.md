@@ -4,7 +4,7 @@
 
 **Powered by:** [![Textual](https://img.shields.io/badge/Textual-TUI-blue?logo=python)](https://textual.textualize.io/) [![pySerial](https://img.shields.io/badge/pySerial-serial%20I%2FO-orange?logo=python)](https://pyserial.readthedocs.io/) [![zensical](https://img.shields.io/badge/zensical-docs-green)](https://github.com/hucker/zensical)
 
-**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-70%25-yellow)](https://coverage.readthedocs.io/)
+**Built with:** ![python](https://img.shields.io/badge/python-3.11--3.14-blue) [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet?logo=astral)](https://docs.astral.sh/uv/) [![pytest](https://img.shields.io/badge/pytest-testing-yellow?logo=pytest)](https://pytest.org/) [![coverage](https://img.shields.io/badge/coverage-71%25-yellow)](https://coverage.readthedocs.io/)
 
 Pronounced "ter-map-ee"
 
@@ -96,6 +96,10 @@ See the [detailed feature comparison](docs/comparison.md) against RealTerm, Cool
 - **You need a GUI with menus and mouse-driven workflows.** Termapy runs in your terminal. It has a TUI with buttons and dialogs, but it's keyboard-first and text-based. If you want drag-and-drop or a Windows-native look, try Tera Term or Docklight.
 
 </details>
+
+## Security
+
+Termapy runs with your privileges and does whatever you — or a connected MCP client — tell it, so point it at devices, profiles, and MCP clients you trust. The MCP server is **sandboxed by default**: host access beyond the serial device — files outside the config directory, network sockets, environment variables — is refused unless you opt in per-class with the `TERMAPY_MCP_*` environment variables, keeping an automated agent confined. A hostile device or profile can at worst hang a session.
 
 <details>
 <summary><strong>The basics</strong> - keyboard shortcuts, title bar, REPL commands</summary>
@@ -1236,9 +1240,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2726 tests, 70% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2783 tests, 71% core-module coverage</summary>
 
-2726 tests across 97 test files. Run with `uv run pytest`.
+2783 tests across 98 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

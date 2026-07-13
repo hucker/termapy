@@ -105,6 +105,12 @@ def _find_cfg_container(cfg, key: str):
 
 # ── /cfg.auto handler ─────────────────────────────────────────────────────────
 
+# Cfg keys whose value is a filesystem path.  Setting one to an
+# out-of-sandbox path turns a later read/load into an arbitrary-file
+# primitive (e.g. log_file -> /log.dump), so they are contained under
+# the MCP sandbox like any other caller-supplied path.
+_PATH_VALUED_CFG_KEYS = frozenset({"log_file", "profile_path"})
+
 
 def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     """Set a config key immediately without confirmation dialog.
@@ -117,6 +123,8 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     container = _find_cfg_container(ctx.cfg, key)
     if container is None:
         return CmdResult.fail(msg=f"Unknown config key: {key}")
+    if key in _PATH_VALUED_CFG_KEYS and value_str:
+        ctx.fs.guard_external_path(value_str, f"cfg {key}")
     try:
         new_val = coerce_to_type(value_str, container[key])
     except (ValueError, TypeError) as e:
@@ -173,6 +181,11 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg=f"Usage: {ctx.prefix}cfg.load <name>"
         )
+    # A bare name / in-sandbox relative path (the MCP hot-swap case) is
+    # allowed; an absolute path or ``..`` -- which load_config would read
+    # AND rewrite with defaults, clobbering any JSON file -- is refused
+    # under the MCP sandbox.
+    ctx.fs.guard_external_path(name, "Config")
     return ctx.internal.load_config(name)
 
 
@@ -480,16 +493,23 @@ COMMAND = Command(
             help="Show /cfg help.",
             handler=_handler_help,
         ),
+        # Desktop/menu launchers only make sense on a graphical host, and
+        # creating one spawns a subprocess (PowerShell on Windows).  Gate
+        # the whole family on gui_apps -- like /cfg.show / /cfg.explore --
+        # so a headless MCP peer can't write a launcher or spawn a process.
+        # (needs is per-command: subcommands don't inherit the parent's.)
         "icon": Command(
             args="{--force}",
             help="Create a desktop / menu launcher for the current cfg.",
             long_help=_ICON_LONG_HELP,
             handler=_icon_handler,
             flags=_ICON_FLAGS,
+            needs=CapabilitySet(gui_apps=True),
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_icon_handler_remove,
+                    needs=CapabilitySet(gui_apps=True),
                 ),
                 "list": Command(
                     help=(
@@ -497,6 +517,7 @@ COMMAND = Command(
                         "can see."
                     ),
                     handler=_icon_handler_list,
+                    needs=CapabilitySet(gui_apps=True),
                 ),
             },
         ),

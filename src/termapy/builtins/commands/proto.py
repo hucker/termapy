@@ -802,6 +802,10 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
         is_hex = False
     else:
         data_str = parts[1]
+        # A file argument reads host bytes (an existence/size/CRC oracle);
+        # contain it to the sandbox under MCP.  Literal hex/text data is
+        # not a path, so this is a no-op for the normal case.
+        ctx.fs.guard_external_path(data_str, "CRC data path")
         # Check if the data argument is a file path
         candidate = Path(data_str)
         if candidate.is_file():
@@ -1349,6 +1353,17 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 
     # ----- File output mode (file=STEM) -----
     if file_stem is not None:
+        # Writing generated source to the cwd is a host-filesystem write
+        # outside the config sandbox; refuse under the MCP sandbox (the
+        # inline/stdout mode below still works for a confined peer).
+        if not ctx.capabilities.filesystem_unconfined:
+            return CmdResult.fail(
+                msg=(
+                    "Writing generated files to disk is disabled under the "
+                    "MCP sandbox. Omit file= to get the source inline, or set "
+                    "TERMAPY_MCP_FS_UNCONFINED=1 in the server's shell."
+                )
+            )
         written = _write_crc_codegen_files(result, lang, file_stem, Path.cwd())
         ctx.io.output(
             f"Wrote {', '.join(str(p.name) for p in written)}", "green"

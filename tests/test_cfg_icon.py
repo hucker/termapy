@@ -50,6 +50,12 @@ def cfg_env(tmp_path, monkeypatch):
     )
     eng.ctx.config_path = str(cfg_path)
     eng.ctx.cfg = cfg
+    # /cfg.icon needs gui_apps (a desktop-launcher feature); grant it so
+    # these feature tests run.  A headless MCP host lacks it -- that gating
+    # is asserted in test_fs_sandbox.py.
+    from termapy.plugins import CapabilitySet
+    eng.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
+    eng.ctx.sync_capabilities()
     flags = eng.ctx.ns("flags")
     flags["output_level"] = "verbose"
     return eng, cfg_dir, fake_home, output

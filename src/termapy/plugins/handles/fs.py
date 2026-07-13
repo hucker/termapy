@@ -61,3 +61,83 @@ class FilesystemHandle:
                 "declare needs=CapabilitySet(gui_apps=True) on your Command"
             )
         self._open_file_impl(path)
+
+    # The one place caller-supplied file names become paths.  Every
+    # command that reads or writes a user-named file MUST route through
+    # here so containment is a single checkable invariant, not a
+    # per-command discipline (which historically some commands got and
+    # some missed).  See docs and the security audit.
+    _FOLDER_ATTRS = {
+        "cap": "cap_dir",
+        "scripts": "scripts_dir",
+        "proto": "proto_dir",
+        "prof": "prof_dir",
+        "ss": "ss_dir",
+    }
+
+    def resolve(self, name: str, folder: str) -> Path:
+        """Resolve a caller-supplied file name against a per-config folder.
+
+        A plain name lands inside ``folder``.  An absolute path or ``..``
+        that escapes the folder is refused UNLESS the host grants
+        ``filesystem_unconfined`` -- so an MCP client (a remote/automated
+        peer) is confined to the config sandbox, while the operator at a
+        CLI/TUI keeps host-wide paths.  Reuses the same
+        ``resolve()`` + ``is_relative_to`` containment as the ``.dump``
+        commands and the MCP capture resource.
+
+        Args:
+            name: Caller-supplied file name or path.
+            folder: Which per-config folder -- one of ``"cap"``,
+                ``"scripts"``, ``"proto"``, ``"prof"``, ``"ss"``.
+
+        Returns:
+            The resolved absolute ``Path``.
+
+        Raises:
+            MissingCapability: ``name`` escapes ``folder`` and the host
+                lacks ``filesystem_unconfined`` (dispatch converts this to
+                a clean ``CmdResult.fail``).
+            ValueError: unknown ``folder``.
+        """
+        attr = self._FOLDER_ATTRS.get(folder)
+        if attr is None:
+            raise ValueError(f"Unknown folder: {folder!r}")
+        base = Path(getattr(self, attr))
+        target = (base / name).resolve()
+        try:
+            inside = target.is_relative_to(base.resolve())
+        except OSError:
+            inside = False
+        if inside or self.capabilities.filesystem_unconfined:
+            return target
+        raise MissingCapability(
+            f"Path {name!r} escapes the {folder}/ sandbox. The MCP host is "
+            f"confined to the config directory; set TERMAPY_MCP_FS_UNCONFINED=1 "
+            f"in the server's shell to allow host-wide paths."
+        )
+
+    def guard_external_path(self, arg: str, what: str = "Path") -> None:
+        """Refuse a free-path argument that points outside the sandbox.
+
+        For commands whose argument is a whole path rather than a
+        folder-relative name (e.g. ``/profile.save <path>``,
+        ``/profile.load <path>``, ``/cfg.load <path>``): an absolute path
+        or a ``..`` traversal is refused UNLESS the host grants
+        ``filesystem_unconfined``.  A plain name or in-sandbox relative
+        path is always allowed, so name-based loads (``/cfg.load mydevice``)
+        keep working under the MCP sandbox.
+
+        Raises:
+            MissingCapability: ``arg`` escapes the sandbox and the host
+                lacks ``filesystem_unconfined``.
+        """
+        p = Path(arg)
+        escapes = p.is_absolute() or ".." in p.parts
+        if escapes and not self.capabilities.filesystem_unconfined:
+            raise MissingCapability(
+                f"{what} {arg!r} is outside the config sandbox. The MCP host "
+                f"is confined to the config directory; set "
+                f"TERMAPY_MCP_FS_UNCONFINED=1 in the server's shell to allow "
+                f"host-wide paths."
+            )

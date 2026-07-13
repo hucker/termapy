@@ -135,10 +135,14 @@ pytest_mcp = pytest.importorskip(
 
 class TestProfileLoadAcceptsBundled:
     @pytest.fixture
-    def host(self, tmp_path):
+    def host(self, tmp_path, monkeypatch):
         from termapy.defaults import DEFAULT_CFG
         from termapy.mcp.server import MCPHost
 
+        # Loading a bundled profile by its absolute path is the feature
+        # under test; run unconfined so the MCP filesystem sandbox (tested
+        # in test_fs_sandbox.py) doesn't refuse the fixture path.
+        monkeypatch.setattr("termapy.env_flags.MCP_FS_UNCONFINED", True)
         cfg = dict(DEFAULT_CFG)
         cfg["port"] = ""
         config_path = tmp_path / "cfg" / "test.cfg"

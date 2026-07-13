@@ -69,6 +69,18 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     if err:
         ctx.io.output(err, "red")
         return CmdResult.fail(msg=err)
+    # Network egress: a serial-over-URL "port" (socket://, rfc2217://)
+    # opens an outbound TCP connection.  Refuse under the MCP sandbox so
+    # an automated peer can't reach arbitrary hosts; physical ports are
+    # unaffected.  Checked before any cfg mutation.
+    if port and "://" in port and not ctx.capabilities.network_egress:
+        msg = (
+            "Network ports (socket://, rfc2217://) are disabled under the MCP "
+            "sandbox. Set TERMAPY_MCP_NET_EGRESS=1 in the server's shell to "
+            "allow them."
+        )
+        ctx.io.output(msg, "red")
+        return CmdResult.fail(msg=msg)
     # Apply all optional settings to config before connecting so the
     # port opens with the requested settings.  Each branch is a no-op
     # when the user didn't supply that field.

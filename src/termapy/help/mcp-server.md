@@ -119,11 +119,12 @@ The MCP server runs with no interactive session, so termapy's capability gate bl
 
 - **Shell escape (`/os`)** is unreachable under MCP (needs an interactive session) *and* separately gated by `TERMAPY_OS_CMD_ENABLED`.
 - **File viewers / editors / explorers** (`/show <path>`, `/edit`, `/cfg.explore`, the folder `.show`/`.explore` verbs) are unreachable -- they need a local desktop.
-- **Capture reads** (`termapy://capture/<name>`) and **`.dump` commands** (`/cap.dump`, `/run.dump`, ...) are contained to the config folder; an absolute path or `../` is refused.  Reading files elsewhere is what `/show` is for, and `/show` is gated off.
+- **The filesystem is sandboxed to the config directory.**  Every command that reads or writes a caller-named file -- captures (`/cap.text|bin|struct|hex`, `/cap.poll file=`), reads (`termapy://capture/<name>`, the `.dump` commands), `/profile.load|save`, `/cfg.load`, `/log.dump`, generated CRC source (`/proto.crc.<lang> file=`) -- is confined to `termapy_cfg/<name>/`.  An absolute path or `../` that escapes the sandbox is refused, and a path-valued cfg key (`log_file`) can't be pointed outside it via `/cfg.auto`.  Load configs and profiles by *name*, not by host path.  To allow host-wide paths, set `TERMAPY_MCP_FS_UNCONFINED=1` in the server's shell.
+- **Network egress is off by default.**  pyserial "URL ports" (`/port.connect socket://host:port`, `rfc2217://...`) would open an outbound TCP connection to an arbitrary host; they're refused unless you set `TERMAPY_MCP_NET_EGRESS=1`.  Physical device ports are unaffected.
 - **Environment access is off under MCP by default.**  `/env` (which would dump every variable) and the `$(env.NAME)` expansion are refused unless you opt in with `TERMAPY_MCP_ENV_ENABLED=1` in the server's shell -- env vars routinely hold secrets, and an MCP peer is remote/automated.  Like `/os`, the flag lives in the environment, not the cfg, so a cfg can't grant itself the read.
 - **Destructive device commands** (profile `safety: destructive`) refuse to run without an explicit `confirm=true`, which a well-behaved client elicits from the user.
 
-Wire-level device control (send bytes, read responses, run profiled commands) is of course available -- that's the point.  The gates above are about *host* access, not device access.
+Wire-level device control (send bytes, read responses, run profiled commands) is of course available -- that's the point.  The gates above are about *host* access, not device access.  The three `TERMAPY_MCP_*` opt-in flags live in the server's shell, not the cfg, so a shared or device-fetched config can never grant itself host access (the same rationale as `/os`'s `TERMAPY_OS_CMD_ENABLED`).
 
 ---
 

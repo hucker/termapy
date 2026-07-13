@@ -51,6 +51,24 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     if not path:
         return CmdResult.fail(msg="No log file configured.")
     p = Path(path)
+    # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg.auto),
+    # turning /log.dump into an arbitrary-file read.  Under the MCP host,
+    # refuse a log path outside the config directory.  Reading the cfg's
+    # own in-sandbox log stays fine.
+    if not ctx.capabilities.filesystem_unconfined and ctx.config_path:
+        sandbox = Path(ctx.config_path).parent.resolve()
+        try:
+            inside = p.resolve().is_relative_to(sandbox)
+        except OSError:
+            inside = False
+        if not inside:
+            return CmdResult.fail(
+                msg=(
+                    "Log file is outside the config sandbox; refusing to read "
+                    "it under the MCP host. Set TERMAPY_MCP_FS_UNCONFINED=1 in "
+                    "the server's shell to allow host-wide paths."
+                )
+            )
     if not p.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
 

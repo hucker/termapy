@@ -206,7 +206,7 @@ def _build_help_tooltip(ver: str):
     grid.add_row("pyserial",         "serial I/O",     "Chris Liechti")
     grid.add_row("Textual / Rich",   "TUI + output",   "Will McGugan")
     grid.add_row("prompt_toolkit",   "CLI",            "Jonathan Slenders")
-    grid.add_row("reveng catalogue", reveng_role,      "Greg Cook")
+    grid.add_row("reveng catalog", reveng_role,      "Greg Cook")
     grid.add_row("xmodem",           "file transfer",
                  "Wijnand Modderman, Jeff Quast, Andrew Leech")
     grid.add_row("ymodem",           "file transfer",  "alexwoo")
@@ -1066,7 +1066,7 @@ class SerialTerminal(TerminalHost, App):
         sees the same version on PyPI and does not unhide).
         """
         # Narrow catch: PackageNotFoundError covers running from a
-        # git clone without an install.  update_check.check() honours
+        # git clone without an install.  update_check.check() honors
         # its own "never raises to the user" contract internally, so
         # we trust it not to leak other exceptions here.
         from importlib.metadata import PackageNotFoundError
@@ -2206,7 +2206,7 @@ class SerialTerminal(TerminalHost, App):
     def _on_record_filename(self, name: str | None) -> None:
         """Modal callback for the Record button's filename prompt."""
         if not name:
-            return  # cancelled
+            return  # canceled
         self._dispatch_on_thread(f"/run.record {name}")
         self._refresh_record_button()
 
@@ -2794,7 +2794,7 @@ class SerialTerminal(TerminalHost, App):
                 body = f"{prefix}{hex_str}"
             else:
                 body = f"{prefix}{text}"
-            # from_ansi renders device SGR colour; when colour is off, strip
+            # from_ansi renders device SGR color; when color is off, strip
             # the escapes and render plain so raw bytes don't leak through.
             if color_on:
                 log.write(Text.from_ansi(body))
@@ -2859,7 +2859,7 @@ class SerialTerminal(TerminalHost, App):
         inp.placeholder = self._saved_placeholder
 
     def _set_input_busy(self, busy: bool) -> None:
-        """Grey out the prompt + bottom-bar buttons while a typed command runs.
+        """Gray out the prompt + bottom-bar buttons while a typed command runs.
 
         Visual companion to ``_dispatch_guard``: the guard guarantees one
         command at a time, and this makes that obvious on the common typed-
@@ -3350,7 +3350,7 @@ class SerialTerminal(TerminalHost, App):
         """Handle result from the ProtoEditor dialog.
 
         Args:
-            path: Saved file path, or None if cancelled.
+            path: Saved file path, or None if canceled.
         """
         if path:
             self._status(f"Proto script saved: {Path(path).name}", "green")
@@ -3364,7 +3364,7 @@ class SerialTerminal(TerminalHost, App):
         Vocabulary: "clear" should mean "empty visible/transient state"
         (``/cls`` for the screen; ``/var.clear`` for variables;
         ``/seq.reset`` for counters), and "delete" should mean
-        "permanently remove from disk."  Pre-rename behaviour
+        "permanently remove from disk."  Pre-rename behavior
         conflated those.
         """
         log_path = self._log_path()

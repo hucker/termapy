@@ -1,7 +1,7 @@
 """End-to-end tests for ``--exec`` / ``-e`` one-shot CLI mode.
 
 These are subprocess-spawning tests (mirroring ``test_cli_gold.py`` and
-``test_cli_prefix.py``) because the behaviour we care about -- exit
+``test_cli_prefix.py``) because the behavior we care about -- exit
 code, stdout shape, autorun suppression -- only manifests through the
 real entry point.
 """

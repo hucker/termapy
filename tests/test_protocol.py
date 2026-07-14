@@ -1089,7 +1089,7 @@ class TestFormatDiffMarkupOverflow:
 
 
 class TestCrcPlugins:
-    """Tests for CRC plugin loading, catalogue, and computation."""
+    """Tests for CRC plugin loading, catalog, and computation."""
 
     def test_plugins_load_sum_only(self):
         """Built-in CRC plugin directory loads only sum8 and sum16."""
@@ -1106,11 +1106,11 @@ class TestCrcPlugins:
         assert actual == expected
 
     def test_registry_has_catalogue_and_plugins(self):
-        """Registry includes catalogue entries + plugin entries."""
+        """Registry includes catalog entries + plugin entries."""
         reset_crc_registry()
         registry = get_crc_registry()
 
-        # Catalogue entries
+        # Catalog entries
         assert "crc16-modbus" in registry
         assert "crc16-xmodem" in registry
         assert "crc32" in registry
@@ -1121,13 +1121,13 @@ class TestCrcPlugins:
         assert isinstance(registry["crc16-modbus"], CrcAlgorithm)
 
     def test_crc16_modbus_width(self):
-        """CRC-16/Modbus catalogue entry has width=2 bytes."""
+        """CRC-16/Modbus catalog entry has width=2 bytes."""
         reset_crc_registry()
         registry = get_crc_registry()
         assert registry["crc16-modbus"].width == 2
 
     def test_crc16_modbus_compute(self):
-        """CRC-16/Modbus via catalogue matches known Modbus frame CRC."""
+        """CRC-16/Modbus via catalog matches known Modbus frame CRC."""
         reset_crc_registry()
         registry = get_crc_registry()
         # Modbus read request: slave=1, func=3, addr=0, count=10
@@ -1142,21 +1142,21 @@ class TestCrcPlugins:
         assert algos == {}
 
 
-# ── Generic CRC engine - reveng catalogue check values ─────────────────
+# ── Generic CRC engine - reveng catalog check values ─────────────────
 
 
-# crcglot 0.10 dropped the short termapy-side aliases; the catalogue is
+# crcglot 0.10 dropped the short termapy-side aliases; the catalog is
 # canonical reveng names only now.
 _CANONICAL_NAMES = list(CRC_CATALOGUE)
 _CHECK_DATA = b"123456789"
 
 
 class TestGenericCrcEngine:
-    """Verify generic CRC engine against every reveng catalogue check value."""
+    """Verify generic CRC engine against every reveng catalog check value."""
 
     @pytest.mark.parametrize("name", _CANONICAL_NAMES)
     def test_catalogue_check_value(self, name):
-        """Generic engine matches reveng catalogue check value."""
+        """Generic engine matches reveng catalog check value."""
         # crcglot 0.23 narrowed generic_crc to (data, Crc) -- wrap the
         # entry dict into a Crc value object before dispatching.
         entry = CRC_CATALOGUE[name]
@@ -1173,11 +1173,11 @@ class TestGenericCrcEngine:
 
 
 class TestCrcCatalogue:
-    """Verify CRC catalogue metadata."""
+    """Verify CRC catalog metadata."""
 
     @pytest.mark.parametrize("name", _CANONICAL_NAMES)
     def test_every_entry_has_desc(self, name):
-        """Every catalogue entry has a non-empty desc string."""
+        """Every catalog entry has a non-empty desc string."""
         entry = CRC_CATALOGUE[name]
         assert "desc" in entry, "missing desc field"
         assert isinstance(entry["desc"], str), "desc must be a string"
@@ -1189,7 +1189,7 @@ class TestCrcCatalogue:
         actual = len(CRC_CATALOGUE)
         expected = len(ALGORITHMS)
         assert actual == expected, (
-            f"shim catalogue size diverged from crcglot: "
+            f"shim catalog size diverged from crcglot: "
             f"{actual} vs {expected}"
         )
 
@@ -1338,7 +1338,7 @@ class TestParseFormatSpec:
         assert cols[0].crc_data_range == (0, 5), "1-based \u2192 0-based"
 
     def test_crc_hyphenated_name_le(self):
-        """CRC with hyphenated catalogue name: crc16-modbus_le."""
+        """CRC with hyphenated catalog name: crc16-modbus_le."""
         cols = parse_format_spec("CRC:crc16-modbus_le")
         assert cols[0].type_code == "crc"
         assert cols[0].crc_algo == "crc16-modbus"

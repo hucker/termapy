@@ -169,14 +169,14 @@ class TestPythonSlice8Fallback:
 
 class TestCustomParamsDispatch:
     """``/proto.crc.<lang> width=N poly=X ...`` (custom Rocksoft/Williams
-    parameters, no catalogue lookup) dispatches and produces output.
+    parameters, no catalog lookup) dispatches and produces output.
 
     Regression guard for two things:
       1. crcglot 0.8.0's ``*_from_entry`` generators take a typed
          ``AlgorithmInfo``, not a dict -- termapy builds the dataclass.
       2. Custom params + C + stdout (no file=) previously crashed on an
          unbound ``name`` in the stdout banner; it's unified with the
-         catalogue branch's ``name`` now.
+         catalog branch's ``name`` now.
     """
 
     def _build_stub_ctx(self):

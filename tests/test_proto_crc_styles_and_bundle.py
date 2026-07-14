@@ -8,7 +8,7 @@ These exercise the wrapper in
   the per-language allowed set from crcglot
   (``comment_style_for`` / ``styles_for_language``);
 * threads the resulting ``comment_style`` kwarg into both the
-  catalogue ``gen()`` and the custom ``gen_entry()`` paths;
+  catalog ``gen()`` and the custom ``gen_entry()`` paths;
 * accepts multiple algorithm names as positional args, calling the
   generator once per algorithm and merging the results via the
   language's ``combiner`` callable on ``LanguageInfo``;

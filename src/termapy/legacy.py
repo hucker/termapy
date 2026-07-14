@@ -173,7 +173,7 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
     LegacyForwarder(
         "color",
         "{on|off}",
-        "Toggle rendering of device ANSI colour.",
+        "Toggle rendering of device ANSI color.",
         make_forwarder("color", "term.color"),
         CapabilitySet(interactive=True),  # legacy alias for human typing
     ),
@@ -227,7 +227,7 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
 LEGACY_COMMANDS["verbose"] = "term.output"
 LEGACY_COMMANDS["term.verbose"] = "term.output"
 # ``.quiet`` was the pre-output-level idiom for "set silently"; in the
-# new model that behaviour is ``.silent`` (``.quiet`` now means "result
+# new model that behavior is ``.silent`` (``.quiet`` now means "result
 # only").  Forward old-idiom callers to the new spelling.
 LEGACY_COMMANDS["echo.quiet"] = "echo.silent"
 LEGACY_COMMANDS["term.echo.quiet"] = "term.echo.silent"

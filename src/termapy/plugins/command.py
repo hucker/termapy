@@ -459,7 +459,7 @@ def interpolate_help(text: str, prefix: str) -> str:
 
     Plugin authors write cross-references to other commands like
     ``"See {prefix}cfg.auto"`` instead of a hardcoded ``"See /cfg.auto"``
-    so the rendered output honours a user's ``cmd_prefix`` override.
+    so the rendered output honors a user's ``cmd_prefix`` override.
     Called by every help-rendering path (both short ``help=`` and
     long ``long_help=``) so the substitution is uniform.
 

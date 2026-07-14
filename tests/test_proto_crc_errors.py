@@ -74,7 +74,7 @@ class TestCrcCodegenUnknownAlgorithm:
 
     @pytest.mark.parametrize("lang", ["c", "python", "rust"])
     def test_unknown_name_fails_gracefully(self, tmp_path, lang):
-        # Arrange -- a name that cannot exist in the CRC catalogue.
+        # Arrange -- a name that cannot exist in the CRC catalog.
         fake = "crcDOES_NOT_EXIST"
 
         # Act

@@ -6,7 +6,7 @@ deserve explicit thanks.
 ## reveng (Greg Cook)
 
 Every named CRC algorithm in termapy comes from the
-[**reveng CRC catalogue**](https://reveng.sourceforge.io/crc-catalogue/all.htm)
+[**reveng CRC catalog**](https://reveng.sourceforge.io/crc-catalogue/all.htm)
 maintained by **Greg Cook** since 1999.  The reveng project documents
 the polynomial, initial value, reflection, and xor-out parameters for
 every standardized CRC in practical use -- 100+ algorithms, each with
@@ -16,10 +16,10 @@ implementations can be verified independently.
 Without reveng, a tool like termapy would have had to reconstruct the
 CRC literature from datasheets one protocol at a time.  Instead,
 users get the full set correct on day one, and our test suite
-verifies every algorithm against the catalogue's published check
+verifies every algorithm against the catalog's published check
 values on every commit.
 
-The reveng catalogue is published as reference data -- the polynomial
+The reveng catalog is published as reference data -- the polynomial
 parameters describe well-documented public standards (ITU, NXP,
 IEEE, Modbus, Bluetooth SIG, etc.) rather than original creative
 work.  Termapy uses the parameter values but does not incorporate any

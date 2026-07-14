@@ -61,7 +61,7 @@ def test_upgrade_command_detects_install_layout(
 
 
 def test_upgrade_command_falls_back_to_pip(monkeypatch):
-    # Arrange -- a path that matches none of the recognised
+    # Arrange -- a path that matches none of the recognized
     # layouts (typical of a plain pip install into a system
     # interpreter or a bare uv pip install).
     monkeypatch.setattr(

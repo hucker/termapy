@@ -151,7 +151,7 @@ class TestAsciiCommands:
 
     def test_help_text_covers_catalog(self, dev: FakeSerial) -> None:
         """AT+HELP is derived from the same descriptor as AT+HELP.JSON, so
-        every catalogued command name appears in the text list (no drift)."""
+        every cataloged command name appears in the text list (no drift)."""
         import json as _json
         catalog = _json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
         text = _send_cmd(dev, "AT+HELP")

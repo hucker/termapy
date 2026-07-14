@@ -21,7 +21,7 @@ Calibration is the deliberate exception (above).
 
 Duck-types ``serial.Serial`` by subclassing :class:`termapy.demo.FakeSerial`,
 which already provides the full port surface (control lines, ``in_waiting``,
-locked ``read``/``write``). Only the I/O behaviour is overridden here:
+locked ``read``/``write``). Only the I/O behavior is overridden here:
 ``write`` decodes keystrokes into navigation/redraws, and ``in_waiting`` ticks
 the time-driven animations (status gauges, calibration progress).
 """

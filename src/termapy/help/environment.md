@@ -98,7 +98,7 @@ focus.  What works:
 2. While still holding the left mouse button, **right-click** to copy
    the selection.
 
-This is general Textual-TUI behaviour, not a termapy bug.  Native
+This is general Textual-TUI behavior, not a termapy bug.  Native
 terminals (Windows Terminal, iTerm2, most Linux terminals) usually
 accept plain **Shift+click** to bypass the TUI's mouse capture.  For
 anything longer, `Ctrl+S` saves an SVG screenshot and `Ctrl+T` a text
@@ -156,9 +156,9 @@ If you'd rather keep your `Ctrl+*` muscle memory, edit your VS Code
 ```
 
 The `-` prefix unbinds the command *only* when the terminal has focus.
-Clicking into an editor tab restores VS Code's default behaviour.
+Clicking into an editor tab restores VS Code's default behavior.
 
-## macOS Alt-key behaviour
+## macOS Alt-key behavior
 
 On macOS, the **Option** key (physically where Alt would be on a
 Windows keyboard) behaves one of two ways, depending on your
@@ -176,7 +176,7 @@ Configuration path per terminal:
 - **iTerm2**: Profiles → Keys → "Left Option key: **Esc+**"
 - **Terminal.app**: Profiles → Keyboard → "Use Option as Meta key"
 - **Alacritty / Kitty / WezTerm**: check the terminal's docs; most
-  default to Meta behaviour that works.
+  default to Meta behavior that works.
 
 On Mac with the default Ctrl+\* bindings all passing through anyway,
 you rarely *need* the Alt fallbacks.  Flip this only if you're

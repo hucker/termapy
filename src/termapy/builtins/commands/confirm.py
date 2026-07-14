@@ -24,7 +24,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     message = args.strip() or "Continue?"
     accepted = ctx.ui.confirm(message)
     if not accepted:
-        ctx.io.result("Cancelled.", "yellow")
+        ctx.io.result("Canceled.", "yellow")
         ctx.internal.script_stop()
     # Return the user's choice so scripts can capture it via
     # ``$(OK) <- /confirm Continue?`` even if they don't stop on cancel.

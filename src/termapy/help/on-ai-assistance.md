@@ -2,7 +2,7 @@
 
 I built termapy with heavy use of Claude. I'm not going to call it vibe coded.
 
-**I architected it, Claude wrote it, we iterated.** I made the decisions: the plugin system, the three-channel output model, the CLI/TUI shared engine, verifying every catalogued CRC against the reveng catalogue. Claude wrote most of the code that implements them. Sometimes one round, sometimes ten.
+**I architected it, Claude wrote it, we iterated.** I made the decisions: the plugin system, the three-channel output model, the CLI/TUI shared engine, verifying every cataloged CRC against the reveng catalog. Claude wrote most of the code that implements them. Sometimes one round, sometimes ten.
 
 ## Testing is the contract that doesn't live in your prompt
 

@@ -716,7 +716,7 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
         if name in registry:
             alg = registry[name]
             ctx.io.output(f"  {name} (plugin, {alg.width * 8}-bit)")
-            ctx.io.output("  No catalogue parameters - loaded from plugin file.")
+            ctx.io.output("  No catalog parameters - loaded from plugin file.")
             return CmdResult.ok(value=name)
         ctx.io.output(f"Use '{p}proto.crc.list' to see available algorithms.")
         return CmdResult.fail(msg=f"Unknown algorithm: {name}{_did_you_mean(name)}")
@@ -860,7 +860,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
             f"zlib.crc32, ~30x faster than generated code)."
         )
 
-    # In check mode, verify against the catalogue's expected value
+    # In check mode, verify against the catalog's expected value
     if check_mode:
         entry = CRC_CATALOGUE.get(name)
         if entry and "check" in entry:
@@ -983,16 +983,16 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
 
     Two invocation shapes:
 
-    * **Catalogue lookup** (existing): ``<algorithm-name> [file=stem]
+    * **Catalog lookup** (existing): ``<algorithm-name> [file=stem]
       [symbol=name]``.  Looks ``algorithm-name`` up in
       ``CRC_CATALOGUE``; ``symbol=`` overrides the default function
       name; ``file=`` writes to disk and (if no ``symbol=`` given)
       also sets the function name from the file basename.
     * **Custom CRC** (new): ``width=N poly=X [init=...] [refin=...]
       [refout=...] [xorout=...] [name=...] [desc=...] [file=stem]
-      [symbol=name]``.  Builds a synthetic catalogue entry from raw
+      [symbol=name]``.  Builds a synthetic catalog entry from raw
       Rocksoft/Williams parameters and computes the check value via
-      the same generic engine that drives the bundled catalogue.
+      the same generic engine that drives the bundled catalog.
 
     Args:
         ctx: Plugin context for output.
@@ -1072,7 +1072,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     # Parse all ``key=value`` tokens manually -- termapy's
     # registered-flag system is bool-only.  Anything that isn't a
     # recognized key=value pair drops into ``name_tokens`` and
-    # (for catalogue mode) is treated as the algorithm name.
+    # (for catalog mode) is treated as the algorithm name.
     kv: dict[str, str] = {}
     name_tokens: list[str] = []
     for tok in args.strip().split():
@@ -1181,7 +1181,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 )
 
         # Compute the check value (CRC of "123456789") via the same
-        # engine that powers the bundled catalogue.  Embedded in the
+        # engine that powers the bundled catalog.  Embedded in the
         # generated _self_test so downstream users can verify too.
         # crcglot 0.23 narrowed generic_crc to take one Crc value
         # object instead of seven positional ints.
@@ -1194,7 +1194,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         )
 
         custom_name = kv.get("name") or "crc_custom"
-        # Unify with the catalogue-lookup branch's ``name`` so the
+        # Unify with the catalog-lookup branch's ``name`` so the
         # downstream stdout banner (which references ``name``) works for
         # custom params too -- previously custom + C + stdout crashed
         # with an unbound ``name``.
@@ -1205,10 +1205,10 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         )
         # crcglot's *_from_entry generators take a typed AlgorithmInfo,
         # not a dict.  0.10 dropped the ``name`` field (the name is
-        # always the dict key in the catalogue); we still pass it
+        # always the dict key in the catalog); we still pass it
         # separately to ``gen_entry(custom_name, entry, ...)`` below.
         # 0.11 added a required ``source`` provenance string -- "reveng"
-        # for catalogue entries, free-form citation otherwise.  --custom
+        # for catalog entries, free-form citation otherwise.  --custom
         # params are exactly that: the user.
         entry = AlgorithmInfo(
             width=width, poly=poly, init=init,
@@ -1233,7 +1233,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             gen_kwargs["naming"] = naming
         result = gen_entry(custom_name, entry, **gen_kwargs)
     else:
-        # ----- Catalogue lookup (existing path) -----
+        # ----- Catalog lookup (existing path) -----
         names = [t.lower() for t in name_tokens]
         if not names:
             return CmdResult.fail(
@@ -1255,7 +1255,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         # library-level "loop + combine" pattern (combine_<lang> in
         # crcglot.lang.<lang>).  symbol= is rejected because there's no
         # single symbol to override -- each bundled algorithm gets its
-        # own default symbol from its catalogue name.
+        # own default symbol from its catalog name.
         if len(names) > 1:
             if symbol_override is not None:
                 return CmdResult.fail(
@@ -1471,7 +1471,7 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     else:
         endian_arg = "both"
 
-    # Payload form: crcglot 0.23+ recognises named wrappers (e.g.
+    # Payload form: crcglot 0.23+ recognizes named wrappers (e.g.
     # ``crclink`` JSON frames).  Pass ``form=`` straight through; on
     # an unknown form, validate up-front with a clear list of what
     # crcglot ships so the user can pick.
@@ -1686,9 +1686,9 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     """Recover the Rocksoft parameters of an unknown CRC algorithm.
 
     Wraps ``crcglot.reverse_packets`` with ``std_algo_only=False`` so
-    algebraic recovery actually runs (the default catalogue-only
-    behaviour is what /proto.crc.find does; reverse's whole point is
-    handling the non-catalogue case).
+    algebraic recovery actually runs (the default catalog-only
+    behavior is what /proto.crc.find does; reverse's whole point is
+    handling the non-catalog case).
 
     Two invocation modes:
 
@@ -1813,12 +1813,12 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
 
     # Canonical (first) candidate -- feeds the $(rev) pipeline value below.
     c = result.candidates[0]
-    catalogue_str = (
-        f"  catalogue: {result.catalogue_name}"
+    catalog_str = (
+        f"  catalog: {result.catalogue_name}"
         if result.catalogue_name else ""
     )
     # Display EVERY candidate.  For an ``equivalent`` result these are the
-    # (init, xorout) labellings that reproduce the captured codewords
+    # (init, xorout) labelings that reproduce the captured codewords
     # identically (same poly/refin/refout); the note below explains the class.
     for cand in result.candidates:
         w = (cand.width + 3) // 4
@@ -1826,7 +1826,7 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             f"  [green]{result.status}[/]  "
             f"width={cand.width}  poly=0x{cand.poly:0{w}X}  "
             f"init=0x{cand.init:0{w}X}  refin={cand.refin}  refout={cand.refout}  "
-            f"xorout=0x{cand.xorout:0{w}X}{catalogue_str}"
+            f"xorout=0x{cand.xorout:0{w}X}{catalog_str}"
         )
     if result.note:
         ctx.io.output(f"  {result.note}")
@@ -2035,9 +2035,9 @@ def _proto_folder_line(ctx: PluginContext) -> str:
 
 
 def _proto_long_help(ctx: PluginContext) -> str:
-    # The catalogue size belongs to crcglot; the help text says "100+"
+    # The catalog size belongs to crcglot; the help text says "100+"
     # rather than an exact count so it never drifts from the upstream
-    # catalogue.  The exact, filter-aware tally lives in /proto.crc.list.
+    # catalog.  The exact, filter-aware tally lives in /proto.crc.list.
     return compose(_proto_folder_line(ctx), _PROTO_PROSE)
 
 
@@ -2272,10 +2272,10 @@ COMMAND = Command(
             help="Browse and compute CRC algorithms.",
             long_help=(
                 "More than 100 named CRC algorithms come from the reveng CRC\n"
-                "catalogue maintained by Greg Cook since 1999:\n"
+                "catalog maintained by Greg Cook since 1999:\n"
                 "  https://reveng.sourceforge.io/crc-catalogue/all.htm\n"
                 "\n"
-                "Every algorithm is verified against its catalogue check\n"
+                "Every algorithm is verified against its catalog check\n"
                 "value (the CRC of the ASCII string '123456789') on every\n"
                 "test run.  See {prefix}credits for full attribution."
             ),
@@ -2302,7 +2302,7 @@ COMMAND = Command(
                     ),
                     help="Identify the CRC algorithm used in a captured packet.",
                     long_help=(
-                        "Identifies which catalogue algorithm produced the\n"
+                        "Identifies which catalog algorithm produced the\n"
                         "trailing CRC bytes of a packet, via crcglot.detect.\n"
                         "Feed in a real captured frame (sniffer, scope, etc.):\n"
                         "constructing a valid query already requires knowing\n"

@@ -306,7 +306,7 @@ class CLITerminal(TerminalHost):
         self.repl.set_context(self.ctx)
         # CLI: REPL echo off by default -- the OS terminal already shows the
         # typed line, so app-echo would duplicate it (scripts opt in with
-        # /term.echo_repl).  Device echo follows cfg echo.  Colour off
+        # /term.echo_repl).  Device echo follows cfg echo.  Color off
         # when --no-color so device ANSI is stripped from piped output.
         self._init_flags(echo_repl=False, color=not self.no_color)
         if self.output_level is not None:
@@ -337,7 +337,7 @@ class CLITerminal(TerminalHost):
             source="app",
             hidden=True,
         )
-        # /term.color (device-colour toggle) is now a portable builtin
+        # /term.color (device-color toggle) is now a portable builtin
         # backed by flags["color"], with /color as its legacy alias in
         # legacy.py -- so it works in the TUI too, not just the CLI.
         # /run and its sub_commands (.help, .legacy, .list, .dump,
@@ -481,7 +481,7 @@ class CLITerminal(TerminalHost):
             else:
                 self._draw_progress_bar(seconds, args.strip())
         except KeyboardInterrupt:
-            self._raw(f"\r  Delay cancelled.{' ' * 30}")
+            self._raw(f"\r  Delay canceled.{' ' * 30}")
         return CmdResult.ok(value=str(seconds))
 
     def _hook_delay_quiet(self, ctx, args: str):
@@ -608,7 +608,7 @@ class CLITerminal(TerminalHost):
         reserves a full-width row for the toolbar whenever the kwarg
         is set, and that row renders as a visible white band even when
         the callback returns an empty string.  Worse, it scrolls with
-        the rest of the prompt-rendered region and leaves artefacts in
+        the rest of the prompt-rendered region and leaves artifacts in
         the scrollback.  Tab-completion via the completer+dropdown is
         the feature users actually want; the toolbar was redundant
         visual chrome.
@@ -775,7 +775,7 @@ class CLITerminal(TerminalHost):
         prompt overlaid mid-stream.
 
         ``raw=True`` passes ANSI escape codes through untouched so
-        Rich's colour markup renders correctly.  ``patch_stdout``
+        Rich's color markup renders correctly.  ``patch_stdout``
         replaces ``sys.stdout`` (and ``sys.stderr``) with a proxy that
         captures writes from any thread and schedules them into
         prompt_toolkit's layout.
@@ -822,7 +822,7 @@ class CLITerminal(TerminalHost):
         try:
             if self._session is not None:
                 # raw=True passes ANSI escape codes through so Rich's
-                # colour markup renders correctly in reader-thread
+                # color markup renders correctly in reader-thread
                 # output.  Without raw=True, prompt_toolkit line-buffers
                 # and renders the ESC byte as literal "?".  The menu
                 # reservation that used to leave a blank band below
@@ -1016,7 +1016,7 @@ def _run_cli_mode(args) -> str | None:
             # Zero-config CLI: no config file anywhere.  Start the REPL
             # with an in-memory DEFAULT_CFG and let the user pick a port
             # interactively via /port.connect.  This replaces the previous
-            # "no config found -- exit" behaviour for interactive use.
+            # "no config found -- exit" behavior for interactive use.
             # --run without an inferrable config still errors (handled
             # above), since scripting without a config is ambiguous.
             from termapy.defaults import default_cfg

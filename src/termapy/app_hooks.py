@@ -427,7 +427,7 @@ def register_tui_hooks(app) -> None:
     )
     # /run and its sub_commands (.help, .legacy, .list, .dump, .show,
     # .explore) are owned by the run.py builtin -- TUI just needs to
-    # add the picker-on-bare-/run behaviour via ctx.internal.open_picker,
+    # add the picker-on-bare-/run behavior via ctx.internal.open_picker,
     # which is wired further down in this function.  /run.profile.*
     # stays as hooks because the runner is host-specific (threaded in
     # TUI, synchronous everywhere else).

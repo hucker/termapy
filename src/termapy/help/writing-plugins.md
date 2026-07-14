@@ -354,7 +354,7 @@ from termapy.profile import (
 
 # Binary protocol toolkit (format-spec parser, CRC catalog, .pro runner,
 # visualizer loader).  See protocol-testing.md for the format-spec
-# language and serial-tools.md for the CRC catalogue.
+# language and serial-tools.md for the CRC catalog.
 from termapy.protocol import (
     parse_format_spec, apply_format, FrameCollector, get_crc_registry,
 )
@@ -367,7 +367,7 @@ from termapy.usb import chip, vendor_for, mfg
 
 Each subpackage's `__init__.py` carries a library-usage docstring
 with a worked example.  Treat them as importable libraries: a plugin
-that crunches binary frames doesn't need to vendor a CRC catalogue
+that crunches binary frames doesn't need to vendor a CRC catalog
 itself.
 
 ## PluginContext API reference

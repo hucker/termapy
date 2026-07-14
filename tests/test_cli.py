@@ -55,7 +55,7 @@ def _grant_gui_apps(cli):
     and ``ctx.fs.open_file`` (read from ctx.fs.capabilities).  CapabilitySet
     is frozen, so union a fresh set and assign both snapshots -- mirroring
     what PluginContext.__post_init__ does at construction.  Lets these tests
-    exercise the open behaviour on a headless host (CI has no DISPLAY).
+    exercise the open behavior on a headless host (CI has no DISPLAY).
     """
     caps = cli.ctx.capabilities.union(CapabilitySet(gui_apps=True))
     cli.ctx.capabilities = caps
@@ -148,7 +148,7 @@ class TestHookDelay:
         assert not result.success, "invalid duration fails"
 
 
-# -- /term.color (portable device-colour toggle) -----------------------------
+# -- /term.color (portable device-color toggle) -----------------------------
 
 
 class TestTermColor:
@@ -163,7 +163,7 @@ class TestTermColor:
 
         # Assert
         assert result.success, "command succeeds"
-        assert cli.repl.ctx.ns("flags")["color"] is True, "colour enabled"
+        assert cli.repl.ctx.ns("flags")["color"] is True, "color enabled"
 
     def test_color_off(self, cli):
         # Arrange
@@ -174,7 +174,7 @@ class TestTermColor:
 
         # Assert
         assert result.success, "command succeeds"
-        assert cli.repl.ctx.ns("flags")["color"] is False, "colour disabled"
+        assert cli.repl.ctx.ns("flags")["color"] is False, "color disabled"
 
     def test_color_bare_toggles(self, cli):
         # Arrange
@@ -608,7 +608,7 @@ class TestSerialWriteRaw:
     def test_sends_with_line_ending(self, cli, capsys):
         # Arrange -- real DEMO connect; DEMO responds to AT<CRLF> with
         # OK<CRLF>.  Seeing "OK" in stdout proves that (a) the bytes
-        # were sent, (b) DEMO recognised them as a complete AT command,
+        # were sent, (b) DEMO recognized them as a complete AT command,
         # which means the line ending was applied correctly.
         cli._connect()
         cli.cfg["eol"] = "\r\n"

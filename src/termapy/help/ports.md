@@ -158,7 +158,7 @@ auto-reset.  So termapy never opens a port you didn't ask about:
 - **Windows:** there is no non-invasive equivalent, so in-use is shown
   only on explicit request (`/port.info`, `/port.chip.in_use`,
   `--ports --json`) and the probe opens the port briefly with DTR/RTS
-  held de-asserted to minimise disturbance.  `--ports --watch` therefore
+  held de-asserted to minimize disturbance.  `--ports --watch` therefore
   shows presence and identity but not in-use on Windows (it will not
   strobe DTR several times a second).
 
@@ -224,7 +224,7 @@ wins:
 Means *"prefer serial number A1B2C3D4; if it's not plugged in, fall
 back to literal COM3."*  Useful when you have a preferred cable at
 your desk but want the config to still find **something** when
-you're travelling with a different one.
+you're traveling with a different one.
 
 Works for chips without serial numbers too -- just make sure the
 first candidate that *will* match your primary setup comes first:

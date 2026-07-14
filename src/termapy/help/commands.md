@@ -112,7 +112,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
-| `/term.color {on\|off}`   | Toggle rendering of device ANSI colour (TUI and CLI)                        |
+| `/term.color {on\|off}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
 | `/term.echo [on\|off]`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
 | `/term.eol {cr\|lf\|crlf\|none}` | Show or set the line ending sent with commands (session override)    |

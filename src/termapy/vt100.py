@@ -166,7 +166,7 @@ def run_vt100_mode(args) -> str | None:
 
     Returns:
         The mode to switch to on exit: ``"tui"`` when entered from the TUI
-        (``/vt100`` / ``/demo.vt100``, signalled by ``args._vt100_return_to``)
+        (``/vt100`` / ``/demo.vt100``, signaled by ``args._vt100_return_to``)
         so Ctrl-] is a reversible toggle, else ``None`` to quit the process
         (the ``--vt100`` launch case). Matches ``_run_cli_mode`` /
         ``_run_tui_mode`` so entry.py's mode loop can switch on the value.
@@ -209,7 +209,7 @@ def run_vt100_mode(args) -> str | None:
             settings["eol"]
         )
         term.exit_character = chr(0x1d)   # Ctrl-]  -> exit / back to the TUI
-        # Disable miniterm's Ctrl-T settings menu so nothing pyserial-flavoured
+        # Disable miniterm's Ctrl-T settings menu so nothing pyserial-flavored
         # leaks: set the menu key to a value the user won't type, so Ctrl-T
         # (and every other key) passes straight through to the device. Keeps
         # the passthrough reading as a native termapy view.

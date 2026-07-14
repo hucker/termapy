@@ -9,7 +9,7 @@ name: Publish to PyPI
 # land -- the actual safety net.
 #
 # History: `uv publish --check-url` was originally relied on for the
-# skip-if-already-published behaviour, but in uv 0.11.x it did
+# skip-if-already-published behavior, but in uv 0.11.x it did
 # NOT skip a duplicate upload even when the file was clearly on the
 # Simple index (v0.65.1 rerun confirmed: file there 24h, still got
 # the 400).  Switched to a Warehouse JSON pre-check, which is fast,

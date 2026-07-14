@@ -69,7 +69,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         ok = modem.send(paths, callback=progress)
 
         if cancel and cancel.is_set():
-            return CmdResult.fail(msg="YMODEM send cancelled.")
+            return CmdResult.fail(msg="YMODEM send canceled.")
         if ok:
             names = ", ".join(Path(p).name for p in paths)
             ctx.io.result(f"YMODEM send complete: {names} ({total_size} bytes)")
@@ -122,7 +122,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         ok = modem.recv(str(out_dir), callback=progress)
 
         if cancel and cancel.is_set():
-            return CmdResult.fail(msg="YMODEM recv cancelled.")
+            return CmdResult.fail(msg="YMODEM recv canceled.")
         if ok:
             ctx.io.result(f"YMODEM recv complete -> {out_dir}")
             return CmdResult.ok(value=str(out_dir))

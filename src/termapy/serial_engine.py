@@ -105,7 +105,7 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
     SerialException message instead of chaining the exception via
     ``raise ... from ...``, so ``exc.__cause__`` is None and we have
     to fall back to substring matching on the message itself to
-    recognise PermissionError / FileNotFoundError cases.
+    recognize PermissionError / FileNotFoundError cases.
     """
     msg = str(exc)
     cause = exc.__cause__ or exc.__context__
@@ -363,7 +363,7 @@ class SerialEngine:
         # or ValueError (bad baud / unsupported parameter combo).
         # AmbiguousSerialNumberError comes from resolve_port() when a
         # user's SN spec matches 2+ connected devices.
-        # _classify_serial_error normalises each into a friendly
+        # _classify_serial_error normalizes each into a friendly
         # message for the user.
         try:
             self._port_obj = self._open_fn(self._cfg)
@@ -584,7 +584,7 @@ class SerialEngine:
         every 0.25 s so the frontend can animate.
 
         Returns:
-            True if reconnection succeeded, False if cancelled.
+            True if reconnection succeeded, False if canceled.
         """
         spinner = "|/-\\"
         step = 0

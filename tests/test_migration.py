@@ -768,14 +768,14 @@ def test_v28_to_v29_renames_line_endings_to_eol_markers():
 
 
 def test_migration_steps_recorded_per_version():
-    """Each step with a migrator appends a labelled line to _migration_steps."""
+    """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.
     cfg = {"config_version": 17}
 
     # Act
     result = migrate_config(cfg)
 
-    # Assert -- one step entry per migrator that ran, labelled
+    # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
     assert len(steps) == 12, (

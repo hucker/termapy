@@ -12,13 +12,13 @@ accordingly so the fast suite skips them.
 Covers:
 
 * ``/proto.crc.find cmd=AT+RND`` resolves to one of the curated
-  catalogue algorithms the demo emits.  cmd= sends the bare trigger
+  catalog algorithms the demo emits.  cmd= sends the bare trigger
   verbatim -- the configured line ending is auto-appended -- so there
   is no quoting and no explicit ``\\r``.
 * ``/proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2``
   recovers a polynomial that matches the demo's
   ``AT+RND.CUSTOM.REVEAL`` output, and lists every equivalent
-  (init, xorout) labelling.
+  (init, xorout) labeling.
 * ``$(rev) <- /proto.crc.reverse ...`` capture pipeline -- the
   returned value drops straight into a subsequent
   ``/proto.crc.c $(rev)`` codegen invocation.
@@ -101,7 +101,7 @@ class TestReverseCmdMode:
         # Arrange -- 13 packets at deterministic length cycle is enough
         # for crcglot.reverse_packets to recover the secret polynomial
         # (0x1A2B) reliably; the REVEAL'd init/xorout may differ from
-        # the recovered ones (equivalent (init, xorout) labelling) but
+        # the recovered ones (equivalent (init, xorout) labeling) but
         # the polynomial is uniquely determined.
         lines = [
             "/proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2",
@@ -125,11 +125,11 @@ class TestReverseCmdMode:
         assert "width=16" in result.stdout, (
             f"reverse should recover width=16; stdout: {result.stdout!r}"
         )
-        # Fix: reverse lists EVERY (init, xorout) labelling, not just the
+        # Fix: reverse lists EVERY (init, xorout) labeling, not just the
         # first.  The demo's poly carries a 1-bit (x+1) ambiguity, so two
-        # labellings are recovered and both must be printed.
+        # labelings are recovered and both must be printed.
         assert result.stdout.count("init=0x") >= 2, (
-            f"reverse should list all equivalent labellings, not just one; "
+            f"reverse should list all equivalent labelings, not just one; "
             f"stdout: {result.stdout!r}"
         )
         # The REVEAL line confirms the demo's secret matches what we

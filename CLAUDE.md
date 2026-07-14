@@ -178,6 +178,14 @@ uv run termapy --cfg-dir . # use cwd for configs
 
 - Update README.md and help/*.md
 - Update ARCHITECTURE.md if modules, plugins, or structure changed
+- **Do NOT hand-update the test/coverage/ty counts or badges on feature
+  builds.** The test count, coverage percent, ty diagnostic count, and the
+  per-module line counts in README.md and ARCHITECTURE.md are refreshed
+  ONLY by `release_prep.py` during the release process (see the
+  "Auto-refreshed every release" list below). Editing them on every branch
+  just churns the diff and causes merge conflicts between parallel
+  branches, and the numbers go stale again on the next merge anyway. Leave
+  them; release trues them up.
 - Do NOT rebuild HTML help in feature commits — it adds noise to diffs
 - HTML help rebuild should be a separate commit before release versions
 - Run tox, pytest, coverage review

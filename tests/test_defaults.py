@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from termapy.defaults import (
+    CFG_HELP,
     COLOR_ALIASES,
     DEFAULT_CFG,
     STANDARD_BAUD_RATES,
@@ -53,6 +54,75 @@ class TestValidationConstants:
 
 
 # -- DEFAULT_CFG -------------------------------------------------------------
+
+
+def _landable_cfg_keys() -> set[str]:
+    """Every key a config-editor cursor can land on: all keys anywhere in a
+    default cfg, including nested serial.* / ndjson.* / custom-button fields.
+    """
+    keys: set[str] = set()
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                keys.add(k)
+                walk(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+
+    walk(DEFAULT_CFG)
+    return keys
+
+
+class TestCfgHelpCoverage:
+    """Guardrails keeping CFG_HELP in sync with DEFAULT_CFG.
+
+    The config editor resolves help by the key on the cursor line, so any key
+    that appears in a cfg (including nested ones) can be landed on.  These
+    fail if a new cfg key ships without a one-line help entry, if a CFG_HELP
+    entry outlives its key (e.g. after a rename), or if a help string grows
+    past one line -- the editor panel wraps and it "goes forever."  This is
+    the structural fix for CFG_HELP drifting out of sync by hand.
+    """
+
+    DESC_MAX = 80   # "Line N: <desc>" stays on one line in the help panel
+    VALID_MAX = 90  # "Valid: <hint>" stays on one line too
+
+    def test_every_landable_key_has_help(self):
+        missing = sorted(_landable_cfg_keys() - set(CFG_HELP))
+        assert missing == [], (
+            f"cfg keys with no CFG_HELP entry (editor shows 'unknown key'): {missing}"
+        )
+
+    def test_no_stale_help_entries(self):
+        stale = sorted(set(CFG_HELP) - _landable_cfg_keys())
+        assert stale == [], (
+            f"CFG_HELP entries for keys not in DEFAULT_CFG (rename left them behind?): {stale}"
+        )
+
+    def test_descriptions_are_one_line(self):
+        bad = []
+        for key, entry in CFG_HELP.items():
+            desc = entry[0] if isinstance(entry, tuple) else entry
+            if isinstance(desc, str) and ("\n" in desc or len(desc) > self.DESC_MAX):
+                bad.append((key, len(desc)))
+        assert bad == [], (
+            f"help descriptions must be one line (<= {self.DESC_MAX} chars, no newline): {bad}"
+        )
+
+    def test_valid_hints_are_one_line(self):
+        bad = []
+        for key, entry in CFG_HELP.items():
+            if not isinstance(entry, tuple) or len(entry) < 2:
+                continue
+            valid = entry[1]
+            # entry[1] may be a dynamic callable (e.g. _list_ports); skip those.
+            if isinstance(valid, str) and ("\n" in valid or len(valid) > self.VALID_MAX):
+                bad.append((key, len(valid)))
+        assert bad == [], (
+            f"help 'valid' hints must be one line (<= {self.VALID_MAX} chars): {bad}"
+        )
 
 
 class TestDefaultCfg:

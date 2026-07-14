@@ -294,10 +294,12 @@ def _preview_markup(raw_val: str) -> str:
 # (description, valid_values_or_callable, optional_preview_callable)
 CFG_HELP: dict[str, tuple] = {
     # Serial
+    "serial": (
+        "pyserial connection parameters (edit the nested keys below).",
+        "Nested: port, baud_rate, byte_size, parity, stop_bits, flow_control.",
+    ),
     "port": (
-        "Port spec: device name (COM4), USB serial number (A1B2C3D4), "
-        "fallback chain (A1B2C3D4|COM3), reserved name (DEMO), or URL. "
-        "Use $(env.NAME)|fallback for portability.",
+        "Serial port: device name, USB serial number, fallback chain, DEMO, or URL.",
         _list_ports,
     ),
     "baud_rate": (
@@ -305,7 +307,7 @@ CFG_HELP: dict[str, tuple] = {
         "Standard: 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600",
     ),
     "custom_baud": (
-        "Allow non-standard baud rates. Modern serial drivers support arbitrary rates; disable (default) to catch typos.",
+        "Allow non-standard baud rates (modern drivers accept arbitrary rates).",
         "Valid: true, false",
     ),
     "byte_size": ("Data bits per byte.", "Valid: 5, 6, 7, 8"),
@@ -324,9 +326,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "eol": (
         "Appended to each sent command (set: /term.eol).",
-        r'CR/LF/NUL/ETX/EOT bytes only: "", "\r" (CR), "\n" (LF), '
-        r'"\r\n" (CRLF), "\n\r" (LFCR), "\0" (NUL), '
-        r'"\u0003" (ETX), "\u0004" (EOT), or any combination.',
+        r'"\r" (CR), "\n" (LF), "\r\n" (CRLF), or a combination; also \0 \x03 \x04.',
     ),
     "eol_rx": (
         "How received device output is split into lines (set: /term.eol.rx).",
@@ -342,14 +342,22 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "ndjson_field_routing": (
         "NDJSON: which inbound JSON fields the MCP bridge routes on.",
-        'Object with keys response_id, error_field, event_field. '
-        'Defaults: {"response_id": "id", "error_field": "error", '
-        '"event_field": "event"}.  Override only when the device uses '
-        "different field names.",
+        "Keys response_id/error_field/event_field; override for non-default fields.",
+    ),
+    "response_id": (
+        "NDJSON field name carrying a reply's correlation id.",
+        "Default: id",
+    ),
+    "error_field": (
+        "NDJSON field name that marks a message as an error.",
+        "Default: error",
+    ),
+    "event_field": (
+        "NDJSON field name that marks an unsolicited event.",
+        "Default: event",
     ),
     "default_response_timeout_ms": (
-        "Fallback wait for any profile-driven command without an "
-        "explicit response.timeout_ms.",
+        "Fallback response wait for profile commands lacking response.timeout_ms.",
         "Positive integer ms.  Per-command response.timeout_ms always wins.",
     ),
     # Connection
@@ -379,8 +387,7 @@ CFG_HELP: dict[str, tuple] = {
     ),
     # Input
     "send_bare_enter": (
-        "Send line ending when Enter pressed with no input "
-        "(toggle: /term.send_bare_enter).",
+        "Send the line ending on an empty Enter (toggle: /term.send_bare_enter).",
         "Valid: true, false",
     ),
     "echo": (
@@ -397,9 +404,8 @@ CFG_HELP: dict[str, tuple] = {
         "tui, cli, vt100. Default: tui",
     ),
     "vt100_hint": (
-        "Show a one-line tip in --vt100 mode when run from a VS Code "
-        "terminal, where VS Code can capture some keys before the device.",
-        "Valid: true, false",
+        "Show a VS Code key-capture tip in --vt100 mode.",
+        "Valid: true, false. VS Code terminals capture some keys before the device.",
     ),
     "cmd_prefix": (
         "Prefix for local REPL commands.",
@@ -442,32 +448,23 @@ CFG_HELP: dict[str, tuple] = {
     ),
     "request_mode": (
         "Turn bare device commands into synchronous request/response.",
-        "Valid: true, false. When true, bare device commands are sent and "
-        "their response is captured into a JSON envelope "
-        "{cmd, success, error, elapsed_s, result} -- see /term.request. "
-        "Also accepts JSON-shape input ({\"cmd\":\"...\"}) so callers can "
-        "stay symmetric. Profile-mapped commands keep their declared "
-        "response.format (more-specific wins).",
+        "true/false. On: replies become a JSON envelope. See /term.request.",
     ),
     "request_err_pattern": (
-        "Regex applied to request_mode response text to detect "
-        "device-side errors.",
-        r"When the response matches, success=false and the text becomes "
-        r"the envelope's error.  Default: (?i)^(ERROR|ERR|FAULT)\b "
-        r"(matches 'ERR:', 'ERROR ', 'FAULT', case-insensitive).  Empty "
-        r"string disables error detection.  Override per-session via "
-        r"/term.request on err=<regex>.",
+        "Regex on request_mode responses that flags a device-side error.",
+        r"Match => success=false. Empty disables. Override: /term.request on err=<re>.",
     ),
     "strip_device_echo": (
-        "Drop a half-duplex device's echoed command from request_mode "
-        "responses.",
-        "Valid: true, false. When true, a request_mode response whose first "
-        "line matches the sent command has that line removed. Off by "
-        "default; opt in for devices that echo. Default: false",
+        "Drop a half-duplex device's echoed command from request_mode replies.",
+        "true/false. On: a reply's leading line matching the command is removed.",
     ),
     "max_grep_lines": (
         "Maximum lines shown by /grep.",
         "Positive integer. Default: 100",
+    ),
+    "file_xfer_root": (
+        "Root directory for file transfers (empty = the config's cap/ folder).",
+        "Absolute path, or empty for the default.",
     ),
     # Logging
     "log_file": ("Session log file path.", "Empty = <name>.log in config subfolder."),
@@ -491,12 +488,8 @@ CFG_HELP: dict[str, tuple] = {
         'Valid: file path (e.g. "termapy_cfg/myrig/myrig.profile.json"), or empty.',
     ),
     "validate_typed_args": (
-        "When on, the CLI validates bare-command typed_args against the active "
-        "profile's type registry before writing to the wire (mirrors the MCP "
-        "behavior).  Default off keeps raw access -- device errors are the "
-        "source of truth.  Turn on when iterating on a profile to surface bad "
-        "values without a serial round-trip.",
-        "Valid: true, false.",
+        "Validate bare-command typed args against the active profile before sending.",
+        "true/false. Off = raw access (device errors are truth); on mirrors MCP.",
     ),
     # Title-bar buttons
     "cfg_enabled": (

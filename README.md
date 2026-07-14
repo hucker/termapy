@@ -1165,7 +1165,7 @@ Drop into `builtins/crc/` or `termapy_cfg/<name>/crc/`.
 <details>
 <summary>CRC support</summary>
 
-60+ built-in algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
+100+ built-in algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
 
 In format specs, CRC columns verify data integrity automatically:
 

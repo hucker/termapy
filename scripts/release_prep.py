@@ -329,7 +329,7 @@ def update_architecture_md() -> None:
         "src/termapy/profile",      # package
         "src/termapy/usb",          # package
     ]
-    updated = 0
+    missing: list[str] = []
     for rel in tracked:
         basename = Path(rel).name
         actual = count_lines(rel)
@@ -343,10 +343,21 @@ def update_architecture_md() -> None:
         new_text, n = pattern.subn(rf"\g<1>{actual}\g<2>", text, count=1)
         if n == 1:
             text = new_text
-            updated += 1
+        else:
+            missing.append(rel)
+
+    # Fail loud, never drift: every tracked entry must have a matching
+    # ``(N lines)`` row in the tree diagram.  A silent miss would leave a
+    # stale exact count in the doc -- the exact failure mode the
+    # numbers-only-in-auto-updated-spots policy exists to prevent.
+    if missing:
+        die(
+            "ARCHITECTURE.md tree rows missing for tracked entries "
+            f"(reword the tree or the `tracked` list): {', '.join(missing)}"
+        )
 
     path.write_text(text, encoding="utf-8")
-    ok(f"ARCHITECTURE.md updated ({updated} line counts)")
+    ok(f"ARCHITECTURE.md updated ({len(tracked)} line counts)")
 
 
 def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
@@ -367,32 +378,39 @@ def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
     # app.py/dialogs/builtins (see pyproject [tool.coverage.run]) -- i.e.
     # core-module coverage, NOT whole-repo.  The wording says "core-module"
     # rather than "overall" on purpose; don't revert it to "overall".
-    text = re.sub(
+    text, n = re.subn(
         r"<strong>Test coverage</strong> - \d+ tests, \d+% core-module coverage",
         f"<strong>Test coverage</strong> - {test_count} tests, {cov_percent}% core-module coverage",
         text,
         count=1,
     )
+    if n != 1:
+        die("could not find the Test coverage <summary> line in README.md")
+
     # ty badge: count + color track how many diagnostics ty currently
     # reports.  Thresholds: 0-9 green, 10-19 yellow, 20+ red.
     color = ty_badge_color(ty_count)
-    text = re.sub(
+    text, n = re.subn(
         r"badge/ty-\d+%20issues-[a-z]+",
         f"badge/ty-{ty_count}%20issues-{color}",
         text,
         count=1,
     )
+    if n != 1:
+        die("could not find the ty badge in README.md")
 
     # Coverage badge in the "Built with:" row.  Drives the displayed
     # percent from pytest --cov output; coverage_badge_color() picks
     # green/yellow/red so a drop is visible at a glance.
     cov_color = coverage_badge_color(cov_percent)
-    text = re.sub(
+    text, n = re.subn(
         r"badge/coverage-[^-]+-[a-z]+",
         f"badge/coverage-{cov_percent}%25-{cov_color}",
         text,
         count=1,
     )
+    if n != 1:
+        die("could not find the coverage badge in README.md")
 
     path.write_text(text, encoding="utf-8")
     ok(

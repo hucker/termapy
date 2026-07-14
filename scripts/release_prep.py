@@ -350,7 +350,13 @@ def update_architecture_md() -> None:
 
 
 def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
-    """Update test count, ty + coverage badges, and rounded UI line counts."""
+    """Update the Test coverage summary line and the ty + coverage badges.
+
+    These are the ONLY exact figures README carries -- the summary line
+    (test count + coverage %) and the two badges.  Everything else is
+    general-terms prose with no numbers to keep in sync; per-module line
+    counts live in ARCHITECTURE.md's tree (see update_architecture_md).
+    """
     path = REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8")
 
@@ -367,16 +373,6 @@ def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
         text,
         count=1,
     )
-    # The discussion paragraph below the test-count line references the
-    # same figure ("The N% core-module figure is measured with...") -- keep
-    # both in sync.
-    text = re.sub(
-        r"The \d+% core-module figure",
-        f"The {cov_percent}% core-module figure",
-        text,
-        count=1,
-    )
-
     # ty badge: count + color track how many diagnostics ty currently
     # reports.  Thresholds: 0-9 green, 10-19 yellow, 20+ red.
     color = ty_badge_color(ty_count)
@@ -398,27 +394,10 @@ def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
         count=1,
     )
 
-    # Rounded UI line counts. Round to nearest 50 for stability.
-    def rounded(rel: str) -> int:
-        return round(count_lines(rel) / 50) * 50
-
-    app_lines = rounded("src/termapy/app.py")
-    proto_debug_lines = rounded("src/termapy/proto_debug.py")
-    dialogs_lines = rounded("src/termapy/dialogs")  # was dialogs.py, now a package
-
-    # Match either the legacy ``dialogs.py`` mention or the new ``dialogs/``.
-    text = re.sub(
-        r"`app\.py` \(~\d+ lines\), `proto_debug\.py` \(~\d+ lines\), and `dialogs(?:\.py|/)` \(~\d+ lines\)",
-        f"`app.py` (~{app_lines} lines), `proto_debug.py` (~{proto_debug_lines} lines), and `dialogs/` (~{dialogs_lines} lines)",
-        text,
-        count=1,
-    )
-
     path.write_text(text, encoding="utf-8")
     ok(
         f"README.md updated (tests={test_count}, ty={ty_count} ({color}), "
-        f"coverage={cov_percent}% ({cov_color}), "
-        f"app.py~{app_lines}, dialogs/~{dialogs_lines})"
+        f"coverage={cov_percent}% ({cov_color}))"
     )
 
 

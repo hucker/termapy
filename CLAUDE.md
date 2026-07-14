@@ -212,10 +212,18 @@ Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
   README's "Test coverage" `<details>` summary line. Everywhere else the count
   is imprecise prose ("extensively tested", "thousands of tests") that never
   needs updating. ARCHITECTURE.md and the README body line carry no count.
-- coverage percent (parsed from `pytest --cov` `TOTAL` line)
+- coverage percent (parsed from `pytest --cov` `TOTAL` line) — only the README
+  summary line + the coverage badge. Prose describes coverage in general terms
+  and carries no percentage.
 - ty diagnostic count + badge color
-- ARCHITECTURE.md per-module line counts
-- rounded UI line counts in README ("app.py ~3650 lines, ...")
+- ARCHITECTURE.md per-module line counts (the tree diagram is the one home for
+  exact line counts — prose elsewhere names modules without counts)
+
+**General rule: exact numbers live only in release-updated structured spots
+(the summary line, badges, the ARCHITECTURE tree). Prose uses general terms
+("extensively tested", "the largest UI modules", "heavily covered") so no
+hand-maintained figure can drift.** Don't reintroduce a count/percent/line
+figure into a sentence.
 
 No RC versions, no leading `v` in the version arg, never run from anywhere but main. Scripts are stdlib-only and fail loud. See script docstrings for details.
 

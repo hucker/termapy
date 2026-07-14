@@ -54,7 +54,7 @@ For a plain-text terminal (no TUI), use CLI mode:
 termapy --cli --demo
 ```
 
-There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (60+, each verified against its canonical check value in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
+There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (each verified against its canonical check value in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
 
 ---
 
@@ -797,7 +797,7 @@ Summary: 4/4 PASS (4 tests)
 
 ### CRC algorithms
 
-Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in: 64 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
+Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
 
 </details>
 

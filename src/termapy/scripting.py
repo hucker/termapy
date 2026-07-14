@@ -21,6 +21,22 @@ def strip_ansi(text: str) -> str:
     return ANSI_RE.sub("", text)
 
 
+def strip_leading_echo(text: str, command: str) -> str:
+    """Drop a leading line that is the device echoing the command back.
+
+    Half-duplex devices parrot the command before answering, so the reply
+    reads as ``<command>\\n<answer>``.  When enabled (cfg
+    ``strip_device_echo``), remove that first line if it exactly matches the
+    sent command (whitespace-insensitive), leaving just the device's answer.
+    A no-op when the first line does not match, so a device that does not
+    echo is unaffected.
+    """
+    lines = text.splitlines()
+    if lines and lines[0].strip() == command.strip():
+        return "\n".join(lines[1:]).strip()
+    return text
+
+
 # -- Boolean parsing ---------------------------------------------------------
 
 # Accepted truthy/falsy string tokens. Kept intentionally wide so users can

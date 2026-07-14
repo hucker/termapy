@@ -186,6 +186,31 @@ class TestExecRequestMode:
         assert envelope["result"] == "5.5", "decoded + stripped response"
         assert isinstance(envelope["elapsed_s"], float), "elapsed_s float"
 
+    def test_strip_device_echo_removes_echoed_command(self, repl_env):
+        # Arrange -- a half-duplex device echoes the command, then answers.
+        engine, ctx, _, _, markup = repl_env
+        engine._cfg_data["strip_device_echo"] = True
+        fake = _FakeSerial(response=b"AT+VER\r\n1.2.3\r\n")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("AT+VER")
+
+        # Assert -- the echoed command line is dropped; result is the answer.
+        assert result.value["result"] == "1.2.3", "leading echo stripped"
+
+    def test_strip_device_echo_off_keeps_echo(self, repl_env):
+        # Arrange -- default off: the echoed line stays in the response.
+        engine, ctx, _, _, markup = repl_env
+        fake = _FakeSerial(response=b"AT+VER\r\n1.2.3\r\n")
+        _wire_fake_serial(ctx, fake)
+
+        # Act
+        result = engine._exec_request_mode("AT+VER")
+
+        # Assert
+        assert "AT+VER" in result.value["result"], "echo kept when strip is off"
+
     def test_envelope_rendered_to_terminal_as_single_line(self, repl_env):
         # Arrange
         engine, ctx, _, _, markup = repl_env

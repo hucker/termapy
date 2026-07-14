@@ -500,7 +500,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 26,
+    "config_version": 27,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -551,6 +551,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "hex_mode": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+    "strip_device_echo": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
     "cfg_enabled": true,
@@ -589,6 +590,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `show_line_numbers`   | `false`                | Show line numbers in serial output                                                                       |
 | `hex_mode`            | `false`                | Display serial I/O as hex bytes instead of text                                                          |
 | `request_mode`        | `false`                | Turn bare device commands into synchronous request/response (see `/term.request`)                        |
+| `strip_device_echo`   | `false`                | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device)            |
 | `max_grep_lines`      | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
 | `proto_frame_gap_ms`  | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`               | `""`                   | Title bar center text. Defaults to the config filename                                                   |
@@ -1249,9 +1251,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2839 tests, 71% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2848 tests, 71% core-module coverage</summary>
 
-2839 tests across 98 test files. Run with `uv run pytest`.
+2848 tests across 98 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

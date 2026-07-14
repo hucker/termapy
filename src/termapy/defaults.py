@@ -111,6 +111,11 @@ DEFAULT_CFG = {
     "hex_mode": False,
     "request_mode": False,
     "request_err_pattern": r"(?i)^(ERROR|ERR|FAULT)\b",
+    # Half-duplex devices echo the command back before answering.  When on,
+    # a request_mode response drops a leading line that matches the sent
+    # command.  Off by default -- opt in per device, since a device that
+    # doesn't echo could in theory emit a first line matching the command.
+    "strip_device_echo": False,
     "max_grep_lines": 100,
     # File transfer
     "file_xfer_root": "",
@@ -452,6 +457,13 @@ CFG_HELP: dict[str, tuple] = {
         r"(matches 'ERR:', 'ERROR ', 'FAULT', case-insensitive).  Empty "
         r"string disables error detection.  Override per-session via "
         r"/term.request on err=<regex>.",
+    ),
+    "strip_device_echo": (
+        "Drop a half-duplex device's echoed command from request_mode "
+        "responses.",
+        "Valid: true, false. When true, a request_mode response whose first "
+        "line matches the sent command has that line removed. Off by "
+        "default; opt in for devices that echo. Default: false",
     ),
     "max_grep_lines": (
         "Maximum lines shown by /grep.",

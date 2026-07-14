@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 25
+CURRENT_CONFIG_VERSION = 26
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -576,6 +576,21 @@ def _migrate_v24_to_v25(cfg: dict) -> dict:
 
 
 MIGRATIONS[24] = _migrate_v24_to_v25
+
+
+def _migrate_v25_to_v26(cfg: dict) -> dict:
+    """Add ``rx_newline`` (receive-newline mode), defaulting to ``auto``.
+
+    Splits newline handling into a transmit side (existing ``line_ending``)
+    and a receive side: how incoming device output is split into lines.
+    ``auto`` treats CR, LF, and CRLF all as line terminators (TeraTerm's
+    Receive=AUTO) and works for any device.
+    """
+    cfg.setdefault("rx_newline", "auto")
+    return cfg
+
+
+MIGRATIONS[25] = _migrate_v25_to_v26
 
 
 def migrate_config(cfg: dict) -> dict:

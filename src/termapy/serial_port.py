@@ -174,6 +174,68 @@ def eol_label(line_ending: str) -> str:
     return line_ending.replace("\r", _EOL_CR).replace("\n", _EOL_LF)
 
 
+# Receive-newline modes (mirrors TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).
+RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
+
+_EOL_MARKERS = {"cr": _EOL_CR, "lf": _EOL_LF, "crlf": _EOL_CR + _EOL_LF}
+
+
+def split_rx_lines(buf: str, mode: str) -> tuple[list[tuple[str, str]], str]:
+    """Split a receive buffer into complete ``(content, terminator)`` lines.
+
+    Universal-newline handling for serial RX: which byte(s) end a line
+    depends on ``mode`` (mirrors TeraTerm's Receive-newline selector):
+
+    - ``auto`` -- ``\\r``, ``\\n``, and ``\\r\\n`` all terminate a line;
+      ``\\r\\n`` counts as one break.  Works for any device.
+    - ``lf`` -- only ``\\n`` breaks (``\\r`` is data).
+    - ``cr`` -- only ``\\r`` breaks (``\\n`` is data).
+    - ``crlf`` -- only the ``\\r\\n`` pair breaks; a lone ``\\r`` or ``\\n``
+      is data.
+
+    A lone ``\\r`` at the very end of the buffer (in ``auto``/``crlf``) is
+    *not* emitted -- it might be the CR of a CRLF whose LF has not arrived
+    yet.  It stays in the returned remainder to be resolved on the next
+    call (or flushed on idle).  This is what prevents a CRLF split across
+    two reads from producing a spurious blank line.
+
+    Args:
+        buf: The accumulated (decoded) receive buffer.
+        mode: One of :data:`RX_NEWLINE_MODES`.
+
+    Returns:
+        ``(pairs, remainder)`` -- complete ``(content, terminator)`` lines
+        (terminator is ``"cr"``/``"lf"``/``"crlf"``) and the leftover,
+        possibly ending in a deferred ``\\r``.
+    """
+    pairs: list[tuple[str, str]] = []
+    start = i = 0
+    n = len(buf)
+    while i < n:
+        c = buf[i]
+        if c == "\n" and mode in ("auto", "lf"):
+            pairs.append((buf[start:i], "lf"))
+            i += 1
+            start = i
+        elif c == "\r" and mode in ("auto", "cr", "crlf"):
+            nxt = buf[i + 1] if i + 1 < n else ""
+            if nxt == "\n" and mode in ("auto", "crlf"):
+                pairs.append((buf[start:i], "crlf"))
+                i += 2
+                start = i
+            elif nxt == "" and mode in ("auto", "crlf"):
+                break  # trailing CR: may still become CRLF -> defer
+            elif mode in ("auto", "cr"):
+                pairs.append((buf[start:i], "cr"))
+                i += 1
+                start = i
+            else:  # crlf mode, lone CR not part of a pair -> data
+                i += 1
+        else:
+            i += 1
+    return pairs, buf[start:]
+
+
 @dataclass
 class ReaderResult:
     """Result of processing a chunk of serial data.
@@ -216,9 +278,11 @@ class SerialReader:
         show_line_endings: bool = False,
         capture: Any | None = None,
         serial_claimed: Callable[[], bool] | None = None,
+        rx_newline: str = "auto",
     ) -> None:
         self._encoding = encoding
         self._show_line_endings = show_line_endings
+        self._rx_newline = rx_newline if rx_newline in RX_NEWLINE_MODES else "auto"
         self._capture = capture
         self._serial_claimed = serial_claimed or (lambda: False)
         self._buf: str = ""
@@ -249,6 +313,16 @@ class SerialReader:
     @show_line_endings.setter
     def show_line_endings(self, value: bool) -> None:
         self._show_line_endings = value
+
+    @property
+    def rx_newline(self) -> str:
+        return self._rx_newline
+
+    @rx_newline.setter
+    def rx_newline(self, value: str) -> None:
+        # Fall back to the robust default on an unknown mode rather than
+        # raising on the read thread.
+        self._rx_newline = value if value in RX_NEWLINE_MODES else "auto"
 
     def process(self, data: bytes) -> ReaderResult:
         """Process a chunk of raw serial bytes.
@@ -285,12 +359,6 @@ class SerialReader:
             # is held until its continuation bytes arrive, instead of
             # decoding each chunk independently and emitting U+FFFD twice.
             text = self._decoder.decode(data)
-
-            # Insert visible EOL markers before line splitting
-            if self._show_line_endings:
-                text = text.replace("\r", _EOL_CR + "\r")
-                text = text.replace("\n", _EOL_LF + "\n")
-
             self._buf += text
 
             # Check for clear screen escape
@@ -299,12 +367,14 @@ class SerialReader:
                 self._buf = self._buf[m.end():]
                 result.clear_screen = True
 
-            # Collect complete lines
-            while "\n" in self._buf:
-                line, self._buf = self._buf.split("\n", 1)
-                line = line.strip("\r")
-                if line:
-                    result.lines.append(line)
+            # Collect complete lines per the receive-newline mode.  Markers
+            # are applied per detected terminator (see _render_line) rather
+            # than pre-inserted into the text -- pre-insertion would wedge an
+            # ANSI marker between the CR and LF of a CRLF and defeat the
+            # "one break" detection.  Blank lines are preserved.
+            pairs, self._buf = split_rx_lines(self._buf, self._rx_newline)
+            for content, term in pairs:
+                result.lines.append(self._render_line(content, term))
 
         else:
             # No data - flush partial line after 200ms of silence
@@ -317,10 +387,36 @@ class SerialReader:
                 if tail:
                     self._buf += tail
                 if self._buf and not PARTIAL_ANSI_RE.search(self._buf):
-                    result.lines.append(self._buf)
+                    # No more bytes coming: flush the remainder as one final
+                    # line.  A deferred trailing CR (held by split_rx_lines
+                    # in case a CRLF was mid-arrival) is now known to be a
+                    # lone CR terminator, so surface it as such.
+                    content, term = self._buf, ""
+                    if content.endswith("\r"):
+                        content, term = content[:-1], "cr"
+                    result.lines.append(self._render_line(content, term))
                     self._buf = ""
 
         return result
+
+    def _render_line(self, content: str, term: str) -> str:
+        """Clean and (optionally) annotate one extracted line for display.
+
+        In the single-terminator modes the "other" terminator can ride
+        along as a stray byte (e.g. a CRLF device in ``lf`` mode leaves a
+        ``\\r``); strip it so lines read cleanly, matching the historical
+        LF-split-then-strip behavior.  ``auto``/``crlf`` consume their
+        terminators exactly, so nothing is stripped there.  When
+        ``show_line_endings`` is on, append a dim marker for the terminator
+        that ended this line.
+        """
+        if self._rx_newline == "lf":
+            content = content.strip("\r")
+        elif self._rx_newline == "cr":
+            content = content.strip("\n")
+        if self._show_line_endings and term:
+            content += _EOL_MARKERS[term]
+        return content
 
     def reset(self) -> None:
         """Clear the internal buffer."""

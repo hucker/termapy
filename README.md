@@ -500,7 +500,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 25,
+    "config_version": 26,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -537,6 +537,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
     "line_ending": "\r",
+    "rx_newline": "auto",
     "send_bare_enter": false,
     "echo_input": false,
     "echo_input_fmt": "[purple]> {cmd}[/]",
@@ -574,6 +575,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `cmd_delay_ms`        | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
 | `protocol`            | `"text"`               | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON object per line)         |
 | `line_ending`         | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
+| `rx_newline`          | `"auto"`               | How received output splits into lines: `auto` (CR/LF/CRLF), `cr`, `lf`, `crlf` (set: `/term.eol.rx`)     |
 | `send_bare_enter`     | `false`                | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)         |
 | `auto_connect`        | `false`                | Connect to the port on startup                                                                           |
 | `auto_reconnect`      | `false`                | Retry every 2.5s if the port drops or fails to open (does not control startup)                           |
@@ -1245,9 +1247,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2800 tests, 71% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2823 tests, 71% core-module coverage</summary>
 
-2800 tests across 98 test files. Run with `uv run pytest`.
+2823 tests across 98 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

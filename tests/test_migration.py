@@ -656,6 +656,31 @@ def test_v24_to_v25_drops_cli_echo_input():
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
+def test_v25_to_v26_adds_rx_newline():
+    """Migration v25->v26 adds rx_newline defaulting to auto."""
+    # Arrange
+    cfg = {"config_version": 25, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["rx_newline"] == "auto", "rx_newline default added"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
+def test_v25_to_v26_preserves_existing_rx_newline():
+    """Migration v25->v26 does not overwrite an existing rx_newline value."""
+    # Arrange
+    cfg = {"config_version": 25, "port": "COM4", "rx_newline": "crlf"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["rx_newline"] == "crlf", "existing rx_newline preserved"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.
@@ -667,9 +692,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labelled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 8, (
-        f"v17 -> v25 covers eight migrators "
-        f"(17->18, 18->19, 19->20, 20->21, 21->22, 22->23, 23->24, 24->25); "
+    assert len(steps) == 9, (
+        f"v17 -> v26 covers nine migrators "
+        f"(17->18, 18->19, 19->20, 20->21, 21->22, 22->23, 23->24, 24->25, 25->26); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -681,6 +706,7 @@ def test_migration_steps_recorded_per_version():
         "v22 -> v23",
         "v23 -> v24",
         "v24 -> v25",
+        "v25 -> v26",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -700,8 +726,9 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 5, (
-        f"five steps (v20->v21, v21->v22, v22->v23, v23->v24, v24->v25); got {steps!r}"
+    assert len(steps) == 6, (
+        f"six steps (v20->v21, v21->v22, v22->v23, v23->v24, v24->v25, v25->v26); "
+        f"got {steps!r}"
     )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"

@@ -209,6 +209,37 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=arg)
 
 
+# Receive-newline modes (mirror TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).
+# Kept in sync with serial_port.RX_NEWLINE_MODES; duplicated here so this
+# builtin stays decoupled from the pyserial-carrying serial_port module.
+_RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
+
+
+def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
+    """Show or set how received device output is split into lines.
+
+    The receive-side counterpart of ``/term.eol`` (which sets the TX line
+    ending) -- mirrors TeraTerm's Receive-newline selector.  Bare
+    invocation reports the current mode; an argument (``auto`` / ``cr`` /
+    ``lf`` / ``crlf``) sets it for the session via ``apply_cfg``.  ``auto``
+    treats CR, LF, and CRLF all as line breaks and works for any device;
+    the single-terminator modes are for the rare device that sends a stray
+    CR or LF as data.
+    """
+    arg = args.strip().lower()
+    if not arg:
+        current = ctx.cfg.get("rx_newline", "auto")
+        ctx.io.result(current)
+        return CmdResult.ok(value=current)
+    if arg not in _RX_NEWLINE_MODES:
+        return CmdResult.fail(
+            msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)})"
+        )
+    ctx.internal.apply_cfg("rx_newline", arg)
+    ctx.io.result(arg)
+    return CmdResult.ok(value=arg)
+
+
 def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_toggle(ctx, args, "show_timestamps")
 
@@ -406,6 +437,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("line_no", "on" if flags.get("line_no") else "off"),
         ("line_endings", "on" if ctx.cfg.get("show_line_endings") else "off"),
         ("eol", _EOL_LABELS.get(ctx.cfg.get("line_ending", "\r"), repr(ctx.cfg.get("line_ending", "\r")))),
+        ("eol_rx", str(ctx.cfg.get("rx_newline", "auto"))),
         ("timestamps", "on" if ctx.cfg.get("show_timestamps") else "off"),
         ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
         ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
@@ -503,9 +535,33 @@ COMMAND = Command(
                 "line_ending or the Config Editor.\n"
                 "\n"
                 "Note: {prefix}term.line_endings is unrelated -- it toggles\n"
-                "VISIBLE \\r \\n markers in received output for debugging."
+                "VISIBLE \\r \\n markers in received output for debugging.\n"
+                "\n"
+                "For the receive side, see {prefix}term.eol.rx."
             ),
             handler=_handler_eol,
+            sub_commands={
+                "rx": Command(
+                    args="{auto|cr|lf|crlf}",
+                    help="Show or set how received output is split into lines (auto/cr/lf/crlf).",
+                    long_help=(
+                        "Receive-side counterpart of {prefix}term.eol -- controls\n"
+                        "how incoming device output is split into lines (mirrors\n"
+                        "TeraTerm's Receive newline):\n"
+                        "\n"
+                        "  auto   CR, LF, and CRLF all end a line (default;\n"
+                        "         works for any device)\n"
+                        "  cr     only CR ends a line\n"
+                        "  lf     only LF ends a line\n"
+                        "  crlf   only the CRLF pair ends a line\n"
+                        "\n"
+                        "Bare {prefix}term.eol.rx reports the current mode.  This is\n"
+                        "a session override (in-memory); persist with {prefix}cfg\n"
+                        "rx_newline or the Config Editor."
+                    ),
+                    handler=_handler_eol_rx,
+                ),
+            },
         ),
         "output": Command(
             args="{silent|quiet|normal|verbose}",

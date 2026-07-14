@@ -6,7 +6,7 @@ import time
 import pytest
 
 from termapy.demo import FakeSerial
-from termapy.serial_port import SerialPort, SerialReader
+from termapy.serial_port import SerialPort, SerialReader, split_rx_lines
 
 
 @pytest.fixture
@@ -237,15 +237,18 @@ class TestSerialReaderLines:
         assert result1.lines == [], "no newline yet"
         assert result2.lines == ["hello world"], "assembled"
 
-    def test_empty_lines_skipped(self):
-        # Arrange
+    def test_blank_lines_preserved(self):
+        # Arrange -- blank lines are now kept (TeraTerm-style display
+        # fidelity), not dropped; each CRLF is a single break.
         reader = SerialReader()
 
         # Act
         result = reader.process(b"\r\n\r\nhello\r\n\r\n")
 
         # Assert
-        assert result.lines == ["hello"], "blanks skipped"
+        actual = result.lines
+        expected = ["", "", "hello", ""]
+        assert actual == expected, "blank lines preserved, CRLF is one break"
 
     def test_cr_stripped(self):
         # Arrange
@@ -391,6 +394,115 @@ class TestSerialReaderEOLMarkers:
 
         # Assert
         assert "\\r" not in result.lines[0], "no markers"
+
+
+class TestRxNewline:
+    """Receive-newline handling: split_rx_lines + SerialReader modes."""
+
+    # -- pure split function --
+
+    def test_auto_splits_lf(self):
+        pairs, rem = split_rx_lines("a\nb\n", "auto")
+        assert pairs == [("a", "lf"), ("b", "lf")], "LF terminates in auto"
+        assert rem == "", "no remainder"
+
+    def test_auto_crlf_is_one_break(self):
+        pairs, rem = split_rx_lines("a\r\nb\r\n", "auto")
+        assert pairs == [("a", "crlf"), ("b", "crlf")], "CRLF is a single break"
+        assert rem == "", "no remainder"
+
+    def test_auto_bare_cr_splits(self):
+        pairs, rem = split_rx_lines("a\rb\rc", "auto")
+        assert pairs == [("a", "cr"), ("b", "cr")], "bare CR terminates each line"
+        assert rem == "c", "unterminated tail held"
+
+    def test_auto_defers_trailing_cr(self):
+        pairs, rem = split_rx_lines("foo\r", "auto")
+        assert pairs == [], "trailing CR not emitted yet (may be CRLF)"
+        assert rem == "foo\r", "trailing CR deferred to next read"
+
+    def test_lf_mode_ignores_cr(self):
+        pairs, rem = split_rx_lines("a\rb\n", "lf")
+        assert pairs == [("a\rb", "lf")], "only LF breaks; CR is data"
+        assert rem == "", "no remainder"
+
+    def test_cr_mode_ignores_lf(self):
+        pairs, rem = split_rx_lines("a\nb\r", "cr")
+        assert pairs == [("a\nb", "cr")], "only CR breaks; LF is data"
+        assert rem == "", "no remainder"
+
+    def test_crlf_mode_only_pairs(self):
+        pairs, rem = split_rx_lines("a\rb\nc\r\n", "crlf")
+        assert pairs == [("a\rb\nc", "crlf")], "only CRLF pair breaks; lone CR/LF are data"
+        assert rem == "", "no remainder"
+
+    # -- integration via SerialReader --
+
+    def test_chunk_split_crlf_no_blank(self):
+        # Arrange - a CRLF split across two reads must not emit a blank line.
+        reader = SerialReader()  # auto
+
+        # Act
+        first = reader.process(b"foo\r")
+        second = reader.process(b"\nbar\r\n")
+
+        # Assert
+        assert first.lines == [], "trailing CR held, nothing emitted yet"
+        assert second.lines == ["foo", "bar"], "CRLF across reads is one break, no blank"
+
+    def test_bare_cr_progress_lines(self):
+        # Arrange - a bare-CR device yields one line per update instead of a
+        # single merged garbled line (the pre-rx_newline bug).
+        reader = SerialReader()  # auto
+
+        # Act
+        result = reader.process(b"25%\r50%\r")
+
+        # Assert
+        assert result.lines == ["25%"], "completed CR-terminated line emitted; last held"
+
+    def test_lf_mode_strips_cr(self):
+        # Arrange - forced LF mode strips a stray CR (historical behavior).
+        reader = SerialReader(rx_newline="lf")
+
+        # Act
+        result = reader.process(b"hello\r\n")
+
+        # Assert
+        assert result.lines == ["hello"], "CR stripped in lf mode"
+
+    def test_show_line_endings_crlf_single_line(self):
+        # Arrange - markers must not break CRLF detection (the wrinkle).
+        reader = SerialReader(show_line_endings=True)  # auto
+
+        # Act
+        result = reader.process(b"foo\r\nbar\r\n")
+
+        # Assert
+        assert len(result.lines) == 2, "CRLF stays one break even with markers"
+        first = result.lines[0]
+        assert "\\r" in first and "\\n" in first, "both CR and LF markers on the line"
+
+    def test_unknown_mode_falls_back_to_auto(self):
+        # Arrange / Act
+        reader = SerialReader(rx_newline="bogus")
+
+        # Assert
+        assert reader.rx_newline == "auto", "unknown mode falls back to auto at init"
+        reader.rx_newline = "xyz"
+        assert reader.rx_newline == "auto", "setter validates too"
+
+    def test_idle_flush_resolves_deferred_cr(self):
+        # Arrange - a held trailing CR flushes as a CR-terminated line on idle.
+        reader = SerialReader()
+        reader.process(b"partial\r")  # trailing CR deferred
+        reader._last_rx -= 1.0  # force the idle window open
+
+        # Act
+        result = reader.process(b"")
+
+        # Assert
+        assert result.lines == ["partial"], "deferred CR flushed as a complete line on idle"
 
 
 class TestSerialReaderCapture:

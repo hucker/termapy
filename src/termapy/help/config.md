@@ -116,59 +116,62 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 
 ## Config field reference
 
-| Field                    | Default               | Description                                                                                 |
-| ------------------------ | --------------------- | ------------------------------------------------------------------------------------------- |
-| `serial.port`            | `""`                  | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
-| `serial.baud_rate`       | `115200`              | Serial baud rate -- non-standard rates require `custom_baud`                                |
-| `serial.custom_baud`     | `false`               | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates              |
-| `serial.byte_size`       | `8`                   | Data bits per byte (5, 6, 7, or 8)                                                          |
-| `serial.parity`          | `N`                   | Parity: None, Even, Odd, Mark, or Space                                                     |
-| `serial.stop_bits`       | `1`                   | Stop bits (1, 1.5, or 2)                                                                    |
-| `serial.flow_control`    | `none`                | `none`, `rtscts`, `xonxoff`, or `manual` (shows DTR/RTS/Break buttons)                      |
-| `encoding`               | `utf-8`               | Character encoding (utf-8, latin-1, ascii, cp437)                                           |
-| `cmd_delay_ms`           | `0`                   | Milliseconds between commands in autoconnect and multi-command input                        |
-| `protocol`               | `text`                | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line)   |
-| `ndjson_field_routing`   | `{...}`               | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field)    |
-| `eol`            | `\r`                  | Appended to each sent command: `\r`, `\r\n`, or `\n`                                        |
-| `eol_rx`             | `auto`                | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx)       |
-| `send_bare_enter`        | `false`               | Send line ending on empty Enter (for "press enter to continue" prompts)                     |
-| `auto_connect`           | `false`               | Connect automatically when the app starts                                                   |
-| `auto_reconnect`         | `false`               | Retry connection every 2.5s if the port drops or fails to open                              |
-| `on_connect_cmd`         | ` `                   | Commands to send after connecting (all frontends), separated by `\n`                        |
-| `tui_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in TUI mode (after `on_connect_cmd`)                |
-| `cli_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`)                |
-| `mcp_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in MCP mode. Common: `echo off` to silence device   |
-| `profile_path`           | ` `                   | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention     |
-| `echo`             | `false`               | Echo device commands sent to the wire (bare + `/term.send`). Toggle: `/term.echo`           |
-| `echo_fmt`         | `[purple]> {cmd}[/]`  | Rich markup format for echoed commands                                                      |
-| `log_file`               | ` `                   | Session log path (defaults to `<name>.log` in config subfolder)                             |
-| `timestamps`        | `false`               | Prefix lines with `[HH:MM:SS.mmm]`                                                          |
-| `line_endings`      | `false`               | Show dim `\r` `\n` markers in serial output for debugging                                   |
-| `line_no`      | `false`               | Show line numbers in serial output                                                          |
-| `hex`               | `false`               | Display serial I/O as hex bytes instead of text                                             |
-| `request_mode`           | `false`               | Turn bare device commands into synchronous request/response (see `/term.request`)           |
-| `request_err_pattern`    | `(?i)^(ERROR\|ERR\|FAULT)\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
-| `strip_device_echo`      | `false`               | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |
-| `validate_typed_args`    | `false`               | Opt-in: validate bare-command `typed_args` against the active profile's type registry. Off = raw access; on = mirrors MCP (bad values fail before the wire). |
-| `max_grep_lines`         | `100`                 | Maximum lines shown by `/grep`                                                              |
-| `file_xfer_root`         | ` `                   | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md).   |
-| `proto_frame_gap_ms`     | `50`                  | Silence gap (ms) to detect end of a binary frame                                            |
-| `proto_results_template` | `{name}_results.json` | Filename template for protocol test JSON results                                            |
-| `title`                  | ` `                   | Title bar text (defaults to config filename)                                                |
-| `border_color`           | ` `                   | Title bar color (CSS name or hex like `#ff6600`)                                            |
-| `max_lines`              | `10000`               | Scrollback buffer size                                                                      |
-| `default_ui`             | `tui`                 | Default UI mode: `tui`, `cli`, or `vt100`                                                   |
-| `vt100_hint`             | `true`                | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide)                      |
-| `cmd_prefix`             | `/`                   | Prefix for local REPL commands                                                              |
-| `cli_prompt`             | `$(CFG)>`             | Prompt string in CLI mode (supports variables)                                              |
-| `cli_completion`         | `true`                | Enable CLI tab completion, auto-suggest, and help toolbar                                   |
-| `config_read_only`       | `false`               | Disable Edit button in pickers (`/cfg` still changes in-memory values)                      |
-| `cfg_enabled`            | `true`                | Show the Cfg button in the title bar                                                        |
-| `run_enabled`            | `true`                | Show the Run button in the title bar                                                        |
-| `proto_enabled`          | `true`                | Show the Proto button in the title bar                                                      |
-| `record_enabled`         | `true`                | Show the Record button next to the REPL prompt (toggles `/run.record`)                      |
-| `show_traceback`         | `false`               | Show full stack trace on serial errors                                                      |
-| `custom_buttons`         | `[]`                  | Custom button objects (see [Custom Buttons](custom-buttons.md))                             |
+<!-- config-reference:start (Field + Default columns and alignment are synced from DEFAULT_CFG by scripts/update_doc_configs.py; edit only the Description column) -->
+| Field                         | Default                       | Description |
+| ----------------------------- | ----------------------------- | --- |
+| `serial.port`                 | `""`                          | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
+| `serial.baud_rate`            | `115200`                      | Serial baud rate -- non-standard rates require `custom_baud` |
+| `serial.custom_baud`          | `false`                       | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates |
+| `serial.byte_size`            | `8`                           | Data bits per byte (5, 6, 7, or 8) |
+| `serial.parity`               | `N`                           | Parity: None, Even, Odd, Mark, or Space |
+| `serial.stop_bits`            | `1`                           | Stop bits (1, 1.5, or 2) |
+| `serial.flow_control`         | `none`                        | `none`, `rtscts`, `xonxoff`, or `manual` (shows DTR/RTS/Break buttons) |
+| `encoding`                    | `utf-8`                       | Character encoding (utf-8, latin-1, ascii, cp437) |
+| `cmd_delay_ms`                | `0`                           | Milliseconds between commands in autoconnect and multi-command input |
+| `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line) |
+| `ndjson_field_routing`        | `{...}`                       | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field) |
+| `default_response_timeout_ms` | `1000`                        | Fallback wait (ms) for a profile command lacking its own `response.timeout_ms` |
+| `eol`                         | `\r`                          | Appended to each sent command: `\r`, `\r\n`, or `\n` |
+| `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |
+| `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |
+| `auto_connect`                | `false`                       | Connect automatically when the app starts |
+| `auto_reconnect`              | `false`                       | Retry connection every 2.5s if the port drops or fails to open |
+| `on_connect_cmd`              | `""`                          | Commands to send after connecting (all frontends), separated by `\n` |
+| `tui_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in TUI mode (after `on_connect_cmd`) |
+| `cli_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`) |
+| `mcp_on_connect_cmd`          | `""`                          | Extra commands to send after connecting in MCP mode. Common: `echo off` to silence device |
+| `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
+| `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Toggle: `/term.echo` |
+| `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |
+| `log_file`                    | `""`                          | Session log path (defaults to `<name>.log` in config subfolder) |
+| `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
+| `line_endings`                | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
+| `line_no`                     | `false`                       | Show line numbers in serial output |
+| `hex`                         | `false`                       | Display serial I/O as hex bytes instead of text |
+| `request_mode`                | `false`                       | Turn bare device commands into synchronous request/response (see `/term.request`) |
+| `request_err_pattern`         | `(?i)^(ERROR\|ERR\|FAULT)\\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
+| `strip_device_echo`           | `false`                       | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |
+| `validate_typed_args`         | `false`                       | Opt-in: validate bare-command `typed_args` against the active profile's type registry. Off = raw access; on = mirrors MCP (bad values fail before the wire). |
+| `max_grep_lines`              | `100`                         | Maximum lines shown by `/grep` |
+| `file_xfer_root`              | `""`                          | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md). |
+| `proto_frame_gap_ms`          | `50`                          | Silence gap (ms) to detect end of a binary frame |
+| `proto_results_template`      | `{name}_results.json`         | Filename template for protocol test JSON results |
+| `title`                       | `""`                          | Title bar text (defaults to config filename) |
+| `border_color`                | `""`                          | Title bar color (CSS name or hex like `#ff6600`) |
+| `max_lines`                   | `10000`                       | Scrollback buffer size |
+| `default_ui`                  | `tui`                         | Default UI mode: `tui`, `cli`, or `vt100` |
+| `vt100_hint`                  | `true`                        | Show a VS Code key-capture tip in `--vt100` mode (set `false` to hide) |
+| `cmd_prefix`                  | `/`                           | Prefix for local REPL commands |
+| `cli_prompt`                  | `$(CFG)> `                    | Prompt string in CLI mode (supports variables) |
+| `cli_completion`              | `true`                        | Enable CLI tab completion, auto-suggest, and help toolbar |
+| `config_read_only`            | `false`                       | Disable Edit button in pickers (`/cfg` still changes in-memory values) |
+| `cfg_enabled`                 | `true`                        | Show the Cfg button in the title bar |
+| `run_enabled`                 | `true`                        | Show the Run button in the title bar |
+| `proto_enabled`               | `true`                        | Show the Proto button in the title bar |
+| `record_enabled`              | `true`                        | Show the Record button next to the REPL prompt (toggles `/run.record`) |
+| `show_traceback`              | `false`                       | Show full stack trace on serial errors |
+| `custom_buttons`              | `[]`                          | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
+<!-- config-reference:end -->
 
 ## Connection behavior
 

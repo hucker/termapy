@@ -82,6 +82,11 @@ DEFAULT_CFG = {
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
     "line_ending": "\r",
+    # Receive newline: how incoming device output is split into lines.
+    # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's
+    # Receive=AUTO -- works for any device); cr/lf/crlf force a single
+    # terminator for the rare device that sends a stray CR/LF as data.
+    "rx_newline": "auto",
     # Input
     "send_bare_enter": False,
     # Input echo of device commands sent to the wire (bare lines +
@@ -317,6 +322,10 @@ CFG_HELP: dict[str, tuple] = {
         r'CR/LF/NUL/ETX/EOT bytes only: "", "\r" (CR), "\n" (LF), '
         r'"\r\n" (CRLF), "\n\r" (LFCR), "\0" (NUL), '
         r'"\u0003" (ETX), "\u0004" (EOT), or any combination.',
+    ),
+    "rx_newline": (
+        "How received device output is split into lines (set: /term.eol.rx).",
+        "auto (CR/LF/CRLF all break), cr, lf, or crlf. Default: auto",
     ),
     "cmd_delay_ms": (
         "Delay in ms between commands in multi-command input.",

@@ -391,6 +391,7 @@ class SerialEngine:
             show_line_endings=self._cfg.get("show_line_endings", False),
             capture=self._capture,
             serial_claimed=lambda: self._serial_claimed,
+            rx_newline=self._cfg.get("rx_newline", "auto"),
         )
         self._stop_event.clear()
         self._reader_stopped.clear()
@@ -478,6 +479,11 @@ class SerialEngine:
                         except BoundaryException:
                             pass
 
+                # Resync the receive-newline mode from the (shared) cfg each
+                # chunk so /term.eol.rx takes effect live, without a
+                # reconnect.  Cheap dict read; the cfg dict is the same
+                # object /cfg mutates (see how TX line_ending stays live).
+                reader.rx_newline = self._cfg.get("rx_newline", "auto")
                 result = reader.process(data)
 
                 if result.capture_target_reached and on_capture_done:

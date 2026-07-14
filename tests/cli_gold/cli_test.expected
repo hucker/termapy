@@ -97,7 +97,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 25,
+      "config_version": 26,
       "default_ui": "tui",
       "vt100_hint": true,
       "title": "Demo Device",
@@ -133,6 +133,7 @@ demo> /cfg.dump
       "cli_on_connect_cmd": "/run welcome",
       "mcp_on_connect_cmd": "",
       "line_ending": "\r",
+      "rx_newline": "auto",
       "send_bare_enter": false,
       "echo_input": false,
       "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",

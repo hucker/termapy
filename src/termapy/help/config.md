@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 25,
+    "config_version": 26,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -74,6 +74,7 @@ Here is an example config for a device called `iot_device`:
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
     "line_ending": "\r",
+    "rx_newline": "auto",
     "send_bare_enter": false,
     "echo_input": true,
     "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
@@ -128,6 +129,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `protocol`               | `text`                | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line)   |
 | `ndjson_field_routing`   | `{...}`               | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field)    |
 | `line_ending`            | `\r`                  | Appended to each sent command: `\r`, `\r\n`, or `\n`                                        |
+| `rx_newline`             | `auto`                | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx)       |
 | `send_bare_enter`        | `false`               | Send line ending on empty Enter (for "press enter to continue" prompts)                     |
 | `auto_connect`           | `false`               | Connect automatically when the app starts                                                   |
 | `auto_reconnect`         | `false`               | Retry connection every 2.5s if the port drops or fails to open                              |

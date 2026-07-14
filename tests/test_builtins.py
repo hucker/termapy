@@ -2948,3 +2948,68 @@ class TestTermEol:
         # Assert
         assert not result.success, "unknown token rejected"
         assert "bogus" in result.error, "error names the bad token"
+
+
+# -- /term.eol.rx ---------------------------------------------------------
+
+
+class TestTermEolRx:
+    """/term.eol.rx shows/sets the receive-newline mode (auto/cr/lf/crlf)."""
+
+    def test_bare_reports_default_auto(self, repl_env):
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.eol.rx")
+
+        # Assert
+        assert result.success, "bare /term.eol.rx succeeds"
+        assert result.value == "auto", "default rx_newline reports as auto"
+
+    def test_set_crlf_persists_and_reports(self, repl_env):
+        # Arrange
+        engine, cfg, _path, _output = repl_env
+
+        # Act
+        set_result = engine.dispatch("term.eol.rx crlf")
+        show_result = engine.dispatch("term.eol.rx")
+
+        # Assert
+        assert set_result.success, "set crlf succeeds"
+        assert cfg["rx_newline"] == "crlf", "sets rx_newline cfg"
+        assert show_result.value == "crlf", "subsequent query reports crlf"
+
+    @pytest.mark.parametrize("mode", ["auto", "cr", "lf", "crlf"])
+    def test_each_mode_accepted(self, repl_env, mode):
+        # Arrange
+        engine, cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch(f"term.eol.rx {mode}")
+
+        # Assert
+        assert result.success, f"{mode} accepted"
+        assert cfg["rx_newline"] == mode, f"rx_newline set to {mode}"
+
+    def test_unknown_mode_rejected(self, repl_env):
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.eol.rx bogus")
+
+        # Assert
+        assert not result.success, "unknown mode rejected"
+        assert "bogus" in result.error, "error names the bad mode"
+
+    def test_tx_eol_still_works(self, repl_env):
+        # Arrange -- adding the .rx subcommand must not break bare /term.eol.
+        engine, cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.eol lf")
+
+        # Assert
+        assert result.success, "/term.eol lf still dispatches to the TX handler"
+        assert cfg["line_ending"] == "\n", "TX line_ending set, unaffected by .rx"

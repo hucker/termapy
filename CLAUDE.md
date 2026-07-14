@@ -223,7 +223,11 @@ Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
 (the summary line, badges, the ARCHITECTURE tree). Prose uses general terms
 ("extensively tested", "the largest UI modules", "heavily covered") so no
 hand-maintained figure can drift.** Don't reintroduce a count/percent/line
-figure into a sentence.
+figure into a sentence. Floor/approximate language is always fine in prose
+("100+ algorithms", "more than 2000 tests", "~60%") — it stays true as the
+real number grows, so it isn't a maintenance dependency. Every release_prep
+substitution targeting one of the exact-count spots must fail loud
+(`re.subn` + `die()` on a miss) so a reworded target can't silently drift.
 
 No RC versions, no leading `v` in the version arg, never run from anywhere but main. Scripts are stdlib-only and fail loud. See script docstrings for details.
 

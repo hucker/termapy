@@ -119,7 +119,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/term.eol.rx {auto\|cr\|lf\|crlf}` | Show or set how received output is split into lines (receive newline) |
 | `/term.hex [on\|off]`     | Toggle hex display of incoming bytes                                        |
 | `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
-| `/term.line_endings [on\|off]` | Toggle visible `\r` `\n` markers in serial output                      |
+| `/term.eol.markers [on\|off]` | Toggle visible `\r` `\n` markers in serial output                       |
 | `/term.line_no [on\|off]` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |
 | `/term.output {level}`    | Show or set output level (silent/quiet/normal/verbose)                      |

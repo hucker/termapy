@@ -106,7 +106,7 @@ DEFAULT_CFG = {
     "proto_results_template": "{name}_results.json",
     # Display
     "timestamps": False,
-    "line_endings": False,
+    "eol_markers": False,
     "line_no": False,
     "hex": False,
     "request_mode": False,
@@ -434,8 +434,8 @@ CFG_HELP: dict[str, tuple] = {
         "Prefix each line with [HH:MM:SS.mmm] (toggle: /term.timestamps).",
         "Valid: true, false",
     ),
-    "line_endings": (
-        "Show dim \\r \\n markers in serial output (toggle: /term.line_endings).",
+    "eol_markers": (
+        "Show dim \\r \\n markers in serial output (toggle: /term.eol.markers).",
         "Valid: true, false. Debug mode for line-ending issues.",
     ),
     "line_no": (

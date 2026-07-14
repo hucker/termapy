@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 28
+CURRENT_CONFIG_VERSION = 29
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -641,6 +641,21 @@ def _migrate_v27_to_v28(cfg: dict) -> dict:
 
 
 MIGRATIONS[27] = _migrate_v27_to_v28
+
+
+def _migrate_v28_to_v29(cfg: dict) -> dict:
+    """Rename ``line_endings`` -> ``eol_markers``.
+
+    The v28 name ``line_endings`` (show dim \\r \\n markers) read like the
+    line-ending *setter*, which is ``eol``; ``eol_markers`` disambiguates and
+    matches the new ``/term.eol.markers`` command.  Value carried across.
+    """
+    if "line_endings" in cfg:
+        cfg.setdefault("eol_markers", cfg.pop("line_endings"))
+    return cfg
+
+
+MIGRATIONS[28] = _migrate_v28_to_v29
 
 
 def migrate_config(cfg: dict) -> dict:

@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 28,
+    "config_version": 29,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -83,7 +83,7 @@ Here is an example config for a device called `iot_device`:
     "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
     "timestamps": false,
-    "line_endings": false,
+    "eol_markers": false,
     "line_no": false,
     "hex": false,
     "request_mode": false,
@@ -145,7 +145,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |
 | `log_file`                    | `""`                          | Session log path (defaults to `<name>.log` in config subfolder) |
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
-| `line_endings`                | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
+| `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
 | `line_no`                     | `false`                       | Show line numbers in serial output |
 | `hex`                         | `false`                       | Display serial I/O as hex bytes instead of text |
 | `request_mode`                | `false`                       | Turn bare device commands into synchronous request/response (see `/term.request`) |

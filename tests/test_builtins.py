@@ -1831,46 +1831,46 @@ class TestEol:
     def test_eol_toggle_on(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["line_endings"] = False
+        cfg["eol_markers"] = False
 
         # Act
         engine.dispatch("show_line_endings")
 
         # Assert
-        assert cfg["line_endings"] is True, "toggled on"
+        assert cfg["eol_markers"] is True, "toggled on"
 
     def test_eol_toggle_off(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["line_endings"] = True
+        cfg["eol_markers"] = True
 
         # Act
         engine.dispatch("show_line_endings")
 
         # Assert
-        assert cfg["line_endings"] is False, "toggled off"
+        assert cfg["eol_markers"] is False, "toggled off"
 
     def test_eol_explicit_on(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["line_endings"] = False
+        cfg["eol_markers"] = False
 
         # Act
         engine.dispatch("show_line_endings on")
 
         # Assert
-        assert cfg["line_endings"] is True, "set to on"
+        assert cfg["eol_markers"] is True, "set to on"
 
     def test_eol_explicit_off(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["line_endings"] = True
+        cfg["eol_markers"] = True
 
         # Act
         engine.dispatch("show_line_endings off")
 
         # Assert
-        assert cfg["line_endings"] is False, "set to off"
+        assert cfg["eol_markers"] is False, "set to off"
 
 
 # -- /cap (arg parsing) ---------------------------------------------------

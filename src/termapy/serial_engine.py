@@ -388,7 +388,7 @@ class SerialEngine:
         )
         self._reader = SerialReader(
             encoding=self._cfg.get("encoding", "utf-8"),
-            show_line_endings=self._cfg.get("line_endings", False),
+            show_line_endings=self._cfg.get("eol_markers", False),
             capture=self._capture,
             serial_claimed=lambda: self._serial_claimed,
             rx_newline=self._cfg.get("eol_rx", "auto"),

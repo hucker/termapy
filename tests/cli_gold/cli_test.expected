@@ -97,7 +97,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 28,
+      "config_version": 29,
       "default_ui": "tui",
       "vt100_hint": true,
       "title": "Demo Device",
@@ -139,7 +139,7 @@ demo> /cfg.dump
       "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
       "log_file": "",
       "timestamps": false,
-      "line_endings": false,
+      "eol_markers": false,
       "line_no": false,
       "hex": false,
       "request_mode": false,
@@ -325,10 +325,10 @@ demo> /print === section: line endings ===
   === section: line endings ===
 demo> /show_line_endings on
     Note: /show_line_endings is legacy; use /term.line_endings.
-  line_endings = True  (session)
+  eol_markers = True  (session)
   on
 demo> /show_line_endings off
-  line_endings = False  (session)
+  eol_markers = False  (session)
   off
 demo> /print === section: seq ===
   === section: seq ===

@@ -212,7 +212,7 @@ The most common ones:
 | `/term.echo [on \| off]`             | Toggle REPL command echo                                                      |
 | `/term.echo.silent <on \| off>`      | Set echo on/off without echoing the change (for scripts and on_connect_cmd)   |
 | `/term.line_no [on \| off]`          | Toggle line numbers in serial output (TUI only)                               |
-| `/term.line_endings [on \| off]`     | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |
+| `/term.eol.markers [on \| off]`      | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |
 | `/term.output {level}`               | Show or set output level (silent/quiet/normal/verbose)                        |
 | `/term.timestamps [on \| off]`       | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                      |
 | `/term.hex [on \| off]`              | Toggle hex display of incoming bytes                                          |
@@ -500,7 +500,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 28,
+    "config_version": 29,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -546,7 +546,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
     "timestamps": false,
-    "line_endings": false,
+    "eol_markers": false,
     "line_no": false,
     "hex": false,
     "request_mode": false,
@@ -564,7 +564,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 
 See the **[config field reference](src/termapy/help/config.md#config-field-reference)** for every key, its default, and a one-line description (also in-app under **Help -> Configuration**, and per-key in the config editor).
 
-**Note on `line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `line_endings` off when not actively debugging.
+**Note on `eol_markers`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `eol_markers` off when not actively debugging.
 
 **Note on device colour (ANSI):** The TUI and CLI render ANSI colour (SGR) from device output inline, so coloured log lines appear coloured. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. In the CLI, `--no-color` (or `/term.color off`) strips colour for clean piping.
 

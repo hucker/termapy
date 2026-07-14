@@ -236,6 +236,29 @@ def split_rx_lines(buf: str, mode: str) -> tuple[list[tuple[str, str]], str]:
     return pairs, buf[start:]
 
 
+def apply_backspace(text: str) -> str:
+    """Resolve backspace (``\\b``) and DEL (``\\x7f``) in received text.
+
+    A device that overwrites in place -- progress readouts, prompt line
+    editing -- sends ``\\b``/``\\x7f`` to erase the previous character.
+    Interpret them (like TeraTerm/CoolTerm) instead of showing the raw
+    control byte: each erases the char before it, but never crosses a line
+    terminator (a ``\\b`` at the start of a line is dropped rather than
+    eating the preceding ``\\r``/``\\n``).  A no-op for text without either
+    byte, so it is safe to re-run over the accumulating buffer.
+    """
+    if "\b" not in text and "\x7f" not in text:
+        return text
+    out: list[str] = []
+    for ch in text:
+        if ch in ("\b", "\x7f"):
+            if out and out[-1] not in ("\r", "\n"):
+                out.pop()
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 @dataclass
 class ReaderResult:
     """Result of processing a chunk of serial data.
@@ -360,6 +383,9 @@ class SerialReader:
             # decoding each chunk independently and emitting U+FFFD twice.
             text = self._decoder.decode(data)
             self._buf += text
+            # Resolve backspace/DEL against the whole buffer so an erase can
+            # reach back into bytes carried over from a previous read.
+            self._buf = apply_backspace(self._buf)
 
             # Check for clear screen escape
             m = CLEAR_SCREEN_RE.search(self._buf)

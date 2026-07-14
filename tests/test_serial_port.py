@@ -6,7 +6,12 @@ import time
 import pytest
 
 from termapy.demo import FakeSerial
-from termapy.serial_port import SerialPort, SerialReader, split_rx_lines
+from termapy.serial_port import (
+    SerialPort,
+    SerialReader,
+    apply_backspace,
+    split_rx_lines,
+)
 
 
 @pytest.fixture
@@ -581,6 +586,36 @@ class TestRxNewlineEndToEnd:
 
         # Assert
         assert result.lines == [], "a bare-CR stream yields no lines in lf mode"
+
+
+class TestBackspace:
+    """apply_backspace resolves \\b / DEL; SerialReader interprets them."""
+
+    def test_backspace_erases_previous_char(self):
+        assert apply_backspace("abc\bX") == "abX", "\\b erases the char before it"
+
+    def test_multiple_backspaces(self):
+        assert apply_backspace("abc\b\b") == "a", "two \\b erase two chars"
+
+    def test_del_erases_like_backspace(self):
+        assert apply_backspace("ab\x7f") == "a", "DEL (0x7f) erases like backspace"
+
+    def test_backspace_at_line_start_dropped(self):
+        # A \b must not eat the preceding line terminator.
+        assert apply_backspace("line1\n\bX") == "line1\nX", "\\b does not cross \\n"
+
+    def test_no_control_is_identity(self):
+        assert apply_backspace("plain text") == "plain text", "no-op without \\b/DEL"
+
+    def test_reader_resolves_backspace_in_line(self):
+        # Arrange - a device rewrites a progress readout in place.
+        reader = SerialReader()  # auto
+
+        # Act
+        result = reader.process(b"25%\b\b\b100%\n")
+
+        # Assert
+        assert result.lines == ["100%"], "backspaces erase 25% before 100% is written"
 
 
 class TestSerialReaderCapture:

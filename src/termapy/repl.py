@@ -1093,7 +1093,7 @@ class ReplEngine:
         # -- so ``/echo`` governs bare device commands the same way it
         # governs slash commands (which read the flag above).  The cfg key
         # seeds the flag at init; the flag is the session truth.
-        if self.echo and not self.cfg.get("request_mode"):
+        if self.echo and cmd and not self.cfg.get("request_mode"):
             echo_text = cmd
             if self.cfg.get("show_line_endings", False) and eol_label:
                 le = self.cfg.get("line_ending", "\r")
@@ -1132,6 +1132,17 @@ class ReplEngine:
             # request_mode applies to every bare command.
             if self.cfg.get("request_mode") and self.ctx.serial.write is not None:
                 return self._exec_request_mode(cmd)
+            if not cmd:
+                # Empty bare line from send_bare_enter: send just the
+                # configured line ending.  /term.send rejects empty args, so
+                # handle it here -- symmetric with the request_mode empty-line
+                # path above.  (Reached only when a frontend forwards an empty
+                # line, which it does only when send_bare_enter is set.)
+                ending = self.cfg.get("line_ending", "\r")
+                encoding = self.cfg.get("encoding", "utf-8")
+                if self.ctx.serial.write is not None:
+                    self.ctx.serial.write(ending.encode(encoding))
+                return CmdResult.ok(value="")
             return self.dispatch(f"term.send {cmd}")
         finally:
             self.ctx.serial.write = saved_serial_write

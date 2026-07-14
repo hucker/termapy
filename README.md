@@ -605,6 +605,8 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 
 **Note on `show_line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `show_line_endings` off when not actively debugging.
 
+**Note on device colour (ANSI):** The TUI and CLI render ANSI colour (SGR) from device output inline, so coloured log lines appear coloured. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. In the CLI, `--no-color` (or `/term.color off`) strips colour for clean piping.
+
 </details>
 
 </details>
@@ -1247,9 +1249,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2831 tests, 71% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2832 tests, 71% core-module coverage</summary>
 
-2831 tests across 98 test files. Run with `uv run pytest`.
+2832 tests across 98 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

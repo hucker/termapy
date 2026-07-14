@@ -314,11 +314,11 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
     ),
     "encoding": (
-        "Character encoding for serial data.",
+        "Character encoding for serial data (set: /term.encoding).",
         "Common: utf-8, latin-1, ascii, cp437",
     ),
     "line_ending": (
-        "Appended to each sent command.",
+        "Appended to each sent command (set: /term.eol).",
         r'CR/LF/NUL/ETX/EOT bytes only: "", "\r" (CR), "\n" (LF), '
         r'"\r\n" (CRLF), "\n\r" (LFCR), "\0" (NUL), '
         r'"\u0003" (ETX), "\u0004" (EOT), or any combination.',
@@ -374,7 +374,8 @@ CFG_HELP: dict[str, tuple] = {
     ),
     # Input
     "send_bare_enter": (
-        "Send line ending when Enter pressed with no input.",
+        "Send line ending when Enter pressed with no input "
+        "(toggle: /term.send_bare_enter).",
         "Valid: true, false",
     ),
     "echo_input": (
@@ -418,17 +419,20 @@ CFG_HELP: dict[str, tuple] = {
         _preview_color,
     ),
     "max_lines": ("Scrollback buffer size.", "Positive integer. Default: 10000"),
-    "show_timestamps": ("Prefix each line with [HH:MM:SS.mmm].", "Valid: true, false"),
+    "show_timestamps": (
+        "Prefix each line with [HH:MM:SS.mmm] (toggle: /term.timestamps).",
+        "Valid: true, false",
+    ),
     "show_line_endings": (
-        "Show dim \\r \\n markers in serial output.",
+        "Show dim \\r \\n markers in serial output (toggle: /term.line_endings).",
         "Valid: true, false. Debug mode for line-ending issues.",
     ),
     "show_line_numbers": (
-        "Show line numbers in serial output.",
+        "Show line numbers in serial output (toggle: /term.line_no).",
         "Valid: true, false",
     ),
     "hex_mode": (
-        "Display serial I/O as hex bytes instead of text.",
+        "Display serial I/O as hex bytes instead of text (toggle: /term.hex).",
         "Valid: true, false",
     ),
     "request_mode": (

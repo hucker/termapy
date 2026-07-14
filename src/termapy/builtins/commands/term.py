@@ -432,6 +432,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     flags = ctx.ns("flags")
     rows = [
         ("echo", "on" if flags.get("echo") else "off"),
+        ("echo_repl", "on" if flags.get("echo_repl") else "off"),
         ("output", str(flags.get("output_level", "normal"))),
         ("hex", "on" if flags.get("hex_mode") else "off"),
         ("line_no", "on" if flags.get("line_no") else "off"),
@@ -482,12 +483,31 @@ COMMAND = Command(
     sub_commands={
         "echo": Command(
             args="{on|off}",
-            help="Toggle echo of device commands sent to the wire (cfg echo_input).",
+            help="Local echo of device commands sent to the wire (cfg echo_input).",
+            long_help=(
+                "Local echo of DEVICE commands -- the bare lines and\n"
+                "{prefix}term.send text that go out on the wire.  Persisted\n"
+                "via cfg echo_input.\n"
+                "\n"
+                "termapy splits local echo in two: this ({prefix}term.echo)\n"
+                "for device commands, and {prefix}term.echo_repl for\n"
+                "REPL/slash commands ({prefix}cfg, {prefix}help, ...).\n"
+                "See also: {prefix}term.echo_repl."
+            ),
             handler=_handler_echo,
         ),
         "echo_repl": Command(
             args="{on|off}",
-            help="Toggle echo of REPL/slash commands like /cfg (session only).",
+            help="Local echo of REPL/slash commands like /cfg (session only).",
+            long_help=(
+                "Local echo of REPL/slash commands ({prefix}cfg, {prefix}help,\n"
+                "...).  Session-only (no cfg key); default on for the TUI,\n"
+                "off for the CLI (whose OS terminal already shows the typed\n"
+                "line).\n"
+                "\n"
+                "The sibling of {prefix}term.echo, which echoes DEVICE\n"
+                "commands sent to the wire.  See also: {prefix}term.echo."
+            ),
             handler=_handler_echo_repl,
         ),
         "send": Command(

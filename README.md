@@ -1212,7 +1212,8 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 <details>
 <summary><strong>Test coverage</strong> - 2850 tests, 71% core-module coverage</summary>
 
-2850 tests across 98 test files. Run with `uv run pytest`.
+Run the full suite with `uv run pytest`. (The count above is the one place it
+is tracked; `release_prep` refreshes it each release.)
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

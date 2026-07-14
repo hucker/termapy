@@ -208,7 +208,10 @@ Hard gates (step 1 aborts):
 
 Auto-refreshed every release (`update_readme_md` / `update_architecture_md`):
 
-- test count (`pytest --collect-only`)
+- test count (`pytest --collect-only`) — written to **exactly one place**, the
+  README's "Test coverage" `<details>` summary line. Everywhere else the count
+  is imprecise prose ("extensively tested", "thousands of tests") that never
+  needs updating. ARCHITECTURE.md and the README body line carry no count.
 - coverage percent (parsed from `pytest --cov` `TOTAL` line)
 - ty diagnostic count + badge color
 - ARCHITECTURE.md per-module line counts

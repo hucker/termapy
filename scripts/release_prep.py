@@ -131,11 +131,6 @@ def count_tests() -> int:
     return 0  # unreachable, satisfies type checker
 
 
-def count_test_files() -> int:
-    """Number of test_*.py files in tests/."""
-    return len(list((REPO_ROOT / "tests").glob("test_*.py")))
-
-
 def count_ty_issues() -> int:
     """Total ty diagnostics from `uvx ty check src/termapy/`.
 
@@ -299,8 +294,13 @@ def coverage_badge_color(percent: int) -> str:
     return "red"
 
 
-def update_architecture_md(test_count: int) -> None:
-    """Update line counts and test count in ARCHITECTURE.md."""
+def update_architecture_md() -> None:
+    """Update per-module line counts in ARCHITECTURE.md.
+
+    The test count is NOT tracked here on purpose -- it lives in exactly one
+    place (README's Test coverage summary).  ARCHITECTURE.md and other prose
+    say "extensively tested" so there is nothing to keep in sync.
+    """
     path = REPO_ROOT / "ARCHITECTURE.md"
     text = path.read_text(encoding="utf-8")
 
@@ -345,29 +345,18 @@ def update_architecture_md(test_count: int) -> None:
             text = new_text
             updated += 1
 
-    # Update test count line: "28 test files, 1259 tests, 67% overall coverage:"
-    test_files = count_test_files()
-    text = re.sub(
-        r"(\d+) test files, \d+ tests,",
-        f"{test_files} test files, {test_count} tests,",
-        text,
-        count=1,
-    )
-
     path.write_text(text, encoding="utf-8")
-    ok(f"ARCHITECTURE.md updated ({updated} line counts, test count={test_count})")
+    ok(f"ARCHITECTURE.md updated ({updated} line counts)")
 
 
 def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
     """Update test count, ty + coverage badges, and rounded UI line counts."""
     path = REPO_ROOT / "README.md"
     text = path.read_text(encoding="utf-8")
-    test_files = count_test_files()
 
-    # README uses two places for the test-coverage summary: the
-    # <details> summary line and the body line right below it.  Both
-    # the test count and the overall % get refreshed each release so
-    # the README can't silently drift from the actual figure.
+    # The test count lives in exactly ONE place: the <details> Test
+    # coverage summary line.  The body line below it is count-free prose,
+    # so only the summary's count + the coverage % are refreshed here.
     # ``cov_percent`` is the coverage config's reported number, which omits
     # app.py/dialogs/builtins (see pyproject [tool.coverage.run]) -- i.e.
     # core-module coverage, NOT whole-repo.  The wording says "core-module"
@@ -375,12 +364,6 @@ def update_readme_md(test_count: int, ty_count: int, cov_percent: int) -> None:
     text = re.sub(
         r"<strong>Test coverage</strong> - \d+ tests, \d+% core-module coverage",
         f"<strong>Test coverage</strong> - {test_count} tests, {cov_percent}% core-module coverage",
-        text,
-        count=1,
-    )
-    text = re.sub(
-        r"\d+ tests across \d+ test files\.",
-        f"{test_count} tests across {test_files} test files.",
         text,
         count=1,
     )
@@ -766,7 +749,7 @@ def main() -> None:
     test_count = count_tests()
     ty_count = count_ty_issues()
     cov_percent = measure_coverage_percent()
-    update_architecture_md(test_count)
+    update_architecture_md()
     update_readme_md(test_count, ty_count, cov_percent)
     update_suppression_count()
 

@@ -2778,6 +2778,7 @@ class SerialTerminal(TerminalHost, App):
         show_ts = self.cfg.get("show_timestamps", False)
         show_ln = self._show_line_numbers
         hex_mode = self.repl.ctx.ns("flags")["hex_mode"]
+        color_on = self.repl.ctx.ns("flags").get("color", True)
         enc = self.cfg.get("encoding", "utf-8")
         for text in lines:
             self._line_counter += 1
@@ -2790,9 +2791,15 @@ class SerialTerminal(TerminalHost, App):
                 hex_str = " ".join(
                     f"{b:02X}" for b in text.encode(enc, errors="replace")
                 )
-                log.write(Text.from_ansi(f"{prefix}{hex_str}"))
+                body = f"{prefix}{hex_str}"
             else:
-                log.write(Text.from_ansi(f"{prefix}{text}"))
+                body = f"{prefix}{text}"
+            # from_ansi renders device SGR colour; when colour is off, strip
+            # the escapes and render plain so raw bytes don't leak through.
+            if color_on:
+                log.write(Text.from_ansi(body))
+            else:
+                log.write(Text(ANSI_RE.sub("", body)))
         for text in lines:
             self._log_line("<", ANSI_RE.sub("", text))
 

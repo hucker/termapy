@@ -171,6 +171,13 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
         CapabilitySet(interactive=True),  # legacy alias for human typing
     ),
     LegacyForwarder(
+        "color",
+        "{on|off}",
+        "Toggle rendering of device ANSI colour.",
+        make_forwarder("color", "term.color"),
+        CapabilitySet(interactive=True),  # legacy alias for human typing
+    ),
+    LegacyForwarder(
         "line_no",
         "{on|off}",
         "Toggle line numbers on or off.",

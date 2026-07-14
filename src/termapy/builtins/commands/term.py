@@ -59,6 +59,13 @@ def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
     return _flag_toggle(ctx, args, "echo_repl")
 
 
+def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
+    # Render device ANSI colour (SGR).  Session flag, portable across the
+    # TUI (strip before render when off) and CLI (strip in on_lines) --
+    # was a CLI-only hook before.  Default off under --no-color.
+    return _flag_toggle(ctx, args, "color")
+
+
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """Send literal text to the serial port (with line ending + encoding).
 
@@ -433,6 +440,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     rows = [
         ("echo", "on" if flags.get("echo") else "off"),
         ("echo_repl", "on" if flags.get("echo_repl") else "off"),
+        ("color", "on" if flags.get("color", True) else "off"),
         ("output", str(flags.get("output_level", "normal"))),
         ("hex", "on" if flags.get("hex_mode") else "off"),
         ("line_no", "on" if flags.get("line_no") else "off"),
@@ -509,6 +517,17 @@ COMMAND = Command(
                 "commands sent to the wire.  See also: {prefix}term.echo."
             ),
             handler=_handler_echo_repl,
+        ),
+        "color": Command(
+            args="{on|off}",
+            help="Toggle rendering of device ANSI colour (SGR).",
+            long_help=(
+                "Render ANSI colour (SGR) from device output.  On by\n"
+                "default; off strips colour so output is plain (and, in the\n"
+                "CLI, clean for piping -- the same effect as --no-color).\n"
+                "Works in both the TUI and CLI.  Legacy alias: {prefix}color."
+            ),
+            handler=_handler_color,
         ),
         "send": Command(
             args="<text>",

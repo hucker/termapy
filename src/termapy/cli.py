@@ -306,8 +306,9 @@ class CLITerminal(TerminalHost):
         self.repl.set_context(self.ctx)
         # CLI: REPL echo off by default -- the OS terminal already shows the
         # typed line, so app-echo would duplicate it (scripts opt in with
-        # /term.echo_repl).  Device echo follows cfg echo_input.
-        self._init_flags(echo_repl=False)
+        # /term.echo_repl).  Device echo follows cfg echo_input.  Colour off
+        # when --no-color so device ANSI is stripped from piped output.
+        self._init_flags(echo_repl=False, color=not self.no_color)
         if self.output_level is not None:
             self.ctx.ns("flags")["output_level"] = self.output_level
 
@@ -336,26 +337,9 @@ class CLITerminal(TerminalHost):
             source="app",
             hidden=True,
         )
-        # /term.color is the canonical name -- it's a display toggle
-        # sibling to /term.echo, /term.line_no, /term.timestamps, etc.
-        # The bare /color was the original top-level name; it stays as
-        # a hidden alias so older scripts and shell aliases keep
-        # working.
-        self.repl.register_hook(
-            "term.color",
-            "{on|off}",
-            "Show or toggle color output.",
-            self._hook_color,
-            source="app",
-        )
-        self.repl.register_hook(
-            "color",
-            "{on|off}",
-            "Legacy alias for /term.color.",
-            make_forwarder("color", "term.color"),
-            source="app",
-            hidden=True,
-        )
+        # /term.color (device-colour toggle) is now a portable builtin
+        # backed by flags["color"], with /color as its legacy alias in
+        # legacy.py -- so it works in the TUI too, not just the CLI.
         # /run and its sub_commands (.help, .legacy, .list, .dump,
         # .show, .explore) are owned by the run.py builtin; the host
         # only wires ctx.internal.run_script via TerminalHost.  /run.profile.*
@@ -515,22 +499,6 @@ class CLITerminal(TerminalHost):
             pass
         return CmdResult.ok(value=str(seconds))
 
-    def _hook_color(self, ctx, args: str):
-        """Toggle color output on/off."""
-        from termapy.scripting import parse_bool
-
-        val = parse_bool(args)
-        if val is True:
-            self.console.no_color = False
-            self.status("Color enabled.", "green")
-        elif val is False:
-            self.console.no_color = True
-            self.status("Color disabled.")
-        state = "on" if not self.console.no_color else "off"
-        if val is None:
-            self.status(f"Color: {state}")
-        return CmdResult.ok(value=state)
-
     # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
     # ``/run.help`` are now owned by the ``run.py`` built-in.
     # ``_run_script`` lives on ``TerminalHost`` so the built-in
@@ -671,8 +639,9 @@ class CLITerminal(TerminalHost):
         """Start the background serial reader thread."""
 
         def on_lines(lines: list[str]) -> None:
+            color_on = self.repl.ctx.ns("flags").get("color", True)
             for line in lines:
-                if self.no_color:
+                if not color_on:
                     line = strip_ansi(line)
                 self._raw(line)
             # Expect-watcher tap (mirrors app._write_batch): without this,

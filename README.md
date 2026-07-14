@@ -562,48 +562,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 }
 ```
 
-| Field                 | Default                | Description                                                                                              |
-| --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| `config_version`      | `5`                    | Schema version (managed automatically by the migration system, do not edit)                              |
-| `serial.port`         | `""`                   | Serial port name -- auto-detected when only one port available (supports `$(env.NAME\|fallback)`)        |
-| `serial.baud_rate`    | `115200`               | Baud rate -- non-standard rates require `custom_baud`                                                    |
-| `serial.custom_baud`  | `false`                | Allow any baud rate >= 300 (modern drivers support arbitrary rates; disable to catch typos)              |
-| `serial.byte_size`    | `8`                    | Data bits (5, 6, 7, 8)                                                                                   |
-| `serial.parity`       | `"N"`                  | Parity: `"N"`, `"E"`, `"O"`, `"M"`, `"S"`                                                                |
-| `serial.stop_bits`    | `1`                    | Stop bits (1, 1.5, 2)                                                                                    |
-| `serial.flow_control` | `"none"`               | `"none"`, `"rtscts"` (hardware), `"xonxoff"` (software), or `"manual"` (shows DTR/RTS/Break buttons)     |
-| `encoding`            | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
-| `cmd_delay_ms`        | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
-| `protocol`            | `"text"`               | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON object per line)         |
-| `eol`         | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
-| `eol_rx`          | `"auto"`               | How received output splits into lines: `auto` (CR/LF/CRLF), `cr`, `lf`, `crlf` (set: `/term.eol.rx`)     |
-| `send_bare_enter`     | `false`                | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)         |
-| `auto_connect`        | `false`                | Connect to the port on startup                                                                           |
-| `auto_reconnect`      | `false`                | Retry every 2.5s if the port drops or fails to open (does not control startup)                           |
-| `on_connect_cmd`      | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
-| `profile_path`        | `""`                   | Explicit path to a v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention lookup |
-| `echo`          | `false`                | Echo device commands sent to the wire (bare lines + `/term.send`). Toggle: `/term.echo`                  |
-| `echo_fmt`      | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
-| `log_file`            | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
-| `timestamps`     | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
-| `line_endings`   | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
-| `line_no`   | `false`                | Show line numbers in serial output                                                                       |
-| `hex`            | `false`                | Display serial I/O as hex bytes instead of text                                                          |
-| `request_mode`        | `false`                | Turn bare device commands into synchronous request/response (see `/term.request`)                        |
-| `strip_device_echo`   | `false`                | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device)            |
-| `max_grep_lines`      | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
-| `proto_frame_gap_ms`  | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
-| `title`               | `""`                   | Title bar center text. Defaults to the config filename                                                   |
-| `border_color`        | `""`                   | Title bar and output border color. Any CSS color name or hex value                                       |
-| `max_lines`           | `10000`                | Maximum lines in the scrollback buffer                                                                   |
-| `cmd_prefix`          | `"/"`                  | Prefix for local REPL commands (e.g. `/help`, `/cls`)                                                    |
-| `config_read_only`    | `false`                | Disable the Edit button in config/script/proto pickers (`/cfg` still changes in-memory values)           |
-| `cfg_enabled`         | `true`                 | Show the Cfg button in the title bar                                                                     |
-| `run_enabled`         | `true`                 | Show the Run button in the title bar                                                                     |
-| `proto_enabled`       | `true`                 | Show the Proto button in the title bar                                                                   |
-| `record_enabled`      | `true`                 | Show the Record button next to the REPL prompt (toggles `/run.record`)                                   |
-| `show_traceback`      | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
-| `custom_buttons`      | `[]`                   | Array of custom button objects (see Custom Buttons above)                                                |
+See the **[config field reference](src/termapy/help/config.md#config-field-reference)** for every key, its default, and a one-line description (also in-app under **Help -> Configuration**, and per-key in the config editor).
 
 **Note on `line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `line_endings` off when not actively debugging.
 

@@ -129,10 +129,133 @@ def update_doc_configs() -> list[str]:
     return updated
 
 
+# ── Config field-reference table sync ─────────────────────────────────────────
+#
+# The reference tables in README.md / config.md restate every cfg key.  The
+# Field + Default columns and the column alignment are mechanical (they drift
+# whenever a key is renamed/added/removed), so we regenerate them from
+# DEFAULT_CFG; the hand-written Description column is preserved verbatim.  A
+# renamed-away key drops out; a new key gets a flagged TODO row so the author
+# notices it needs a description.
+
+import re  # noqa: E402 -- local to the table-sync section
+
+REF_FILES = [HELP_DIR / "config.md"]  # config.md is the single canonical table
+REF_START_RE = re.compile(r"<!-- config-reference:start.*?-->", re.DOTALL)
+REF_END = "<!-- config-reference:end -->"
+_ROW_SPLIT = re.compile(r"(?<!\\)\|")  # split on unescaped pipes
+
+# config_version is auto-managed by the migration system, not a user setting;
+# the reference table omits it by convention.
+_REF_SKIP = {"config_version"}
+
+
+def _flat_default_map() -> dict:
+    """Display-key -> default value.  serial.* is expanded to dotted keys."""
+    from termapy.defaults import DEFAULT_CFG
+
+    out: dict = {}
+    for k, v in DEFAULT_CFG.items():
+        if k in _REF_SKIP:
+            continue
+        if k == "serial" and isinstance(v, dict):
+            for sk, sv in v.items():
+                out[f"serial.{sk}"] = sv
+        else:
+            out[k] = v
+    return out
+
+
+def _fmt_default(v) -> str:
+    """Render a default value for a table cell (escapes shown, containers short)."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, dict):
+        return "{...}"
+    if isinstance(v, list):
+        return "[]"
+    if isinstance(v, str):
+        return '""' if v == "" else v.encode("unicode_escape").decode("ascii")
+    return str(v)
+
+
+def _esc_cell(s: str) -> str:
+    return s.replace("|", r"\|")
+
+
+def _sync_reference_table(path, write: bool = True) -> str | None:
+    text = path.read_text(encoding="utf-8")
+    mstart = REF_START_RE.search(text)
+    if not mstart or REF_END not in text:
+        return None
+    end_idx = text.index(REF_END)
+    block = text[mstart.end() : end_idx]
+
+    defaults = _flat_default_map()
+    rows: list[tuple[str, str]] = []  # (field, description) in existing order
+    seen: set[str] = set()
+    for line in block.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in _ROW_SPLIT.split(line)]
+        if len(cells) < 4:
+            continue
+        field_cell = cells[1]
+        if field_cell == "Field" or set(field_cell) <= set("-: "):
+            continue  # header / separator row
+        field = field_cell.strip("`")
+        if field in defaults:  # drop stale keys (renamed away / removed)
+            rows.append((field, cells[3]))
+            seen.add(field)
+    # New keys get a flagged row so the author writes a description.
+    for k in defaults:
+        if k not in seen:
+            rows.append((k, "TODO: describe this key"))
+
+    field_cells = [f"`{f}`" for f, _ in rows]
+    default_cells = [f"`{_esc_cell(_fmt_default(defaults[f]))}`" for f, _ in rows]
+    descs = [d for _, d in rows]
+    # Align the two mechanical columns (Field, Default); leave Description at
+    # its natural width -- padding it to the longest cell (serial.port runs
+    # ~250 chars) would make every row absurdly wide.
+    w1 = max([len("Field")] + [len(c) for c in field_cells])
+    w2 = max([len("Default")] + [len(c) for c in default_cells])
+    out = [
+        f"| {'Field':<{w1}} | {'Default':<{w2}} | Description |",
+        f"| {'-' * w1} | {'-' * w2} | --- |",
+    ]
+    for fc, dc, desc in zip(field_cells, default_cells, descs):
+        out.append(f"| {fc:<{w1}} | {dc:<{w2}} | {desc} |")
+
+    new_text = text[: mstart.end()] + "\n" + "\n".join(out) + "\n" + text[end_idx:]
+    if new_text != text:
+        if write:
+            path.write_text(new_text, encoding="utf-8")
+        return path.name
+    return None
+
+
+def sync_reference_tables(check: bool = False) -> list:
+    """Regenerate Field/Default/alignment in each marked reference table.
+
+    With ``check=True`` nothing is written; the returned list names the files
+    that WOULD change (i.e. have drifted).  Used by the freshness test.
+    """
+    updated = []
+    for p in REF_FILES:
+        if p.exists() and (r := _sync_reference_table(p, write=not check)):
+            updated.append(f"{r} field-reference table")
+    return updated
+
+
 if __name__ == "__main__":
     print("Updating config examples in documentation...")
     results = update_doc_configs()
+    results += sync_reference_tables()
     if results:
-        print(f"\nUpdated {len(results)} example(s). Review the diffs.")
+        print(f"\nUpdated {len(results)} item(s). Review the diffs.")
+        for r in results:
+            print(f"  - {r}")
     else:
-        print("\nAll examples are current.")
+        print("\nAll examples and reference tables are current.")

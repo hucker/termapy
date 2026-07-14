@@ -64,7 +64,7 @@ src/termapy/
 ├── dialogs/                # (2451 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
 │   ├── cfg_confirm.py      #   CfgConfirm
-│   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (~461 lines, the big one)
+│   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (the big one)
 │   ├── config_picker.py    #   ConfigPicker
 │   ├── confirm_dialog.py   #   ConfirmDialog - Yes/Cancel
 │   ├── name_picker.py      #   NamePicker
@@ -100,7 +100,7 @@ src/termapy/
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
 ├── usb/                    # (3913 lines) USB lookup tables (library-shaped)
-│   ├── _vendors_full.py    #   Generated USB-IF table (~3,400 entries, fallback)
+│   ├── _vendors_full.py    #   Generated USB-IF table (fallback)
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
@@ -114,7 +114,7 @@ src/termapy/
 ├── demo_vt100.py           # (406 lines)  Interactive ANSI widget-tour sim (DEMO_VT100 port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
-├── migration.py            # (600 lines)  Config schema migration chain (v17)
+├── migration.py            # (600 lines)  Config schema migration chain
 ├── port_control.py         # (1535 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1181 lines) Interactive protocol debug screen (Textual)
 ├── repl.py                 # (1806 lines) REPL engine - dispatch, scripting, transforms
@@ -198,7 +198,7 @@ ctx.plugin_cfg(name)                          # per-plugin persistent config
 ctx.prefix                                    # active REPL command prefix (derived from cfg)
 ```
 
-**13 visible names** on `ctx`, down from ~50 flat fields. The split is by responsibility, not by syntax: four handles each own one capability domain a reader can hold in their head; the fifth, `internal`, is the deliberate exception — the privileged escape hatch for built-ins that isn't a domain.
+**A small, fixed set of visible names** on `ctx`, replacing the earlier sprawl of flat fields. The split is by responsibility, not by syntax: four handles each own one capability domain a reader can hold in their head; the fifth, `internal`, is the deliberate exception — the privileged escape hatch for built-ins that isn't a domain.
 
 **Capability gating.** Some handle methods are gated on `CapabilitySet` flags. `ctx.ui.confirm()` requires `confirm_dialog`; `ctx.fs.open_file()` requires `gui_apps`; `ctx.wait_for_match()` requires `block_until`. Calling a gated method in an environment that didn't grant the capability raises `MissingCapability`, which the dispatcher converts to `CmdResult.fail`. Commands declare what they need with `Command(needs=CapabilitySet(...))`; the dispatcher refuses to invoke a handler whose `needs` aren't satisfied, so most capability mismatches fail loudly *before* the handler runs.
 
@@ -430,7 +430,7 @@ Copy this shape for any plugin that needs per-session state with setup/reset sem
 ├──────────────────────────────────────────────────┤
 │  config.py         - dirs, loading, validation   │
 │  defaults.py       - DEFAULT_CFG, templates      │
-│  migration.py      - schema migration v1→v17     │
+│  migration.py      - schema migration chain      │
 │  scripting.py      - pure functions, no state    │
 │  demo.py           - simulated device for --demo │
 │  mcp/              - MCP stdio server (sibling)  │
@@ -545,8 +545,8 @@ termapy_cfg/
 Every config carries a `config_version`. On load, `migrate_config()` (`migration.py`) runs the chain in `MIGRATIONS` from the file's version up to `CURRENT_CONFIG_VERSION` — one small function per step:
 
 ```text
-config_version: 17  ──migrators──▶  CURRENT_CONFIG_VERSION (23)
-   v17→v18, v18→v19, ... , v22→v23     (each step is one function in MIGRATIONS)
+config_version: N  ──migrators──▶  CURRENT_CONFIG_VERSION
+   vN→vN+1, vN+1→vN+2, ...     (each step is one function in MIGRATIONS)
 ```
 
 A migrator does whatever a schema change needs: rename a key, nest keys under a sub-dict (`port` → `serial.port`), rewrite a renamed command verb in the `*_on_connect_cmd` chains (`/color` → `/term.color`, `/ver` → `/app.ver`), or retire a key. Two supporting tables back it: `DEPRECATED_CFG` (the reason each removed key went away, surfaced as a warning) and the legacy-command tables in `legacy.py` (so `/run.legacy` can rewrite old command names inside `.run` scripts).

@@ -54,7 +54,7 @@ For a plain-text terminal (no TUI), use CLI mode:
 termapy --cli --demo
 ```
 
-There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (60+, each verified against its canonical check value in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
+There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (each verified against its canonical check value in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
 
 ---
 
@@ -445,7 +445,7 @@ The `--check` flag is read-only. It never modifies the config file.
 
 ### Config examples
 
-When you create a new config, termapy writes a complete `.cfg` file with all defaults (~30 lines). Here are some of the settings you can change:
+When you create a new config, termapy writes a complete `.cfg` file with all defaults. Here are some of the settings you can change:
 
 ```json
 {
@@ -797,7 +797,7 @@ Summary: 4/4 PASS (4 tests)
 
 ### CRC algorithms
 
-Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in: 64 of them, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
+Every CRC algorithm in the [reveng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalogue check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, Python, or Rust source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
 
 </details>
 
@@ -1223,27 +1223,11 @@ test suite and runs on every crcglot release; termapy verifies only
 "the dispatch reached crcglot and produced output," not every
 generator permutation.
 
-**Core logic** (serial engine, capture, REPL, protocol, config):
-
-| Module               | Coverage | Test file                            |
-| -------------------- | -------- | ------------------------------------ |
-| `migration.py`       | 98%      | `test_migration.py`                  |
-| `plugins/` (package) | 98%      | `test_plugins.py`, `test_handles.py` |
-| `defaults.py`        | 97%      | `test_defaults.py`                   |
-| `capture.py`         | 92%      | `test_capture.py`                    |
-| `protocol.py`        | 90%      | `test_protocol.py`                   |
-| `serial_engine.py`   | 90%      | `test_serial_engine.py`              |
-| `repl.py`            | 89%      | `test_engine.py`, `test_repl_cfg.py` |
-| `serial_port.py`     | 87%      | `test_serial_port.py`                |
-| `scripting.py`       | 86%      | `test_scripting.py`                  |
-| `config.py`          | 82%      | `test_app_config.py`                 |
-| `demo.py`            | 80%      | `test_demo.py`                       |
-| `port_control.py`    | 75%      | `test_port_control.py`               |
-| `cli.py`             | 40%      | `test_cli.py`                        |
+**Core logic** (serial engine, capture, REPL, protocol, config) is heavily covered by unit tests — `test_migration.py`, `test_plugins.py`, `test_handles.py`, `test_capture.py`, `test_protocol.py`, `test_serial_engine.py`, `test_engine.py`, `test_serial_port.py`, `test_scripting.py`, and more, one focused file per module.
 
 **Built-in plugins:** broad coverage via `test_builtins.py` plus per-plugin test files (`test_var.py`, `test_env_var.py`, `test_xmodem.py`, `test_ymodem.py`, `test_app_plugin.py`, `test_proto_send_crc.py`, etc.).
 
-**UI code:** `app.py` (~3750 lines), `proto_debug.py` (~1200 lines), and `dialogs/` (~2450 lines) are Textual UI and tested manually (Textual Pilot + the CLI gold test), not unit-tested. The 70% core-module figure is measured with `app.py`, `dialogs/`, and `builtins/` **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted), coverage is **~61%**; the ~8-point gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
+**UI code:** `app.py`, `proto_debug.py`, and `dialogs/` are the Textual UI and are tested manually (Textual Pilot + the CLI gold test), not unit-tested. The headline coverage figure is **core-module** coverage, measured with `app.py`, `dialogs/`, and `builtins/` **omitted** (see `[tool.coverage.run]` in `pyproject.toml`) — so it is *not* whole-repo coverage. Counting the whole repo (only vendored third-party code omitted) is lower, and that gap is exactly this untested UI layer. The omit is deliberate — the focus has been on extracting business logic into unit-testable modules and keeping the UI as thin delegation — but the headline number is core-module, not overall.
 
 </details>
 

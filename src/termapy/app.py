@@ -2927,7 +2927,7 @@ class SerialTerminal(TerminalHost, App):
         if self.repl.echo:  # live echo flag, not cfg (see _init_flags)
             fmt = self.cfg.get("echo_fmt", "> {cmd}")
             echo_text = text
-            if self.cfg.get("line_endings", False):
+            if self.cfg.get("eol_markers", False):
                 le = self.cfg.get("eol", "\r")
                 echo_text += eol_label(le)
             self._write_output_markup(fmt.replace("{cmd}", echo_text))

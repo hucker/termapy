@@ -205,7 +205,7 @@ def test_v5_to_v6_renames_config_keys():
         "auto_connect_cmd renamed; v15 migrated value to cli_on_connect_cmd"
     assert result["on_connect_cmd"] == "", "universal cleared in v15"
     assert result["cmd_delay_ms"] == 100, "inter_cmd_delay_ms renamed"
-    assert result["line_endings"] is True, "show_eol renamed (v28: show_line_endings -> line_endings)"
+    assert result["eol_markers"] is True, "show_eol -> show_line_endings -> line_endings -> eol_markers"
     assert result["show_traceback"] is True, "exception_traceback renamed"
     assert result["border_color"] == "green", "app_border_color renamed"
     assert result["cmd_prefix"] == "/", "repl_prefix renamed"
@@ -729,7 +729,7 @@ def test_v27_to_v28_renames_keys_to_command_names():
     assert result["echo_fmt"] == "> {cmd}", "echo_input_fmt -> echo_fmt"
     assert result["eol"] == "\r\n", "line_ending -> eol"
     assert result["eol_rx"] == "crlf", "rx_newline -> eol_rx"
-    assert result["line_endings"] is True, "show_line_endings -> line_endings"
+    assert result["eol_markers"] is True, "show_line_endings -> line_endings -> eol_markers"
     assert result["line_no"] is True, "show_line_numbers -> line_no"
     assert result["hex"] is True, "hex_mode -> hex"
     assert result["timestamps"] is True, "show_timestamps -> timestamps"
@@ -753,6 +753,20 @@ def test_v27_to_v28_new_name_wins_when_both_present():
     assert "echo_input" not in result, "old key dropped"
 
 
+def test_v28_to_v29_renames_line_endings_to_eol_markers():
+    """Migration v28->v29 renames line_endings -> eol_markers, carrying value."""
+    # Arrange
+    cfg = {"config_version": 28, "port": "COM4", "line_endings": True}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["eol_markers"] is True, "value carried across the rename"
+    assert "line_endings" not in result, "old key dropped"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.
@@ -764,9 +778,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labelled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 11, (
-        f"v17 -> v28 covers eleven migrators "
-        f"(17->18 ... 26->27, 27->28); "
+    assert len(steps) == 12, (
+        f"v17 -> v29 covers twelve migrators "
+        f"(17->18 ... 27->28, 28->29); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -781,6 +795,7 @@ def test_migration_steps_recorded_per_version():
         "v25 -> v26",
         "v26 -> v27",
         "v27 -> v28",
+        "v28 -> v29",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -800,8 +815,8 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 8, (
-        f"eight steps (v20->v21 ... v26->v27, v27->v28); got {steps!r}"
+    assert len(steps) == 9, (
+        f"nine steps (v20->v21 ... v27->v28, v28->v29); got {steps!r}"
     )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"

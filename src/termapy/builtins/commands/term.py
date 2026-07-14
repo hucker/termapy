@@ -183,8 +183,11 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
     return CmdResult.ok(value=state)
 
 
-def _handler_line_endings(ctx: PluginContext, args: str) -> CmdResult:
-    return _cfg_toggle(ctx, args, "line_endings")
+def _handler_eol_markers(ctx: PluginContext, args: str) -> CmdResult:
+    # Show dim \r \n markers in received output for line-ending debugging.
+    # cfg eol_markers.  Canonical /term.eol.markers; /term.line_endings and
+    # /show_line_endings are hidden aliases.
+    return _cfg_toggle(ctx, args, "eol_markers")
 
 
 # Named tokens for the line ending appended to every sent command.
@@ -444,9 +447,9 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("output", str(flags.get("output_level", "normal"))),
         ("hex", "on" if flags.get("hex") else "off"),
         ("line_no", "on" if flags.get("line_no") else "off"),
-        ("line_endings", "on" if ctx.cfg.get("line_endings") else "off"),
         ("eol", _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), repr(ctx.cfg.get("eol", "\r")))),
         ("eol_rx", str(ctx.cfg.get("eol_rx", "auto"))),
+        ("eol_markers", "on" if ctx.cfg.get("eol_markers") else "off"),
         ("timestamps", "on" if ctx.cfg.get("timestamps") else "off"),
         ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
         ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
@@ -558,8 +561,9 @@ COMMAND = Command(
         ),
         "line_endings": Command(
             args="{on|off}",
-            help="Toggle visible \\r \\n markers in serial output.",
-            handler=_handler_line_endings,
+            help="Hidden alias for /term.eol.markers.",
+            handler=_handler_eol_markers,
+            hidden=True,
         ),
         "eol": Command(
             args="{cr|lf|crlf|none}",
@@ -571,12 +575,10 @@ COMMAND = Command(
                 "\n"
                 "This is a session override (in-memory, like the other\n"
                 "{prefix}term.* toggles).  To persist, use {prefix}cfg "
-                "line_ending or the Config Editor.\n"
+                "eol or the Config Editor.\n"
                 "\n"
-                "Note: {prefix}term.line_endings is unrelated -- it toggles\n"
-                "VISIBLE \\r \\n markers in received output for debugging.\n"
-                "\n"
-                "For the receive side, see {prefix}term.eol.rx."
+                "See also: {prefix}term.eol.rx (receive-side newline) and\n"
+                "{prefix}term.eol.markers (show \\r \\n markers for debugging)."
             ),
             handler=_handler_eol,
             sub_commands={
@@ -599,6 +601,20 @@ COMMAND = Command(
                         "eol_rx or the Config Editor."
                     ),
                     handler=_handler_eol_rx,
+                ),
+                "markers": Command(
+                    args="{on|off}",
+                    help="Toggle dim visible \\r \\n markers in received output.",
+                    long_help=(
+                        "Debug aid: show the line-ending bytes inline as dim\n"
+                        "\\r \\n markers so you can see exactly how the device\n"
+                        "terminates lines.  Distinct from {prefix}term.eol (which\n"
+                        "SETS the sent ending) and {prefix}term.eol.rx (which\n"
+                        "controls how received output is split).  Persisted via\n"
+                        "cfg eol_markers.  Legacy aliases: {prefix}term.line_endings,\n"
+                        "{prefix}show_line_endings."
+                    ),
+                    handler=_handler_eol_markers,
                 ),
             },
         ),

@@ -12,7 +12,7 @@ from termapy.serial_engine import SerialEngine
 def _make_engine(cfg=None):
     """Create a SerialEngine with FakeSerial as the open function."""
     cfg = cfg or {"port": "DEMO", "baud_rate": 115200, "encoding": "utf-8",
-                  "eol": "\r", "line_endings": False}
+                  "eol": "\r", "eol_markers": False}
     capture = CaptureEngine()
     logged = []
     engine = SerialEngine(
@@ -204,7 +204,7 @@ class TestReadLoop:
 
         capture = CaptureEngine()
         engine = SerialEngine(
-            cfg={"encoding": "utf-8", "line_endings": False},
+            cfg={"encoding": "utf-8", "eol_markers": False},
             capture=capture,
             open_fn=lambda c: BadPort(),
         )

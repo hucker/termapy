@@ -1102,7 +1102,7 @@ class ReplEngine:
         # seeds the flag at init; the flag is the session truth.
         if self.echo and cmd and not self.cfg.get("request_mode"):
             echo_text = cmd
-            if self.cfg.get("line_endings", False) and eol_label:
+            if self.cfg.get("eol_markers", False) and eol_label:
                 le = self.cfg.get("eol", "\r")
                 echo_text += eol_label(le)
             _echo_cmd(echo_text)

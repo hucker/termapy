@@ -4,7 +4,7 @@ These tests exercise the full pipeline: ``cfg["port"]`` -> env
 expansion -> ``resolve_port()`` -> ``open_serial()`` -> connected
 device.  Unit tests for the pure resolver live in
 [tests/test_port_control.py](tests/test_port_control.py); this file
-covers the behaviour a user actually sees in the TUI / CLI.
+covers the behavior a user actually sees in the TUI / CLI.
 """
 
 from __future__ import annotations

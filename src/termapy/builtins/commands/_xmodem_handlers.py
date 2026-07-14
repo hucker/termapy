@@ -50,7 +50,7 @@ class QueueByteReader:
                 -- ymodem passes sub-second timeouts through this path.
 
         Returns:
-            Exactly *size* bytes, or None if timeout expires or cancelled.
+            Exactly *size* bytes, or None if timeout expires or canceled.
         """
         deadline = time.monotonic() + timeout
         while len(self._buf) < size:
@@ -138,7 +138,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
             ok = modem.send(f, callback=_progress)
 
         if cancel and cancel.is_set():
-            return CmdResult.fail(msg="XMODEM send cancelled.")
+            return CmdResult.fail(msg="XMODEM send canceled.")
         if ok:
             ctx.io.result(f"XMODEM send complete: {path} ({file_size} bytes)")
             return CmdResult.ok(value=path)
@@ -192,7 +192,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         if cancel and cancel.is_set():
             if path.exists():
                 path.unlink(missing_ok=True)
-            return CmdResult.fail(msg="XMODEM recv cancelled.")
+            return CmdResult.fail(msg="XMODEM recv canceled.")
         if ok:
             size = path.stat().st_size
             ctx.io.result(f"XMODEM recv complete: {path} ({size} bytes)")

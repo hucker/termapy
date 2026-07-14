@@ -7,7 +7,7 @@ recorder handles all of that).  Returns ``None`` on cancel.
 
 Modeled on the existing ``NamePicker`` shape; kept separate to
 avoid coupling Record's UX to that dialog's stem-stripping
-behaviour.
+behavior.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ class FilenameDialog(ModalScreen[str | None]):
 
         Args:
             title: Header text shown above the input.
-            placeholder: Greyed-out hint inside the input box.
+            placeholder: Grayed-out hint inside the input box.
         """
         super().__init__()
         self._title = title

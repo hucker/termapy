@@ -1,6 +1,6 @@
 """Tests for /cfg.icon -- per-cfg desktop launcher creation.
 
-Each platform writes a different artefact (Linux .desktop file,
+Each platform writes a different artifact (Linux .desktop file,
 macOS .app bundle, Windows .lnk).  Tests monkeypatch
 ``sys.platform`` and redirect ``Path.home()`` into ``tmp_path`` so
 the test never touches the developer's real home directory.  The

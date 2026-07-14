@@ -73,7 +73,7 @@ piping output, or when you prefer a minimal interface. Start with
 CLI mode includes built-in completion powered by prompt\_toolkit:
 
 - **Tab completion** -- press Tab to complete REPL commands, subcommands, and device commands
-- **Auto-suggest** -- recent history appears as grey text as you type; press Right arrow to accept
+- **Auto-suggest** -- recent history appears as gray text as you type; press Right arrow to accept
 
 ![CLI completion](img/cli_completion.png)
 
@@ -179,7 +179,7 @@ things, man-inspired:
 - `/help.dev <cmd>`        -- developer view: shows the handler's Python docstring.
 
 For OS / terminal quirks -- VS Code integrated-terminal key capture
-and text-selection behaviour, macOS Option-as-Meta, KVM cross-platform
+and text-selection behavior, macOS Option-as-Meta, KVM cross-platform
 keyboard gotchas, Windows vs. Linux vs. macOS support notes -- see
 [Environment and compatibility](environment.md).
 

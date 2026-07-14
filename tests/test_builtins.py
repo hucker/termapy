@@ -2283,8 +2283,8 @@ class TestConfirm:
         # Act
         engine.dispatch("confirm Are you sure?")
 
-        # Assert - no "Cancelled" message, script_stop not called
-        assert not any("Cancelled" in t for t, _ in output)
+        # Assert - no "Canceled" message, script_stop not called
+        assert not any("Canceled" in t for t, _ in output)
 
     def test_confirm_cancel_stops_script(self, repl_env):
         # Arrange
@@ -2295,7 +2295,7 @@ class TestConfirm:
         engine.dispatch("confirm Are you sure?")
 
         # Assert
-        assert any("Cancelled" in t for t, _ in output), "shows cancelled"
+        assert any("Canceled" in t for t, _ in output), "shows canceled"
         assert engine._script_stop.is_set(), "script stop triggered"
 
     def test_confirm_default_message(self, repl_env):

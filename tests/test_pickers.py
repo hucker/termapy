@@ -105,7 +105,7 @@ def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
 
 
 def test_quick_setup_cancel_does_nothing(_quick_setup_env):
-    # Arrange -- user cancelled the modal.
+    # Arrange -- user canceled the modal.
     app = _StubApp()
 
     # Act

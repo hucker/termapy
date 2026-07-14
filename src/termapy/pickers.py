@@ -51,7 +51,7 @@ def on_config_result(app, result: tuple | None) -> None:
     Args:
         app: The SerialTerminal instance.
         result: ``(new_cfg_dict, new_config_path)`` on save, or
-            ``None`` if the user cancelled.
+            ``None`` if the user canceled.
     """
     if result is None:
         return
@@ -72,7 +72,7 @@ def on_port_picked(app, port: str | None) -> None:
 
     Args:
         app: The SerialTerminal instance.
-        port: The selected port name, or ``None`` if the user cancelled.
+        port: The selected port name, or ``None`` if the user canceled.
     """
     if port is None:
         return
@@ -92,7 +92,7 @@ def on_quick_setup(app, result: tuple | None) -> None:
         app: The SerialTerminal instance.
         result: ``(action, name, port, baud, custom_baud, add_icon)``
             tuple where ``action`` is ``"connect"`` or ``"advanced"``.
-            ``None`` if the user cancelled.
+            ``None`` if the user canceled.
     """
     if result is None:
         return
@@ -138,7 +138,7 @@ def on_script_picked(app, result: tuple | None) -> None:
         app: The SerialTerminal instance.
         result: ``(action, ...path)`` where ``action`` is one of
             ``"run"``, ``"new"``, ``"edit"``, ``"delete"``.  ``None``
-            if the user cancelled.
+            if the user canceled.
     """
     if result is None:
         return
@@ -173,7 +173,7 @@ def on_proto_picked(app, result: tuple | None) -> None:
     """Handle result from the ProtoPicker dialog.
 
     Args:
-        result: Tuple action from picker, or None if cancelled.
+        result: Tuple action from picker, or None if canceled.
     """
     if result is None:
         return

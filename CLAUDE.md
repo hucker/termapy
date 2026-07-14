@@ -39,7 +39,7 @@ All paths relative to `src/termapy/`.
 
 ## Library references
 
-- **crcglot conceptual map**: <https://raw.githubusercontent.com/hucker/crcglot/main/llms.txt> — pull this before working on `/proto.crc.*` integration; it summarises the four verbs (compute / detect-reverse / generate / encode-verify), the `LANGUAGES` and `ALGORITHMS` registries, and links to the per-surface docs.  Pinned to current crcglot floor (see `pyproject.toml`).
+- **crcglot conceptual map**: <https://raw.githubusercontent.com/hucker/crcglot/main/llms.txt> — pull this before working on `/proto.crc.*` integration; it summarizes the four verbs (compute / detect-reverse / generate / encode-verify), the `LANGUAGES` and `ALGORITHMS` registries, and links to the per-surface docs.  Pinned to current crcglot floor (see `pyproject.toml`).
 
 ## Conventions
 
@@ -123,7 +123,7 @@ uv run termapy --cfg-dir . # use cwd for configs
 - `uv run pytest` — full suite (~110s); use this before commit/merge
 - `uv run pytest -m "not slow"` — fast suite (~25s) for tight iteration. Skips ~230 subprocess-spawning, real-serial-loopback, and sleep-based tests. Use during dev; ALWAYS run the full suite before pushing.
 - `uv run pytest -m slow` — only the slow tests (useful when debugging a specific subprocess test)
-- Coverage omits `__init__.py`, `builtins/*.py`, `app.py`, `dialogs/*.py`, and `vendor/*` (see `[tool.coverage.run]` in `pyproject.toml`). The reported percent is therefore **core-module** coverage, not whole-repo: `app.py`/`dialogs/` are the Textual UI (integration-tested via Pilot + the CLI gold test, not unit-tested), `builtins/` are plugins covered behaviourally, `vendor/` is third-party. Whole-repo coverage (only `vendor/` omitted) is ~61%.
+- Coverage omits `__init__.py`, `builtins/*.py`, `app.py`, `dialogs/*.py`, and `vendor/*` (see `[tool.coverage.run]` in `pyproject.toml`). The reported percent is therefore **core-module** coverage, not whole-repo: `app.py`/`dialogs/` are the Textual UI (integration-tested via Pilot + the CLI gold test, not unit-tested), `builtins/` are plugins covered behaviorally, `vendor/` is third-party. Whole-repo coverage (only `vendor/` omitted) is ~61%.
 - `app.py` not unit tested — only non-UI modules
 - Run tests before commit; full suite before merging to main
 - AAA comments (`# Arrange`, `# Act`, `# Assert`) for non-trivial tests

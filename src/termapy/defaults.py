@@ -94,7 +94,7 @@ DEFAULT_CFG = {
     # of REPL/slash commands (/cfg, /help, ...) -- it has no cfg key
     # because its default is per-host (see TerminalHost._init_flags).
     # (Device-side echo, where the device parrots your bytes, is a device
-    # concern and not modelled here.)
+    # concern and not modeled here.)
     "echo": False,
     "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     # Logging

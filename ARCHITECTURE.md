@@ -96,7 +96,7 @@ src/termapy/
 │   └── types.py            #   TypeRegistry, TypeDef (enum/range/pattern/format_spec/...)
 ├── protocol/               # (2322 lines) Binary-protocol toolkit (library-shaped, no Textual)
 │   ├── core.py             #   Format-spec parser, apply_format, FrameCollector
-│   ├── crc.py              #   crcglot catalogue shim (100+ algorithms via crcglot pkg) + CRC plugin registry
+│   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
 ├── usb/                    # (3913 lines) USB lookup tables (library-shaped)
@@ -424,7 +424,7 @@ Copy this shape for any plugin that needs per-session state with setup/reset sem
 │  protocol/ - Protocol Engine (package)           │
 │  • core.py: format-spec language (H, U, I, S,    │
 │    F, B, CRC), apply_format, FrameCollector      │
-│  • crc.py: crcglot catalogue + plugin loading    │
+│  • crc.py: crcglot catalog + plugin loading    │
 │  • runner.py: .pro test-script execution         │
 │  • viz.py: visualizer plugin loader              │
 ├──────────────────────────────────────────────────┤

@@ -1515,7 +1515,7 @@ class ReplEngine:
         message = args.strip() or "Continue?"
         accepted = self.ctx.ui.confirm(message)
         if not accepted:
-            sctx.w("Script cancelled by user.")
+            sctx.w("Script canceled by user.")
             self._script_stop.set()
         return CmdResult.ok(value="yes" if accepted else "no")
 

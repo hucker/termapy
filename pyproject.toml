@@ -45,13 +45,13 @@ dependencies = [
     # Cross-platform user state / config directory resolution (replaces
     # per-OS hand-rolled APPDATA / XDG handling for app-level state).
     "platformdirs>=4.0",
-    # CRC catalogue + multi-language code generation.  Originally bundled
+    # CRC catalog + multi-language code generation.  Originally bundled
     # under termapy.protocol.crcgen; extracted to its own PyPI package
     # in 2026-05 so engineers who need just the codegen don't pull in
     # a TUI dependency tree.  termapy.protocol.crc remains as a thin
     # shim re-exporting the pure CRC bits (CRC_CATALOGUE, _generic_crc).
     # 0.10 dropped the short termapy-side aliases (crc16m, crc16x, ...)
-    # from the catalogue and replaced the per-language ``table=bool``
+    # from the catalog and replaced the per-language ``table=bool``
     # kwarg on the codegen generators with ``variant=Literal["bitwise",
     # "table", "slice8"]``.  0.11 added a required ``source`` field on
     # ``AlgorithmInfo``; the --custom path in /proto.crc.<lang> passes
@@ -74,7 +74,7 @@ dependencies = [
     # callable, so termapy's bundling path is unaffected).  0.18-0.23
     # is the biggest API expansion since 0.13: the variant ladder
     # gained an ``"auto"`` default that picks the fastest
-    # implementation per (language, width), the catalogue grew from
+    # implementation per (language, width), the catalog grew from
     # 62 to 100+ algorithms, and several brand-new top-level helpers
     # landed -- ``compute`` / ``encode`` / ``verify`` /
     # ``identify_trailer`` / ``reverse`` / ``CrcStream`` /

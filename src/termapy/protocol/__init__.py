@@ -38,7 +38,7 @@ Files in this package:
   - ``core.py``         -- format-spec parser, apply/diff_format,
                            FrameCollector, parse_hex, response matching,
                            ColumnSpec, parse_proto_script, TestCase
-  - ``crc.py``          -- CRC catalogue, registry, generic_crc
+  - ``crc.py``          -- CRC catalog, registry, generic_crc
   - ``crcgen/``        -- Python / C / Rust / VHDL CRC code generators
                           (one module per target language)
   - ``runner.py``       -- .pro file execution; run_proto_tests
@@ -124,7 +124,7 @@ from termapy.protocol.viz import (
 )
 
 # crcglot 0.8.0 dropped the module-level GENERATORS / GENERATORS_FROM_ENTRY
-# dicts in favour of LANGUAGES[code].generator.  termapy's proto.py
+# dicts in favor of LANGUAGES[code].generator.  termapy's proto.py
 # dispatcher keys generators by language code, so rebuild the dicts here.
 # This also automatically picks up languages crcglot adds (csharp, go,
 # typescript, verilog in 0.8.0) -- though termapy only registers REPL

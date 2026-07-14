@@ -113,7 +113,7 @@ def check_bare_dollar(line: str) -> str | None:
 # Frozen datetime moments, keyed by concept.  LAUNCH is frozen when the
 # module loads (app start); SESSION is frozen by ``set_start_time_vars`` at
 # the top-level script boundary.  Each exposes $(<CONCEPT>_DATE/TIME/DATETIME)
-# and honours an optional :fmt override -- format is applied on read.
+# and honors an optional :fmt override -- format is applied on read.
 _FROZEN_MOMENTS: dict[str, datetime] = {"LAUNCH": datetime.now()}
 
 # Non-datetime launch vars (plain strings, no :fmt).

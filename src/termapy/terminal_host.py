@@ -407,7 +407,7 @@ class TerminalHost:
         device_echo_allowed: bool = True,
         color: bool = True,
     ) -> None:
-        """Initialise the ``flags`` namespace with shared engine defaults.
+        """Initialize the ``flags`` namespace with shared engine defaults.
 
         There are two independent local echoes, gated by two flags:
 
@@ -424,7 +424,7 @@ class TerminalHost:
         Kept separate on purpose: at a device prompt you usually want to
         see the commands you send (device echo) but not the REPL meta
         commands.  Device echo (#1, the device parroting your bytes) is a
-        device-side concern, not modelled here.
+        device-side concern, not modeled here.
 
         REPL echo is session-only (no cfg key) because its right default is
         per-host, which a single cfg key can't express: the TUI clears its
@@ -450,8 +450,8 @@ class TerminalHost:
         flags.setdefault("echo_repl", echo_repl)
         flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
         flags.setdefault("hex", self.cfg.get("hex", False))
-        # Render device ANSI colour (SGR).  Session flag toggled by
-        # /term.color; the single source of truth for device colour across
+        # Render device ANSI color (SGR).  Session flag toggled by
+        # /term.color; the single source of truth for device color across
         # the TUI (strip before render when off) and CLI (strip in on_lines).
         flags.setdefault("color", color)
 
@@ -624,7 +624,7 @@ class TerminalHost:
         self._setup_context()
         self.repl.fire_lifecycle("on_config_load")
         # auto_connect lives in the newly-loaded cfg -- if the user's
-        # saved config wants the port opened on start, honour it here.
+        # saved config wants the port opened on start, honor it here.
         # Use self._connect() (not engine.connect() inline) so the full
         # connect lifecycle fires: on_connect lifecycle hook, reader
         # thread start, AND ``_on_connected()``.  The latter is where

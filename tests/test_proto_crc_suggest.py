@@ -3,7 +3,7 @@
 Exercises the wrapper in ``termapy/builtins/commands/proto.py:_did_you_mean``
 that calls ``crcglot.suggest_algorithms`` (0.25+) and the five sites that
 splice the resulting suffix into their ``Unknown algorithm:`` fail
-messages: ``_crc_info``, ``_crc_calc``, ``_crc_codegen`` (catalogue
+messages: ``_crc_info``, ``_crc_calc``, ``_crc_codegen`` (catalog
 single-algo + bundle paths), and ``_crc_verify``.
 
 The suggestion logic itself lives in crcglot; here we verify only that
@@ -49,7 +49,7 @@ class TestDidYouMeanHelper:
         actual = _did_you_mean("crc16-modbsu")
 
         # Assert -- suffix starts with the expected sentinel and includes
-        # the catalogue name the user clearly intended.  Don't pin the
+        # the catalog name the user clearly intended.  Don't pin the
         # full suggestion list -- crcglot owns the ranking and may
         # reorder across bumps.
         assert actual.startswith("; did you mean: "), (
@@ -61,7 +61,7 @@ class TestDidYouMeanHelper:
         )
 
     def test_garbage_returns_empty_string(self):
-        # Arrange / Act -- nothing close in the catalogue.
+        # Arrange / Act -- nothing close in the catalog.
         actual = _did_you_mean("floozle")
 
         # Assert
@@ -124,7 +124,7 @@ class TestSuggestionRendersAtHandlerSites:
         )
 
     def test_crc_codegen_single_suffix(self):
-        # Arrange -- catalogue single-algo path
+        # Arrange -- catalog single-algo path
         ctx, _captured, _markup = _build_stub_ctx()
 
         # Act

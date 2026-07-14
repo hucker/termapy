@@ -28,7 +28,7 @@ class TestCrcDetect:
         # Assert
         assert result.success, "detect ran cleanly"
         assert "crc16-modbus" in result.value, (
-            "the wire-dict value carries the matched catalogue algorithm"
+            "the wire-dict value carries the matched catalog algorithm"
         )
 
     def test_endian_enum_little(self):

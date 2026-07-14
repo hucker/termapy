@@ -60,7 +60,7 @@ def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
-    # Render device ANSI colour (SGR).  Session flag, portable across the
+    # Render device ANSI color (SGR).  Session flag, portable across the
     # TUI (strip before render when off) and CLI (strip in on_lines) --
     # was a CLI-only hook before.  Default off under --no-color.
     return _flag_toggle(ctx, args, "color")
@@ -523,10 +523,10 @@ COMMAND = Command(
         ),
         "color": Command(
             args="{on|off}",
-            help="Toggle rendering of device ANSI colour (SGR).",
+            help="Toggle rendering of device ANSI color (SGR).",
             long_help=(
-                "Render ANSI colour (SGR) from device output.  On by\n"
-                "default; off strips colour so output is plain (and, in the\n"
+                "Render ANSI color (SGR) from device output.  On by\n"
+                "default; off strips color so output is plain (and, in the\n"
                 "CLI, clean for piping -- the same effect as --no-color).\n"
                 "Works in both the TUI and CLI.  Legacy alias: {prefix}color."
             ),

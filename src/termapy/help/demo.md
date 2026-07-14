@@ -60,7 +60,7 @@ The simulated device supports three protocols:
 | `AT+HELP.JSON`             | Device command help (JSON)              |
 | `AT+TEXTDUMP <n>`          | Emit text readings                      |
 | `AT+BINDUMP <n>`           | Emit binary records                     |
-| `AT+RND`                   | Emit one random catalogue-CRC packet    |
+| `AT+RND`                   | Emit one random catalog-CRC packet    |
 | `AT+RND.CUSTOM`            | Emit one packet with a secret poly      |
 | `AT+RND.CUSTOM.REVEAL`     | Print the secret poly's Rocksoft params |
 | `mem <addr> [len]`         | Hex memory dump                         |

@@ -54,7 +54,7 @@ def _dispatch_cells():
     Derived from ``crcglot.LANGUAGES`` so every language crcglot ships
     (and every future one) is smoke-tested automatically -- the test
     matches termapy's now-dynamic /proto.crc.<lang> registration.  We
-    test only NATIVE variants here; the --slice8 FALLBACK behaviour
+    test only NATIVE variants here; the --slice8 FALLBACK behavior
     (Python, and any future table-but-no-slice8 language) is covered by
     its own test in test_proto_crc_custom.py.
     """

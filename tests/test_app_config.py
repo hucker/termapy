@@ -898,7 +898,7 @@ class TestValidateConfig:
 
     def test_newer_config_suppresses_unknown_key_noise(self):
         # Arrange -- a future cfg with fields the current termapy
-        # doesn't recognise.  Without the fix these all got
+        # doesn't recognize.  Without the fix these all got
         # "unknown key (typo?)" warnings, misleading users into
         # thinking they had typos when the keys were just newer.
         from termapy.migration import CURRENT_CONFIG_VERSION
@@ -1011,7 +1011,7 @@ class TestRunCheck:
         Spawns the interpreter directly (``sys.executable -c``) rather than
         ``uv run termapy``.  The console script ``termapy:run`` is exactly
         ``termapy.entry.main`` (see ``src/termapy/__init__.py``), so this is
-        behaviourally identical -- but it skips uv's implicit re-sync, which
+        behaviorally identical -- but it skips uv's implicit re-sync, which
         tries to rewrite ``termapy.exe``.  A running termapy session locks that
         launcher on Windows, so ``uv run`` would otherwise fail with empty
         output whenever a live session is present.

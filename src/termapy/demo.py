@@ -249,7 +249,7 @@ class FakeSerial:
         """Read up to *size* bytes from the output buffer.
 
         Blocks up to ``self.timeout`` seconds waiting for data, matching
-        the behaviour of ``serial.Serial.read()``.
+        the behavior of ``serial.Serial.read()``.
 
         Args:
             size: Maximum number of bytes to read.
@@ -1011,12 +1011,12 @@ class FakeSerial:
 
     # -- Random packet emitter ----------------------------------------------
     # Drives the CRC-tour walkthrough: AT+RND emits one packet using a
-    # randomly chosen catalogue algorithm (so /proto.crc.find can identify
-    # it), AT+RND.CUSTOM emits a packet using a deliberately non-catalogue
+    # randomly chosen catalog algorithm (so /proto.crc.find can identify
+    # it), AT+RND.CUSTOM emits a packet using a deliberately non-catalog
     # secret polynomial (so /proto.crc.reverse can recover it), and
     # AT+RND.CUSTOM.REVEAL prints the secret so the user can confirm.
 
-    # Curated catalogue set for AT+RND -- spans widths and endians.
+    # Curated catalog set for AT+RND -- spans widths and endians.
     _RND_ALGOS: tuple[str, ...] = (
         "crc8",
         "crc8-maxim",
@@ -1027,8 +1027,8 @@ class FakeSerial:
     )
 
     # Secret custom Rocksoft polynomial for AT+RND.CUSTOM.  Chosen NOT to
-    # match any catalogue entry so reverse_packets has to recover it
-    # algebraically rather than via the catalogue tier.
+    # match any catalog entry so reverse_packets has to recover it
+    # algebraically rather than via the catalog tier.
     _RND_CUSTOM_PARAMS: dict[str, int | bool] = {
         "width": 16, "poly": 0x1A2B, "init": 0xABCD,
         "refin": False, "refout": False, "xorout": 0x0000,
@@ -1084,7 +1084,7 @@ class FakeSerial:
             length = random.randint(8, 32)
             payload = bytes(random.randint(0, 255) for _ in range(length))
             crc_int = compute(payload, algo_name)
-            # Catalogue algorithms vary in width; ceil-div to bytes.
+            # Catalog algorithms vary in width; ceil-div to bytes.
             from crcglot import ALGORITHMS
             width_bytes = (ALGORITHMS[algo_name].width + 7) // 8
             # Endian: emit big-endian for refout=False, little-endian for

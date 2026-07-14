@@ -3,9 +3,9 @@
 Exercises three handlers added to ``FakeSerial`` for the CRC API
 walkthrough:
 
-* ``AT+RND`` -- one packet using a random catalogue algorithm from a
+* ``AT+RND`` -- one packet using a random catalog algorithm from a
   small curated set; payload + CRC bytes.
-* ``AT+RND.CUSTOM`` -- one packet using a secret non-catalogue
+* ``AT+RND.CUSTOM`` -- one packet using a secret non-catalog
   Rocksoft polynomial; payload length follows a deterministic cycle.
 * ``AT+RND.CUSTOM.REVEAL`` -- prints the secret params.
 
@@ -28,7 +28,7 @@ def _drain(s: FakeSerial, max_bytes: int = 256) -> bytes:
 
 
 class TestAtRnd:
-    """``AT+RND`` emits one packet using a random catalogue algorithm."""
+    """``AT+RND`` emits one packet using a random catalog algorithm."""
 
     def test_response_is_payload_plus_catalogue_crc(self):
         # Arrange

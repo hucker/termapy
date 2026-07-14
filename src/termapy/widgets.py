@@ -18,7 +18,7 @@ class StrongCheckbox(Checkbox):
 
     Textual's default Checkbox renders the same ``X`` glyph in both
     states, distinguishing them only by a subtle text-color shift
-    (dim grey vs success-green).  That reads as a weak signal on
+    (dim gray vs success-green).  That reads as a weak signal on
     most terminals -- users often have to look twice to tell whether
     a checkbox is checked.
 

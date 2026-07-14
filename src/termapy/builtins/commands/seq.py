@@ -8,7 +8,7 @@ This plugin owns the ``seq`` namespace.  Layout:
   ``{starttime}`` placeholder.  Set on ``on_app_start`` and refreshed
   on every ``on_script_start``.
 
-The leading underscore on ``_start_time`` is a convention signalling
+The leading underscore on ``_start_time`` is a convention signaling
 "plugin-internal, don't walk this as a counter."
 """
 

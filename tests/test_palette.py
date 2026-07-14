@@ -150,7 +150,7 @@ class TestPromptThenDispatch:
             push_screen=fake_push_screen,
         )
 
-        # Act -- the user cancelled (None) and the user submitted
+        # Act -- the user canceled (None) and the user submitted
         # empty (""); both should be silent.
         SerialTerminal._prompt_then_dispatch(
             app, "Test:", "/foo ",  # type: ignore[arg-type]
@@ -237,7 +237,7 @@ class TestPaletteSetVar:
             self._make_app_with_captured_callback()
         )
 
-        # Act -- user cancelled (callback fired with None).
+        # Act -- user canceled (callback fired with None).
         SerialTerminal._palette_set_var(app)  # type: ignore[arg-type]
         captured_callback[0](None)
 

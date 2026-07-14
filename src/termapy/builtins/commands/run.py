@@ -86,7 +86,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(full)
         return CmdResult.ok(value=full)
 
-    # Bare /run.help -- the original behaviour.
+    # Bare /run.help -- the original behavior.
     result = _show_command_help(ctx, "run")
     scripts_dir = ctx.fs.scripts_dir
     files = (
@@ -164,7 +164,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 _FOLDER_SUBS = build_folder_subcommands("run")
 # Override .list with the docstring-aware version.  The other folder
-# subs (.dump / .show / .explore) keep the generic behaviour -- they
+# subs (.dump / .show / .explore) keep the generic behavior -- they
 # operate on file content, not metadata.
 _FOLDER_SUBS["list"] = Command(
     args="",

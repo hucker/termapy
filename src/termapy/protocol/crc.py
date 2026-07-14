@@ -1,6 +1,6 @@
 """CRC plugin loading and registry (termapy-side).
 
-The pure CRC math and the named-algorithm catalogue live in the
+The pure CRC math and the named-algorithm catalog live in the
 ``crcglot`` package (a multi-language CRC code generator that's
 independently usable).  This module re-exports the pure bits for
 backward-compatible imports from termapy code, and adds the
@@ -47,10 +47,10 @@ CRC_CATALOGUE: dict[str, dict] = {
 
 
 def _make_crc_compute(entry: dict) -> Callable[[bytes], int]:
-    """Create a compute closure for a catalogue entry.
+    """Create a compute closure for a catalog entry.
 
     Args:
-        entry: Catalogue dict with width, poly, init, refin, refout, xorout.
+        entry: Catalog dict with width, poly, init, refin, refout, xorout.
 
     Returns:
         Function ``(data: bytes) -> int``.
@@ -160,17 +160,17 @@ _crc_registry: dict[str, CrcAlgorithm] | None = None
 
 
 def get_crc_registry() -> dict[str, CrcAlgorithm]:
-    """Get the CRC algorithm registry, loading catalogue + plugins on first call.
+    """Get the CRC algorithm registry, loading catalog + plugins on first call.
 
-    Build order: catalogue entries first, then plugin files. Plugins override
-    catalogue entries of the same name.
+    Build order: catalog entries first, then plugin files. Plugins override
+    catalog entries of the same name.
 
     Returns:
         Dict of algorithm name -> CrcAlgorithm.
     """
     global _crc_registry
     if _crc_registry is None:
-        # 1. Build from catalogue
+        # 1. Build from catalog
         registry: dict[str, CrcAlgorithm] = {}
         for name, entry in CRC_CATALOGUE.items():
             width_bytes = (entry["width"] + 7) // 8

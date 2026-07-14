@@ -83,8 +83,8 @@ Toggle hex display for all serial I/O with `/proto.hex on` / `/proto.hex off`.
 ## CRC algorithms
 
 Every named CRC algorithm in termapy comes from the [reveng CRC
-catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm)
-maintained by **Greg Cook**.  That catalogue documents the polynomial,
+catalog](https://reveng.sourceforge.io/crc-catalogue/all.htm)
+maintained by **Greg Cook**.  That catalog documents the polynomial,
 init, reflection, and xor-out parameters for every standardized CRC
 in practical use, and our test suite verifies each one against its
 published `check` value on every commit.
@@ -120,7 +120,7 @@ speaks CRC-16/Modbus, you speak CRC-16/Modbus.
 ### Identifying a CRC from a captured packet
 
 `/proto.crc.find` takes the full packet you captured and figures out
-which catalogue algorithm produced its CRC.  Two input forms:
+which catalog algorithm produced its CRC.  Two input forms:
 
 - `bin=<hex bytes>` -- raw binary packet.  The last 1 / 2 / 4 bytes
   are tried as the CRC field; both big- and little-endian are
@@ -130,7 +130,7 @@ which catalogue algorithm produced its CRC.  Two input forms:
   are parsed as hex.
 
 Every match reports the algorithm name, field width, byte order,
-expected value, and the length of the preceding data.  Catalogue
+expected value, and the length of the preceding data.  Catalog
 aliases (e.g. `crc16-modbus` / `crc16m`) are collapsed into a single
 line.  When exactly one algorithm matches, the output also includes
 the command to generate standalone source code.
@@ -145,8 +145,8 @@ the command to generate standalone source code.
 
 Limits:
 
-- The search only covers the built-in catalogue (CRC-8, CRC-16,
-  CRC-32 standard algorithms from the reveng catalogue).  A truly
+- The search only covers the built-in catalog (CRC-8, CRC-16,
+  CRC-32 standard algorithms from the reveng catalog).  A truly
   custom CRC with non-standard poly / init / refin / refout / xorout
   will not match -- the parameter space is ~10^15 for 16-bit, so
   brute-force is not tractable.  For custom CRCs, Greg Cook's
@@ -170,7 +170,7 @@ In format specs and `/proto.send`, CRC algorithm names accept suffixes:
 ![CRC Python code generation](img/doc_07_crc_python.svg)
 
 Generate a standalone CRC function in C, Python, or Rust for any
-algorithm in the catalogue. Three implementations available:
+algorithm in the catalog. Three implementations available:
 
 ```text
 /proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
@@ -246,7 +246,7 @@ def crc16_cms(data: bytes) -> int:
 ```
 
 Both forms return `0xAEE7` for `b"123456789"` -- the docstring shows the
-catalogue check value so you can verify after pasting.
+catalog check value so you can verify after pasting.
 
 ### Verification: we test the Python; you verify everything else on your target
 
@@ -266,9 +266,9 @@ generated file embeds the test for exactly this purpose:
 | C | Call `<fname>_self_test()` from your `main()` or test framework. Returns `0` on success, `1` on failure. No `main()` is emitted, so it links cleanly alongside your own. |
 | Rust | `cargo test` (or `rustc --test`) runs the embedded `#[cfg(test)] mod tests` block, which asserts the check value. Exit `0` means pass. |
 | VHDL | Call `<fname>_self_test` (returns `boolean`) from a testbench process via `assert <fname>_self_test severity failure;`. Halts simulation on failure. |
-| Python | No separate test needed -- the generator runs the same interpreter you do, and our test suite execs every output. If `import` succeeds, the implementation matches the catalogue check value (which the docstring lists, e.g. `check: crc(b'123456789') == 0xCBF43926`). |
+| Python | No separate test needed -- the generator runs the same interpreter you do, and our test suite execs every output. If `import` succeeds, the implementation matches the catalog check value (which the docstring lists, e.g. `check: crc(b'123456789') == 0xCBF43926`). |
 
-All four mechanisms compare `crc("123456789")` against the reveng-catalogue
+All four mechanisms compare `crc("123456789")` against the reveng-catalog
 canonical check value, baked into the generated source at emit time.  If
 your compiler or target produces a different value, the self-test catches
 it -- you have an immediate, decisive signal that something in your build

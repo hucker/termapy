@@ -48,7 +48,7 @@ in `/run.list` and `/run.help`.
 | `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`) |
 | `/expect match=<pattern> {timeout=<dur>} {quiet=on}` | Wait for serial line containing pattern (default 250ms). Aborts on timeout. |
 | `/expect.regex match=<pattern> {timeout=<dur>} {quiet=on}` | Same but pattern is a regex. |
-| `/confirm {message}` | Show Yes/Cancel dialog. Cancelling stops the script. |
+| `/confirm {message}` | Show Yes/Cancel dialog. Canceling stops the script. |
 | `/run <script>` | Run a nested script (max 5 levels deep) |
 | `/run.profile <script>` | Run nested script with per-line timing |
 

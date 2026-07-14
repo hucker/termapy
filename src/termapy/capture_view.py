@@ -192,13 +192,13 @@ def _run_progress_bar(app, seconds: float, label: str) -> None:
     from termapy.scripting import render_progress_bar
 
     t0 = time.perf_counter()
-    cancelled = False
+    canceled = False
     while True:
         elapsed = time.perf_counter() - t0
         if elapsed >= seconds:
             break
         if app.repl._script_stop.is_set():
-            cancelled = True
+            canceled = True
             break
         app._on_main(
             app._set_progress_label,
@@ -206,8 +206,8 @@ def _run_progress_bar(app, seconds: float, label: str) -> None:
         )
         time.sleep(0.25)
     app._on_main(app._set_progress_label, "")
-    if cancelled:
-        app._on_main(app._status, f"Delay {label} cancelled.", "red")
+    if canceled:
+        app._on_main(app._status, f"Delay {label} canceled.", "red")
     else:
         app._on_main(app._status, f"Delay {label} done.")
 

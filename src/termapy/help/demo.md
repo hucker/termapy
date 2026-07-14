@@ -56,6 +56,7 @@ The simulated device supports three protocols:
 | `AT+EOL?` / `AT+EOL=cr\|lf\|crlf` | Switch the device's response line ending (test `/term.eol.rx`) |
 | `AT+PROD-ID`               | Product ID (`BASSOMATIC-77`)            |
 | `AT+RESET`                 | Simulated reboot sequence               |
+| `AT+HELP`                  | Command help (human-readable list)      |
 | `AT+HELP.JSON`             | Device command help (JSON)              |
 | `AT+TEXTDUMP <n>`          | Emit text readings                      |
 | `AT+BINDUMP <n>`           | Emit binary records                     |

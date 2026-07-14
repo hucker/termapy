@@ -443,6 +443,9 @@ class FakeSerial:
         if upper == "AT+HELP.JSON":
             return self._help_json()
 
+        if upper == "AT+HELP":
+            return self._help_text()
+
         if upper.startswith("MEM"):
             return self._handle_mem(cmd)
 
@@ -466,8 +469,8 @@ class FakeSerial:
 
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
-    def _help_json(self) -> bytes:
-        """Return device descriptor as a v2 profile JSON object.
+    def _descriptor(self) -> dict:
+        """Return the device descriptor as a v2 profile dict.
 
         v2 profile = single source of truth for both human help (``help``,
         ``args``, ``long_help``, ``flags`` -- consumed by ``/help``) AND
@@ -481,8 +484,7 @@ class FakeSerial:
         point of the unification.  When you change a device-side reply,
         update the matching ``response`` block in this descriptor.
         """
-        import json
-        descriptor = {
+        return {
             # Schema version lets /include compare against its cache and
             # keep whichever is newer.  Bump this when the demo's command
             # set changes in a way users should pick up automatically.
@@ -668,10 +670,33 @@ class FakeSerial:
                 "AT+XMODEM=SEND": {"help": "Send file via XMODEM", "args": "{filename}"},
                 "AT+YMODEM=RECV": {"help": "Receive file via YMODEM", "args": ""},
                 "AT+YMODEM=SEND": {"help": "Send file via YMODEM", "args": "{filename}"},
+                "AT+HELP": {"help": "Command help (human-readable)", "args": ""},
                 "AT+HELP.JSON": {"help": "Device command help (JSON)", "args": ""},
             },
         }
-        return (json.dumps(descriptor) + "\r\n").encode()
+
+    def _help_json(self) -> bytes:
+        """Machine-readable v2 profile descriptor (AT+HELP.JSON)."""
+        import json
+        return (json.dumps(self._descriptor()) + "\r\n").encode()
+
+    def _help_text(self) -> bytes:
+        """Human-readable command list (AT+HELP).
+
+        Derived from the same descriptor as AT+HELP.JSON so the two can
+        never drift -- one source, two renderings.  Real AT devices answer
+        a bare AT+HELP with a readable list; this mirrors that.
+        """
+        commands = self._descriptor()["commands"]
+        lines = ["Bassomatic v77 -- AT command help", ""]
+        for name, spec in commands.items():
+            sig = f"{name} {spec.get('args', '')}".rstrip()
+            lines.append(f"  {sig:<28}{spec.get('help', '')}")
+        lines.append("")
+        lines.append(
+            "AT+HELP.JSON returns the same list as a machine-readable descriptor."
+        )
+        return ("\r\n".join(lines) + "\r\n").encode()
 
     def _handle_mem(self, cmd: str) -> bytes:
         """Generate a deterministic hex dump for ``mem <addr> [len]``.

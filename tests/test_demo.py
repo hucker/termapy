@@ -142,6 +142,22 @@ class TestAsciiCommands:
         assert "AT" in cmds, "lists AT command"
         assert "mem" in cmds, "lists mem command"
 
+    def test_help_text(self, dev: FakeSerial) -> None:
+        """AT+HELP returns a human-readable command list (not JSON)."""
+        text = _send_cmd(dev, "AT+HELP")
+        assert not text.lstrip().startswith("{"), "AT+HELP is text, not JSON"
+        assert "AT command help" in text, "has a readable header"
+        assert "AT+LED" in text and "Control LED" in text, "lists a command with its help"
+
+    def test_help_text_covers_catalog(self, dev: FakeSerial) -> None:
+        """AT+HELP is derived from the same descriptor as AT+HELP.JSON, so
+        every catalogued command name appears in the text list (no drift)."""
+        import json as _json
+        catalog = _json.loads(_send_cmd(dev, "AT+HELP.JSON"))["commands"]
+        text = _send_cmd(dev, "AT+HELP")
+        missing = [name for name in catalog if name not in text]
+        assert missing == [], f"every catalog command appears in AT+HELP; missing: {missing}"
+
     def test_unknown_cmd(self, dev: FakeSerial) -> None:
         actual = _send_cmd(dev, "BOGUS")
         assert "ERROR" in actual, "unknown command is an error"

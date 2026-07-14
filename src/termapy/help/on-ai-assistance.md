@@ -6,7 +6,7 @@ I built termapy with heavy use of Claude. I'm not going to call it vibe coded.
 
 ## Testing is the contract that doesn't live in your prompt
 
-1259 tests. The engine, capture, dispatch, and protocol layers are 89-97% covered. The prompt evaporates when the response comes back; the tests don't. They're the only thing in the loop that isn't a fuzzy translation of an idea.
+Thousands of tests, with the engine, capture, dispatch, and protocol layers heavily covered. The prompt evaporates when the response comes back; the tests don't. They're the only thing in the loop that isn't a fuzzy translation of an idea.
 
 ## What I bring that the LLM doesn't
 

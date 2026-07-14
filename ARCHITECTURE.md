@@ -594,7 +594,8 @@ files (see [Hooks](#hooks) for the host-registered exceptions).
 
 ## Test coverage
 
-87 test files, 2578 tests:
+Extensively tested (run `uv run pytest`; the README's Test coverage section
+carries the current count).  Representative files and what they cover:
 
 | File                   | Covers                                         |
 | ---------------------- | ---------------------------------------------- |
@@ -615,7 +616,7 @@ files (see [Hooks](#hooks) for the host-registered exceptions).
 | test_port_control.py   | Serial port control pure functions             |
 | test_proto_runner.py   | Protocol test runner                           |
 | test_proto_send_crc.py | CRC in proto.send                              |
-| test_resolve_config.py | Config resolution chain (16 tests)             |
+| test_resolve_config.py | Config resolution chain                        |
 | test_cli_gold.py       | CLI gold-standard integration test             |
 | test_vfs.py            | Demo VFS: file list, info, delete, isolation   |
 | test_xmodem.py         | XMODEM transfer, QueueByteReader, FakeSerial   |

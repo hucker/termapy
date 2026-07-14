@@ -55,6 +55,10 @@ class FakeSerial:
         self._device_name: str = "Bassomatic v77"
         self._device_baud: int = 115200
         self._ramp_step: int = 0  # 0..10, used by AT+RAMP (saw wave)
+        # Line ending the device uses for ASCII responses.  Switchable via
+        # AT+EOL so the receive-newline handling (rx_newline / /term.eol.rx)
+        # can be exercised against real CR-only / LF-only / CRLF output.
+        self._resp_eol: bytes = b"\r\n"
 
         # Modbus holding registers (addr 0-99)
         self._registers: dict[int, int] = {}
@@ -326,7 +330,7 @@ class FakeSerial:
                 line = bytes(buf[:idx])
                 del buf[: idx + len(eol)]
                 cmd = line.decode("ascii", errors="replace").strip()
-                response = self._handle_ascii(cmd)
+                response = self._apply_resp_eol(self._handle_ascii(cmd))
                 self._enqueue(response)
                 return
 
@@ -403,6 +407,9 @@ class FakeSerial:
                 cmd, upper, "AT+BAUD", str(self._device_baud),
                 self._set_baud,
             )
+
+        if upper.startswith("AT+EOL"):
+            return self._handle_eol_cmd(cmd, upper)
 
         if upper == "AT+STATUS":
             led = "ON" if self._led_state else "OFF"
@@ -603,6 +610,11 @@ class FakeSerial:
                 "AT+NAME=": {"help": "Set device name", "args": "<val>"},
                 "AT+BAUD?": {"help": "Query baud rate", "args": ""},
                 "AT+BAUD=": {"help": "Set baud rate", "args": "<val>"},
+                "AT+EOL?": {"help": "Query device response line ending", "args": ""},
+                "AT+EOL=": {
+                    "help": "Set device response line ending (cr/lf/crlf)",
+                    "args": "<cr|lf|crlf>",
+                },
                 "AT+STATUS": {
                     "help": "Device status",
                     "args": "",
@@ -1586,6 +1598,39 @@ class FakeSerial:
         return self._ymodem_recv_size
 
     # -- Set/query helpers --------------------------------------------------
+
+    # Named tokens for the device's response line ending (AT+EOL).
+    _RESP_EOL_TOKENS = {"cr": b"\r", "lf": b"\n", "crlf": b"\r\n"}
+
+    def _handle_eol_cmd(self, cmd: str, upper: str) -> bytes:
+        """Get/set the line ending the device uses for ASCII responses.
+
+        A demo affordance for exercising the receive-newline handling
+        (``rx_newline`` / ``/term.eol.rx``) against real CR-only, LF-only,
+        and CRLF output.  ``AT+EOL`` / ``AT+EOL?`` report the current mode;
+        ``AT+EOL=cr|lf|crlf`` set it.  The chosen ending is applied to every
+        subsequent ASCII response (see ``_apply_resp_eol``), so any
+        multi-line command (``AT+INFO``, ``AT+STATUS``) becomes a live test.
+        """
+        labels = {v: k for k, v in self._RESP_EOL_TOKENS.items()}
+        if upper in ("AT+EOL", "AT+EOL?"):
+            return f"+EOL:{labels[self._resp_eol]}\r\n".encode()
+        if upper.startswith("AT+EOL="):
+            token = cmd.split("=", 1)[1].strip().lower()
+            if token not in self._RESP_EOL_TOKENS:
+                return b"ERROR: Usage: AT+EOL=cr|lf|crlf\r\n"
+            self._resp_eol = self._RESP_EOL_TOKENS[token]
+            return b"OK\r\n"
+        return b"ERROR: Usage: AT+EOL=cr|lf|crlf\r\n"
+
+    def _apply_resp_eol(self, response: bytes) -> bytes:
+        """Re-terminate an ASCII response with the device's configured line
+        ending (see AT+EOL).  No-op at the CRLF default; otherwise rewrites
+        each ``\\r\\n`` to the chosen CR-only or LF-only terminator.
+        """
+        if self._resp_eol == b"\r\n":
+            return response
+        return response.replace(b"\r\n", self._resp_eol)
 
     def _handle_set_query(
         self,

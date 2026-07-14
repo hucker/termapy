@@ -164,6 +164,75 @@ class TestAsciiCommands:
         assert actual == "\r\n", "empty line returns just CRLF"
 
 
+# -- AT+EOL (device response line ending) ----------------------------------
+
+
+class TestEolCommand:
+    """AT+EOL switches the device's response line ending (rx_newline test aid)."""
+
+    def test_query_default_crlf(self, dev: FakeSerial) -> None:
+        # Act
+        dev.write(b"AT+EOL?\r")
+        time.sleep(0.01)
+        actual = dev.read(4096)
+
+        # Assert
+        assert actual == b"+EOL:crlf\r\n", "reports crlf by default"
+
+    def test_set_cr_switches_all_responses(self, dev: FakeSerial) -> None:
+        # Act -- switch to bare CR, then read a multi-line response
+        dev.write(b"AT+EOL=cr\r")
+        time.sleep(0.01)
+        ack = dev.read(4096)
+        dev.write(b"AT+INFO\r")
+        time.sleep(0.01)
+        info = dev.read(4096)
+
+        # Assert
+        assert ack == b"OK\r", "ack itself uses the new CR ending"
+        assert b"\r\n" not in info, "no CRLF remains in cr mode"
+        assert info.count(b"\r") >= 3, "multi-line response terminated by bare CR"
+
+    def test_set_lf(self, dev: FakeSerial) -> None:
+        # Act
+        dev.write(b"AT+EOL=lf\r")
+        time.sleep(0.01)
+        dev.read(4096)
+        dev.write(b"AT\r")
+        time.sleep(0.01)
+        actual = dev.read(4096)
+
+        # Assert
+        assert actual == b"OK\n", "AT ack uses bare LF"
+
+    def test_crlf_restores_default(self, dev: FakeSerial) -> None:
+        # Arrange -- switch away, then back
+        dev.write(b"AT+EOL=cr\r")
+        time.sleep(0.01)
+        dev.read(4096)
+
+        # Act
+        dev.write(b"AT+EOL=crlf\r")
+        time.sleep(0.01)
+        ack = dev.read(4096)
+        dev.write(b"AT\r")
+        time.sleep(0.01)
+        at = dev.read(4096)
+
+        # Assert
+        assert ack == b"OK\r\n", "crlf ack uses CRLF"
+        assert at == b"OK\r\n", "responses back to CRLF"
+
+    def test_invalid_token_rejected(self, dev: FakeSerial) -> None:
+        # Act
+        dev.write(b"AT+EOL=xyz\r")
+        time.sleep(0.01)
+        actual = dev.read(4096)
+
+        # Assert
+        assert actual.startswith(b"ERROR"), "invalid token rejected"
+
+
 # -- GPS / NMEA commands ---------------------------------------------------
 
 

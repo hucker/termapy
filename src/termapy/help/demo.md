@@ -53,6 +53,7 @@ The simulated device supports three protocols:
 | `AT+STATUS`                | LED state, uptime, connections          |
 | `AT+NAME?` / `AT+NAME=val` | Query or set device name                |
 | `AT+BAUD?` / `AT+BAUD=val` | Query or set baud rate                  |
+| `AT+EOL?` / `AT+EOL=cr\|lf\|crlf` | Switch the device's response line ending (test `/term.eol.rx`) |
 | `AT+PROD-ID`               | Product ID (`BASSOMATIC-77`)            |
 | `AT+RESET`                 | Simulated reboot sequence               |
 | `AT+HELP.JSON`             | Device command help (JSON)              |

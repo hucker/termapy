@@ -186,7 +186,7 @@ class TestMcpHostAgainstDemoJson:
         cfg["auto_connect"] = True
         # NDJSON wants \n; default is \r.  Phase 6 will apply this from
         # the loaded profile; for now the test sets it explicitly.
-        cfg["line_ending"] = "\n"
+        cfg["eol"] = "\n"
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))

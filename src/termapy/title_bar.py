@@ -129,17 +129,17 @@ def update_title(app) -> None:
         ("frame", frame),
         ("flow_control", serial["flow_control"]),
         ("encoding", app.cfg.get("encoding", "utf-8")),
-        ("line_ending", app.cfg.get("line_ending", "\r")),
+        ("eol", app.cfg.get("eol", "\r")),
         ("on_connect_cmd", app.cfg.get("on_connect_cmd") or None),
         ("auto_connect", bool(app.cfg.get("auto_connect"))),
         ("auto_reconnect", bool(app.cfg.get("auto_reconnect"))),
         # Live echo flags (what /term.echo and /term.echo_repl toggle), so
         # the tooltip reflects current state and moves with the toggles.
-        # echo_input = device-command echo (flag seeded from cfg); echo_repl
+        # echo = device-command echo (flag seeded from cfg); echo_repl
         # = REPL/slash-command echo (session-only, no cfg key).
-        ("echo_input", bool(app.repl.echo)),
+        ("echo", bool(app.repl.echo)),
         ("echo_repl", bool(app.repl.echo_repl)),
-        ("show_timestamps", bool(app.cfg.get("show_timestamps"))),
+        ("timestamps", bool(app.cfg.get("timestamps"))),
     ]
     center.tooltip = app._format_title_tooltip(
         cfg_title, cfg_pairs, f"edit config ({_hotkey_label('title-center')})"

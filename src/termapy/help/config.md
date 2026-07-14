@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 27,
+    "config_version": 28,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -73,19 +73,19 @@ Here is an example config for a device called `iot_device`:
     "tui_on_connect_cmd": "",
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
-    "line_ending": "\r",
-    "rx_newline": "auto",
+    "eol": "\r",
+    "eol_rx": "auto",
     "send_bare_enter": false,
-    "echo_input": true,
-    "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
+    "echo": false,
+    "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     "log_file": "",
     "show_traceback": false,
     "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
-    "show_timestamps": false,
-    "show_line_endings": false,
-    "show_line_numbers": false,
-    "hex_mode": false,
+    "timestamps": false,
+    "line_endings": false,
+    "line_no": false,
+    "hex": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
     "strip_device_echo": false,
@@ -129,8 +129,8 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `cmd_delay_ms`           | `0`                   | Milliseconds between commands in autoconnect and multi-command input                        |
 | `protocol`               | `text`                | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line)   |
 | `ndjson_field_routing`   | `{...}`               | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field)    |
-| `line_ending`            | `\r`                  | Appended to each sent command: `\r`, `\r\n`, or `\n`                                        |
-| `rx_newline`             | `auto`                | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx)       |
+| `eol`            | `\r`                  | Appended to each sent command: `\r`, `\r\n`, or `\n`                                        |
+| `eol_rx`             | `auto`                | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx)       |
 | `send_bare_enter`        | `false`               | Send line ending on empty Enter (for "press enter to continue" prompts)                     |
 | `auto_connect`           | `false`               | Connect automatically when the app starts                                                   |
 | `auto_reconnect`         | `false`               | Retry connection every 2.5s if the port drops or fails to open                              |
@@ -139,13 +139,13 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `cli_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in CLI mode (after `on_connect_cmd`)                |
 | `mcp_on_connect_cmd`     | ` `                   | Extra commands to send after connecting in MCP mode. Common: `echo off` to silence device   |
 | `profile_path`           | ` `                   | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention     |
-| `echo_input`             | `false`               | Echo device commands sent to the wire (bare + `/term.send`). Toggle: `/term.echo`           |
-| `echo_input_fmt`         | `[purple]> {cmd}[/]`  | Rich markup format for echoed commands                                                      |
+| `echo`             | `false`               | Echo device commands sent to the wire (bare + `/term.send`). Toggle: `/term.echo`           |
+| `echo_fmt`         | `[purple]> {cmd}[/]`  | Rich markup format for echoed commands                                                      |
 | `log_file`               | ` `                   | Session log path (defaults to `<name>.log` in config subfolder)                             |
-| `show_timestamps`        | `false`               | Prefix lines with `[HH:MM:SS.mmm]`                                                          |
-| `show_line_endings`      | `false`               | Show dim `\r` `\n` markers in serial output for debugging                                   |
-| `show_line_numbers`      | `false`               | Show line numbers in serial output                                                          |
-| `hex_mode`               | `false`               | Display serial I/O as hex bytes instead of text                                             |
+| `timestamps`        | `false`               | Prefix lines with `[HH:MM:SS.mmm]`                                                          |
+| `line_endings`      | `false`               | Show dim `\r` `\n` markers in serial output for debugging                                   |
+| `line_no`      | `false`               | Show line numbers in serial output                                                          |
+| `hex`               | `false`               | Display serial I/O as hex bytes instead of text                                             |
 | `request_mode`           | `false`               | Turn bare device commands into synchronous request/response (see `/term.request`)           |
 | `request_err_pattern`    | `(?i)^(ERROR\|ERR\|FAULT)\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
 | `strip_device_echo`      | `false`               | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |

@@ -84,7 +84,7 @@ def _drain(ser) -> None:
 def _run_setup_cmds(ser, cmds: list[str], cfg: dict,
                     frame_gap_ms: int) -> None:
     """Send setup/teardown commands and drain responses."""
-    line_ending = cfg.get("line_ending", "\r")
+    line_ending = cfg.get("eol", "\r")
     enc = cfg.get("encoding", "utf-8")
     for cmd_text in cmds:
         ser.write((cmd_text + line_ending).encode(enc))

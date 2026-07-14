@@ -138,7 +138,7 @@ def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int, quiet: bool) -> 
         frame_gap: Frame gap for response collection.
         quiet: Suppress output if True.
     """
-    line_ending = ctx.cfg.get("line_ending", "\r")
+    line_ending = ctx.cfg.get("eol", "\r")
     enc = ctx.cfg.get("encoding", "utf-8")
     if not quiet:
         ctx.io.output(f"  CMD: {cmd_text}")
@@ -621,17 +621,17 @@ def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
     flags = ctx.ns("flags")
     arg = args.strip().lower()
     if arg == "on":
-        flags["hex_mode"] = True
+        flags["hex"] = True
         ctx.io.output("Hex display mode enabled.", "bright_green")
     elif arg == "off":
-        flags["hex_mode"] = False
+        flags["hex"] = False
         ctx.io.output("Hex display mode disabled.", "bright_green")
     else:
-        flags["hex_mode"] = not flags["hex_mode"]
-        state = "enabled" if flags["hex_mode"] else "disabled"
+        flags["hex"] = not flags["hex"]
+        state = "enabled" if flags["hex"] else "disabled"
         ctx.io.output(f"Hex display mode {state}.", "bright_green")
     # Mirror the echo/verbose convention: return the new state.
-    return CmdResult.ok(value="on" if flags["hex_mode"] else "off")
+    return CmdResult.ok(value="on" if flags["hex"] else "off")
 
 
 def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
@@ -643,7 +643,7 @@ def _cmd_status(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for state and output.
         args: Ignored.
     """
-    hex_mode = ctx.ns("flags")["hex_mode"]
+    hex_mode = ctx.ns("flags")["hex"]
     connected = ctx.serial.is_connected()
     ctx.io.output(f"Hex mode: {'on' if hex_mode else 'off'}")
     ctx.io.output(f"Connected: {'yes' if connected else 'no'}")
@@ -1568,7 +1568,7 @@ def _encode_device_cmd(ctx: PluginContext, text: str) -> bytes:
     ending is appended when it isn't already present.  That is why ``cmd=`` takes
     a bare command (``cmd=AT+RND.CUSTOM``) with no quoting and no explicit ``\\r``.
     """
-    line_ending = ctx.cfg.get("line_ending", "\r")
+    line_ending = ctx.cfg.get("eol", "\r")
     if not text.endswith(line_ending):
         text += line_ending
     return text.encode(ctx.cfg.get("encoding", "utf-8"))

@@ -87,7 +87,7 @@ class TestOnConnectFetchProfile:
         # Arrange -- DEMO answers AT+HELP.JSON with a v2 profile JSON.
         cfg = default_cfg()
         cfg["serial"]["port"] = "DEMO"
-        cfg["line_ending"] = "\r\n"
+        cfg["eol"] = "\r\n"
         cfg["mcp_on_connect_cmd"] = "/profile.load cmd=AT+HELP.JSON"
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
@@ -117,7 +117,7 @@ class TestBannerWatcher:
     def host_with_profile(self, tmp_path):
         cfg = default_cfg()
         cfg["serial"]["port"] = "DEMO_JSON"
-        cfg["line_ending"] = "\n"
+        cfg["eol"] = "\n"
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))
@@ -395,7 +395,7 @@ class TestOnConnectCmd:
     def _make_host(self, tmp_path, **cfg_overrides) -> MCPHost:
         cfg = default_cfg()
         cfg["serial"]["port"] = "DEMO"
-        cfg["line_ending"] = "\r\n"
+        cfg["eol"] = "\r\n"
         cfg.update(cfg_overrides)
         config_path = tmp_path / "cfg" / "test.cfg"
         config_path.parent.mkdir(exist_ok=True)

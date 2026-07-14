@@ -14,8 +14,8 @@ def repl_env(tmp_path):
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
-        "echo_input": False,
-        "line_ending": "\r",
+        "echo": False,
+        "eol": "\r",
         "stop_bits": 1.5,
     }
     config_path = tmp_path / "test_cfg.cfg"
@@ -126,8 +126,8 @@ class TestCfgAuto:
 
     def test_auto_bool(self, repl_env):
         engine, cfg, _, output = repl_env
-        engine.dispatch("cfg.auto echo_input true")
-        assert cfg["echo_input"] is True, "bool coerced and applied"
+        engine.dispatch("cfg.auto echo true")
+        assert cfg["echo"] is True, "bool coerced and applied"
 
     def test_auto_string(self, repl_env):
         engine, cfg, _, output = repl_env

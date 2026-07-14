@@ -193,7 +193,7 @@ class TestRunProtoTests:
                 "flow_control": "none",
             },
             "encoding": "utf-8",
-            "line_ending": "\r",
+            "eol": "\r",
         }
 
     @pytest.fixture

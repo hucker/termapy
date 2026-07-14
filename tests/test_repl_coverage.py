@@ -20,7 +20,7 @@ from termapy.repl import ReplEngine, ScriptCtx, _edit_distance, _suggest_command
 @pytest.fixture
 def engine(tmp_path):
     """Create a ReplEngine with temp config and capture output."""
-    cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r"}
+    cfg = {"port": "COM4", "baud_rate": 115200, "eol": "\r"}
     config_path = tmp_path / "sub" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -31,7 +31,7 @@ def engine(tmp_path):
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
     flags["output_level"] = "verbose"
-    flags["hex_mode"] = False
+    flags["hex"] = False
     return eng, output
 
 

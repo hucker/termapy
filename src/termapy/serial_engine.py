@@ -388,10 +388,10 @@ class SerialEngine:
         )
         self._reader = SerialReader(
             encoding=self._cfg.get("encoding", "utf-8"),
-            show_line_endings=self._cfg.get("show_line_endings", False),
+            show_line_endings=self._cfg.get("line_endings", False),
             capture=self._capture,
             serial_claimed=lambda: self._serial_claimed,
-            rx_newline=self._cfg.get("rx_newline", "auto"),
+            rx_newline=self._cfg.get("eol_rx", "auto"),
         )
         self._stop_event.clear()
         self._reader_stopped.clear()
@@ -483,7 +483,7 @@ class SerialEngine:
                 # chunk so /term.eol.rx takes effect live, without a
                 # reconnect.  Cheap dict read; the cfg dict is the same
                 # object /cfg mutates (see how TX line_ending stays live).
-                reader.rx_newline = self._cfg.get("rx_newline", "auto")
+                reader.rx_newline = self._cfg.get("eol_rx", "auto")
                 result = reader.process(data)
 
                 if result.capture_target_reached and on_capture_done:

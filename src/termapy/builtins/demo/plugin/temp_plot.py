@@ -48,7 +48,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Usage: /temp_plot {count}")
 
     encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("line_ending", "\r")
+    line_ending = ctx.cfg.get("eol", "\r")
     readings: list[float] = []
 
     ctx.io.output(f"Sampling {count} temperatures...", "dim")

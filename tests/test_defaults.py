@@ -66,7 +66,7 @@ class TestDefaultCfg:
 
     def test_default_line_ending(self):
         # Assert
-        assert DEFAULT_CFG["line_ending"] == "\r", "CR default"
+        assert DEFAULT_CFG["eol"] == "\r", "CR default"
 
     def test_default_prefix(self):
         # Assert

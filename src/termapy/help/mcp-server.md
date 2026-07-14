@@ -45,7 +45,7 @@ Standard termapy [config](config.md).  The MCP-relevant slice (partial example -
         "port": "COM4",
         "baud_rate": 115200
     },
-    "line_ending": "\r\n",
+    "eol": "\r\n",
     "auto_connect": true,
     "profile_path": "",
     "mcp_on_connect_cmd": ""

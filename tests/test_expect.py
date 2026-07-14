@@ -30,7 +30,7 @@ from termapy.repl import ReplEngine
 @pytest.fixture
 def env(tmp_path):
     """Create an engine + ctx that allows /expect (block_until=True)."""
-    cfg = {"port": "DEMO", "line_ending": "\r", "encoding": "utf-8"}
+    cfg = {"port": "DEMO", "eol": "\r", "encoding": "utf-8"}
     config_path = tmp_path / "cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))

@@ -500,7 +500,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 27,
+    "config_version": 28,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -536,19 +536,19 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "tui_on_connect_cmd": "",
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
-    "line_ending": "\r",
-    "rx_newline": "auto",
+    "eol": "\r",
+    "eol_rx": "auto",
     "send_bare_enter": false,
-    "echo_input": false,
-    "echo_input_fmt": "[purple]> {cmd}[/]",
+    "echo": false,
+    "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     "log_file": "",
     "show_traceback": false,
     "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
-    "show_timestamps": false,
-    "show_line_endings": false,
-    "show_line_numbers": false,
-    "hex_mode": false,
+    "timestamps": false,
+    "line_endings": false,
+    "line_no": false,
+    "hex": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
     "strip_device_echo": false,
@@ -575,20 +575,20 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `encoding`            | `"utf-8"`              | Character encoding for serial data. Common values: `"utf-8"`, `"latin-1"`, `"ascii"`, `"cp437"`          |
 | `cmd_delay_ms`        | `0`                    | Delay in milliseconds between commands in autoconnect sequences and multi-command input (`cmd1 \n cmd2`) |
 | `protocol`            | `"text"`               | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON object per line)         |
-| `line_ending`         | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
-| `rx_newline`          | `"auto"`               | How received output splits into lines: `auto` (CR/LF/CRLF), `cr`, `lf`, `crlf` (set: `/term.eol.rx`)     |
+| `eol`         | `"\r"`                 | Appended to each command. `"\r"` CR, `"\r\n"` CRLF, `"\n"` LF                                            |
+| `eol_rx`          | `"auto"`               | How received output splits into lines: `auto` (CR/LF/CRLF), `cr`, `lf`, `crlf` (set: `/term.eol.rx`)     |
 | `send_bare_enter`     | `false`                | Send the line ending when Enter is pressed with no input (for "press enter to continue" prompts)         |
 | `auto_connect`        | `false`                | Connect to the port on startup                                                                           |
 | `auto_reconnect`      | `false`                | Retry every 2.5s if the port drops or fails to open (does not control startup)                           |
 | `on_connect_cmd`      | `""`                   | Commands to send after connecting, separated by `\n`. Waits for idle between each                        |
 | `profile_path`        | `""`                   | Explicit path to a v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention lookup |
-| `echo_input`          | `false`                | Echo device commands sent to the wire (bare lines + `/term.send`). Toggle: `/term.echo`                  |
-| `echo_input_fmt`      | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
+| `echo`          | `false`                | Echo device commands sent to the wire (bare lines + `/term.send`). Toggle: `/term.echo`                  |
+| `echo_fmt`      | `"[purple]> {cmd}[/]"` | Rich markup format for echoed commands. `{cmd}` is replaced with the command text                        |
 | `log_file`            | `""`                   | Session log path. If empty, uses `<name>.log` in the config's subfolder                                  |
-| `show_timestamps`     | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
-| `show_line_endings`   | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
-| `show_line_numbers`   | `false`                | Show line numbers in serial output                                                                       |
-| `hex_mode`            | `false`                | Display serial I/O as hex bytes instead of text                                                          |
+| `timestamps`     | `false`                | Prefix each line in the terminal display with `[HH:MM:SS.mmm]`                                           |
+| `line_endings`   | `false`                | Show dim `\r` and `\n` markers in serial output for line-ending debugging (see note below)               |
+| `line_no`   | `false`                | Show line numbers in serial output                                                                       |
+| `hex`            | `false`                | Display serial I/O as hex bytes instead of text                                                          |
 | `request_mode`        | `false`                | Turn bare device commands into synchronous request/response (see `/term.request`)                        |
 | `strip_device_echo`   | `false`                | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device)            |
 | `max_grep_lines`      | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
@@ -605,7 +605,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `show_traceback`      | `false`                | Include full stack trace in serial exception output (for debugging)                                      |
 | `custom_buttons`      | `[]`                   | Array of custom button objects (see Custom Buttons above)                                                |
 
-**Note on `show_line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `show_line_endings` off when not actively debugging.
+**Note on `line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `line_endings` off when not actively debugging.
 
 **Note on device colour (ANSI):** The TUI and CLI render ANSI colour (SGR) from device output inline, so coloured log lines appear coloured. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. In the CLI, `--no-color` (or `/term.color off`) strips colour for clean piping.
 
@@ -1251,9 +1251,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2848 tests, 71% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2850 tests, 71% core-module coverage</summary>
 
-2848 tests across 98 test files. Run with `uv run pytest`.
+2850 tests across 98 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

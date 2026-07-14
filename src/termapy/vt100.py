@@ -32,11 +32,11 @@ def _miniterm_settings(cfg: dict) -> dict:
         cfg: Loaded config dict.
 
     Returns:
-        ``{"echo": bool, "line_ending": str, "encoding": str}``.
+        ``{"echo": bool, "eol": str, "encoding": str}``.
     """
     return {
-        "echo": cfg.get("echo_input", False),
-        "line_ending": cfg.get("line_ending", "\r"),
+        "echo": cfg.get("echo", False),
+        "eol": cfg.get("eol", "\r"),
         "encoding": cfg.get("encoding", "utf-8"),
     }
 
@@ -206,7 +206,7 @@ def run_vt100_mode(args) -> str | None:
         # line ending. Replaces miniterm's EOL transform -- see
         # _passthrough_transforms.
         term.rx_transformations, term.tx_transformations = _passthrough_transforms(
-            settings["line_ending"]
+            settings["eol"]
         )
         term.exit_character = chr(0x1d)   # Ctrl-]  -> exit / back to the TUI
         # Disable miniterm's Ctrl-T settings menu so nothing pyserial-flavoured

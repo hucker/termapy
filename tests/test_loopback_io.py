@@ -141,7 +141,7 @@ class TestLoopbackLineEndings:
         # Size the capture target to the exact expected byte count so
         # the capture closes on target-hit (reliable) rather than
         # timeout (flushes on script teardown, which races).
-        cfg = {"line_ending": line_ending}
+        cfg = {"eol": line_ending}
         target_bytes = 4 + len(suffix)  # "ping" + line ending
         lines = [
             f"/cap.bin ending.bin bytes={target_bytes} timeout=500ms cmd=ping",
@@ -201,7 +201,7 @@ class TestLoopbackEncoding:
         # same character under each encoding must produce different
         # byte sequences on the wire.  loop:// echoes the exact
         # bytes so /cap.bin proves the encoding config took effect.
-        cfg = {"encoding": "latin-1", "line_ending": ""}
+        cfg = {"encoding": "latin-1", "eol": ""}
         lines = [
             # Send the single-byte Latin-1 "é"; line_ending is empty
             # so the capture holds exactly the encoded byte.

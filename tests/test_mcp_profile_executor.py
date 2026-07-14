@@ -46,10 +46,10 @@ def host(tmp_path, monkeypatch):
     """
     cfg = dict(DEFAULT_CFG)
     cfg["port"] = ""
-    cfg["echo_input"] = False
+    cfg["echo"] = False
     # Wire-level settings live in cfg now (profile.transport retired).
     # Tests assert b"AT\r\n" wire bytes; cfg must agree.
-    cfg["line_ending"] = "\r\n"
+    cfg["eol"] = "\r\n"
     cfg["encoding"] = "utf-8"
     cfg["default_response_timeout_ms"] = 500
     config_path = tmp_path / "cfg" / "test.cfg"

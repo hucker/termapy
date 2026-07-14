@@ -252,7 +252,7 @@ def connection_string(
     if level == "medium":
         return base
     enc = cfg.get("encoding", "utf-8")
-    le = repr(cfg.get("line_ending", "\r"))
+    le = repr(cfg.get("eol", "\r"))
     return f"{base} {enc} {le}"
 
 

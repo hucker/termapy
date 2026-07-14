@@ -221,7 +221,7 @@ class TestStripLevelFlags:
 @pytest.fixture
 def eng_with_test_command(tmp_path):
     """Engine with a test command that calls all three channels."""
-    cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r"}
+    cfg = {"port": "COM4", "baud_rate": 115200, "eol": "\r"}
     config_path = tmp_path / "sub" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -353,8 +353,8 @@ class TestLevelFlagDispatch:
 def real_engine(tmp_path):
     """ReplEngine -- builtins are loaded automatically by its __init__."""
     cfg = {
-        "port": "DEMO", "baud_rate": 115200, "line_ending": "\r",
-        "echo_input": False,
+        "port": "DEMO", "baud_rate": 115200, "eol": "\r",
+        "echo": False,
     }
     config_path = tmp_path / "test.cfg"
     config_path.write_text(json.dumps(cfg))

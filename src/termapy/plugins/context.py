@@ -266,7 +266,7 @@ class PluginContext:
         should document their key schema.
 
         The ``flags`` namespace is engine-reserved for toggles like ``echo``,
-        ``hex_mode``, and the ``output_level`` dial.  Third-party plugins
+        ``hex``, and the ``output_level`` dial.  Third-party plugins
         should use their own namespace name (conventionally the plugin name).
 
         Example::

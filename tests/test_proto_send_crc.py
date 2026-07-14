@@ -27,7 +27,7 @@ def send_env():
     flags = ctx.ns("flags")
     flags["echo"] = True
     flags["output_level"] = "verbose"
-    flags["hex_mode"] = False
+    flags["hex"] = False
     return ctx, output, tx_bytes
 
 

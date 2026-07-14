@@ -258,7 +258,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                     error = "[red]must be positive[/]"
             except (json.JSONDecodeError, ValueError):
                 error = "[red]must be an integer[/]"
-        elif key == "line_ending":
+        elif key == "eol":
             # Decode escape sequences via JSON, then require the result
             # to contain only CR/LF/NUL/ETX/EOT bytes (any combination).
             # Rejects junk like "abc" or "CRAP" that the green-default

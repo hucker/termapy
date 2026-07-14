@@ -47,7 +47,7 @@ def _flag_toggle(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
 
 def _handler_echo(ctx: PluginContext, args: str) -> CmdResult:
     # Device-command echo: echo of what's sent to the wire (bare commands
-    # + /term.send).  Backed by cfg["echo_input"]; the flag is the session
+    # + /term.send).  Backed by cfg["echo"]; the flag is the session
     # state seeded from it.
     return _flag_toggle(ctx, args, "echo")
 
@@ -89,7 +89,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
     encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("line_ending", "\r")
+    line_ending = ctx.cfg.get("eol", "\r")
     try:
         ctx.serial.write((args + line_ending).encode(encoding))
     # Plugin handlers can be called from many hosts; OSError covers
@@ -160,7 +160,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
-    return _flag_toggle(ctx, args, "hex_mode")
+    return _flag_toggle(ctx, args, "hex")
 
 
 # ── Config-persisted toggles (via ctx.internal.apply_cfg) ─────────────────────
@@ -184,7 +184,7 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
 
 
 def _handler_line_endings(ctx: PluginContext, args: str) -> CmdResult:
-    return _cfg_toggle(ctx, args, "show_line_endings")
+    return _cfg_toggle(ctx, args, "line_endings")
 
 
 # Named tokens for the line ending appended to every sent command.
@@ -198,12 +198,12 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
     Bare invocation reports the current ending as a token; an argument
     (``cr`` / ``lf`` / ``crlf`` / ``none``) sets it for the session via
     ``apply_cfg`` -- the same in-memory path the other /term.* toggles
-    use.  Persisting to disk is still /cfg line_ending or the Config
+    use.  Persisting to disk is still /cfg eol or the Config
     Editor; this is the quick runtime override.
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("line_ending", "\r")
+        current = ctx.cfg.get("eol", "\r")
         label = _EOL_LABELS.get(current, repr(current))
         ctx.io.result(label)
         return CmdResult.ok(value=label)
@@ -211,7 +211,7 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)})"
         )
-    ctx.internal.apply_cfg("line_ending", _EOL_TOKENS[arg])
+    ctx.internal.apply_cfg("eol", _EOL_TOKENS[arg])
     ctx.io.result(arg)
     return CmdResult.ok(value=arg)
 
@@ -235,20 +235,20 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("rx_newline", "auto")
+        current = ctx.cfg.get("eol_rx", "auto")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg not in _RX_NEWLINE_MODES:
         return CmdResult.fail(
             msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)})"
         )
-    ctx.internal.apply_cfg("rx_newline", arg)
+    ctx.internal.apply_cfg("eol_rx", arg)
     ctx.io.result(arg)
     return CmdResult.ok(value=arg)
 
 
 def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
-    return _cfg_toggle(ctx, args, "show_timestamps")
+    return _cfg_toggle(ctx, args, "timestamps")
 
 
 def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
@@ -442,12 +442,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         ("echo_repl", "on" if flags.get("echo_repl") else "off"),
         ("color", "on" if flags.get("color", True) else "off"),
         ("output", str(flags.get("output_level", "normal"))),
-        ("hex", "on" if flags.get("hex_mode") else "off"),
+        ("hex", "on" if flags.get("hex") else "off"),
         ("line_no", "on" if flags.get("line_no") else "off"),
-        ("line_endings", "on" if ctx.cfg.get("show_line_endings") else "off"),
-        ("eol", _EOL_LABELS.get(ctx.cfg.get("line_ending", "\r"), repr(ctx.cfg.get("line_ending", "\r")))),
-        ("eol_rx", str(ctx.cfg.get("rx_newline", "auto"))),
-        ("timestamps", "on" if ctx.cfg.get("show_timestamps") else "off"),
+        ("line_endings", "on" if ctx.cfg.get("line_endings") else "off"),
+        ("eol", _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), repr(ctx.cfg.get("eol", "\r")))),
+        ("eol_rx", str(ctx.cfg.get("eol_rx", "auto"))),
+        ("timestamps", "on" if ctx.cfg.get("timestamps") else "off"),
         ("send_bare_enter", "on" if ctx.cfg.get("send_bare_enter") else "off"),
         ("encoding", str(ctx.cfg.get("encoding", "utf-8"))),
     ]
@@ -491,11 +491,11 @@ COMMAND = Command(
     sub_commands={
         "echo": Command(
             args="{on|off}",
-            help="Local echo of device commands sent to the wire (cfg echo_input).",
+            help="Local echo of device commands sent to the wire (cfg echo).",
             long_help=(
                 "Local echo of DEVICE commands -- the bare lines and\n"
                 "{prefix}term.send text that go out on the wire.  Persisted\n"
-                "via cfg echo_input.\n"
+                "via cfg echo.\n"
                 "\n"
                 "termapy splits local echo in two: this ({prefix}term.echo)\n"
                 "for device commands, and {prefix}term.echo_repl for\n"
@@ -596,7 +596,7 @@ COMMAND = Command(
                         "\n"
                         "Bare {prefix}term.eol.rx reports the current mode.  This is\n"
                         "a session override (in-memory); persist with {prefix}cfg\n"
-                        "rx_newline or the Config Editor."
+                        "eol_rx or the Config Editor."
                     ),
                     handler=_handler_eol_rx,
                 ),

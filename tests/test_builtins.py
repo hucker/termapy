@@ -35,8 +35,8 @@ def repl_env(tmp_path, monkeypatch):
             "stop_bits": 1,
             "flow_control": "none",
         },
-        "echo_input": False,
-        "line_ending": "\r",
+        "echo": False,
+        "eol": "\r",
     }
     config_path = tmp_path / "test_cfg.cfg"
     config_path.write_text(json.dumps(cfg, indent=4))
@@ -89,7 +89,7 @@ def repl_env(tmp_path, monkeypatch):
     flags = ctx.ns("flags")
     flags["echo"] = True
     flags["output_level"] = "verbose"
-    flags["hex_mode"] = False
+    flags["hex"] = False
     return engine, cfg, config_path, output
 
 
@@ -1831,46 +1831,46 @@ class TestEol:
     def test_eol_toggle_on(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["show_line_endings"] = False
+        cfg["line_endings"] = False
 
         # Act
         engine.dispatch("show_line_endings")
 
         # Assert
-        assert cfg["show_line_endings"] is True, "toggled on"
+        assert cfg["line_endings"] is True, "toggled on"
 
     def test_eol_toggle_off(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["show_line_endings"] = True
+        cfg["line_endings"] = True
 
         # Act
         engine.dispatch("show_line_endings")
 
         # Assert
-        assert cfg["show_line_endings"] is False, "toggled off"
+        assert cfg["line_endings"] is False, "toggled off"
 
     def test_eol_explicit_on(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["show_line_endings"] = False
+        cfg["line_endings"] = False
 
         # Act
         engine.dispatch("show_line_endings on")
 
         # Assert
-        assert cfg["show_line_endings"] is True, "set to on"
+        assert cfg["line_endings"] is True, "set to on"
 
     def test_eol_explicit_off(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
-        cfg["show_line_endings"] = True
+        cfg["line_endings"] = True
 
         # Act
         engine.dispatch("show_line_endings off")
 
         # Assert
-        assert cfg["show_line_endings"] is False, "set to off"
+        assert cfg["line_endings"] is False, "set to off"
 
 
 # -- /cap (arg parsing) ---------------------------------------------------
@@ -2437,7 +2437,7 @@ class TestCfgHandlerValues:
         monkeypatch.setattr(cfg_mod, "cfg_dir", lambda: empty)
 
         cfg = {"port": "COM4", "baud_rate": 115200,
-                "echo_input": False, "line_ending": "\r"}
+                "echo": False, "eol": "\r"}
         config_path = tmp_path / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         output = []
@@ -2466,7 +2466,7 @@ class TestCfgHandlerValues:
         monkeypatch.setattr(cfg_mod, "cfg_dir", lambda: cfgs)
 
         cfg = {"port": "COM4", "baud_rate": 115200,
-                "echo_input": False, "line_ending": "\r"}
+                "echo": False, "eol": "\r"}
         config_path = tmp_path / "test.cfg"
         config_path.write_text(json.dumps(cfg))
         output = []
@@ -2920,7 +2920,7 @@ class TestTermEol:
 
         # Assert
         assert set_result.success, "set crlf succeeds"
-        actual = cfg["line_ending"]
+        actual = cfg["eol"]
         assert actual == "\r\n", "crlf token sets line_ending to CRLF"
         assert show_result.value == "crlf", "subsequent query reports crlf"
 
@@ -2935,7 +2935,7 @@ class TestTermEol:
         engine.dispatch(f"term.eol {token}")
 
         # Assert
-        actual = cfg["line_ending"]
+        actual = cfg["eol"]
         assert actual == expected, f"{token} -> {expected!r}"
 
     def test_unknown_token_rejected(self, repl_env):
@@ -2977,7 +2977,7 @@ class TestTermEolRx:
 
         # Assert
         assert set_result.success, "set crlf succeeds"
-        assert cfg["rx_newline"] == "crlf", "sets rx_newline cfg"
+        assert cfg["eol_rx"] == "crlf", "sets rx_newline cfg"
         assert show_result.value == "crlf", "subsequent query reports crlf"
 
     @pytest.mark.parametrize("mode", ["auto", "cr", "lf", "crlf"])
@@ -2990,7 +2990,7 @@ class TestTermEolRx:
 
         # Assert
         assert result.success, f"{mode} accepted"
-        assert cfg["rx_newline"] == mode, f"rx_newline set to {mode}"
+        assert cfg["eol_rx"] == mode, f"rx_newline set to {mode}"
 
     def test_unknown_mode_rejected(self, repl_env):
         # Arrange
@@ -3012,4 +3012,4 @@ class TestTermEolRx:
 
         # Assert
         assert result.success, "/term.eol lf still dispatches to the TX handler"
-        assert cfg["line_ending"] == "\n", "TX line_ending set, unaffected by .rx"
+        assert cfg["eol"] == "\n", "TX line_ending set, unaffected by .rx"

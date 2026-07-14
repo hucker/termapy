@@ -32,7 +32,7 @@ def env(tmp_path, monkeypatch):
     the next.  This matters because the recorder is a singleton --
     state lives at module scope.
     """
-    cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r"}
+    cfg = {"port": "COM4", "baud_rate": 115200, "eol": "\r"}
     config_path = tmp_path / "cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))

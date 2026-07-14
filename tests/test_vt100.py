@@ -23,13 +23,13 @@ from termapy.vt100 import (
 class TestMinitermSettings:
     def test_maps_all_fields(self):
         # Arrange
-        cfg = {"echo_input": True, "line_ending": "\n", "encoding": "latin-1"}
+        cfg = {"echo": True, "eol": "\n", "encoding": "latin-1"}
 
         # Act
         actual = _miniterm_settings(cfg)
 
         # Assert
-        expected = {"echo": True, "line_ending": "\n", "encoding": "latin-1"}
+        expected = {"echo": True, "eol": "\n", "encoding": "latin-1"}
         assert actual == expected, "cfg maps to passthrough settings"
 
     def test_defaults_when_keys_absent(self):
@@ -40,12 +40,12 @@ class TestMinitermSettings:
         actual = _miniterm_settings(cfg)
 
         # Assert
-        expected = {"echo": False, "line_ending": "\r", "encoding": "utf-8"}
+        expected = {"echo": False, "eol": "\r", "encoding": "utf-8"}
         assert actual == expected, "missing keys fall back to cfg defaults"
 
     def test_echo_defaults_false(self):
         # Arrange
-        cfg = {"line_ending": "\r"}
+        cfg = {"eol": "\r"}
 
         # Act
         actual_echo = _miniterm_settings(cfg)["echo"]

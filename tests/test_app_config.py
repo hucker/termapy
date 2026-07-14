@@ -212,7 +212,7 @@ class TestDefaultCfg:
     def test_has_essential_keys(self):
         # Post-v22, port and baud_rate live nested under cfg["serial"]
         # while line_ending and cmd_prefix stay at the top level.
-        for key in ("line_ending", "cmd_prefix"):
+        for key in ("eol", "cmd_prefix"):
             assert key in DEFAULT_CFG, (
                 f"essential top-level key present: {key}"
             )

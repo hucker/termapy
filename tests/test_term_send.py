@@ -31,7 +31,7 @@ def env(tmp_path):
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
-        "line_ending": "\r",
+        "eol": "\r",
         "encoding": "utf-8",
     }
     config_path = tmp_path / "cfg" / "test.cfg"
@@ -58,7 +58,7 @@ def env(tmp_path):
     flags = ctx.ns("flags")
     flags["echo"] = True
     flags["output_level"] = "verbose"
-    flags["hex_mode"] = False
+    flags["hex"] = False
 
     return eng, ctx, output, serial_writes
 
@@ -79,7 +79,7 @@ class TestTermSendHappyPath:
     def test_uses_lf_line_ending_from_cfg(self, env):
         # Arrange
         eng, ctx, _output, writes = env
-        eng._cfg_data["line_ending"] = "\n"
+        eng._cfg_data["eol"] = "\n"
         # Act
         eng.dispatch("term.send hello")
         # Assert
@@ -88,7 +88,7 @@ class TestTermSendHappyPath:
     def test_uses_crlf_line_ending(self, env):
         # Arrange
         eng, ctx, _output, writes = env
-        eng._cfg_data["line_ending"] = "\r\n"
+        eng._cfg_data["eol"] = "\r\n"
         # Act
         eng.dispatch("term.send hello")
         # Assert
@@ -128,7 +128,7 @@ class TestTermSendErrors:
 
     def test_disconnected_returns_not_connected(self, env, tmp_path):
         # Arrange — rebuild ctx with is_connected returning False
-        cfg = {"port": "COM4", "line_ending": "\r", "encoding": "utf-8"}
+        cfg = {"port": "COM4", "eol": "\r", "encoding": "utf-8"}
         config_path = tmp_path / "cfg2" / "test.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(cfg))

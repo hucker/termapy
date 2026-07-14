@@ -162,7 +162,7 @@ class CLITerminal(TerminalHost):
         # interactive use but noise in captured stdout.  The connect
         # banner is suppressed separately in terminal_host._connect().
         if self.exec_cmd:
-            self.cfg["echo_input"] = False
+            self.cfg["echo"] = False
 
         # Ensure stdout handles unicode on Windows.  sys.stdout is typed as
         # IO[str] (no reconfigure) but is actually TextIOWrapper at runtime.
@@ -306,7 +306,7 @@ class CLITerminal(TerminalHost):
         self.repl.set_context(self.ctx)
         # CLI: REPL echo off by default -- the OS terminal already shows the
         # typed line, so app-echo would duplicate it (scripts opt in with
-        # /term.echo_repl).  Device echo follows cfg echo_input.  Colour off
+        # /term.echo_repl).  Device echo follows cfg echo.  Colour off
         # when --no-color so device ANSI is stripped from piped output.
         self._init_flags(echo_repl=False, color=not self.no_color)
         if self.output_level is not None:
@@ -785,7 +785,7 @@ class CLITerminal(TerminalHost):
         # structurally, so no wait_for_idle dance is needed between
         # prompts.
         self.ctx.ns("flags")["echo"] = False
-        self.cfg["echo_input"] = False
+        self.cfg["echo"] = False
         self._session = self._build_session()
 
         def _loop() -> None:

@@ -75,13 +75,13 @@ class TestPortConnectExtendedArgs:
         # against it end-to-end.
         result = _run_cli(
             tmp_path,
-            cfg_overrides={"baud_rate": 115200, "line_ending": "\r",
-                           "echo_input": False},
+            cfg_overrides={"baud_rate": 115200, "eol": "\r",
+                           "echo": False},
             script_lines=[
                 "/port.connect DEMO 9600 N81 crlf echo",
                 "/cfg baud_rate",
-                "/cfg line_ending",
-                "/cfg echo_input",
+                "/cfg eol",
+                "/cfg echo",
             ],
         )
 
@@ -114,7 +114,7 @@ class TestPortConnectExtendedArgs:
             script_lines=[
                 "/port.connect DEMO echo crlf 9600 N81",
                 "/cfg baud_rate",
-                "/cfg echo_input",
+                "/cfg echo",
             ],
         )
 
@@ -131,10 +131,10 @@ class TestPortConnectExtendedArgs:
         # Arrange -- start with echo on, /port.connect noecho turns it off.
         result = _run_cli(
             tmp_path,
-            cfg_overrides={"echo_input": True},
+            cfg_overrides={"echo": True},
             script_lines=[
                 "/port.connect DEMO noecho",
-                "/cfg echo_input",
+                "/cfg echo",
             ],
         )
 
@@ -152,10 +152,10 @@ class TestPortConnectExtendedArgs:
         # Arrange
         result = _run_cli(
             tmp_path,
-            cfg_overrides={"line_ending": "\r\n"},
+            cfg_overrides={"eol": "\r\n"},
             script_lines=[
                 "/port.connect DEMO lf",
-                "/cfg line_ending",
+                "/cfg eol",
             ],
         )
 

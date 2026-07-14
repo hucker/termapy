@@ -57,7 +57,7 @@ def request_response(
         encoding: Encoding used for the send-side ``str -> bytes`` step.
             Typically ``"utf-8"`` from ``cfg["encoding"]``.
         line_ending: Bytes appended to ``command`` (as a string, then
-            encoded).  Typically ``"\\r"`` from ``cfg["line_ending"]``.
+            encoded).  Typically ``"\\r"`` from ``cfg["eol"]``.
         timeout_s: Outer wall-clock cap for the response window.  When
             this elapses, ``wait_for_lines`` returns whatever it has.
         terminator: Optional regex; first matching line ends collection.

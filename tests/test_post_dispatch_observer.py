@@ -28,7 +28,7 @@ from termapy.repl import ReplEngine
 @pytest.fixture
 def engine(tmp_path):
     """Minimal ReplEngine wired to capture output."""
-    cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r"}
+    cfg = {"port": "COM4", "baud_rate": 115200, "eol": "\r"}
     config_path = tmp_path / "sub" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))

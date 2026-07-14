@@ -38,8 +38,8 @@ def repl_env(tmp_path, monkeypatch):
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
-        "echo_input": False,
-        "line_ending": "\r",
+        "echo": False,
+        "eol": "\r",
         "encoding": "utf-8",
         "request_mode": False,
     }
@@ -807,7 +807,7 @@ class TestRequestEnvelopeEcho:
         # Arrange -- echo_input is irrelevant in request_mode; the
         # request envelope is the protocol view, not a debug echo.
         engine, ctx, cfg, _, markup = repl_env
-        cfg["echo_input"] = False
+        cfg["echo"] = False
         fake = _FakeSerial(response=b"5.5")
         _wire_fake_serial(ctx, fake)
 
@@ -827,7 +827,7 @@ class TestRequestEnvelopeEcho:
         # Arrange -- echo_input=True must not produce a second request
         # envelope (regression net for the unconditional render).
         engine, ctx, cfg, _, markup = repl_env
-        cfg["echo_input"] = True
+        cfg["echo"] = True
         fake = _FakeSerial(response=b"5.5")
         _wire_fake_serial(ctx, fake)
 
@@ -896,7 +896,7 @@ class TestDispatchFullEchoGating:
         # Arrange -- echo_input on, request_mode on: legacy echo suppressed,
         # JSON request envelope rendered instead.
         engine, ctx, cfg, output, markup = repl_env
-        cfg["echo_input"] = True
+        cfg["echo"] = True
         cfg["request_mode"] = True
         fake = _FakeSerial(response=b"OK")
         _wire_fake_serial(ctx, fake)

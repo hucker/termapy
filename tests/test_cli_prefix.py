@@ -141,8 +141,8 @@ class TestPrefixDispatchShapes:
             tmp_path,
             cfg_overrides={"cmd_prefix": "!"},
             script_lines=[
-                "!cfg.auto echo_input false",
-                "!cfg echo_input",
+                "!cfg.auto echo false",
+                "!cfg echo",
             ],
         )
 

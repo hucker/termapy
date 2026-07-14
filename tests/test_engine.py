@@ -13,7 +13,7 @@ from termapy.repl import ReplEngine, _parse_flags, _resolve_flag
 @pytest.fixture
 def engine(tmp_path):
     """Create a basic ReplEngine with a temp config."""
-    cfg = {"port": "COM4", "baud_rate": 115200, "line_ending": "\r"}
+    cfg = {"port": "COM4", "baud_rate": 115200, "eol": "\r"}
     config_path = tmp_path / "sub" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))
@@ -26,7 +26,7 @@ def engine(tmp_path):
     flags = eng.ctx.ns("flags")
     flags["echo"] = True
     flags["output_level"] = "verbose"
-    flags["hex_mode"] = False
+    flags["hex"] = False
     return eng, output
 
 
@@ -210,7 +210,7 @@ class TestRunScript:
         cfg = {
             "port": "COM4",
             "baud_rate": 115200,
-            "line_ending": "\r",
+            "eol": "\r",
             "encoding": "utf-8",
         }
         config_path = tmp_path / "dev" / "dev.cfg"
@@ -239,7 +239,7 @@ class TestRunScript:
         flags["echo"] = True
         flags["echo_repl"] = True
         flags["output_level"] = "verbose"
-        flags["hex_mode"] = False
+        flags["hex"] = False
         script = tmp_path / "test.run"
         script.write_text(script_text)
         eng._script_depth = 1
@@ -530,7 +530,7 @@ class TestDispatchFull:
         cfg = {
             "port": "COM4",
             "baud_rate": 115200,
-            "line_ending": "\r",
+            "eol": "\r",
             "encoding": "utf-8",
         }
         config_path = tmp_path / "cfg" / "test.cfg"
@@ -566,7 +566,7 @@ class TestDispatchFull:
         flags["echo"] = True
         flags["echo_repl"] = True
         flags["output_level"] = "verbose"
-        flags["hex_mode"] = False
+        flags["hex"] = False
 
         def do_dispatch(cmd, connected=True):
             eng.dispatch_full(
@@ -692,8 +692,8 @@ class TestDispatchFull:
     def test_echo_input_config(self, dispatch_env):
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
-        eng._cfg_data["echo_input"] = True
-        eng._cfg_data["echo_input_fmt"] = "> {cmd}"
+        eng._cfg_data["echo"] = True
+        eng._cfg_data["echo_fmt"] = "> {cmd}"
 
         # Act
         do("ATZ")
@@ -704,7 +704,7 @@ class TestDispatchFull:
     def test_custom_line_ending(self, dispatch_env):
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
-        eng._cfg_data["line_ending"] = "\r\n"
+        eng._cfg_data["eol"] = "\r\n"
 
         # Act
         do("ATZ")

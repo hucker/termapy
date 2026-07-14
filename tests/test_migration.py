@@ -67,7 +67,7 @@ def test_v1_to_v2_renames_add_date_to_cmd():
     cfg = {"config_version": 1, "add_date_to_cmd": True, "port": "COM4"}
     result = migrate_config(cfg)
 
-    assert result["show_timestamps"] is True, "renamed key has old value"
+    assert result["timestamps"] is True, "renamed key has old value (v28: show_timestamps -> timestamps)"
     assert "add_date_to_cmd" not in result, "old key removed"
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
@@ -195,8 +195,8 @@ def test_v5_to_v6_renames_config_keys():
     result = migrate_config(cfg)
 
     # Assert - new keys present with old values
-    assert result["echo_input"] is True, "echo_cmd renamed"
-    assert result["echo_input_fmt"] == "[purple]> {cmd}[/]", "echo_cmd_fmt renamed"
+    assert result["echo"] is True, "echo_cmd renamed (v28: echo_input -> echo)"
+    assert result["echo_fmt"] == "[purple]> {cmd}[/]", "echo_cmd_fmt renamed (v28: -> echo_fmt)"
     # v6 renamed auto_connect_cmd -> on_connect_cmd; v15 then split its
     # value into per-mode interactive keys.
     assert result["tui_on_connect_cmd"] == "ATZ", \
@@ -205,7 +205,7 @@ def test_v5_to_v6_renames_config_keys():
         "auto_connect_cmd renamed; v15 migrated value to cli_on_connect_cmd"
     assert result["on_connect_cmd"] == "", "universal cleared in v15"
     assert result["cmd_delay_ms"] == 100, "inter_cmd_delay_ms renamed"
-    assert result["show_line_endings"] is True, "show_eol renamed"
+    assert result["line_endings"] is True, "show_eol renamed (v28: show_line_endings -> line_endings)"
     assert result["show_traceback"] is True, "exception_traceback renamed"
     assert result["border_color"] == "green", "app_border_color renamed"
     assert result["cmd_prefix"] == "/", "repl_prefix renamed"
@@ -664,8 +664,8 @@ def test_v25_to_v26_adds_rx_newline():
     # Act
     result = migrate_config(cfg)
 
-    # Assert
-    assert result["rx_newline"] == "auto", "rx_newline default added"
+    # Assert -- v26 adds rx_newline; v28 then renames it to eol_rx.
+    assert result["eol_rx"] == "auto", "rx_newline default added (v28: -> eol_rx)"
     assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
 
 
@@ -677,8 +677,8 @@ def test_v25_to_v26_preserves_existing_rx_newline():
     # Act
     result = migrate_config(cfg)
 
-    # Assert
-    assert result["rx_newline"] == "crlf", "existing rx_newline preserved"
+    # Assert -- value carried through the v28 rename to eol_rx.
+    assert result["eol_rx"] == "crlf", "existing rx_newline preserved (v28: -> eol_rx)"
 
 
 def test_v26_to_v27_adds_strip_device_echo():
@@ -706,6 +706,53 @@ def test_v26_to_v27_preserves_existing_strip_device_echo():
     assert result["strip_device_echo"] is True, "existing value preserved"
 
 
+def test_v27_to_v28_renames_keys_to_command_names():
+    """Migration v27->v28 renames display keys to match /term.* command names."""
+    # Arrange -- a v27 config with all the old key names + values.
+    cfg = {
+        "config_version": 27,
+        "echo_input": True,
+        "echo_input_fmt": "> {cmd}",
+        "line_ending": "\r\n",
+        "rx_newline": "crlf",
+        "show_line_endings": True,
+        "show_line_numbers": True,
+        "hex_mode": True,
+        "show_timestamps": True,
+    }
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert -- new names carry the old values; old names gone.
+    assert result["echo"] is True, "echo_input -> echo"
+    assert result["echo_fmt"] == "> {cmd}", "echo_input_fmt -> echo_fmt"
+    assert result["eol"] == "\r\n", "line_ending -> eol"
+    assert result["eol_rx"] == "crlf", "rx_newline -> eol_rx"
+    assert result["line_endings"] is True, "show_line_endings -> line_endings"
+    assert result["line_no"] is True, "show_line_numbers -> line_no"
+    assert result["hex"] is True, "hex_mode -> hex"
+    assert result["timestamps"] is True, "show_timestamps -> timestamps"
+    for old in ("echo_input", "echo_input_fmt", "line_ending", "rx_newline",
+                "show_line_endings", "show_line_numbers", "hex_mode",
+                "show_timestamps"):
+        assert old not in result, f"old key {old} removed"
+    assert result["config_version"] == CURRENT_CONFIG_VERSION, "version advanced to current"
+
+
+def test_v27_to_v28_new_name_wins_when_both_present():
+    """If both old and new keys exist, the new-name value is kept."""
+    # Arrange
+    cfg = {"config_version": 27, "echo_input": True, "echo": False}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["echo"] is False, "pre-existing new key wins over old"
+    assert "echo_input" not in result, "old key dropped"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labelled line to _migration_steps."""
     # Arrange -- a config from v17 needs six steps to reach v23.
@@ -717,9 +764,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labelled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 10, (
-        f"v17 -> v27 covers ten migrators "
-        f"(17->18 ... 25->26, 26->27); "
+    assert len(steps) == 11, (
+        f"v17 -> v28 covers eleven migrators "
+        f"(17->18 ... 26->27, 27->28); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -733,6 +780,7 @@ def test_migration_steps_recorded_per_version():
         "v24 -> v25",
         "v25 -> v26",
         "v26 -> v27",
+        "v27 -> v28",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), (
@@ -752,8 +800,8 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 7, (
-        f"seven steps (v20->v21 ... v25->v26, v26->v27); got {steps!r}"
+    assert len(steps) == 8, (
+        f"eight steps (v20->v21 ... v26->v27, v27->v28); got {steps!r}"
     )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
@@ -818,7 +866,7 @@ def test_v21_to_v22_nests_pyserial_keys():
 
     # Assert -- non-serial keys stay where they were.
     assert result["encoding"] == "utf-8", "encoding stays flat top-level"
-    assert result["line_ending"] == "\n", "line_ending stays flat top-level"
+    assert result["eol"] == "\n", "TX newline stays flat top-level (v28: line_ending -> eol)"
     assert result["cmd_delay_ms"] == 100, "cmd_delay_ms stays flat top-level"
 
     # Assert -- version advanced.

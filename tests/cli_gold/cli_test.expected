@@ -67,7 +67,7 @@ demo> /cfg baud_rate
   115200
 demo> /cfg encoding
   utf-8
-demo> /cfg line_ending
+demo> /cfg eol
 
 demo> /cfg parity
   N
@@ -77,7 +77,7 @@ demo> /cfg stop_bits
   1
 demo> /cfg flow_control
   none
-demo> /cfg echo_input
+demo> /cfg echo
   True
 demo> /cfg send_bare_enter
   False
@@ -85,19 +85,19 @@ demo> /cfg cmd_prefix
   /
 demo> /print === section: config auto-set ===
   === section: config auto-set ===
-demo> /cfg.auto echo_input true
-  echo_input = True  (session)
-demo> /cfg echo_input
+demo> /cfg.auto echo true
+  echo = True  (session)
+demo> /cfg echo
   True
-demo> /cfg.auto echo_input false
-  echo_input = False  (session)
-demo> /cfg echo_input
+demo> /cfg.auto echo false
+  echo = False  (session)
+demo> /cfg echo
   False
 demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 27,
+      "config_version": 28,
       "default_ui": "tui",
       "vt100_hint": true,
       "title": "Demo Device",
@@ -132,16 +132,16 @@ demo> /cfg.dump
       "tui_on_connect_cmd": "/run welcome",
       "cli_on_connect_cmd": "/run welcome",
       "mcp_on_connect_cmd": "",
-      "line_ending": "\r",
-      "rx_newline": "auto",
+      "eol": "\r",
+      "eol_rx": "auto",
       "send_bare_enter": false,
-      "echo_input": false,
-      "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
+      "echo": false,
+      "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
       "log_file": "",
-      "show_timestamps": false,
-      "show_line_endings": false,
-      "show_line_numbers": false,
-      "hex_mode": false,
+      "timestamps": false,
+      "line_endings": false,
+      "line_no": false,
+      "hex": false,
       "request_mode": false,
       "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
       "strip_device_echo": false,
@@ -325,10 +325,10 @@ demo> /print === section: line endings ===
   === section: line endings ===
 demo> /show_line_endings on
     Note: /show_line_endings is legacy; use /term.line_endings.
-  show_line_endings = True  (session)
+  line_endings = True  (session)
   on
 demo> /show_line_endings off
-  show_line_endings = False  (session)
+  line_endings = False  (session)
   off
 demo> /print === section: seq ===
   === section: seq ===

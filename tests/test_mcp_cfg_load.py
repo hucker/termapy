@@ -41,8 +41,8 @@ def _make_cfg_dir(parent: Path, name: str, **overrides) -> Path:
 def two_cfgs(tmp_path, monkeypatch):
     """Create two cfg dirs and pin TERMAPY_CFG_DIR so resolve_config sees them."""
     monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
-    cfg_a = _make_cfg_dir(tmp_path, "alpha", line_ending="\r")
-    cfg_b = _make_cfg_dir(tmp_path, "beta", line_ending="\n")
+    cfg_a = _make_cfg_dir(tmp_path, "alpha", eol="\r")
+    cfg_b = _make_cfg_dir(tmp_path, "beta", eol="\n")
     return cfg_a, cfg_b
 
 
@@ -74,7 +74,7 @@ class TestMcpCfgLoad:
         host._load_config("beta")
 
         # Assert
-        actual = host.cfg.get("line_ending")
+        actual = host.cfg.get("eol")
         expected = "\n"
         assert actual == expected, "in-memory cfg replaced with beta's contents"
 
@@ -252,7 +252,7 @@ class TestCfgLoadFiresOnConnected:
 
         cfg = default_cfg()
         cfg["serial"]["port"] = "DEMO"
-        cfg["line_ending"] = "\r\n"
+        cfg["eol"] = "\r\n"
         cfg["auto_connect"] = True
         cfg.update(overrides)
         cfg_path = parent / name / f"{name}.cfg"

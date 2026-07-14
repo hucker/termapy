@@ -55,7 +55,7 @@ DEFAULT_CFG = {
     "validate_typed_args": False,
     # Serial -- pyserial constructor args grouped under "serial".
     # Other serial-domain keys (encoding, cmd_delay_ms, protocol,
-    # line_ending) stay flat for now; future grouping decision.
+    # eol) stay flat for now; future grouping decision.
     "serial": {
         "port": "",
         "baud_rate": 115200,
@@ -81,12 +81,12 @@ DEFAULT_CFG = {
     "tui_on_connect_cmd": "",
     "cli_on_connect_cmd": "",
     "mcp_on_connect_cmd": "",
-    "line_ending": "\r",
+    "eol": "\r",
     # Receive newline: how incoming device output is split into lines.
     # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's
     # Receive=AUTO -- works for any device); cr/lf/crlf force a single
     # terminator for the rare device that sends a stray CR/LF as data.
-    "rx_newline": "auto",
+    "eol_rx": "auto",
     # Input
     "send_bare_enter": False,
     # Input echo of device commands sent to the wire (bare lines +
@@ -95,8 +95,8 @@ DEFAULT_CFG = {
     # because its default is per-host (see TerminalHost._init_flags).
     # (Device-side echo, where the device parrots your bytes, is a device
     # concern and not modelled here.)
-    "echo_input": False,
-    "echo_input_fmt": "[purple]$(CFG)> {cmd}[/]",
+    "echo": False,
+    "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     # Logging
     "log_file": "",
     # Diagnostics
@@ -105,10 +105,10 @@ DEFAULT_CFG = {
     "proto_frame_gap_ms": 50,
     "proto_results_template": "{name}_results.json",
     # Display
-    "show_timestamps": False,
-    "show_line_endings": False,
-    "show_line_numbers": False,
-    "hex_mode": False,
+    "timestamps": False,
+    "line_endings": False,
+    "line_no": False,
+    "hex": False,
     "request_mode": False,
     "request_err_pattern": r"(?i)^(ERROR|ERR|FAULT)\b",
     # Half-duplex devices echo the command back before answering.  When on,
@@ -322,13 +322,13 @@ CFG_HELP: dict[str, tuple] = {
         "Character encoding for serial data (set: /term.encoding).",
         "Common: utf-8, latin-1, ascii, cp437",
     ),
-    "line_ending": (
+    "eol": (
         "Appended to each sent command (set: /term.eol).",
         r'CR/LF/NUL/ETX/EOT bytes only: "", "\r" (CR), "\n" (LF), '
         r'"\r\n" (CRLF), "\n\r" (LFCR), "\0" (NUL), '
         r'"\u0003" (ETX), "\u0004" (EOT), or any combination.',
     ),
-    "rx_newline": (
+    "eol_rx": (
         "How received device output is split into lines (set: /term.eol.rx).",
         "auto (CR/LF/CRLF all break), cr, lf, or crlf. Default: auto",
     ),
@@ -383,11 +383,11 @@ CFG_HELP: dict[str, tuple] = {
         "(toggle: /term.send_bare_enter).",
         "Valid: true, false",
     ),
-    "echo_input": (
+    "echo": (
         "Echo device commands sent to the wire (toggle: /term.echo).",
         "Valid: true, false",
     ),
-    "echo_input_fmt": (
+    "echo_fmt": (
         "Rich markup format for echoed commands.",
         "{cmd} is replaced. Example: [purple]> {cmd}[/]",
         _preview_markup,
@@ -424,19 +424,19 @@ CFG_HELP: dict[str, tuple] = {
         _preview_color,
     ),
     "max_lines": ("Scrollback buffer size.", "Positive integer. Default: 10000"),
-    "show_timestamps": (
+    "timestamps": (
         "Prefix each line with [HH:MM:SS.mmm] (toggle: /term.timestamps).",
         "Valid: true, false",
     ),
-    "show_line_endings": (
+    "line_endings": (
         "Show dim \\r \\n markers in serial output (toggle: /term.line_endings).",
         "Valid: true, false. Debug mode for line-ending issues.",
     ),
-    "show_line_numbers": (
+    "line_no": (
         "Show line numbers in serial output (toggle: /term.line_no).",
         "Valid: true, false",
     ),
-    "hex_mode": (
+    "hex": (
         "Display serial I/O as hex bytes instead of text (toggle: /term.hex).",
         "Valid: true, false",
     ),

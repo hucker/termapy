@@ -36,7 +36,7 @@ def cli(tmp_path):
     cfg = {
         **DEFAULT_CFG,
         "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200},
-        "line_ending": "\r",
+        "eol": "\r",
     }
     config_path = tmp_path / "test_cfg" / "test.cfg"
     config_path.parent.mkdir()
@@ -611,7 +611,7 @@ class TestSerialWriteRaw:
         # were sent, (b) DEMO recognised them as a complete AT command,
         # which means the line ending was applied correctly.
         cli._connect()
-        cli.cfg["line_ending"] = "\r\n"
+        cli.cfg["eol"] = "\r\n"
 
         # Act
         cli._serial_write_raw("AT")

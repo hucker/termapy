@@ -304,7 +304,7 @@ def _handler(ctx: PluginContext, args: str):
         return CmdResult.fail(msg="Not connected.")
 
     encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("line_ending", "\r")
+    eol = ctx.cfg.get("eol", "\r")
 
     with ctx.serial.io():                # suppress terminal, claim serial
         ctx.serial.drain()               # discard stale bytes

@@ -52,8 +52,8 @@ def ctx_with_tracker(tmp_path):
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
-        "echo_input": False,
-        "line_ending": "\r",
+        "echo": False,
+        "eol": "\r",
         "encoding": "utf-8",
     }
     config_path = tmp_path / "test.cfg"

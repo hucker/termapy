@@ -57,7 +57,7 @@ class _StubHost(TerminalHost):
 @pytest.fixture
 def host(tmp_path):
     """Create a _StubHost with mocked engines."""
-    cfg = {"port": "COM99", "baud_rate": 115200, "line_ending": "\r",
+    cfg = {"port": "COM99", "baud_rate": 115200, "eol": "\r",
            "encoding": "utf-8", "cmd_prefix": "/"}
     config_path = tmp_path / "test_cfg" / "test.cfg"
     config_path.parent.mkdir()
@@ -247,7 +247,7 @@ class TestInitFlags:
     def test_device_echo_seeded_from_cfg_when_allowed(self, host):
         # Arrange -- device_echo_allowed=True (TUI/CLI); flags["echo"] is
         # seeded from cfg['echo_input'], the same pattern as hex_mode.
-        host.cfg["echo_input"] = True
+        host.cfg["echo"] = True
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
@@ -261,7 +261,7 @@ class TestInitFlags:
 
     def test_device_echo_off_when_cfg_off(self, host):
         # Arrange -- host may echo, but cfg says off -> flag off.
-        host.cfg["echo_input"] = False
+        host.cfg["echo"] = False
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
@@ -276,7 +276,7 @@ class TestInitFlags:
     def test_device_echo_forced_off_for_non_echoing_host(self, host):
         # Arrange -- MCP passes device_echo_allowed=False; force off
         # regardless of cfg (no terminal to echo to).
-        host.cfg["echo_input"] = True
+        host.cfg["echo"] = True
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
@@ -291,7 +291,7 @@ class TestInitFlags:
     def test_echo_repl_from_host_default_not_cfg(self, host):
         # Arrange -- echo_repl is session-only with a per-host default:
         # TUI passes True, CLI/MCP False.  It is not read from cfg.
-        host.cfg["echo_input"] = False  # device echo unrelated to repl echo
+        host.cfg["echo"] = False  # device echo unrelated to repl echo
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
@@ -318,7 +318,7 @@ class TestInitFlags:
 
     def test_hex_mode_from_cfg(self, host):
         # Arrange
-        host.cfg["hex_mode"] = True
+        host.cfg["hex"] = True
         api = host._build_internal_handle()
         host.ctx = host._build_plugin_context(api)
 
@@ -327,7 +327,7 @@ class TestInitFlags:
 
         # Assert
         flags = host.ctx.ns("flags")
-        assert flags["hex_mode"] is True, "hex_mode read from cfg"
+        assert flags["hex"] is True, "hex_mode read from cfg"
 
 
 # -- _serial_write / _serial_send -------------------------------------------
@@ -373,7 +373,7 @@ class TestSerialIO:
     def test_serial_send_custom_encoding(self, host):
         # Arrange
         host.cfg["encoding"] = "ascii"
-        host.cfg["line_ending"] = "\n"
+        host.cfg["eol"] = "\n"
         host.engine.serial_port = MagicMock()
 
         # Act

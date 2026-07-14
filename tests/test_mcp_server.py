@@ -34,7 +34,7 @@ def host(tmp_path):
     """Build an MCPHost with no port, no auto-connect."""
     cfg = dict(DEFAULT_CFG)
     cfg["port"] = ""
-    cfg["echo_input"] = False
+    cfg["echo"] = False
     config_path = tmp_path / "cfg" / "test.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))

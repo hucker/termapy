@@ -186,7 +186,7 @@ class TestAppConfig:
         # Arrange
         _, config_dir = pin_app_dirs
         config_dir.mkdir(parents=True, exist_ok=True)
-        payload = {"theme": "dark", "show_timestamps": True}
+        payload = {"theme": "dark", "timestamps": True}
         (config_dir / "config.json").write_text(json.dumps(payload))
 
         # Act

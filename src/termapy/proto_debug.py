@@ -892,7 +892,7 @@ class ProtoDebugScreen(ModalScreen[None]):
             cmds: Command strings to send.
         """
         ctx = self._ctx
-        line_ending = ctx.cfg.get("line_ending", "\r")
+        line_ending = ctx.cfg.get("eol", "\r")
         enc = ctx.cfg.get("encoding", "utf-8")
         for cmd_text in cmds:
             ctx.serial.write((cmd_text + line_ending).encode(enc))

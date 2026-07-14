@@ -669,7 +669,7 @@ class ReplEngine:
         self.ctx.io.output_markup(_json.dumps({"cmd": command}))
 
         encoding = self.cfg.get("encoding", "utf-8")
-        line_ending = self.cfg.get("line_ending", "\r")
+        line_ending = self.cfg.get("eol", "\r")
         timeout_ms = int(self.cfg.get("default_response_timeout_ms", 1000))
         payload = (command + line_ending).encode(encoding)
 
@@ -1003,7 +1003,7 @@ class ReplEngine:
         _status = status or (lambda _t, _c: None)
         # REPL/slash-command echo (/cfg, /help, /raw, directives, warnings)
         # is governed by echo_repl -- distinct from device-command echo
-        # (self.echo / cfg echo_input), which fires on the bare-line path.
+        # (self.echo / cfg echo), which fires on the bare-line path.
         # .get: a context built without _init_flags (some tests) lacks it.
         echo_repl_on = self.ctx.ns("flags").get("echo_repl", False)
 
@@ -1040,11 +1040,11 @@ class ReplEngine:
             _status(f"Error: {result.payload}", "red")
             return CmdResult.fail(msg=result.payload)
 
-        # Shared echo using echo_input_fmt for both REPL and serial
+        # Shared echo using echo_fmt for both REPL and serial
         from termapy.builtins.commands.var import expand_vars
 
         def _echo_cmd(text: str) -> None:
-            fmt = expand_vars(self.cfg.get("echo_input_fmt", "> {cmd}"))
+            fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
             _echo(fmt.replace("{cmd}", text))
 
         # 3. REPL command (starts with prefix)
@@ -1096,14 +1096,14 @@ class ReplEngine:
         # the session log stays all-JSON in that mode.  Same intent
         # ("show what was typed"), different rendering.
         #
-        # Read the live echo flag (``self.echo``), not ``cfg["echo_input"]``
+        # Read the live echo flag (``self.echo``), not ``cfg["echo"]``
         # -- so ``/echo`` governs bare device commands the same way it
         # governs slash commands (which read the flag above).  The cfg key
         # seeds the flag at init; the flag is the session truth.
         if self.echo and cmd and not self.cfg.get("request_mode"):
             echo_text = cmd
-            if self.cfg.get("show_line_endings", False) and eol_label:
-                le = self.cfg.get("line_ending", "\r")
+            if self.cfg.get("line_endings", False) and eol_label:
+                le = self.cfg.get("eol", "\r")
                 echo_text += eol_label(le)
             _echo_cmd(echo_text)
 
@@ -1145,7 +1145,7 @@ class ReplEngine:
                 # handle it here -- symmetric with the request_mode empty-line
                 # path above.  (Reached only when a frontend forwards an empty
                 # line, which it does only when send_bare_enter is set.)
-                ending = self.cfg.get("line_ending", "\r")
+                ending = self.cfg.get("eol", "\r")
                 encoding = self.cfg.get("encoding", "utf-8")
                 if self.ctx.serial.write is not None:
                     self.ctx.serial.write(ending.encode(encoding))
@@ -1622,7 +1622,7 @@ class ReplEngine:
                 cmd_result = self.dispatch(stripped[len(sctx.prefix) :].strip())
             elif self.ctx.serial.is_connected():
                 self.ctx.serial.write(
-                    (stripped + self.cfg.get("line_ending", "\r")).encode(
+                    (stripped + self.cfg.get("eol", "\r")).encode(
                         self.cfg.get("encoding", "utf-8")
                     )
                 )

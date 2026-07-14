@@ -86,7 +86,7 @@ def parse_mode(mode: str) -> tuple[str, int, float] | None:
 
 
 #: Line-ending tokens accepted by /port.connect.  Values are the literal
-#: strings stored in cfg["line_ending"].
+#: strings stored in cfg["eol"].
 _LINE_ENDING_TOKENS: dict[str, str] = {
     "cr": "\r",
     "lf": "\n",
@@ -117,7 +117,7 @@ def parse_open_args(
 
     * ``port=<name>`` -- explicit port (device / SN / ``SN|COM`` chain / URL)
     * ``cr`` / ``lf`` / ``crlf`` -- line ending
-    * ``echo`` / ``noecho`` -- echo_input toggle
+    * ``echo`` / ``noecho`` -- echo toggle
     * ``N81`` / ``8N1`` / etc. -- serial mode, either field order (parse_mode)
     * purely numeric -- baud rate
     * a bare first token matching none of the above -- port name

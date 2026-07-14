@@ -99,11 +99,11 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
         )
     if line_ending is not None:
         ctx.serial.apply_port_effects(
-            {"cfg_update": {"line_ending": line_ending}}
+            {"cfg_update": {"eol": line_ending}}
         )
     if echo is not None:
         ctx.serial.apply_port_effects(
-            {"cfg_update": {"echo_input": echo}}
+            {"cfg_update": {"echo": echo}}
         )
     ctx.serial.connect(port)
     if not ctx.serial.is_connected():
@@ -447,8 +447,8 @@ COMMAND = Command(
                 "  baud         Baud rate (e.g. 9600, 115200).\n"
                 "  mode         Frame; either field order -- 8N1 or N81, 7E2\n"
                 "               or E72. Parity: N/E/O/M/S.\n"
-                "  cr|lf|crlf   Line ending. Stored as cfg[\"line_ending\"].\n"
-                "  echo|noecho  Toggle cfg[\"echo_input\"].\n"
+                "  cr|lf|crlf   Line ending. Stored as cfg[\"eol\"].\n"
+                "  echo|noecho  Toggle cfg[\"echo\"].\n"
                 "\n"
                 "Tokens after name are order-independent. Mutations are\n"
                 "session-only -- edit the config file to persist.\n"

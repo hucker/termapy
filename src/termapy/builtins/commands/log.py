@@ -237,13 +237,13 @@ def _config_snapshot(ctx: PluginContext) -> list[str]:
     lines.append(_kv("  Log file", log_file or "(none)"))
 
     lines.append(_kv("  Encoding", ctx.cfg.get("encoding", "utf-8")))
-    lines.append(_kv("  Line ending", repr(ctx.cfg.get("line_ending", "\r"))))
+    lines.append(_kv("  Line ending", repr(ctx.cfg.get("eol", "\r"))))
     lines.append(_kv("  Flow control", ctx.cfg["serial"]["flow_control"]))
     return lines
 
 
 def _runtime_flags_snapshot(ctx: PluginContext) -> list[str]:
-    """Current toggles (echo, verbose, hex_mode, etc.)."""
+    """Current toggles (echo, verbose, hex, etc.)."""
     lines: list[str] = []
     flags = {}
     try:

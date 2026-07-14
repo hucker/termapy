@@ -413,8 +413,8 @@ class TerminalHost:
 
           - ``flags["echo"]`` -- echo of *device* commands (what's sent to
             the wire: bare commands + /term.send).  Seeded from
-            ``cfg["echo_input"]`` -- the "cfg seeds the flag" pattern that
-            ``hex_mode`` uses below -- so it persists per config.  Toggled
+            ``cfg["echo"]`` -- the "cfg seeds the flag" pattern that
+            ``hex`` uses below -- so it persists per config.  Toggled
             by ``/term.echo`` (alias ``/echo``).
           - ``flags["echo_repl"]`` -- echo of *slash / REPL* commands
             (``/cfg``, ``/help``, ...).  A session-only flag with a
@@ -437,7 +437,7 @@ class TerminalHost:
                 for the TUI, False for the CLI and MCP).
             device_echo_allowed: Whether this host may echo device commands
                 at all.  True (TUI/CLI) seeds ``flags["echo"]`` from
-                ``cfg["echo_input"]``; False (MCP, headless) forces it off
+                ``cfg["echo"]``; False (MCP, headless) forces it off
                 regardless of cfg.
         """
         from termapy.plugins import DEFAULT_OUTPUT_LEVEL
@@ -445,11 +445,11 @@ class TerminalHost:
         flags = self.ctx.ns("flags")
         flags.setdefault(
             "echo",
-            self.cfg.get("echo_input", False) if device_echo_allowed else False,
+            self.cfg.get("echo", False) if device_echo_allowed else False,
         )
         flags.setdefault("echo_repl", echo_repl)
         flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
-        flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
+        flags.setdefault("hex", self.cfg.get("hex", False))
         # Render device ANSI colour (SGR).  Session flag toggled by
         # /term.color; the single source of truth for device colour across
         # the TUI (strip before render when off) and CLI (strip in on_lines).
@@ -492,7 +492,7 @@ class TerminalHost:
 
     def _serial_send(self, text: str) -> None:
         """Send text with configured line ending and encoding."""
-        ending = self.cfg.get("line_ending", "\r")
+        ending = self.cfg.get("eol", "\r")
         encoding = self.cfg.get("encoding", "utf-8")
         self._serial_write((text + ending).encode(encoding))
 
@@ -519,7 +519,7 @@ class TerminalHost:
         if not self.engine.is_connected:
             self.status("Not connected.", "red")
             return
-        line_ending = self.cfg.get("line_ending", "\r")
+        line_ending = self.cfg.get("eol", "\r")
         encoding = self.cfg.get("encoding", "utf-8")
         if self.engine.serial_port:
             data = (text + line_ending).encode(encoding)

@@ -51,7 +51,7 @@ def _send_cmd(ctx: PluginContext, command: str) -> str | None:
         or ``None`` on timeout.
     """
     encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("line_ending", "\r")
+    line_ending = ctx.cfg.get("eol", "\r")
 
     # 1. Drain - discard any stale bytes sitting in the receive buffer
     ctx.serial.drain()

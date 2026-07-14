@@ -36,7 +36,7 @@ def cfg_env(tmp_path, monkeypatch):
     cfg = {
         "port": "COM4",
         "baud_rate": 115200,
-        "line_ending": "\r",
+        "eol": "\r",
         "title": "Demo Device",
     }
     cfg_dir = tmp_path / "termapy_cfg" / "demo"

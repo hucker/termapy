@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 27
+CURRENT_CONFIG_VERSION = 28
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -605,6 +605,42 @@ def _migrate_v26_to_v27(cfg: dict) -> dict:
 
 
 MIGRATIONS[26] = _migrate_v26_to_v27
+
+
+# v27 -> v28: rename display/session cfg keys to match their /term.* command
+# names (the values are unchanged).  Old on-disk configs carry the v27 names
+# (echo_input, line_ending, ...); this step renames them so the config file
+# reads the same words the commands use.
+_V27_V28_RENAMES = {
+    "echo_input": "echo",
+    "echo_input_fmt": "echo_fmt",
+    "line_ending": "eol",
+    "rx_newline": "eol_rx",
+    "show_line_endings": "line_endings",
+    "show_line_numbers": "line_no",
+    "hex_mode": "hex",
+    "show_timestamps": "timestamps",
+}
+
+
+def _migrate_v27_to_v28(cfg: dict) -> dict:
+    """Rename display/session cfg keys to match their /term.* command names.
+
+    ``echo_input`` -> ``echo``, ``line_ending`` -> ``eol``,
+    ``rx_newline`` -> ``eol_rx``, ``show_line_endings`` -> ``line_endings``,
+    ``show_line_numbers`` -> ``line_no``, ``hex_mode`` -> ``hex``,
+    ``show_timestamps`` -> ``timestamps``, ``echo_input_fmt`` -> ``echo_fmt``.
+    Values are carried across unchanged; a pre-existing new-name key wins (the
+    old key is then just dropped).
+    """
+    for old, new in _V27_V28_RENAMES.items():
+        if old in cfg:
+            value = cfg.pop(old)
+            cfg.setdefault(new, value)
+    return cfg
+
+
+MIGRATIONS[27] = _migrate_v27_to_v28
 
 
 def migrate_config(cfg: dict) -> dict:

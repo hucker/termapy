@@ -543,7 +543,7 @@ class SerialTerminal(TerminalHost, App):
         self._suggester = CommandSuggester()
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
-        self._show_line_numbers: bool = cfg.get("show_line_numbers", False)
+        self._show_line_numbers: bool = cfg.get("line_no", False)
         self._line_counter: int = 0
         self._xfer_cancel = threading.Event()
         # Serializes command execution.  Every command path -- typed input,
@@ -1190,7 +1190,7 @@ class SerialTerminal(TerminalHost, App):
         self.repl._after_cfg = self._refresh_after_cfg
         self.ctx = ctx
         # TUI: REPL echo on (input clears on Enter, so echo keeps a
-        # scrollback record).  Device echo follows cfg echo_input.
+        # scrollback record).  Device echo follows cfg echo.
         self._init_flags(echo_repl=True)
         if self._initial_output_level is not None:
             ctx.ns("flags")["output_level"] = self._initial_output_level
@@ -1630,8 +1630,8 @@ class SerialTerminal(TerminalHost, App):
         # Cfg reload may swap the active profile out from under us; rebuild
         # suggester commands so completion reflects the post-load state.
         self._rebuild_suggester_commands()
-        self.repl.ctx.ns("flags")["hex_mode"] = cfg.get("hex_mode", False)
-        self._show_line_numbers = cfg.get("show_line_numbers", False)
+        self.repl.ctx.ns("flags")["hex"] = cfg.get("hex", False)
+        self._show_line_numbers = cfg.get("line_no", False)
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self.history = self._load_history()
@@ -2775,9 +2775,9 @@ class SerialTerminal(TerminalHost, App):
             log = self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
             return  # widgets torn down between flag check and query
-        show_ts = self.cfg.get("show_timestamps", False)
+        show_ts = self.cfg.get("timestamps", False)
         show_ln = self._show_line_numbers
-        hex_mode = self.repl.ctx.ns("flags")["hex_mode"]
+        hex_mode = self.repl.ctx.ns("flags")["hex"]
         color_on = self.repl.ctx.ns("flags").get("color", True)
         enc = self.cfg.get("encoding", "utf-8")
         for text in lines:
@@ -2925,16 +2925,16 @@ class SerialTerminal(TerminalHost, App):
             text: Literal text to send.
         """
         if self.repl.echo:  # live echo flag, not cfg (see _init_flags)
-            fmt = self.cfg.get("echo_input_fmt", "> {cmd}")
+            fmt = self.cfg.get("echo_fmt", "> {cmd}")
             echo_text = text
-            if self.cfg.get("show_line_endings", False):
-                le = self.cfg.get("line_ending", "\r")
+            if self.cfg.get("line_endings", False):
+                le = self.cfg.get("eol", "\r")
                 echo_text += eol_label(le)
             self._write_output_markup(fmt.replace("{cmd}", echo_text))
         if not self.is_connected:
             self._status("Not connected.", "red")
             return
-        line_ending = self.cfg.get("line_ending", "\r")
+        line_ending = self.cfg.get("eol", "\r")
         self._serial_op(
             "Send",
             lambda: self._serial_write(

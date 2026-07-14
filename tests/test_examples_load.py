@@ -99,7 +99,7 @@ def test_example_dispatches_without_attribute_error(cmd_name, tmp_path):
     # Arrange -- build a real ReplEngine and graft in the example plugins.
     import json
     from termapy.repl import ReplEngine
-    cfg = {"port": "DEMO", "baud_rate": 115200, "line_ending": "\r"}
+    cfg = {"port": "DEMO", "baud_rate": 115200, "eol": "\r"}
     config_path = tmp_path / "test.cfg"
     config_path.write_text(json.dumps(cfg))
     for sub in ("plugin", "ss", "run", "cap"):

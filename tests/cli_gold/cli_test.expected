@@ -97,7 +97,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 26,
+      "config_version": 27,
       "default_ui": "tui",
       "vt100_hint": true,
       "title": "Demo Device",
@@ -144,6 +144,7 @@ demo> /cfg.dump
       "hex_mode": false,
       "request_mode": false,
       "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+      "strip_device_echo": false,
       "validate_typed_args": false,
       "file_xfer_root": "",
       "cfg_enabled": true,

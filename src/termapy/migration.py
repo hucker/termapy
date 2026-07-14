@@ -13,7 +13,7 @@ To add a migration:
 import re
 from typing import Callable
 
-CURRENT_CONFIG_VERSION = 26
+CURRENT_CONFIG_VERSION = 27
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -591,6 +591,20 @@ def _migrate_v25_to_v26(cfg: dict) -> dict:
 
 
 MIGRATIONS[25] = _migrate_v25_to_v26
+
+
+def _migrate_v26_to_v27(cfg: dict) -> dict:
+    """Add ``strip_device_echo`` (drop half-duplex echo), defaulting off.
+
+    Opt-in per device: when on, a request_mode response drops a leading
+    line that matches the sent command (a half-duplex device echoing it
+    back).
+    """
+    cfg.setdefault("strip_device_echo", False)
+    return cfg
+
+
+MIGRATIONS[26] = _migrate_v26_to_v27
 
 
 def migrate_config(cfg: dict) -> dict:

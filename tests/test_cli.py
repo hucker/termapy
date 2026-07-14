@@ -148,43 +148,53 @@ class TestHookDelay:
         assert not result.success, "invalid duration fails"
 
 
-# -- Hook: color -------------------------------------------------------------
+# -- /term.color (portable device-colour toggle) -----------------------------
 
 
-class TestHookColor:
+class TestTermColor:
+    """/term.color is now a portable builtin backed by flags['color']."""
+
     def test_color_on(self, cli):
         # Arrange
-        cli.console.no_color = True
+        cli.repl.ctx.ns("flags")["color"] = False
 
         # Act
-        result = cli._hook_color(cli.ctx, "on")
+        result = cli.repl.dispatch("term.color on")
 
         # Assert
         assert result.success, "command succeeds"
-        assert cli.console.no_color is False, "color enabled"
+        assert cli.repl.ctx.ns("flags")["color"] is True, "colour enabled"
 
     def test_color_off(self, cli):
         # Arrange
-        cli.console.no_color = False
+        cli.repl.ctx.ns("flags")["color"] = True
 
         # Act
-        result = cli._hook_color(cli.ctx, "off")
+        result = cli.repl.dispatch("term.color off")
 
         # Assert
         assert result.success, "command succeeds"
-        assert cli.console.no_color is True, "color disabled"
+        assert cli.repl.ctx.ns("flags")["color"] is False, "colour disabled"
 
-    def test_color_toggle_show(self, cli, capsys):
+    def test_color_bare_toggles(self, cli):
         # Arrange
-        cli.console.no_color = True
+        cli.repl.ctx.ns("flags")["color"] = True
 
         # Act
-        result = cli._hook_color(cli.ctx, "")
+        cli.repl.dispatch("term.color")
 
         # Assert
-        assert result.success, "status query succeeds"
-        actual = capsys.readouterr().out
-        assert "off" in actual, "reports current state"
+        assert cli.repl.ctx.ns("flags")["color"] is False, "bare invocation toggles"
+
+    def test_legacy_color_alias(self, cli):
+        # Arrange
+        cli.repl.ctx.ns("flags")["color"] = True
+
+        # Act -- /color forwards to /term.color
+        cli.repl.dispatch("color off")
+
+        # Assert
+        assert cli.repl.ctx.ns("flags")["color"] is False, "/color forwards to /term.color"
 
 
 # -- Hook: raw ---------------------------------------------------------------
@@ -768,8 +778,8 @@ class TestHookRegistration:
         # Arrange
         expected = {
             "delay", "delay.silent",
-            "term.color",  # canonical name
-            "color",       # legacy alias (hidden)
+            # term.color / color moved to a portable builtin + legacy alias
+            # (see TestTermColor); no longer CLI-registered hooks.
             "run", "run.profile",
             # /run.profile.* subcommands installed by
             # run_profile_hooks.register_run_profile_hooks().  CLI gained

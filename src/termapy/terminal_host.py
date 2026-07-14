@@ -402,7 +402,10 @@ class TerminalHost:
         return ctx
 
     def _init_flags(
-        self, echo_repl: bool = True, device_echo_allowed: bool = True
+        self,
+        echo_repl: bool = True,
+        device_echo_allowed: bool = True,
+        color: bool = True,
     ) -> None:
         """Initialise the ``flags`` namespace with shared engine defaults.
 
@@ -447,6 +450,10 @@ class TerminalHost:
         flags.setdefault("echo_repl", echo_repl)
         flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
         flags.setdefault("hex_mode", self.cfg.get("hex_mode", False))
+        # Render device ANSI colour (SGR).  Session flag toggled by
+        # /term.color; the single source of truth for device colour across
+        # the TUI (strip before render when off) and CLI (strip in on_lines).
+        flags.setdefault("color", color)
 
     # -- Serial I/O -----------------------------------------------------------
 

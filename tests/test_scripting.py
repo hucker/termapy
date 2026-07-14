@@ -19,7 +19,33 @@ from termapy.scripting import (
     parse_keywords,
     resolve_seq_filename,
     select_lines,
+    strip_leading_echo,
 )
+
+
+# ── strip_leading_echo ───────────────────────────────────────────
+
+
+class TestStripLeadingEcho:
+    def test_strips_matching_first_line(self):
+        actual = strip_leading_echo("AT+INFO\nBassomatic v77", "AT+INFO")
+        assert actual == "Bassomatic v77", "echoed command line removed"
+
+    def test_no_strip_when_first_line_differs(self):
+        actual = strip_leading_echo("OK\nmore", "AT+INFO")
+        assert actual == "OK\nmore", "unchanged when device did not echo"
+
+    def test_whitespace_insensitive_match(self):
+        actual = strip_leading_echo("  AT+INFO  \nanswer", "AT+INFO")
+        assert actual == "answer", "match ignores surrounding whitespace"
+
+    def test_only_echo_line_yields_empty(self):
+        actual = strip_leading_echo("AT+INFO", "AT+INFO")
+        assert actual == "", "a response that is only the echo becomes empty"
+
+    def test_strips_first_line_only(self):
+        actual = strip_leading_echo("AT\nAT\nOK", "AT")
+        assert actual == "AT\nOK", "only the single leading echo line is removed"
 
 
 # ── coerce_to_type ───────────────────────────────────────────────

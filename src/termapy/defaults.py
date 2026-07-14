@@ -111,6 +111,11 @@ DEFAULT_CFG = {
     "hex_mode": False,
     "request_mode": False,
     "request_err_pattern": r"(?i)^(ERROR|ERR|FAULT)\b",
+    # Half-duplex devices echo the command back before answering.  When on,
+    # a request_mode response drops a leading line that matches the sent
+    # command.  Off by default -- opt in per device, since a device that
+    # doesn't echo could in theory emit a first line matching the command.
+    "strip_device_echo": False,
     "max_grep_lines": 100,
     # File transfer
     "file_xfer_root": "",
@@ -314,11 +319,11 @@ CFG_HELP: dict[str, tuple] = {
         "Valid: none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
     ),
     "encoding": (
-        "Character encoding for serial data.",
+        "Character encoding for serial data (set: /term.encoding).",
         "Common: utf-8, latin-1, ascii, cp437",
     ),
     "line_ending": (
-        "Appended to each sent command.",
+        "Appended to each sent command (set: /term.eol).",
         r'CR/LF/NUL/ETX/EOT bytes only: "", "\r" (CR), "\n" (LF), '
         r'"\r\n" (CRLF), "\n\r" (LFCR), "\0" (NUL), '
         r'"\u0003" (ETX), "\u0004" (EOT), or any combination.',
@@ -374,7 +379,8 @@ CFG_HELP: dict[str, tuple] = {
     ),
     # Input
     "send_bare_enter": (
-        "Send line ending when Enter pressed with no input.",
+        "Send line ending when Enter pressed with no input "
+        "(toggle: /term.send_bare_enter).",
         "Valid: true, false",
     ),
     "echo_input": (
@@ -418,17 +424,20 @@ CFG_HELP: dict[str, tuple] = {
         _preview_color,
     ),
     "max_lines": ("Scrollback buffer size.", "Positive integer. Default: 10000"),
-    "show_timestamps": ("Prefix each line with [HH:MM:SS.mmm].", "Valid: true, false"),
+    "show_timestamps": (
+        "Prefix each line with [HH:MM:SS.mmm] (toggle: /term.timestamps).",
+        "Valid: true, false",
+    ),
     "show_line_endings": (
-        "Show dim \\r \\n markers in serial output.",
+        "Show dim \\r \\n markers in serial output (toggle: /term.line_endings).",
         "Valid: true, false. Debug mode for line-ending issues.",
     ),
     "show_line_numbers": (
-        "Show line numbers in serial output.",
+        "Show line numbers in serial output (toggle: /term.line_no).",
         "Valid: true, false",
     ),
     "hex_mode": (
-        "Display serial I/O as hex bytes instead of text.",
+        "Display serial I/O as hex bytes instead of text (toggle: /term.hex).",
         "Valid: true, false",
     ),
     "request_mode": (
@@ -448,6 +457,13 @@ CFG_HELP: dict[str, tuple] = {
         r"(matches 'ERR:', 'ERROR ', 'FAULT', case-insensitive).  Empty "
         r"string disables error detection.  Override per-session via "
         r"/term.request on err=<regex>.",
+    ),
+    "strip_device_echo": (
+        "Drop a half-duplex device's echoed command from request_mode "
+        "responses.",
+        "Valid: true, false. When true, a request_mode response whose first "
+        "line matches the sent command has that line removed. Off by "
+        "default; opt in for devices that echo. Default: false",
     ),
     "max_grep_lines": (
         "Maximum lines shown by /grep.",

@@ -601,6 +601,18 @@ class TestDispatchFull:
         assert writes == [b"ATZ\r"], "command encoded with line ending"
         assert len(logged) == 0, "serial commands not logged through dispatch"
 
+    def test_empty_line_sends_line_ending(self, dispatch_env):
+        # Arrange -- send_bare_enter forwards an empty line; it should send
+        # just the configured line ending (not error on /term.send's empty
+        # guard, which was the pre-fix behavior in non-request mode).
+        eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env
+
+        # Act
+        do("")
+
+        # Assert
+        assert writes == [b"\r"], "empty bare line sends the configured line ending"
+
     def test_repl_command_dispatched(self, dispatch_env):
         # Arrange
         eng, output, logged, echoed, statuses, writes, raw, do = dispatch_env

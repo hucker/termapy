@@ -37,7 +37,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 26,
+    "config_version": 27,
     "title": "IoT Device",
     "border_color": "blue",
     "max_lines": 10000,
@@ -88,6 +88,7 @@ Here is an example config for a device called `iot_device`:
     "hex_mode": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+    "strip_device_echo": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
     "cfg_enabled": true,
@@ -147,6 +148,7 @@ This file would be saved at `termapy_cfg/iot_device/iot_device.cfg`.
 | `hex_mode`               | `false`               | Display serial I/O as hex bytes instead of text                                             |
 | `request_mode`           | `false`               | Turn bare device commands into synchronous request/response (see `/term.request`)           |
 | `request_err_pattern`    | `(?i)^(ERROR\|ERR\|FAULT)\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
+| `strip_device_echo`      | `false`               | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |
 | `validate_typed_args`    | `false`               | Opt-in: validate bare-command `typed_args` against the active profile's type registry. Off = raw access; on = mirrors MCP (bad values fail before the wire). |
 | `max_grep_lines`         | `100`                 | Maximum lines shown by `/grep`                                                              |
 | `file_xfer_root`         | ` `                   | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md).   |

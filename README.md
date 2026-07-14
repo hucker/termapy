@@ -500,7 +500,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 26,
+    "config_version": 27,
     "title": "",
     "border_color": "",
     "max_lines": 10000,
@@ -551,6 +551,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
     "hex_mode": false,
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
+    "strip_device_echo": false,
     "max_grep_lines": 100,
     "file_xfer_root": "",
     "cfg_enabled": true,
@@ -589,6 +590,7 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `show_line_numbers`   | `false`                | Show line numbers in serial output                                                                       |
 | `hex_mode`            | `false`                | Display serial I/O as hex bytes instead of text                                                          |
 | `request_mode`        | `false`                | Turn bare device commands into synchronous request/response (see `/term.request`)                        |
+| `strip_device_echo`   | `false`                | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device)            |
 | `max_grep_lines`      | `100`                  | Maximum number of matching lines shown by `/grep`                                                        |
 | `proto_frame_gap_ms`  | `50`                   | Silence gap (ms) to detect end of a binary protocol frame                                                |
 | `title`               | `""`                   | Title bar center text. Defaults to the config filename                                                   |
@@ -604,6 +606,8 @@ Set `flow_control` to `"manual"` to get DTR, RTS, and Break buttons in the toolb
 | `custom_buttons`      | `[]`                   | Array of custom button objects (see Custom Buttons above)                                                |
 
 **Note on `show_line_endings`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `show_line_endings` off when not actively debugging.
+
+**Note on device colour (ANSI):** The TUI and CLI render ANSI colour (SGR) from device output inline, so coloured log lines appear coloured. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. In the CLI, `--no-color` (or `/term.color off`) strips colour for clean piping.
 
 </details>
 
@@ -1247,9 +1251,9 @@ Only `read_serial()` is long-lived. At most two workers run concurrently: the se
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 2831 tests, 71% core-module coverage</summary>
+<summary><strong>Test coverage</strong> - 2848 tests, 71% core-module coverage</summary>
 
-2831 tests across 98 test files. Run with `uv run pytest`.
+2848 tests across 98 test files. Run with `uv run pytest`.
 
 Tests are scoped to **termapy's own concerns** — REPL dispatch, serial
 engine, CLI flow, plugin loading, capture, protocol toolkit.  CRC

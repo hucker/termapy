@@ -41,6 +41,7 @@ from termapy.scripting import (
     format_duration,
     parse_duration,
     parse_keywords,
+    strip_leading_echo,
 )
 
 
@@ -681,6 +682,12 @@ class ReplEngine:
                 self.ctx.serial.write(payload)
                 response = self.ctx.serial.read_raw(timeout_ms=timeout_ms)
             text = response.decode(encoding, errors="replace").strip()
+            # Half-duplex devices echo the command back before answering.
+            # When strip_device_echo is on, drop that leading echo line so
+            # the response is just the answer (deterministic here -- the
+            # whole reply is in hand, no reader/thread coupling).
+            if self.cfg.get("strip_device_echo") and text:
+                text = strip_leading_echo(text, command)
         except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
             error = f"Send error: {exc}"
         elapsed = _time.perf_counter() - t0
@@ -1093,7 +1100,7 @@ class ReplEngine:
         # -- so ``/echo`` governs bare device commands the same way it
         # governs slash commands (which read the flag above).  The cfg key
         # seeds the flag at init; the flag is the session truth.
-        if self.echo and not self.cfg.get("request_mode"):
+        if self.echo and cmd and not self.cfg.get("request_mode"):
             echo_text = cmd
             if self.cfg.get("show_line_endings", False) and eol_label:
                 le = self.cfg.get("line_ending", "\r")
@@ -1132,6 +1139,17 @@ class ReplEngine:
             # request_mode applies to every bare command.
             if self.cfg.get("request_mode") and self.ctx.serial.write is not None:
                 return self._exec_request_mode(cmd)
+            if not cmd:
+                # Empty bare line from send_bare_enter: send just the
+                # configured line ending.  /term.send rejects empty args, so
+                # handle it here -- symmetric with the request_mode empty-line
+                # path above.  (Reached only when a frontend forwards an empty
+                # line, which it does only when send_bare_enter is set.)
+                ending = self.cfg.get("line_ending", "\r")
+                encoding = self.cfg.get("encoding", "utf-8")
+                if self.ctx.serial.write is not None:
+                    self.ctx.serial.write(ending.encode(encoding))
+                return CmdResult.ok(value="")
             return self.dispatch(f"term.send {cmd}")
         finally:
             self.ctx.serial.write = saved_serial_write

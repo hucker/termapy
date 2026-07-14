@@ -505,6 +505,84 @@ class TestRxNewline:
         assert result.lines == ["partial"], "deferred CR flushed as a complete line on idle"
 
 
+def _drain_device(dev: FakeSerial, cmd: bytes) -> bytes:
+    """Send an ASCII command to a FakeSerial and return the raw response."""
+    dev.write(cmd + b"\r")
+    time.sleep(0.01)
+    out = b""
+    while True:
+        chunk = dev.read(4096)
+        if not chunk:
+            break
+        out += chunk
+    return out
+
+
+class TestRxNewlineEndToEnd:
+    """Real path: drive the demo device (AT+EOL) through SerialReader.
+
+    Complements TestRxNewline (which unit-tests the streaming edge cases a
+    real device can't produce -- chunk splits, deferred CR).  Here the demo
+    device actually emits bare-CR / LF-only output and we assert the reader
+    turns it into the right lines end to end.
+    """
+
+    def test_demo_bare_cr_splits_under_auto(self):
+        # Arrange - switch the demo device to bare-CR line endings.
+        dev = FakeSerial()
+        _drain_device(dev, b"AT+EOL=cr")
+        info = _drain_device(dev, b"AT+INFO")
+        assert b"\n" not in info and info.count(b"\r") == 3, (
+            "demo emitted a 3-line response terminated by bare CR"
+        )
+
+        # Act - the default (auto) reader consumes the bare-CR stream.  The
+        # response ends in a lone CR, which auto defers (it could be the CR
+        # of a CRLF), so the final line surfaces on the idle flush -- mirror
+        # what the read loop does when the device goes quiet.
+        reader = SerialReader()
+        result = reader.process(info)
+        reader._last_rx -= 1.0  # open the idle window
+        flushed = reader.process(b"")
+        lines = result.lines + flushed.lines
+
+        # Assert - split into 3 clean lines (the old LF-only reader merged
+        # these into one garbled line).
+        assert len(lines) == 3, "bare-CR multi-line splits correctly under auto"
+        assert all("\r" not in ln and "\n" not in ln for ln in lines), (
+            "no stray terminators left in the split lines"
+        )
+
+    def test_demo_lf_only_splits_under_auto(self):
+        # Arrange - device emits LF-only.
+        dev = FakeSerial()
+        _drain_device(dev, b"AT+EOL=lf")
+        info = _drain_device(dev, b"AT+INFO")
+        assert b"\r" not in info, "demo emitted LF-only output"
+
+        # Act
+        reader = SerialReader()
+        result = reader.process(info)
+
+        # Assert
+        assert len(result.lines) == 3, "LF-only multi-line splits under auto too"
+
+    def test_demo_bare_cr_stalls_in_lf_mode(self):
+        # Arrange - device speaks bare CR, but the reader is forced to lf.
+        dev = FakeSerial()
+        _drain_device(dev, b"AT+EOL=cr")
+        info = _drain_device(dev, b"AT+INFO")
+
+        # Act - lf mode finds no LF, so nothing splits (held for the idle
+        # flush).  This is exactly the failure AUTO fixes and why AUTO is
+        # the default.
+        reader = SerialReader(rx_newline="lf")
+        result = reader.process(info)
+
+        # Assert
+        assert result.lines == [], "a bare-CR stream yields no lines in lf mode"
+
+
 class TestSerialReaderCapture:
     def test_binary_capture_consumes_data(self):
         # Arrange - mock capture engine

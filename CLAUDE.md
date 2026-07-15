@@ -46,7 +46,17 @@ All paths relative to `src/termapy/`.
 - Plugin args: `""` = none, `{braces}` = optional, `<angle>` = required
 - No spaces inside brace/angle groups: `{on|off}` not `{on | off}`, `{name|*}` not `{name | *}`
 - The synopsis grammar is ENFORCED at registration (`validate_synopsis` via `PluginInfo.__post_init__`): square brackets, `{{` artifacts, spaced `|`, and unbalanced groups fail loud at load/boot instead of rendering wrong in /help
-- Toggle commands use `{on|off}` (optional) — bare invocation queries or toggles state; arg sets it
+- **Setting commands never mutate on a bare invocation — bare QUERIES.** This
+  is the `stty`/`git config` standard. A boolean setting takes `{on|off|toggle}`:
+  bare shows state, `on`/`off` (any `scripting.parse_bool` token) sets, the
+  explicit verb `toggle` flips, anything else errors
+  (`Invalid value: X (use on/off/toggle)`). An enum setting takes
+  `{val1|val2|...|cycle}`: bare shows, a value sets, `cycle` advances (wraps),
+  anything else errors. Route booleans through `scripting.parse_bool_setting`
+  (QUERY/TOGGLE sentinels + bool + None) and `_bool_setting`/`_cfg_toggle`;
+  enums through `next_in_cycle`. TUI buttons that flip on click dispatch the
+  explicit `toggle`/`cycle` verb, never the bare command. NEVER treat an
+  unrecognized argument as a flip (that hid the `/term.color 2` bug).
 - REPL prefix: `/`
 - Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`
 - Buttons: rainbow palette, Exit always red (`error`)

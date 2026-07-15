@@ -20,7 +20,13 @@ from termapy.plugins import (
     parse_output_level,
     UsageError,
 )
-from termapy.scripting import parse_bool
+from termapy.scripting import (
+    SETTING_QUERY,
+    SETTING_TOGGLE,
+    next_in_cycle,
+    parse_bool,
+    parse_bool_setting,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -29,18 +35,26 @@ if TYPE_CHECKING:
 # ── Runtime-flag toggles (session-scoped via ctx.ns("flags")) ───────────────
 
 
-def _flag_toggle(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
-    """Toggle or set a session-scoped flag.
+def _bool_setting(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
+    """Query, set, or toggle a session-scoped boolean flag.
 
-    Empty args flips the current state (so the command doubles as a
-    "toggle"); any recognized boolean token is an explicit set.
+    Bare invocation QUERIES (shows state, mutates nothing); ``on``/``off``
+    (any parse_bool token) sets; the explicit verb ``toggle`` flips;
+    anything else errors.  A setting command never mutates on a bare
+    invocation -- see the rule in CLAUDE.md.
     """
+    action = parse_bool_setting(args)
+    if action is None:
+        return CmdResult.fail(
+            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
+        )
     flags = ctx.ns("flags")
-    val = parse_bool(args)
-    if val is None:
+    if action is SETTING_QUERY:
+        pass
+    elif action is SETTING_TOGGLE:
         flags[flag_name] = not flags.get(flag_name, False)
     else:
-        flags[flag_name] = val
+        flags[flag_name] = action
     state = "on" if flags.get(flag_name) else "off"
     ctx.io.result(state)
     return CmdResult.ok(value=state)
@@ -50,21 +64,21 @@ def _handler_echo(ctx: PluginContext, args: str) -> CmdResult:
     # Device-command echo: echo of what's sent to the wire (bare commands
     # + /term.send).  Backed by cfg["echo"]; the flag is the session
     # state seeded from it.
-    return _flag_toggle(ctx, args, "echo")
+    return _bool_setting(ctx, args, "echo")
 
 
 def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
     # REPL/slash-command echo (/cfg, /help, ...).  Distinct from device
     # echo; a session-only flag (no cfg key), default per-host (on for the
     # TUI, off for CLI/MCP -- see TerminalHost._init_flags).
-    return _flag_toggle(ctx, args, "echo_repl")
+    return _bool_setting(ctx, args, "echo_repl")
 
 
 def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
     # Render device ANSI color (SGR).  Session flag, portable across the
     # TUI (strip before render when off) and CLI (strip in on_lines) --
     # was a CLI-only hook before.  Default off under --no-color.
-    return _flag_toggle(ctx, args, "color")
+    return _bool_setting(ctx, args, "color")
 
 
 def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
@@ -117,11 +131,16 @@ def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
         current = flags.get("output_level", "normal")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
-    level = parse_output_level(arg)
-    if level is None:
-        return CmdResult.fail(
-            msg=f"Unknown level: {arg} (use {'/'.join(OUTPUT_LEVELS)})"
+    if arg.lower() == "cycle":
+        level = next_in_cycle(
+            flags.get("output_level", "normal"), list(OUTPUT_LEVELS)
         )
+    else:
+        level = parse_output_level(arg)
+        if level is None:
+            return CmdResult.fail(
+                msg=f"Unknown level: {arg} (use {'/'.join(OUTPUT_LEVELS)}/cycle)"
+            )
     flags["output_level"] = level
     ctx.io.result(level)
     return CmdResult.ok(value=level)
@@ -161,24 +180,34 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
-    return _flag_toggle(ctx, args, "hex")
+    return _bool_setting(ctx, args, "hex")
 
 
 # ── Config-persisted toggles (via ctx.internal.apply_cfg) ─────────────────────
 
 
 def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
-    """Toggle or set a config key that's read at display time.
+    """Query, set, or toggle a config key that's read at display time.
 
-    Empty/unknown input flips the current value so the command doubles
-    as a toggle; an explicit token just sets it.  Persists to the
-    in-memory config via ``ctx.internal.apply_cfg``; the ConfigEditor dialog
-    is the only path that writes to disk.
+    Bare invocation QUERIES (shows state, mutates nothing); ``on``/``off``
+    sets; the explicit verb ``toggle`` flips; anything else errors.
+    Persists via ``ctx.internal.apply_cfg`` (only when the value actually
+    changes); the ConfigEditor dialog is the only path that writes to disk.
     """
-    val = parse_bool(args)
+    action = parse_bool_setting(args)
+    if action is None:
+        return CmdResult.fail(
+            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
+        )
     current = bool(ctx.cfg.get(key, False))
-    new = (not current) if val is None else val
-    ctx.internal.apply_cfg(key, new)
+    if action is SETTING_QUERY:
+        new = current
+    elif action is SETTING_TOGGLE:
+        new = not current
+    else:
+        new = action
+    if new != current:
+        ctx.internal.apply_cfg(key, new)
     state = "on" if new else "off"
     ctx.io.result(state)
     return CmdResult.ok(value=state)
@@ -211,9 +240,12 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
         label = _EOL_LABELS.get(current, repr(current))
         ctx.io.result(label)
         return CmdResult.ok(value=label)
+    if arg == "cycle":
+        cur = _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), "cr")
+        arg = next_in_cycle(cur, list(_EOL_TOKENS))
     if arg not in _EOL_TOKENS:
         return CmdResult.fail(
-            msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)})"
+            msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)}/cycle)"
         )
     ctx.internal.apply_cfg("eol", _EOL_TOKENS[arg])
     ctx.io.result(arg)
@@ -242,9 +274,11 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
         current = ctx.cfg.get("eol_rx", "auto")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
+    if arg == "cycle":
+        arg = next_in_cycle(ctx.cfg.get("eol_rx", "auto"), list(_RX_NEWLINE_MODES))
     if arg not in _RX_NEWLINE_MODES:
         return CmdResult.fail(
-            msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)})"
+            msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)}/cycle)"
         )
     ctx.internal.apply_cfg("eol_rx", arg)
     ctx.io.result(arg)
@@ -276,13 +310,14 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
     state_token = None
     err_token = None  # None means "not specified"; "" means "user said err="
     for token in args.split():
-        if token in ("on", "off"):
+        if token in ("on", "off", "toggle"):
+            # on/off set, toggle flips -- _cfg_toggle handles all three.
             state_token = token
         elif token.startswith("err="):
             err_token = token[len("err="):]
         else:
             return CmdResult.fail(
-                msg=f"Unknown token: {token} (use on, off, or err=<regex>)"
+                msg=f"Unknown token: {token} (use on, off, toggle, or err=<regex>)"
             )
 
     flags = ctx.ns("flags")
@@ -494,7 +529,7 @@ COMMAND = Command(
     handler=_handler_root,
     sub_commands={
         "echo": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Local echo of device commands sent to the wire (cfg echo).",
             long_help=(
                 "Local echo of DEVICE commands -- the bare lines and\n"
@@ -509,7 +544,7 @@ COMMAND = Command(
             handler=_handler_echo,
         ),
         "echo_repl": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Local echo of REPL/slash commands like /cfg (session only).",
             long_help=(
                 "Local echo of REPL/slash commands ({prefix}cfg, {prefix}help,\n"
@@ -523,7 +558,7 @@ COMMAND = Command(
             handler=_handler_echo_repl,
         ),
         "color": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Toggle rendering of device ANSI color (SGR).",
             long_help=(
                 "Render ANSI color (SGR) from device output.  On by\n"
@@ -555,19 +590,19 @@ COMMAND = Command(
             raw_args=True,
         ),
         "line_no": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Toggle line numbers in serial output (TUI only).",
             handler=_handler_line_no_placeholder,
             needs=CapabilitySet(tui_mode=True),
         ),
         "line_endings": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Hidden alias for /term.eol.markers.",
             handler=_handler_eol_markers,
             hidden=True,
         ),
         "eol": Command(
-            args="{cr|lf|crlf|none}",
+            args="{cr|lf|crlf|none|cycle}",
             help="Show or set the line ending sent with commands (cr/lf/crlf/none).",
             long_help=(
                 "Sets the line ending appended to every command sent to the\n"
@@ -584,7 +619,7 @@ COMMAND = Command(
             handler=_handler_eol,
             sub_commands={
                 "rx": Command(
-                    args="{auto|cr|lf|crlf}",
+                    args="{auto|cr|lf|crlf|cycle}",
                     help="Show or set how received output is split into lines (auto/cr/lf/crlf).",
                     long_help=(
                         "Receive-side counterpart of {prefix}term.eol -- controls\n"
@@ -604,7 +639,7 @@ COMMAND = Command(
                     handler=_handler_eol_rx,
                 ),
                 "markers": Command(
-                    args="{on|off}",
+                    args="{on|off|toggle}",
                     help="Toggle dim visible \\r \\n markers in received output.",
                     long_help=(
                         "Debug aid: show the line-ending bytes inline as dim\n"
@@ -620,7 +655,7 @@ COMMAND = Command(
             },
         ),
         "output": Command(
-            args="{silent|quiet|normal|verbose}",
+            args="{silent|quiet|normal|verbose|cycle}",
             help="Show or set the global output level (silent/quiet/normal/verbose).",
             long_help=(
                 "Controls how loud commands are.  Each level adds a channel\n"
@@ -644,17 +679,17 @@ COMMAND = Command(
             needs=CapabilitySet(interactive=True),  # legacy alias
         ),
         "timestamps": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Toggle [HH:MM:SS.mmm] timestamp prefix on each line.",
             handler=_handler_timestamps,
         ),
         "hex": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Toggle hex display of incoming bytes.",
             handler=_handler_hex,
         ),
         "request": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Toggle request/response mode for bare device commands.",
             long_help=(
                 "When on, every bare device command (a line that doesn't\n"
@@ -682,7 +717,7 @@ COMMAND = Command(
             handler=_handler_request,
         ),
         "send_bare_enter": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Send line ending on empty Enter (for press-to-continue prompts).",
             handler=_handler_send_bare_enter,
         ),

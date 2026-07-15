@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import TypeVar
 
 
 # Shared ANSI escape regex - matches all CSI sequences (color, cursor, clear, etc.).
@@ -70,6 +72,56 @@ def parse_bool(val: str) -> bool | None:
     if s in _BOOL_FALSE:
         return False
     return None
+
+
+# Distinct sentinels for the setting-command grammar so a caller can never
+# confuse "no arg -> query" with "unrecognized arg -> error" -- the conflation
+# that let ``/term.color 2`` silently toggle.  A setting command NEVER mutates
+# on a bare invocation; see the rule in CLAUDE.md / writing-plugins.md.
+SETTING_QUERY = "query"    # empty args: show the current value, no change
+SETTING_TOGGLE = "toggle"  # the literal ``toggle`` verb: flip a boolean
+
+
+def parse_bool_setting(args: str) -> str | bool | None:
+    """Classify a boolean setting-command argument.
+
+    Returns:
+        ``SETTING_QUERY``  -- empty args: caller shows state, mutates nothing.
+        ``SETTING_TOGGLE`` -- the literal ``toggle`` verb: caller flips.
+        ``True`` / ``False`` -- an ``on``/``off`` token (see ``parse_bool``).
+        ``None``           -- anything else: caller MUST fail (never a flip).
+
+    Usage::
+
+        action = parse_bool_setting(args)
+        if action is None:
+            return CmdResult.fail(msg=f"Invalid value: {args.strip()} (use on/off/toggle)")
+        if action is SETTING_QUERY:   pass
+        elif action is SETTING_TOGGLE: flag = not flag
+        else:                          flag = action
+    """
+    arg = args.strip().lower()
+    if not arg:
+        return SETTING_QUERY
+    if arg == SETTING_TOGGLE:
+        return SETTING_TOGGLE
+    return parse_bool(arg)
+
+
+_CycleT = TypeVar("_CycleT")
+
+
+def next_in_cycle(current: object, values: Sequence[_CycleT]) -> _CycleT:
+    """Return the value after ``current`` in ``values``, wrapping at the end.
+
+    The enum analogue of a boolean flip -- used by the ``cycle`` verb on
+    multi-value settings (output level, line ending).  If ``current`` isn't
+    in ``values``, returns the first value (a safe reset).
+    """
+    for i, v in enumerate(values):
+        if v == current:
+            return values[(i + 1) % len(values)]
+    return values[0]  # current not found -> safe reset to the first value
 
 
 def coerce_to_type(value_str: str, existing: object) -> object:

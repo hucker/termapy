@@ -28,7 +28,13 @@ from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
-from termapy.scripting import format_duration, parse_bool
+from termapy.scripting import (
+    SETTING_QUERY,
+    SETTING_TOGGLE,
+    format_duration,
+    parse_bool,
+    parse_bool_setting,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -607,23 +613,31 @@ def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
-    """Toggle hex display mode for all serial I/O.
+    """Query, set, or toggle hex display mode for all serial I/O.
 
     When enabled, received serial data is shown as hex bytes instead of
-    decoded text. Accepts ``on``, ``off``, or no argument to toggle.
+    decoded text.  Bare invocation QUERIES (shows state, mutates nothing);
+    ``on``/``off`` sets; the explicit verb ``toggle`` flips; anything else
+    errors.  Same setting grammar as /term.hex (which toggles this same
+    ``flags["hex"]``); the "should /proto.hex just alias /term.hex"
+    question is a separate UX call.
 
     Args:
         ctx: Plugin context for internal-handle access.
-        args: any boolean token (on/off/1/0/yes/no/...), or empty to toggle.
+        args: bare (query), on/off (set), or ``toggle`` (flip).
     """
-    # Shares scripting.parse_bool (the token set every toggle uses); an
-    # unrecognized/empty arg flips the flag.  NOTE: /term.hex toggles this
-    # same flags["hex"] via _flag_toggle -- two commands, one flag.  Kept
-    # here for the /proto family's local verbose output; the "should
-    # /proto.hex just alias /term.hex" question is a separate UX call.
+    action = parse_bool_setting(args)
+    if action is None:
+        return CmdResult.fail(
+            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
+        )
     flags = ctx.ns("flags")
-    val = parse_bool(args)
-    flags["hex"] = (not flags["hex"]) if val is None else val
+    if action is SETTING_QUERY:
+        pass
+    elif action is SETTING_TOGGLE:
+        flags["hex"] = not flags["hex"]
+    else:
+        flags["hex"] = action
     state = "enabled" if flags["hex"] else "disabled"
     ctx.io.output(f"Hex display mode {state}.", "bright_green")
     # Mirror the echo/verbose convention: return the new state.
@@ -2254,7 +2268,7 @@ COMMAND = Command(
             needs=CapabilitySet(tui_mode=True, serial_connected=True),
         ),
         "hex": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Toggle hex display mode.",
             handler=_cmd_hex,
         ),

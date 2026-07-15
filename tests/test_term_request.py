@@ -91,11 +91,11 @@ class TestTermRequestToggle:
         engine, ctx, cfg, _, _ = repl_env
         assert cfg.get("request_mode") is False, "starts off (precondition)"
 
-        # Act
-        result = engine.dispatch("term.request")
+        # Act -- explicit toggle verb (bare now queries)
+        result = engine.dispatch("term.request toggle")
 
         # Assert
-        assert result.success, "/term.request (no arg) toggles successfully"
+        assert result.success, "/term.request toggle succeeds"
         assert cfg.get("request_mode") is True, "request_mode flipped to on"
         assert result.value == "on", "result.value reports new state"
 

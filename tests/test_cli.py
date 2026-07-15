@@ -176,15 +176,37 @@ class TestTermColor:
         assert result.success, "command succeeds"
         assert cli.repl.ctx.ns("flags")["color"] is False, "color disabled"
 
-    def test_color_bare_toggles(self, cli):
+    def test_color_bare_queries(self, cli):
+        # Arrange
+        cli.repl.ctx.ns("flags")["color"] = True
+
+        # Act -- bare invocation QUERIES; it must NOT mutate
+        cli.repl.dispatch("term.color")
+
+        # Assert
+        assert cli.repl.ctx.ns("flags")["color"] is True, "bare query leaves state"
+
+    def test_color_toggle_verb(self, cli):
         # Arrange
         cli.repl.ctx.ns("flags")["color"] = True
 
         # Act
-        cli.repl.dispatch("term.color")
+        cli.repl.dispatch("term.color toggle")
 
         # Assert
-        assert cli.repl.ctx.ns("flags")["color"] is False, "bare invocation toggles"
+        assert cli.repl.ctx.ns("flags")["color"] is False, "toggle verb flips"
+
+    def test_color_invalid_arg_errors(self, cli):
+        # Arrange
+        cli.repl.ctx.ns("flags")["color"] = True
+
+        # Act
+        result = cli.repl.dispatch("term.color 2")
+
+        # Assert -- invalid arg errors, never a silent flip
+        assert result.success is False, "invalid arg fails"
+        assert result.error == "Invalid value: 2 (use on/off/toggle)", "clear msg"
+        assert cli.repl.ctx.ns("flags")["color"] is True, "state unchanged"
 
     def test_legacy_color_alias(self, cli):
         # Arrange

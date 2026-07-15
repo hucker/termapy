@@ -125,13 +125,79 @@ class TestEcho:
         engine, _, _, output = repl_env
         assert engine.ctx.ns("flags")["echo"] is True, "starts enabled"
 
-        # Act / Assert - toggle off
+        # Act / Assert - bare invocation QUERIES (never mutates)
         engine.dispatch("echo")
-        assert engine.ctx.ns("flags")["echo"] is False, "toggled off"
+        assert engine.ctx.ns("flags")["echo"] is True, "bare query does not flip"
 
-        # Act / Assert - toggle on
-        engine.dispatch("echo")
-        assert engine.ctx.ns("flags")["echo"] is True, "toggled back on"
+        # Act / Assert - explicit toggle verb flips off
+        engine.dispatch("echo toggle")
+        assert engine.ctx.ns("flags")["echo"] is False, "toggle flips off"
+
+        # Act / Assert - toggle flips back on
+        engine.dispatch("echo toggle")
+        assert engine.ctx.ns("flags")["echo"] is True, "toggle flips back on"
+
+    def test_echo_invalid_arg_errors(self, repl_env):
+        # Arrange -- an unrecognized arg must ERROR, never silently flip
+        engine, _, _, _ = repl_env
+        engine.ctx.ns("flags")["echo"] = True
+
+        # Act -- term.echo (not the /echo legacy alias, which clears .error)
+        result = engine.dispatch("term.echo 2")
+
+        # Assert
+        assert result.success is False, "invalid arg fails"
+        assert result.error == "Invalid value: 2 (use on/off/toggle)", "clear msg"
+        assert engine.ctx.ns("flags")["echo"] is True, "state unchanged"
+
+    def test_echo_on_off_set(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        # Act / Assert
+        engine.dispatch("echo off")
+        assert engine.ctx.ns("flags")["echo"] is False, "'off' sets off"
+        engine.dispatch("echo on")
+        assert engine.ctx.ns("flags")["echo"] is True, "'on' sets on"
+
+
+class TestTermSettingCycle:
+    """Enum settings advance with the `cycle` verb (bare still queries)."""
+
+    def test_output_cycle_advances_and_wraps(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        flags = engine.ctx.ns("flags")
+        flags["output_level"] = "silent"
+
+        # Act / Assert -- steps through the level list, wrapping
+        engine.dispatch("term.output cycle")
+        assert flags["output_level"] == "quiet", "silent -> quiet"
+        for _ in range(3):
+            engine.dispatch("term.output cycle")
+        assert flags["output_level"] == "silent", "wraps back to silent"
+
+    def test_output_bare_queries(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        engine.ctx.ns("flags")["output_level"] = "normal"
+
+        # Act -- bare reports the level, never changes it
+        result = engine.dispatch("term.output")
+
+        # Assert
+        assert result.value == "normal", "bare queries the level"
+        assert engine.ctx.ns("flags")["output_level"] == "normal", "unchanged"
+
+    def test_eol_cycle_advances(self, repl_env):
+        # Arrange
+        engine, cfg, _, _ = repl_env
+        cfg["eol"] = "\r"  # token "cr"
+
+        # Act
+        engine.dispatch("term.eol cycle")
+
+        # Assert -- cr -> lf (next in _EOL_TOKENS order)
+        assert cfg["eol"] == "\n", "cr cycled to lf"
 
 
 # -- /term.echo_repl ------------------------------------------------------
@@ -171,8 +237,8 @@ class TestEchoRepl:
         flags["echo"] = True
         flags["echo_repl"] = False
 
-        # Act - bare invocation toggles
-        engine.dispatch("term.echo_repl")
+        # Act - explicit toggle verb flips
+        engine.dispatch("term.echo_repl toggle")
 
         # Assert
         assert flags["echo_repl"] is True, "echo_repl toggled on"
@@ -1833,22 +1899,22 @@ class TestEol:
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = False
 
-        # Act
-        engine.dispatch("show_line_endings")
+        # Act -- explicit toggle verb (bare now queries)
+        engine.dispatch("show_line_endings toggle")
 
         # Assert
-        assert cfg["eol_markers"] is True, "toggled on"
+        assert cfg["eol_markers"] is True, "toggle flips on"
 
     def test_eol_toggle_off(self, repl_env):
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = True
 
-        # Act
-        engine.dispatch("show_line_endings")
+        # Act -- explicit toggle verb (bare now queries)
+        engine.dispatch("show_line_endings toggle")
 
         # Assert
-        assert cfg["eol_markers"] is False, "toggled off"
+        assert cfg["eol_markers"] is False, "toggle flips off"
 
     def test_eol_explicit_on(self, repl_env):
         # Arrange
@@ -3082,16 +3148,16 @@ class TestProtoHex:
     LOGIC was the R8 finding -- both now route through parse_bool.)
     """
 
-    def test_proto_hex_toggles_from_empty(self, repl_env):
+    def test_proto_hex_toggle_verb(self, repl_env):
         # Arrange
         engine, _, _, _ = repl_env
         engine.ctx.ns("flags")["hex"] = False
 
-        # Act
-        result = engine.dispatch("proto.hex")
+        # Act -- explicit toggle verb (bare now queries)
+        result = engine.dispatch("proto.hex toggle")
 
         # Assert
-        assert engine.ctx.ns("flags")["hex"] is True, "empty arg flips the flag"
+        assert engine.ctx.ns("flags")["hex"] is True, "toggle verb flips the flag"
         assert result.value == "on", "returns the new state"
 
     def test_proto_hex_sets_explicitly_with_shared_tokens(self, repl_env):

@@ -247,6 +247,36 @@ nesting allowed. Square brackets, doubled `{{`, spaced ` | `, or unbalanced
 groups reject the plugin with a clear error instead of rendering wrong in
 `/help`.
 
+## Setting commands: bare queries, never mutates
+
+A command that reads/writes an on/off flag or a multi-value option follows
+the `stty`/`git config` rule: **a bare invocation shows the current value and
+changes nothing.** Never flip on bare, and never treat an unrecognized
+argument as a flip.
+
+```python
+from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting
+
+def _handler(ctx, args):
+    action = parse_bool_setting(args)
+    if action is None:                       # unrecognized -> error, not a flip
+        return CmdResult.fail(msg=f"Invalid value: {args.strip()} (use on/off/toggle)")
+    flags = ctx.ns("flags")
+    if action is SETTING_QUERY:               # bare: show, don't mutate
+        pass
+    elif action is SETTING_TOGGLE:            # the explicit `toggle` verb
+        flags["myflag"] = not flags.get("myflag", False)
+    else:                                     # a bool token: set
+        flags["myflag"] = action
+    state = "on" if flags.get("myflag") else "off"
+    ctx.io.result(state)
+    return CmdResult.ok(value=state)
+```
+
+Synopsis: `{on|off|toggle}` for a boolean; `{val1|val2|...|cycle}` for an enum
+(use `scripting.next_in_cycle` to advance). A TUI button that flips on click
+dispatches the explicit `toggle`/`cycle` verb, not the bare command.
+
 ## Dynamic help for runtime state
 
 If your command owns runtime state that a user should see right on its

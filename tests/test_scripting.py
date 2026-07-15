@@ -13,7 +13,11 @@ from termapy.scripting import (
     filename_timestamp,
     format_duration,
     format_timestamp,
+    SETTING_QUERY,
+    SETTING_TOGGLE,
+    next_in_cycle,
     parse_bool,
+    parse_bool_setting,
     parse_count_arg,
     parse_duration,
     parse_duration_ms,
@@ -619,6 +623,42 @@ class TestCmdResult:
 
 
 # ── parse_bool ──────────────────────────────────────────────────────────────
+
+
+class TestParseBoolSetting:
+    """The setting-command grammar decision point: query / set / toggle /
+    invalid.  A setting command NEVER flips on a bare (empty) invocation."""
+
+    def test_empty_is_query(self):
+        assert parse_bool_setting("") is SETTING_QUERY, "bare -> query"
+        assert parse_bool_setting("   ") is SETTING_QUERY, "whitespace -> query"
+
+    def test_toggle_verb(self):
+        assert parse_bool_setting("toggle") is SETTING_TOGGLE, "toggle verb"
+        assert parse_bool_setting("TOGGLE") is SETTING_TOGGLE, "case-insensitive"
+
+    @pytest.mark.parametrize("val", ["on", "1", "true", "yes", "y", "t"])
+    def test_bool_tokens_true(self, val):
+        assert parse_bool_setting(val) is True, f"{val!r} -> set True"
+
+    @pytest.mark.parametrize("val", ["off", "0", "false", "no", "n", "f"])
+    def test_bool_tokens_false(self, val):
+        assert parse_bool_setting(val) is False, f"{val!r} -> set False"
+
+    @pytest.mark.parametrize("val", ["2", "banana", "-", "++", "query"])
+    def test_invalid_is_none(self, val):
+        # None -> caller MUST error; NEVER a silent flip (the /term.color 2 bug)
+        assert parse_bool_setting(val) is None, f"{val!r} is invalid"
+
+
+class TestNextInCycle:
+    def test_advances_and_wraps(self):
+        vals = ["silent", "quiet", "normal", "verbose"]
+        assert next_in_cycle("silent", vals) == "quiet", "steps to next"
+        assert next_in_cycle("verbose", vals) == "silent", "wraps at the end"
+
+    def test_unknown_current_resets_to_first(self):
+        assert next_in_cycle("bogus", ["a", "b", "c"]) == "a", "reset to first"
 
 
 class TestParseBool:

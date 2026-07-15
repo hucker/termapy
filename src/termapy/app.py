@@ -2550,20 +2550,23 @@ class SerialTerminal(TerminalHost, App):
 
         self.push_screen(SetVarDialog(), callback=_on_submit)
 
+    # Buttons flip on click, so they dispatch the explicit `toggle` verb --
+    # bare invocation now QUERIES (never mutates), per the settings-grammar
+    # rule in CLAUDE.md.
     def _palette_toggle_line_numbers(self) -> None:
-        self._dispatch_quiet("/term.line_no")
+        self._dispatch_quiet("/term.line_no toggle")
 
     def _palette_toggle_echo(self) -> None:
-        self._dispatch_quiet("/term.echo")
+        self._dispatch_quiet("/term.echo toggle")
 
     def _palette_toggle_timestamps(self) -> None:
-        self._dispatch_quiet("/term.timestamps")
+        self._dispatch_quiet("/term.timestamps toggle")
 
     def _palette_toggle_hex(self) -> None:
-        self._dispatch_quiet("/term.hex")
+        self._dispatch_quiet("/term.hex toggle")
 
     def _palette_toggle_line_endings(self) -> None:
-        self._dispatch_quiet("/term.line_endings")
+        self._dispatch_quiet("/term.line_endings toggle")
 
     def _palette_term_info(self) -> None:
         self._dispatch_quiet("/term.info")

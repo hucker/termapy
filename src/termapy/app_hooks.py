@@ -40,7 +40,10 @@ from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 from termapy.scripting import (
+    SETTING_QUERY,
+    SETTING_TOGGLE,
     filename_timestamp,
+    parse_bool_setting,
     parse_count_arg,
     parse_duration,
     select_lines,
@@ -202,19 +205,23 @@ def _hook_delay_quiet(app, ctx, args: str) -> CmdResult:
 
 
 def _hook_line_no(app, ctx, args: str) -> CmdResult:
-    """Toggle line numbers, or set explicitly with ``on``/``off``."""
-    arg = args.strip().lower()
-    if arg == "":
-        # Bare invocation toggles -- matches the {on|off} optional
-        # convention in CLAUDE.md.
+    """Query, set, or toggle line numbers.
+
+    Bare invocation QUERIES (reports state, mutates nothing); ``on``/``off``
+    sets; the explicit verb ``toggle`` flips; anything else errors.  A
+    setting command never mutates on a bare invocation -- see CLAUDE.md.
+    """
+    action = parse_bool_setting(args)
+    if action is None:
+        return CmdResult.fail(
+            msg=f"Invalid value: {args.strip()} (use on/off/toggle)"
+        )
+    if action is SETTING_QUERY:
+        new_state = app._show_line_numbers
+    elif action is SETTING_TOGGLE:
         new_state = not app._show_line_numbers
-    elif arg == "on":
-        new_state = True
-    elif arg == "off":
-        new_state = False
     else:
-        app._status(f"Invalid line_no: {arg}", "yellow")
-        return CmdResult.fail(msg=f"Invalid line_no: {arg}")
+        new_state = action
 
     app._show_line_numbers = new_state
     label = "on" if new_state else "off"

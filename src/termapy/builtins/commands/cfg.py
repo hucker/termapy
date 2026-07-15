@@ -191,13 +191,46 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """Print current config as JSON and return it via CmdResult.value.
+    """Print the config as JSON, or a cfg-folder file, to the terminal.
 
-    Lets `.quiet` mode capture the serialized config for scripting
+    Bare ``/cfg.dump`` prints the loaded config (unchanged behavior).
+    With a name, prints that file from the active config folder --
+    following the folder-verb vocabulary where ``.dump`` means
+    "print to terminal" (``.show`` means system viewer).
+
+    Names resolve RELATIVE TO THE CFG ROOT ONLY (subfolders allowed):
+    absolute paths and ``..`` traversal are refused for every frontend,
+    so this can never read outside the config folder.
+
+    Lets `.quiet` mode capture the output for scripting
     (e.g. ``$(JSON) <- /cfg.dump.quiet``).
     """
-    text = json.dumps(dict(ctx.cfg), indent=4)
-    ctx.io.output(text)
+    name = args.strip()
+    if not name:
+        text = json.dumps(dict(ctx.cfg), indent=4)
+        ctx.io.output(text)
+        return CmdResult.ok(value=text)
+    if not ctx.config_path:
+        return CmdResult.fail(msg="No config loaded.")
+    root = Path(ctx.config_path).parent.resolve()
+    rel = Path(name)
+    if rel.is_absolute() or ".." in rel.parts:
+        return CmdResult.fail(
+            msg=f"Path must be relative to the config folder: {name}"
+        )
+    path = (root / rel).resolve()
+    if not path.is_relative_to(root):  # symlink-escape belt
+        return CmdResult.fail(
+            msg=f"Path must be relative to the config folder: {name}"
+        )
+    if not path.is_file():
+        return CmdResult.fail(msg=f"File not found: {name}")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return CmdResult.fail(msg=f"Read error: {e}")
+    for line in text.splitlines():
+        ctx.io.output(line)
     return CmdResult.ok(value=text)
 
 
@@ -479,7 +512,8 @@ COMMAND = Command(
             needs=CapabilitySet(gui_apps=True),
         ),
         "dump": Command(
-            help="Print current config as JSON to the terminal.",
+            args="{name}",
+            help="Print the config (JSON) or a cfg-folder file to the terminal.",
             handler=_handler_dump,
         ),
         "show": Command(

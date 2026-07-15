@@ -2327,6 +2327,66 @@ class TestConfirm:
 
 
 class TestCfgRead:
+    def test_cfg_dump_named_root_file(self, repl_env):
+        # Arrange -- a file in the cfg folder root
+        engine, _, config_path, output = repl_env
+        root_file = Path(config_path).parent / "dev.history"
+        root_file.write_text("ping\nport.list", encoding="utf-8")
+
+        # Act
+        result = engine.dispatch("cfg.dump dev.history")
+
+        # Assert
+        texts = [t for t, _ in output]
+        assert any("port.list" in t for t in texts), "file lines printed"
+        assert result.value == "ping\nport.list", "value carries file text"
+
+    def test_cfg_dump_named_subfolder_file(self, repl_env):
+        # Arrange -- names resolve relative to the root; subfolders allowed
+        engine, _, config_path, output = repl_env
+        sub = Path(config_path).parent / "run"
+        sub.mkdir(exist_ok=True)
+        (sub / "x.run").write_text("/ping", encoding="utf-8")
+
+        # Act
+        result = engine.dispatch("cfg.dump run/x.run")
+
+        # Assert
+        assert result.value == "/ping", "subfolder file printed via root-relative name"
+
+    def test_cfg_dump_refuses_traversal(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act -- .. must be refused for EVERY frontend (root-jail)
+        result = engine.dispatch("cfg.dump ../secrets.txt")
+
+        # Assert
+        assert result.success is False, "traversal refused"
+        assert "relative to the config folder" in result.error, "clear refusal"
+
+    def test_cfg_dump_refuses_absolute(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        result = engine.dispatch("cfg.dump C:/Windows/win.ini")
+
+        # Assert
+        assert result.success is False, "absolute path refused"
+        assert "relative to the config folder" in result.error, "clear refusal"
+
+    def test_cfg_dump_named_missing_file(self, repl_env):
+        # Arrange
+        engine, _, _, output = repl_env
+
+        # Act
+        result = engine.dispatch("cfg.dump nope.txt")
+
+        # Assert
+        assert result.success is False, "missing file fails"
+        assert result.error == "File not found: nope.txt", "standard phrasing"
+
     def test_cfg_dump_shows_all(self, repl_env):
         # Arrange -- bare /cfg now opens the Cfg picker (TUI) or shows
         # /help cfg (CLI); /cfg.dump is the explicit "print every key"

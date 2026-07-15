@@ -451,7 +451,7 @@ AVAILABLE
 
 SUBCOMMANDS
   /cfg.auto       Set immediately (no confirmation).
-  /cfg.dump       Print current config as JSON to the terminal.
+  /cfg.dump       Print the config (JSON) or a cfg-folder file to the terminal.
   /cfg.explore    Open config directory in file explorer.
   /cfg.help       Show /cfg help.
   /cfg.icon       Create a desktop / menu launcher for the current cfg.

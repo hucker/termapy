@@ -14,7 +14,6 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.capture import format_capture_result
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.plugins import CmdResult, InternalHandle, PluginContext, UsageError
@@ -660,13 +659,14 @@ class TerminalHost:
     def _stop_capture(self) -> None:
         """Stop a capture session.
 
-        Subclasses may override to add UI (timer cleanup, progress).
+        The completion message is reported by the CaptureEngine's
+        ``on_complete`` callback (fired inside ``stop()``) -- the single
+        owner across all frontends -- so here we only release the serial
+        claim.  Subclasses may override to add UI (timer cleanup, progress).
         """
-        result = self.capture.stop()
+        self.capture.stop()
         if not self.repl.in_script:
             self.engine.serial_claimed = False
-        if result:
-            self.status(format_capture_result(result)[0])
 
     # -- Help server ----------------------------------------------------------
 

@@ -493,11 +493,12 @@ class TestCapture:
         assert any("Capture started" in m for m in host._status_msgs), \
             "shows started message"
 
-    def test_stop_with_result(self, host):
-        # Arrange
+    def test_stop_delegates_message_to_on_complete(self, host):
+        # Arrange -- the completion message is owned by the CaptureEngine
+        # on_complete callback (fired inside stop()), NOT by _stop_capture.
+        # This mocked engine never fires on_complete, so _stop_capture must
+        # emit nothing itself -- proving it can't double the real callback.
         mock_result = MagicMock()
-        mock_result.path = "/tmp/cap.txt"
-        mock_result.size_label = "1.2 KB"
         mock_result.error = ""
         host.capture.stop.return_value = mock_result
 
@@ -505,8 +506,9 @@ class TestCapture:
         host._stop_capture()
 
         # Assert
-        assert any("Capture complete" in m for m in host._status_msgs), \
-            "shows completion message"
+        host.capture.stop.assert_called_once()
+        assert not any("Capture complete" in m for m in host._status_msgs), \
+            "_stop_capture must not emit the message (on_complete owns it)"
 
     def test_stop_no_result(self, host):
         # Arrange

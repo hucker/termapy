@@ -68,7 +68,11 @@ from termapy.plugins import (
 )
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
-from termapy.capture import CaptureEngine, CaptureResult
+from termapy.capture import (
+    CaptureEngine,
+    CaptureResult,
+    format_capture_result,
+)
 from termapy.serial_engine import READER_STOP_WAIT_S, SerialEngine
 from termapy.serial_port import eol_label
 from termapy.repl import ReplEngine
@@ -130,7 +134,12 @@ class CommandSuggester(Suggester):
 
 
 # scripting import kept below the completer classes above (placement, not a cycle).
-from termapy.scripting import ANSI_RE, format_duration, format_timestamp  # noqa: E402
+from termapy.scripting import (  # noqa: E402
+    ANSI_RE,
+    filename_timestamp,
+    format_duration,
+    format_timestamp,
+)
 
 
 # Single source of truth for top-row hotkeys.
@@ -2730,8 +2739,15 @@ class SerialTerminal(TerminalHost, App):
         from termapy.capture_view import _cap_stop
         self._on_main(_cap_stop, self)
     def _on_capture_complete(self, result: CaptureResult) -> None:
-        """Called by CaptureEngine when capture finishes (unused for now)."""
-        pass
+        """Report capture completion -- the single owner of the status line.
+
+        Fired by ``CaptureEngine.on_complete`` inside ``stop()`` for every
+        completion path (manual /cap.stop, timed, target-reached), so the
+        message prints exactly once.  ``_cap_stop`` handles the log line and
+        UI teardown; it no longer prints the status itself.
+        """
+        text, color = format_capture_result(result)
+        self._status(text, color)
 
     def _write_batch(self, lines: list[str]) -> None:
         """Write a batch of lines to the output log and optional log file.
@@ -3144,7 +3160,7 @@ class SerialTerminal(TerminalHost, App):
     def action_screenshot(
         self, filename: str | None = None, path: str | None = None
     ) -> None:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = filename_timestamp()
         svg_path = str((self.repl.ss_dir / f"screenshot_{ts}.svg").resolve())
         self.save_screenshot(svg_path)
         self.last_screenshot = svg_path
@@ -3152,7 +3168,7 @@ class SerialTerminal(TerminalHost, App):
         self._sync_ss_button()
 
     def action_text_screenshot(self) -> None:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = filename_timestamp()
         txt_path = str((self.repl.ss_dir / f"screenshot_{ts}.txt").resolve())
         text = self._get_screen_text()
         Path(txt_path).write_text(text, encoding="utf-8")

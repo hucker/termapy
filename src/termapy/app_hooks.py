@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import time
 import webbrowser
-from datetime import datetime
 from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -40,7 +39,12 @@ from termapy.defaults import cmd_prefix
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
-from termapy.scripting import parse_count_arg, parse_duration, select_lines
+from termapy.scripting import (
+    filename_timestamp,
+    parse_count_arg,
+    parse_duration,
+    select_lines,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -87,7 +91,7 @@ def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
         ``CmdResult.ok()`` -- the save itself is best-effort.
     """
     base = args.strip() or "screenshot"
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = filename_timestamp()
     path = str((app.repl.ss_dir / f"{base}_{ts}.svg").resolve())
     app._on_main(app.save_screenshot, path)
     app.last_screenshot = path
@@ -145,7 +149,7 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
         base, n = parse_count_arg(args, "screenshot")
     except ValueError as e:
         raise UsageError(str(e)) from None
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = filename_timestamp()
     path = str((app.repl.ss_dir / f"{base}_{ts}.txt").resolve())
     raw = str(app._on_main(app._get_screen_text) or "")
     text = "\n".join(select_lines(raw.splitlines(), n))

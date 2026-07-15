@@ -32,6 +32,39 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
+def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
+    """Print a text file: all lines, last N (N>0), or first N (N<0).
+
+    The shared body of ``/log.dump`` and ``/mcp.log.dump`` -- each does its
+    own path resolution + sandbox guard, then hands the resolved path
+    here.  Returns the line count via ``value=`` for scripting.
+
+    Args:
+        ctx: Plugin context for output.
+        path: Resolved, already-authorized file path.
+        args: Raw arg string -- empty (all), or a signed integer count.
+    """
+    n: int | None = None
+    arg = args.strip()
+    if arg:
+        try:
+            n = int(arg)
+        except ValueError:
+            raise UsageError(
+                f"Invalid count: {arg!r}  (N>0 last N, N<0 first N)"
+            ) from None
+        if n == 0:
+            return CmdResult.fail(msg="Invalid line count: 0")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        return CmdResult.fail(msg=f"Read error: {e}")
+    lines = select_lines(lines, n)
+    for line in lines:
+        ctx.io.output(line)
+    return CmdResult.ok(value=str(len(lines)))
+
+
 def _log_path(ctx: PluginContext) -> str:
     """Resolve the session log path from ctx.cfg / ctx.config_path."""
     configured = ctx.cfg.get("log_file", "") if ctx.cfg else ""
@@ -72,28 +105,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     if not p.exists():
         return CmdResult.fail(msg=f"Log file not found: {path}")
 
-    n: int | None = None
-    arg = args.strip()
-    if arg:
-        try:
-            n = int(arg)
-        except ValueError:
-            raise UsageError(
-                f"Invalid count: {arg!r}  (N>0 last N, N<0 first N)"
-            ) from None
-        if n == 0:
-            return CmdResult.fail(msg="Invalid line count: 0")
-
-    try:
-        lines = p.read_text(encoding="utf-8").splitlines()
-    except OSError as e:
-        return CmdResult.fail(msg=f"Read error: {e}")
-
-    lines = select_lines(lines, n)
-
-    for line in lines:
-        ctx.io.output(line)
-    return CmdResult.ok(value=str(len(lines)))
+    return dump_text_slice(ctx, p, args)
 
 
 _DUMP_HELP = "Print the session log; /log.dump N for last N lines, -N for first N."

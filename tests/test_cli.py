@@ -683,7 +683,11 @@ class TestCapture:
         assert not cli.capture.active, "engine reports inactive after stop"
         assert cap_path.read_text() == "abc\n", "captured line written"
         actual = capsys.readouterr().out
-        assert "Capture complete" in actual, "reports completion"
+        # Exactly once: the message is owned by the CaptureEngine on_complete
+        # callback.  _stop_capture used to ALSO print it -> a visible double.
+        assert actual.count("Capture complete") == 1, (
+            "reports completion exactly once (no double-print)"
+        )
 
 
 # -- apply_port_effects ------------------------------------------------------

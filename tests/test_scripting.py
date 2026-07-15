@@ -10,6 +10,7 @@ from termapy.plugins import CmdResult
 from termapy.scripting import (
     coerce_to_type,
     expand_template,
+    filename_timestamp,
     format_duration,
     format_timestamp,
     parse_bool,
@@ -17,6 +18,7 @@ from termapy.scripting import (
     parse_duration,
     parse_duration_ms,
     parse_keywords,
+    render_progress_bar,
     resolve_seq_filename,
     select_lines,
     strip_leading_echo,
@@ -318,6 +320,58 @@ class TestFormatTimestamp:
         assert re.fullmatch(r"\d{2}:\d{2}:\d{2}\.\d{3}", actual), (
             "no-arg call renders the current time as HH:MM:SS.mmm"
         )
+
+
+# ── filename_timestamp ───────────────────────────────────────────
+
+
+class TestFilenameTimestamp:
+    def test_shape_is_filename_safe(self):
+        # Act
+        actual = filename_timestamp()
+
+        # Assert -- YYYYmmdd_HHMMSS, no colons (safe in a filename)
+        assert re.fullmatch(r"\d{8}_\d{6}", actual), (
+            "filename stamp is YYYYmmdd_HHMMSS with no separators"
+        )
+        assert ":" not in actual, "no colons (would be illegal on Windows)"
+
+
+# ── render_progress_bar ──────────────────────────────────────────
+
+
+class TestRenderProgressBar:
+    def test_finished_state_is_full_bar(self):
+        # Act -- elapsed >= total reports 100% (the CLI 'done' line relies on it)
+        actual = render_progress_bar(10, 10, width=30)
+
+        # Assert
+        expected = "[" + "█" * 30 + "] 10s/10s"
+        assert actual == expected, "elapsed==total renders a full 100% bar"
+
+    def test_zero_total_is_full_bar(self):
+        # Act -- guard against div-by-zero; an instantaneous delay is 'done'
+        actual = render_progress_bar(0, 0, width=30)
+
+        # Assert
+        assert actual == "[" + "█" * 30 + "] 0s/0s", "0-total -> full bar"
+
+    def test_midpoint_is_partial(self):
+        # Act
+        actual = render_progress_bar(5, 10, width=30)
+
+        # Assert -- moving, not finished: some full cells, some empty, right timing
+        assert actual.startswith("[") and actual.endswith("] 5s/10s"), "framed + timed"
+        assert "█" in actual, "has filled cells at the midpoint"
+        assert " " in actual, "not yet 100% (has empty cells)"
+
+    def test_ascii_only_uses_ascii_glyphs(self):
+        # Act -- no-color mode swaps the Unicode blocks for ASCII
+        actual = render_progress_bar(10, 10, width=30, ascii_only=True)
+
+        # Assert
+        assert actual == "[" + "#" * 30 + "] 10s/10s", "ascii full bar uses '#'"
+        assert "█" not in actual, "no Unicode block in ASCII mode"
 
 
 # ── resolve_seq_filename ────────────────────────────────────────

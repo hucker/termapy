@@ -23,7 +23,7 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import History
 from prompt_toolkit.patch_stdout import patch_stdout
 
-from termapy.capture import CaptureEngine
+from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import (
     CONFIG_LOAD_ERRORS,
     cfg_dir,
@@ -35,7 +35,7 @@ from termapy.config_resolve import find_config, infer_config_from_run_file, reso
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
-from termapy.scripting import strip_ansi
+from termapy.scripting import render_progress_bar, strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
 
@@ -227,9 +227,7 @@ class CLITerminal(TerminalHost):
         self.capture = CaptureEngine(
             on_echo=lambda line: self.write(f"  {line}"),
             on_complete=lambda result: self.status(
-                f"Capture aborted: {result.error} ({result.path})"
-                if result.error
-                else f"Capture complete: {result.path} ({result.size_label})"
+                format_capture_result(result)[0]
             ),
         )
         self.engine = SerialEngine(
@@ -587,36 +585,28 @@ class CLITerminal(TerminalHost):
     # -- Progress bar (CLI-specific: blocking sleep with bar) -----------------
 
     def _draw_progress_bar(self, seconds: float, label: str) -> None:
-        """Draw a progress bar with sub-character resolution.
-        Uses Unicode blocks in color mode, ASCII in no-color mode."""
+        """Draw a live progress bar, then a final 'done' line.
+
+        Shares ``scripting.render_progress_bar`` (the sub-cell bar
+        algorithm) with the TUI delay hooks; only the CLI's carriage-return
+        redraw loop and terminal state live here.
+        """
         width = 30
-        if self.no_color:
-            _SUB = " .-=#"  # ASCII: 4 sub-steps per cell
-        else:
-            _SUB = " \u2591\u2592\u2593\u2588"  # Unicode: ░▒▓█
-        sub_n = len(_SUB) - 1
-        sub_steps = width * sub_n
-        full_ch = _SUB[-1]
         t0 = time.perf_counter()
         while True:
             elapsed = time.perf_counter() - t0
             if elapsed >= seconds:
                 break
-            frac = elapsed / seconds
-            # Cap at sub_steps - 1 so bar never looks 100% before done
-            pos = min(frac * sub_steps, sub_steps - 1)
-            full = int(pos // sub_n)
-            partial = int(pos % sub_n)
-            bar = full_ch * full
-            if full < width:
-                bar += _SUB[partial] + " " * (width - full - 1)
-            self._raw(
-                f"\r  [{bar}] {int(elapsed)}s/{int(seconds)}s",
-                end="",
+            bar = render_progress_bar(
+                elapsed, seconds, width, ascii_only=self.no_color
             )
+            self._raw(f"\r  {bar}", end="")
             time.sleep(0.25)
-        bar = full_ch * width
-        self._raw(f"\r  [{bar}] {int(seconds)}s/{int(seconds)}s", end="")
+        # elapsed == total -> render_progress_bar returns the full 100% bar.
+        done = render_progress_bar(
+            seconds, seconds, width, ascii_only=self.no_color
+        )
+        self._raw(f"\r  {done}", end="")
         msg = f"Delay {label} done."
         self._raw(f"\r  {msg}{' ' * (width + 10 - len(msg))}")
 

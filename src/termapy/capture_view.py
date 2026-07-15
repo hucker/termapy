@@ -106,13 +106,12 @@ def _cap_stop(app) -> None:
     _cap_hide_progress(app)
 
     if result:
+        # The status line is printed by _on_capture_complete (the
+        # CaptureEngine on_complete callback fired inside stop() above),
+        # the single owner across frontends; here we only write the log.
         if result.error:
-            app._status(f"Capture aborted: {result.error} ({result.path})", "red")
             app._log_line("#", f"capture aborted: {result.path} ({result.error})")
         else:
-            app._status(
-                f"Capture complete: {result.path} ({result.size_label})", "green"
-            )
             app._log_line("#", f"capture end: {result.path} ({result.size_label})")
     app._sync_cap_button()
 

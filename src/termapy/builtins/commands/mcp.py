@@ -23,10 +23,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.builtins.commands.log import dump_text_slice
 from termapy.config import open_with_system
 from termapy.mcp.catalog import build_catalog, catalog_json
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
-from termapy.scripting import select_lines
+from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -232,29 +232,9 @@ def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
     path = _mcp_log_path(ctx)
     if not path.exists():
         return CmdResult.fail(msg=f"MCP session log not found: {path}")
-
-    n: int | None = None
-    arg = args.strip()
-    if arg:
-        try:
-            n = int(arg)
-        except ValueError:
-            raise UsageError(
-                f"Invalid count: {arg!r}  (N>0 last N, N<0 first N)"
-            ) from None
-        if n == 0:
-            return CmdResult.fail(msg="Invalid line count: 0")
-
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as e:
-        return CmdResult.fail(msg=f"Read error: {e}")
-
-    lines = select_lines(lines, n)
-
-    for line in lines:
-        ctx.io.output(line)
-    return CmdResult.ok(value=str(len(lines)))
+    # MCP's own log is inside the session dir (in-sandbox), so no external
+    # guard is needed -- just share /log.dump's slice/print tail.
+    return dump_text_slice(ctx, path, args)
 
 
 def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:

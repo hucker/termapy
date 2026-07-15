@@ -241,6 +241,16 @@ def format_timestamp(dt: datetime | None = None) -> str:
     return dt.strftime("%H:%M:%S.%f")[:-3]
 
 
+def filename_timestamp() -> str:
+    """Return a filename-safe timestamp: ``YYYYmmdd_HHMMSS`` (colon-free).
+
+    One owner for the stamp embedded in screenshot / capture / recording
+    filenames, so the format literal lives in exactly one place instead
+    of being re-typed at every save site.
+    """
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
 # ── Line selection (shared count scheme) ──────────────────────────────────────
 
 # A line-count token: an optional sign followed by digits.  Shared by every
@@ -320,9 +330,9 @@ def render_progress_bar(
 
     Returns ``[bar] Ns/Ms`` -- e.g. ``[███░░░░░] 3s/10s``.  Sub-step
     characters mean 1s-of-elapsed maps to a partial cell so short
-    delays look like they're moving.  The bar never reports 100%
-    before ``elapsed >= total`` (caller should special-case the
-    finished state).
+    delays look like they're moving.  A full bar is reported exactly at
+    ``elapsed >= total`` (so a caller rendering a final static line gets
+    100%); it never reaches 100% before then.
 
     Both ``_hook_delay`` (interactive, TUI) and the script-path
     ``_script_delay`` (also TUI) share this helper so the two render
@@ -334,6 +344,10 @@ def render_progress_bar(
     full_ch = sub[-1]
     if total <= 0:
         return f"[{full_ch * width}] 0s/0s"
+    if elapsed >= total:
+        # Finished state: a full bar.  Callers that render a final static
+        # line (e.g. the CLI delay) get 100% here instead of re-deriving it.
+        return f"[{full_ch * width}] {int(total)}s/{int(total)}s"
     frac = min(max(elapsed / total, 0.0), 1.0)
     pos = min(frac * sub_steps, sub_steps - 1)
     full = int(pos // sub_n)

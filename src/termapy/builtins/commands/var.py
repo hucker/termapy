@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
 from termapy.help_dynamic import compose, green
-from termapy.plugins import CmdResult, Command, Directive, DirectiveResult, Transform
+from termapy.plugins import CmdResult, Command, Directive, DirectiveResult, Transform, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -342,7 +342,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     """
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
-        return CmdResult.fail(msg="Usage: /var.set <NAME> <value>")
+        raise UsageError()
     m = _STRIP_WRAPPER_RE.match(parts[0])
     name = m.group(1) if m else parts[0]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
@@ -366,7 +366,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
     """
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
-        return CmdResult.fail(msg="Usage: /var.capture <NAME> <command>")
+        raise UsageError()
     m = _STRIP_WRAPPER_RE.match(parts[0])
     name = m.group(1) if m else parts[0]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):

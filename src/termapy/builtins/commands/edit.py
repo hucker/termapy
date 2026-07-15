@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Callable
 from termapy.config import cfg_log_path
 from termapy.folders import EXT_TO_FOLDER
 from termapy.help_dynamic import folder_line
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -61,7 +61,7 @@ def _resolve_file(ctx: PluginContext, name: str) -> Path | None:
 def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
-        return CmdResult.fail(msg="Usage: /edit <filename>")
+        raise UsageError()
     path = _resolve_file(ctx, name)
     if path is None:
         return CmdResult.fail(msg=f"File not found: {name}")

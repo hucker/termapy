@@ -11,7 +11,7 @@ from termapy.builtins.commands.env import (
     _handler_reload,
     _handler_set,
 )
-from termapy.plugins import PluginContext
+from termapy.plugins import PluginContext, UsageError
 
 
 class TestEnvVarTransform:
@@ -146,12 +146,10 @@ class TestEnvCommands:
         # Arrange
         ctx, output = self._ctx()
 
-        # Act
-        result = _handler_set(ctx, "ONLY_NAME")
-
-        # Assert
-        assert not result.success, "handler reports failure"
-        assert "Usage" in result.error, "usage error returned"
+        # Act / Assert -- bad arity raises; the dispatcher renders the
+        # usage line from the declaration (see test_usage_error.py).
+        with pytest.raises(UsageError):
+            _handler_set(ctx, "ONLY_NAME")
 
     def test_set_value_with_spaces(self):
         # Arrange

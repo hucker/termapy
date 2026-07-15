@@ -22,7 +22,7 @@ from termapy.builtins.commands._cfg_icon import (
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system
 from termapy.folders import FOLDERS
 from termapy.help_dynamic import cfg_status, compose
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import coerce_to_type
 
@@ -178,9 +178,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
     """
     name = args.strip()
     if not name:
-        return CmdResult.fail(
-            msg=f"Usage: {ctx.prefix}cfg.load <name>"
-        )
+        raise UsageError()
     # A bare name / in-sandbox relative path (the MCP hot-swap case) is
     # allowed; an absolute path or ``..`` -- which load_config would read
     # AND rewrite with defaults, clobbering any JSON file -- is refused

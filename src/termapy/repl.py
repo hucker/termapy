@@ -16,7 +16,7 @@ from threading import Event
 from types import MappingProxyType
 from typing import Callable
 
-from termapy.defaults import DEFAULT_CMD_PREFIX
+from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
 from termapy.folders import CAP, PROF, PROTO, RUN, SS
 from termapy.plugins import (
     LEVEL_FLAGS,
@@ -32,10 +32,12 @@ from termapy.plugins import (
     PluginContext,
     PluginInfo,
     TransformInfo,
+    UsageError,
     builtins_dir,
+    format_usage,
     load_plugins_from_dir,
 )
-from termapy.plugins.params import parse_params, synthesize_synopsis
+from termapy.plugins.params import parse_params
 from termapy.scripting import (
     expand_template,
     format_duration,
@@ -240,7 +242,6 @@ class ReplEngine:
         cfg: dict,
         config_path: str,
         write: Callable,
-        prefix: str = DEFAULT_CMD_PREFIX,
     ) -> None:
         """Initialize the REPL engine with config and plugin loading.
 
@@ -248,14 +249,11 @@ class ReplEngine:
             cfg: Config dict (owned by the engine, wrapped in MappingProxyType).
             config_path: Path to the JSON config file on disk.
             write: Callback for output - write(text, color="dim").
-            prefix: REPL command prefix (default "/").
         """
         self._cfg_data = cfg
         self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
-        self.prefix = prefix
-        self.cmd = lambda name: f"{prefix}{name}"
         self._script_depth: int = 0
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
@@ -837,6 +835,17 @@ class ReplEngine:
                     return result
         return DirectiveResult()
 
+    @property
+    def prefix(self) -> str:
+        """Active REPL prefix, derived live from cfg.
+
+        Same source as ``ctx.prefix`` (``cfg["cmd_prefix"]``), so a
+        runtime prefix change is reflected in every dispatcher-rendered
+        message (usage lines, capability errors, suggestions) instead of
+        freezing the construction-time value.
+        """
+        return cmd_prefix(self._cfg_data)
+
     def register_hook(
         self,
         name: str,
@@ -1252,7 +1261,7 @@ class ReplEngine:
             missing = plugin.needs.missing_from(self._effective_capabilities())
             if missing:
                 result = CmdResult.fail(
-                    msg=f"/{name} requires: {', '.join(missing)} "
+                    msg=f"{self.prefix}{name} requires: {', '.join(missing)} "
                     f"(not available in this environment)"
                 )
                 self.write(result.err_msg, "red")
@@ -1288,9 +1297,13 @@ class ReplEngine:
             if plugin.params:
                 bound_params, param_error = parse_params(plugin.params, args)
                 if param_error:
-                    usage = synthesize_synopsis(plugin.params)
                     result = CmdResult.fail(
-                        msg=f"/{name}: {param_error}\nUsage: /{name} {usage}"
+                        msg=format_usage(
+                            self.prefix,
+                            name,
+                            plugin,
+                            detail=f"{self.prefix}{name}: {param_error}",
+                        )
                     )
                     self.write(result.err_msg, "red")
                     return result
@@ -1326,6 +1339,16 @@ class ReplEngine:
                     # a result to attach elapsed_s to.
                     result = CmdResult.ok(value="")
                 result.elapsed_s = time.perf_counter() - t0
+            # UsageError: the handler rejected its arguments.  The usage
+            # line is rendered HERE, from the registered synopsis and the
+            # active prefix -- the single owner that keeps errors, /help,
+            # and a re-configured prefix in agreement (handlers never
+            # hand-write "Usage:" strings).  Must precede the broad
+            # BoundaryException catch below.
+            except UsageError as e:
+                result = CmdResult.fail(
+                    msg=format_usage(self.prefix, name, plugin, e.detail)
+                )
             # MissingCapability is the structural backstop for
             # "handler called a capability-gated handle method but didn't
             # declare the capability in Command.needs".  Surface it with
@@ -1445,7 +1468,15 @@ class ReplEngine:
         """
         filename = args.strip()
         if not filename:
-            return None, CmdResult.fail(msg="Usage: /run <filename>")
+            # Runs on the script thread (outside the dispatch try), so
+            # format directly instead of raising UsageError.
+            run_cmd = self._plugins.get("run")
+            msg = (
+                format_usage(self.prefix, "run", run_cmd)
+                if run_cmd
+                else f"Usage: {self.prefix}run <filename>"
+            )
+            return None, CmdResult.fail(msg=msg)
         path = Path(filename)
         if not path.exists() and not path.suffix:
             path = Path(filename + ".run")

@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
@@ -47,7 +47,7 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
     let the safe-by-construction context exit unregister them.
     """
     if not args.strip():
-        return CmdResult.fail(msg="Usage: /traffic.count <cmd>")
+        raise UsageError()
 
     rx_count = [0]
     tx_count = [0]
@@ -85,7 +85,7 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
     """
     parts = args.split()
     if not parts:
-        return CmdResult.fail(msg="Usage: /traffic.hexdump <file> [duration=<dur>]")
+        raise UsageError()
     out_path = Path(parts[0])
     try:
         duration_s = parse_duration(parts[1]) if len(parts) > 1 else 5.0
@@ -166,7 +166,7 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
     kw = parse_keywords(args, {"timeout"}, rest_keyword="pattern")
     pattern_hex = kw.get("pattern", "").replace(" ", "")
     if not pattern_hex:
-        return CmdResult.fail(msg="Usage: /traffic.snoop <hex> [timeout=<dur>]")
+        raise UsageError()
     try:
         pattern = bytes.fromhex(pattern_hex)
     except ValueError as e:
@@ -247,19 +247,19 @@ COMMAND = Command(
             needs=CapabilitySet(serial_connected=True),
         ),
         "hexdump": Command(
-            args="<file> [duration]",
+            args="<file> {duration=<dur>}",
             help="Tee timestamped hex of TX/RX traffic to a file.",
             handler=_handler_hexdump,
             needs=CapabilitySet(serial_connected=True),
         ),
         "rate": Command(
-            args="[duration]",
+            args="{duration}",
             help="Measure TX/RX bytes/sec over a window (default 5s).",
             handler=_handler_rate,
             needs=CapabilitySet(serial_connected=True),
         ),
         "snoop": Command(
-            args="<hex> [timeout=<dur>]",
+            args="<hex> {timeout=<dur>}",
             help="Block until a hex byte pattern appears in the RX stream.",
             handler=_handler_snoop,
             needs=CapabilitySet(serial_connected=True, block_until=True),

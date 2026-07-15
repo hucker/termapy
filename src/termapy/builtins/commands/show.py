@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -44,7 +44,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """
     name = args.strip()
     if not name:
-        return CmdResult.fail(msg="Usage: /show <name>  (or /show.cfg for config)")
+        raise UsageError(f"For the active config use {ctx.prefix}show.cfg")
     _show_file(ctx, Path(name))
     # Return the resolved path so scripts can confirm what was shown.
     return CmdResult.ok(value=Path(name))

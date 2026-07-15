@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from termapy.capture import CaptureEngine
-from termapy.plugins import CmdResult, InternalHandle, PluginContext
+from termapy.plugins import CmdResult, InternalHandle, PluginContext, UsageError
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
@@ -74,7 +74,7 @@ def host(tmp_path):
     mock_capture = MagicMock(spec=CaptureEngine)
     mock_capture.active = False
 
-    repl = ReplEngine(cfg, str(config_path), write=lambda t, c="": None, prefix="/")
+    repl = ReplEngine(cfg, str(config_path), write=lambda t, c="": None)
 
     h = _StubHost(cfg, str(config_path), mock_engine, repl, mock_capture)
     return h
@@ -586,11 +586,10 @@ class TestHookRaw:
         # Arrange
         host.engine.is_connected = True
 
-        # Act
-        result = host._hook_raw(None, "")
-
-        # Assert
-        assert result.success is False, "fails with empty args"
+        # Act / Assert -- bad arity raises; dispatcher renders the usage
+        # line from the declaration (see test_usage_error.py).
+        with pytest.raises(UsageError):
+            host._hook_raw(None, "")
 
     def test_sends_bytes(self, host):
         # Arrange

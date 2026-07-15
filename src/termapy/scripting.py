@@ -295,7 +295,7 @@ def parse_count_arg(args: str, default_name: str) -> tuple[str, int | None]:
     name_tokens = [t for t in tokens if not _COUNT_RE.fullmatch(t)]
     if len(int_tokens) > 1:
         raise ValueError(
-            "Usage: /ss.txt [name] [N]  (N>0 last N, N<0 first N)"
+            "Only one count allowed  (N>0 last N, N<0 first N)"
         )
     n = int(int_tokens[0]) if int_tokens else None
     if n == 0:

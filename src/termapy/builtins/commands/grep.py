@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import ANSI_RE as _ANSI_RE
 
@@ -86,7 +86,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                 msg="Grep not available: no scrollback in CLI mode",
             )
         if "Pattern required" in err:
-            return CmdResult.fail(msg="Usage: /grep <pattern>")
+            raise UsageError("Pattern required")
         return CmdResult.fail(msg=err)
 
     if not matches:

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from termapy.env_flags import env_access_blocked
 from termapy.help_dynamic import compose, green
-from termapy.plugins import CmdResult, Command, Transform
+from termapy.plugins import CmdResult, Command, Transform, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -117,7 +117,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=_MCP_BLOCKED_MSG)
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
-        return CmdResult.fail(msg="Usage: /env.set <name> <value>")
+        raise UsageError()
     name, value = parts
     _ENV[name] = value
     ctx.io.output(f"  {name}={value}", "green")

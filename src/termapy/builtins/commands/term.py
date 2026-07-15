@@ -18,6 +18,7 @@ from termapy.plugins import (
     CmdResult,
     Command,
     parse_output_level,
+    UsageError,
 )
 from termapy.scripting import parse_bool
 
@@ -85,7 +86,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     For literal raw bytes WITHOUT a line ending, use ``/raw`` instead.
     """
     if not args:
-        return CmdResult.fail(msg="Usage: /term.send <text>")
+        raise UsageError()
     if not ctx.serial.is_connected():
         return CmdResult.fail(msg="Not connected.")
     encoding = ctx.cfg.get("encoding", "utf-8")
@@ -147,7 +148,7 @@ def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
         elif val is False:
             target = "term.output normal"
         else:
-            return CmdResult.fail(msg=f"Invalid: {body} (use on or off)")
+            return CmdResult.fail(msg=f"Invalid value: {body} (use on or off)")
     result = ctx.internal.dispatch(target)
     if not result.success:
         return CmdResult(
@@ -426,7 +427,7 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     """
     text = args.strip()
     if not text:
-        return CmdResult.fail(msg=f"Usage: {ctx.prefix}term.log <text>")
+        raise UsageError()
     ctx.io.log("#", text)
     # Return the logged text so scripts can confirm what was written.
     return CmdResult.ok(value=text)
@@ -469,7 +470,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     arg = args.strip()
     if arg:
         p = ctx.prefix
-        return CmdResult.fail(msg=f"Usage: {p}term.<subcommand>.  Try {p}term.info.")
+        return CmdResult.fail(msg=f"Usage: {p}term.<subcommand>  (try {p}term.info)")
     return ctx.dispatch("help term")
 
 

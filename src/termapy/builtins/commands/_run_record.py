@@ -51,7 +51,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, TextIO
 
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -106,16 +106,16 @@ def _start(ctx: PluginContext, raw_name: str) -> CmdResult:
     # other suffixes -- a recorded .txt would be confusing.
     name = raw_name.strip()
     if not name:
-        return CmdResult.fail(msg="Usage: /run.record <filename>")
+        raise UsageError()
     if "/" in name or "\\" in name:
         return CmdResult.fail(
-            msg="Recording target must be a bare filename, not a path."
+            msg="Recording target must be a bare filename, not a path"
         )
     if name.endswith(".run"):
         target = name
     elif "." in name:
         return CmdResult.fail(
-            msg=f"Recording target must be a .run file: got {name!r}.",
+            msg=f"Recording target must be a .run file: got {name!r}",
         )
     else:
         target = name + ".run"

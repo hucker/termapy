@@ -34,7 +34,7 @@ def _handler_placeholder(ctx: PluginContext, args: str) -> CmdResult:
     In non-TUI environments dispatch's capability gate fails before
     reaching the handler because ``screen_capture`` is not provided.
     """
-    return CmdResult.fail(msg="screenshot handler not installed")
+    return CmdResult.fail(msg="Screenshot handler not installed")
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

@@ -23,7 +23,7 @@ import time
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cmd_prefix
-from termapy.plugins import CapabilitySet, CmdResult
+from termapy.plugins import CapabilitySet, CmdResult, UsageError
 
 if TYPE_CHECKING:
     pass
@@ -54,8 +54,7 @@ def _hook_run_profile_cmd(app, ctx, args: str) -> CmdResult:
     """Profile a single command by writing it to a temp .run script."""
     line = args.strip()
     if not line:
-        ctx.io._write("Usage: /run.profile.cmd <command>", "red")
-        return CmdResult.fail(msg="Usage: /run.profile.cmd <command>")
+        raise UsageError()
     prefix = cmd_prefix(app.cfg)
     if not line.startswith(prefix) and "." in line.split()[0]:
         line = prefix + line

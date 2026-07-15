@@ -14,6 +14,7 @@ from termapy.plugins import (
     Command,
     interpolate_help,
     resolve_long_help,
+    UsageError,
 )
 from termapy.plugins.params import render_parameters_block
 
@@ -850,7 +851,7 @@ def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:
     """Show a command handler's Python docstring (developer info)."""
     name = args.strip() if isinstance(args, str) else ""
     if not name:
-        return CmdResult.fail(msg="Usage: /help.dev <cmd>")
+        raise UsageError()
     return _show_command_help(ctx, name, dev_mode=True)
 
 

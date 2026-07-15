@@ -27,7 +27,7 @@ from crcglot import DetectResult, detect
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.scripting import format_duration
 
 if TYPE_CHECKING:
@@ -423,9 +423,7 @@ def _cmd_send(ctx: PluginContext, args: str) -> CmdResult:
               e.g. ``'01 ~25ms 03 "OK\\r"'``.
     """
     if not args.strip():
-        return CmdResult.fail(
-            msg="Usage: /proto.send [algo[_le|_be][_ascii]] " '<hex/"text"/~delay ...>'
-        )
+        raise UsageError()
 
     # Check if the first word is a CRC algorithm name (with optional suffixes)
     first, _, rest = args.strip().partition(" ")
@@ -554,7 +552,7 @@ def _cmd_run(ctx: PluginContext, args: str) -> CmdResult:
     """
     filename = args.strip()
     if not filename:
-        return CmdResult.fail(msg="Usage: /proto.run <file.pro>")
+        raise UsageError()
 
     path = _resolve_proto_file(ctx, filename)
     if path is None:
@@ -589,7 +587,7 @@ def _cmd_debug(ctx: PluginContext, args: str) -> CmdResult:
     """
     filename = args.strip()
     if not filename:
-        return CmdResult.fail(msg="Usage: /proto.debug <file.pro>")
+        raise UsageError()
 
     path = _resolve_proto_file(ctx, filename)
     if path is None:
@@ -707,7 +705,7 @@ def _crc_info(ctx: PluginContext, args: str) -> CmdResult:
     p = ctx.prefix
     name = args.strip().lower()
     if not name:
-        return CmdResult.fail(msg=f"Usage: {p}proto.crc.info <name>")
+        raise UsageError()
 
     entry = CRC_CATALOGUE.get(name)
     if entry is None:
@@ -782,7 +780,7 @@ def _crc_calc(ctx: PluginContext, args: str) -> CmdResult:
     """
     parts = args.strip().split(None, 1)
     if not parts:
-        return CmdResult.fail(msg="Usage: /proto.crc.calc <name> {hex bytes or text}")
+        raise UsageError()
 
     name = parts[0].lower()
 
@@ -1236,13 +1234,17 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         # ----- Catalog lookup (existing path) -----
         names = [t.lower() for t in name_tokens]
         if not names:
+            # Two-form synopsis (catalog XOR custom width=/poly=) -- documented
+            # hand-rolled boundary (CLAUDE.md "params vs hand-rolled"); raise
+            # UsageError would show only the single-form args= declaration.
+            p = ctx.prefix
             return CmdResult.fail(
                 msg=(
-                    f"Usage: /proto.crc.{lang} <algorithm> [name ...] "
-                    "[--table] [file=stem] [symbol=name] [style=STYLE]\n"
-                    f"   or: /proto.crc.{lang} width=N poly=X "
-                    "[init=...] [refin=...] [refout=...] [xorout=...] "
-                    "[name=...] [file=...] [symbol=...] [style=STYLE]"
+                    f"Usage: {p}proto.crc.{lang} <algorithm> {{name ...}} "
+                    "{--table} {file=stem} {symbol=name} {style=STYLE}\n"
+                    f"   or: {p}proto.crc.{lang} width=N poly=X "
+                    "{init=...} {refin=...} {refout=...} {xorout=...} "
+                    "{name=...} {file=...} {symbol=...} {style=STYLE}"
                 )
             )
 
@@ -1442,14 +1444,9 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     knowing the CRC algorithm (chicken/egg), so capture-from-sniffer
     is the universally applicable path.
     """
-    p = ctx.prefix
-    usage = (
-        f"Usage: {p}proto.crc.find [width=8|16|32|64] [endian=be|le] "
-        "[form=NAME] bin=<hex> | asc=<text>"
-    )
     kw = _parse_find_args(args)
     if "mode" not in kw:
-        return CmdResult.fail(msg=usage)
+        raise UsageError()
 
     try:
         width_filter = int(kw["width"]) if "width" in kw else None
@@ -1620,12 +1617,9 @@ def _crc_verify(ctx: PluginContext, args: str) -> CmdResult:
     trailers like Modbus.
     """
     p = ctx.prefix
-    usage = (
-        f"Usage: {p}proto.crc.verify <algorithm> [endian=be|le] <hex bytes>"
-    )
     parts = args.strip().split(None, 1)
     if len(parts) < 2:
-        return CmdResult.fail(msg=usage)
+        raise UsageError()
     name = parts[0].lower()
     rest = parts[1]
 
@@ -1704,11 +1698,6 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     so the ``$(rev) <- /proto.crc.reverse ...`` capture syntax pipes
     straight into ``/proto.crc.<lang> $(rev)`` codegen.
     """
-    p = ctx.prefix
-    usage = (
-        f"Usage: {p}proto.crc.reverse [crc_bytes=N] [width=N] "
-        "<packet-hex> <packet-hex> ... | cmd=<trigger> count=<N>"
-    )
 
     # Parse the args.  kv tokens (crc_bytes, width, count) are whitespace-
     # separated and can appear anywhere.  cmd= eats to end-of-line like
@@ -1781,7 +1770,7 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             packets.append(captured)
     else:
         if len(rest_tokens) < 2:
-            return CmdResult.fail(msg=usage)
+            raise UsageError()
         try:
             for tok in rest_tokens:
                 packets.append(bytes.fromhex(tok))
@@ -2232,7 +2221,7 @@ COMMAND = Command(
         ),
         "send": Command(
             args=(
-                '{algo[_le|_be][_ascii]} <hex|"text"> '
+                '{algo{_le|_be}{_ascii}} <hex|"text"|~delay ...> '
                 "{--dry-run} {--ascii}"
             ),
             help="Send raw bytes (with optional CRC), show response.",
@@ -2297,8 +2286,8 @@ COMMAND = Command(
                 ),
                 "find": Command(
                     args=(
-                        "[width=8|16|32|64] [endian=be|le] [form=NAME] "
-                        "bin=<hex> | asc=<text>"
+                        "{width=8|16|32|64} {endian=be|le} {form=NAME} "
+                        "bin=<hex>|asc=<text>"
                     ),
                     help="Identify the CRC algorithm used in a captured packet.",
                     long_help=(

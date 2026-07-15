@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from termapy.vendor.ymodem.Socket import ModemSocket
 from termapy.vendor.ymodem.Protocol import ProtocolType
 
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -34,7 +34,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """
     filenames = args.strip().split()
     if not filenames:
-        return CmdResult.fail(msg="Usage: /ymodem.send <file> {file2} ...")
+        raise UsageError()
 
     paths: list[str] = []
     for filename in filenames:

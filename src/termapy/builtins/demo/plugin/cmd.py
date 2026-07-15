@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.protocol import get_crc_registry
 
 
@@ -26,7 +26,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Text to send.
     """
     if not args.strip():
-        return CmdResult.fail(msg="Usage: /crcsend <text>")
+        raise UsageError()
     crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
     ctx.serial.send(f"{args} {crc:04X}")
     ctx.io.output(f"Sent: {args} {crc:04X}", "green")

@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import folder_line
 from termapy.legacy import LEGACY_COMMANDS, LEGACY_REWRITES
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -168,10 +168,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     fix_mode = ctx.flag("--fix")
     name = args.strip()
     if not name:
-        p = ctx.prefix
-        return CmdResult.fail(
-            msg=f"Usage: {p}run.legacy <filename | *> {{--fix}}"
-        )
+        raise UsageError()
 
     prefix = ctx.prefix
 
@@ -237,5 +234,5 @@ def _run_long_help(ctx: PluginContext) -> str:
 HANDLER = _handler
 HELP = "Scan a .run script for legacy command names (report, or --fix to rewrite)."
 LONG_HELP = _run_long_help
-ARGS = "<filename | *> {--fix}"
+ARGS = "<filename|*> {--fix}"
 FLAGS = {"--fix": "Rewrite the file in place instead of just reporting."}

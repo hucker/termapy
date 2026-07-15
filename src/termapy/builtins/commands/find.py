@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from termapy.builtins.commands.grep import find_matches
 from termapy.defaults import cmd_prefix
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -120,7 +120,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                 "(try /grep instead)",
             )
         if "Pattern required" in err:
-            return CmdResult.fail(msg=f"Usage: {prefix}find <pattern>")
+            raise UsageError("Pattern required")
         return CmdResult.fail(msg=err)
 
     # Per-session cap so a pattern like ``/find .`` doesn't try to
@@ -185,14 +185,11 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
     try:
         n = int(raw)
     except ValueError:
-        return CmdResult.fail(
-            msg=(
-                f"Usage: /find.max_count <integer>  "
-                f"(current = {_max_count})"
-            ),
-        )
+        raise UsageError(
+            f"Invalid count: {raw!r}  (current = {_max_count})"
+        ) from None
     if n < 1:
-        return CmdResult.fail(msg="Max count must be >= 1.")
+        return CmdResult.fail(msg="Max count must be >= 1")
     _max_count = n
     ctx.io.result(f"/find.max_count = {n}")
     return CmdResult.ok(value=str(n))

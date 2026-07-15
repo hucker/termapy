@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
-from termapy.plugins import CmdResult, InternalHandle, PluginContext
+from termapy.plugins import CmdResult, InternalHandle, PluginContext, UsageError
 from termapy.serial_port import eol_label
 
 if TYPE_CHECKING:
@@ -746,7 +746,7 @@ class TerminalHost:
         if not self.engine.is_connected:
             return CmdResult.fail(msg="Not connected.")
         if not args:
-            return CmdResult.fail(msg="Usage: /raw <text>")
+            raise UsageError()
         if self.engine.serial_port:
             self.engine.serial_port.write(
                 args.encode(self.cfg.get("encoding", "utf-8"))

@@ -106,7 +106,7 @@ for any multi-arg command.
   - `"Invalid <thing>: <value>"` — value failed validation (regex, duration, count, format spec)
   - `"<Thing> not found: <name>"` — file, directory, or config missing from disk
   - `"No <thing> loaded."` / `"Not connected."` — app state precondition unmet
-  - `"Usage: /cmd <args>"` — called with wrong arity (include the exact args signature)
+  - Wrong arity → `raise UsageError()` (optional detail arg) — the dispatcher renders `"Usage: <prefix><cmd> <args>"` from the registered declaration. NEVER hand-write a `"Usage: ..."` string in a handler; the only sanctioned hand-written forms are the two documented holdouts (multi-form synopses like `/proto.crc.<lang>`, bare-parent redirects like `/proto.<sub>`)
   - `"<Thing> error: {e}"` — wrap an exception from a named subsystem (`"Type error"`, `"Parse error"`, `"Read error"`)
 - Module-prefix style (`"Ping: ..."`, `"Include: ..."`, `"Expect: ..."`) is acceptable when **every** error from that plugin uses the same prefix — don't mix styles within one plugin
 

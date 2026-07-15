@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CmdResult, Command, format_kv_lines
+from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
 from termapy.profile import (
     load_profile,
     save_profile,
@@ -206,12 +206,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg=f"Usage error: {e}")
         cmd = (kw.get("cmd") or "").strip()
         if not cmd:
-            return CmdResult.fail(
-                msg=(
-                    "Usage: /profile.load cmd=<command>  "
-                    "(no command given)"
-                ),
-            )
+            raise UsageError("cmd= given without a command")
         timeout_ms = _DEFAULT_FETCH_TIMEOUT_MS
         timeout_arg = kw.get("timeout")
         if timeout_arg:
@@ -293,11 +288,8 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
     else:
         default = _default_save_path(ctx)
         if default is None:
-            return CmdResult.fail(
-                msg=(
-                    "Usage: /profile.save <path>  "
-                    "(no cfg loaded; can't derive default path)"
-                ),
+            raise UsageError(
+                "No config loaded; can't derive a default path"
             )
         path = default
 

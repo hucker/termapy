@@ -155,10 +155,24 @@ class TestCfgHelpers:
         assert actual.endswith("dev.log"), "log named after config"
 
     def test_cfg_history_path(self, tmp_path):
+        # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
+
+        # Act
         actual = cfg_history_path(str(config_path))
-        assert actual.endswith(".cmd_history.txt"), "history file pattern"
+
+        # Assert -- per-config history is <stem>.history NEXT TO the cfg
+        # (the path both hosts have always written)
+        expected = str(config_path.parent / "dev.history")
+        assert actual == expected, "per-config history path"
+
+    def test_cfg_history_path_no_config_falls_back(self):
+        # Act -- no config loaded: fallback file in the global cfg root
+        actual = cfg_history_path("")
+
+        # Assert
+        assert actual.endswith(".cmd_history.txt"), "fallback filename"
 
     def test_cfg_plugins_dir(self, tmp_path):
         config_path = tmp_path / "dev" / "dev.cfg"

@@ -23,6 +23,7 @@ from termapy.config import (
     CURRENT_CONFIG_VERSION,
     cfg_data_dir,
     cfg_dir,
+    cfg_history_path,
     cfg_log_path,
     cfg_plugins_dir,
     global_plugins_dir,
@@ -651,10 +652,8 @@ class SerialTerminal(TerminalHost, App):
         self._run_reader()
 
     def _history_path(self) -> str:
-        if self.config_path:
-            p = Path(self.config_path)
-            return str(p.parent / f"{p.stem}.history")
-        return str(cfg_dir() / ".cmd_history.txt")
+        """Delegate to the single owner in config.cfg_history_path."""
+        return cfg_history_path(self.config_path)
 
     _HISTORY_LIMIT = 30
 

@@ -15,7 +15,13 @@ from typing import Any
 
 import serial
 
-from termapy.folders import FOLDER_MIGRATIONS, FOLDER_NAMES, HISTORY_FILE, PROFILE_TMP_GLOB
+from termapy.folders import (
+    FOLDER_MIGRATIONS,
+    FOLDER_NAMES,
+    HISTORY_FILE,
+    HISTORY_SUFFIX,
+    PROFILE_TMP_GLOB,
+)
 from termapy.defaults import (
     DEFAULT_CFG,
     STANDARD_BAUD_RATES,
@@ -282,9 +288,20 @@ def cfg_log_path(config_path: str) -> str:
     return str((cfg_data_dir(config_path) / name).resolve())
 
 
-def cfg_history_path(config_path: str) -> str:
-    """Return the command history file path for a config."""
-    return str(cfg_data_dir(config_path) / HISTORY_FILE)
+def cfg_history_path(config_path: str | None) -> str:
+    """Return the command-history file path (single owner; hosts call this).
+
+    Per-config: ``<cfg dir>/<stem>.history`` next to the config file --
+    the path both hosts have always written.  With no config loaded,
+    fall back to ``HISTORY_FILE`` in the global config root (stable,
+    unlike a cwd dotfile).  TUI and CLI both delegate here so the two
+    frontends can never diverge again (they did: the CLI fallback was
+    ``Path.cwd()`` while the TUI used ``cfg_dir()``).
+    """
+    if config_path:
+        p = Path(config_path)
+        return str(p.parent / f"{p.stem}{HISTORY_SUFFIX}")
+    return str(cfg_dir() / HISTORY_FILE)
 
 
 def cleanup_profile_temps(config_path: str) -> None:

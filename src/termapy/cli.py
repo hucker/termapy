@@ -24,7 +24,13 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from termapy.capture import CaptureEngine
-from termapy.config import CONFIG_LOAD_ERRORS, cfg_dir, load_config, open_serial
+from termapy.config import (
+    CONFIG_LOAD_ERRORS,
+    cfg_dir,
+    cfg_history_path,
+    load_config,
+    open_serial,
+)
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
@@ -592,11 +598,8 @@ class CLITerminal(TerminalHost):
     # -- Prompt session (history + tab completion via prompt_toolkit) ----------
 
     def _history_path(self) -> str:
-        """Return the path to the history file (matches TUI path)."""
-        if self.config_path:
-            p = Path(self.config_path)
-            return str(p.parent / f"{p.stem}.history")
-        return str(Path.cwd() / ".cmd_history.txt")
+        """Delegate to the single owner in config.cfg_history_path."""
+        return cfg_history_path(self.config_path)
 
     def _build_session(self) -> PromptSession | None:
         """Create a prompt_toolkit session with history and tab completion.

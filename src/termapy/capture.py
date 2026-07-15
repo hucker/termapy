@@ -43,6 +43,18 @@ class CaptureResult:
         return f"{self.byte_count} bytes"
 
 
+def format_capture_result(result: CaptureResult) -> tuple[str, str]:
+    """Return the ``(status text, color)`` for a finished capture.
+
+    Single owner for the "Capture complete/aborted" status line so the
+    four frontends (TUI ``status``, ``capture_view``, CLI, MCP) render it
+    identically.  Callers whose output sink takes no color use ``[0]``.
+    """
+    if result.error:
+        return f"Capture aborted: {result.error} ({result.path})", "red"
+    return f"Capture complete: {result.path} ({result.size_label})", "green"
+
+
 class CaptureEngine:
     """Stateful capture session - text or binary.
 

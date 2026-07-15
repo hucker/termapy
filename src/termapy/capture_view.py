@@ -20,6 +20,8 @@ all six free functions live here.
 from __future__ import annotations
 
 import time
+
+from termapy.capture import format_capture_result
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -106,13 +108,11 @@ def _cap_stop(app) -> None:
     _cap_hide_progress(app)
 
     if result:
+        text, color = format_capture_result(result)
+        app._status(text, color)
         if result.error:
-            app._status(f"Capture aborted: {result.error} ({result.path})", "red")
             app._log_line("#", f"capture aborted: {result.path} ({result.error})")
         else:
-            app._status(
-                f"Capture complete: {result.path} ({result.size_label})", "green"
-            )
             app._log_line("#", f"capture end: {result.path} ({result.size_label})")
     app._sync_cap_button()
 

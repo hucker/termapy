@@ -4,7 +4,12 @@ import struct
 from pathlib import Path
 
 
-from termapy.capture import CaptureEngine, CaptureProgress, CaptureResult
+from termapy.capture import (
+    CaptureEngine,
+    CaptureProgress,
+    CaptureResult,
+    format_capture_result,
+)
 
 
 # -- Lifecycle -----------------------------------------------------------------
@@ -398,6 +403,35 @@ class TestCaptureResult:
 
         # Assert
         assert result.size_label == "2.0 KB", "size_label shows KB"
+
+
+class TestFormatCaptureResult:
+    """The single owner of the 'Capture complete/aborted' status line
+    (shared by the TUI, capture_view, CLI, and MCP frontends)."""
+
+    def test_complete_is_green(self):
+        # Arrange
+        result = CaptureResult(path=Path("out.csv"), byte_count=2048, raw=False)
+
+        # Act
+        text, color = format_capture_result(result)
+
+        # Assert
+        assert text == "Capture complete: out.csv (2.0 KB)", "complete text"
+        assert color == "green", "complete is green"
+
+    def test_aborted_is_red(self):
+        # Arrange -- a non-empty error marks an aborted capture
+        result = CaptureResult(
+            path=Path("out.csv"), byte_count=10, raw=False, error="disk full"
+        )
+
+        # Act
+        text, color = format_capture_result(result)
+
+        # Assert -- abort surfaces the error, not the size
+        assert text == "Capture aborted: disk full (out.csv)", "aborted text"
+        assert color == "red", "aborted is red"
 
 
 # -- Write-failure handling (bug 5) --------------------------------------------

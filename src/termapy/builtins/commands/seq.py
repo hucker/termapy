@@ -15,7 +15,7 @@ The leading underscore on ``_start_time`` is a convention signaling
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from termapy.scripting import filename_timestamp
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import compose, green
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 def _now() -> str:
     """Return a filename-safe timestamp (YYYYmmdd_HHMMSS)."""
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+    return filename_timestamp()
 
 
 def on_app_start(ctx: PluginContext) -> None:

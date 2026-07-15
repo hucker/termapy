@@ -14,6 +14,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.capture import format_capture_result
 from termapy.config import load_config, open_with_system
 from termapy.config_resolve import resolve_config
 from termapy.plugins import CmdResult, InternalHandle, PluginContext, UsageError
@@ -665,10 +666,7 @@ class TerminalHost:
         if not self.repl.in_script:
             self.engine.serial_claimed = False
         if result:
-            if result.error:
-                self.status(f"Capture aborted: {result.error} ({result.path})")
-            else:
-                self.status(f"Capture complete: {result.path} ({result.size_label})")
+            self.status(format_capture_result(result)[0])
 
     # -- Help server ----------------------------------------------------------
 

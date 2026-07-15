@@ -9,7 +9,6 @@ and exposes it through PluginContext lambdas.
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
 from io import TextIOWrapper
 from pathlib import Path
 from threading import Event
@@ -40,6 +39,7 @@ from termapy.plugins import (
 from termapy.plugins.params import parse_params
 from termapy.scripting import (
     expand_template,
+    filename_timestamp,
     format_duration,
     parse_duration,
     parse_keywords,
@@ -1726,7 +1726,7 @@ class ReplEngine:
         ]
         sctx.total = len(sctx.lines)
         if profile:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts = filename_timestamp()
             sctx.prof_name = f"{Path(self.config_path).stem}_{ts}.csv"
             prof_dir = Path(self.config_path).parent / "prof"
             prof_dir.mkdir(exist_ok=True)

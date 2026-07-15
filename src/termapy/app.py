@@ -130,7 +130,12 @@ class CommandSuggester(Suggester):
 
 
 # scripting import kept below the completer classes above (placement, not a cycle).
-from termapy.scripting import ANSI_RE, format_duration, format_timestamp  # noqa: E402
+from termapy.scripting import (  # noqa: E402
+    ANSI_RE,
+    filename_timestamp,
+    format_duration,
+    format_timestamp,
+)
 
 
 # Single source of truth for top-row hotkeys.
@@ -3144,7 +3149,7 @@ class SerialTerminal(TerminalHost, App):
     def action_screenshot(
         self, filename: str | None = None, path: str | None = None
     ) -> None:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = filename_timestamp()
         svg_path = str((self.repl.ss_dir / f"screenshot_{ts}.svg").resolve())
         self.save_screenshot(svg_path)
         self.last_screenshot = svg_path
@@ -3152,7 +3157,7 @@ class SerialTerminal(TerminalHost, App):
         self._sync_ss_button()
 
     def action_text_screenshot(self) -> None:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = filename_timestamp()
         txt_path = str((self.repl.ss_dir / f"screenshot_{ts}.txt").resolve())
         text = self._get_screen_text()
         Path(txt_path).write_text(text, encoding="utf-8")

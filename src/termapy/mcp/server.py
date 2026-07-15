@@ -35,7 +35,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from termapy.capture import CaptureEngine
+from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import open_serial
 from termapy.mcp.catalog import (
     catalog_json,
@@ -138,7 +138,7 @@ class MCPHost(TerminalHost):
         self.capture = CaptureEngine(
             on_echo=lambda line: self.write(f"  {line}"),
             on_complete=lambda result: self.status(
-                f"Capture complete: {result.path} ({result.size_label})"
+                format_capture_result(result)[0]
             ),
         )
         self.engine = SerialEngine(

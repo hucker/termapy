@@ -19,18 +19,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.47">
+      <meta name="generator" content="zensical-0.0.50">
     
     
       
-        <title>Serial tools - Termapy Help v0.72.0</title>
+        <title>Serial tools - Termapy Help v0.73.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.5e19f6ca.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.62c9b9cc.min.css">
       
         
           
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.72.0" class="md-header__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.73.0" class="md-header__button md-logo" aria-label="Termapy Help v0.73.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.72.0
+            Termapy Help v0.73.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.72.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.73.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.73.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.72.0
+    Termapy Help v0.73.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -920,6 +920,32 @@
   
   
     <li class="md-nav__item">
+      <a href="./authoring-profiles.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Authoring Profiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="./mcp-server.html" class="md-nav__link">
         
   
@@ -1285,8 +1311,8 @@ Round-trip timing includes all inline delays.</p>
 <p>Toggle hex display for all serial I/O with <code>/proto.hex on</code> / <code>/proto.hex off</code>.</p>
 <h2 id="crc-algorithms">CRC algorithms<a class="headerlink" href="#crc-algorithms" title="Permanent link">&para;</a></h2>
 <p>Every named CRC algorithm in termapy comes from the <a href="https://reveng.sourceforge.io/crc-catalogue/all.htm">reveng CRC
-catalogue</a>
-maintained by <strong>Greg Cook</strong>.  That catalogue documents the polynomial,
+catalog</a>
+maintained by <strong>Greg Cook</strong>.  That catalog documents the polynomial,
 init, reflection, and xor-out parameters for every standardized CRC
 in practical use, and our test suite verifies each one against its
 published <code>check</code> value on every commit.</p>
@@ -1315,7 +1341,7 @@ bit-by-bit or table-driven in software regardless.</p>
 speaks CRC-16/Modbus, you speak CRC-16/Modbus.</p>
 <h3 id="identifying-a-crc-from-a-captured-packet">Identifying a CRC from a captured packet<a class="headerlink" href="#identifying-a-crc-from-a-captured-packet" title="Permanent link">&para;</a></h3>
 <p><code>/proto.crc.find</code> takes the full packet you captured and figures out
-which catalogue algorithm produced its CRC.  Two input forms:</p>
+which catalog algorithm produced its CRC.  Two input forms:</p>
 <ul>
 <li><code>bin=&lt;hex bytes&gt;</code> -- raw binary packet.  The last 1 / 2 / 4 bytes
   are tried as the CRC field; both big- and little-endian are
@@ -1325,7 +1351,7 @@ which catalogue algorithm produced its CRC.  Two input forms:</p>
   are parsed as hex.</li>
 </ul>
 <p>Every match reports the algorithm name, field width, byte order,
-expected value, and the length of the preceding data.  Catalogue
+expected value, and the length of the preceding data.  Catalog
 aliases (e.g. <code>crc16-modbus</code> / <code>crc16m</code>) are collapsed into a single
 line.  When exactly one algorithm matches, the output also includes
 the command to generate standalone source code.</p>
@@ -1337,8 +1363,8 @@ the command to generate standalone source code.</p>
 </span></code></pre></div>
 <p>Limits:</p>
 <ul>
-<li>The search only covers the built-in catalogue (CRC-8, CRC-16,
-  CRC-32 standard algorithms from the reveng catalogue).  A truly
+<li>The search only covers the built-in catalog (CRC-8, CRC-16,
+  CRC-32 standard algorithms from the reveng catalog).  A truly
   custom CRC with non-standard poly / init / refin / refout / xorout
   will not match -- the parameter space is ~10^15 for 16-bit, so
   brute-force is not tractable.  For custom CRCs, Greg Cook's
@@ -1358,7 +1384,7 @@ the command to generate standalone source code.</p>
 <h2 id="crc-code-generation">CRC code generation<a class="headerlink" href="#crc-code-generation" title="Permanent link">&para;</a></h2>
 <p><img alt="CRC Python code generation" src="img/doc_07_crc_python.svg" /></p>
 <p>Generate a standalone CRC function in C, Python, or Rust for any
-algorithm in the catalogue. Three implementations available:</p>
+algorithm in the catalog. Three implementations available:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>/proto.crc.python crc16-modbus           bit-by-bit (small, no tables)
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>/proto.crc.python crc16-modbus --table   table-driven (fast, 256-entry lookup)
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>/proto.crc.c crc16-xmodem               C bit-by-bit
@@ -1419,7 +1445,7 @@ test script.</p>
 </span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    <span class="k">return</span> <span class="n">crc</span>
 </span></code></pre></div>
 <p>Both forms return <code>0xAEE7</code> for <code>b"123456789"</code> -- the docstring shows the
-catalogue check value so you can verify after pasting.</p>
+catalog check value so you can verify after pasting.</p>
 <h3 id="verification-we-test-the-python-you-verify-everything-else-on-your-target">Verification: we test the Python; you verify everything else on your target<a class="headerlink" href="#verification-we-test-the-python-you-verify-everything-else-on-your-target" title="Permanent link">&para;</a></h3>
 <p>For the <strong>Python</strong> generator, our test suite execs every output and
 asserts the canonical reveng check value (<code>crc("123456789")</code>).  Same
@@ -1452,11 +1478,11 @@ generated file embeds the test for exactly this purpose:</p>
 </tr>
 <tr>
 <td>Python</td>
-<td>No separate test needed -- the generator runs the same interpreter you do, and our test suite execs every output. If <code>import</code> succeeds, the implementation matches the catalogue check value (which the docstring lists, e.g. <code>check: crc(b'123456789') == 0xCBF43926</code>).</td>
+<td>No separate test needed -- the generator runs the same interpreter you do, and our test suite execs every output. If <code>import</code> succeeds, the implementation matches the catalog check value (which the docstring lists, e.g. <code>check: crc(b'123456789') == 0xCBF43926</code>).</td>
 </tr>
 </tbody>
 </table>
-<p>All four mechanisms compare <code>crc("123456789")</code> against the reveng-catalogue
+<p>All four mechanisms compare <code>crc("123456789")</code> against the reveng-catalog
 canonical check value, baked into the generated source at emit time.  If
 your compiler or target produces a different value, the self-test catches
 it -- you have an immediate, decisive signal that something in your build
@@ -1615,7 +1641,7 @@ with no self-test overhead and no streaming-vs-one-shot duplication.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.b6b7e04f.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.0df4f2d0.min.js"></script>
+      <script src="./assets/javascripts/bundle.d7f30b55.min.js"></script>
       
     
   </body>

@@ -9,24 +9,28 @@
       
       
       
+        <link rel="prev" href="./device-help.html">
+      
+      
+        <link rel="next" href="./mcp-server.html">
       
       
         
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.47">
+      <meta name="generator" content="zensical-0.0.50">
     
     
       
-        <title>Authoring device profiles - Termapy Help v0.72.0</title>
+        <title>Authoring device profiles - Termapy Help v0.73.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.5e19f6ca.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.62c9b9cc.min.css">
       
         
           
@@ -85,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.72.0" class="md-header__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.73.0" class="md-header__button md-logo" aria-label="Termapy Help v0.73.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -99,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.72.0
+            Termapy Help v0.73.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -170,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.72.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.73.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.73.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.72.0
+    Termapy Help v0.73.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -697,6 +701,350 @@
   
 
       </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Authoring Profiles
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="authoring-profiles.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Authoring Profiles
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#file-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        File layout
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-command-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Per-command schema
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-command schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enabled-boolean-default-true" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>enabled</code> (boolean, default true)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#help-string-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>help</code> (string, required)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#args-string-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>args</code> (string, optional)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long_help-string-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>long_help</code> (string, optional)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#safety-string-default-safe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>safety</code> (string, default <code>"safe"</code>)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response-object-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>response</code> (object, optional)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#responsetimeout_ms-integer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>response.timeout_ms</code> (integer)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#responsetypes-object-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>response.types</code> (object, optional)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#send_template-string-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>send_template</code> (string, optional)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#typed_args-array-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>typed_args</code> (array, optional)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#profile-local-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Profile-local types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Top-level blocks
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Top-level blocks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#error_detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>error_detection</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#device" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>device</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authoring-rules-for-llms-drafting-from-a-help-dump" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Authoring rules for LLMs drafting from a help dump
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drafting-a-profile-with-an-ai" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Drafting a profile with an AI
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Drafting a profile with an AI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-mcp-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        With MCP (recommended)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#without-mcp-chat-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Without MCP (chat-only)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drafting-from-device-source-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Drafting from device source code
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflow-for-the-engineer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Workflow for the engineer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        See also
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1653,6 +2001,44 @@ fall back to source when the help text is terse or ambiguous.</p>
         <footer class="md-footer">
   
     
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="./device-help.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Device Help">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Device Help
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="./mcp-server.html" class="md-footer__link md-footer__link--next" aria-label="Next: MCP Server">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                MCP Server
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
@@ -1682,7 +2068,7 @@ fall back to source when the help text is terse or ambiguous.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.b6b7e04f.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.0df4f2d0.min.js"></script>
+      <script src="./assets/javascripts/bundle.d7f30b55.min.js"></script>
       
     
   </body>

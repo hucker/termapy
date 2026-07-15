@@ -1,5 +1,93 @@
 # Changelog
 
+## 0.73.0 (2026-07-15)
+
+A broad release focused on the terminal experience, a consistent
+setting-command grammar, single-sourced command help, and hardening the
+MCP host into a sandbox by default. Config schema advances to v29
+(auto-migrated on load). It also folds in the 2026-07-14 code-quality
+review.
+
+### Terminal display and line endings
+
+Receive-side line handling is now configurable: `/term.eol.rx`
+(auto / cr / lf / crlf) mirrors TeraTerm's Receive-newline selector, with
+`auto` treating CR, LF, and CRLF all as breaks so it works on any device.
+Backspace and DEL in received output are interpreted rather than shown raw.
+Device-command echo and REPL-command echo split into two independent flags
+(`/term.echo` and `/term.echo_repl`), and a half-duplex device-echo
+suppression mode strips a device's parroted command from its reply.
+`/term.color` is a portable ANSI-color toggle that works in both the TUI and
+CLI. The demo device gained `AT+EOL` to switch its own response line ending
+so the receive-newline paths are exercised end-to-end.
+
+### Setting commands: one predictable grammar
+
+Every on/off or multi-value setting now behaves like `stty` and `git
+config`: **a bare invocation queries (shows the value, never mutates)**;
+`on`/`off` (or a value, for enums) sets; the explicit verb `toggle` (bool)
+or `cycle` (enum) steps; and an unrecognized argument is a clear error
+instead of a silent flip. This fixes commands like `/term.color 2` quietly
+toggling. TUI buttons that flip a setting on click dispatch the explicit
+`toggle`/`cycle` verb.
+
+### Command help you can trust
+
+Usage lines are now rendered from each command's registered declaration
+(name + argument spec + active prefix), so a command's error message, its
+`/help` synopsis, and a re-configured prefix can no longer disagree --
+handlers `raise UsageError()` instead of hand-writing "Usage:" strings.
+Argument synopses are validated at registration, so a malformed synopsis
+fails at load instead of rendering wrong in `/help`. The curated REPL
+command reference is guarded by a test that fails if it lists a command
+that no longer exists.
+
+### Config folder access
+
+`/cfg.dump <name>` prints a file from the active config folder to the
+terminal (JSON config when bare), resolved strictly relative to that
+folder -- absolute paths and `..` are refused for every frontend. Config
+keys that back `/term.*` settings were renamed to match their commands
+(e.g. `line_endings` -> `eol_markers`), and the config reference table in
+the docs is generated from the defaults so it can't drift.
+
+### One history file per config
+
+The command history is now a single plain-text file per config, shared by
+the TUI, CLI, and MCP frontends, so history follows you across modes
+instead of each frontend keeping its own incompatible file.
+
+### MCP host: sandboxed by default
+
+The MCP host is now confined by default -- host-wide filesystem access and
+outbound network are off unless explicitly opted in via `TERMAPY_MCP_*`
+environment flags. `/run`, the `.dump` readers, `/cfg.icon`, `$(env.*)`
+expansion, and the CRC file oracle are all contained to the config
+directory for a remote caller, while an operator at a local CLI/TUI keeps
+full access. A short Security section and a flags table document the trust
+model.
+
+### Fixes
+
+- The capture-complete status line printed twice in the CLI (and MCP);
+  it now has a single owner and prints once.
+- `/proto` boolean arguments accept the same tokens as every other command
+  (`y`/`n`/`t`/`f`, not just a smaller set).
+- Request-mode timeout reads from the cfg, and config identity is correct
+  after `/cfg.load`.
+- A `/port` config copy no longer fails on a proxied config.
+- Assorted UI polish: banner label, fail-closed confirm on a thread-misuse
+  path, docstring corrections.
+
+### Under the hood
+
+- Duplicated rendering/parsing collapsed into shared helpers (progress bar,
+  log slicing, capture message, filename timestamp).
+- Release tooling gates lint-suppression pragmas (each must carry a reason);
+  line length raised to 100; `ty` clean on the latest release.
+- Docs hygiene: exact counts live in one release-updated place with
+  general-terms prose elsewhere, and spelling normalized to US.
+
 ## 0.72.0 (2026-07-07)
 
 A large release: a new declarative command-parameter system, a `--vt100`

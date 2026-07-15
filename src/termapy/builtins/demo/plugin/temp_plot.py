@@ -24,7 +24,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -45,7 +45,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         if count < 1 or count > 200:
             return CmdResult.fail(msg="Sample count must be 1-200.")
     except ValueError:
-        return CmdResult.fail(msg="Usage: /temp_plot {count}")
+        raise UsageError(f"Invalid count: {args.strip()!r}") from None
 
     encoding = ctx.cfg.get("encoding", "utf-8")
     line_ending = ctx.cfg.get("eol", "\r")

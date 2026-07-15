@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from termapy.vendor.xmodem import XMODEM
 
-from termapy.plugins import CmdResult
+from termapy.plugins import CmdResult, UsageError
 from termapy.scripting import resolve_seq_filename
 
 if TYPE_CHECKING:
@@ -110,7 +110,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """
     filename = args.strip()
     if not filename:
-        return CmdResult.fail(msg="Usage: /xmodem.send <file>")
+        raise UsageError()
 
     path = _resolve_path(filename, _get_xfer_root(ctx))
     if not path.is_file():
@@ -154,7 +154,7 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     """
     filename = args.strip()
     if not filename:
-        return CmdResult.fail(msg="Usage: /xmodem.recv <file>")
+        raise UsageError()
 
     try:
         filename = resolve_seq_filename(filename, _get_xfer_root(ctx))

@@ -71,6 +71,8 @@ from termapy.plugins.command import (
     PluginInfo,
     Transform,
     TransformInfo,
+    UsageError,
+    format_usage,
     interpolate_help,
     resolve_long_help,
 )
@@ -118,6 +120,8 @@ __all__ = [
     "PluginInfo",
     "Transform",
     "TransformInfo",
+    "UsageError",
+    "format_usage",
     "interpolate_help",
     "resolve_long_help",
     # Context + config + output-level utilities

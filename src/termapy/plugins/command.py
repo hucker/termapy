@@ -35,7 +35,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
 
 from termapy.plugins.capabilities import CapabilitySet
-from termapy.plugins.params import ParamSpec, validate_param_specs
+from termapy.plugins.params import (
+    ParamSpec,
+    synthesize_synopsis,
+    validate_param_specs,
+)
 
 if TYPE_CHECKING:
     from termapy.plugins.context import PluginContext
@@ -70,6 +74,68 @@ LongHelp = Union[str, Callable[["PluginContext"], str]]
 #     raise.  ``BoundaryException`` exists to flag that THIS broad
 #     catch has been reviewed for intent.
 BoundaryException = Exception
+
+
+class UsageError(Exception):
+    """Raise from a handler when the arguments don't match the synopsis.
+
+    The dispatcher catches this and formats the canonical usage line from
+    the command's *registered* name and argument declaration -- the same
+    synopsis ``/help`` shows -- prefixed with the active REPL prefix.
+    Handlers never hand-write ``"Usage: ..."`` strings: one owner
+    (``format_usage``) keeps the error, ``/help``, and the configured
+    prefix from ever disagreeing.
+
+    Args:
+        detail: Optional first line shown above the usage line, e.g.
+            ``"Invalid count: 'xyz'"``.  Empty shows the usage line alone.
+
+    Example::
+
+        def _handler(ctx: PluginContext, args: str) -> CmdResult:
+            if not args.strip():
+                raise UsageError()
+    """
+
+    def __init__(self, detail: str = "") -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
+def usage_synopsis(command: "Command | PluginInfo") -> str:
+    """Return the argument synopsis for *command*.
+
+    Params-declared commands synthesize it from their ``ParamSpec`` list
+    (exactly what the dispatcher's parse-error path shows); hand-rolled
+    commands use their ``args`` declaration verbatim.
+    """
+    if command.params:
+        return synthesize_synopsis(command.params)
+    return command.args
+
+
+def format_usage(
+    prefix: str, name: str, command: "Command | PluginInfo", detail: str = ""
+) -> str:
+    """Format the canonical usage message for *command*.
+
+    Single owner for every ``Usage:`` line the dispatcher emits, so the
+    rendered prefix and synopsis always match the registration (and
+    therefore ``/help``).
+
+    Args:
+        prefix: Active REPL prefix (``ctx.prefix``), e.g. ``"/"``.
+        name: Full registered (dotted) command name, e.g. ``"log.dump"``.
+        command: The resolved Command whose synopsis to render.
+        detail: Optional line shown above the usage line.
+
+    Returns:
+        ``"Usage: <prefix><name> <synopsis>"``, preceded by *detail* on
+        its own line when given.
+    """
+    synopsis = usage_synopsis(command)
+    line = f"Usage: {prefix}{name} {synopsis}".rstrip()
+    return f"{detail}\n{line}" if detail else line
 
 
 @dataclass

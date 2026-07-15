@@ -39,7 +39,7 @@ from termapy.config import open_with_system
 from termapy.defaults import cmd_prefix
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
 from termapy.legacy import make_forwarder
-from termapy.plugins import CapabilitySet, CmdResult
+from termapy.plugins import CapabilitySet, CmdResult, UsageError
 from termapy.scripting import parse_count_arg, parse_duration, select_lines
 
 if TYPE_CHECKING:
@@ -144,7 +144,7 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
     try:
         base, n = parse_count_arg(args, "screenshot")
     except ValueError as e:
-        return CmdResult.fail(msg=str(e))
+        raise UsageError(str(e)) from None
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = str((app.repl.ss_dir / f"{base}_{ts}.txt").resolve())
     raw = str(app._on_main(app._get_screen_text) or "")
@@ -254,8 +254,7 @@ def _hook_edit(app, ctx, args: str) -> CmdResult:
     """
     filename = args.strip()
     if not filename:
-        app.repl.write("Usage: /edit <filename>", "red")
-        return CmdResult.fail(msg="Usage: /edit <filename>")
+        raise UsageError()
 
     # Resolve prefixed or bare filename
     path = app._resolve_project_file(filename)
@@ -327,8 +326,7 @@ def _hook_cfg_load(app, ctx, args: str) -> CmdResult:
     """Switch to a different config by name or path."""
     name = args.strip()
     if not name:
-        app.repl.write("Usage: /cfg.load <name>", "red")
-        return CmdResult.fail(msg="Usage: /cfg.load <name>")
+        raise UsageError()
     path = Path(name)
     # Try as a bare name: termapy_cfg/<name>/<name>.cfg
     if not path.exists():

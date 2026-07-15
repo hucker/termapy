@@ -137,7 +137,7 @@ def _verbose_forwarder(ctx: PluginContext, args: str) -> CmdResult:
         elif val is False:
             target = "term.output normal"
         else:
-            return CmdResult.fail(msg=f"Invalid: {body} (use on or off)")
+            return CmdResult.fail(msg=f"Invalid value: {body} (use on or off)")
     result = ctx.internal.dispatch(target)
     if not result.success:
         return CmdResult(

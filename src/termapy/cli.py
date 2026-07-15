@@ -193,7 +193,7 @@ class CLITerminal(TerminalHost):
             open_fn=open_serial,
             log=self._log,
         )
-        self.repl = ReplEngine(cfg, config_path, write=self.status, prefix=self.prefix)
+        self.repl = ReplEngine(cfg, config_path, write=self.status)
 
         from termapy.builtins.commands.var import (
             register_cfg_vars,

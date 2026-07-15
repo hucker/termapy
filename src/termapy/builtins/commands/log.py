@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.config import cfg_log_path, open_with_system
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.scripting import select_lines
 
 if TYPE_CHECKING:
@@ -78,9 +78,9 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
         try:
             n = int(arg)
         except ValueError:
-            return CmdResult.fail(
-                msg=f"Usage: {ctx.prefix}log.dump [N]  (N>0 last N, N<0 first N)"
-            )
+            raise UsageError(
+                f"Invalid count: {arg!r}  (N>0 last N, N<0 first N)"
+            ) from None
         if n == 0:
             return CmdResult.fail(msg="Invalid line count: 0")
 

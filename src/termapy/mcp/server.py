@@ -150,9 +150,7 @@ class MCPHost(TerminalHost):
         # ReplEngine.write goes through self.write so the engine's own
         # error/status writes (e.g. dispatch's err_msg display) feed
         # the same buffer the handler-level writes feed.
-        self.repl = ReplEngine(
-            cfg, config_path, write=self.write, prefix=self.prefix
-        )
+        self.repl = ReplEngine(cfg, config_path, write=self.write)
 
         # Var/cfg interpolation, matching CLITerminal.
         from termapy.builtins.commands.var import (

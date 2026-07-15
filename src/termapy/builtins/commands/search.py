@@ -20,6 +20,7 @@ from termapy.plugins import (
     Command,
     interpolate_help,
     resolve_long_help,
+    UsageError,
 )
 
 # Reuse only the thin rendering helpers from the help plugin. Everything
@@ -296,7 +297,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     include_dev = "--dev" in tokens
     tokens = [t for t in tokens if t != "--dev"]
     if not tokens:
-        return CmdResult.fail(msg="Usage: /search {--dev} <pattern>")
+        raise UsageError()
     pattern = " ".join(tokens)
     prefix = ctx.prefix
 

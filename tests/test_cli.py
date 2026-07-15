@@ -10,7 +10,7 @@ import pytest
 
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
-from termapy.plugins import CapabilitySet
+from termapy.plugins import CapabilitySet, UsageError
 
 pytestmark = pytest.mark.slow  # subprocess-spawning + CLITerminal end-to-end
 
@@ -213,11 +213,10 @@ class TestHookRaw:
         # Arrange -- connect to DEMO so the "no args" branch is reached.
         cli._connect()
 
-        # Act
-        result = cli._hook_raw(cli.ctx, "")
-
-        # Assert
-        assert not result.success, "fails with no text"
+        # Act / Assert -- bad arity raises; the dispatcher renders the
+        # usage line from the declaration (see test_usage_error.py).
+        with pytest.raises(UsageError):
+            cli._hook_raw(cli.ctx, "")
 
     def test_raw_sends_data(self, cli):
         # Arrange -- real connect to DEMO.  FakeSerial records bytes

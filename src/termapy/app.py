@@ -535,7 +535,6 @@ class SerialTerminal(TerminalHost, App):
             cfg,
             config_path,
             write=self._status,
-            prefix=cmd_prefix(cfg),
         )
         self.history: list[str] = self._load_history()
         self._history_idx: int = -1  # -1 = not browsing history

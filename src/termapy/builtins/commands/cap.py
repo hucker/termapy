@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.protocol import parse_format_spec
 from termapy.scripting import parse_duration, resolve_seq_filename
@@ -193,16 +193,11 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     # shared with profile format_spec types), so we can't tokenize it without
     # changing a syntax used elsewhere.  Everything else here (file/mode/records/
     # bytes/sep/echo/timeout/cmd) would fit params fine -- fmt= is the whole wall.
-    label = "cap.hex" if hex_mode else "cap.struct"
     sections = _extract_keyword_sections(args)
     positional = sections.get("_positional", "").split()
 
     if len(positional) < 1 or "fmt" not in sections:
-        return CmdResult.fail(
-            msg=f"Usage: /{label} <file> fmt=<spec> records=<N> "
-            "{mode=new|append} {sep=comma|tab|space} {echo=on|off} "
-            "{timeout=<dur>} {cmd=... (must be last)}"
-        )
+        raise UsageError()
 
     filename = positional[0]
     raw_file_mode = _parse_mode(sections)
@@ -232,7 +227,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
         return CmdResult.fail(msg=f"Invalid bytes: {sections['bytes']!r}")
 
     if not records and not cap_bytes:
-        return CmdResult.fail(msg="Must specify records=N or bytes=N.")
+        return CmdResult.fail(msg="Must specify records=N or bytes=N")
 
     timeout_s = 0.0
     if "timeout" in sections:

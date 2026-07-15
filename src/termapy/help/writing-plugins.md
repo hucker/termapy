@@ -210,6 +210,37 @@ Examples that should not:
 - Pure side-effect commands (`/cls`, `/edit`, `/cap.stop`)
 - Commands that print multiple lines (`/cfg.configs`, `/help`)
 
+## Usage errors: raise UsageError, never hand-write "Usage:" strings
+
+When the arguments don't match your synopsis, raise `UsageError` instead of
+returning a hand-written usage message:
+
+```python
+from termapy.plugins import CmdResult, Command, PluginContext, UsageError
+
+def _handler(ctx: PluginContext, args: str):
+    if not args.strip():
+        raise UsageError()                     # bare: just the usage line
+    try:
+        n = int(args)
+    except ValueError:
+        raise UsageError(f"Invalid count: {args.strip()!r}") from None
+    ...
+```
+
+The dispatcher catches it and renders the canonical line from your
+*registered* declaration -- the command's dotted name, its `args=` string
+(or the synthesized params synopsis), and the active REPL prefix:
+
+```text
+Invalid count: 'xyz'
+Usage: /mycmd {N}
+```
+
+One owner renders every usage line, so the error message, `/help`, and a
+re-configured prefix can never disagree -- and your `args=` declaration is
+the single source of truth for the synopsis.
+
 ## Dynamic help for runtime state
 
 If your command owns runtime state that a user should see right on its

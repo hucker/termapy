@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import folder_line
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
-        return CmdResult.fail(msg="Usage: /run.edit <filename>")
+        raise UsageError()
     scripts_dir = ctx.fs.scripts_dir
     scripts_dir.mkdir(parents=True, exist_ok=True)
     if not name.endswith(".run"):

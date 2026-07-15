@@ -14,7 +14,7 @@ import subprocess
 from typing import TYPE_CHECKING
 
 from termapy.env_flags import OS_CMD_ENABLED
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -42,7 +42,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             )
         )
     if not args.strip():
-        return CmdResult.fail(msg="Usage: /os <command>")
+        raise UsageError()
     try:
         result = subprocess.run(
             args, shell=True, capture_output=True, text=True, timeout=10

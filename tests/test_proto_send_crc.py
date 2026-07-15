@@ -2,7 +2,7 @@
 
 import pytest
 
-from termapy.plugins import InternalHandle, PluginContext
+from termapy.plugins import InternalHandle, PluginContext, UsageError
 from termapy.builtins.commands.proto import _cmd_send, _parse_send_algo
 from termapy.protocol import get_crc_registry
 
@@ -284,13 +284,11 @@ class TestSendCrcEdgeCases:
         # Arrange
         ctx, output, tx_bytes = send_env
 
-        # Act
-        result = _cmd_send(ctx, "")
-
-        # Assert
+        # Act / Assert -- bad arity raises; dispatcher renders the usage
+        # line from the declaration (see test_usage_error.py).
+        with pytest.raises(UsageError):
+            _cmd_send(ctx, "")
         assert len(tx_bytes) == 0, "nothing sent"
-        assert not result.success, "handler reports failure"
-        assert "Usage" in result.error, "error shows usage"
 
 
 class TestSendCrcAlgorithms:

@@ -732,5 +732,5 @@ class TestParseCountArg:
 
     def test_two_int_tokens_rejected(self):
         # Act / Assert
-        with pytest.raises(ValueError, match="Usage"):
+        with pytest.raises(ValueError, match="Only one count"):
             parse_count_arg("10 20", "screenshot")

@@ -28,7 +28,7 @@ from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
-from termapy.scripting import format_duration
+from termapy.scripting import format_duration, parse_bool
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -614,20 +614,18 @@ def _cmd_hex(ctx: PluginContext, args: str) -> CmdResult:
 
     Args:
         ctx: Plugin context for internal-handle access.
-        args: ``"on"``, ``"off"``, or empty string to toggle.
+        args: any boolean token (on/off/1/0/yes/no/...), or empty to toggle.
     """
+    # Shares scripting.parse_bool (the token set every toggle uses); an
+    # unrecognized/empty arg flips the flag.  NOTE: /term.hex toggles this
+    # same flags["hex"] via _flag_toggle -- two commands, one flag.  Kept
+    # here for the /proto family's local verbose output; the "should
+    # /proto.hex just alias /term.hex" question is a separate UX call.
     flags = ctx.ns("flags")
-    arg = args.strip().lower()
-    if arg == "on":
-        flags["hex"] = True
-        ctx.io.output("Hex display mode enabled.", "bright_green")
-    elif arg == "off":
-        flags["hex"] = False
-        ctx.io.output("Hex display mode disabled.", "bright_green")
-    else:
-        flags["hex"] = not flags["hex"]
-        state = "enabled" if flags["hex"] else "disabled"
-        ctx.io.output(f"Hex display mode {state}.", "bright_green")
+    val = parse_bool(args)
+    flags["hex"] = (not flags["hex"]) if val is None else val
+    state = "enabled" if flags["hex"] else "disabled"
+    ctx.io.output(f"Hex display mode {state}.", "bright_green")
     # Mirror the echo/verbose convention: return the new state.
     return CmdResult.ok(value="on" if flags["hex"] else "off")
 
@@ -938,15 +936,18 @@ def _parse_int_value(value: str, key: str) -> int:
 
 
 def _parse_bool_value(value: str, key: str) -> bool:
-    """Parse a permissive boolean: true / false / 1 / 0 / yes / no."""
-    v = value.strip().lower()
-    if v in ("true", "1", "yes", "on"):
-        return True
-    if v in ("false", "0", "no", "off"):
-        return False
-    raise ValueError(
-        f"{key} must be true/false (got {value!r})"
-    )
+    """Parse a permissive boolean via the shared ``scripting.parse_bool``.
+
+    Keeps a key-named ``ValueError`` (``parse_bool`` returns ``None`` on a
+    miss) so a bad ``refin=``/``refout=`` names the offending keyword,
+    while sharing the canonical token set -- so ``/proto`` accepts the
+    same ``y``/``n``/``t``/``f`` every other command does instead of its
+    own smaller list.
+    """
+    result = parse_bool(value)
+    if result is None:
+        raise ValueError(f"{key} must be true/false (got {value!r})")
+    return result
 
 
 def _did_you_mean(name: str) -> str:

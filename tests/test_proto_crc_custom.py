@@ -52,12 +52,18 @@ class TestParseHelpers:
         with pytest.raises(ValueError, match="invalid literal"):
             _parse_int_value("not_a_number", "width")
 
-    @pytest.mark.parametrize("token", ["true", "True", "TRUE", "1"])
+    # y/t/yes/on were REJECTED before the parse_bool unification (K4): the
+    # forked token list only knew true/1/yes/on. They now match the shared set.
+    @pytest.mark.parametrize(
+        "token", ["true", "True", "TRUE", "1", "yes", "on", "y", "t"]
+    )
     def test_parse_bool_truthy(self, token):
         # Act / Assert
         assert _parse_bool_value(token, "refin") is True, f"{token!r} -> True"
 
-    @pytest.mark.parametrize("token", ["false", "False", "FALSE", "0"])
+    @pytest.mark.parametrize(
+        "token", ["false", "False", "FALSE", "0", "no", "off", "n", "f"]
+    )
     def test_parse_bool_falsy(self, token):
         # Act / Assert
         assert _parse_bool_value(token, "refin") is False, f"{token!r} -> False"

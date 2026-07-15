@@ -23,6 +23,7 @@ Select a topic:
 - [File transfer](file-transfer.md): XMODEM send and receive over serial
 - [Writing plugins](writing-plugins.md): add custom commands with Python
 - [Device help](device-help.md): integrate your device's commands into termapy
+- [Authoring profiles](authoring-profiles.md): write the device profile that powers device help and MCP
 - [MCP server](mcp-server.md): let an LLM client like Claude drive your device through typed JSON tools
 - [Using with git](using-git.md): version control, team workflow, env vars
 - [On AI assistance](on-ai-assistance.md): how termapy was built with Claude, and what testing has to do with it

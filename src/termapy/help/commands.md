@@ -14,8 +14,8 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
 | `/cfg [key [value]]`      | TUI: open the Cfg picker. Bare in CLI: dump JSON. With args: get/set.       |
 | `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
-| `/cfg.configs`            | List all config files                                                       |
-| `/cfg.files`              | Show project directory tree                                                 |
+| `/cfg.list`               | List all config files                                                       |
+| `/cfg.info`               | Print project summary (tree + config + buttons)                                                 |
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
 | `/cfg.info {--display}`   | Show project summary; `--display` opens full report                         |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
@@ -88,7 +88,7 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/proto.crc.list {pat}`   | List CRC algorithms (optional glob filter)                                  |
 | `/proto.debug <file>`     | Open interactive protocol debug screen for a .pro script                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
-| `/proto.hex [on\|off]`    | Toggle hex display mode for serial I/O                                      |
+| `/proto.hex {on\|off\|toggle}`    | Toggle hex display mode for serial I/O                                      |
 | `/proto.list`             | List .pro files in the proto/ directory                                     |
 | `/proto.load <file>`      | Run a protocol test script (same as /proto.run)                             |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro)                                    |
@@ -101,32 +101,31 @@ Commands prefixed with `/` (configurable via `cmd_prefix`) run locally instead o
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
 | `/run.legacy {file\|*}`   | Find pre-0.63 command names in scripts; `--fix` rewrites in place           |
 | `/run.list`               | List .run files in the run/ directory                                       |
-| `/run.load <file>`        | Run a script file (same as /run)                                            |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
 | `/seq.reset`              | Reset all sequence counters to zero                                         |
 | `/show <name>`            | Show a file                                                                 |
 | `/show.cfg`               | Show the current config file                                                |
-| `/ss.dir`                 | Show the screenshot folder                                                  |
+| `/ss.explore`             | Open the screenshot folder in the file explorer                                                  |
 | `/ss.svg [name]`          | Save an SVG screenshot                                                      |
 | `/ss.txt [name] [N]`      | Save a text screenshot (all, or an N-line slice)                            |
 | `/stop`                   | Abort a running script                                                      |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
-| `/term.color {on\|off}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
-| `/term.echo [on\|off]`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |
+| `/term.color {on\|off\|toggle}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
+| `/term.echo {on\|off\|toggle}`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
-| `/term.eol {cr\|lf\|crlf\|none}` | Show or set the line ending sent with commands (session override)    |
-| `/term.eol.rx {auto\|cr\|lf\|crlf}` | Show or set how received output is split into lines (receive newline) |
-| `/term.hex [on\|off]`     | Toggle hex display of incoming bytes                                        |
+| `/term.eol {cr\|lf\|crlf\|none\|cycle}` | Show or set the line ending sent with commands (session override)    |
+| `/term.eol.rx {auto\|cr\|lf\|crlf\|cycle}` | Show or set how received output is split into lines (receive newline) |
+| `/term.hex {on\|off\|toggle}`     | Toggle hex display of incoming bytes                                        |
 | `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
-| `/term.eol.markers [on\|off]` | Toggle visible `\r` `\n` markers in serial output                       |
-| `/term.line_no [on\|off]` | Toggle line numbers in serial output (TUI only)                             |
+| `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers in serial output                       |
+| `/term.line_no {on\|off\|toggle}` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |
-| `/term.output {level}`    | Show or set output level (silent/quiet/normal/verbose)                      |
-| `/term.request [on\|off]` | Toggle request/response mode for bare device commands                       |
+| `/term.output {level\|cycle}` | Show, set, or cycle output level (silent/quiet/normal/verbose)                      |
+| `/term.request {on\|off\|toggle}` | Toggle request/response mode for bare device commands                       |
 | `/term.send <text>`       | Send literal text to the serial port (with line ending; canonical name for the bare-line send) |
-| `/term.send_bare_enter [on\|off]` | Send line ending on empty Enter                                     |
-| `/term.timestamps [on\|off]` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
+| `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                     |
+| `/term.timestamps {on\|off\|toggle}` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
 | `/term.usb_db`            | Report bundled USB vendor-database freshness (local read)                   |
 | `/var {name}`             | List user variables, or show one by name                                    |
 | `/var.clear`              | Clear all user variables                                                    |

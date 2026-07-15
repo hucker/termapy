@@ -78,11 +78,11 @@ src/termapy/
 │   └── welcome_dialog.py   #   WelcomeDialog
 ├── help/                   #              Markdown help pages (source for HTML build)
 ├── html/                   #              Generated HTML help
-├── mcp/                    # (1935 lines) MCP stdio server
+├── mcp/                    # (2011 lines) MCP stdio server
 │   ├── catalog.py          #   JSON catalog + device-state resources
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
-├── plugins/                # (2683 lines) Plugin system - capability-handle architecture
+├── plugins/                # (2935 lines) Plugin system - capability-handle architecture
 │   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, InternalHandle
 │   ├── capabilities.py     #   CapabilitySet, MissingCapability
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
@@ -104,23 +104,23 @@ src/termapy/
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (3744 lines) Textual TUI - UI, modals, app hooks
-├── capture.py              # (353 lines)  Capture state machine - text, binary, format spec
-├── cli.py                  # (1087 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
-├── config.py               # (807 lines)  Config dirs, loading, validation, migration trigger
-├── defaults.py             # (562 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
-├── demo.py                 # (1793 lines) Simulated device for --demo mode (FakeSerial)
+├── app.py                  # (3781 lines) Textual TUI - UI, modals, app hooks
+├── capture.py              # (365 lines)  Capture state machine - text, binary, format spec
+├── cli.py                  # (1095 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
+├── config.py               # (824 lines)  Config dirs, loading, validation, migration trigger
+├── defaults.py             # (583 lines)  DEFAULT_CFG, templates, CONFIG_FIELD_HELP
+├── demo.py                 # (1863 lines) Simulated device for --demo mode (FakeSerial)
 ├── demo_ndjson.py          # (379 lines)  NDJSON simulator variant (DEMO_JSON port)
 ├── demo_vt100.py           # (406 lines)  Interactive ANSI widget-tour sim (DEMO_VT100 port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
-├── migration.py            # (600 lines)  Config schema migration chain
+├── migration.py            # (701 lines)  Config schema migration chain
 ├── port_control.py         # (1535 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1181 lines) Interactive protocol debug screen (Textual)
-├── repl.py                 # (1806 lines) REPL engine - dispatch, scripting, transforms
-├── scripting.py            # (452 lines)  Pure functions - templates, duration parsing, ANSI
-├── serial_engine.py        # (599 lines)  Serial connection lifecycle, reader loop orchestrator
-├── serial_port.py          # (329 lines)  Serial I/O wrapper + SerialReader data processor
+├── repl.py                 # (1883 lines) REPL engine - dispatch, scripting, transforms
+├── scripting.py            # (534 lines)  Pure functions - templates, duration parsing, ANSI
+├── serial_engine.py        # (605 lines)  Serial connection lifecycle, reader loop orchestrator
+├── serial_port.py          # (451 lines)  Serial I/O wrapper + SerialReader data processor
 ├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
 └── vt100.py                # (173 lines)  --vt100 ANSI passthrough - raw serial <-> host terminal via miniterm
 ```

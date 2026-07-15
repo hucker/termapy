@@ -45,6 +45,7 @@ All paths relative to `src/termapy/`.
 
 - Plugin args: `""` = none, `{braces}` = optional, `<angle>` = required
 - No spaces inside brace/angle groups: `{on|off}` not `{on | off}`, `{name|*}` not `{name | *}`
+- The synopsis grammar is ENFORCED at registration (`validate_synopsis` via `PluginInfo.__post_init__`): square brackets, `{{` artifacts, spaced `|`, and unbalanced groups fail loud at load/boot instead of rendering wrong in /help
 - Toggle commands use `{on|off}` (optional) — bare invocation queries or toggles state; arg sets it
 - REPL prefix: `/`
 - Modals return tuples: `("run", path)`, `("new",)`, `("edit", path)`

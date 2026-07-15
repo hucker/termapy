@@ -241,6 +241,12 @@ One owner renders every usage line, so the error message, `/help`, and a
 re-configured prefix can never disagree -- and your `args=` declaration is
 the single source of truth for the synopsis.
 
+The synopsis grammar is validated when your plugin loads: `""` = no args,
+`{braces}` = optional, `<angle>` = required, tight alternation (`{on|off}`),
+nesting allowed. Square brackets, doubled `{{`, spaced ` | `, or unbalanced
+groups reject the plugin with a clear error instead of rendering wrong in
+`/help`.
+
 ## Dynamic help for runtime state
 
 If your command owns runtime state that a user should see right on its

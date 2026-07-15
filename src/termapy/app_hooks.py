@@ -564,7 +564,7 @@ def register_tui_hooks(app) -> None:
         if folder in ("run", "proto"):
             app.repl.register_hook(
                 f"edit.{folder}",
-                "{{filename}}",
+                "{filename}",
                 f"Edit a {ext} file.",
                 (
                     lambda f=folder, e=ext: lambda ctx,
@@ -576,7 +576,7 @@ def register_tui_hooks(app) -> None:
         else:
             app.repl.register_hook(
                 f"edit.{folder}",
-                "{{filename}}",
+                "{filename}",
                 f"Open a {ext} file in the system editor.",
                 _make_edit_handler(get_dir, ext, pat),
                 source="app",

@@ -19,18 +19,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.47">
+      <meta name="generator" content="zensical-0.0.50">
     
     
       
-        <title>REPL commands - Termapy Help v0.72.0</title>
+        <title>REPL commands - Termapy Help v0.73.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.5e19f6ca.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.62c9b9cc.min.css">
       
         
           
@@ -89,7 +89,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.72.0" class="md-header__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.73.0" class="md-header__button md-logo" aria-label="Termapy Help v0.73.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -103,7 +103,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.72.0
+            Termapy Help v0.73.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.72.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.72.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.73.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.73.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Termapy Help v0.72.0
+    Termapy Help v0.73.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -781,6 +781,32 @@
   
   
     <li class="md-nav__item">
+      <a href="./authoring-profiles.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Authoring Profiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="./mcp-server.html" class="md-nav__link">
         
   
@@ -1001,12 +1027,12 @@
 <td>Set a config key without confirmation</td>
 </tr>
 <tr>
-<td><code>/cfg.configs</code></td>
+<td><code>/cfg.list</code></td>
 <td>List all config files</td>
 </tr>
 <tr>
-<td><code>/cfg.files</code></td>
-<td>Show project directory tree</td>
+<td><code>/cfg.info</code></td>
+<td>Print project summary (tree + config + buttons)</td>
 </tr>
 <tr>
 <td><code>/cfg.help</code></td>
@@ -1297,7 +1323,7 @@
 <td>Show <code>/proto</code> help (alias for <code>/help proto</code>)</td>
 </tr>
 <tr>
-<td><code>/proto.hex [on\|off]</code></td>
+<td><code>/proto.hex {on\|off\|toggle}</code></td>
 <td>Toggle hex display mode for serial I/O</td>
 </tr>
 <tr>
@@ -1349,10 +1375,6 @@
 <td>List .run files in the run/ directory</td>
 </tr>
 <tr>
-<td><code>/run.load &lt;file&gt;</code></td>
-<td>Run a script file (same as /run)</td>
-</tr>
-<tr>
 <td><code>/search &lt;term&gt;</code></td>
 <td>Deep search: name, help, args, flags, long help (multi-term, <code>-exclude</code>, regex)</td>
 </tr>
@@ -1373,8 +1395,8 @@
 <td>Show the current config file</td>
 </tr>
 <tr>
-<td><code>/ss.dir</code></td>
-<td>Show the screenshot folder</td>
+<td><code>/ss.explore</code></td>
+<td>Open the screenshot folder in the file explorer</td>
 </tr>
 <tr>
 <td><code>/ss.svg [name]</code></td>
@@ -1393,23 +1415,27 @@
 <td>Terminal display / session toggles (echo, line_no, timestamps, ...)</td>
 </tr>
 <tr>
-<td><code>/term.color {on\|off}</code></td>
-<td>Show or toggle color output (CLI mode only)</td>
+<td><code>/term.color {on\|off\|toggle}</code></td>
+<td>Toggle rendering of device ANSI color (TUI and CLI)</td>
 </tr>
 <tr>
-<td><code>/term.echo [on\|off]</code></td>
-<td>Toggle command echo</td>
+<td><code>/term.echo {on\|off\|toggle}</code></td>
+<td>Toggle local echo of device commands (see also <code>/term.echo_repl</code>)</td>
 </tr>
 <tr>
 <td><code>/term.encoding {name}</code></td>
 <td>Show or set byte-decoding encoding (utf-8, latin-1, ...)</td>
 </tr>
 <tr>
-<td><code>/term.eol {cr\|lf\|crlf\|none}</code></td>
+<td><code>/term.eol {cr\|lf\|crlf\|none\|cycle}</code></td>
 <td>Show or set the line ending sent with commands (session override)</td>
 </tr>
 <tr>
-<td><code>/term.hex [on\|off]</code></td>
+<td><code>/term.eol.rx {auto\|cr\|lf\|crlf\|cycle}</code></td>
+<td>Show or set how received output is split into lines (receive newline)</td>
+</tr>
+<tr>
+<td><code>/term.hex {on\|off\|toggle}</code></td>
 <td>Toggle hex display of incoming bytes</td>
 </tr>
 <tr>
@@ -1417,11 +1443,11 @@
 <td>Snapshot the state of every <code>/term.*</code> toggle</td>
 </tr>
 <tr>
-<td><code>/term.line_endings [on\|off]</code></td>
+<td><code>/term.eol.markers {on\|off\|toggle}</code></td>
 <td>Toggle visible <code>\r</code> <code>\n</code> markers in serial output</td>
 </tr>
 <tr>
-<td><code>/term.line_no [on\|off]</code></td>
+<td><code>/term.line_no {on\|off\|toggle}</code></td>
 <td>Toggle line numbers in serial output (TUI only)</td>
 </tr>
 <tr>
@@ -1429,11 +1455,11 @@
 <td>Append a line to the session log without echoing to screen</td>
 </tr>
 <tr>
-<td><code>/term.output {level}</code></td>
-<td>Show or set output level (silent/quiet/normal/verbose)</td>
+<td><code>/term.output {level\|cycle}</code></td>
+<td>Show, set, or cycle output level (silent/quiet/normal/verbose)</td>
 </tr>
 <tr>
-<td><code>/term.request [on\|off]</code></td>
+<td><code>/term.request {on\|off\|toggle}</code></td>
 <td>Toggle request/response mode for bare device commands</td>
 </tr>
 <tr>
@@ -1441,11 +1467,11 @@
 <td>Send literal text to the serial port (with line ending; canonical name for the bare-line send)</td>
 </tr>
 <tr>
-<td><code>/term.send_bare_enter [on\|off]</code></td>
+<td><code>/term.send_bare_enter {on\|off\|toggle}</code></td>
 <td>Send line ending on empty Enter</td>
 </tr>
 <tr>
-<td><code>/term.timestamps [on\|off]</code></td>
+<td><code>/term.timestamps {on\|off\|toggle}</code></td>
 <td>Toggle <code>[HH:MM:SS.mmm]</code> timestamp prefix</td>
 </tr>
 <tr>
@@ -1668,7 +1694,7 @@ optional <code>N</code>. <code>N&gt;0</code> saves/prints the <strong>last N</st
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"search":"./assets/javascripts/workers/search.b6b7e04f.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.0df4f2d0.min.js"></script>
+      <script src="./assets/javascripts/bundle.d7f30b55.min.js"></script>
       
     
   </body>

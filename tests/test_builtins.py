@@ -3073,3 +3073,48 @@ class TestTermEolRx:
         # Assert
         assert result.success, "/term.eol lf still dispatches to the TX handler"
         assert cfg["eol"] == "\n", "TX line_ending set, unaffected by .rx"
+
+
+class TestProtoHex:
+    """/proto.hex toggles the shared flags["hex"] via scripting.parse_bool.
+
+    (/term.hex toggles the same flag; the duplication of the on/off/toggle
+    LOGIC was the R8 finding -- both now route through parse_bool.)
+    """
+
+    def test_proto_hex_toggles_from_empty(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        engine.ctx.ns("flags")["hex"] = False
+
+        # Act
+        result = engine.dispatch("proto.hex")
+
+        # Assert
+        assert engine.ctx.ns("flags")["hex"] is True, "empty arg flips the flag"
+        assert result.value == "on", "returns the new state"
+
+    def test_proto_hex_sets_explicitly_with_shared_tokens(self, repl_env):
+        # Arrange -- 'y' was REJECTED before the parse_bool unification; it
+        # also used to TOGGLE any non-on/off arg rather than set it.
+        engine, _, _, _ = repl_env
+        engine.ctx.ns("flags")["hex"] = False
+
+        # Act
+        result = engine.dispatch("proto.hex y")
+
+        # Assert
+        assert engine.ctx.ns("flags")["hex"] is True, "'y' sets on (shared token)"
+        assert result.value == "on", "explicit set, not a toggle"
+
+    def test_proto_hex_off(self, repl_env):
+        # Arrange
+        engine, _, _, _ = repl_env
+        engine.ctx.ns("flags")["hex"] = True
+
+        # Act
+        result = engine.dispatch("proto.hex off")
+
+        # Assert
+        assert engine.ctx.ns("flags")["hex"] is False, "'off' sets off"
+        assert result.value == "off", "returns the new state"

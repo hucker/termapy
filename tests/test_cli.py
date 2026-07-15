@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from termapy.cli import CLITerminal
+from termapy.cli import CLITerminal, PlainFileHistory
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import CapabilitySet, UsageError
 
@@ -1343,3 +1343,84 @@ class TestCliFreeOfTextual:
             f"importing termapy.port_format loaded textual.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+class TestPlainFileHistory:
+    """One history file per cfg, plain lines, shared by TUI and CLI."""
+
+    def test_store_appends_plain_line(self, tmp_path):
+        # Arrange
+        path = tmp_path / "dev.history"
+        hist = PlainFileHistory(str(path))
+
+        # Act
+        hist.store_string("/port.list")
+        hist.store_string("/term.send hello")
+
+        # Assert -- no timestamps, no + prefixes: the TUI's exact format
+        actual = path.read_text(encoding="utf-8")
+        expected = "/port.list\n/term.send hello\n"
+        assert actual == expected, "plain lines only"
+
+    def test_load_yields_newest_first(self, tmp_path):
+        # Arrange -- a TUI-written file (plain lines, oldest first)
+        path = tmp_path / "dev.history"
+        path.write_text("first\nsecond\nthird\n", encoding="utf-8")
+
+        # Act
+        actual = list(PlainFileHistory(str(path)).load_history_strings())
+
+        # Assert -- prompt_toolkit contract: newest first
+        expected = ["third", "second", "first"]
+        assert actual == expected, "reversed for prompt_toolkit"
+
+    def test_legacy_prompt_toolkit_file_cleans_up(self, tmp_path):
+        # Arrange -- a file written by the OLD FileHistory format
+        path = tmp_path / "dev.history"
+        path.write_text(
+            "\n# 2026-07-14 09:00:00.000000\n+/port.list\n"
+            "\n# 2026-07-14 09:00:05.000000\n+/ping\n",
+            encoding="utf-8",
+        )
+
+        # Act
+        actual = list(PlainFileHistory(str(path)).load_history_strings())
+
+        # Assert -- timestamp comments skipped; "+cmd" entries kept verbatim
+        # (a leading + is not stripped: "+++" is a legitimate command)
+        expected = ["+/ping", "+/port.list"]
+        assert actual == expected, "legacy timestamps dropped, entries survive"
+
+    def test_missing_file_yields_nothing(self, tmp_path):
+        # Act
+        actual = list(
+            PlainFileHistory(str(tmp_path / "absent.history")).load_history_strings()
+        )
+
+        # Assert
+        assert actual == [], "no file, no history, no error"
+
+    def test_multiline_input_flattened(self, tmp_path):
+        # Arrange
+        path = tmp_path / "dev.history"
+        hist = PlainFileHistory(str(path))
+
+        # Act -- plain-lines format cannot hold embedded newlines
+        hist.store_string("line1\nline2")
+
+        # Assert
+        actual = path.read_text(encoding="utf-8")
+        assert actual == "line1 line2\n", "newlines flattened to spaces"
+
+    def test_tui_reads_cli_written_file_as_lines(self, tmp_path):
+        # Arrange -- CLI writes via PlainFileHistory
+        path = tmp_path / "dev.history"
+        hist = PlainFileHistory(str(path))
+        hist.store_string("/run at_demo")
+        hist.store_string("/ping")
+
+        # Act -- the TUI loader is a plain splitlines() read
+        actual = path.read_text(encoding="utf-8").splitlines()
+
+        # Assert -- byte-level interop: TUI sees exactly the commands
+        expected = ["/run at_demo", "/ping"]
+        assert actual == expected, "TUI plain-lines loader sees CLI entries"

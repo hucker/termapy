@@ -20,11 +20,17 @@ from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.history import FileHistory
+from prompt_toolkit.history import History
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from termapy.capture import CaptureEngine
-from termapy.config import CONFIG_LOAD_ERRORS, cfg_dir, load_config, open_serial
+from termapy.config import (
+    CONFIG_LOAD_ERRORS,
+    cfg_dir,
+    cfg_history_path,
+    load_config,
+    open_serial,
+)
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult
@@ -32,6 +38,45 @@ from termapy.repl import ReplEngine
 from termapy.scripting import strip_ansi
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
+
+
+class PlainFileHistory(History):
+    """Prompt history stored as plain text lines -- one command per line.
+
+    The TUI reads and writes the per-config history file as plain lines
+    (app.py _load_history/_save_history), so the CLI must speak the same
+    format for the one-file-per-cfg contract to hold.  prompt_toolkit's
+    own FileHistory writes a timestamped ``+``-prefixed format that
+    corrupts the shared file -- hence this subclass.
+    """
+
+    def __init__(self, filename: str) -> None:
+        self.filename = filename
+        super().__init__()
+
+    def load_history_strings(self):
+        """Yield stored commands, newest first (prompt_toolkit contract)."""
+        try:
+            lines = Path(self.filename).read_text(encoding="utf-8").splitlines()
+        except (FileNotFoundError, OSError):
+            return
+        for line in reversed(lines):
+            # Skip legacy prompt_toolkit FileHistory timestamp comments so
+            # pre-fix files clean up on their own.  Old "+cmd" entries are
+            # left as-is (a user can legitimately type "+++"); they age out
+            # via the TUI's history-limit rewrite.
+            if line.startswith("# ") or not line.strip():
+                continue
+            yield line
+
+    def store_string(self, string: str) -> None:
+        """Append one command as one plain line (newlines flattened)."""
+        line = " ".join(string.splitlines())
+        try:
+            with open(self.filename, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass  # non-critical file I/O: history loss is not an error
 
 
 def _menu_rows_for_terminal() -> int:
@@ -592,11 +637,8 @@ class CLITerminal(TerminalHost):
     # -- Prompt session (history + tab completion via prompt_toolkit) ----------
 
     def _history_path(self) -> str:
-        """Return the path to the history file (matches TUI path)."""
-        if self.config_path:
-            p = Path(self.config_path)
-            return str(p.parent / f"{p.stem}.history")
-        return str(Path.cwd() / ".cmd_history.txt")
+        """Delegate to the single owner in config.cfg_history_path."""
+        return cfg_history_path(self.config_path)
 
     def _build_session(self) -> PromptSession | None:
         """Create a prompt_toolkit session with history and tab completion.
@@ -619,7 +661,7 @@ class CLITerminal(TerminalHost):
             return None
 
         return PromptSession(
-            history=FileHistory(self._history_path()),
+            history=PlainFileHistory(self._history_path()),
             completer=_TermapyCompleter(self.repl, self.prefix, self.config_path),
             auto_suggest=AutoSuggestFromHistory(),
             # Prompt-toolkit reserves space below the prompt for the

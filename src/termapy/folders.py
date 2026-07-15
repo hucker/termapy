@@ -99,6 +99,9 @@ FOLDER_MIGRATIONS = [
 
 # -- Special filenames --------------------------------------------------------
 
+# Per-config history lives NEXT TO the config file as <stem>.history;
+# HISTORY_FILE is only the no-config fallback name (in the cfg root).
 HISTORY_FILE = ".cmd_history.txt"
+HISTORY_SUFFIX = ".history"
 SEQ_FILE = ".cap_seq"
 PROFILE_TMP_GLOB = "_profile_tmp_*.run"

@@ -75,6 +75,7 @@ from termapy.plugins.command import (
     format_usage,
     interpolate_help,
     resolve_long_help,
+    validate_synopsis,
 )
 from termapy.plugins.context import (
     PluginConfig,
@@ -124,6 +125,7 @@ __all__ = [
     "format_usage",
     "interpolate_help",
     "resolve_long_help",
+    "validate_synopsis",
     # Context + config + output-level utilities
     "DEFAULT_OUTPUT_LEVEL",
     "LEVEL_FLAGS",

@@ -2360,7 +2360,7 @@ COMMAND = Command(
                 "reverse": Command(
                     args=(
                         "{crc_bytes=N} {width=N} "
-                        "<packet-hex> <packet-hex>... | cmd=<trigger> count=<N>"
+                        "<packet-hex> <packet-hex>...|cmd=<trigger> count=<N>"
                     ),
                     help="Recover the Rocksoft parameters of an unknown CRC.",
                     long_help=(

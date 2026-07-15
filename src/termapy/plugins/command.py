@@ -138,6 +138,40 @@ def format_usage(
     return f"{detail}\n{line}" if detail else line
 
 
+def validate_synopsis(args: str) -> str:
+    """Check an args synopsis against the project grammar.
+
+    The grammar (see CLAUDE.md Conventions): ``""`` = no args,
+    ``{braces}`` = optional, ``<angle>`` = required, tight alternation
+    (``{on|off}``, never ``{on | off}``), nesting allowed
+    (``{algo{_le|_be}{_ascii}}``).  Square brackets are not part of the
+    grammar, and a ``{{`` sequence is an f-string escape artifact that
+    would render literally in /help.
+
+    Returns:
+        ``""`` when valid, else a short description of the first problem
+        (callers prepend the command name).
+    """
+    if "[" in args or "]" in args:
+        return "square brackets are not synopsis grammar (use {braces}/<angle>)"
+    if "{{" in args:
+        return "doubled '{{' renders literally (f-string escape artifact?)"
+    if " | " in args:
+        return "spaced alternation; write {a|b}, not {a | b}"
+    for open_ch, close_ch, label in (("{", "}", "braces"), ("<", ">", "angles")):
+        depth = 0
+        for ch in args:
+            if ch == open_ch:
+                depth += 1
+            elif ch == close_ch:
+                depth -= 1
+                if depth < 0:
+                    return f"unbalanced {label}"
+        if depth != 0:
+            return f"unbalanced {label}"
+    return ""
+
+
 @dataclass
 class CmdResult:
     """Result returned by every plugin/hook handler and by dispatch().
@@ -518,6 +552,24 @@ class PluginInfo:
     needs: CapabilitySet = field(default_factory=CapabilitySet)
     hidden: bool = False
     params: list[ParamSpec] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Validate the args synopsis at registration time.
+
+        Every command -- builtins via the loader, host commands via
+        ``register_hook`` -- flows through PluginInfo construction, so this
+        is the single chokepoint where malformed synopsis data fails loud
+        instead of rendering wrong in ``/help`` and usage lines (e.g. an
+        f-string escape artifact like ``"{{filename}}"`` displaying its
+        literal doubled braces).  User plugins with a bad synopsis are
+        rejected by the loader's per-plugin error handling, same as any
+        other invalid COMMAND declaration.
+        """
+        error = validate_synopsis(self.args)
+        if error:
+            raise ValueError(
+                f"/{self.name}: invalid args synopsis {self.args!r}: {error}"
+            )
 
 
 def interpolate_help(text: str, prefix: str) -> str:

@@ -1477,15 +1477,28 @@ class ReplEngine:
                 else f"Usage: {self.prefix}run <filename>"
             )
             return None, CmdResult.fail(msg=msg)
-        path = Path(filename)
-        if not path.exists() and not path.suffix:
-            path = Path(filename + ".run")
-        if not path.exists():
-            alt = self.scripts_dir / path.name
-            if alt.exists():
-                path = alt
-            else:
+        if not self.ctx.fs.capabilities.filesystem_unconfined:
+            # Provenance sandbox (same policy as ctx.fs.resolve): a confined
+            # caller (MCP) resolves scripts ONLY inside the per-config run/
+            # dir -- no cwd probe, no absolute paths, no ``..`` escape.  The
+            # operator branch below keeps the historical cwd-first chain.
+            named = filename if Path(filename).suffix else filename + ".run"
+            try:
+                path = self.ctx.fs.resolve(named, "scripts")
+            except MissingCapability as e:
+                return None, CmdResult.fail(msg=str(e))
+            if not path.exists():
                 return None, CmdResult.fail(msg=f"File not found: {filename}")
+        else:
+            path = Path(filename)
+            if not path.exists() and not path.suffix:
+                path = Path(filename + ".run")
+            if not path.exists():
+                alt = self.scripts_dir / path.name
+                if alt.exists():
+                    path = alt
+                else:
+                    return None, CmdResult.fail(msg=f"File not found: {filename}")
         if self._script_depth >= self._max_script_depth:
             return None, CmdResult.fail(
                 msg=f"Script nesting too deep ({self._max_script_depth} levels). Use /stop first."

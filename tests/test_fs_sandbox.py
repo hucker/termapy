@@ -15,6 +15,7 @@ Two layers are tested here:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -277,3 +278,49 @@ class TestMcpHostOptedIn:
         )
         # Assert
         assert result.success, "opt-in restores host-wide path-valued cfg keys"
+
+
+class TestMcpRunConfined:
+    """/run was the last file-taking command reachable under the sandbox
+    that bypassed the fs chokepoint: it probed cwd-relative and absolute
+    paths before the scripts dir. A confined caller now resolves scripts
+    ONLY inside the per-config run/ dir (same policy as ctx.fs.resolve)."""
+
+    def test_run_absolute_path_refused(self, tmp_path):
+        # Arrange -- a script OUTSIDE the sandbox
+        host = _mcp_host(tmp_path)
+        evil = tmp_path / "evil.run"
+        evil.write_text("/print pwned\n", encoding="utf-8")
+
+        # Act -- start_script is the resolution seam (synchronous)
+        path, result = host.repl.start_script(str(evil))
+
+        # Assert
+        assert path is None, "absolute path never resolves under sandbox"
+        assert "sandbox" in result.error, "refusal cites the sandbox"
+
+    def test_run_traversal_refused(self, tmp_path):
+        # Arrange
+        host = _mcp_host(tmp_path)
+        evil = tmp_path / "evil.run"
+        evil.write_text("/print pwned\n", encoding="utf-8")
+
+        # Act -- ../ from the run dir points at the out-of-sandbox file
+        path, result = host.repl.start_script("../../evil.run")
+
+        # Assert
+        assert path is None, "traversal never resolves under sandbox"
+        assert "sandbox" in result.error, "refusal cites the sandbox"
+
+    def test_run_in_sandbox_script_resolves(self, tmp_path):
+        # Arrange -- a legitimate script inside the config's run/ dir
+        host = _mcp_host(tmp_path)
+        run_dir = Path(host.repl.ctx.config_path).parent / "run"
+        (run_dir / "ok.run").write_text("/print hello\n", encoding="utf-8")
+
+        # Act -- bare name (no suffix) resolves inside the sandbox
+        path, result = host.repl.start_script("ok")
+
+        # Assert
+        assert result.success is True, "in-sandbox script accepted"
+        assert path == run_dir / "ok.run", "resolved inside the run/ sandbox"

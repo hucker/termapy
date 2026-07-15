@@ -27,6 +27,13 @@ def engine(tmp_path):
     flags["echo"] = True
     flags["output_level"] = "verbose"
     flags["hex"] = False
+    # Bare engines default to CONFINED caps (no host); these script tests
+    # model the OPERATOR, so grant filesystem_unconfined like a real host
+    # (both the ctx field and the fs handle hold the CapabilitySet).
+    from termapy.plugins import CapabilitySet
+    caps = CapabilitySet(filesystem_unconfined=True)
+    eng.ctx.capabilities = caps
+    eng.ctx.fs.capabilities = caps
     return eng, output
 
 

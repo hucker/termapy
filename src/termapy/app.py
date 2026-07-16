@@ -45,7 +45,7 @@ from rich.text import Text
 from textual import on, work
 
 from termapy import port_control
-from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, default_cfg
+from termapy.defaults import cmd_prefix, default_cfg
 from termapy.folders import FOLDER_PATTERNS
 from termapy.palette_provider import PaletteProvider
 from termapy.dialogs import (
@@ -75,6 +75,8 @@ from termapy.capture import (
 )
 from termapy.serial_engine import READER_STOP_WAIT_S, SerialEngine
 from termapy.serial_port import eol_label
+from termapy.widgets import CommandSuggester, StatusBar
+from termapy.help_tooltip import build_help_tooltip
 from termapy.repl import ReplEngine
 from termapy.terminal_host import TerminalHost
 from termapy.plugins import CmdResult
@@ -85,7 +87,6 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
-from textual.suggester import Suggester
 
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
@@ -103,37 +104,7 @@ from textual.suggester import Suggester
 SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
 
-class CommandSuggester(Suggester):
-    """Type-ahead from REPL commands + device command history.
-
-    Combines REPL command names (e.g. ``/help``, ``/cfg``) with non-REPL
-    history entries (device commands like ``AT+CSQ``). Updated dynamically
-    as new commands are entered.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(use_cache=False, case_sensitive=False)
-        self._suggestions: list[str] = []
-
-    def update(
-        self,
-        commands: list[str],
-        history: list[str],
-        prefix: str = DEFAULT_CMD_PREFIX,
-    ) -> None:
-        """Rebuild suggestions: REPL commands + non-REPL history (deduped)."""
-        device_cmds = [h for h in history if not h.startswith(prefix)]
-        self._suggestions = commands + device_cmds
-
-    async def get_suggestion(self, value: str) -> str | None:
-        """Return the first prefix match (case-insensitive)."""
-        for s in self._suggestions:
-            if s.casefold().startswith(value):
-                return s
-        return None
-
-
-# scripting import kept below the completer classes above (placement, not a cycle).
+# scripting import kept low (below the module-level defs above); placement, not a cycle.
 from termapy.scripting import (  # noqa: E402
     ANSI_RE,
     filename_timestamp,
@@ -185,75 +156,6 @@ def _hotkey_label(btn_id: str) -> str:
 # session; other terminals leave it unset (or set to their own name
 # like ``Apple_Terminal`` or ``iTerm.app``).
 PALETTE_HOTKEY = "Alt+P" if os.environ.get("TERM_PROGRAM") == "vscode" else "Ctrl+P"
-
-
-def _build_help_tooltip(ver: str):
-    """Build the Help-button tooltip as a Rich renderable.
-
-    Lays the attribution block out as a three-column ``Table.grid``
-    (name / role / author) with a color per column so the tooltip
-    stays scannable instead of running the author names into the
-    role text.
-    """
-    from rich.console import Group, RenderableType
-    from rich.table import Table
-    from rich.text import Text
-
-    from termapy.update_check import cached_status
-
-    hint = _hotkey_label("btn-help")
-    hint_str = f" ({hint})" if hint else ""
-
-    # Ambient version status from the cached background check -- a
-    # network-free state read, so building the tooltip never blocks or
-    # fails.  ``None`` latest = we've never successfully checked, so we
-    # say nothing rather than guess.
-    latest_seen, outdated = cached_status(ver)
-    if latest_seen is None:
-        status_line = None
-    elif outdated:
-        status_line = Text.from_markup(
-            f"[yellow]Update available: v{latest_seen}"
-            "  (uv tool upgrade termapy)[/]"
-        )
-    else:
-        status_line = Text.from_markup("[green]You have the latest version.[/]")
-
-    # crcglot (the CRC engine termapy calls) is built on the reveng
-    # catalogue (the algorithm source), so both are credited, adjacent,
-    # to show the lineage -- dropping either would erase a link.  The
-    # reveng URL sits on a second line inside its "role" cell so it
-    # aligns under "CRC algorithms"; Rich renders ``\n`` in a cell as
-    # multi-line and column widths still line up.
-    reveng_role = Text("CRC algorithms\n", style="white")
-    reveng_role.append("reveng.sourceforge.io", style="dim")
-
-    grid = Table.grid(padding=(0, 2))
-    grid.add_column(style="cyan")
-    grid.add_column(style="white")
-    grid.add_column(style="green")
-    grid.add_row("pyserial",         "serial I/O",     "Chris Liechti")
-    grid.add_row("Textual / Rich",   "TUI + output",   "Will McGugan")
-    grid.add_row("prompt_toolkit",   "CLI",            "Jonathan Slenders")
-    grid.add_row("crcglot",          "CRC engine",     "Chuck Bass")
-    grid.add_row("reveng catalog", reveng_role,      "Greg Cook")
-    grid.add_row("xmodem",           "file transfer",
-                 "Wijnand Modderman, Jeff Quast, Andrew Leech")
-    grid.add_row("ymodem",           "file transfer",  "alexwoo")
-
-    parts: list[RenderableType] = [
-        Text.from_markup(f"[bold]Termapy v{ver}[/]  [dim]Show help guide{hint_str}.[/]"),
-    ]
-    if status_line is not None:
-        parts.append(status_line)
-    parts += [
-        Text(""),
-        Text.from_markup("[bold]Built on open source:[/]"),
-        grid,
-        Text(""),
-        Text.from_markup("Type [bold cyan]/credits[/] for full attribution."),
-    ]
-    return Group(*parts)
 
 
 class SerialTerminal(TerminalHost, App):
@@ -379,18 +281,6 @@ class SerialTerminal(TerminalHost, App):
         width: 1fr;
         border: none;
         height: 1;
-    }
-    #status-bar {
-        width: auto;
-        max-width: 50%;
-        height: 1;
-        display: none;
-        color: $text-muted;
-        content-align: right middle;
-        padding: 0 1;
-    }
-    #status-bar.visible {
-        display: block;
     }
     #find-bar {
         height: 1;
@@ -826,7 +716,7 @@ class SerialTerminal(TerminalHost, App):
             if not exit_on_right:
                 yield _make_exit_btn()
             help_btn = Button("Help", id="btn-help")
-            help_btn.tooltip = _build_help_tooltip(ver)
+            help_btn.tooltip = build_help_tooltip(ver, _hotkey_label("btn-help"))
             yield help_btn
             if self.cfg.get("cfg_enabled", True):
                 cfg_btn = Button("Cfg", id="btn-cfg")
@@ -941,7 +831,7 @@ class SerialTerminal(TerminalHost, App):
                     close_btn.tooltip = "Close find (/find.clear)"
                     close_btn.display = False
                     yield close_btn
-                yield Label("", id="status-bar")
+                yield StatusBar(id="status-bar")
 
                 def _btn(label, id, tip, variant="default", display=True):
                     b = Button(label, id=id, variant=variant)
@@ -1155,7 +1045,7 @@ class SerialTerminal(TerminalHost, App):
         except PackageNotFoundError:
             ver = "?"
         try:
-            self.query_one("#btn-help", Button).tooltip = _build_help_tooltip(ver)
+            self.query_one("#btn-help", Button).tooltip = build_help_tooltip(ver, _hotkey_label("btn-help"))
         except SHUTDOWN_RACE:
             pass  # button gone (shutdown) or not yet composed
 
@@ -1495,16 +1385,12 @@ class SerialTerminal(TerminalHost, App):
             pass  # widgets gone during shutdown
         self._log_line("#", text)
 
-    _status_bar_timer: Timer | None = None
-
     def _set_status_bar(self, text: str, timeout: float = 5.0) -> None:
-        """Show transient text in the bottom status bar.
+        """Show transient text in the status bar (thread-safe).
 
-        The text appears in the status area next to the REPL input,
-        sharing 50% of the width.  It auto-clears after *timeout*
-        seconds.  Pass empty string to clear immediately.
-
-        Thread-safe: posts to the main thread if called from background.
+        Display + auto-clear behavior lives in the StatusBar widget; this
+        only marshals to the main thread when a plugin calls it from a
+        background thread (via ``ctx.io.status_bar``).
         """
         if self._thread_id != threading.get_ident():
             try:
@@ -1513,27 +1399,9 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            label = self.query_one("#status-bar", Label)
-            if text:
-                label.update(text)
-                label.add_class("visible")
-                if self._status_bar_timer is not None:
-                    self._status_bar_timer.stop()
-                self._status_bar_timer = self.set_timer(timeout, self._clear_status_bar)
-            else:
-                self._clear_status_bar()
+            self.query_one(StatusBar).show(text, timeout)
         except SHUTDOWN_RACE:
-            pass  # widgets gone during shutdown
-
-    def _clear_status_bar(self) -> None:
-        """Clear the status bar text and hide the widget."""
-        try:
-            label = self.query_one("#status-bar", Label)
-            label.update("")
-            label.remove_class("visible")
-            self._status_bar_timer = None
-        except SHUTDOWN_RACE:
-            pass  # timer fired after widgets unmounted
+            pass  # widget gone during shutdown
 
     def _log_line(self, prefix: str, text: str) -> None:
         """Write a prefixed line to the log file.
@@ -2001,33 +1869,6 @@ class SerialTerminal(TerminalHost, App):
             actual = getattr(self.engine.port_obj, "port", "") or ""
         return connection_string(self.cfg, "short", actual_port=actual)
 
-    def _format_title_tooltip(self, *args, **kwargs):
-        """Format a title-bar tooltip.  Implementation in ``title_bar``."""
-        from termapy.title_bar import format_title_tooltip
-        return format_title_tooltip(self, *args, **kwargs)
-
-    @staticmethod
-    def _format_tooltip_value(value: object) -> str:
-        """Render a config value for display in a tooltip body line.
-
-        Booleans become ``ON``/``OFF`` (matching how the user toggles
-        them in config).  ``None`` becomes ``(none)``.  Strings with
-        non-printable characters (like ``\\r``) are wrapped in repr()
-        so they're visually distinct from regular text.  Numbers and
-        plain strings pass through unchanged.
-        """
-        if value is None:
-            return "(none)"
-        if isinstance(value, bool):
-            return "ON" if value else "OFF"
-        if isinstance(value, str):
-            if not value:
-                return "(empty)"
-            if any(not c.isprintable() for c in value):
-                return repr(value)
-            return value
-        return str(value)
-
     def _update_title(self) -> None:
         """Refresh title-bar widgets.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_title
@@ -2049,6 +1890,8 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy import port_control
 
+        from termapy.title_bar import format_title_tooltip, port_tooltip_pairs
+
         port_name = self.cfg["serial"]["port"] or "(none)"
         connected = port_name if self.is_connected else ""
         facts = (
@@ -2056,30 +1899,9 @@ class SerialTerminal(TerminalHost, App):
             if port_name and port_name != "(none)"
             else None
         )
-        pairs: list[tuple[str, object]] = []
-        if facts is not None:
-            for field_name in (
-                "description",
-                "manufacturer",
-                "vendor",
-                "model",
-                "usb_speed",
-                "vid_pid",
-                "location",
-                "serial",
-                "negotiated",
-                "driver",
-                "latency_timer",
-                "max_baud",
-                "in_use",
-            ):
-                value = getattr(facts, field_name)
-                if value is None:
-                    continue
-                pairs.append((field_name, value))
-        else:
-            pairs.append(("status", "no USB chip info available"))
-        return self._format_title_tooltip(port_name, pairs, "select serial port")
+        return format_title_tooltip(
+            port_name, port_tooltip_pairs(facts), "select serial port"
+        )
 
     def _set_conn_status(self, text: str, style: str = "") -> None:
         try:
@@ -3322,12 +3144,7 @@ class SerialTerminal(TerminalHost, App):
         from background threads, the status label does.
         """
         try:
-            label = self.query_one("#status-bar", Label)
-            label.update(text)
-            if text:
-                label.add_class("visible")
-            else:
-                label.remove_class("visible")
+            self.query_one(StatusBar).set_progress(text)
         except SHUTDOWN_RACE:
             pass
 

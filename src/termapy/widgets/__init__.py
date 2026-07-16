@@ -11,5 +11,6 @@ UI-layer (imports Textual).
 
 from termapy.widgets.checkbox import StrongCheckbox
 from termapy.widgets.status_bar import StatusBar
+from termapy.widgets.suggester import CommandSuggester
 
-__all__ = ["StatusBar", "StrongCheckbox"]
+__all__ = ["CommandSuggester", "StatusBar", "StrongCheckbox"]

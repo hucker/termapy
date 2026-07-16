@@ -258,6 +258,10 @@ class ReplEngine:
         self._script_stack: list[str] = []  # stack of script names
         self._script_stop = Event()
         self._max_script_depth: int = 5
+        # echo_repl is forced off for the duration of the outermost
+        # script (see _prepare_script / _script_session) and the user's
+        # interactive value restored on exit; this holds that value.
+        self._echo_repl_before_script: bool = False
         # Expect watcher - predicate set by wait_for_match(), checked by feed_lines()
         self._expect_predicate: Callable[[str], bool] | None = None
         self._expect_event = Event()
@@ -1014,6 +1018,10 @@ class ReplEngine:
         # is governed by echo_repl -- distinct from device-command echo
         # (self.echo / cfg echo), which fires on the bare-line path.
         # .get: a context built without _init_flags (some tests) lacks it.
+        # Note: a script starts with echo_repl forced off (saved/restored
+        # around the outermost script -- see _prepare_script /
+        # _script_session), so a script's slash-commands are quiet by
+        # default but a script can re-enable echo explicitly.
         echo_repl_on = self.ctx.ns("flags").get("echo_repl", False)
 
         # 1. /raw bypass - no transforms, no directives
@@ -1512,6 +1520,15 @@ class ReplEngine:
             # on_script_start fires for the outermost script only.  The seq
             # plugin clears counters and refreshes {starttime} from its hook.
             self.fire_lifecycle("on_script_start")
+            # A script's slash-commands live in a file, so echoing each
+            # back (echo_repl) is noise -- default it off for the run.  A
+            # script that WANTS to show its commands re-enables it with
+            # /term.echo_repl on; the user's interactive value is saved
+            # here and restored when the outermost script ends.  Device
+            # echo (self.echo) is untouched, so device commands still echo.
+            flags = self.ctx.ns("flags")
+            self._echo_repl_before_script = flags.get("echo_repl", False)
+            flags["echo_repl"] = False
         self.ctx.io.status(f"Running script: {filename}")
         # Caller pairs this with the resolved Path; auto-resolve gives
         # absolute string at the value site.
@@ -1719,6 +1736,9 @@ class ReplEngine:
                 self._script_stack.pop()
             if self._script_depth == 0:
                 self.fire_lifecycle("on_script_stop")
+                # Outermost script done -- restore the user's interactive
+                # echo_repl (forced off for the script in _prepare_script).
+                self.ctx.ns("flags")["echo_repl"] = self._echo_repl_before_script
             yield sctx  # yield empty context so 'with' block runs (lines is empty)
             return
         sctx.lines = [
@@ -1750,6 +1770,9 @@ class ReplEngine:
                 self._script_stack.pop()
             if self._script_depth == 0:
                 self.fire_lifecycle("on_script_stop")
+                # Outermost script done -- restore the user's interactive
+                # echo_repl (forced off for the script in _prepare_script).
+                self.ctx.ns("flags")["echo_repl"] = self._echo_repl_before_script
             if on_nest:
                 on_nest()
             if sctx.prof_fh:

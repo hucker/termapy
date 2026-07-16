@@ -288,6 +288,33 @@ class TestRunScript:
         assert any("hello" in t for t, _ in output), "REPL command executed"
         assert len(writes) == 0, "nothing sent to serial"
 
+    def test_echo_repl_forced_off_in_script_then_restored(self, tmp_path):
+        # Arrange -- interactive echo_repl on; a script's slash-commands
+        # should be quiet (forced off), with the interactive value
+        # restored when the outermost script ends.  _make_engine pre-sets
+        # depth=1 to exercise run_script in isolation; reset to 0 so we
+        # drive the REAL outermost entry via start_script.
+        eng, output, writes, script = self._make_engine(tmp_path, "/print hi\n")
+        flags = eng.ctx.ns("flags")
+        eng._script_depth = 0
+        # start_script resolves through the fs sandbox; grant operator
+        # (unconfined) caps so the absolute script path is accepted.
+        caps = CapabilitySet(filesystem_unconfined=True)
+        eng.ctx.capabilities = caps
+        eng.ctx.fs.capabilities = caps
+        assert flags["echo_repl"] is True, "precondition: interactive echo_repl on"
+
+        # Act -- outermost entry forces echo_repl off for the run...
+        path, result = eng.start_script(str(script))
+        forced = flags["echo_repl"]
+        eng.run_script(path)  # ...and the exit restores it
+
+        # Assert
+        assert result.success, "script started"
+        assert forced is False, "echo_repl forced off for the script body"
+        assert flags["echo_repl"] is True, \
+            "interactive echo_repl restored after the outermost script"
+
     def test_delay_command(self, tmp_path):
         # Arrange
         eng, output, writes, script = self._make_engine(tmp_path, "/delay 1ms\n")

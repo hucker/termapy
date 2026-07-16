@@ -114,6 +114,7 @@ src/termapy/
 ├── demo_vt100.py           # (406 lines)  Interactive ANSI widget-tour sim (DEMO_VT100 port)
 ├── entry.py                #              CLI argument parsing and mode dispatch (Textual-free)
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
+├── history_nav.py          #              REPL Up/Down history browsing cursor (Textual-free)
 ├── migration.py            # (701 lines)  Config schema migration chain
 ├── port_control.py         # (1535 lines) Pure serial port control functions - no Textual
 ├── proto_debug.py          # (1181 lines) Interactive protocol debug screen (Textual)

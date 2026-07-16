@@ -46,6 +46,7 @@ from textual import on, work
 
 from termapy import port_control
 from termapy.defaults import cmd_prefix, default_cfg
+from termapy.history_nav import HistoryNavigator
 from termapy.folders import FOLDER_PATTERNS
 from termapy.palette_provider import PaletteProvider
 from termapy.dialogs import (
@@ -462,8 +463,7 @@ class SerialTerminal(TerminalHost, App):
             write=self._status,
         )
         self.history: list[str] = self._load_history()
-        self._history_idx: int = -1  # -1 = not browsing history
-        self._history_saved_input: str = ""  # input text before Up was pressed
+        self._history_nav = HistoryNavigator()
         self._suggester = CommandSuggester()
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
@@ -1564,7 +1564,7 @@ class SerialTerminal(TerminalHost, App):
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
         self.history = self._load_history()
-        self._history_idx = -1
+        self._history_nav.reset()
         self.repl.ctx.config_path = path
         self.repl.ctx.fs.ss_dir = self.repl.ss_dir
         self.repl.ctx.fs.scripts_dir = self.repl.scripts_dir
@@ -2708,7 +2708,7 @@ class SerialTerminal(TerminalHost, App):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Send command to serial port when Enter is pressed."""
         self._hide_history()
-        self._history_idx = -1
+        self._history_nav.reset()
         cmd = event.value.strip()
         if not cmd:
             if self.cfg.get("send_bare_enter", False):
@@ -2946,8 +2946,8 @@ class SerialTerminal(TerminalHost, App):
             elif popup_visible:
                 self._hide_history()
                 event.prevent_default()
-            elif self._history_idx != -1:
-                self._history_idx = -1
+            elif self._history_nav.browsing:
+                self._history_nav.reset()
                 inp.value = ""
                 event.prevent_default()
             return
@@ -2955,14 +2955,10 @@ class SerialTerminal(TerminalHost, App):
         if event.key == "up":
             if not inp.has_focus or popup_visible:
                 return
-            if not self.history:
+            value = self._history_nav.up(self.history, inp.value)
+            if value is None:
                 return
-            if self._history_idx == -1:
-                self._history_saved_input = inp.value
-                self._history_idx = len(self.history) - 1
-            elif self._history_idx > 0:
-                self._history_idx -= 1
-            inp.value = self.history[self._history_idx]
+            inp.value = value
             inp.action_end()
             event.prevent_default()
             return
@@ -2974,14 +2970,10 @@ class SerialTerminal(TerminalHost, App):
                 popup.focus()
                 event.prevent_default()
                 return
-            if self._history_idx == -1:
+            value = self._history_nav.down(self.history)
+            if value is None:
                 return
-            self._history_idx += 1
-            if self._history_idx >= len(self.history):
-                self._history_idx = -1
-                inp.value = self._history_saved_input
-            else:
-                inp.value = self.history[self._history_idx]
+            inp.value = value
             inp.action_end()
             event.prevent_default()
 

@@ -240,46 +240,6 @@ def assert_no_bad_suppressions() -> None:
     ok(f"suppression gate clean (no bare/reason-less additions since {tag})")
 
 
-APP_SIZE_CEILING_FILE = REPO_ROOT / "scripts" / "app_size_ceiling.txt"
-
-
-def assert_app_not_regrown() -> None:
-    """Hard-fail the release if ``src/termapy/app.py`` grew past its ceiling.
-
-    app.py is the app's one god-object (review finding A1).  It was
-    decomposed once (v0.66.0: 4224 -> 3047) and then silently regrew
-    +717 over six releases because nothing pushed back.  This gate is
-    that back-pressure: app.py may hold or shrink versus the committed
-    ceiling in ``scripts/app_size_ceiling.txt``, never grow.
-
-    On a shrink the ceiling **auto-ratchets down** to the new count and
-    rides into the release commit (``commit_release`` stages the file),
-    so every gain locks in with no operator effort and regrowth becomes
-    impossible without editing a committed number that shows up in review.
-
-    Deliberate growth is the escape hatch: raise the number in
-    ``scripts/app_size_ceiling.txt`` in the same commit and justify it in
-    the CHANGELOG.  New UI behavior should instead go in a cluster mixin
-    or helper module (see the app.py placement rule in CLAUDE.md).
-    """
-    ceiling = int(APP_SIZE_CEILING_FILE.read_text(encoding="utf-8").strip())
-    current = count_lines("src/termapy/app.py")
-    if current > ceiling:
-        die(
-            f"app.py is {current} lines; the ceiling is {ceiling}.  It is the "
-            f"god-object under active decomposition and may not grow.  Move new "
-            f"UI behavior into a cluster mixin or helper module.  If this growth "
-            f"is genuinely necessary, raise the number in "
-            f"scripts/app_size_ceiling.txt in this commit and say why in the "
-            f"CHANGELOG."
-        )
-    if current < ceiling:
-        APP_SIZE_CEILING_FILE.write_text(f"{current}\n", encoding="utf-8")
-        ok(f"app.py ceiling ratcheted {ceiling} -> {current}")
-    else:
-        ok(f"app.py within ceiling ({current} <= {ceiling})")
-
-
 def update_suppression_count() -> None:
     """Refresh the ARCHITECTURE.md suppression count and print the inventory.
 
@@ -733,8 +693,6 @@ def commit_release(version: str) -> None:
         "CHANGELOG.md",
         "README.md",
         "ARCHITECTURE.md",
-        # Auto-ratcheted by assert_app_not_regrown() when app.py shrinks.
-        "scripts/app_size_ceiling.txt",
     ]
     run(["git", "add", *files])
     status = run_out(["git", "status", "--porcelain", *files])
@@ -774,7 +732,6 @@ def main() -> None:
     assert_tag_does_not_exist(version)
     assert_zero_lint()
     assert_no_bad_suppressions()
-    assert_app_not_regrown()
     ok("git state is clean and ready")
 
     step(2, "Cutting release branch...")

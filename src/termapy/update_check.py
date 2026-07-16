@@ -86,7 +86,20 @@ def _parse_iso(value: str) -> datetime | None:
 
 
 def _due_for_check(state: dict, now: datetime) -> bool:
-    """Return True if >= _CHECK_INTERVAL_DAYS have passed since last check."""
+    """Return True if a fresh PyPI fetch is warranted.
+
+    Due when either:
+
+    - No version has ever been cached (``latest_seen`` absent) -- e.g.
+      right after upgrading to a build that added the field.  Without
+      this, an existing user with a recent ``last_checked`` would see a
+      blank tooltip status line for up to a full interval.  Bounded:
+      one fetch seeds it, then the timestamp rule takes over.
+    - ``last_checked`` is missing/unparseable, or >= _CHECK_INTERVAL_DAYS
+      old.
+    """
+    if not state.get("latest_seen"):
+        return True  # never cached a version -> seed it now
     last = _parse_iso(state.get("last_checked", ""))
     if last is None:
         return True  # Never checked, or unparseable -- check now.
@@ -158,6 +171,39 @@ def check_now(current_version: str) -> tuple[str | None, bool]:
     return latest, _is_newer(latest, current_version)
 
 
+def cached_status(current_version: str) -> tuple[str | None, bool]:
+    """Network-free read of the last PyPI version ``check`` cached.
+
+    For ambient UI (the Help tooltip) that wants to show an
+    up-to-date / update-available line without ever blocking on the
+    network or risking an error on render.  Reads ``latest_seen`` from
+    ``state.json`` -- populated by the background ``check`` -- and
+    compares it to ``current_version``.
+
+    The value is at most ``_CHECK_INTERVAL_DAYS`` stale, matching the
+    background banner's cadence; interactive callers wanting a fresh
+    answer use ``check_now`` instead.
+
+    Args:
+        current_version: Installed termapy version.
+
+    Returns:
+        Tuple of ``(latest_seen, outdated)``.  ``latest_seen`` is the
+        cached PyPI version string, or ``None`` if no check has ever
+        succeeded (nothing to show -- caller stays silent).
+        ``outdated`` is True iff ``latest_seen`` is strictly higher
+        than ``current_version``.  Never raises.
+    """
+    try:
+        latest = _load_state().get("latest_seen")
+        if not isinstance(latest, str) or not latest:
+            return None, False
+        return latest, _is_newer(latest, current_version)
+    except Exception:
+        # Same silent contract as the rest of the module.
+        return None, False
+
+
 def check(current_version: str) -> str | None:
     """Run one update check.  Return the latest version, or None.
 
@@ -180,8 +226,14 @@ def check(current_version: str) -> str | None:
             return None
 
         latest = _fetch_pypi_latest()
-        # Record the attempt regardless of success.
+        # Record the attempt regardless of success.  On a successful
+        # fetch also cache the version PyPI reported (newer or not) so
+        # ``cached_status`` can render an up-to-date/behind message
+        # network-free -- even on days the 7-day throttle skips the
+        # fetch entirely.
         state["last_checked"] = now.isoformat()
+        if latest is not None:
+            state["latest_seen"] = latest
         _save_state(state)
 
         if latest is None:

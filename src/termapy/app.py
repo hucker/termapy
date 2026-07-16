@@ -195,17 +195,36 @@ def _build_help_tooltip(ver: str):
     stays scannable instead of running the author names into the
     role text.
     """
-    from rich.console import Group
+    from rich.console import Group, RenderableType
     from rich.table import Table
     from rich.text import Text
+
+    from termapy.update_check import cached_status
 
     hint = _hotkey_label("btn-help")
     hint_str = f" ({hint})" if hint else ""
 
-    # reveng's project URL sits on a second line inside the "role"
-    # column so it aligns under "CRC algorithms" rather than spawning
-    # a free-floating line below the grid.  Rich Table renders ``\n``
-    # inside a cell as multi-line; column widths still line up.
+    # Ambient version status from the cached background check -- a
+    # network-free state read, so building the tooltip never blocks or
+    # fails.  ``None`` latest = we've never successfully checked, so we
+    # say nothing rather than guess.
+    latest_seen, outdated = cached_status(ver)
+    if latest_seen is None:
+        status_line = None
+    elif outdated:
+        status_line = Text.from_markup(
+            f"[yellow]Update available: v{latest_seen}"
+            "  (uv tool upgrade termapy)[/]"
+        )
+    else:
+        status_line = Text.from_markup("[green]You have the latest version.[/]")
+
+    # crcglot (the CRC engine termapy calls) is built on the reveng
+    # catalogue (the algorithm source), so both are credited, adjacent,
+    # to show the lineage -- dropping either would erase a link.  The
+    # reveng URL sits on a second line inside its "role" cell so it
+    # aligns under "CRC algorithms"; Rich renders ``\n`` in a cell as
+    # multi-line and column widths still line up.
     reveng_role = Text("CRC algorithms\n", style="white")
     reveng_role.append("reveng.sourceforge.io", style="dim")
 
@@ -216,19 +235,25 @@ def _build_help_tooltip(ver: str):
     grid.add_row("pyserial",         "serial I/O",     "Chris Liechti")
     grid.add_row("Textual / Rich",   "TUI + output",   "Will McGugan")
     grid.add_row("prompt_toolkit",   "CLI",            "Jonathan Slenders")
+    grid.add_row("crcglot",          "CRC engine",     "Chuck Bass")
     grid.add_row("reveng catalog", reveng_role,      "Greg Cook")
     grid.add_row("xmodem",           "file transfer",
                  "Wijnand Modderman, Jeff Quast, Andrew Leech")
     grid.add_row("ymodem",           "file transfer",  "alexwoo")
 
-    return Group(
+    parts: list[RenderableType] = [
         Text.from_markup(f"[bold]Termapy v{ver}[/]  [dim]Show help guide{hint_str}.[/]"),
+    ]
+    if status_line is not None:
+        parts.append(status_line)
+    parts += [
         Text(""),
         Text.from_markup("[bold]Built on open source:[/]"),
         grid,
         Text(""),
         Text.from_markup("Type [bold cyan]/credits[/] for full attribution."),
-    )
+    ]
+    return Group(*parts)
 
 
 class SerialTerminal(TerminalHost, App):
@@ -1087,6 +1112,15 @@ class SerialTerminal(TerminalHost, App):
             return  # no installed metadata -> nothing to compare against
         latest = check(current_version=current)
 
+        # Whether or not an upgrade is available, the check may have
+        # refreshed the cached ``latest_seen``; rebuild the Help tooltip
+        # so its status line reflects it this session (not just next
+        # launch).  Network-free, so it can't fail here.
+        try:
+            self.call_from_thread(self._refresh_help_tooltip)
+        except RuntimeError:
+            pass  # app shutting down
+
         if not latest:
             return
 
@@ -1102,6 +1136,26 @@ class SerialTerminal(TerminalHost, App):
         """Main-thread helper: unhide the title-bar Update button."""
         try:
             self.query_one("#btn-update", Button).display = True
+        except SHUTDOWN_RACE:
+            pass  # button gone (shutdown) or not yet composed
+
+    def _refresh_help_tooltip(self) -> None:
+        """Main-thread helper: rebuild the Help tooltip's version status.
+
+        Called after a background update check so the tooltip's
+        up-to-date / update-available line reflects the just-cached
+        result.  Mirrors compose's ``"?"`` fallback for an un-installed
+        (git-clone) run.
+        """
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as _get_version
+
+        try:
+            ver = _get_version("termapy")
+        except PackageNotFoundError:
+            ver = "?"
+        try:
+            self.query_one("#btn-help", Button).tooltip = _build_help_tooltip(ver)
         except SHUTDOWN_RACE:
             pass  # button gone (shutdown) or not yet composed
 

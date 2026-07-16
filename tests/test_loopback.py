@@ -14,8 +14,14 @@ import asyncio
 from textual.app import App
 from textual.widgets import OptionList
 
+import pytest
+
 from termapy.dialogs import PortPicker
-from termapy.port_control import LOOPBACK_PORT, loopback_port_facts
+from termapy.port_control import (
+    LOOPBACK_PORT,
+    loopback_port_facts,
+    opens_without_enumeration,
+)
 
 
 def test_loopback_facts_are_honest():
@@ -44,6 +50,22 @@ def test_loopback_opens_and_echoes():
         assert s.read(4) == b"PING", "loopback echoes writes back"
     finally:
         s.close()
+
+
+@pytest.mark.parametrize(
+    "port",
+    ["loop://", "socket://host:9000", "rfc2217://host:2217",
+     "DEMO", "demo", "DEMO_JSON", "DEMO_VT100", "DEMO_FAIL"],
+)
+def test_url_and_reserved_ports_open_without_enumeration(port):
+    # These never appear in comports(); the config-load availability check
+    # must connect to them directly instead of popping the port picker.
+    assert opens_without_enumeration(port) is True, f"{port} opens directly"
+
+
+@pytest.mark.parametrize("port", ["COM4", "/dev/ttyUSB0", "A1B2C3D4", ""])
+def test_real_and_empty_ports_need_enumeration(port):
+    assert opens_without_enumeration(port) is False, f"{port} is not a direct-open port"
 
 
 class _Host(App):

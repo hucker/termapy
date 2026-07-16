@@ -123,15 +123,32 @@ identical.
 
 ## When a chip shows "unknown"
 
-Termapy has a lookup table of known USB-serial chips by VID:PID.  If
-your chip isn't in the table, `/port.chip` reports `model: unknown` and
-`usb_speed: unknown (chip not in lookup table)`.  The VID:PID is still
-printed so you can identify the chip manually against the USB-IF
+Termapy has a curated lookup table of known USB-serial chips by VID:PID.
+If your chip isn't in it, `/port.chip` reports `model: unknown` and
+`usb_speed: unknown (chip not in lookup table)` — the port still works,
+you just don't get the model name, speed class, or max-baud.  The VID:PID
+is printed so you can identify the chip manually against the USB-IF
 database (`https://the-sz.com/products/usbid/`).
 
-The table is a plain Python dict in
-`src/termapy/usb/chips.py` (`USB_SERIAL_CHIPS`).  Adding a new chip
-is a one-line change.
+**Why termapy carries this.**  A chip's USB speed class and datasheet
+max-baud aren't reported by pyserial — it surfaces the *port*, not the
+silicon behind it — and they aren't in the public USB-IF vendor registry
+either; they come from datasheets.  This would ideally live in pyserial
+itself, but it is no longer actively maintained, so termapy keeps its own
+small curated table rather than fork it.
+
+**Adding a chip.**  The table is a plain Python dict in
+`src/termapy/usb/chips.py` (`USB_SERIAL_CHIPS`), keyed by `(VID, PID)`.
+Each entry is one line — the model name, USB speed class (`"full"` or
+`"high"`), and datasheet max baud:
+
+```python
+(0x0403, 0x6015): ChipInfo("FTDI FT230X / FT231X / FT234XD", "full", 3_000_000),
+```
+
+Add the line (a pull request is welcome, or open an issue with the VID:PID
+and chip model) and termapy identifies that chip from then on.  A
+`max_baud` of `0` marks a non-UART device (bootloader, HID, etc.).
 
 ## When you hit "In use" and can't connect
 

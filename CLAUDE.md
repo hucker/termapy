@@ -18,7 +18,8 @@ All paths relative to `src/termapy/`.
 
 ## Architecture
 
-- Textual is confined to the UI layer: `app.py` (the main app) plus `dialogs/`, `widgets.py`, `capture_view.py`, `title_bar.py`, `proto_debug.py`, etc. Core modules (`repl.py`, `plugins.py`, `scripting.py`) never import Textual
+- Textual is confined to the UI layer: `app.py` (the main app) plus `dialogs/`, `widgets.py`, `capture_view.py`, `title_bar.py`, `proto_debug.py`, `info_views.py`, `palette_provider.py`, and the cluster mixins (`*_mixin.py`), etc. Core modules (`repl.py`, `plugins.py`, `scripting.py`) never import Textual. Any NEW module that imports Textual is UI-layer and must be added to this list. (`pickers.py` is Textual-free — it builds picker *data*, not widgets — so it is not in this list.)
+- **app.py placement rule.** `app.py` is the compose + wiring seam only: `compose()`, the framework tables (`BINDINGS`/`COMMANDS`/`PALETTE_CMDS`), `__init__`/context wiring, `on_mount`, and the Textual message/event handlers that *are* the framework seam. New UI behavior goes in a cluster mixin (`*_mixin.py`) or a named UI helper module, **never** in `app.py`. A `release_prep` gate (`assert_app_not_regrown`, ceiling in `scripts/app_size_ceiling.txt`) rejects any release where `app.py` grew versus the last release and auto-ratchets the ceiling down on every shrink; deliberate growth means raising that number in the same commit and justifying it in the CHANGELOG.
 - `plugins.py` and `scripting.py` — zero Textual/pyserial deps
 - `repl.py` bridges plugins and app via `PluginContext` callbacks
 - Load order: builtins → global → per-config → app hooks (later overrides earlier)

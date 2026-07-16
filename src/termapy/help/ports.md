@@ -309,3 +309,21 @@ Termapy supports every port format pyserial accepts, including:
 Just put the URL in the `port` config field. See [pyserial's URL handler
 docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
 the full list.
+
+### Loopback
+
+`loop://` is worth calling out: it echoes whatever you write straight back,
+so it exercises the *real* serial read/write path with no hardware. That
+makes it handy both interactively (to sanity-check the app) and in CI.
+
+- **In the port picker** it always appears as a selectable **Pyserial
+  Loopback** row (below any real ports) -- pick it like any device. It has
+  no VID/serial/chip, so those columns show `?`, because a loopback isn't a
+  USB device.
+- **In CI** set `"port": "loop://"` in a config and drive it headlessly: a
+  test that writes a line and expects the same bytes back needs no device.
+
+It differs from `--demo`: the demo simulates a device that *responds*
+(request in, reply out), whereas the loopback is a raw round-trip (bytes in,
+same bytes out). Use the loopback to test the I/O plumbing, the demo to test
+device conversations.

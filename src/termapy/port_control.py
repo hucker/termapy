@@ -400,6 +400,27 @@ class ChipFacts:
     _usb_speed_color: str | None = None
 
 
+LOOPBACK_PORT = "loop://"
+
+
+def loopback_port_facts() -> ChipFacts:
+    """Honest ChipFacts for the pyserial loopback (``loop://``).
+
+    Deliberately NOT a reserved name and NOT part of the DEMO machinery:
+    a loopback isn't a device, so it gets only a name + description and
+    leaves every USB field (VID:PID, serial, chip, ...) as ``None`` -- they
+    render as blanks, never invented identity.  The port picker surfaces
+    this as a selectable row; the spec itself already opens via
+    ``serial.serial_for_url`` (it echoes whatever you write straight back,
+    which is handy for exercising the real read/write path in CI or by
+    hand -- unlike DEMO, which simulates a *responding* device).
+    """
+    return ChipFacts(
+        device=LOOPBACK_PORT,
+        description="Pyserial Loopback",
+    )
+
+
 def _read_sysfs(*parts: str) -> str | None:
     """Read a single line from a sysfs file.  Returns None on any error."""
     try:

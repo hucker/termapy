@@ -1890,6 +1890,8 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy import port_control
 
+        from termapy.title_bar import format_title_tooltip, port_tooltip_pairs
+
         port_name = self.cfg["serial"]["port"] or "(none)"
         connected = port_name if self.is_connected else ""
         facts = (
@@ -1897,32 +1899,9 @@ class SerialTerminal(TerminalHost, App):
             if port_name and port_name != "(none)"
             else None
         )
-        pairs: list[tuple[str, object]] = []
-        if facts is not None:
-            for field_name in (
-                "description",
-                "manufacturer",
-                "vendor",
-                "model",
-                "usb_speed",
-                "vid_pid",
-                "location",
-                "serial",
-                "negotiated",
-                "driver",
-                "latency_timer",
-                "max_baud",
-                "in_use",
-            ):
-                value = getattr(facts, field_name)
-                if value is None:
-                    continue
-                pairs.append((field_name, value))
-        else:
-            pairs.append(("status", "no USB chip info available"))
-        from termapy.title_bar import format_title_tooltip
-
-        return format_title_tooltip(port_name, pairs, "select serial port")
+        return format_title_tooltip(
+            port_name, port_tooltip_pairs(facts), "select serial port"
+        )
 
     def _set_conn_status(self, text: str, style: str = "") -> None:
         try:

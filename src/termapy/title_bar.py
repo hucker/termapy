@@ -30,6 +30,7 @@ SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
 if TYPE_CHECKING:
     from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
+    from termapy.port_control import ChipFacts
 
 
 def _hotkey_label(btn_id: str) -> str:
@@ -63,6 +64,40 @@ def format_tooltip_value(value: object) -> str:
             return repr(value)
         return value
     return str(value)
+
+
+def port_tooltip_pairs(facts: ChipFacts | None) -> list[tuple[str, object]]:
+    """Build the kv body for the port-button tooltip from chip facts.
+
+    Pure selection logic (tested in ``tests/test_title_tooltip.py``):
+    picks the display fields in a fixed order, drops the ones the
+    platform couldn't determine (``None``), and falls back to a single
+    status line when the port wasn't enumerable at all (DEMO, unplugged
+    cable, non-USB device).
+    """
+    if facts is None:
+        return [("status", "no USB chip info available")]
+    pairs: list[tuple[str, object]] = []
+    for field_name in (
+        "description",
+        "manufacturer",
+        "vendor",
+        "model",
+        "usb_speed",
+        "vid_pid",
+        "location",
+        "serial",
+        "negotiated",
+        "driver",
+        "latency_timer",
+        "max_baud",
+        "in_use",
+    ):
+        value = getattr(facts, field_name)
+        if value is None:
+            continue
+        pairs.append((field_name, value))
+    return pairs
 
 
 def format_title_tooltip(

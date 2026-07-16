@@ -9,7 +9,12 @@ tested directly -- no app, no widgets.
 
 from __future__ import annotations
 
-from termapy.title_bar import format_title_tooltip, format_tooltip_value
+from termapy.port_control import ChipFacts
+from termapy.title_bar import (
+    format_title_tooltip,
+    format_tooltip_value,
+    port_tooltip_pairs,
+)
 
 
 class TestFormatTooltipValue:
@@ -61,3 +66,44 @@ class TestFormatTitleTooltip:
         actual = format_title_tooltip("t", [("", "hidden"), ("port", "COM4")], "act")
         assert "hidden" not in actual, "empty-key rows dropped"
         assert "port  = COM4" in actual, "real rows kept"
+
+
+class TestPortTooltipPairs:
+    def test_none_facts_gives_status_fallback(self):
+        actual = port_tooltip_pairs(None)
+        expected = [("status", "no USB chip info available")]
+        assert actual == expected, "unenumerable port -> single status line"
+
+    def test_none_fields_are_dropped(self):
+        # Arrange -- only two fields known (typical non-USB / partial gather).
+        facts = ChipFacts(description="USB Serial Port", vid_pid="0403:6015")
+
+        # Act
+        actual = port_tooltip_pairs(facts)
+
+        # Assert
+        expected = [("description", "USB Serial Port"), ("vid_pid", "0403:6015")]
+        assert actual == expected, "None fields skipped; known fields kept in order"
+
+    def test_field_order_is_stable(self):
+        # Arrange -- populate fields out of display order.
+        facts = ChipFacts(in_use="no", description="d", model="m")
+
+        # Act
+        keys = [k for k, _ in port_tooltip_pairs(facts)]
+
+        # Assert -- description before model before in_use (display order,
+        # not the order they were set).
+        assert keys == ["description", "model", "in_use"], "fixed display order"
+
+    def test_non_display_fields_are_excluded(self):
+        # Arrange -- device/product/interface/permissions are gathered but
+        # deliberately not shown in the tooltip.
+        facts = ChipFacts(device="COM4", product="p", interface="i",
+                          permissions="rw", description="d")
+
+        # Act
+        keys = [k for k, _ in port_tooltip_pairs(facts)]
+
+        # Assert
+        assert keys == ["description"], "only display fields appear"

@@ -1,9 +1,10 @@
 """Behavioral tests for StrongCheckbox -- the glyph flips with the value.
 
 Same pattern as test_status_bar: mount just the widget, drive it, assert.
-StrongCheckbox exists solely to flip its glyph between ✗ (off) and ✓ (on)
--- the default Checkbox reuses one glyph -- and that contract had no
-coverage when the widget lived only inside dialogs/modals.
+StrongCheckbox exists solely to flip its glyph between blank (off) and X
+(on) -- the default Checkbox reuses one glyph -- and that contract had no
+coverage when the widget lived only inside dialogs/modals.  ASCII glyphs
+on purpose: the old ✓/✗ were EAW-ambiguous and clipped on 2-cell fonts.
 """
 
 from __future__ import annotations
@@ -30,20 +31,20 @@ def _run(scenario) -> None:
     asyncio.run(scenario())
 
 
-def test_glyph_is_cross_when_off():
+def test_glyph_is_blank_when_off():
     async def scenario():
         async with _Host(value=False).run_test() as pilot:
             cb = pilot.app.query_one(StrongCheckbox)
-            assert cb.BUTTON_INNER == "✗", "off shows the cross glyph"
+            assert cb.BUTTON_INNER == " ", "off shows a blank (classic [ ])"
 
     _run(scenario)
 
 
-def test_glyph_is_check_when_on():
+def test_glyph_is_x_when_on():
     async def scenario():
         async with _Host(value=True).run_test() as pilot:
             cb = pilot.app.query_one(StrongCheckbox)
-            assert cb.BUTTON_INNER == "✓", "on shows the check glyph"
+            assert cb.BUTTON_INNER == "X", "on shows the X (classic [X])"
 
     _run(scenario)
 
@@ -54,9 +55,9 @@ def test_glyph_flips_when_value_changes():
             cb = pilot.app.query_one(StrongCheckbox)
             cb.value = True
             await pilot.pause()
-            assert cb.BUTTON_INNER == "✓", "flips to check when turned on"
+            assert cb.BUTTON_INNER == "X", "flips to X when turned on"
             cb.value = False
             await pilot.pause()
-            assert cb.BUTTON_INNER == "✗", "flips back to cross when turned off"
+            assert cb.BUTTON_INNER == " ", "flips back to blank when turned off"
 
     _run(scenario)

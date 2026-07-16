@@ -539,6 +539,9 @@ COMMAND = Command(
                 "termapy splits local echo in two: this ({prefix}term.echo)\n"
                 "for device commands, and {prefix}term.echo_repl for\n"
                 "REPL/slash commands ({prefix}cfg, {prefix}help, ...).\n"
+                "Unlike {prefix}term.echo_repl, device echo is NOT muted\n"
+                "inside a script -- a tutorial script still shows the\n"
+                "commands it sends to the device.\n"
                 "See also: {prefix}term.echo_repl."
             ),
             handler=_handler_echo,
@@ -551,6 +554,12 @@ COMMAND = Command(
                 "...).  Session-only (no cfg key); default on for the TUI,\n"
                 "off for the CLI (whose OS terminal already shows the typed\n"
                 "line).\n"
+                "\n"
+                "In a script this starts OFF, so a script's slash-commands\n"
+                "stay quiet (e.g. a {prefix}print banner).  A script that\n"
+                "wants to show its commands re-enables it with\n"
+                "{prefix}term.echo_repl on; your interactive value is\n"
+                "restored when the outermost script ends.\n"
                 "\n"
                 "The sibling of {prefix}term.echo, which echoes DEVICE\n"
                 "commands sent to the wire.  See also: {prefix}term.echo."

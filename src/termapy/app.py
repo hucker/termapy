@@ -3482,15 +3482,31 @@ class SerialTerminal(TerminalHost, App):
                 label_w.update(text)
                 self._script_last_label = text
             else:
-                # Top-level script done - teardown overlay
+                # Top-level script done - teardown overlay.
+                self._script_last_label = ""
+                # Re-enable and focus the input BEFORE removing the Stop
+                # button.  While the input was disabled during the script,
+                # focus moved to the Stop button; removing a focused widget
+                # makes Textual reset focus asynchronously, which clobbers a
+                # focus() issued after the remove (leaving the REPL input
+                # unfocused -- keyboard dead though buttons still work).
+                # Focus first so Stop is unfocused when removed, then
+                # re-assert once the refresh settles.
+                inp.disabled = False
+                # A TYPED /run also went through _set_input_busy(True),
+                # which sets bar.disabled=True; its paired (False) bails out
+                # once the script overlay exists, so the bar would stay
+                # disabled after the script.  The script lifecycle owns the
+                # bar now -- re-enable it here so both the button path and
+                # the typed path end usable.
+                bar.disabled = False
+                inp.focus()
                 for widget in bar.query("#script-label, #script-stop"):
                     widget.remove()
                 for child in bar.children:
                     child.display = True
-                self._script_last_label = ""
-                inp.disabled = False
-                inp.focus()
                 self._engine.serial_claimed = False
+                self.call_after_refresh(inp.focus)
         except SHUTDOWN_RACE:
             pass  # event posted after widget tree teardown
 

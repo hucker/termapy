@@ -28,6 +28,14 @@ if TYPE_CHECKING:
     from termapy.port_control import ChipFacts
 
 
+# Shown in a cell whose underlying fact is missing/unknown.  Single source
+# of truth: both the display value and active_columns' "column is entirely
+# blank" test use it, so they can never drift.  "?" (not "-") so a blank
+# cell reads as "unknown" rather than being mistaken for a value like a
+# root-of-tree location.
+_EMPTY = "?"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Schema
 # ─────────────────────────────────────────────────────────────────────────────
@@ -98,10 +106,10 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
 
     The port_id is the device name (used as an OptionList id in the
     picker, ignored in CLI output).  The row dict has one entry per
-    ``PORT_COLUMNS`` key, all values stringified and non-empty (``"-"``
+    ``PORT_COLUMNS`` key, all values stringified and non-empty (``?``
     for missing data).
     """
-    port = facts.device or "-"
+    port = facts.device or _EMPTY
 
     # Description, with the redundant trailing "(COMx)" stripped.
     description = (facts.description or "").strip()
@@ -110,23 +118,23 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     if not description:
         description = "Serial port"
 
-    chip = facts.model if facts.model and facts.model != "unknown" else "-"
+    chip = facts.model if facts.model and facts.model != "unknown" else _EMPTY
 
-    speed = "-"
+    speed = _EMPTY
     if facts.usb_speed:
         if "Full-Speed" in facts.usb_speed:
             speed = "Full-Speed"
         elif "High-Speed" in facts.usb_speed:
             speed = "High-Speed"
 
-    vid_pid = facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else "-"
-    manufacturer = _mfg_alias(facts.manufacturer) or "-"
-    sn = facts.serial or "-"
-    driver = facts.driver or "-"
+    vid_pid = facts.vid_pid if facts.vid_pid and ":" in facts.vid_pid else _EMPTY
+    manufacturer = _mfg_alias(facts.manufacturer) or _EMPTY
+    sn = facts.serial or _EMPTY
+    driver = facts.driver or _EMPTY
     # Vendor flows through the same alias table so narrow columns stay
     # consistent ("Silicon Labs" -> "SiLabs", "Microchip" -> "Microchip").
-    vendor = _mfg_alias(facts.vendor) or "-"
-    location = facts.location or "-"
+    vendor = _mfg_alias(facts.vendor) or _EMPTY
+    location = facts.location or _EMPTY
 
     return port, {
         "port": port,
@@ -151,17 +159,17 @@ def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     """Drop purely-blank optional columns from the display list.
 
     ``sn``, ``driver``, ``vendor``, and ``location`` are optional: if
-    every port reports ``"-"`` for one of them (common on built-in
+    every port reports ``?`` for one of them (common on built-in
     COM1/stock adapters, on macOS where ``driver`` isn't gathered
     yet, or for non-USB ports where ``vendor`` doesn't apply), we
     hide that column entirely so the row stays readable.  Other
-    columns like chip/speed/vid_pid can also be ``"-"`` for non-USB
+    columns like chip/speed/vid_pid can also be ``?`` for non-USB
     ports but are informative enough to always show.
     """
     cols = list(PORT_COLUMNS)
     optional = ("sn", "driver", "vendor", "location")
     for col in optional:
-        if rows and all(row[col] == "-" for _, row in rows):
+        if rows and all(row[col] == _EMPTY for _, row in rows):
             cols.remove(col)
     return tuple(cols)
 

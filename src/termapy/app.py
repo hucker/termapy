@@ -75,6 +75,7 @@ from termapy.capture import (
 )
 from termapy.serial_engine import READER_STOP_WAIT_S, SerialEngine
 from termapy.serial_port import eol_label
+from termapy.widgets import StatusBar
 from termapy.repl import ReplEngine
 from termapy.terminal_host import TerminalHost
 from termapy.plugins import CmdResult
@@ -379,18 +380,6 @@ class SerialTerminal(TerminalHost, App):
         width: 1fr;
         border: none;
         height: 1;
-    }
-    #status-bar {
-        width: auto;
-        max-width: 50%;
-        height: 1;
-        display: none;
-        color: $text-muted;
-        content-align: right middle;
-        padding: 0 1;
-    }
-    #status-bar.visible {
-        display: block;
     }
     #find-bar {
         height: 1;
@@ -941,7 +930,7 @@ class SerialTerminal(TerminalHost, App):
                     close_btn.tooltip = "Close find (/find.clear)"
                     close_btn.display = False
                     yield close_btn
-                yield Label("", id="status-bar")
+                yield StatusBar(id="status-bar")
 
                 def _btn(label, id, tip, variant="default", display=True):
                     b = Button(label, id=id, variant=variant)
@@ -1495,16 +1484,12 @@ class SerialTerminal(TerminalHost, App):
             pass  # widgets gone during shutdown
         self._log_line("#", text)
 
-    _status_bar_timer: Timer | None = None
-
     def _set_status_bar(self, text: str, timeout: float = 5.0) -> None:
-        """Show transient text in the bottom status bar.
+        """Show transient text in the status bar (thread-safe).
 
-        The text appears in the status area next to the REPL input,
-        sharing 50% of the width.  It auto-clears after *timeout*
-        seconds.  Pass empty string to clear immediately.
-
-        Thread-safe: posts to the main thread if called from background.
+        Display + auto-clear behavior lives in the StatusBar widget; this
+        only marshals to the main thread when a plugin calls it from a
+        background thread (via ``ctx.io.status_bar``).
         """
         if self._thread_id != threading.get_ident():
             try:
@@ -1513,27 +1498,9 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            label = self.query_one("#status-bar", Label)
-            if text:
-                label.update(text)
-                label.add_class("visible")
-                if self._status_bar_timer is not None:
-                    self._status_bar_timer.stop()
-                self._status_bar_timer = self.set_timer(timeout, self._clear_status_bar)
-            else:
-                self._clear_status_bar()
+            self.query_one(StatusBar).show(text, timeout)
         except SHUTDOWN_RACE:
-            pass  # widgets gone during shutdown
-
-    def _clear_status_bar(self) -> None:
-        """Clear the status bar text and hide the widget."""
-        try:
-            label = self.query_one("#status-bar", Label)
-            label.update("")
-            label.remove_class("visible")
-            self._status_bar_timer = None
-        except SHUTDOWN_RACE:
-            pass  # timer fired after widgets unmounted
+            pass  # widget gone during shutdown
 
     def _log_line(self, prefix: str, text: str) -> None:
         """Write a prefixed line to the log file.
@@ -3322,12 +3289,7 @@ class SerialTerminal(TerminalHost, App):
         from background threads, the status label does.
         """
         try:
-            label = self.query_one("#status-bar", Label)
-            label.update(text)
-            if text:
-                label.add_class("visible")
-            else:
-                label.remove_class("visible")
+            self.query_one(StatusBar).set_progress(text)
         except SHUTDOWN_RACE:
             pass
 

@@ -1,12 +1,4 @@
-"""Custom Textual widgets shared across termapy's dialogs and modals.
-
-Currently houses ``StrongCheckbox``, a drop-in Checkbox replacement with
-a clearer visual signal for the on/off state.
-
-This module imports Textual, so it is NOT a candidate for extraction as
-a standalone library (unlike ``termapy.usb`` / ``termapy.protocol``).
-The win is purely "one place to find shared TUI widgets."
-"""
+"""StrongCheckbox -- a Checkbox with a clearer on/off glyph."""
 
 from __future__ import annotations
 

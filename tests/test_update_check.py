@@ -96,11 +96,15 @@ class TestCheckInterval:
     def test_recent_check_skips_fetch(
         self, pin_state_dir, freeze_time, mock_pypi, monkeypatch
     ):
-        # Arrange - last check was 1 day ago; fetch must not be called.
+        # Arrange - last check was 1 day ago AND a version is already
+        # cached, so the throttle applies; fetch must not be called.
         now = freeze_time["now"]
         _write_state(
             pin_state_dir,
-            {"last_checked": (now - timedelta(days=1)).isoformat()},
+            {
+                "last_checked": (now - timedelta(days=1)).isoformat(),
+                "latest_seen": "0.60.0",
+            },
         )
         fetch_called = [False]
 
@@ -116,6 +120,29 @@ class TestCheckInterval:
         # Assert
         assert actual is None, "returns None when inside 7-day window"
         assert fetch_called[0] is False, "skips network when inside window"
+
+    def test_missing_latest_seen_forces_check_despite_recent_timestamp(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange - recent last_checked but NO cached version (the state
+        # of an existing user right after upgrading to this build).  The
+        # tooltip needs a value, so we must fetch once to seed it even
+        # though the 7-day window hasn't elapsed.
+        now = freeze_time["now"]
+        _write_state(
+            pin_state_dir,
+            {"last_checked": (now - timedelta(days=1)).isoformat()},
+        )
+        mock_pypi["result"] = "0.66.0"
+
+        # Act
+        update_check.check(current_version="0.66.0")
+
+        # Assert
+        state = _read_state(pin_state_dir)
+        assert state.get("latest_seen") == "0.66.0", (
+            "missing latest_seen forces a one-time seeding fetch"
+        )
 
     def test_old_check_triggers_fetch(
         self, pin_state_dir, freeze_time, mock_pypi
@@ -337,3 +364,120 @@ class TestCheckNow:
         # Assert -- throttle is bypassed; we got the PyPI value.
         assert latest == "0.66.1", "throttle bypassed; PyPI hit anyway"
         assert outdated is True, "still detects newer version"
+
+
+# -- latest_seen persistence (feeds the Help-tooltip status line) ------------
+
+
+class TestLatestSeenPersistence:
+    """``check`` caches the PyPI version it saw so ``cached_status`` can
+    render an up-to-date / behind line network-free -- even on days the
+    7-day throttle skips the fetch.
+    """
+
+    def test_caches_latest_seen_on_successful_fetch(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange -- first check, PyPI reports a newer release.
+        mock_pypi["result"] = "0.61.0"
+
+        # Act
+        update_check.check(current_version="0.60.0")
+
+        # Assert
+        state = _read_state(pin_state_dir)
+        assert state.get("latest_seen") == "0.61.0", (
+            "PyPI version cached for the tooltip status line"
+        )
+
+    def test_caches_latest_seen_even_when_up_to_date(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange -- installed == latest; check() returns None (no banner)
+        # but must still cache the version so the tooltip can say so.
+        mock_pypi["result"] = "0.66.0"
+
+        # Act
+        result = update_check.check(current_version="0.66.0")
+
+        # Assert
+        assert result is None, "no banner when already current"
+        state = _read_state(pin_state_dir)
+        assert state.get("latest_seen") == "0.66.0", (
+            "latest cached even when not newer -- powers the up-to-date line"
+        )
+
+    def test_failed_fetch_preserves_prior_latest_seen(
+        self, pin_state_dir, freeze_time, mock_pypi
+    ):
+        # Arrange -- a prior good check cached 0.66.0; now (>7 days later)
+        # the network is down.  The last known version must survive.
+        now = freeze_time["now"]
+        _write_state(pin_state_dir, {
+            "last_checked": (now - timedelta(days=10)).isoformat(),
+            "latest_seen": "0.66.0",
+        })
+        mock_pypi["result"] = None  # fetch fails this time
+
+        # Act
+        update_check.check(current_version="0.65.0")
+
+        # Assert
+        state = _read_state(pin_state_dir)
+        assert state.get("latest_seen") == "0.66.0", (
+            "network failure preserves the last known PyPI version"
+        )
+
+
+# -- cached_status (network-free tooltip read) -------------------------------
+
+
+class TestCachedStatus:
+    """Network-free status read for ambient UI (the Help tooltip)."""
+
+    def test_none_when_never_checked(self, pin_state_dir, monkeypatch):
+        # Arrange -- no state file, and the network must never be touched.
+        def _no_network():
+            raise AssertionError("cached_status must not hit the network")
+
+        monkeypatch.setattr(update_check, "_fetch_pypi_latest", _no_network)
+
+        # Act
+        latest, outdated = update_check.cached_status("0.66.0")
+
+        # Assert
+        assert latest is None, "no cached version -> nothing to show"
+        assert outdated is False, "no latest -> can't be outdated"
+
+    def test_outdated_true_when_cached_is_newer(self, pin_state_dir):
+        # Arrange
+        _write_state(pin_state_dir, {"latest_seen": "0.67.0"})
+
+        # Act
+        latest, outdated = update_check.cached_status("0.66.0")
+
+        # Assert
+        assert latest == "0.67.0", "cached version surfaced verbatim"
+        assert outdated is True, "0.67.0 > 0.66.0 -> update available"
+
+    def test_outdated_false_when_cached_equals_current(self, pin_state_dir):
+        # Arrange
+        _write_state(pin_state_dir, {"latest_seen": "0.66.0"})
+
+        # Act
+        latest, outdated = update_check.cached_status("0.66.0")
+
+        # Assert
+        assert latest == "0.66.0", "cached version surfaced verbatim"
+        assert outdated is False, "same version -> up to date"
+
+    def test_non_string_latest_seen_is_ignored(self, pin_state_dir):
+        # Arrange -- corrupt state must not raise, just yield nothing.
+        _write_state(pin_state_dir, {"latest_seen": 123})
+
+        # Act
+        latest, outdated = update_check.cached_status("0.66.0")
+
+        # Assert
+        assert latest is None, "non-string cached value treated as absent"
+        assert outdated is False, "nothing to compare -> not outdated"

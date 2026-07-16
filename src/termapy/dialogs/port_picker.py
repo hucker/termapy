@@ -114,8 +114,10 @@ class PortPicker(ModalScreen[str | None]):
                 if opt is not None and opt.id == selected_id:
                     port_list.highlighted = i
                     return
-        if self._ports:
-            port_list.highlighted = 2  # skip header + separator rows
+        if port_list.option_count > 2:
+            # highlight the first data row (real port, or the loopback row
+            # which is always present) -- skip the header + separator.
+            port_list.highlighted = 2
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         self.dismiss(str(event.option.id))

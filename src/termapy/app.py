@@ -1765,7 +1765,7 @@ class SerialTerminal(TerminalHost, App):
         except (OSError, ImportError):
             available = set()
 
-        if port and (port in available or port.upper() == "DEMO"):
+        if port and (port in available or port_control.opens_without_enumeration(port)):
             self._switch_config(cfg, path)
             self._show_config_info(path)
         elif available:

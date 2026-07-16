@@ -400,6 +400,45 @@ class ChipFacts:
     _usb_speed_color: str | None = None
 
 
+LOOPBACK_PORT = "loop://"
+
+
+def loopback_port_facts() -> ChipFacts:
+    """Honest ChipFacts for the pyserial loopback (``loop://``).
+
+    Deliberately NOT a reserved name and NOT part of the DEMO machinery:
+    a loopback isn't a device, so it gets only a name + description and
+    leaves every USB field (VID:PID, serial, chip, ...) as ``None`` -- they
+    render as blanks, never invented identity.  The port picker surfaces
+    this as a selectable row; the spec itself already opens via
+    ``serial.serial_for_url`` (it echoes whatever you write straight back,
+    which is handy for exercising the real read/write path in CI or by
+    hand -- unlike DEMO, which simulates a *responding* device).
+    """
+    return ChipFacts(
+        device=LOOPBACK_PORT,
+        description="Pyserial Loopback",
+    )
+
+
+def opens_without_enumeration(port: str) -> bool:
+    """True if ``port`` can be opened without appearing in ``comports()``.
+
+    pyserial URL handlers (``loop://``, ``socket://``, ``rfc2217://``, ...)
+    and the reserved virtual ports (the ``DEMO`` family) open directly and
+    never enumerate.  The "is it in comports()?" availability gate used when
+    loading a config must not reject them, or a config with e.g.
+    ``"port": "loop://"`` would wrongly pop the port picker instead of
+    connecting.  ``synthetic_facts_for_reserved`` is the single source of
+    truth for which names are reserved.
+    """
+    if not port:
+        return False
+    if "://" in port:
+        return True
+    return synthetic_facts_for_reserved(port.upper()) is not None
+
+
 def _read_sysfs(*parts: str) -> str | None:
     """Read a single line from a sysfs file.  Returns None on any error."""
     try:
@@ -942,6 +981,17 @@ def synthetic_facts_for_reserved(name: str) -> ChipFacts | None:
             description="Termapy simulated NDJSON device (modern path)",
             manufacturer="termapy",
             model="DEMO_JSON",
+            usb_speed="virtual (not a USB device)",
+            vid_pid="not a USB device",
+            in_use="no",
+            permissions="ok",
+        )
+    if name == "DEMO_VT100":
+        return ChipFacts(
+            device="DEMO_VT100",
+            description="Termapy simulated VT100 device (cursor-addressed)",
+            manufacturer="termapy",
+            model="DEMO_VT100",
             usb_speed="virtual (not a USB device)",
             vid_pid="not a USB device",
             in_use="no",

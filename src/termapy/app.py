@@ -528,7 +528,7 @@ class SerialTerminal(TerminalHost, App):
         ("Toggle Hex Display", "_palette_toggle_hex"),
         ("Toggle Line Endings", "_palette_toggle_line_endings"),
         ("Show Terminal Settings", "_palette_term_info"),
-        ("Connect / Disconnect", "_toggle_connection"),
+        ("Connect / Disconnect", "_btn_title_right"),
         ("Edit Config", "_palette_edit_config"),
         ("Load Config...", "_palette_load_config"),
         ("New Config", "_palette_new_config"),
@@ -2512,15 +2512,6 @@ class SerialTerminal(TerminalHost, App):
         on_port_picked(self, *args, **kwargs)
     # -- Palette action wrappers --
 
-    def _toggle_connection(self) -> None:
-        if self._reconnecting:
-            self._engine.stop_event.set()
-            self._set_conn_status("Disconnected")
-        elif self.is_connected:
-            self._disconnect()
-        else:
-            self._connect()
-
     def _new_config(self) -> None:
         self.push_screen(QuickSetup(), callback=self._on_quick_setup)
 
@@ -2556,17 +2547,10 @@ class SerialTerminal(TerminalHost, App):
             return
 
         def on_confirmed(confirmed: bool) -> None:
-            if not confirmed:
-                return
-            # Close the open file handle first
-            if self.log_fh:
-                self.log_fh.close()
-                self.log_fh = None
-            try:
-                Path(log_path).unlink()
-                self._status(f"Deleted {log_path}", "green")
-            except OSError as e:
-                self._status(f"Delete failed: {e}", "red")
+            # Single owner of the delete (close fh + unlink + status):
+            # the log.delete hook.  Palette only adds the confirm gate.
+            if confirmed:
+                self._tui_hook_log_delete()
 
         self.push_screen(  # ty: ignore[no-matching-overload] -- no (screen, callback=) overload
             ConfirmDialog(f"Delete {Path(log_path).name}?"),
@@ -3350,18 +3334,10 @@ class SerialTerminal(TerminalHost, App):
     def _apply_port_effects(self, effects: dict) -> None:
         """Apply side effects from a port_control function (used by port plugin).
 
-        cfg_update keys arrive flat (e.g. ``"baud_rate"``); route each
-        to ``cfg["serial"]`` if it lives there, top level otherwise.
-        Keeps port_control producers oblivious to the v22 nesting.
+        The base handles the flat ``cfg_update`` routing (v22 serial
+        nesting); this override adds the TUI-only title/hardware refresh.
         """
-        if effects.get("cfg_update"):
-            cfg = self.repl._cfg_data
-            serial = cfg.get("serial", {})
-            for key, val in effects["cfg_update"].items():
-                if key in serial:
-                    serial[key] = val
-                else:
-                    cfg[key] = val
+        super()._apply_port_effects(effects)
         if effects.get("update_title"):
             self._update_title()
         if effects.get("sync_hw"):

@@ -115,7 +115,7 @@ dependencies = [
 
 [project.optional-dependencies]
 web = ["textual-serve>=1.1"]
-mcp = ["mcp>=1.0,<2.0"]
+mcp = ["mcp>=1.0,<3.0"]
 # Catch-all for "I want everything; don't make me think about extras."
 # Lazy imports inside termapy.entry mean unused deps cost nothing at
 # runtime (TUI/CLI never load pydantic; --mcp never loads textual).

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Termapy Code Insights</title>
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --panel: #ffffff;
+    --ink: #1c1b19;
+    --ink-soft: #55524d;
+    --ink-faint: #8a867f;
+    --rule: #e4e0d9;
+    --accent: #9a5b2c;
+    --accent-soft: #f3ece4;
+    --good: #2f6b45;
+    --warn: #8a5a12;
+    --code-bg: #f4f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161513;
+      --panel: #1e1d1a;
+      --ink: #ece8e1;
+      --ink-soft: #b3ada3;
+      --ink-faint: #7d776e;
+      --rule: #302e2a;
+      --accent: #d59156;
+      --accent-soft: #2a241d;
+      --good: #7bbd93;
+      --warn: #d9ab5f;
+      --code-bg: #262421;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161513;
+    --panel: #1e1d1a;
+    --ink: #ece8e1;
+    --ink-soft: #b3ada3;
+    --ink-faint: #7d776e;
+    --rule: #302e2a;
+    --accent: #d59156;
+    --accent-soft: #2a241d;
+    --good: #7bbd93;
+    --warn: #d9ab5f;
+    --code-bg: #262421;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+
+  header.top { border-bottom: 2px solid var(--ink); padding-bottom: 1.25rem; margin-bottom: 2.5rem; }
+  h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 .4rem; letter-spacing: -.02em; }
+  .sub { color: var(--ink-soft); font-size: .95rem; margin: 0; }
+  .stamp { color: var(--ink-faint); font-size: .82rem; margin-top: .6rem; font-variant-numeric: tabular-nums; }
+
+  h2 {
+    font-size: 1.15rem; margin: 3rem 0 .35rem; letter-spacing: -.01em;
+    padding-bottom: .35rem; border-bottom: 1px solid var(--rule);
+  }
+  h2 .n { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: .5rem; }
+  h3 { font-size: 1rem; margin: 1.75rem 0 .3rem; }
+  p { margin: .7rem 0; }
+  ul { margin: .6rem 0; padding-left: 1.15rem; }
+  li { margin: .35rem 0; }
+  code {
+    background: var(--code-bg); padding: .1em .35em; border-radius: 3px;
+    font: 13.5px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+
+  .callout {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    padding: .9rem 1.1rem; margin: 1.25rem 0; border-radius: 0 4px 4px 0;
+  }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  blockquote {
+    margin: .6rem 0 .6rem 0; padding: .1rem 0 .1rem 1rem;
+    border-left: 2px solid var(--rule); color: var(--ink-soft); font-style: italic;
+  }
+  blockquote .who { font-style: normal; color: var(--ink-faint); font-size: .82rem; display: block; margin-top: .2rem; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; margin: 1.5rem 0; }
+  .stat { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: .8rem .9rem; }
+  .stat .v { font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: .78rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .05em; margin-top: .15rem; }
+
+  .scroll { overflow-x: auto; margin: 1.25rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .pattern { margin: 1.75rem 0; }
+  .pattern .label {
+    display: inline-block; font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--accent); font-weight: 700; margin-bottom: .15rem;
+  }
+  .pattern h3 { margin-top: .1rem; }
+
+  .tag { font-size: .72rem; padding: .12em .5em; border-radius: 3px; font-weight: 600; letter-spacing: .03em; }
+  .tag.good { background: var(--accent-soft); color: var(--good); }
+  .tag.warn { background: var(--accent-soft); color: var(--warn); }
+
+  footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--ink-faint); font-size: .84rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Termapy Code Insights</h1>
+  <p class="sub">Re-scoped to the real code &mdash; termapy and crcglot &mdash; from the full session transcript rather than its tail.</p>
+  <p class="stamp">Window: 2026-07-11 &rarr; 2026-07-17 &middot; generated 2026-08-12</p>
+</header>
+
+<div class="callout">
+  <p><strong>Why this differs from the <code>/insights</code> report.</strong> That run sampled six sessions and read only the <em>last 16 messages</em> of the termapy transcript &mdash; the tail after three context-exhaustion restarts. So termapy got folded into a &ldquo;Frontend Refactoring &amp; UI Fixes&rdquo; bucket next to the chess app, and the numbers it quoted (16 messages, 2 commits, 506 lines) describe an afternoon, not the work.</p>
+  <p>The full transcript holds <strong>225 typed messages and six days of continuous termapy work</strong>. Everything below comes from that.</p>
+</div>
+
+<h2><span class="n">01</span>By the numbers</h2>
+
+<div class="grid">
+  <div class="stat"><div class="v">225</div><div class="k">your messages</div></div>
+  <div class="stat"><div class="v">2,365</div><div class="k">tool calls</div></div>
+  <div class="stat"><div class="v">94</div><div class="k">commits</div></div>
+  <div class="stat"><div class="v">41</div><div class="k">branches merged</div></div>
+  <div class="stat"><div class="v">15</div><div class="k">one-word merge orders</div></div>
+  <div class="stat"><div class="v">10</div><div class="k">interrupts</div></div>
+</div>
+
+<p>Tool mix: Bash 791, Edit 594, Read 418, PowerShell 172, Grep 140, Write 60. Most-edited files: <code>app.py</code> (83), <code>README.md</code> (62), <code>defaults.py</code> (52), <code>term.py</code> (49), <code>repl.py</code> (46).</p>
+
+<h3>On crcglot</h3>
+<p>There is no crcglot session store on disk &mdash; <code>~/.claude/projects</code> has directories for termapy, ct, boardviz, and Mag3_Sensor_PIC only. So there are no crcglot working-pattern insights to give you; the data isn't retained.</p>
+<p>crcglot appears in this window only as a <em>consumed dependency inside termapy sessions</em>: four MCP calls (<code>crc_list</code>, <code>crc_info</code>), one attribution correction, and one boundary instruction. That last one is itself a pattern &mdash; see 03.</p>
+
+<h2><span class="n">02</span>What the six days actually were</h2>
+
+<p>Not one refactor. Eleven sequential workstreams, each its own branch, each merged before the next began.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Date</th><th>Workstream</th><th>Came out of</th></tr></thead>
+  <tbody>
+    <tr><td class="num">07-11</td><td>MCP live verification against real hardware</td><td>&ldquo;MCP is useless without it&rdquo;</td></tr>
+    <tr><td class="num">07-11</td><td>Profile-spec v1 &mdash; forward-compatible JSON device descriptor</td><td>Wanting v1 to &ldquo;show foresight&rdquo;</td></tr>
+    <tr><td class="num">07-12&ndash;13</td><td>MCP security audit &rarr; filesystem/network/env sandbox</td><td>One unprompted question</td></tr>
+    <tr><td class="num">07-13</td><td>Echo unification &mdash; device echo vs REPL echo split</td><td>A cfg key that toggled but its command didn't</td></tr>
+    <tr><td class="num">07-13&ndash;14</td><td>Terminal parity (T1&ndash;T10) against TeraTerm</td><td>&ldquo;Is it logical, industry standard, complete?&rdquo;</td></tr>
+    <tr><td class="num">07-14</td><td>cfg-key &harr; command-name unification + migrations v28/v29</td><td>Noticing the names didn't line up</td></tr>
+    <tr><td class="num">07-14</td><td>Doc-count hygiene &rarr; fail-loud release_prep substitutions</td><td>Refusing a maintenance tax</td></tr>
+    <tr><td class="num">07-14</td><td>US spelling normalization</td><td>Spotting &ldquo;colouring&rdquo;</td></tr>
+    <tr><td class="num">07-15</td><td>Settings grammar &mdash; bare queries, explicit toggle/cycle</td><td>The <code>/term.color 2</code> bug</td></tr>
+    <tr><td class="num">07-15</td><td>Release v0.73.0</td><td>&mdash;</td></tr>
+    <tr><td class="num">07-16&ndash;17</td><td>app.py philosophy, testable widgets, loopback picker, HistoryNavigator</td><td>&ldquo;3800 to 3500 is no change&rdquo;</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2><span class="n">03</span>The patterns doing the heavy lifting</h2>
+
+<p>These are ranked by how much they changed the codebase, not by how often they appear.</p>
+
+<div class="pattern">
+  <span class="label">Highest leverage</span>
+  <h3>You convert a bug into an invariant</h3>
+  <p>Three times in six days you refused to accept a fix for the thing you reported and demanded the rule behind it instead. Each refusal produced a systemic change and a permanent guardrail.</p>
+  <blockquote>&ldquo;THis is a very odd thing to miss can you enumerate for me each of the &lsquo;standard aruments&rsquo; that termapy accepts? We should NEVER have this type of error.&rdquo;<span class="who">after <code>/term.color 2</code> silently toggled &rarr; became the whole settings-grammar rule</span></blockquote>
+  <blockquote>&ldquo;Before working on these independently as a bunch of bolt-on fixes is there any unifying path on these?&rdquo;<span class="who">on the security findings &rarr; became the capability sandbox instead of five patches</span></blockquote>
+  <blockquote>&ldquo;It seems like EVERY place where we use files it should be relative to the folder that the .cfg file resides in with no allowance to go .. up the tree.&rdquo;<span class="who">one path question &rarr; containment across every file-reading command</span></blockquote>
+  <p>The tell is that all three are now enforced in code or in <code>CLAUDE.md</code>, not just fixed. This is the single most valuable thing in the transcript and it is entirely yours &mdash; in each case the proposed fix was narrower.</p>
+</div>
+
+<div class="pattern">
+  <span class="label">Most efficient</span>
+  <h3>You paste the terminal instead of describing the bug</h3>
+  <p>Seven bug reports were raw TUI output with no prose diagnosis &mdash; the <code>/term.color</code> toggle sequence, the 0-byte <code>/cap.text</code> capture, the port table's <code>-</code> column, the demo script's <code>/print</code> echo wall. Zero of those needed a clarifying round trip.</p>
+  <p>Compare the ones you described in prose: the REPL focus bug took four exchanges (&ldquo;no longer allows keyboard input&rdquo; &rarr; &ldquo;runing from run menu does the same&rdquo; &rarr; &ldquo;when I type in /run welcome it hangs&rdquo;) because the symptom shifted each time. The artifact is unambiguous; the description isn't.</p>
+</div>
+
+<div class="pattern">
+  <span class="label">Design method</span>
+  <h3>You settle disputes with prior art, not taste</h3>
+  <blockquote>&ldquo;when in doublt we should match teraterm&rdquo;</blockquote>
+  <blockquote>&ldquo;the CLI has been around for 60 years there must be some standard-ish ways to do this that are not &lsquo;toggle&rsquo;&rdquo;</blockquote>
+  <p>Naming an external authority up front collapses the option space before anyone writes code. The settings grammar landed in one branch because <code>stty</code>/<code>git config</code> had already decided it. Contrast the arcs with no anchor named &mdash; app.py decomposition took nine exchanges of philosophy first.</p>
+</div>
+
+<div class="pattern">
+  <span class="label">Cadence</span>
+  <h3>Merge is a gate you hold, and it costs you one word</h3>
+  <p>41 branches, 41 <code>--no-ff</code> merges, and 15 of your 225 messages are literally &ldquo;merge&rdquo;, &ldquo;merg&rdquo;, &ldquo;merge 1&rdquo;, &ldquo;ok lets merge&rdquo;. Between each: you ran it on real hardware.</p>
+  <blockquote>&ldquo;I ran /run welcome multiple times from the menu and typing it in and command recall and they all work&rdquo;</blockquote>
+  <p>This is the cheapest quality control in the transcript. The gate is real, the manual test is real, and it costs six characters to release. Worth protecting.</p>
+</div>
+
+<div class="pattern">
+  <span class="label">Course correction</span>
+  <h3>You attack the metric, not the code</h3>
+  <p>The app.py arc is the best sequence in the six days. It starts with you rejecting a result:</p>
+  <blockquote>&ldquo;we did a major session adn we went from 3800 to 3500 which from my perspective is no change.&rdquo;</blockquote>
+  <p>Then refusing to continue until the goal is restated:</p>
+  <blockquote>&ldquo;Before we do something I need to ask what SHOULD we be doing. I have found that UI's with many pieces structurally must have a lot of code&hellip; Making it small is hard because the problem isn't small.&rdquo;</blockquote>
+  <p>Then finding the metric that actually pays:</p>
+  <blockquote>&ldquo;that is the sort of thing that &lsquo;pays&rsquo; for me if I can test more things in the app monolith. My feear of course is that I add all these tests&hellip; BUT I increase the size of the app.py so I can't get ahead.&rdquo;</blockquote>
+  <p>Outcome: the size ratchet was <em>built and then deleted</em> (<code>chore/remove-app-ratchet</code>), replaced by a written principle that app.py health is testability and placement, not line count. You killed a treadmill mid-stride. The probe &ldquo;if will mcgaughan wrote this how would it look different?&rdquo; is a good instrument &mdash; a named practitioner as a lens gets a sharper answer than &ldquo;is this good code?&rdquo;</p>
+</div>
+
+<div class="pattern">
+  <span class="label">Economics</span>
+  <h3>You refuse recurring maintenance taxes</h3>
+  <blockquote>&ldquo;I really don't like the exact numbers in the text, each one of these is a dependency that isn't really required.&rdquo;</blockquote>
+  <blockquote>&ldquo;we need a piece of infrastructure that automatically does these things. Probably NOT just AI burning tokens to do it but a script.&rdquo;</blockquote>
+  <p>That second sentence is the right instinct about what to spend a model on. The result was fail-loud <code>re.subn</code> substitutions in <code>release_prep.py</code> &mdash; a script that breaks the build if a target moves, rather than a habit that decays.</p>
+</div>
+
+<div class="pattern">
+  <span class="label">Boundaries</span>
+  <h3>You police the library edge from the driver's seat</h3>
+  <blockquote>&ldquo;Don't modify CRCglot if there is anything in there, I will update it separately.&rdquo;</blockquote>
+  <blockquote>&ldquo;While it is based on crcglot, crcglot is based at least in part on reveng. It would not be right not to recognzie them.&rdquo;</blockquote>
+  <p>Mid-session, unprompted, both times. The first keeps a cross-repo edit from happening silently; the second is an attribution correction nobody would have caught downstream.</p>
+</div>
+
+<div class="pattern">
+  <span class="label">Judgment</span>
+  <h3>You right-size threats instead of accepting findings wholesale</h3>
+  <p>You opened the security work by naming your own gap &mdash; &ldquo;I am new to being concerned about security&hellip; I feel like I need help in this area&rdquo; &mdash; and then still overrode the audit where it was wrong:</p>
+  <blockquote>&ldquo;Do we care if a software debugging tool can create a ddos on a local machine? I guess a coordinated attack of all developers who have this installed (which some day may be measured in the 1's) is a risk?&rdquo;</blockquote>
+  <p>Asking for help on a topic and deferring on it are different things. The sandbox shipped; the DDoS finding correctly didn't.</p>
+</div>
+
+<h2><span class="n">04</span>Where it cost you</h2>
+
+<h3><span class="tag warn">Fixable today</span> &nbsp;712 wasted <code>cd</code> prefixes</h3>
+<p>791 Bash calls, and 712 of them opened with <code>cd /c/Users/chuck/src/repo/termapy</code>. The Bash tool already starts in the project directory and the working directory persists between calls. Every one of those was pure overhead &mdash; and on Windows a bare <code>cd</code> in a compound command can trigger an extra permission prompt. One line in <code>CLAUDE.md</code> removes it.</p>
+
+<h3><span class="tag warn">Structural</span> &nbsp;Three context exhaustions inside one arc</h3>
+<p>The transcript contains three &ldquo;continued from a previous conversation&rdquo; summaries. The app.py philosophy discussion &mdash; the most valuable reasoning in the window &mdash; had to be partly re-derived after one of them, and it survived only because you later wrote it into <code>CLAUDE.md</code> by hand. Conclusions that live only in conversation don't survive a restart.</p>
+
+<h3><span class="tag warn">Rhythm</span> &nbsp;10 interrupts, clustered at one boundary</h3>
+<p>Nearly all of them are the same moment: implementation starting while you were still deciding. &ldquo;I mean a part not the whole&rdquo;, &ldquo;Can we start this with a new context&rdquo;, the interrupt right before &ldquo;Don't modify CRCglot&rdquo;. Not disagreement &mdash; premature motion.</p>
+
+<h3><span class="tag warn">Verbosity</span> &nbsp;Extractions come out larger than the thing they replaced</h3>
+<blockquote>&ldquo;Seems straight forward&hellip;.and it also seems like there must be a way to do this with half the code.&rdquo;<span class="who">on HistoryNavigator</span></blockquote>
+<p>This is the same complaint as the 3800&rarr;3500 one, aimed at a single file instead of the app. Worth a stated size budget before the extraction, not after.</p>
+
+<h3><span class="tag warn">Environment</span> &nbsp;Four consecutive API stalls</h3>
+<p>&ldquo;retry&rdquo; &times; 4 on 07-16 between 19:13 and 19:25, in the middle of the loopback-picker design. Nothing to fix on your side, but it argues for checkpointing design conclusions to disk as you go.</p>
+
+<h2><span class="n">05</span>What's worth changing</h2>
+
+<p>Your <code>CLAUDE.md</code> is already unusually mature &mdash; the settings grammar, the error-message vocabulary, the app.py principle, the count policy all got written down <em>because</em> of frictions in this window. That's the loop working. These are the gaps it doesn't cover yet.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Add</th><th>Because</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Shell hygiene.</strong> &ldquo;The Bash/PowerShell tools already start in the project root and the cwd persists. Never prefix a command with <code>cd &lt;repo&gt;</code>.&rdquo;</td>
+      <td>712 of 791 Bash calls did exactly that.</td>
+    </tr>
+    <tr>
+      <td><strong>Answer before acting.</strong> &ldquo;For a design or 'should we' question, answer in prose first and stop. Do not read code, plan, or edit until asked.&rdquo;</td>
+      <td>Most of the 10 interrupts were implementation starting mid-decision.</td>
+    </tr>
+    <tr>
+      <td><strong>Size budget on extractions.</strong> &ldquo;An extraction must not be larger than what it replaced. State the before/after line count when proposing one; if it grew, cut it before showing it.&rdquo;</td>
+      <td>Raised twice, once about app.py and once about HistoryNavigator.</td>
+    </tr>
+    <tr>
+      <td><strong>Checkpoint design arcs.</strong> &ldquo;When a discussion settles a principle, write it to <code>docs/</code> or <code>CLAUDE.md</code> in that turn &mdash; not at the end of the session.&rdquo;</td>
+      <td>Three context exhaustions; the app.py principle nearly didn't survive one.</td>
+    </tr>
+    <tr>
+      <td><strong>Promote the merge gate into <code>CLAUDE.md</code>.</strong> The pause-for-manual-test rule currently lives only in auto-memory.</td>
+      <td>It's the backbone of all 41 merges and it isn't written in the repo.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>One habit worth adopting</h3>
+<p>You already paste terminal output as bug reports and it measurably outperforms describing them. Extend it to the case where it currently fails: TUI <em>state</em> bugs (focus, input, rendering) have no pasteable artifact, and those are exactly the ones that took four rounds. For those, lead with what you pressed and what didn't happen, in that order &mdash; the sequence is the artifact.</p>
+
+<h2><span class="n">06</span>If you want crcglot covered</h2>
+<p>Nothing is retained, so a re-run won't help. Going forward, <code>/insights</code> reads <code>~/.claude/projects/&lt;project&gt;/*.jsonl</code> &mdash; running it from the crcglot repo after some working sessions there will produce real data. Worth noting the transcripts appear to rotate: only four project directories survive, and termapy's own history before 07-11 is already gone.</p>
+
+<footer>
+  Built from <code>7794c2bf-3c9c-4288-bdd3-d600ab67d7d7.jsonl</code> (225 typed messages, 5,438 assistant messages, 2,365 tool calls) and termapy's git log for 2026-07-11 &rarr; 2026-07-17. Supersedes the termapy portion of <code>report-2026-08-12-105134.html</code>.
+</footer>
+
+</div>
+</body>
+</html>

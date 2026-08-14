@@ -109,8 +109,16 @@ dependencies = [
     # data -- types, enums, defaults, help); 0.28 added ``call_verb`` (invoke
     # a verb from its manifest param names, returning a JSON-ready wire dict).
     # termapy renders both into typed ``/proto.crc.*`` commands via
-    # ``builtins/commands/_crc_verbs.py``, so the floor moves to 0.28.0.
-    "crcglot>=0.28.0",
+    # ``builtins/commands/_crc_verbs.py``.  0.29 added Zig and Lua as
+    # codegen targets (eleven languages); the dynamic LANGUAGES loop
+    # surfaces /proto.crc.zig and /proto.crc.lua with no termapy edit.
+    # 0.30 ports crcglot's OWN MCP server to mcp 2.x -- a break confined
+    # to the ``crcglot[mcp]`` extra, which termapy does not depend on
+    # (termapy consumes ``VERBS`` / ``call_verb`` from the SDK-free
+    # core), so termapy's ``mcp`` extra keeps its own pin.  0.30 also
+    # fixes ``detect`` inferring hex-digit case from a ``0X`` prefix.
+    # Floor moves to 0.30.0.
+    "crcglot>=0.30.0",
 ]
 
 [project.optional-dependencies]

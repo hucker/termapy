@@ -20,7 +20,6 @@ from termapy.profile import (
     typedef_to_catalog,
 )
 
-
 # ── Registry construction & resolution ───────────────────────────────────────
 
 

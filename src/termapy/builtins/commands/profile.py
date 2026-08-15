@@ -33,12 +33,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command, UsageError, format_kv_lines
+from termapy.plugins.params import ParamSpec
 from termapy.profile import (
     load_profile,
     save_profile,
     validate_profile,
 )
-from termapy.plugins.params import ParamSpec
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:

@@ -14,9 +14,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
-
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from termapy.plugins import CapabilitySet, resolve_long_help
 from termapy.profile import TypeRegistry, typedef_to_catalog

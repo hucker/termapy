@@ -7,8 +7,8 @@ Runs well in most terminals (Windows Terminal, iTerm2, etc).
 VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
-import re
 import os
+import re
 import sys
 import threading
 import time
@@ -18,6 +18,22 @@ from pathlib import Path
 from threading import Event
 
 import serial
+from rich.text import Text
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
+from textual.message import Message
+from textual.timer import Timer
+from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
+
+from termapy import port_control
+from termapy.capture import (
+    CaptureEngine,
+    CaptureResult,
+    format_capture_result,
+)
 from termapy.config import (
     CONFIG_LOAD_ERRORS,
     CURRENT_CONFIG_VERSION,
@@ -41,14 +57,7 @@ from termapy.config_resolve import (
     find_config as _find_config,
     resolve_config as _resolve_config,
 )
-from rich.text import Text
-from textual import on, work
-
-from termapy import port_control
 from termapy.defaults import cmd_prefix, default_cfg
-from termapy.history_nav import HistoryNavigator
-from termapy.folders import FOLDER_PATTERNS
-from termapy.palette_provider import PaletteProvider
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -61,34 +70,24 @@ from termapy.dialogs import (
     ScriptPicker,
     UpdateAvailableDialog,
 )
+from termapy.folders import FOLDER_PATTERNS
+from termapy.help_tooltip import build_help_tooltip
+from termapy.history_nav import HistoryNavigator
+from termapy.palette_provider import PaletteProvider
 from termapy.plugins import (
     BoundaryException,
     CapabilitySet,
+    CmdResult,
     LoadResult,
     load_plugins_from_dir,
 )
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
-from termapy.capture import (
-    CaptureEngine,
-    CaptureResult,
-    format_capture_result,
-)
+from termapy.repl import ReplEngine
 from termapy.serial_engine import READER_STOP_WAIT_S, SerialEngine
 from termapy.serial_port import eol_label
-from termapy.widgets import CommandSuggester, StatusBar
-from termapy.help_tooltip import build_help_tooltip
-from termapy.repl import ReplEngine
 from termapy.terminal_host import TerminalHost
-from termapy.plugins import CmdResult
-from textual.app import App, ComposeResult
-from textual.message import Message
-from textual.timer import Timer
-from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
-from textual.css.query import NoMatches
-from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
-
+from termapy.widgets import CommandSuggester, StatusBar
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
 # or reader-thread post-back fires during app teardown.  NoMatches
@@ -112,7 +111,6 @@ from termapy.scripting import (  # noqa: E402
     format_duration,
     format_timestamp,
 )
-
 
 # Single source of truth for top-row hotkeys.
 # Maps button id -> (key spec, action name, footer label).
@@ -688,12 +686,12 @@ class SerialTerminal(TerminalHost, App):
         title = self.cfg.get("title", "") or self.config_path
         port_info = self._port_info_str()
         with Horizontal(id="title-bar"):
-            from textual.widgets import Static
-
             from importlib.metadata import (
                 PackageNotFoundError,
                 version as _get_version,
             )
+
+            from textual.widgets import Static
 
             # PackageNotFoundError fires when termapy is running from
             # a git clone without `pip install .` (dev setup).  Other
@@ -991,8 +989,7 @@ class SerialTerminal(TerminalHost, App):
         # git clone without an install.  update_check.check() honors
         # its own "never raises to the user" contract internally, so
         # we trust it not to leak other exceptions here.
-        from importlib.metadata import PackageNotFoundError
-        from importlib.metadata import version as _get_version
+        from importlib.metadata import PackageNotFoundError, version as _get_version
 
         from termapy.update_check import check
 
@@ -1037,8 +1034,7 @@ class SerialTerminal(TerminalHost, App):
         result.  Mirrors compose's ``"?"`` fallback for an un-installed
         (git-clone) run.
         """
-        from importlib.metadata import PackageNotFoundError
-        from importlib.metadata import version as _get_version
+        from importlib.metadata import PackageNotFoundError, version as _get_version
 
         try:
             ver = _get_version("termapy")
@@ -1889,7 +1885,6 @@ class SerialTerminal(TerminalHost, App):
         port is not enumerable (DEMO, unplugged cable, non-USB device).
         """
         from termapy import port_control
-
         from termapy.title_bar import format_title_tooltip, port_tooltip_pairs
 
         port_name = self.cfg["serial"]["port"] or "(none)"

@@ -14,15 +14,14 @@ from pathlib import Path
 import pytest
 
 from termapy.profile import (
-    Profile,
     SCHEMA_PATH,
+    Profile,
     load_profile,
     precedence,
     save_profile,
     validate_profile,
 )
 from termapy.response_parsers import parse_response
-
 
 FIXTURES = Path(__file__).parent / "fixtures" / "profiles"
 REFERENCE_PROFILES = [

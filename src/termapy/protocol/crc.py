@@ -29,12 +29,9 @@ from typing import Callable
 #
 # New termapy code should prefer ``from crcglot import ALGORITHMS,
 # generic_crc`` directly rather than these shims.
-from crcglot import ALGORITHMS as _ALGORITHMS
-from crcglot import Crc as _Crc
-from crcglot import generic_crc as _generic_crc
+from crcglot import ALGORITHMS as _ALGORITHMS, Crc as _Crc, generic_crc as _generic_crc
 
 from termapy.plugins import BoundaryException
-
 
 CRC_CATALOGUE: dict[str, dict] = {
     name: {

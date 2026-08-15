@@ -1,11 +1,10 @@
 """Tests for built-in REPL commands dispatched through ReplEngine."""
 
 import json
+import re as _re
 from pathlib import Path
 
 import pytest
-
-import re as _re
 
 from termapy.plugins import CapabilitySet, InternalHandle, PluginContext
 from termapy.repl import ReplEngine

@@ -38,7 +38,6 @@ from termapy.dialogs.set_var_dialog import SetVarDialog
 from termapy.dialogs.update_available import UpdateAvailableDialog
 from termapy.dialogs.welcome_dialog import WelcomeDialog
 
-
 __all__ = [
     "CfgConfirm",
     "ConfigEditor",

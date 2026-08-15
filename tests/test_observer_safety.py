@@ -14,7 +14,6 @@ import pytest
 
 from termapy.plugins import IOHandle, PluginContext, SerialHandle
 
-
 # ── Shared fixture: PluginContext wired to in-memory observer lists ────────
 
 

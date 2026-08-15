@@ -13,13 +13,11 @@ Side effects dict keys:
 from __future__ import annotations
 
 import os
+import re
 import sys
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-import re
-
-from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 from termapy.defaults import (
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -27,6 +25,7 @@ from termapy.defaults import (
     VALID_STOP_BITS,
 )
 from termapy.scripting import format_duration
+from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 
 # Type alias for message lists: (text, color_or_None)
 Msg = tuple[str, str | None]

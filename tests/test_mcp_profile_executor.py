@@ -32,7 +32,6 @@ pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] ext
 
 from termapy.mcp.server import MCPHost  # noqa: E402
 
-
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
 

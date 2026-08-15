@@ -3,42 +3,37 @@
 import struct
 
 import pytest
+from crcglot import Crc
 
 from termapy.protocol import (
+    CRC_CATALOGUE,
+    CrcAlgorithm,
     FrameCollector,
     apply_format,
+    builtins_crc_dir,
+    builtins_viz_dir,
     diff_bytes,
     diff_columns,
+    extract_fmt_title,
     format_diff_markup,
     format_hex,
     format_hex_dump,
+    get_crc_registry,
+    load_crc_plugins,
     load_proto_script,
+    load_visualizers_from_dir,
     match_response,
     overflow_count,
     parse_data,
     parse_data_segments,
-    extract_fmt_title,
     parse_format_spec,
     parse_hex,
     parse_pattern,
     parse_proto_script,
     parse_toml_script,
-)
-from termapy.protocol import (
-    CRC_CATALOGUE,
-    CrcAlgorithm,
-    builtins_crc_dir,
-    get_crc_registry,
-    load_crc_plugins,
     reset_crc_registry,
 )
-from crcglot import Crc
 from termapy.protocol.crc import _generic_crc  # private; explicit submodule
-from termapy.protocol import (
-    builtins_viz_dir,
-    load_visualizers_from_dir,
-)
-
 
 # ── parse_hex ──────────────────────────────────────────────────────────────
 

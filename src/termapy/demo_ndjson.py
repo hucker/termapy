@@ -43,7 +43,6 @@ import threading
 import time
 from typing import Any
 
-
 _BANNER: dict[str, Any] = {
     "event": "ready",
     "device": "BASSOMATIC",

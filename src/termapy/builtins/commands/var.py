@@ -142,6 +142,7 @@ def register_cfg_vars(
         get_log_path: Returns the current log file path.
     """
     from pathlib import Path
+
     from termapy.config import connection_string
 
     def _resolve_cfg() -> Path:

@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy import port_control
-from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
 from termapy.help_dynamic import compose, green, port_status, state_line
 from termapy.legacy import make_forwarder
 from termapy.plugins import CmdResult, Command
+from termapy.usb import USB_SERIAL_CHIPS, ChipInfo
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

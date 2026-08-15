@@ -12,7 +12,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import TypeVar
 
-
 # Shared ANSI escape regex - matches all CSI sequences (color, cursor, clear, etc.).
 # Use strip_ansi() to remove them from text.
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
@@ -476,6 +475,7 @@ def parse_keywords(
 
 _SEQ_RE = re.compile(r"\$\(n(0+)\)")
 from termapy.folders import SEQ_FILE as _SEQ_FILE  # noqa: E402 -- with the seq-filename code below
+
 _MAX_SEQ_WIDTH = 3
 
 

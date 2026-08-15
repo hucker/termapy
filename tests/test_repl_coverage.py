@@ -13,7 +13,6 @@ import pytest
 from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult
 from termapy.repl import ReplEngine, ScriptCtx, _edit_distance, _suggest_command
 
-
 # -- Fixtures ----------------------------------------------------------------
 
 

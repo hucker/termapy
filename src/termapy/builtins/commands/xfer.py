@@ -15,14 +15,10 @@ from typing import TYPE_CHECKING
 
 from termapy.builtins.commands._xmodem_handlers import (
     _handler_recv as _xmodem_recv,
-)
-from termapy.builtins.commands._xmodem_handlers import (
     _handler_send as _xmodem_send,
 )
 from termapy.builtins.commands._ymodem_handlers import (
     _handler_recv as _ymodem_recv,
-)
-from termapy.builtins.commands._ymodem_handlers import (
     _handler_send as _ymodem_send,
 )
 from termapy.plugins import CapabilitySet, CmdResult, Command

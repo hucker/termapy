@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-
 #: Canonical level names, ordered from quietest to loudest.
 OUTPUT_LEVELS: tuple[str, ...] = ("silent", "quiet", "normal", "verbose")
 

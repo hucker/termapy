@@ -2,25 +2,10 @@
 
 from __future__ import annotations
 
+import fnmatch
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
-
-import fnmatch
-
-from termapy.protocol import (
-    ProtoScript,
-    format_hex,
-    format_hex_dump,
-    format_smart,
-    format_spaced,
-    load_proto_script,
-    match_response,
-    parse_data_segments,
-    parse_toml_script,
-    strip_ansi,
-)
-from termapy.protocol import CRC_CATALOGUE, get_crc_registry
 
 from crcglot import DetectResult, detect
 
@@ -28,6 +13,20 @@ from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.folder_ops import build_folder_subcommands
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.protocol import (
+    CRC_CATALOGUE,
+    ProtoScript,
+    format_hex,
+    format_hex_dump,
+    format_smart,
+    format_spaced,
+    get_crc_registry,
+    load_proto_script,
+    match_response,
+    parse_data_segments,
+    parse_toml_script,
+    strip_ansi,
+)
 from termapy.scripting import (
     SETTING_QUERY,
     SETTING_TOGGLE,
@@ -1015,6 +1014,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     from pathlib import Path
 
     from crcglot import AlgorithmInfo, Crc
+
     from termapy.protocol import GENERATORS, GENERATORS_FROM_ENTRY
     from termapy.protocol.crc import _generic_crc
 
@@ -1339,6 +1339,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
                 # ``LanguageInfo.variants_for_width`` so the rule lives
                 # with the generators that enforce it.
                 from crcglot import LANGUAGES
+
                 from termapy.protocol.crc import CRC_CATALOGUE
                 entry = CRC_CATALOGUE.get(name)
                 if entry is not None and (

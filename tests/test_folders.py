@@ -10,11 +10,11 @@ from termapy.folders import (
     FOLDER_NAMES,
     FOLDER_PATTERNS,
     FOLDERS,
-    FolderSpec,
     HISTORY_FILE,
     PROFILE_TMP_GLOB,
     SEQ_FILE,
     SHOWABLE,
+    FolderSpec,
 )
 
 

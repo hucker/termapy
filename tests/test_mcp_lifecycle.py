@@ -29,7 +29,6 @@ from termapy.mcp.catalog import build_device_state  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
 from termapy.profile import validate_profile  # noqa: E402
 
-
 DEMO_NDJSON_PROFILE = (
     Path(__file__).parent.parent
     / "src"

@@ -21,7 +21,6 @@ from termapy.plugins.params import (
 )
 from termapy.repl import ReplEngine
 
-
 # -- param-decl-validation ------------------------------------------------------
 
 

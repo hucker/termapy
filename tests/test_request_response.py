@@ -12,7 +12,6 @@ import pytest
 
 from termapy.request_response import request_response
 
-
 # ── Fakes ────────────────────────────────────────────────────────────────────
 
 

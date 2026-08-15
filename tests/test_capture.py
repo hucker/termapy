@@ -3,14 +3,12 @@
 import struct
 from pathlib import Path
 
-
 from termapy.capture import (
     CaptureEngine,
     CaptureProgress,
     CaptureResult,
     format_capture_result,
 )
-
 
 # -- Lifecycle -----------------------------------------------------------------
 

@@ -22,7 +22,6 @@ import pytest
 from termapy.plugins.capabilities import CapabilitySet, MissingCapability
 from termapy.plugins.handles.fs import FilesystemHandle
 
-
 # ── Layer 1: the chokepoint ─────────────────────────────────────────────────
 
 

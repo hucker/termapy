@@ -12,9 +12,9 @@ from termapy.plugins import (
     CapabilitySet,
     CmdResult,
     Command,
+    UsageError,
     interpolate_help,
     resolve_long_help,
-    UsageError,
 )
 from termapy.plugins.params import render_parameters_block
 

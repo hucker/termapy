@@ -8,13 +8,13 @@ import pytest
 
 from termapy.plugins import CmdResult
 from termapy.scripting import (
+    SETTING_QUERY,
+    SETTING_TOGGLE,
     coerce_to_type,
     expand_template,
     filename_timestamp,
     format_duration,
     format_timestamp,
-    SETTING_QUERY,
-    SETTING_TOGGLE,
     next_in_cycle,
     parse_bool,
     parse_bool_setting,
@@ -27,7 +27,6 @@ from termapy.scripting import (
     select_lines,
     strip_leading_echo,
 )
-
 
 # ── strip_leading_echo ───────────────────────────────────────────
 

@@ -19,7 +19,6 @@ import pytest
 from termapy.builtins.commands import _cfg_icon
 from termapy.repl import ReplEngine
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 

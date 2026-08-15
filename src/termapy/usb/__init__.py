@@ -73,7 +73,6 @@ from termapy.usb.vendors import (
     vendor_for,
 )
 
-
 __all__ = [
     # aliases
     "MANUFACTURER_ALIASES",

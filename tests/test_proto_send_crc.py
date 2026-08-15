@@ -2,8 +2,8 @@
 
 import pytest
 
-from termapy.plugins import InternalHandle, PluginContext, UsageError
 from termapy.builtins.commands.proto import _cmd_send, _parse_send_algo
+from termapy.plugins import InternalHandle, PluginContext, UsageError
 from termapy.protocol import get_crc_registry
 
 

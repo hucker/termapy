@@ -21,7 +21,6 @@ import pytest
 
 from termapy.builtins.commands import app as app_plugin
 
-
 # -- Fixtures ----------------------------------------------------------------
 
 

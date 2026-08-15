@@ -10,10 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.vendor.ymodem.Socket import ModemSocket
-from termapy.vendor.ymodem.Protocol import ProtocolType
-
 from termapy.plugins import CmdResult, UsageError
+from termapy.vendor.ymodem.Protocol import ProtocolType
+from termapy.vendor.ymodem.Socket import ModemSocket
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

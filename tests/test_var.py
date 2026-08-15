@@ -7,8 +7,8 @@ import pytest
 
 from termapy.builtins.commands.var import (
     _FROZEN_MOMENTS,
-    _VARS,
     _VAR_REF_RE,
+    _VARS,
     check_bare_dollar,
     clear_vars,
     expand_vars,

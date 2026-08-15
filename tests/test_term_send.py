@@ -21,7 +21,6 @@ import pytest
 from termapy.plugins import PluginContext
 from termapy.repl import ReplEngine
 
-
 # ── Shared fixture (slimmed-down dispatch_env from test_engine.py) ──────────
 
 

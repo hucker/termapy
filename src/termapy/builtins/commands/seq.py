@@ -15,11 +15,11 @@ The leading underscore on ``_start_time`` is a convention signaling
 from __future__ import annotations
 
 import time
-from termapy.scripting import filename_timestamp
 from typing import TYPE_CHECKING
 
 from termapy.help_dynamic import compose, green
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.scripting import filename_timestamp
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

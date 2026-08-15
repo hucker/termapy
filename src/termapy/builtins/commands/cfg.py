@@ -8,15 +8,9 @@ from typing import TYPE_CHECKING
 
 from termapy.builtins.commands._cfg_icon import (
     _FLAGS as _ICON_FLAGS,
-)
-from termapy.builtins.commands._cfg_icon import (
     _LONG_HELP as _ICON_LONG_HELP,
-)
-from termapy.builtins.commands._cfg_icon import _handler as _icon_handler
-from termapy.builtins.commands._cfg_icon import (
+    _handler as _icon_handler,
     _handler_list as _icon_handler_list,
-)
-from termapy.builtins.commands._cfg_icon import (
     _handler_remove as _icon_handler_remove,
 )
 from termapy.config import cfg_data_dir, cfg_dir, global_plugins_dir, open_with_system

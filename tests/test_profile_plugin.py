@@ -20,7 +20,6 @@ pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] ext
 from termapy.defaults import DEFAULT_CFG  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
 
-
 FIXTURES = Path(__file__).parent / "fixtures" / "profiles"
 
 

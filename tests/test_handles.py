@@ -25,8 +25,8 @@ import pytest
 
 from termapy.plugins import (
     CapabilitySet,
-    InternalHandle,
     FilesystemHandle,
+    InternalHandle,
     IOHandle,
     MissingCapability,
     PluginContext,

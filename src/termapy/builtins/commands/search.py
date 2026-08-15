@@ -15,20 +15,19 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from termapy.plugins import (
-    CmdResult,
-    Command,
-    interpolate_help,
-    resolve_long_help,
-    UsageError,
-)
-
 # Reuse only the thin rendering helpers from the help plugin. Everything
 # search-specific (grammar, field extraction, highlighter) lives below.
 from termapy.builtins.commands.help import (
     _canonical_flags,
     _color_args,
     _underline,
+)
+from termapy.plugins import (
+    CmdResult,
+    Command,
+    UsageError,
+    interpolate_help,
+    resolve_long_help,
 )
 
 if TYPE_CHECKING:

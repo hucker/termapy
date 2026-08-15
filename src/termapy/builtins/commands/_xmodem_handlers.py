@@ -14,10 +14,9 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.vendor.xmodem import XMODEM
-
 from termapy.plugins import CmdResult, UsageError
 from termapy.scripting import resolve_seq_filename
+from termapy.vendor.xmodem import XMODEM
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

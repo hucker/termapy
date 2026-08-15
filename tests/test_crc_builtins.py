@@ -3,7 +3,6 @@
 from termapy.builtins.crc.sum8 import NAME as SUM8_NAME, WIDTH as SUM8_WIDTH, compute as sum8
 from termapy.builtins.crc.sum16 import NAME as SUM16_NAME, WIDTH as SUM16_WIDTH, compute as sum16
 
-
 # ── sum8 module attributes ──────────────────────────────────────────────────
 
 

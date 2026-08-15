@@ -8,7 +8,6 @@ import pytest
 
 from termapy.demo import FakeSerial, _xmodem_crc16
 
-
 # -- Helpers ----------------------------------------------------------------
 
 def _send_cmd(dev: FakeSerial, cmd: str) -> str:
@@ -308,8 +307,8 @@ class TestYmodemLibraryIntegration:
 
     def test_library_send_to_device(self, dev: FakeSerial, tmp_path) -> None:
         """ymodem library sends a file to FakeSerial in recv mode."""
-        from termapy.vendor.ymodem.Socket import ModemSocket
         from termapy.vendor.ymodem.Protocol import ProtocolType
+        from termapy.vendor.ymodem.Socket import ModemSocket
 
         # Arrange
         test_data = b"YMODEM test payload! " * 50  # 1050 bytes
@@ -332,8 +331,8 @@ class TestYmodemLibraryIntegration:
 
     def test_library_recv_from_device(self, dev: FakeSerial, tmp_path) -> None:
         """ymodem library receives a file from FakeSerial in send mode."""
-        from termapy.vendor.ymodem.Socket import ModemSocket
         from termapy.vendor.ymodem.Protocol import ProtocolType
+        from termapy.vendor.ymodem.Socket import ModemSocket
 
         # Arrange
         _enter_ymodem_mode(dev, "SEND firmware_v1.bin")

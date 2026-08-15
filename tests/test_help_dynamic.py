@@ -33,7 +33,6 @@ from termapy.help_dynamic import (
     state_line,
 )
 
-
 # ─── Fixtures / tiny fakes ───────────────────────────────────────────────────
 
 def _fake_ctx(

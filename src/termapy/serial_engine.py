@@ -357,6 +357,7 @@ class SerialEngine:
         if self.is_connected:
             return True
         import serial as _serial
+
         from termapy.port_control import AmbiguousSerialNumberError
         # pyserial open() can raise SerialException (typical: port in
         # use, port missing), OSError (permissions, device vanished),

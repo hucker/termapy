@@ -685,10 +685,10 @@ class TerminalHost:
         """
         if self._help_server_port:
             return self._help_server_port
-        from http.server import HTTPServer, SimpleHTTPRequestHandler
-        from importlib.resources import files as pkg_files
         import urllib.error
         import urllib.request
+        from http.server import HTTPServer, SimpleHTTPRequestHandler
+        from importlib.resources import files as pkg_files
 
         html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
 

@@ -33,7 +33,6 @@ serial-port debugging."  Grow as users encounter unknowns.
 
 from __future__ import annotations
 
-
 # Canonical vendor names per USB-IF assignment.  Keep in sync with
 # https://www.usb.org/developers/usbif-resources/sublicensed-vendor-id  -- and
 # www.linux-usb.org/usb.ids when adding entries.

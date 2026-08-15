@@ -15,7 +15,6 @@ import pytest
 
 from termapy import update_check
 
-
 # -- Fixtures ----------------------------------------------------------------
 
 

@@ -18,7 +18,6 @@ from termapy.plugins import (
 )
 from termapy.repl import ReplEngine, _strip_level_flags
 
-
 # ── parse_output_level / constants ────────────────────────────────────────────
 
 

@@ -202,7 +202,8 @@ uv run termapy --cfg-dir . # use cwd for configs
 - HTML help rebuild should be a separate commit before release versions
 - Run tox, pytest, coverage review
 - **`uv run ruff check src/termapy/ tests/` must be 0** (release_prep refuses to cut a release otherwise)
-- **`uvx ty check src/termapy/` must be 0** (same gate; the README badge tracks this and turns yellow/red on regression)
+- **`uv run ty check src/termapy/` must be 0** (same gate; the README badge tracks this and turns yellow/red on regression)
+- Both tools are pinned exactly in `[dependency-groups] dev` and the rule set is pinned in `[tool.ruff.lint]`. Run them through `uv run`, never `uvx` / a global install — otherwise the gate enforces whatever version happens to be around, which is how ruff 0.16's wider defaults turned a clean tree into 636 findings. Bumping either is a deliberate chore branch with the new findings reviewed.
 
 ## Release
 

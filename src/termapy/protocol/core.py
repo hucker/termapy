@@ -13,9 +13,8 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Callable, Literal
 
-from termapy.scripting import parse_duration, parse_duration_ms
-
 from termapy.protocol.crc import get_crc_registry
+from termapy.scripting import parse_duration, parse_duration_ms
 
 # ---------------------------------------------------------------------------
 # Hex utilities

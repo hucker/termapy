@@ -19,11 +19,11 @@ from pathlib import Path
 from typing import Callable
 
 from termapy.plugins.command import (
+    LIFECYCLE_HOOK_NAMES,
     BoundaryException,
     Command,
     Directive,
     DirectiveInfo,
-    LIFECYCLE_HOOK_NAMES,
     LifecycleHook,
     LoadResult,
     PluginInfo,

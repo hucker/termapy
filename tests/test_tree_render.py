@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 from termapy.tree_render import FileTree, file_meta
-
 
 # ── Connector + shape ────────────────────────────────────────────────────────
 

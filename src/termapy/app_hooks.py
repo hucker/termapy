@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.app import CONFIG_LOAD_ERRORS
-from termapy.run_profile_hooks import register_run_profile_hooks
 from termapy.builtins.commands.edit import (
     _make_edit_handler,
     _make_explore_handler,
@@ -39,6 +38,7 @@ from termapy.defaults import cmd_prefix
 from termapy.dialogs import ConfigEditor, ProtoEditor, ScriptEditor
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
+from termapy.run_profile_hooks import register_run_profile_hooks
 from termapy.scripting import (
     SETTING_QUERY,
     SETTING_TOGGLE,

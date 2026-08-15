@@ -190,6 +190,26 @@ line-length = 100
 # reasoning as the ty exclude above.
 exclude = ["src/termapy/vendor", "src/termapy/html"]
 
+[tool.ruff.lint]
+# Selected EXPLICITLY rather than riding ruff's implicit default.  The
+# default is not a stable contract: 0.16 widened it from 59 rules to 414,
+# which would have moved the release gate's bar without review.
+#
+# E4/E7/E9 + F are the classic defaults this gate has always effectively
+# enforced.  I (import sorting) is the one addition -- deterministic import
+# blocks, and every finding is auto-fixable.
+#
+# Adding a rule family is a deliberate change: select it here, fix the
+# findings, and land it on its own branch.
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+# Keep aliased members in the SAME statement as their siblings.  isort's
+# default splits `from x import a as _a, b as _b` into one statement per
+# alias, which turned single imports into duplicate `from x import ...`
+# blocks in ten modules -- noisier than what it replaced.
+combine-as-imports = true
+
 [tool.coverage.run]
 source = ["src/termapy"]
 omit = [
@@ -211,4 +231,16 @@ show_missing = true
 dev = [
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
+    # Lint/type gates, pinned EXACTLY on purpose.  release_prep.py refuses
+    # to cut a release unless both report zero, so their versions decide
+    # what "zero" means -- a floating version silently redefines the gate.
+    # That is not hypothetical: ruff 0.16 widened its implicit default rule
+    # set from 59 rules to 414, turning a clean tree into 636 findings with
+    # no termapy change.  Before this pin, `uv run ruff` fell through to
+    # whatever ruff happened to be on PATH and `uvx ty` fetched the latest
+    # release on every invocation.  Bump these deliberately, on a chore
+    # branch, with the new findings reviewed -- never as a side effect.
+    "ruff==0.16.0",
+    # ty is 0.0.x and ships near-daily; an unpinned check is a moving target.
+    "ty==0.0.72",
 ]

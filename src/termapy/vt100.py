@@ -22,6 +22,7 @@ import os
 import sys
 from pathlib import Path
 
+
 def _miniterm_settings(cfg: dict) -> dict:
     """Map a config dict to the settings the passthrough needs.
 

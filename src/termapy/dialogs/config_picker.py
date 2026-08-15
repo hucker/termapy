@@ -7,7 +7,6 @@ the ``_common`` submodule for shared constants and helpers.
 
 from __future__ import annotations
 
-
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical

@@ -15,13 +15,6 @@ from typing import Any
 
 import serial
 
-from termapy.folders import (
-    FOLDER_MIGRATIONS,
-    FOLDER_NAMES,
-    HISTORY_FILE,
-    HISTORY_SUFFIX,
-    PROFILE_TMP_GLOB,
-)
 from termapy.defaults import (
     DEFAULT_CFG,
     STANDARD_BAUD_RATES,
@@ -29,6 +22,13 @@ from termapy.defaults import (
     VALID_FLOW_CONTROLS,
     VALID_PARITIES,
     VALID_STOP_BITS,
+)
+from termapy.folders import (
+    FOLDER_MIGRATIONS,
+    FOLDER_NAMES,
+    HISTORY_FILE,
+    HISTORY_SUFFIX,
+    PROFILE_TMP_GLOB,
 )
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,

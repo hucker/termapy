@@ -127,8 +127,7 @@ def _kv(key: str, value: object, col: int = 22) -> str:
 
 def _termapy_version() -> str:
     """Return the installed termapy version, or '(dev)' if unknown."""
-    from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as _get_version
+    from importlib.metadata import PackageNotFoundError, version as _get_version
 
     try:
         return _get_version("termapy")

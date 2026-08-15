@@ -14,7 +14,6 @@ from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.terminal_host import TerminalHost
 
-
 # -- Concrete stub for testing -----------------------------------------------
 
 

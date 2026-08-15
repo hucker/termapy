@@ -14,7 +14,6 @@ from types import SimpleNamespace
 
 from termapy.app import SerialTerminal
 
-
 _EXPECTED_PALETTE_ADDITIONS = [
     ("Find in scrollback...", "_palette_find"),
     ("Search scrollback (Grep)...", "_palette_grep"),

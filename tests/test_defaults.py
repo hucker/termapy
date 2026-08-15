@@ -19,7 +19,6 @@ from termapy.defaults import (
     resolve_color,
 )
 
-
 # -- Validation constants ----------------------------------------------------
 
 

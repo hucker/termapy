@@ -229,7 +229,7 @@ class TestVendorLookupFallback:
         # curated USB_VENDORS table.  Cypress's older USB controllers
         # use 0x04B4 (curated; "Cypress"); Logitech 0x046D is curated.
         # Try a vendor we don't curate but is well-known: Yubico (0x1050).
-        from termapy.usb import vendor_for, USB_VENDORS
+        from termapy.usb import USB_VENDORS, vendor_for
 
         assert 0x1050 not in USB_VENDORS, "fixture pre-condition: 0x1050 uncurated"
 
@@ -253,8 +253,8 @@ class TestVendorLookupFallback:
         """Sanity: the bundled full table should be substantially larger
         than the curated one.
         """
-        from termapy.usb._vendors_full import USB_VENDORS_FULL
         from termapy.usb import USB_VENDORS
+        from termapy.usb._vendors_full import USB_VENDORS_FULL
 
         actual = len(USB_VENDORS_FULL)
         assert actual > 1000, (
@@ -336,10 +336,8 @@ class TestTermUsbDbHandler:
         """
         # Arrange
         from termapy.builtins.commands.term import _handler_usb_db
+        from termapy.plugins import IOHandle, PluginContext
         from termapy.usb._vendors_full import USB_VENDORS_FULL
-        from termapy.plugins import PluginContext
-
-        from termapy.plugins import IOHandle
         ctx = PluginContext(
             io=IOHandle(
                 _write=lambda t, c=None: None,
@@ -372,9 +370,7 @@ class TestTermUsbDbHandler:
         monkeypatch.setattr(urllib.request, "urlopen", _trap)
 
         from termapy.builtins.commands.term import _handler_usb_db
-        from termapy.plugins import PluginContext
-
-        from termapy.plugins import IOHandle
+        from termapy.plugins import IOHandle, PluginContext
         ctx = PluginContext(
             io=IOHandle(
                 _write=lambda t, c=None: None,

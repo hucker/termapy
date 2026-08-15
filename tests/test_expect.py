@@ -23,7 +23,6 @@ import pytest
 from termapy.plugins import CapabilitySet, PluginContext
 from termapy.repl import ReplEngine
 
-
 # ── Fixture: engine with block_until enabled ────────────────────────────────
 
 

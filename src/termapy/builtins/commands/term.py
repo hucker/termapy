@@ -17,8 +17,8 @@ from termapy.plugins import (
     CapabilitySet,
     CmdResult,
     Command,
-    parse_output_level,
     UsageError,
+    parse_output_level,
 )
 from termapy.scripting import (
     SETTING_QUERY,

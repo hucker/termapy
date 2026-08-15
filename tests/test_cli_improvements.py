@@ -526,8 +526,9 @@ class TestFastGather:
 
     def test_fast_gather_marks_in_use_none(self):
         # Arrange + Act
-        from termapy import port_control
         from unittest.mock import MagicMock
+
+        from termapy import port_control
 
         # Use a synthetic ListPortInfo since we don't want to depend on
         # the real OS port set for this assertion.

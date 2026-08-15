@@ -17,7 +17,6 @@ import pytest
 from termapy.config import open_serial
 from termapy.demo_ndjson import FakeSerialNDJSON
 
-
 # ── Direct simulator tests ──────────────────────────────────────────────────
 
 

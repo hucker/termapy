@@ -52,19 +52,19 @@ internals are split across :mod:`.context`, :mod:`.command`,
 """
 
 from termapy.plugins.capabilities import (
-    CapabilitySet,
     ENVIRONMENTS,
+    CapabilitySet,
     MissingCapability,
     detect_gui_apps,
 )
 from termapy.plugins.command import (
+    LIFECYCLE_HOOK_NAMES,
     BoundaryException,
     CmdResult,
     Command,
     Directive,
     DirectiveInfo,
     DirectiveResult,
-    LIFECYCLE_HOOK_NAMES,
     LifecycleHook,
     LoadResult,
     LongHelp,
@@ -81,16 +81,9 @@ from termapy.plugins.context import (
     PluginConfig,
     PluginContext,
 )
-from termapy.plugins.output_levels import (
-    DEFAULT_OUTPUT_LEVEL,
-    LEVEL_FLAGS,
-    OUTPUT_LEVELS,
-    format_kv_lines,
-    parse_output_level,
-)
 from termapy.plugins.handles import (
-    InternalHandle,
     FilesystemHandle,
+    InternalHandle,
     IOHandle,
     SerialHandle,
     UIHandle,
@@ -99,7 +92,13 @@ from termapy.plugins.loader import (
     builtins_dir,
     load_plugins_from_dir,
 )
-
+from termapy.plugins.output_levels import (
+    DEFAULT_OUTPUT_LEVEL,
+    LEVEL_FLAGS,
+    OUTPUT_LEVELS,
+    format_kv_lines,
+    parse_output_level,
+)
 
 __all__ = [
     # Capabilities

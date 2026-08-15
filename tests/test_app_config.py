@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from termapy.defaults import DEFAULT_CFG, SCRIPT_TEMPLATE
 from termapy.config import (
     cfg_data_dir,
     cfg_history_path,
@@ -19,6 +18,7 @@ from termapy.config import (
     open_serial,
     validate_config,
 )
+from termapy.defaults import DEFAULT_CFG, SCRIPT_TEMPLATE
 
 pytestmark = pytest.mark.slow  # subprocess-based config-load tests
 

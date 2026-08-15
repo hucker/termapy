@@ -19,7 +19,6 @@ from termapy.protocol.runner import (  # private helpers; explicit submodule
     _read_frame,
 )
 
-
 # -- Helper formatting --------------------------------------------------------
 
 

@@ -18,7 +18,6 @@ from termapy.mcp.prompts import (  # noqa: E402
     _build_draft_profile_message,
 )
 
-
 # ── Authoring guide loaded at module init ───────────────────────────────────
 
 

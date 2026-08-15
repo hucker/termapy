@@ -19,7 +19,6 @@ from __future__ import annotations
 from termapy.folder_ops import build_folder_subcommands
 from termapy.plugins import Command
 
-
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     name="plugin",

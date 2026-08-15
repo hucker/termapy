@@ -18,7 +18,6 @@ import pytest
 
 from termapy.profile import Profile, load_profile, validate_profile
 
-
 DEMO_DIR = (
     Path(__file__).parent.parent
     / "src"

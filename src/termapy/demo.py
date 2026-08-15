@@ -10,11 +10,11 @@ perfect substitute.  Use real hardware for testing real projects.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import random
 import struct
 import threading
 import time
+from collections.abc import Callable
 
 
 class FakeSerial:

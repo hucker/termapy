@@ -19,29 +19,33 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button, Input, RichLog, Rule, SelectionList, Static,
+    Button,
+    Input,
+    RichLog,
+    Rule,
+    SelectionList,
+    Static,
 )
-
-from termapy.widgets import StrongCheckbox
 
 from termapy.config import cfg_data_dir, open_with_system
 from termapy.plugins import BoundaryException
-from termapy.scripting import format_duration
-from termapy.protocol import expand_result_template
-from termapy.protocol.runner import _build_test_result  # private
 from termapy.protocol import (
     DIFF_STYLES,
     ProtoScript,
     TestCase,
+    VisualizerInfo,
     apply_format,
     diff_columns as proto_diff_columns,
+    expand_result_template,
     extract_fmt_title,
     format_hex,
     match_response,
     parse_format_spec,
     strip_ansi,
 )
-from termapy.protocol import VisualizerInfo
+from termapy.protocol.runner import _build_test_result  # private
+from termapy.scripting import format_duration
+from termapy.widgets import StrongCheckbox
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext

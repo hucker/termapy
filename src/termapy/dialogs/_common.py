@@ -9,7 +9,6 @@ from __future__ import annotations
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-
 # Shared CSS for modal dialog buttons.
 _MODAL_BTN_CSS = """
     min-width: 0; width: auto; height: 1; min-height: 1;

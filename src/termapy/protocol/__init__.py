@@ -66,6 +66,18 @@ stabilizes; nothing here imports termapy-engine, MCP, or Textual.
 
 from __future__ import annotations
 
+from crcglot import (
+    LANGUAGES,
+    generate_c,
+    generate_c_from_entry,
+    generate_python,
+    generate_python_from_entry,
+    generate_rust,
+    generate_rust_from_entry,
+    generate_vhdl,
+    generate_vhdl_from_entry,
+)
+
 from termapy.protocol.core import (
     DIFF_STYLES,
     ColumnSpec,
@@ -101,17 +113,6 @@ from termapy.protocol.crc import (
     get_crc_registry,
     load_crc_plugins,
     reset_crc_registry,
-)
-from crcglot import (
-    LANGUAGES,
-    generate_c,
-    generate_c_from_entry,
-    generate_python,
-    generate_python_from_entry,
-    generate_rust,
-    generate_rust_from_entry,
-    generate_vhdl,
-    generate_vhdl_from_entry,
 )
 from termapy.protocol.runner import (
     expand_result_template,

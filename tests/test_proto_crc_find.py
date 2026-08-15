@@ -23,7 +23,6 @@ import pytest
 
 from termapy.defaults import DEFAULT_CFG
 
-
 # ---------------------------------------------------------------------------
 # End-to-end CLI integration (bin= and asc= modes)
 # ---------------------------------------------------------------------------

@@ -16,7 +16,6 @@ from __future__ import annotations
 from termapy.builtins.commands.proto import _crc_find
 from termapy.plugins import IOHandle, PluginContext
 
-
 _CRCLINK_FRAME = '{"t":1234,"v":42,"crc":"1352"}'
 
 

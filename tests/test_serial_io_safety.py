@@ -22,7 +22,6 @@ from termapy.plugins import (
 )
 from termapy.repl import ReplEngine
 
-
 # ── Shared fixture: minimal real engine + ctx with the serial_claim/release
 #    callbacks wired to a recording ``Tracker`` so we can assert release
 #    happens on every path. ──────────────────────────────────────────────

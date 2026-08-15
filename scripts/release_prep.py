@@ -132,7 +132,7 @@ def count_tests() -> int:
 
 
 def count_ty_issues() -> int:
-    """Total ty diagnostics from `uvx ty check src/termapy/`.
+    """Total ty diagnostics from `uv run ty check src/termapy/`.
 
     Vendored code is excluded via [tool.ty.src] in pyproject.toml, so
     the count reflects only first-party files.  A clean project returns
@@ -141,8 +141,13 @@ def count_ty_issues() -> int:
     ``ty check`` exits 1 when it finds diagnostics -- which is exactly
     the data we want to count, not crash on -- so we pass
     ``check=False`` and parse the output regardless of exit code.
+
+    Deliberately ``uv run`` and not ``uvx``: uvx would fetch whatever ty
+    is newest at release time, and ty is 0.0.x with near-daily releases.
+    Since a non-zero count aborts the release, that made the gate's bar
+    depend on the calendar.  ty is pinned in [dependency-groups] dev.
     """
-    out = run_out(["uvx", "ty", "check", "src/termapy/"], check=False)
+    out = run_out(["uv", "run", "ty", "check", "src/termapy/"], check=False)
     if "All checks passed!" in out:
         return 0
     m = re.search(r"Found (\d+) diagnostics?", out)
@@ -158,6 +163,12 @@ def count_ruff_issues() -> int:
     ``ruff check`` exits 1 when it finds issues; pass ``check=False``
     and parse the output regardless.  A clean project prints
     ``All checks passed!``.
+
+    ``uv run`` resolves ruff from the project venv, where it is pinned in
+    [dependency-groups] dev.  Before that pin it fell through to whatever
+    ruff sat on PATH, so the gate enforced whichever rule set that build
+    happened to default to -- see the note on the pin for how far that
+    drifted.
     """
     out = run_out(
         ["uv", "run", "ruff", "check", "src/termapy/", "tests/"],

@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-
 from termapy.port_control import (
     PORT_PROPS,
     SERIAL_KEYS,
@@ -784,12 +783,12 @@ class TestSetMode:
 import pytest  # noqa: E402
 
 from termapy.port_control import (  # noqa: E402
-    AmbiguousSerialNumberError,
-    ChipFacts,
     MATCH_LITERAL,
     MATCH_RESERVED,
     MATCH_SERIAL,
     MATCH_URL,
+    AmbiguousSerialNumberError,
+    ChipFacts,
     chip_field,
     chip_info,
     resolve_port,

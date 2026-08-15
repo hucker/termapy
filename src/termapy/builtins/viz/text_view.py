@@ -6,8 +6,7 @@ ASCII text in one column.
 
 from __future__ import annotations
 
-from termapy.protocol import apply_format, parse_format_spec
-from termapy.protocol import diff_columns as proto_diff_columns
+from termapy.protocol import apply_format, diff_columns as proto_diff_columns, parse_format_spec
 
 NAME = "Text"
 DESCRIPTION = "ASCII text with escape sequences"

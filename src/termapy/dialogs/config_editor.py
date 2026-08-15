@@ -175,6 +175,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
         # Template values - resolve, show expansion, then validate resolved value
         if "$(" in raw_val:
             import re as _re
+
             from termapy.config import expand_env_str
             template = raw_val.strip().strip('"')
             # Highlight $(var) references in cyan
@@ -284,8 +285,9 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
     def _update_help(self) -> None:
         """Update the help text based on the current cursor line."""
-        from termapy.defaults import CFG_HELP
         from textual.widgets import Static
+
+        from termapy.defaults import CFG_HELP
 
         editor = self.query_one("#config-editor", TextArea)
         help_widget = self.query_one("#config-help", Static)

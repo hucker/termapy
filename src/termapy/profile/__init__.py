@@ -71,8 +71,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from termapy.profile.loader import (
-    Profile,
     SCHEMA_PATH,
+    Profile,
     ValidationResult,
     load_profile,
     precedence,

@@ -24,15 +24,14 @@ from typing import Any, Callable
 
 from termapy.defaults import cmd_prefix
 from termapy.plugins.capabilities import CapabilitySet
-from termapy.plugins.handles.internal import InternalHandle
 from termapy.plugins.handles.fs import FilesystemHandle
+from termapy.plugins.handles.internal import InternalHandle
 from termapy.plugins.handles.io import IOHandle
 from termapy.plugins.handles.serial import SerialHandle
 from termapy.plugins.handles.ui import UIHandle
 from termapy.plugins.output_levels import (
     DEFAULT_OUTPUT_LEVEL,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PluginConfig: persistent per-plugin JSON storage

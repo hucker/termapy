@@ -117,8 +117,21 @@ dependencies = [
     # (termapy consumes ``VERBS`` / ``call_verb`` from the SDK-free
     # core), so termapy's ``mcp`` extra keeps its own pin.  0.30 also
     # fixes ``detect`` inferring hex-digit case from a ``0X`` prefix.
-    # Floor moves to 0.30.0.
-    "crcglot>=0.30.0",
+    # 0.31 is the release termapy's own use case wanted: a frame captured
+    # off a line-oriented link keeps its delimiter, and those bytes land
+    # after the CRC field, which used to defeat ``detect`` /
+    # ``reverse_packets`` outright.  Both now retry with a trailing
+    # terminator (new ``TERMINATORS`` / ``terminator_info()`` registry;
+    # needs 3+ frames) and report what they set aside via ``padding.trail``
+    # plus a note.  /proto.crc.reverse picks this up for free -- it calls
+    # ``reverse_packets`` directly and already renders the note.  0.31 also
+    # gave the ``detect`` verb plural ``packets`` / ``packet_format``
+    # params; those join its required ExclusiveGroup, so
+    # ``_crc_verbs.build_params`` folds them into the single ``<frame>``
+    # positional and multi-frame detect is NOT yet reachable from
+    # /proto.crc.detect (single-frame is unaffected).  Surfacing it is a
+    # follow-up, not a floor concern.  Floor moves to 0.31.0.
+    "crcglot>=0.31.0",
 ]
 
 [project.optional-dependencies]

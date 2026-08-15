@@ -37,6 +37,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import argparse
 
+    from termapy.port_control import ChipFacts
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # --info: the existing verbose per-port dump
@@ -364,9 +366,15 @@ def run_watch(args: argparse.Namespace) -> None:
     watch_fast = sys.platform == "win32"
 
     banner_ts = datetime.now().strftime("%H:%M:%S")
+    # ``device`` is Optional on ChipFacts (dataclass default), but every
+    # gather path sets it -- pyserial's ListPortInfo.device, the loopback
+    # record, the demo fleet.  Filtering keeps the snapshot keys ``str`` so
+    # the sorts below can't hit None < str, and drops nothing real: a port
+    # with no device name has nothing to key, display, or diff on.
     initial = {
         f.device: f
         for f in port_control._gather_all_chip_facts(fast=watch_fast)
+        if f.device is not None
     }
     note = " (in-use not shown on Windows)" if watch_fast else ""
     print(
@@ -382,6 +390,7 @@ def run_watch(args: argparse.Namespace) -> None:
             current = {
                 f.device: f
                 for f in port_control._gather_all_chip_facts(fast=watch_fast)
+                if f.device is not None
             }
             _emit_diff(previous, current)
             previous = current
@@ -460,7 +469,7 @@ def _speed_of(facts) -> str:
     return "-"
 
 
-def _emit_diff(previous: dict, current: dict) -> None:
+def _emit_diff(previous: dict[str, ChipFacts], current: dict[str, ChipFacts]) -> None:
     """Print log lines for changes between two snapshots.
 
     Emits four kinds of event:

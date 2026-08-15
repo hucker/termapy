@@ -209,7 +209,18 @@ def assert_zero_lint() -> None:
     "nice to have."  Surfaces the count and aborts so the user fixes
     the source on a chore branch and re-runs release_prep -- rather
     than baking the regression into a published version.
+
+    Syncs all extras first because ty's diagnostic count depends on what
+    is installed, not just on the source: without the extras it reports
+    ``unresolved-import`` for the optional-dependency imports (mcp,
+    jsonschema, textual_serve), and with them a suppression written for
+    the missing case reads as unused.  Both states are non-zero and they
+    contradict each other, so the gate has to name one environment.  All
+    extras is the richer one -- it type-checks the optional code paths
+    instead of skipping them.  Pinning the tool versions alone does not
+    make this reproducible; the environment moves the count too.
     """
+    run(["uv", "sync", "--all-extras"], capture=True)
     ruff = count_ruff_issues()
     ty = count_ty_issues()
     if ruff or ty:

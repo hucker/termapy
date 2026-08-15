@@ -204,6 +204,7 @@ uv run termapy --cfg-dir . # use cwd for configs
 - **`uv run ruff check src/termapy/ tests/` must be 0** (release_prep refuses to cut a release otherwise)
 - **`uv run ty check src/termapy/` must be 0** (same gate; the README badge tracks this and turns yellow/red on regression)
 - Both tools are pinned exactly in `[dependency-groups] dev` and the rule set is pinned in `[tool.ruff.lint]`. Run them through `uv run`, never `uvx` / a global install — otherwise the gate enforces whatever version happens to be around, which is how ruff 0.16's wider defaults turned a clean tree into 636 findings. Bumping either is a deliberate chore branch with the new findings reviewed.
+- **Run the gates with all extras synced** (`uv sync --all-extras`; `release_prep` does this itself before checking). ty's count depends on what's installed, not just on the source: without the extras the optional-dependency imports (mcp, jsonschema, textual_serve) report `unresolved-import`, and with them a suppression written for the missing case reads as unused. Both states are non-zero and mutually exclusive, so the gate names one environment — the richer one, which type-checks the optional code paths rather than skipping them. Consequence: do **not** add `# ty: ignore[unresolved-import]` to an optional-dependency import; guard it with `try/except ImportError` and let the extra be present at check time.
 
 ## Release
 

@@ -3481,7 +3481,11 @@ def _run_proto_headless(args) -> None:
 def _run_web_mode(args) -> None:
     """Serve the TUI in a web browser via textual-serve."""
     try:
-        from textual_serve.server import Server  # ty: ignore[unresolved-import] -- [web] extra
+        # No ty: ignore here -- the gate runs with all extras synced (see
+        # CLAUDE.md), so textual_serve resolves and a suppression would be
+        # flagged as unused.  The ImportError path below is what handles a
+        # real install without the [web] extra.
+        from textual_serve.server import Server
     except ImportError:
         print("Error: --web requires textual-serve.")
         print("  pip install termapy[web]")

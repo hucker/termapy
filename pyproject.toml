@@ -123,7 +123,14 @@ dependencies = [
 
 [project.optional-dependencies]
 web = ["textual-serve>=1.1"]
-mcp = ["mcp>=1.0,<2.0"]
+# mcp 2.0 removed ``mcp.server.fastmcp`` (FastMCP moved to the separate
+# ``fastmcp`` package) and replaced it with ``mcp.server.MCPServer``.  The
+# two majors share no server API -- 1.x has no MCPServer, 2.x has no
+# fastmcp -- so this is a floor, not a range: supporting both would mean a
+# try/except import shim for an SDK that only ever runs in our own
+# ``--mcp`` subprocess.  The decorator surface we use (.tool / .resource /
+# .prompt / .run) is unchanged across the break.
+mcp = ["mcp>=2,<3"]
 # Catch-all for "I want everything; don't make me think about extras."
 # Lazy imports inside termapy.entry mean unused deps cost nothing at
 # runtime (TUI/CLI never load pydantic; --mcp never loads textual).

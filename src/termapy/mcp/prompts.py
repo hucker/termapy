@@ -162,7 +162,7 @@ def _build_draft_profile_message(
 
 
 def register_prompts(server: Any, host: MCPHost) -> None:
-    """Register all termapy MCP prompts on the FastMCP server.
+    """Register all termapy MCP prompts on the MCP server.
 
     Called once from ``_build_server``.  ``host`` is unused today
     but takes it as a parameter so future prompts can read host

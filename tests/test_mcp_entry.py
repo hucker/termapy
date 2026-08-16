@@ -88,19 +88,19 @@ class TestMcpDispatch:
     def test_mcp_dispatch_with_sdk_exits_cleanly_on_eof(self, tmp_path):
         """--mcp with the SDK installed runs the stdio server.
 
-        Phase 3 made --mcp a real FastMCP stdio server.  When stdin
+        Phase 3 made --mcp a real MCP stdio server.  When stdin
         closes immediately (no protocol peer), the server should
         shut down without traceback.  We don't assert exit code 0 --
-        FastMCP may exit non-zero on abrupt stdin close on some
+        the SDK may exit non-zero on abrupt stdin close on some
         platforms; what matters is no crash and no stdout pollution
         (stdout is the protocol wire).
         """
         # Arrange — only meaningful if the mcp SDK is importable.
         try:
-            from mcp.server.fastmcp import FastMCP  # noqa: F401
+            from mcp.server import MCPServer  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; nothing to dispatch")
-        # Act — close stdin immediately so FastMCP sees EOF.  Run in an
+        # Act — close stdin immediately so the server sees EOF.  Run in an
         # isolated, empty cfg dir so startup can't auto-detect a real config
         # and attempt a serial connect (slow, hardware-dependent).  The
         # timeout is generous on purpose: this cold-starts a fresh process
@@ -125,7 +125,7 @@ class TestMcpDispatch:
         """When the mcp SDK is missing, --mcp must give a clean install hint."""
         # Arrange — only meaningful when the SDK is NOT installed.
         try:
-            from mcp.server.fastmcp import FastMCP  # noqa: F401
+            from mcp.server import MCPServer  # noqa: F401
         except ImportError:
             pass
         else:
@@ -154,7 +154,7 @@ class TestMcpDispatch:
         """
         # Arrange — only when SDK installed.
         try:
-            from mcp.server.fastmcp import FastMCP  # noqa: F401
+            from mcp.server import MCPServer  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; verbose path unreachable")
         # Act — close stdin so the server shuts down quickly after the banner.

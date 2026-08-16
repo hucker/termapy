@@ -2,7 +2,7 @@
 
 We test the host's async run_command method and the catalog helpers
 directly rather than spinning up a stdio subprocess.  Direct tests are
-fast and reliable; the FastMCP wiring is thin (one tool decorator,
+fast and reliable; the SDK wiring is thin (one tool decorator,
 two resource decorators) and exercised end-to-end by manual smoke /
 real Claude Desktop sessions.
 
@@ -730,7 +730,7 @@ class TestCaptureResourceSecurity:
 
     def test_path_traversal_rejected(self, host):
         # Arrange — we test the underlying logic without going through
-        # the FastMCP decorator (which wraps the function).  The
+        # the SDK's tool decorator (which wraps the function).  The
         # implementation lives in mcp/server.py's _build_server.
         # Equivalent guard is exercised here directly.
         cap_dir = Path(host.ctx.fs.cap_dir).resolve()

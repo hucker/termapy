@@ -182,7 +182,7 @@ def _mcp_log_path(ctx: PluginContext) -> Path:
     of the active config file.  For zero-config sessions, falls back
     to ``<cwd>/mcp/session.log``.  Mirrors ``MCPHost._resolve_mcp_dir``
     in mcp/server.py -- duplicated rather than imported because mcp/
-    server.py has heavy imports (FastMCP) we don't want to pull into
+    server.py has heavy imports (the MCP SDK) we don't want to pull into
     a bare /mcp.log call from CLI/TUI.
 
     Returns the path even when the file doesn't exist; callers check.

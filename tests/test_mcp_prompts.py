@@ -1,10 +1,10 @@
 """Tests for the MCP prompts surface.
 
-Prompts are user-invocable conversation recipes registered via
-FastMCP's @server.prompt() decorator.  Today: ``draft_profile``.
+Prompts are user-invocable conversation recipes registered via the
+SDK's @server.prompt() decorator.  Today: ``draft_profile``.
 These tests exercise the prompt-body composition pure-functionally
-(without spinning up an MCP session) since the integration with
-FastMCP is a thin decorator layer.
+(without spinning up an MCP session) since the integration with the
+SDK is a thin decorator layer.
 """
 
 from __future__ import annotations
@@ -125,27 +125,27 @@ class TestDraftProfileMessage:
 
 
 class TestRegisterPrompts:
-    """Registration is a thin call into FastMCP.  Smoke-test it by
-    building a real FastMCP server and confirming draft_profile
+    """Registration is a thin call into the SDK.  Smoke-test it by
+    building a real MCP server and confirming draft_profile
     appears in the prompt registry afterward."""
 
     def test_draft_profile_registered(self, tmp_path):
         # Arrange
-        from mcp.server.fastmcp import FastMCP
+        import asyncio
+
+        from mcp.server import MCPServer
 
         from termapy.mcp.prompts import register_prompts
 
-        server = FastMCP("test")
+        server = MCPServer("test")
         # ``host`` is unused by today's prompts but the signature
         # requires it; pass a sentinel
         register_prompts(server, host=None)  # type: ignore[arg-type]
 
-        # Act -- introspect the prompt registry
-        # FastMCP doesn't expose a public listing, so we check via
-        # the underlying _prompt_manager attribute (private but
-        # stable in current SDK).
-        manager = server._prompt_manager
-        names = list(manager._prompts.keys())
+        # Act -- introspect the prompt registry.  mcp 2.x exposes a
+        # public async listing, so this no longer reaches into the
+        # private _prompt_manager the way the 1.x version had to.
+        names = [p.name for p in asyncio.run(server.list_prompts())]
 
         # Assert
         assert "draft_profile" in names, (

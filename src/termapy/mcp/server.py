@@ -6,7 +6,7 @@ Phase 3 deliverable.  When ``termapy --mcp [config]`` runs:
    pay the pydantic load cost.
 2. An MCPHost is constructed (parallel to CLITerminal): config + REPL
    engine + plugin context + serial layer.
-3. A FastMCP server registers ONE tool (``run_command``) and TWO
+3. An ``MCPServer`` registers ONE tool (``run_command``) and TWO
    resource patterns (``termapy://commands.json``,
    ``termapy://capture/<filename>``).
 4. The stdio loop runs.
@@ -56,9 +56,11 @@ if TYPE_CHECKING:
 
 
 _INSTALL_HINT = (
-    "termapy: --mcp requires the 'mcp' optional dependency.\n"
+    "termapy: --mcp requires the 'mcp' optional dependency (mcp 2.x).\n"
     "Install with:  pip install termapy[mcp]\n"
-    "             (or with uv:  uv pip install termapy[mcp])"
+    "             (or with uv:  uv pip install termapy[mcp])\n"
+    "An environment pinned to mcp 1.x lands here too: 1.x has no\n"
+    "mcp.server.MCPServer, so reinstall the extra to upgrade."
 )
 
 
@@ -799,17 +801,25 @@ class MCPHost(TerminalHost):
 
 
 
-# ── FastMCP server wiring (lazy, only when --mcp runs) ──────────────────────
+# ── MCP server wiring (lazy, only when --mcp runs) ──────────────────────────
 
 
 def _build_server(host: MCPHost) -> Any:
-    """Return a configured FastMCP server with one tool + two resources.
+    """Return a configured MCP server with one tool + two resources.
 
     Lazy-imports the SDK so importing termapy.mcp.server stays cheap.
-    """
-    from mcp.server.fastmcp import FastMCP
 
-    server: Any = FastMCP("termapy")
+    ``MCPServer`` is the mcp 2.x server class.  It replaced ``FastMCP``,
+    which 2.0 removed from the SDK (it lives in the separate ``fastmcp``
+    package now).  The decorator surface below -- ``.tool()``,
+    ``.resource(uri)``, ``.prompt(...)`` -- is unchanged across that
+    break, as is the generated tool schema: parameter names, types,
+    defaults and required-ness all come from the signature, and the
+    description from the docstring, exactly as before.
+    """
+    from mcp.server import MCPServer
+
+    server: Any = MCPServer("termapy")
 
     # ── run_command tool ────────────────────────────────────────────────────
     @server.tool()
@@ -912,7 +922,7 @@ def _build_server(host: MCPHost) -> Any:
 
 # Bolt the async helper onto MCPHost via monkey-patch so the class body
 # stays focused on lifecycle / sinks.  The async lock + dispatch + buffer
-# pattern is MCP-specific glue; keeping it adjacent to the FastMCP wiring
+# pattern is MCP-specific glue; keeping it adjacent to the server wiring
 # above makes the data flow easier to follow.
 
 
@@ -1248,17 +1258,20 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     """Run the MCP stdio server.  Called by ``termapy --mcp``.
 
     Verifies the SDK is installed, builds an MCPHost, registers the
-    tool + resources, then enters the FastMCP stdio loop.  Stdout is
+    tool + resources, then enters the SDK's stdio loop.  Stdout is
     reserved for protocol frames; never ``print()`` to stdout.
     """
-    # Check the *actual* submodule the server needs.  A bare ``import
-    # mcp`` succeeds against any namespace package on sys.path (e.g. a
-    # stray ``mcp/`` folder in cwd from a prior session log), which would
-    # let the install hint be bypassed and crash later inside
-    # ``_build_server``.  Verifying ``mcp.server.fastmcp`` is what we'll
-    # actually import shuts that door.
+    # Check the *actual* symbol the server needs.  A bare ``import mcp``
+    # succeeds against any namespace package on sys.path (e.g. a stray
+    # ``mcp/`` folder in cwd from a prior session log), which would let
+    # the install hint be bypassed and crash later inside
+    # ``_build_server``.  Importing ``MCPServer`` is what we'll actually
+    # do there, so this shuts that door -- and it doubles as the version
+    # check: mcp 1.x has no ``MCPServer``, so an environment pinned to
+    # the old major lands on the install hint instead of an AttributeError
+    # deep in the wiring.
     try:
-        from mcp.server.fastmcp import FastMCP  # noqa: F401 -- existence check; see comment above
+        from mcp.server import MCPServer  # noqa: F401 -- existence check; see comment above
     except ImportError:
         print(_INSTALL_HINT, file=sys.stderr)
         sys.exit(1)
@@ -1321,7 +1334,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     # plugin-load time get a chance to initialize.
     host.repl.fire_lifecycle("on_app_start")
 
-    # SIGINT/SIGTERM handlers translate to KeyboardInterrupt so FastMCP's
+    # SIGINT/SIGTERM handlers translate to KeyboardInterrupt so the SDK's
     # stdio loop unwinds cleanly through the finally block.  On Windows
     # only SIGINT is supported by signal.signal; SIGTERM is best-effort
     # and silently no-ops there.  KeyboardInterrupt is the cleanest
@@ -1343,7 +1356,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
             pass
 
     try:
-        # FastMCP.run() blocks until the stdio peer disconnects.  No
+        # MCPServer.run() blocks until the stdio peer disconnects.  No
         # other transports -- if you want HTTP, that's deferred to v2
         # (see plan: "TUI + MCP simultaneously via HTTP transport").
         server.run(transport="stdio")

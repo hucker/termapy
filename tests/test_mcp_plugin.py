@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 # Skip the entire module when the optional mcp extra isn't installed:
-# the MCPHost fixture used here pulls in mcp.server.fastmcp at import.
+# the MCPHost fixture used here pulls in mcp.server at import.
 pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
 
 from termapy.defaults import DEFAULT_CFG  # noqa: E402

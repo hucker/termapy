@@ -294,7 +294,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """
     tokens = args.split() if isinstance(args, str) else []
     include_dev = "--dev" in tokens
-    tokens = [t for t in tokens if t != "--dev"]
+    tokens = [token for token in tokens if token != "--dev"]
     if not tokens:
         raise UsageError()
     pattern = " ".join(tokens)

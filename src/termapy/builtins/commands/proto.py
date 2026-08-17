@@ -180,26 +180,26 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
         fail_count = 0
         t_start = time.monotonic()
 
-        for tc in script.tests:
+        for test in script.tests:
             # Run per-test setup commands
-            for cmd_text in tc.setup:
+            for cmd_text in test.setup:
                 _run_cmd(ctx, cmd_text, frame_gap, script.quiet)
 
-            ctx.io.output(f"[PROTO] {tc.name}")
-            ctx.io.output(f"  TX:       {format_spaced(tc.send_data, tc.binary)}", "cyan")
+            ctx.io.output(f"[PROTO] {test.name}")
+            ctx.io.output(f"  TX:       {format_spaced(test.send_data, test.binary)}", "cyan")
             ctx.serial.drain()
-            ctx.serial.write(tc.send_data)
+            ctx.serial.write(test.send_data)
 
             t0 = time.monotonic()
-            response = ctx.serial.read_raw(tc.timeout_ms, frame_gap)
+            response = ctx.serial.read_raw(test.timeout_ms, frame_gap)
             elapsed_s = time.monotonic() - t0
             if script.strip_ansi:
                 response = strip_ansi(response)
 
-            ctx.io.output(f"  Expected: {format_spaced(tc.expect_data, tc.binary)}")
+            ctx.io.output(f"  Expected: {format_spaced(test.expect_data, test.binary)}")
             if response:
-                ctx.io.output(f"  Actual:   {format_spaced(response, tc.binary)}", "yellow")
-                if match_response(tc.expect_data, response, tc.expect_mask):
+                ctx.io.output(f"  Actual:   {format_spaced(response, test.binary)}", "yellow")
+                if match_response(test.expect_data, response, test.expect_mask):
                     ctx.io.output(
                         f"  PASS ({len(response)} bytes, {format_duration(elapsed_s)})",
                         "bright_green",
@@ -210,7 +210,7 @@ def _run_toml_script(ctx: PluginContext, path: Path, script: ProtoScript) -> Non
                     fail_count += 1
             else:
                 ctx.io.output(
-                    f"  Actual:   (timeout after {format_duration(tc.timeout_ms / 1000)})",
+                    f"  Actual:   (timeout after {format_duration(test.timeout_ms / 1000)})",
                     "red",
                 )
                 ctx.io.output("  FAIL", "red")
@@ -771,10 +771,10 @@ def _parse_crc_data(data_str: str) -> tuple[bytes, bool]:
     """
     tokens = data_str.split()
     is_hex = bool(tokens) and all(
-        len(t) == 2 and all(c in "0123456789abcdefABCDEF" for c in t) for t in tokens
+        len(token) == 2 and all(c in "0123456789abcdefABCDEF" for c in token) for token in tokens
     )
     if is_hex:
-        return bytes(int(t, 16) for t in tokens), True
+        return bytes(int(token, 16) for token in tokens), True
     return data_str.encode("utf-8"), False
 
 
@@ -1105,7 +1105,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     # left in name_tokens that starts with "--" is an unsupported flag;
     # tell the user instead of dropping it.  (Algorithm names like
     # "crc16-modbus" have internal dashes but never start with "--".)
-    stray = next((t for t in name_tokens if t.startswith("--")), None)
+    stray = next((name_token for name_token in name_tokens if name_token.startswith("--")), None)
     if stray is not None:
         from crcglot import LANGUAGES
         supported = (
@@ -1247,7 +1247,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         result = gen_entry(custom_name, entry, **gen_kwargs)
     else:
         # ----- Catalog lookup (existing path) -----
-        names = [t.lower() for t in name_tokens]
+        names = [name_token.lower() for name_token in name_tokens]
         if not names:
             # Two-form synopsis (catalog XOR custom width=/poly=) -- documented
             # hand-rolled boundary (CLAUDE.md "params vs hand-rolled"); raise
@@ -1503,7 +1503,7 @@ def _crc_find(ctx: PluginContext, args: str) -> CmdResult:
     if mode == "bin":
         tokens = kw["payload"].split()
         try:
-            packet: bytes = bytes(int(t, 16) for t in tokens)
+            packet: bytes = bytes(int(token, 16) for token in tokens)
         except ValueError:
             return CmdResult.fail(msg="Invalid hex bytes in bin=")
         if form is not None:
@@ -1743,14 +1743,14 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         # Split off the trailing "count=N [crc_bytes=N] [width=N]" tail.
         words = cmd_payload.split()
         body_words: list[str] = []
-        for w in words:
-            if "=" in w and w.split("=", 1)[0] in (
+        for word in words:
+            if "=" in word and word.split("=", 1)[0] in (
                 "count", "crc_bytes", "width",
             ):
-                k, v = w.split("=", 1)
+                k, v = word.split("=", 1)
                 kv[k] = v
             else:
-                body_words.append(w)
+                body_words.append(word)
         cmd_payload = " ".join(body_words)
 
     # Validate the kv ints.
@@ -1826,12 +1826,12 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     # (init, xorout) labelings that reproduce the captured codewords
     # identically (same poly/refin/refout); the note below explains the class.
     for cand in result.candidates:
-        w = (cand.width + 3) // 4
+        word = (cand.width + 3) // 4
         ctx.io.result_markup(
             f"  [green]{result.status}[/]  "
-            f"width={cand.width}  poly=0x{cand.poly:0{w}X}  "
-            f"init=0x{cand.init:0{w}X}  refin={cand.refin}  refout={cand.refout}  "
-            f"xorout=0x{cand.xorout:0{w}X}{catalog_str}"
+            f"width={cand.width}  poly=0x{cand.poly:0{word}X}  "
+            f"init=0x{cand.init:0{word}X}  refin={cand.refin}  refout={cand.refout}  "
+            f"xorout=0x{cand.xorout:0{word}X}{catalog_str}"
         )
     if result.note:
         ctx.io.output(f"  {result.note}")
@@ -1863,20 +1863,20 @@ def _detect_ascii(
     widths_bytes = (width_filter // 8,) if width_filter else (1, 2, 4, 8)
     seen: set[str] = set()
     candidates: list = []
-    for w in widths_bytes:
-        hex_len = w * 2
+    for width_bytes in widths_bytes:
+        hex_len = width_bytes * 2
         if len(text) <= hex_len:
             continue
         try:
             crc_int = int(text[-hex_len:], 16)
         except ValueError:
             continue
-        packet = text[:-hex_len].encode("utf-8") + crc_int.to_bytes(w, "big")
+        packet = text[:-hex_len].encode("utf-8") + crc_int.to_bytes(width_bytes, "big")
         result = detect(packet, mode="binary", match="all", endian=endian_arg)
-        for m in result.candidates:
-            if m.algorithm not in seen:
-                seen.add(m.algorithm)
-                candidates.append(m)
+        for candidate in result.candidates:
+            if candidate.algorithm not in seen:
+                seen.add(candidate.algorithm)
+                candidates.append(candidate)
     return DetectResult(matched=bool(candidates), candidates=tuple(candidates))
 
 
@@ -2160,7 +2160,7 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
     # Doc-style + bundling examples only when the language supports
     # multiple styles (avoids noise on verilog/vhdl which are plain-only).
     if len(styles) > 1:
-        non_plain = next((s for s in styles if s != "plain"), None)
+        non_plain = next((style for style in styles if style != "plain"), None)
         if non_plain is not None:
             example_lines.append(
                 f"  {{prefix}}proto.crc.{code} crc32 style={non_plain}"

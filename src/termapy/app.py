@@ -1310,7 +1310,7 @@ class SerialTerminal(TerminalHost, App):
             )
 
         # Deduplicate by name (later wins), sort by sort_order
-        by_name = {v.name: v for v in visualizers}
+        by_name = {visualizer.name: visualizer for visualizer in visualizers}
         final = sorted(by_name.values(), key=lambda v: v.sort_order)
 
         ctx = self.repl.ctx
@@ -1341,13 +1341,13 @@ class SerialTerminal(TerminalHost, App):
         _dispatch_single are both thread-safe.
         """
         delay_s = self.cfg.get("cmd_delay_ms", 0) / 1000.0
-        for cmd in lines:
-            cmd = cmd.strip()
-            if not cmd:
+        for command in lines:
+            command = command.strip()
+            if not command:
                 continue
             if echo_prefix:
-                self._status(f"{echo_prefix}{cmd}")
-            self._dispatch_single(cmd)
+                self._status(f"{echo_prefix}{command}")
+            self._dispatch_single(command)
             if delay_s > 0:
                 time.sleep(delay_s)
             self._wait_for_idle(400)
@@ -1620,8 +1620,8 @@ class SerialTerminal(TerminalHost, App):
                 f"Skipped {name} - no COMMAND or TRANSFORM (see plugin docs)",
                 "yellow",
             )
-        for err in result.errors:
-            self._status(f"Plugin error: {err}", "red")
+        for error in result.errors:
+            self._status(f"Plugin error: {error}", "red")
 
     def _reload_config_plugins(self, config_path: str) -> None:
         """Remove old per-config plugins and load plugins for the new config.
@@ -2219,7 +2219,7 @@ class SerialTerminal(TerminalHost, App):
             # both widgets share the same CSS slot and will end
             # up with the same width once #output-find is shown.
             wrap_width = output.content_size.width or output.size.width
-            matched_set = {m[0] for m in matches}
+            matched_set = {match[0] for match in matches}
             output_find.clear()
             for i, line in enumerate(
                 scrollback_text.splitlines(), start=1,
@@ -2680,7 +2680,7 @@ class SerialTerminal(TerminalHost, App):
 
         # Text capture tap - feed ANSI-stripped lines to capture engine
         if self._capture.active and self._capture.mode == "text":
-            stripped = [ANSI_RE.sub("", t) for t in lines]
+            stripped = [ANSI_RE.sub("", line) for line in lines]
             if self._capture.feed_text(stripped):
                 # Write failed mid-capture -- stop so the user sees the abort
                 # instead of silently losing the rest of the data.
@@ -3104,8 +3104,8 @@ class SerialTerminal(TerminalHost, App):
     async def _sync_custom_buttons(self) -> None:
         """Remove old custom buttons and create new ones from config."""
         old_buttons = list(self.query(".custom-btn"))
-        for old in old_buttons:
-            await old.remove()
+        for old_button in old_buttons:
+            await old_button.remove()
         log_btn = self.query_one("#btn-log", Button)
         log_btn.styles.margin = (0, 0, 0, 0)
         custom_buttons = self.cfg.get("custom_buttons", [])

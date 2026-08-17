@@ -63,7 +63,7 @@ def _hook_run_profile_cmd(app, ctx, args: str) -> CmdResult:
     tmp_path = app.repl.scripts_dir / tmp_name
     parts = line.replace("\\n", "\n").split("\n")
     tmp_path.write_text(
-        "\n".join(p.strip() for p in parts) + "\n", encoding="utf-8"
+        "\n".join(part.strip() for part in parts) + "\n", encoding="utf-8"
     )
     path, result = app.repl.start_script(tmp_name)
     if path:

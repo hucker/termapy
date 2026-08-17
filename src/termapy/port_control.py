@@ -1055,19 +1055,19 @@ def _match_candidate(
         return (candidate, MATCH_URL)
     # Exact device-name match wins before SN lookup so a user who types
     # a literal COM name always gets exactly that port.
-    for f in facts:
-        if f.device == candidate and f.device is not None:
-            return (f.device, MATCH_LITERAL)
+    for fact in facts:
+        if fact.device == candidate and fact.device is not None:
+            return (fact.device, MATCH_LITERAL)
     # Case-insensitive SN match.  Burn-ins are sometimes uppercase on
     # Windows and mixed case on other platforms, so normalize both sides.
     # Filter out any facts with a None device so the matches list is a
     # clean list[str] for the ambiguity-error constructor.
     needle = candidate.lower()
     sn_matches: list[str] = [
-        f.device for f in facts
-        if f.device is not None
-        and f.serial is not None
-        and f.serial.lower() == needle
+        fact.device for fact in facts
+        if fact.device is not None
+        and fact.serial is not None
+        and fact.serial.lower() == needle
     ]
     if len(sn_matches) == 1:
         return (sn_matches[0], MATCH_SERIAL)

@@ -208,22 +208,22 @@ def run_proto_tests(
         # Run script-level setup commands
         _run_setup_cmds(ser, script.setup, cfg, frame_gap)
 
-        for tc in script.tests:
+        for test in script.tests:
             # Per-test setup
-            _run_setup_cmds(ser, tc.setup, cfg, frame_gap)
+            _run_setup_cmds(ser, test.setup, cfg, frame_gap)
 
             _drain(ser)
-            ser.write(tc.send_data)
+            ser.write(test.send_data)
 
             t0 = time.monotonic()
-            response = _read_frame(ser, frame_gap, tc.timeout_ms)
+            response = _read_frame(ser, frame_gap, test.timeout_ms)
             elapsed_ms = (time.monotonic() - t0) * 1000
 
             if script.strip_ansi:
                 response = strip_ansi(response)
 
             if response:
-                passed = match_response(tc.expect_data, response, tc.expect_mask)
+                passed = match_response(test.expect_data, response, test.expect_mask)
                 if passed:
                     pass_count += 1
                 else:
@@ -234,11 +234,11 @@ def run_proto_tests(
                 fail_count += 1
 
             test_results.append(
-                _build_test_result(tc, response, elapsed_ms, passed)
+                _build_test_result(test, response, elapsed_ms, passed)
             )
 
             # Per-test teardown
-            _run_setup_cmds(ser, tc.teardown, cfg, frame_gap)
+            _run_setup_cmds(ser, test.teardown, cfg, frame_gap)
 
         # Script-level teardown
         _run_setup_cmds(ser, script.teardown, cfg, frame_gap)

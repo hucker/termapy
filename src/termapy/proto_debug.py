@@ -175,7 +175,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         if script.viz:
             allowed = {n.lower() for n in script.viz} | {"hex", "text"}
             self._visualizers = [
-                v for v in visualizers if v.name.lower() in allowed
+                visualizer for visualizer in visualizers if visualizer.name.lower() in allowed
             ]
         else:
             self._visualizers = visualizers
@@ -192,10 +192,10 @@ class ProtoDebugScreen(ModalScreen[None]):
                 with Vertical(id="test-col"):
                     yield Static("Tests", id="test-label")
                     sl = SelectionList[int](id="proto-debug-select")
-                    for tc in script.tests:
-                        label = (f"{tc.name} [{tc.viz}]"
-                                 if tc.viz else tc.name)
-                        sl.add_option((label, tc.index, True))
+                    for test in script.tests:
+                        label = (f"{test.name} [{test.viz}]"
+                                 if test.viz else test.name)
+                        sl.add_option((label, test.index, True))
                     yield sl
                 with Vertical(id="viz-col"):
                     viz_label = Static("Visualizations", id="viz-label")
@@ -204,10 +204,10 @@ class ProtoDebugScreen(ModalScreen[None]):
                     # Sort: custom visualizers first, then Hex/Text last
                     always_last = {"hex", "text"}
                     ordered = (
-                        [v for v in self._visualizers
-                         if v.name.lower() not in always_last]
-                        + [v for v in self._visualizers
-                           if v.name.lower() in always_last]
+                        [visualizer for visualizer in self._visualizers
+                         if visualizer.name.lower() not in always_last]
+                        + [visualizer for visualizer in self._visualizers
+                           if visualizer.name.lower() in always_last]
                     )
                     viz_sl = SelectionList[int](id="sel-viz")
                     for viz in ordered:
@@ -269,8 +269,8 @@ class ProtoDebugScreen(ModalScreen[None]):
         """
         sl = self.query_one("#proto-debug-select", SelectionList)
         checked_indices = set(sl.selected)
-        return [tc for tc in self._script.tests
-                if tc.index in checked_indices]
+        return [test for test in self._script.tests
+                if test.index in checked_indices]
 
     def _get_highlighted_test(self) -> TestCase | None:
         """Get the test case at the current cursor position.
@@ -282,9 +282,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         if sl.highlighted is not None:
             option = sl.get_option_at_index(sl.highlighted)
             idx = option.value
-            for tc in self._script.tests:
-                if tc.index == idx:
-                    return tc
+            for test in self._script.tests:
+                if test.index == idx:
+                    return test
         return None
 
     @on(SelectionList.SelectionHighlighted, "#proto-debug-select")
@@ -341,9 +341,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         if tc and tc.viz:
             active_names = {v.name.lower() for v in active}
             if tc.viz.lower() not in active_names:
-                for viz in self._visualizers:
-                    if viz.name.lower() == tc.viz.lower():
-                        active.append(viz)
+                for visualizer in self._visualizers:
+                    if visualizer.name.lower() == tc.viz.lower():
+                        active.append(visualizer)
                         break
 
         return active
@@ -374,15 +374,15 @@ class ProtoDebugScreen(ModalScreen[None]):
         # Show format spec strings above tables when checkbox is checked
         active_vizs = self._get_active_visualizers(tc)
         if self._get_show_viz():
-            for viz in active_vizs:
-                tx_spec = viz.format_spec(tc.send_data)
+            for active_viz in active_vizs:
+                tx_spec = active_viz.format_spec(tc.send_data)
                 if tx_spec:
                     lines.append(Text(
-                        f"  [{viz.name}] TX: {tx_spec}", style="cyan"))
-                rx_spec = viz.format_spec(tc.expect_data)
+                        f"  [{active_viz.name}] TX: {tx_spec}", style="cyan"))
+                rx_spec = active_viz.format_spec(tc.expect_data)
                 if rx_spec and rx_spec != tx_spec:
                     lines.append(Text(
-                        f"  [{viz.name}] RX: {rx_spec}", style="cyan"))
+                        f"  [{active_viz.name}] RX: {rx_spec}", style="cyan"))
             lines.append("")
 
         # Render inline format tables (always on when present)
@@ -420,11 +420,11 @@ class ProtoDebugScreen(ModalScreen[None]):
                 lines.append("")
 
         # Render tables: TX then RX for each visualizer
-        for viz in active_vizs:
-            self._build_tx_table(lines, tc, viz)
+        for active_viz in active_vizs:
+            self._build_tx_table(lines, tc, active_viz)
             if not compact:
                 lines.append("")
-            self._build_rx_table(lines, tc, viz, actual_data)
+            self._build_rx_table(lines, tc, active_viz, actual_data)
             if not compact:
                 lines.append("")
 
@@ -560,7 +560,7 @@ class ProtoDebugScreen(ModalScreen[None]):
                 return Text.from_markup(val).cell_len
             return len(val)
 
-        col_widths = [len(h) for h in headers]
+        col_widths = [len(header) for header in headers]
         for _, values, _, row_statuses in extra_rows:
             for i, v in enumerate(values):
                 if i < n_cols:
@@ -577,9 +577,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         # Build border strings
         def border_line(left: str, mid: str, sep: str, right: str) -> str:
             parts = [left, "─" * (label_w + 2)]
-            for w in col_widths:
+            for col_width in col_widths:
                 parts.append(sep)
-                parts.append("─" * (w + 2))
+                parts.append("─" * (col_width + 2))
             parts.append(right)
             return "".join(parts)
 
@@ -590,9 +590,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         # Header row
         hdr = Text("  │ ", style="dim")
         hdr.append(title.ljust(label_w), style="bold")
-        for i, h in enumerate(headers):
+        for i, header in enumerate(headers):
             hdr.append(Text(" │ ", style="dim"))
-            hdr.append(h.center(col_widths[i]), style="bold")
+            hdr.append(header.center(col_widths[i]), style="bold")
         hdr.append(Text(" │", style="dim"))
         lines.append(hdr)
 
@@ -994,11 +994,11 @@ class ProtoDebugScreen(ModalScreen[None]):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         test_results = []
-        for tc in tests:
-            if tc.index in self._results:
-                response, tc_elapsed, passed = self._results[tc.index]
+        for test in tests:
+            if test.index in self._results:
+                response, tc_elapsed, passed = self._results[test.index]
                 test_results.append(
-                    _build_test_result(tc, response, tc_elapsed, passed))
+                    _build_test_result(test, response, tc_elapsed, passed))
 
         text = self._path.read_text(encoding="utf-8")
         config_name = Path(self._ctx.config_path).stem if self._ctx.config_path else ""

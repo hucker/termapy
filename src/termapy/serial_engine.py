@@ -150,8 +150,8 @@ def _classify_serial_error(exc: Exception, port_name: str = "") -> str:
         facts = _gather_all_chip_facts(fast=True)
         if facts:
             conn = ", ".join(
-                f"{f.device} ({f.manufacturer or '?'}, SN {f.serial or 'n/a'})"
-                for f in facts
+                f"{fact.device} ({fact.manufacturer or '?'}, SN {fact.serial or 'n/a'})"
+                for fact in facts
             )
             lines.append(f"Currently connected: {conn}")
         else:
@@ -342,9 +342,9 @@ class SerialEngine:
         catch so one bad observer can't break the others or fail
         the write.
         """
-        for obs in self._tx_observers:
+        for tx_observer in self._tx_observers:
             try:
-                obs(data)
+                tx_observer(data)
             except BoundaryException:
                 pass
 
@@ -470,13 +470,13 @@ class SerialEngine:
 
                 if data:
                     self._rx_queue.put(data)
-                    for obs in self._rx_observers:
+                    for rx_observer in self._rx_observers:
                         # RX observers are third-party callbacks;
                         # BoundaryException signals the reviewed broad
                         # catch so one misbehaving observer can't
                         # break the others or stop the reader loop.
                         try:
-                            obs(data)
+                            rx_observer(data)
                         except BoundaryException:
                             pass
 

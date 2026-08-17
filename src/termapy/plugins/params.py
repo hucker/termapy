@@ -150,10 +150,11 @@ def coerce_value(spec: ParamSpec, text: str) -> CoerceResult:
                 f"invalid {spec.name}: {text!r} (expected duration, e.g. 500ms, 1.5s)"
             )
     low = text.lower()  # enum
-    for ev in spec.values:
-        if low == ev.canonical.lower() or low in {a.lower() for a in ev.aliases}:
-            return True, ev.canonical
-    allowed = ", ".join(ev.canonical for ev in spec.values)
+    for enum_value in spec.values:
+        aliases = {alias.lower() for alias in enum_value.aliases}
+        if low == enum_value.canonical.lower() or low in aliases:
+            return True, enum_value.canonical
+    allowed = ", ".join(enum_value.canonical for enum_value in spec.values)
     return False, f"invalid {spec.name}: {text!r} (expected one of: {allowed})"
 
 
@@ -375,7 +376,7 @@ def _type_hint(spec: ParamSpec) -> str:
     if spec.hint:
         return spec.hint
     if spec.type == "enum":
-        return "|".join(ev.canonical for ev in spec.values)
+        return "|".join(enum_value.canonical for enum_value in spec.values)
     return {
         "duration": "<dur>",
         "int": "<N>",
@@ -395,7 +396,7 @@ def _token(spec: ParamSpec) -> str:
 
 def _rest_last(params: list[ParamSpec]) -> list[ParamSpec]:
     """Declared order, with the rest param (if any) moved to the end."""
-    return [p for p in params if not p.rest] + [p for p in params if p.rest]
+    return [param for param in params if not param.rest] + [param for param in params if param.rest]
 
 
 def synthesize_synopsis(params: list[ParamSpec]) -> str:

@@ -81,12 +81,12 @@ def parse_hex(text: str) -> bytes:
     if not tokens:
         raise ValueError(f"No valid hex bytes in: {text!r}")
     out = bytearray()
-    for tok in tokens:
-        body = tok[2:] if tok[:2].lower() == "0x" else tok
+    for token in tokens:
+        body = token[2:] if token[:2].lower() == "0x" else token
         if not body or len(body) % 2 != 0 or any(
             c not in "0123456789abcdefABCDEF" for c in body
         ):
-            raise ValueError(f"Invalid hex byte: {tok!r}")
+            raise ValueError(f"Invalid hex byte: {token!r}")
         out.extend(int(body[i : i + 2], 16) for i in range(0, len(body), 2))
     return bytes(out)
 
@@ -1227,27 +1227,27 @@ def _resolve_wildcards(
 
     # Calculate total CRC bytes at end of packet
     crc_width = 0
-    for col in columns:
-        if col.crc_algo and col.crc_algo in registry:
-            crc_width = registry[col.crc_algo].width
+    for column in columns:
+        if column.crc_algo and column.crc_algo in registry:
+            crc_width = registry[column.crc_algo].width
             break
 
     resolved: list[ColumnSpec] = []
-    for col in columns:
-        if col.wildcard:
+    for column in columns:
+        if column.wildcard:
             # Expand wildcard: start_index to (data_len - crc_width - 1)
-            start = col.byte_indices[0] if col.byte_indices else 0
+            start = column.byte_indices[0] if column.byte_indices else 0
             end = data_len - crc_width
             new_col = ColumnSpec(
-                name=col.name,
-                type_code=col.type_code,
+                name=column.name,
+                type_code=column.type_code,
                 byte_indices=list(range(start, end)),
                 wildcard=False,
             )
             resolved.append(new_col)
-        elif col.crc_algo:
+        elif column.crc_algo:
             # CRC: bytes are at the end of the packet
-            algo = registry.get(col.crc_algo)
+            algo = registry.get(column.crc_algo)
             if algo:
                 width = algo.width
                 crc_start = data_len - width
@@ -1256,25 +1256,25 @@ def _resolve_wildcards(
                 # otherwise use the algorithm's natural wire order
                 # (refout=True -> low byte first on the wire).
                 le = (
-                    col.crc_little_endian
-                    if col.crc_little_endian is not None
+                    column.crc_little_endian
+                    if column.crc_little_endian is not None
                     else algo.refout
                 )
                 if le:
                     indices = list(reversed(indices))
                 new_col = ColumnSpec(
-                    name=col.name,
+                    name=column.name,
                     type_code="crc",
                     byte_indices=indices,
-                    crc_algo=col.crc_algo,
-                    crc_little_endian=col.crc_little_endian,
-                    crc_data_range=col.crc_data_range,
+                    crc_algo=column.crc_algo,
+                    crc_little_endian=column.crc_little_endian,
+                    crc_data_range=column.crc_data_range,
                 )
                 resolved.append(new_col)
             else:
-                resolved.append(col)
+                resolved.append(column)
         else:
-            resolved.append(col)
+            resolved.append(column)
     return resolved
 
 
@@ -1301,8 +1301,8 @@ def _format_column_value(
             # Multi-byte bit range: assemble value from byte indices,
             # extract bit range. Byte order follows index order.
             raw_bits = bytearray()
-            for idx in indices:
-                raw_bits.append(data[idx] if idx < len(data) else 0)
+            for index in indices:
+                raw_bits.append(data[index] if index < len(data) else 0)
             combined = int.from_bytes(raw_bits, "big")
             start_bit, end_bit = col.bit
             if start_bit <= end_bit:
@@ -1326,9 +1326,9 @@ def _format_column_value(
 
     # Gather bytes in specified order
     raw = bytearray()
-    for idx in indices:
-        if idx < len(data):
-            raw.append(data[idx])
+    for index in indices:
+        if index < len(data):
+            raw.append(data[index])
         else:
             raw.append(0)
 
@@ -1456,11 +1456,11 @@ def diff_columns(
             # CRC column: compare actual vs expected bytes directly.
             act_crc_bytes = bytearray()
             exp_crc_bytes = bytearray()
-            for idx in col.byte_indices:
-                if idx < len(actual):
-                    act_crc_bytes.append(actual[idx])
-                if idx < len(expected):
-                    exp_crc_bytes.append(expected[idx])
+            for byte_index in col.byte_indices:
+                if byte_index < len(actual):
+                    act_crc_bytes.append(actual[byte_index])
+                if byte_index < len(expected):
+                    exp_crc_bytes.append(expected[byte_index])
 
             if act_crc_bytes == exp_crc_bytes and exp_crc_bytes:
                 statuses.append("match")
@@ -1470,20 +1470,20 @@ def diff_columns(
             # Per-byte hex: build Rich markup with per-byte coloring
             parts: list[str] = []
             has_mismatch = False
-            for idx in col.byte_indices:
-                if idx >= len(actual):
+            for byte_index in col.byte_indices:
+                if byte_index >= len(actual):
                     parts.append(f"[{DIFF_STYLES['missing']}]--[/]")
                     has_mismatch = True
-                elif idx >= len(expected):
-                    parts.append(f"[{DIFF_STYLES['extra']}]{actual[idx]:02X}[/]")
+                elif byte_index >= len(expected):
+                    parts.append(f"[{DIFF_STYLES['extra']}]{actual[byte_index]:02X}[/]")
                     has_mismatch = True
-                elif idx < len(mask) and mask[idx] == 0x00:
-                    parts.append(f"[{DIFF_STYLES['wildcard']}]{actual[idx]:02X}[/]")
-                elif actual[idx] != expected[idx]:
-                    parts.append(f"[{DIFF_STYLES['mismatch']}]{actual[idx]:02X}[/]")
+                elif byte_index < len(mask) and mask[byte_index] == 0x00:
+                    parts.append(f"[{DIFF_STYLES['wildcard']}]{actual[byte_index]:02X}[/]")
+                elif actual[byte_index] != expected[byte_index]:
+                    parts.append(f"[{DIFF_STYLES['mismatch']}]{actual[byte_index]:02X}[/]")
                     has_mismatch = True
                 else:
-                    parts.append(f"[{DIFF_STYLES['match']}]{actual[idx]:02X}[/]")
+                    parts.append(f"[{DIFF_STYLES['match']}]{actual[byte_index]:02X}[/]")
             if has_mismatch:
                 act_values[-1] = " ".join(parts)
                 statuses.append("mixed")
@@ -1498,7 +1498,10 @@ def diff_columns(
                 col_status = "missing"
             elif max_idx >= len(expected):
                 col_status = "extra"
-            elif all(idx >= len(mask) or mask[idx] == 0x00 for idx in col.byte_indices):
+            elif all(
+                byte_index >= len(mask) or mask[byte_index] == 0x00
+                for byte_index in col.byte_indices
+            ):
                 col_status = "wildcard"
             elif exp_values[-1] != act_values[-1]:
                 col_status = "mismatch"

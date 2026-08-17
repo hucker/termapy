@@ -300,9 +300,9 @@ def _hook_edit_folder(app, ctx, args: str, folder: str, ext: str) -> CmdResult:
             files = sorted(base.glob(f"*{ext}"))
             if files:
                 app.repl.write("  Available file(s):")
-                for f in files:
-                    app.repl.write(f"    {f.name}")
-                    listed.append(f.name)
+                for file in files:
+                    app.repl.write(f"    {file.name}")
+                    listed.append(file.name)
             else:
                 app.repl.write("  (empty)")
         else:

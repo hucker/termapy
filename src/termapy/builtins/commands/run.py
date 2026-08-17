@@ -115,7 +115,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value="")
 
     entries: list[tuple[str, str]] = [
-        (f.name, extract_docstring(f)[0]) for f in files
+        (file.name, extract_docstring(file)[0]) for file in files
     ]
     name_width = max(len(n) for n, _ in entries)
 

@@ -143,10 +143,10 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output("  (no config files)")
         return CmdResult.ok(value="")
     names: list[str] = []
-    for f in files:
-        marker = " *" if str(f) == ctx.config_path else ""
-        ctx.io.output(f"  {f.parent.name}/{f.name}{marker}")
-        names.append(f"{f.parent.name}/{f.name}")
+    for file in files:
+        marker = " *" if str(file) == ctx.config_path else ""
+        ctx.io.output(f"  {file.parent.name}/{file.name}{marker}")
+        names.append(f"{file.parent.name}/{file.name}")
     return CmdResult.ok(value="\n".join(names))
 
 
@@ -399,7 +399,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         # Build markdown report
         cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
         buttons = ctx.cfg.get("custom_buttons", [])
-        active = [b for b in buttons if b.get("enabled")]
+        active = [button for button in buttons if button.get("enabled")]
         config_name = Path(ctx.config_path).stem
 
         md_lines: list[str] = [

@@ -181,7 +181,7 @@ def _build_typedef(name: str, raw: dict) -> TypeDef:
         # str/number/bool members.
         return TypeDef(
             name=name, kind=kind, help=help_text,
-            values=tuple(str(v) for v in values),
+            values=tuple(str(value) for value in values),
         )
 
     if kind in ("int_range", "float_range"):

@@ -314,15 +314,15 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     if plugin.params:
         entry["params"] = [
             {
-                "name": p.name,
-                "type": p.type,
-                "required": p.required,
-                "default": p.default,
-                "help": p.help,
-                "values": [ev.canonical for ev in p.values],
-                "variadic": p.variadic,
+                "name": param.name,
+                "type": param.type,
+                "required": param.required,
+                "default": param.default,
+                "help": param.help,
+                "values": [enum_value.canonical for enum_value in param.values],
+                "variadic": param.variadic,
             }
-            for p in plugin.params
+            for param in plugin.params
         ]
     return entry
 
@@ -353,9 +353,9 @@ def _device_descriptor_from_spec(
     typed_args = spec.get("typed_args")
     if typed_args:
         enriched: list[dict[str, Any]] = []
-        for ta in typed_args:
-            if isinstance(ta, dict):
-                entry = dict(ta)
+        for typed_arg in typed_args:
+            if isinstance(typed_arg, dict):
+                entry = dict(typed_arg)
                 if type_registry is not None:
                     type_name = entry.get("type", "")
                     td = (
@@ -366,7 +366,7 @@ def _device_descriptor_from_spec(
                         entry["type_info"] = typedef_to_catalog(td)
                 enriched.append(entry)
             else:
-                enriched.append(ta)
+                enriched.append(typed_arg)
         out["typed_args"] = enriched
     send_template = spec.get("send_template", "")
     if send_template:

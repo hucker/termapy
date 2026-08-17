@@ -44,7 +44,7 @@ All paths relative to `src/termapy/`.
 
 ## Conventions
 
-- Plugin args: `""` = none, `{braces}` = optional, `<angle>` = required
+- Plugin args: `""` = none, `{braces}` = optional, `<angle>` = required, trailing `...` = repeatable (`<frames>...`, synthesized from `ParamSpec(variadic=True)`)
 - No spaces inside brace/angle groups: `{on|off}` not `{on | off}`, `{name|*}` not `{name | *}`
 - The synopsis grammar is ENFORCED at registration (`validate_synopsis` via `PluginInfo.__post_init__`): square brackets, `{{` artifacts, spaced `|`, and unbalanced groups fail loud at load/boot instead of rendering wrong in /help
 - **Setting commands never mutate on a bare invocation — bare QUERIES.** This
@@ -78,7 +78,8 @@ why (anchored to this section). See `docs/param-spec-implementation.md` and
 `plugins/params.py`.
 
 **Use `params` when** the grammar is positional tokens + `key=value` keywords +
-at most one *rest* (a whole-line value, or a keyword that runs to end-of-line).
+at most one *rest* (a whole-line value, or a keyword that runs to end-of-line) +
+at most one *variadic* positional (a repeatable token that binds a list).
 Composes fine with flags, subcommands, level-suffixes (`.silent`), and
 `raw_args=True` (raw_args skips only the `$(VAR)`/`$(env)` transform step, not
 param parsing, so values arrive literal — e.g. `/cap.wire`). This is the default
@@ -92,7 +93,9 @@ for any multi-arg command.
   `fmt=Temp:U1-2 Pressure:F3-6 records=5` (the spec syntax is space-separated by
   definition, shared via `protocol.parse_format_spec`).
 - **Bare `-flag`-style literal grammar** flag parsing would eat — `search`'s `-term`.
-- **Variadic positional lists** — `ymodem.send <file> {file2} ...`.
+- **Variadic positional lists** — `ymodem.send <file> {file2} ...`. (`params` can
+  now express these via `ParamSpec(variadic=True)`, so this is a *not-yet-migrated*
+  holdout rather than a permanent boundary; migrate when the command is next touched.)
 - **An ordering constraint** where a state check must precede arg validation —
   `os_cmd` (env-gate before the arg check).
 

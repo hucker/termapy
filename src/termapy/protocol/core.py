@@ -217,7 +217,7 @@ def format_hex(data: bytes) -> str:
 
     Example: ``b'\\x01\\x03\\x00\\x0a'`` -> ``'01 03 00 0A'``.
     """
-    return " ".join(f"{b:02X}" for b in data)
+    return " ".join(f"{byte:02X}" for byte in data)
 
 
 _DISPLAY_ESCAPES = {ord("\r"): "\\r", ord("\n"): "\\n", ord("\t"): "\\t", 0: "\\0"}
@@ -249,14 +249,14 @@ def format_smart(data: bytes) -> str:
             parts.append('"' + "".join(text_buf) + '"')
             text_buf.clear()
 
-    for b in data:
-        if b in _DISPLAY_ESCAPES:
-            text_buf.append(_DISPLAY_ESCAPES[b])
-        elif 32 <= b < 127:
-            text_buf.append(chr(b))
+    for byte in data:
+        if byte in _DISPLAY_ESCAPES:
+            text_buf.append(_DISPLAY_ESCAPES[byte])
+        elif 32 <= byte < 127:
+            text_buf.append(chr(byte))
         else:
             _flush_text()
-            parts.append(f"{b:02X}")
+            parts.append(f"{byte:02X}")
 
     _flush_text()
     return " ".join(parts)
@@ -281,13 +281,13 @@ def format_spaced(data: bytes, binary: bool = False) -> str:
         Fixed-width spaced representation for visual comparison.
     """
     tokens: list[str] = []
-    for b in data:
+    for byte in data:
         if binary:
-            tokens.append(f"{b:02X} ")
-        elif b in _DISPLAY_ESCAPES:
-            tokens.append(f"{_DISPLAY_ESCAPES[b]}")
-        elif 32 <= b < 127:
-            tokens.append(f"{chr(b)} ")
+            tokens.append(f"{byte:02X} ")
+        elif byte in _DISPLAY_ESCAPES:
+            tokens.append(f"{_DISPLAY_ESCAPES[byte]}")
+        elif 32 <= byte < 127:
+            tokens.append(f"{chr(byte)} ")
         else:
             tokens.append(". ")
     return "".join(tokens).rstrip()
@@ -365,8 +365,8 @@ def parse_pattern(text: str) -> tuple[bytes, bytes]:
             m = _QUOTED_STR.match(text, pos)
             if not m:
                 raise ValueError(f"Unterminated string at position {pos}")
-            for b in _unescape(m.group(1)).encode("utf-8"):
-                data.append(b)
+            for byte in _unescape(m.group(1)).encode("utf-8"):
+                data.append(byte)
                 mask.append(0xFF)
             pos = m.end()
             continue
@@ -1349,12 +1349,12 @@ def _format_column_value(
     # Hex: H = combined (0A2B), h = spaced per-byte (0A 2B)
     if col.type_code == "H":
         return (
-            "".join(f"{b:02X}" for b in raw)
+            "".join(f"{byte:02X}" for byte in raw)
             if len(raw) > 1
             else (f"{raw[0]:02X}" if raw else "")
         )
     if col.type_code == "h":
-        return " ".join(f"{b:02X}" for b in raw)
+        return " ".join(f"{byte:02X}" for byte in raw)
 
     # Unsigned decimal
     if col.type_code == "U":
@@ -1368,7 +1368,7 @@ def _format_column_value(
 
     # ASCII string
     if col.type_code == "S":
-        return "".join(chr(b) if 32 <= b < 127 else "." for b in raw)
+        return "".join(chr(byte) if 32 <= byte < 127 else "." for byte in raw)
 
     # Float
     if col.type_code == "F":

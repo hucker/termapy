@@ -50,12 +50,12 @@ def _populate_port_option_list(
     # the Textual main thread -- probing here would both freeze the UI and
     # (on Windows) open every listed port, pulsing DTR on auto-reset boards.
     facts_list = [port_control.gather_chip_facts(port.device, fast=True) for port in ports]
-    facts_list = [f for f in facts_list if f is not None]
+    facts_list = [fact for fact in facts_list if fact is not None]
     # Always offer the pyserial loopback as a selectable virtual port,
     # appended below real hardware.  It echoes writes back -- handy for
     # testing without a device.  Honest facts (no invented VID/PID/SN).
     facts_list.append(port_control.loopback_port_facts())
-    rows = [row_from_facts(f) for f in facts_list]
+    rows = [row_from_facts(fact) for fact in facts_list]
     columns = active_columns(rows)
     widths, columns = compute_widths(rows, row_width, columns)
     header, separator = format_header(widths, columns)

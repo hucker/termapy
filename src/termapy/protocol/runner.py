@@ -26,7 +26,7 @@ from termapy.protocol.core import (
 
 def _bytes_to_hex(data: bytes) -> str:
     """Format bytes as space-separated hex."""
-    return " ".join(f"{b:02X}" for b in data)
+    return " ".join(f"{byte:02X}" for byte in data)
 
 
 def _bytes_to_text(data: bytes) -> str:

@@ -90,11 +90,11 @@ def _parse_search_terms(query: str) -> tuple[list[str], list[str]]:
     """
     positives: list[str] = []
     negatives: list[str] = []
-    for tok in query.split():
-        if len(tok) > 1 and tok[0] == "-" and tok[1] != "-":
-            negatives.append(tok[1:])
+    for token in query.split():
+        if len(token) > 1 and token[0] == "-" and token[1] != "-":
+            negatives.append(token[1:])
         else:
-            positives.append(tok)
+            positives.append(token)
     return positives, negatives
 
 

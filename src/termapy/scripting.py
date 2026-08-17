@@ -455,15 +455,15 @@ def parse_keywords(
     # Parse remaining tokens
     positional_parts: list[str] = []
     kw_lower = {k.lower() for k in keywords} - ({rest_keyword.lower()} if rest_keyword else set())
-    for tok in text.split():
+    for token in text.split():
         matched = False
         for kw in kw_lower:
-            if tok.lower().startswith(kw + "="):
-                result[kw] = tok.split("=", 1)[1]
+            if token.lower().startswith(kw + "="):
+                result[kw] = token.split("=", 1)[1]
                 matched = True
                 break
         if not matched:
-            positional_parts.append(tok)
+            positional_parts.append(token)
 
     if positional_parts:
         result["_positional"] = " ".join(positional_parts)

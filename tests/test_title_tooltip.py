@@ -54,7 +54,7 @@ class TestFormatTitleTooltip:
         actual = format_title_tooltip(
             "t", [("port", "COM4"), ("baud_rate", 115200)], "act"
         )
-        positions = {ln.index("=") for ln in actual.splitlines() if "=" in ln}
+        positions = {line.index("=") for line in actual.splitlines() if "=" in line}
         assert len(positions) == 1, "keys padded so the = signs line up"
 
     def test_values_go_through_the_value_formatter(self):

@@ -259,7 +259,7 @@ def run_ports(args: argparse.Namespace) -> None:
     all_facts = port_control._gather_all_chip_facts(fast=not getattr(args, "json", False))
 
     if args.ports and args.ports != "*":
-        all_facts = [f for f in all_facts if f.device == args.ports]
+        all_facts = [fact for fact in all_facts if fact.device == args.ports]
         # Reserved virtual ports (DEMO, DEMO_FAIL) aren't OS-enumerated
         # but are reachable at runtime; surface a synthetic record when
         # the user names one explicitly so CI can exercise --ports
@@ -275,7 +275,7 @@ def run_ports(args: argparse.Namespace) -> None:
     facts_list = _filter_facts(args, all_facts)
 
     if args.json:
-        records = [_facts_to_json_record(f) for f in facts_list]
+        records = [_facts_to_json_record(fact) for fact in facts_list]
         print(json.dumps(records, indent=2))
         sys.exit(0 if records else 1)
 

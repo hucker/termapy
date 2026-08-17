@@ -62,18 +62,18 @@ def _extract_keyword_sections(args: str) -> dict[str, str]:
         args = before_fmt + after_fmt[fmt_end:]
 
     # Parse remaining tokens
-    for tok in args.split():
-        lower = tok.lower()
+    for token in args.split():
+        lower = token.lower()
         matched = False
         for kw in ("mode=", "bytes=", "records=", "sep=", "timeout=", "echo="):
             if lower.startswith(kw):
                 key = kw.rstrip("=")
-                result[key] = tok.split("=", 1)[1]
+                result[key] = token.split("=", 1)[1]
                 matched = True
                 break
         if not matched:
             result.setdefault("_positional", "")
-            result["_positional"] += " " + tok
+            result["_positional"] += " " + token
     return result
 
 

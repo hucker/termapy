@@ -181,7 +181,7 @@ def _find_candidates(term: str, plugins: dict, prefix: str) -> list[str]:
     short help before matching so a search for ``!cfg`` finds entries whose
     help says ``{prefix}cfg``.
     """
-    words = [w.lower() for w in term.split() if w]
+    words = [word.lower() for word in term.split() if word]
     if not words:
         return []
     hits: list[str] = []
@@ -190,7 +190,7 @@ def _find_candidates(term: str, plugins: dict, prefix: str) -> list[str]:
             continue
         help_text = interpolate_help(plugin.help, prefix)
         haystack = f"{name} {help_text}".lower()
-        if all(w in haystack for w in words):
+        if all(word in haystack for word in words):
             hits.append(name)
     return sorted(hits)
 
@@ -447,7 +447,7 @@ def _render_candidates(ctx: PluginContext, term: str, names: list[str]) -> None:
     """
     prefix = ctx.prefix
     plugins = ctx.internal.plugins
-    words = [w for w in term.split() if w]
+    words = [word for word in term.split() if word]
     ctx.io.output_markup(
         f"Candidates matching [{_CMD}]{_underline(term, words)}[/]:"
     )
@@ -639,7 +639,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Make the filter mode unmistakable.  Counts read against
         # everything that would otherwise have been listed top-level
         # (matching the post-filter denominator users care about).
-        shown = sum(len(v) for v in groups.values()) + len(script_only)
+        shown = sum(len(value) for value in groups.values()) + len(script_only)
         total = sum(
             1 for n, p in all_plugins.items()
             if "." not in n and not getattr(p, "hidden", False)

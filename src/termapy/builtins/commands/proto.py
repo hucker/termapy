@@ -58,13 +58,13 @@ def _format_as_quoted_text(data: bytes) -> str:
     rendering for byte-dump commands.
     """
     pieces: list[str] = []
-    for b in data:
-        if b in _TEXT_ESCAPES:
-            pieces.append(_TEXT_ESCAPES[b])
-        elif 0x20 <= b < 0x7F:
-            pieces.append(chr(b))
+    for byte in data:
+        if byte in _TEXT_ESCAPES:
+            pieces.append(_TEXT_ESCAPES[byte])
+        elif 0x20 <= byte < 0x7F:
+            pieces.append(chr(byte))
         else:
-            pieces.append(f"\\x{b:02X}")
+            pieces.append(f"\\x{byte:02X}")
     return '"' + "".join(pieces) + '"'
 
 
@@ -101,7 +101,7 @@ def _display_bytes(
         return
     if len(data) <= 16:
         hex_str = format_hex(data)
-        sidebar = "".join(chr(b) if 0x20 <= b < 0x7F else "." for b in data)
+        sidebar = "".join(chr(byte) if 0x20 <= byte < 0x7F else "." for byte in data)
         ctx.io.output(f"  {direction}: {hex_str}  |{sidebar}|", color)
     else:
         ctx.io.output(f"  {direction} {len(data)} bytes:", color)
@@ -698,7 +698,7 @@ def _crc_list(ctx: PluginContext, args: str) -> CmdResult:
             desc = entry.get("desc", "") if entry else "(plugin)"
             ctx.io.output(f"    {name:<30s} {desc}")
 
-    total = sum(len(g) for g in groups.values())
+    total = sum(len(value) for value in groups.values())
     ctx.io.output(f"  {total} algorithms available")
     # Return the matched algorithm names so scripts can iterate or count.
     return CmdResult.ok(value="\n".join(names))
@@ -1088,13 +1088,13 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     # (for catalog mode) is treated as the algorithm name.
     kv: dict[str, str] = {}
     name_tokens: list[str] = []
-    for tok in args.strip().split():
-        if "=" in tok:
-            k, v = tok.split("=", 1)
+    for token in args.strip().split():
+        if "=" in token:
+            k, v = token.split("=", 1)
             if k in _CRC_CODEGEN_KV_KEYS:
                 kv[k] = v
                 continue
-        name_tokens.append(tok)
+        name_tokens.append(token)
 
     # Reject flags the language doesn't support.  Languages that DO
     # register a flag (--table on c/python/rust/..., --slice8 on
@@ -1434,13 +1434,13 @@ def _parse_find_args(text: str) -> dict[str, str]:
             result["payload"] = stripped[idx + len(marker):].strip()
             stripped = stripped[:idx].strip()
             break
-    for tok in stripped.split():
-        if tok.startswith("width="):
-            result["width"] = tok[len("width="):]
-        elif tok.startswith("endian="):
-            result["endian"] = tok[len("endian="):]
-        elif tok.startswith("form="):
-            result["form"] = tok[len("form="):]
+    for token in stripped.split():
+        if token.startswith("width="):
+            result["width"] = token[len("width="):]
+        elif token.startswith("endian="):
+            result["endian"] = token[len("endian="):]
+        elif token.startswith("form="):
+            result["form"] = token[len("form="):]
     return result
 
 
@@ -2072,7 +2072,7 @@ def _proto_help_handler(ctx: PluginContext, args: str) -> CmdResult:
     result = _show_command_help(ctx, "proto")
     proto_dir = ctx.fs.proto_dir
     files = (
-        sorted(f.name for f in proto_dir.glob("*.pro"))
+        sorted(path.name for path in proto_dir.glob("*.pro"))
         if proto_dir.is_dir() else []
     )
     append_files_section(ctx, "AVAILABLE PROTO FILES", files)

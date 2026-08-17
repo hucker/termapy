@@ -309,9 +309,9 @@ def cleanup_profile_temps(config_path: str) -> None:
     run_dir = cfg_data_dir(config_path) / "run"
     if not run_dir.is_dir():
         return
-    for f in run_dir.glob(PROFILE_TMP_GLOB):
+    for path in run_dir.glob(PROFILE_TMP_GLOB):
         try:
-            f.unlink()
+            path.unlink()
         except OSError:
             pass
 

@@ -84,8 +84,8 @@ class TestChipTableStructure:
         """Every table value uses the ChipInfo dataclass."""
         # Act / Assert
         wrong_types = [
-            type(v).__name__ for v in USB_SERIAL_CHIPS.values()
-            if not isinstance(v, ChipInfo)
+            type(value).__name__ for value in USB_SERIAL_CHIPS.values()
+            if not isinstance(value, ChipInfo)
         ]
         assert wrong_types == [], \
             f"all values must be ChipInfo; got: {wrong_types}"

@@ -317,7 +317,7 @@ def format_table(
     """
     if not facts_list:
         return ["(no ports found)"]
-    rows = [row_from_facts(f) for f in facts_list]
+    rows = [row_from_facts(fact) for fact in facts_list]
     columns = active_columns(rows)
     widths, columns = compute_widths(rows, row_width, columns)
     header, separator = format_header(widths, columns)

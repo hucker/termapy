@@ -235,7 +235,7 @@ class TestMcpHostSandboxed:
 
         host = _mcp_host(tmp_path)
         # Act
-        names = {c["name"] for c in build_catalog(host.ctx)["commands"]}
+        names = {command["name"] for command in build_catalog(host.ctx)["commands"]}
         # Assert
         assert "/cfg.icon" not in names, (
             "cfg.icon is gated out of the MCP catalog (needs gui_apps)"

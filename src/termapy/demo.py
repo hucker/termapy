@@ -1117,7 +1117,7 @@ class FakeSerial:
 
         if upper == "AT+FS.INFO":
             count = len(self._vfs)
-            total = sum(len(v) for v in self._vfs.values())
+            total = sum(len(value) for value in self._vfs.values())
             return f"Files: {count}, Total: {total} bytes\r\n".encode()
 
         if upper.startswith("AT+FS.DELETE"):

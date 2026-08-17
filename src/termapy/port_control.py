@@ -859,9 +859,9 @@ def gather_chip_facts(
         return None
     from serial.tools.list_ports import comports
 
-    for p in comports():
-        if p.device == port_name:
-            return _facts_from_port_info(p, connected_port, fast=fast)
+    for port in comports():
+        if port.device == port_name:
+            return _facts_from_port_info(port, connected_port, fast=fast)
     # OS didn't enumerate it; fall back to synthesizing a record for
     # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
     # `termapy --info DEMO` work without hardware.

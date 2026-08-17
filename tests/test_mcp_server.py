@@ -77,14 +77,14 @@ class TestCatalog:
     def test_catalog_includes_help_command(self, host):
         # Arrange / Act
         cat = build_catalog(host.ctx)
-        names = {c["name"] for c in cat["commands"]}
+        names = {command["name"] for command in cat["commands"]}
         # Assert
         assert "/help" in names, "/help present (catalog names include prefix)"
 
     def test_catalog_includes_term_send(self, host):
         # Arrange / Act — /term.send was added in Phase 2.5
         cat = build_catalog(host.ctx)
-        names = {c["name"] for c in cat["commands"]}
+        names = {command["name"] for command in cat["commands"]}
         # Assert
         assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
@@ -137,7 +137,8 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         # Assert
         set_entry = next(
-            e for e in cat["device_commands"] if e["name"] == "SET"
+            device_command for device_command in cat["device_commands"]
+            if device_command["name"] == "SET"
         )
         ta = set_entry["typed_args"][0]
         assert ta["name"] == "state", "original typed_arg fields preserved"
@@ -166,7 +167,10 @@ class TestCatalog:
         # Act
         cat = build_catalog(host.ctx)
         # Assert
-        echo = next(e for e in cat["device_commands"] if e["name"] == "ECHO")
+        echo = next(
+            device_command for device_command in cat["device_commands"]
+            if device_command["name"] == "ECHO"
+        )
         ta = echo["typed_args"][0]
         info = ta.get("type_info") or {}
         assert info.get("kind") == "builtin", (
@@ -200,7 +204,7 @@ class TestCatalog:
     def test_catalog_command_has_required_fields(self, host):
         # Arrange / Act
         cat = build_catalog(host.ctx)
-        sample = next(c for c in cat["commands"] if c["name"] == "/help")
+        sample = next(command for command in cat["commands"] if command["name"] == "/help")
         # Assert
         for key in ("name", "args", "help", "long_help", "flags",
                     "needs", "hidden", "source"):
@@ -225,16 +229,16 @@ class TestCatalog:
         # Arrange / Act
         cat = build_catalog(host.ctx)
         # Assert
-        for c in cat["commands"]:
-            assert isinstance(c["hidden"], bool), (
-                f"hidden flag must be bool, got {type(c['hidden']).__name__}"
+        for command in cat["commands"]:
+            assert isinstance(command["hidden"], bool), (
+                f"hidden flag must be bool, got {type(command['hidden']).__name__}"
             )
 
     def test_catalog_filters_interactive_only_commands(self, host):
         """Plugins requiring ``interactive`` are filtered from MCP catalog."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
-        names = {c["name"] for c in cat["commands"]}
+        names = {command["name"] for command in cat["commands"]}
         # Assert -- sample of plugins that declare needs.interactive=True
         for cmd in ("/cls", "/grep", "/exit", "/os",
                     "/seq", "/credits",
@@ -248,7 +252,7 @@ class TestCatalog:
         """Plugins requiring ``gui_apps`` are filtered from MCP catalog."""
         # Arrange / Act
         cat = build_catalog(host.ctx)
-        names = {c["name"] for c in cat["commands"]}
+        names = {command["name"] for command in cat["commands"]}
         # Assert -- sample of plugins that declare needs.gui_apps=True
         for cmd in ("/edit", "/edit.cfg", "/show", "/show.cfg",
                     "/cfg.show", "/cfg.explore", "/app.explore",
@@ -282,7 +286,7 @@ class TestCatalog:
         try:
             # Act
             cat = build_catalog(host.ctx)
-            cat_names = {c["name"] for c in cat["commands"]}
+            cat_names = {command["name"] for command in cat["commands"]}
             # Assert
             prefixed = host.ctx.prefix + synthetic.name
             assert prefixed in cat_names, (
@@ -297,7 +301,7 @@ class TestCatalog:
         assert "proto.debug" in plugins, "/proto.debug registered (precondition)"
         # Act
         cat = build_catalog(host.ctx)
-        cat_names = {c["name"] for c in cat["commands"]}
+        cat_names = {command["name"] for command in cat["commands"]}
         # Assert
         assert "/proto.debug" not in cat_names, (
             "tui_mode-only commands filtered when ctx lacks tui_mode"
@@ -493,7 +497,7 @@ class TestAsyncEventsDelivery:
         # Act
         result = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
         # Assert -- async events are dicts with ``line``/``source``/``at``.
-        actual_lines = [e["line"] for e in result["async_events"]]
+        actual_lines = [async_event["line"] for async_event in result["async_events"]]
         expected_lines = ["<START-UP>", "  banner line"]
         assert actual_lines == expected_lines, (
             "pending async events delivered in next response"
@@ -507,7 +511,7 @@ class TestAsyncEventsDelivery:
         second = asyncio.run(host.run_command_async("/help", "quiet", 5.0))
         # Assert -- deliver-exactly-once: first call carried the event,
         # second call sees an empty list.
-        first_lines = [e["line"] for e in first["async_events"]]
+        first_lines = [async_event["line"] for async_event in first["async_events"]]
         assert first_lines == ["first_event"], (
             "first call carries the recorded event"
         )
@@ -714,9 +718,9 @@ class TestDeviceStateResource:
         # Act
         state = build_device_state(host.ctx)
         # Assert
-        names = {c["name"] for c in state["captures"]}
+        names = {capture["name"] for capture in state["captures"]}
         assert "smoke.txt" in names, "captures list reflects cap_dir contents"
-        smoke = next(c for c in state["captures"] if c["name"] == "smoke.txt")
+        smoke = next(capture for capture in state["captures"] if capture["name"] == "smoke.txt")
         assert smoke["uri"] == "termapy://capture/smoke.txt", "uri formatted"
 
 
@@ -810,7 +814,7 @@ class TestBareSlotCaptureExposure:
         # Act
         state = build_device_state(bare_host.ctx, captures_dir=None)
         # Assert
-        names = {c["name"] for c in state["captures"]}
+        names = {capture["name"] for capture in state["captures"]}
         assert ".secrets" not in names and ".pypirc" not in names, (
             "captures_dir=None never lists the working directory"
         )
@@ -846,5 +850,5 @@ class TestBareSlotCaptureExposure:
             host.ctx, captures_dir=host._active_cap_dir()
         )
         # Assert
-        names = {c["name"] for c in state["captures"]}
+        names = {capture["name"] for capture in state["captures"]}
         assert "adc_000.csv" in names, "loaded cfg still lists its captures"

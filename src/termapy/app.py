@@ -2307,7 +2307,7 @@ class SerialTerminal(TerminalHost, App):
         raw = buttons[idx].get("command", "").strip()
         if not raw:
             return
-        parts = [c.strip() for c in raw.replace("\\n", "\n").split("\n") if c.strip()]
+        parts = [part.strip() for part in raw.replace("\\n", "\n").split("\n") if part.strip()]
         if len(parts) > 1:
             self._dispatch_sequence_on_thread(parts)
         elif parts:
@@ -2510,7 +2510,7 @@ class SerialTerminal(TerminalHost, App):
         if not directory.exists():
             return None
         files = [
-            f for f in directory.iterdir() if f.is_file() and not f.name.startswith(".")
+            file for file in directory.iterdir() if file.is_file() and not file.name.startswith(".")
         ]
         if not files:
             return None
@@ -2661,7 +2661,7 @@ class SerialTerminal(TerminalHost, App):
                 prefix += f"[{format_timestamp()}] "
             if hex_mode:
                 hex_str = " ".join(
-                    f"{b:02X}" for b in text.encode(enc, errors="replace")
+                    f"{byte:02X}" for byte in text.encode(enc, errors="replace")
                 )
                 body = f"{prefix}{hex_str}"
             else:

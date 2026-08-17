@@ -39,7 +39,7 @@ def _build_stub_ctx():
 
 def _hex(text: str) -> str:
     """Space-separated lowercase hex bytes for a UTF-8 string."""
-    return " ".join(f"{b:02x}" for b in text.encode())
+    return " ".join(f"{byte:02x}" for byte in text.encode())
 
 
 class TestFormHappyPath:

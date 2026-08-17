@@ -176,7 +176,7 @@ def _list_ports() -> str:
     try:
         from serial.tools.list_ports import comports
 
-        ports = sorted(p.device for p in comports())
+        ports = sorted(port.device for port in comports())
         return "Available: " + (", ".join(ports) if ports else "(no ports found)")
     except (OSError, ImportError):
         return "(cannot list ports)"

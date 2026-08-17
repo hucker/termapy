@@ -388,17 +388,17 @@ toml = [
 
 [[package]]
 name = "crcglot"
-version = "0.30.0"
+version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/80/96/03a278f43b67d1954ae4eacc55728a9cdfb2843daf66aa492cec89b8a85e/crcglot-0.30.0.tar.gz", hash = "sha256:19fc1e068177d734e3b25dffbfd92f59f3eca0835f002ee7de4be3de7a738f6b", size = 397872, upload-time = "2026-08-13T21:08:42.133Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/c3/03d0d69e1e87c3c32c2b3780dbae14aeb252855c7ce6a332f0c19bb71eb4/crcglot-0.31.0.tar.gz", hash = "sha256:68289fa744c75ad82b565100b8cb75ae8920b9c1defd2a9448a86ce17d65d668", size = 416318, upload-time = "2026-08-15T00:26:42.8Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/a3/6b0d39ca351f8c62b5123aa9d9eb2bcd2e84aa86b42a82fa1c8a9303b560/crcglot-0.30.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:61a8d5a1ef1a7b54276841fbab642088afdbdcde6a4853bbc62c18a546228942", size = 255245, upload-time = "2026-08-13T21:08:32.324Z" },
-    { url = "https://files.pythonhosted.org/packages/73/15/139357bcf7f1106d84ef3f847505c8408981c9c933f7920bd497683c1235/crcglot-0.30.0-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8771d03a0ec9b9fe4d25f2cae49c4f5c9257b8bc9a502c25bf0301ba46e44873", size = 273508, upload-time = "2026-08-13T21:08:33.801Z" },
-    { url = "https://files.pythonhosted.org/packages/bb/90/ba3f46a03573cbf5059e618adb120d79f54e4470fce974761d9678f8798c/crcglot-0.30.0-cp311-abi3-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e34a74f059357be843a38b586fc699105e812ace8a81214ce83b74ffb64fbcdf", size = 273927, upload-time = "2026-08-13T21:08:35.089Z" },
-    { url = "https://files.pythonhosted.org/packages/61/03/ca9d13b9c6fa4a6d88e9b92dbbb29d94b9659c6d7469225014df0ddb9f54/crcglot-0.30.0-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:8f7c3c936a5ffc65629d6cbd0be3b8f911d9fd0d1ae7a926220a174b58bff7f9", size = 273791, upload-time = "2026-08-13T21:08:36.55Z" },
-    { url = "https://files.pythonhosted.org/packages/f9/c3/9312e8d8673007ad3e44e50887a04e09c4ea538d04fad019649086dd17cf/crcglot-0.30.0-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:c768b481f48afdbd49bcb9d13b4260b87e61a400e4c0d320e1cfd3906d8ff3ef", size = 273997, upload-time = "2026-08-13T21:08:38.02Z" },
-    { url = "https://files.pythonhosted.org/packages/c3/fa/c76be7380e3093087e58f368149fef551a41953285bd9a983d5c776d52ef/crcglot-0.30.0-cp311-abi3-win_amd64.whl", hash = "sha256:aa0c99d05a3885f79235c08fab94d2f9b019384d1395a136c2b3af2ef1e452c9", size = 258586, upload-time = "2026-08-13T21:08:39.29Z" },
-    { url = "https://files.pythonhosted.org/packages/4b/f7/85ae6a4b24e0f0c138515d37e6dfc1028879a54fd1408940e378af92b722/crcglot-0.30.0-cp311-abi3-win_arm64.whl", hash = "sha256:cab755359fb3e5b2f93df647f2d0d351ed0d3c3c582a7c6cb4782f0418665e79", size = 257649, upload-time = "2026-08-13T21:08:40.634Z" },
+    { url = "https://files.pythonhosted.org/packages/02/18/8e8e585c9995036e8362e85b49b70cdb3187c36a7589a8924664d8251614/crcglot-0.31.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:3bcc7cd1b68074d80bf3bf4e1416496e2d87792697becdfa70e8234a4fd9cf7c", size = 264507, upload-time = "2026-08-15T00:26:32.321Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/af/350bbbeaabee8d3e15cf0958efd31993e3e5a67de220d2cb3ed13e55decc/crcglot-0.31.0-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d31b54b68927d89764b4f8f4c0f1ae908fed90d6b7afc64d4c804fe8da7b8c72", size = 282767, upload-time = "2026-08-15T00:26:34.051Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/1e/d7366200bdc772c7552701349a961ae3560abcb4620146829a29b6ca0ad4/crcglot-0.31.0-cp311-abi3-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:81a5c9e6ae987260f609750d11c8a60174a12d0886758f9028eb3060f21faceb", size = 283191, upload-time = "2026-08-15T00:26:35.604Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/25/fbad03210cee30198d8bd046de1f44a08cbf0f76f9e4df80c3b41d824cba/crcglot-0.31.0-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:93bdf01863b81269717ed735d12e15a503619ca2f4dd1794be0f14ce36c53790", size = 283052, upload-time = "2026-08-15T00:26:37.107Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/8b/ae2514325e387c15c039aaf8b86c3e13a34298ea4575589c418cf16c7f46/crcglot-0.31.0-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:c539c77851253e5e61f4a8faed923b8de9149b7cde3ac14b55e7d1e0ba864270", size = 283259, upload-time = "2026-08-15T00:26:38.444Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/c8/b70f44692b8c66f258de9ffc610fd2c19d30126c1a44b685249a64141ba1/crcglot-0.31.0-cp311-abi3-win_amd64.whl", hash = "sha256:46cfb263a9e11198d4b842e0dce35c2dc38f04a028004e94449ec6507fa25089", size = 267906, upload-time = "2026-08-15T00:26:39.95Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/c9/32d4421009395d78d1308f9aaa17b6e2d02dcfb4e2086cae7c502cea1fac/crcglot-0.31.0-cp311-abi3-win_arm64.whl", hash = "sha256:d6f4a5784564d63a160030a60b8dc77081dfdc8c86fbab8dd721bb3bd574e278", size = 266972, upload-time = "2026-08-15T00:26:41.344Z" },
 ]
 
 [[package]]
@@ -1550,7 +1550,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "crcglot", specifier = ">=0.30.0" },
+    { name = "crcglot", specifier = ">=0.31.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2,<3" },
     { name = "packaging", specifier = ">=24.0" },
     { name = "platformdirs", specifier = ">=4.0" },
@@ -1816,8 +1816,8 @@ name = "uvicorn"
 version = "0.46.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click" },
-    { name = "h11" },
+    { name = "click", marker = "python_full_version < '3.12' or python_full_version >= '3.14' or sys_platform != 'emscripten'" },
+    { name = "h11", marker = "python_full_version < '3.12' or python_full_version >= '3.14' or sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1f/93/041fca8274050e40e6791f267d82e0e2e27dd165627bd640d3e0e378d877/uvicorn-0.46.0.tar.gz", hash = "sha256:fb9da0926999cc6cb22dc7cd71a94a632f078e6ae47ff683c5c420750fb7413d", size = 88758, upload-time = "2026-04-23T07:16:00.151Z" }
 wheels = [

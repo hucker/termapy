@@ -177,7 +177,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert
-        names = [s.name for s in mf.symbols if s.section == "text"]
+        names = [symbol.name for symbol in mf.symbols if symbol.section == "text"]
         assert "main" in names, "should parse .text.main"
         assert "MonGpio" in names, "should parse .text.MonGpio"
 
@@ -186,7 +186,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert
-        names = [s.name for s in mf.symbols if s.section == "bss"]
+        names = [symbol.name for symbol in mf.symbols if symbol.section == "bss"]
         assert "SERCOM4_USART_WriteBuffer" in names, "should parse .bss symbol with full name"
         assert "sDispatch" in names, "should parse .bss.sDispatch"
 
@@ -195,7 +195,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert
-        names = [s.name for s in mf.symbols if s.section == "data"]
+        names = [symbol.name for symbol in mf.symbols if symbol.section == "data"]
         assert "sCurrentBaud" in names, "should parse .data.sCurrentBaud"
 
     def test_parses_rodata_symbols(self):
@@ -203,7 +203,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert
-        names = [s.name for s in mf.symbols if s.section == "rodata"]
+        names = [symbol.name for symbol in mf.symbols if symbol.section == "rodata"]
         assert "sCmdTableA" in names, "should parse .rodata.sCmdTableA"
 
     def test_skips_non_symbol_lines(self):
@@ -211,7 +211,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert - .vectors and bare .text (no symbol name) should be skipped
-        names = [s.name for s in mf.symbols]
+        names = [symbol.name for symbol in mf.symbols]
         assert "vectors" not in names, "should skip .vectors (no dotted symbol)"
 
     def test_sorted_by_address(self):
@@ -219,7 +219,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert
-        addrs = [s.addr for s in mf.symbols]
+        addrs = [symbol.addr for symbol in mf.symbols]
         assert addrs == sorted(addrs), "symbols should be sorted by address"
 
     def test_stats(self):
@@ -236,7 +236,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert - detailed section should override truncated summary names
-        names = [s.name for s in mf.symbols]
+        names = [symbol.name for symbol in mf.symbols]
         assert "u8PicAdcInternal_ReadBlockingAvg" in names, (
             "should use full name from detailed section"
         )
@@ -247,7 +247,7 @@ class TestMapFileParse:
             "should use full bss name from detailed section"
         )
         # Truncated names should NOT appear when full names are available
-        truncated = [s for s in mf.symbols if s.name == "u8PicAdcInternal_"]
+        truncated = [symbol for symbol in mf.symbols if symbol.name == "u8PicAdcInternal_"]
         assert len(truncated) == 0, (
             "truncated names should be replaced by full names"
         )
@@ -257,7 +257,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert
-        names = [s.name for s in mf.symbols if s.section == "global"]
+        names = [symbol.name for symbol in mf.symbols if symbol.section == "global"]
         assert "sCal" in names, "should parse global sCal"
         assert "f32Batt7Voltage" in names, "should parse global f32Batt7Voltage"
 
@@ -266,7 +266,7 @@ class TestMapFileParse:
         mf = MapFile.from_text(SAMPLE_MAP)
 
         # Assert
-        globals_ = [s for s in mf.symbols if s.section == "global"]
+        globals_ = [symbol for symbol in mf.symbols if symbol.section == "global"]
         for sym in globals_:
             assert sym.size == 0, f"global {sym.name} should have size 0"
 
@@ -376,7 +376,7 @@ class TestMapFileSearch:
 
         # Assert
         assert len(matches) >= 1, "should find at least MonGpio"
-        assert any(s.name == "MonGpio" for s in matches), "should include MonGpio"
+        assert any(match.name == "MonGpio" for match in matches), "should include MonGpio"
 
     def test_case_insensitive(self):
         # Arrange
@@ -396,7 +396,7 @@ class TestMapFileSearch:
         matches = mf.search("*main*")
 
         # Assert
-        assert any(s.name == "main" for s in matches), "glob *main* should find main"
+        assert any(match.name == "main" for match in matches), "glob *main* should find main"
 
     def test_glob_prefix(self):
         # Arrange
@@ -406,8 +406,8 @@ class TestMapFileSearch:
         matches = mf.search("Mon*")
 
         # Assert
-        assert any(s.name == "MonGpio" for s in matches), "glob Mon* should find MonGpio"
-        assert not any(s.name == "main" for s in matches), "glob Mon* should not find main"
+        assert any(match.name == "MonGpio" for match in matches), "glob Mon* should find MonGpio"
+        assert not any(match.name == "main" for match in matches), "glob Mon* should not find main"
 
     def test_regex_anchor(self):
         # Arrange
@@ -417,7 +417,7 @@ class TestMapFileSearch:
         matches = mf.search("^Mon")
 
         # Assert
-        assert any(s.name == "MonGpio" for s in matches), "regex ^Mon should find MonGpio"
+        assert any(match.name == "MonGpio" for match in matches), "regex ^Mon should find MonGpio"
 
     def test_no_match(self):
         # Arrange

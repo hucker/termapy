@@ -230,7 +230,7 @@ COMMAND = Command(name="alpha", help="A", handler=_handler)
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        actual_names = [p.name for p in result.plugins]
+        actual_names = [plugin.name for plugin in result.plugins]
         expected_names = ["alpha", "beta"]
         assert actual_names == expected_names, "loaded in alphabetical order"
 
@@ -276,7 +276,7 @@ COMMAND = Command(
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        names = [p.name for p in result.plugins]
+        names = [plugin.name for plugin in result.plugins]
         assert "tool" in names, "root node registered"
         assert "tool.run" in names, "sub_command registered with dot"
         assert "tool.status" in names, "sub_command registered with dot"
@@ -302,7 +302,7 @@ COMMAND = Command(
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
-        root = [p for p in result.plugins if p.name == "tool"][0]
+        root = [plugin for plugin in result.plugins if plugin.name == "tool"][0]
 
         # Assert
         assert root.children == ["tool.alpha", "tool.beta"], "children tracked"
@@ -330,7 +330,7 @@ COMMAND = Command(
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
-        names = [p.name for p in result.plugins]
+        names = [plugin.name for plugin in result.plugins]
 
         # Assert
         assert "tool" in names, "root"
@@ -362,7 +362,7 @@ COMMAND = Command(
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
-        info = [p for p in result.plugins if p.name == "dyn"][0]
+        info = [plugin for plugin in result.plugins if plugin.name == "dyn"][0]
 
         # Assert - long_help is still callable (same identity isn't possible
         # across module loads, but we can check it's callable and returns our text)
@@ -387,7 +387,7 @@ COMMAND = Command(
 
         # Act
         result = load_plugins_from_dir(plugin_dir, "test")
-        root = [p for p in result.plugins if p.name == "tool"][0]
+        root = [plugin for plugin in result.plugins if plugin.name == "tool"][0]
 
         # Assert
         assert root.handler is not None, "synthetic handler created"
@@ -639,7 +639,7 @@ COMMAND = Command(name="hooked", help="x", handler=_handler)
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        names = [h.name for h in result.lifecycle_hooks]
+        names = [lifecycle_hook.name for lifecycle_hook in result.lifecycle_hooks]
         assert "on_app_start" in names, "on_app_start hook should be discovered"
         assert len(result.lifecycle_hooks) == 1, "only one hook exported"
         assert result.lifecycle_hooks[0].plugin == "hooked", "plugin stem recorded"
@@ -664,7 +664,7 @@ COMMAND = Command(name="fully_hooked", help="x", handler=_handler)
         result = load_plugins_from_dir(plugin_dir, "test")
 
         # Assert
-        actual = sorted(h.name for h in result.lifecycle_hooks)
+        actual = sorted(lifecycle_hook.name for lifecycle_hook in result.lifecycle_hooks)
         expected = ["on_app_start", "on_app_stop", "on_script_start", "on_script_stop"]
         assert actual == expected, "all four lifecycle hooks discovered"
 

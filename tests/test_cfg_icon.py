@@ -433,14 +433,14 @@ class TestWindowsCreate:
         # Assert
         assert result.success, f"create succeeded, got: {result.error}"
         assert any(
-            "CreateShortcut" in (c[-1] if isinstance(c, list) else "")
-            for c in calls
+            "CreateShortcut" in (call[-1] if isinstance(call, list) else "")
+            for call in calls
         ), "PowerShell COM script was invoked"
         # The script must reference cmd.exe, embed the cfg dir, and
         # set WorkingDirectory.
-        scripts = [c[-1] for c in calls if isinstance(c, list)]
+        scripts = [call[-1] for call in calls if isinstance(call, list)]
         shortcut_script = next(
-            s for s in scripts if "CreateShortcut" in s
+            script for script in scripts if "CreateShortcut" in script
         )
         assert "cmd.exe" in shortcut_script, "target is cmd.exe"
         cfg_file = (cfg_dir / "demo.cfg").resolve()

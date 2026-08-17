@@ -554,7 +554,7 @@ class TestRxNewlineEndToEnd:
         # Assert - split into 3 clean lines (the old LF-only reader merged
         # these into one garbled line).
         assert len(lines) == 3, "bare-CR multi-line splits correctly under auto"
-        assert all("\r" not in ln and "\n" not in ln for ln in lines), (
+        assert all("\r" not in line and "\n" not in line for line in lines), (
             "no stray terminators left in the split lines"
         )
 

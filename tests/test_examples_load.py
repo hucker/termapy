@@ -81,7 +81,7 @@ def _example_root_command_names() -> list[str]:
     result = load_plugins_from_dir(_EXAMPLES_DIR, source="examples")
     # Only top-level (no dot) commands -- subcommands need specific args
     # and aren't meaningful as a "smoke dispatch."
-    return sorted(p.name for p in result.plugins if "." not in p.name)
+    return sorted(plugin.name for plugin in result.plugins if "." not in plugin.name)
 
 
 @pytest.mark.parametrize("cmd_name", _example_root_command_names())

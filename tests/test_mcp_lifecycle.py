@@ -69,7 +69,7 @@ class TestTransportBlockRejected:
         # Assert -- not OK; error mentions the transport block by name
         # so the author can find what to remove.
         assert not result.ok, "transport block must fail validation"
-        assert any("transport" in e for e in result.errors), (
+        assert any("transport" in error for error in result.errors), (
             f"error must name 'transport'; got {result.errors}"
         )
 

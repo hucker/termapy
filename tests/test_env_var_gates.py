@@ -142,7 +142,7 @@ class TestMigrationV18ToV19:
         out = migrate_config(cfg)
         # Assert
         warnings = out.get("_migration_warnings", [])
-        assert any("TERMAPY_OS_CMD_ENABLED" in w for w in warnings), (
+        assert any("TERMAPY_OS_CMD_ENABLED" in warning for warning in warnings), (
             "user gets a one-shot pointer to the env var replacement"
         )
 
@@ -153,7 +153,7 @@ class TestMigrationV18ToV19:
         out = migrate_config(cfg)
         # Assert
         warnings = out.get("_migration_warnings", [])
-        assert not any("TERMAPY_OS_CMD_ENABLED" in w for w in warnings), (
+        assert not any("TERMAPY_OS_CMD_ENABLED" in warning for warning in warnings), (
             "silent strip when nothing was enabled"
         )
 

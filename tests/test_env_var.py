@@ -196,10 +196,10 @@ class TestEnvCommands:
         result = _handler_list(ctx, "USER_*")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("USER_ALPHA=a" in t for t in texts), "first match shown"
-        assert any("USER_BETA=b" in t for t in texts), "second match shown"
-        assert not any("UNRELATED" in t for t in texts), "non-match excluded"
+        texts = [text for text, _ in output]
+        assert any("USER_ALPHA=a" in text for text in texts), "first match shown"
+        assert any("USER_BETA=b" in text for text in texts), "second match shown"
+        assert not any("UNRELATED" in text for text in texts), "non-match excluded"
         # Glob path returns newline-joined NAME=VALUE so scripting gets
         # the same content the user sees, minus the indentation.
         lines = result.value.split("\n")

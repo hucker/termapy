@@ -257,7 +257,7 @@ class TestFindMatchesHelper:
 
         # Assert
         assert err is None, "no error on valid pattern"
-        assert [m[0] for m in matches] == [1, 3, 5], (
+        assert [match[0] for match in matches] == [1, 3, 5], (
             "1-based line indices of all three 'alpha' lines"
         )
 

@@ -384,7 +384,7 @@ class TestTransformChains:
         # Assert
         assert eng.has_repl_transforms is True, "env_var + var REPL transforms loaded"
         assert eng.has_serial_transforms is True, "var serial transform loaded"
-        names = [t.name for t in eng._transform_infos]
+        names = [transform_info.name for transform_info in eng._transform_infos]
         assert "env_var" in names, "env_var transform registered"
         assert "var" in names, "var transform registered"
 

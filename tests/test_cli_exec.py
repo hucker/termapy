@@ -26,7 +26,7 @@ def _run(*extra_args: str, cfg_dir: str) -> subprocess.CompletedProcess:
             "import sys; "
             f"sys.argv = ['termapy', '--cli', '--demo', '--no-color', "
             f"'--cfg-dir', {cfg_dir!r}, "
-            + ", ".join(repr(a) for a in extra_args)
+            + ", ".join(repr(extra_arg) for extra_arg in extra_args)
             + "]; from termapy.entry import main; main()",
         ],
         capture_output=True,

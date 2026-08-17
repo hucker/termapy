@@ -2431,11 +2431,16 @@ class TestCfgRead:
         assert "relative to the config folder" in result.error, "clear refusal"
 
     def test_cfg_dump_refuses_absolute(self, repl_env):
-        # Arrange
+        # Arrange -- "absolute" is platform-dependent: "C:/Windows/win.ini" is
+        # absolute on Windows but an ordinary relative name on POSIX, where the
+        # guard then falls through to "File not found".  Build a path that is
+        # genuinely absolute wherever the suite runs (anchor is "C:\\" on
+        # Windows, "/" on POSIX).
         engine, _, _, output = repl_env
+        absolute = Path(Path.cwd().anchor) / "Windows" / "win.ini"
 
         # Act
-        result = engine.dispatch("cfg.dump C:/Windows/win.ini")
+        result = engine.dispatch(f"cfg.dump {absolute}")
 
         # Assert
         assert result.success is False, "absolute path refused"

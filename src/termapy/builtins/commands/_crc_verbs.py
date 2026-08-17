@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import crcglot
 
-from termapy.plugins import CmdResult, Command
+from termapy.plugins import CmdResult, Command, UsageError
 from termapy.plugins.params import EnumValue, ParamSpec
 
 if TYPE_CHECKING:
@@ -53,25 +53,64 @@ def _input_group(verb: Any):
     )
 
 
-def build_params(verb: Any) -> tuple[list[ParamSpec], str | None, list[str]]:
+def _frames_param(verb: Any, group: Any) -> str | None:
+    """The input group's frame-LIST member, when it has exactly one.
+
+    crcglot models "one or more frames" as an ``array[string]`` member of the
+    required input group (``packets`` on ``detect``).  termapy renders that as a
+    variadic positional -- one frame per argument token.  A group with two array
+    members would be ambiguous, so it keeps the scalar fold instead.
+    """
+    if group is None:
+        return None
+    arrays = [p.name for p in verb.params
+              if p.name in group.params and p.type == "array[string]"]
+    return arrays[0] if len(arrays) == 1 else None
+
+
+def build_params(verb: Any) -> tuple[list[ParamSpec], dict[str, str], list[str]]:
     """Map a crcglot ``VerbSpec`` to termapy ParamSpecs.
 
-    Returns ``(params, input_param, skipped)`` where ``input_param`` is the
-    manifest param name that the folded ``<frame>`` positional forwards to
-    (None if the verb has no input group), and ``skipped`` lists params whose
-    manifest type has no ParamSpec equivalent yet.
+    Returns ``(params, input_map, skipped)``.  ``input_map`` maps each bound
+    argument name to the manifest param it forwards to -- ``{"frame": <scalar>}``
+    for a verb that takes one frame, plus ``{"frames": <array>}`` when the verb
+    also accepts a list.  ``skipped`` lists params whose manifest type has no
+    ParamSpec equivalent yet.
+
+    A verb accepting a list gets BOTH forms, because they serve different
+    inputs: ``<frames>...`` binds one frame per argument (so several captured
+    frames intersect to eliminate a coincidental match), while ``frame=`` runs
+    to end of line (so a single frame pasted from a log keeps its spaces).
+    crcglot's own ExclusiveGroup rejects supplying both, so termapy does not
+    police that itself.
     """
     group = _input_group(verb)
     input_names = set(group.params) if group else set()
-    input_param = group.params[0] if group else None
+    frames_param = _frames_param(verb, group)
+    input_map: dict[str, str] = {}
 
     specs: list[ParamSpec] = []
     if group:
-        specs.append(ParamSpec(
-            name="frame", type="str", positional=True, rest=True, required=True,
-            hint="<frame>",
-            help="captured frame (payload + trailing CRC), as hex bytes",
-        ))
+        input_map["frame"] = group.params[0]
+        if frames_param:
+            input_map["frames"] = frames_param
+            specs.append(ParamSpec(
+                name="frames", type="str", positional=True, variadic=True,
+                help="captured frame (payload + trailing CRC), as hex bytes",
+            ))
+            specs.append(ParamSpec(
+                name="frame", type="str", rest=True,
+                help=(
+                    "a single frame that contains spaces, e.g. frame=01 03 00 0a "
+                    "(must be the last argument)"
+                ),
+            ))
+        else:
+            specs.append(ParamSpec(
+                name="frame", type="str", positional=True, rest=True, required=True,
+                hint="<frame>",
+                help="captured frame (payload + trailing CRC), as hex bytes",
+            ))
 
     skipped: list[str] = []
     for p in verb.params:
@@ -87,18 +126,29 @@ def build_params(verb: Any) -> tuple[list[ParamSpec], str | None, list[str]]:
                 default=p.default, help=p.help))
         else:
             skipped.append(f"{p.name} ({p.type})")
-    return specs, input_param, skipped
+    return specs, input_map, skipped
 
 
 def _make_handler(
-    verb_name: str, input_param: str | None, keyword_names: list[str]
+    verb_name: str, input_map: dict[str, str], keyword_names: list[str]
 ) -> Callable[[PluginContext, str], CmdResult]:
     """A generic handler: collect declared params -> call_verb -> render the dict."""
 
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         params: dict[str, Any] = {}
-        if input_param is not None:
-            params[input_param] = ctx.arg("frame")
+        # Forward only the input form the user actually supplied -- passing an
+        # empty one alongside a real one would trip crcglot's "not both"
+        # exclusion, which is crcglot's rule to enforce and ours to surface.
+        for arg_name, manifest_name in input_map.items():
+            value = ctx.arg(arg_name)
+            if value:
+                params[manifest_name] = value
+        # Supplying NOTHING is an arity error, which termapy owns: crcglot
+        # would answer in manifest names ("packet_hex / packet_text ...")
+        # that no termapy user ever types.  UsageError renders the synopsis,
+        # which names the real argument forms instead.
+        if input_map and not params:
+            raise UsageError()
         for name in keyword_names:
             value = ctx.arg(name)
             if value is not None:
@@ -116,14 +166,28 @@ def _make_handler(
     return _handler
 
 
+# How termapy's argument grammar maps onto a multi-frame verb.  This is a
+# frontend concern (crcglot has no notion of argument tokens), so termapy owns
+# the wording and appends it to the manifest's own description.
+_FRAMES_NOTE = """
+
+ARGUMENTS: each argument is one frame.  Bytes within a frame may be separated
+by commas or colons (01,03,00,0a) -- spaces separate frames.  To pass a single
+space-separated frame, use frame=01 03 00 0a as the LAST argument.  A frame
+captured into a variable is passed whole with $(*NAME)."""
+
+
 def build_crc_verb_command(verb_name: str) -> Command:
     """Build a fully typed ``Command`` for one crcglot verb, all from the manifest."""
     verb = crcglot.VERBS[verb_name]
-    specs, input_param, _skipped = build_params(verb)
-    keyword_names = [s.name for s in specs if not s.positional]
+    specs, input_map, _skipped = build_params(verb)
+    keyword_names = [s.name for s in specs if not s.positional and s.name != "frame"]
+    long_help = verb.description
+    if "frames" in input_map:
+        long_help += _FRAMES_NOTE
     return Command(
         params=specs,
         help=verb.summary,
-        long_help=verb.description,
-        handler=_make_handler(verb_name, input_param, keyword_names),
+        long_help=long_help,
+        handler=_make_handler(verb_name, input_map, keyword_names),
     )

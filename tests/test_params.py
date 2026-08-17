@@ -385,3 +385,307 @@ class TestDispatchNesting:
         assert seen["outer_before"] == "outer", "outer param bound before nesting"
         assert seen["outer_after"] == "outer", \
             "outer param restored after nested dispatch (save/restore, not clear)"
+
+
+# -- Variadic positionals -------------------------------------------------------
+
+
+class TestVariadic:
+    """A variadic positional binds every remaining token as a list.
+
+    ``rest`` joins the tail into ONE string; ``variadic`` keeps the elements
+    apart.  Both are tail consumers, so a command may declare only one.
+    """
+
+    def test_binds_list_of_tokens(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, error = parse_params(params, "A B C")
+
+        # Assert
+        assert error is None, "a variadic accepts several tokens"
+        assert bound["frames"] == ["A", "B", "C"], "each token is one element"
+
+    def test_single_token_still_a_list(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, _ = parse_params(params, "A")
+
+        # Assert -- shape is stable, so handlers never branch on count
+        assert bound["frames"] == ["A"], "one token binds a one-element list"
+
+    def test_absent_binds_empty_list(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, error = parse_params(params, "")
+
+        # Assert
+        assert error is None, "an optional variadic may be absent"
+        assert bound["frames"] == [], "absent binds an empty list rather than None"
+
+    def test_absent_binds_a_fresh_list_each_call(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act -- mutating one dispatch's list must not leak into the next
+        first, _ = parse_params(params, "")
+        first["frames"].append("leaked")
+        second, _ = parse_params(params, "")
+
+        # Assert
+        assert second["frames"] == [], "each parse gets its own list"
+
+    def test_required_variadic_rejects_empty(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True, required=True)]
+
+        # Act
+        _, error = parse_params(params, "")
+
+        # Assert -- "present" for a variadic means non-empty, since it always binds
+        assert error == "missing required parameter 'frames'", (
+            "a required variadic must actually receive a token"
+        )
+
+    def test_elements_are_coerced_individually(self):
+        # Arrange
+        params = [ParamSpec("nums", "int", positional=True, variadic=True)]
+
+        # Act
+        bound, error = parse_params(params, "1 2 3")
+
+        # Assert
+        assert error is None, "integer elements coerce"
+        assert bound["nums"] == [1, 2, 3], "every element is coerced, not just the first"
+
+    def test_bad_element_fails_with_its_own_reason(self):
+        # Arrange
+        params = [ParamSpec("nums", "int", positional=True, variadic=True)]
+
+        # Act
+        _, error = parse_params(params, "1 x 3")
+
+        # Assert
+        assert error == "invalid nums: 'x' (expected an integer)", (
+            "a bad element fails using the standard coercion vocabulary"
+        )
+
+    def test_range_check_applies_per_element(self):
+        # Arrange
+        params = [ParamSpec("nums", "int", positional=True, variadic=True,
+                            min=0, max=10)]
+
+        # Act
+        _, error = parse_params(params, "1 99")
+
+        # Assert
+        assert error == "nums must be between 0 and 10 (got 99)", (
+            "min/max bounds apply to each element"
+        )
+
+    def test_fixed_positionals_bind_before_the_variadic(self):
+        # Arrange
+        params = [
+            ParamSpec("out", positional=True, required=True),
+            ParamSpec("sources", positional=True, variadic=True, required=True),
+        ]
+
+        # Act
+        bound, error = parse_params(params, "dest.bin a.bin b.bin")
+
+        # Assert
+        assert error is None, "a fixed positional may precede a variadic"
+        actual = (bound["out"], bound["sources"])
+        expected = ("dest.bin", ["a.bin", "b.bin"])
+        assert actual == expected, "the fixed positional takes exactly one token"
+
+    def test_composes_with_a_rest_keyword(self):
+        # Arrange -- a variadic POSITIONAL and a rest KEYWORD are different
+        # slots, so they coexist; this is what gives /proto.crc.detect both
+        # its "one frame per argument" and its "one spaced frame" forms
+        params = [
+            ParamSpec("frames", positional=True, variadic=True),
+            ParamSpec("frame", rest=True),
+        ]
+
+        # Act
+        bound, error = parse_params(params, "frame=01 03 00 0a")
+
+        # Assert
+        assert error is None, "variadic and keyword-rest compose"
+        actual = (bound["frames"], bound["frame"])
+        expected = ([], "01 03 00 0a")
+        assert actual == expected, "the rest keyword keeps its spaces"
+
+    def test_synopsis_marks_repetition(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True, required=True)]
+
+        # Act / Assert
+        assert synthesize_synopsis(params) == "<frames>...", "repetition shows as ..."
+
+    def test_help_block_notes_repeatable(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True, required=True,
+                            help="a frame")]
+
+        # Act
+        lines = render_parameters_block(params)
+
+        # Assert
+        assert "repeatable" in lines[0], "the PARAMETERS block flags repetition"
+
+
+class TestVariadicDeclarationValidation:
+    """A malformed variadic declaration fails at load, not at first dispatch."""
+
+    @pytest.mark.parametrize("params,fragment", [
+        ([ParamSpec("x", variadic=True)], "must be positional"),
+        ([ParamSpec("x", positional=True, rest=True, variadic=True)],
+         "cannot set both rest and variadic"),
+        ([ParamSpec("x", positional=True, variadic=True, default="z")],
+         "must not have a default"),
+        ([ParamSpec("a", positional=True, variadic=True),
+          ParamSpec("b", positional=True, rest=True)], "at most one tail positional"),
+        ([ParamSpec("a", positional=True, variadic=True),
+          ParamSpec("b", positional=True)], "must be the last positional"),
+    ])
+    def test_rejected(self, params, fragment):
+        # Act / Assert
+        with pytest.raises(ValueError, match=fragment):
+            validate_param_specs(params, "t")
+
+
+# -- $(*NAME) dereference -------------------------------------------------------
+
+
+class TestResolveDeref:
+    """``$(*NAME)`` resolves per token, so its arity is exactly 1.
+
+    ``$(NAME)`` is spliced into the line BEFORE it is split, so its arity is
+    0..N depending on the value.  These pin the difference.
+    """
+
+    VARS = {"P": "01 03 00 0a", "EMPTY": "", "MULTI": "a\nb", "PLAIN": "x"}
+
+    def _deref(self, ref):
+        return self.VARS.get(ref)
+
+    def test_value_with_spaces_is_one_argument(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, _ = parse_params(params, "$(*P) TAIL", deref=self._deref)
+
+        # Assert -- the whole point: a spliced "01 03 00 0a" would have forked
+        # into four arguments, giving five elements instead of two
+        assert bound["frames"] == ["01 03 00 0a", "TAIL"], (
+            "a dereferenced value stays one argument whatever it contains"
+        )
+
+    def test_empty_value_is_a_present_empty_argument(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, _ = parse_params(params, "$(*EMPTY)", deref=self._deref)
+
+        # Assert -- a splice would have contributed ZERO arguments here
+        assert bound["frames"] == [""], "an empty value still occupies one slot"
+
+    def test_newline_survives(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, _ = parse_params(params, "$(*MULTI)", deref=self._deref)
+
+        # Assert
+        assert bound["frames"] == ["a\nb"], (
+            "deref is the only way to get a newline into an argument"
+        )
+
+    def test_unknown_name_fails(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        _, error = parse_params(params, "$(*nope)", deref=self._deref)
+
+        # Assert
+        assert error == "unknown variable: 'nope'", (
+            "a deref asserts the name exists, so a typo fails loudly"
+        )
+
+    def test_embedded_reference_fails(self):
+        # Arrange
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        _, error = parse_params(params, "x$(*P)y", deref=self._deref)
+
+        # Assert -- silently treating it as a literal would send "x$(*P)y" to
+        # a device or a filename, which is never what was meant
+        assert "invalid reference" in error, "a partial reference is an error"
+
+    def test_malformed_reference_passes_through(self):
+        # Arrange -- a regex containing the sigil is not a reference
+        params = [ParamSpec("pattern", positional=True)]
+
+        # Act
+        bound, error = parse_params(params, r"\$\(\*", deref=self._deref)
+
+        # Assert
+        assert error is None, "a token that is not a well-formed reference is literal"
+        assert bound["pattern"] == r"\$\(\*", "it passes through untouched"
+
+    def test_applies_to_fixed_positional_and_keyword(self):
+        # Arrange
+        params = [ParamSpec("out", positional=True), ParamSpec("note")]
+
+        # Act
+        bound, _ = parse_params(params, "$(*P) note=$(*PLAIN)", deref=self._deref)
+
+        # Assert
+        actual = (bound["out"], bound["note"])
+        expected = ("01 03 00 0a", "x")
+        assert actual == expected, "every token-scoped slot dereferences"
+
+    def test_not_applied_to_rest_values(self):
+        # Arrange -- a rest value is a whole LINE, not an argument, so it has
+        # no arity to guarantee; $(NAME) is the right tool there
+        params = [ParamSpec("cmd", "command", rest=True)]
+
+        # Act
+        bound, _ = parse_params(params, "cmd=$(*P)", deref=self._deref)
+
+        # Assert
+        assert bound["cmd"] == "$(*P)", "a rest value stays literal"
+
+    def test_resolved_value_is_never_rescanned(self):
+        # Arrange -- a value that itself looks like a reference
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, _ = parse_params(params, "$(*IND)", deref={"IND": "$(*P)"}.get)
+
+        # Assert -- resolution is one level; the result is data
+        assert bound["frames"] == ["$(*P)"], "a resolved value is not re-resolved"
+
+    def test_disabled_by_default(self):
+        # Arrange -- deref=None is what raw_args commands get
+        params = [ParamSpec("frames", positional=True, variadic=True)]
+
+        # Act
+        bound, error = parse_params(params, "$(*P)")
+
+        # Assert
+        assert error is None, "no deref means no dereference errors either"
+        assert bound["frames"] == ["$(*P)"], "the token stays literal"

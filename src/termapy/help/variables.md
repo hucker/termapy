@@ -44,6 +44,47 @@ AT+ADDR=$(ADDR)
 /cap.text $(LABEL)_log.txt timeout=5s
 ```
 
+### `$(*NAME)` - one argument, whatever it holds
+
+`$(NAME)` is expanded **before** the line is split into arguments, so its value
+is text: if the value contains spaces it becomes several arguments. `$(*NAME)` -
+star inside the parens - is resolved **after** the split, so it is always
+exactly **one** argument.
+
+```text
+$(FRAME) = 01 03 00 00 00 0a c5 cd
+
+/proto.crc.detect $(FRAME)     # splice: 8 arguments, so 8 frames
+/proto.crc.detect $(*FRAME)    # deref:  1 argument,  so 1 frame
+```
+
+Since termapy has no quoting, this is the way to put a space (or a newline) in
+a single argument.
+
+The rule to remember: **`$(NAME)` is text, `$(*NAME)` is one argument.**
+
+A `$(*NAME)` reference is recognized only when it is an entire argument:
+
+| Case | Behavior |
+| ---- | -------- |
+| `$(*NAME)` or `$(*NAME:fmt)` as a whole argument | resolved; becomes exactly one argument |
+| value contains spaces or newlines | one argument, content preserved verbatim |
+| value is the empty string | binds an empty argument (a splice would contribute none) |
+| name is undefined | error: `unknown variable: 'NAME'` |
+| `x$(*a)y`, `--out=$(*f)` | error: `invalid reference` - it must be the whole argument |
+| a token that merely contains `$(*` | left literal (a regex like `\$\(\*` is safe) |
+| resolved value contains `$(X)` or `{seq1+}` | used verbatim - resolved values are never re-scanned |
+
+It works in any command that declares typed parameters, in every argument slot
+except a `rest` value (a `rest` value is a whole line, not an argument, so it
+has no arity to guarantee - use `$(NAME)` there). Commands that take their
+arguments literally - `/raw`, `/term.send`, `/var.set`, `/search` - are
+unaffected by both forms.
+
+Because it resolves after the argument split, a dereferenced value is always
+data: one that happens to read `--verbose` or `note=x` or `{seq1+}` binds as a
+value and cannot become a flag, a keyword, or a counter bump.
+
 ## Built-in variables
 
 | Variable             | Type    | Description                        |

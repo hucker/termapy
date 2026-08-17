@@ -1303,7 +1303,19 @@ class ReplEngine:
             # (bound stays empty; args passes through unchanged).
             bound_params: dict = {}
             if plugin.params:
-                bound_params, param_error = parse_params(plugin.params, args)
+                # $(*NAME) resolves HERE -- after the level-flag strip and the
+                # flag parse above, at the one point where a token list still
+                # exists un-re-joined.  That ordering is what makes the arity-1
+                # guarantee hold: a resolved value can neither fork into extra
+                # arguments nor turn into a flag, keyword, or {seq} template.
+                # raw_args commands opt out -- their contract is that values
+                # arrive literal.  Lazy import: repl is core, var is a builtin.
+                from termapy.builtins.commands.var import deref_ref
+                bound_params, param_error = parse_params(
+                    plugin.params,
+                    args,
+                    deref=None if plugin.raw_args else deref_ref,
+                )
                 if param_error:
                     result = CmdResult.fail(
                         msg=format_usage(

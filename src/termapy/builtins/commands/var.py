@@ -225,6 +225,60 @@ _RETIRED_PLACEHOLDERS = {
 }
 
 
+def resolve_one(name: str, fmt: str | None = None) -> str | None:
+    """Resolve a single variable name to its value, or return None if unknown.
+
+    Resolution order (no :fmt): user vars -> launch strings -> datetime vars
+    (dynamic clock + frozen LAUNCH_/SESSION_ moments) -> context vars -> None.
+    A ``:fmt`` suffix (e.g. ``DATETIME:%Y%m%d_%H%M%S``) applies only to
+    datetime vars; on any other name it returns None.
+
+    Shared by both the blanket $(NAME) transform and per-token $(*NAME)
+    dereference handlers that explicitly opt in.
+
+    Args:
+        name: Variable name (no $() delimiters, no :fmt suffix).
+        fmt: Optional strftime format suffix (for datetime vars only).
+
+    Returns:
+        Resolved value as a string, or None if unknown.
+    """
+    if fmt is not None:
+        # A :fmt suffix is only meaningful on datetime vars.
+        return _resolve_datetime_var(name, fmt)
+    val = _VARS.get(name)
+    if val is not None:
+        return val
+    val = _LAUNCH_VARS.get(name)
+    if val is not None:
+        return val
+    dt = _resolve_datetime_var(name, None)
+    if dt is not None:
+        return dt
+    ctx_fn = _CONTEXT_VARS.get(name)
+    if ctx_fn is not None:
+        return ctx_fn()
+    return None
+
+
+def deref_ref(ref: str) -> str | None:
+    """Resolve the inner text of one ``$(*NAME)`` / ``$(*NAME:fmt)`` reference.
+
+    The arity-1 counterpart to ``expand_vars``' 0..N splice: same namespace and
+    the same ``:fmt`` rule, but resolved per argument token by the param binder
+    (``plugins/params.resolve_deref``) instead of spliced into the line.  The
+    value it returns is data -- the binder never re-splits or re-scans it.
+
+    Args:
+        ref: The text between ``$(*`` and ``)`` -- ``NAME`` or ``NAME:fmt``.
+
+    Returns:
+        The resolved value, or None when the name is undefined.
+    """
+    name, sep, fmt = ref.partition(":")
+    return resolve_one(name, fmt if sep else None)
+
+
 def expand_vars(text: str) -> str:
     """Expand $(NAME) references in a string.
 
@@ -251,25 +305,9 @@ def expand_vars(text: str) -> str:
 
     def _replace(m: re.Match) -> str:
         name = m.group(1)
-        fmt = m.group(2)  # None unless a :format suffix was given
-        if fmt is not None:
-            # A :fmt suffix is only meaningful on datetime vars; anything
-            # else is left literal so the misuse is visible.
-            dt = _resolve_datetime_var(name, fmt)
-            return dt if dt is not None else m.group(0)
-        val = _VARS.get(name)
-        if val is not None:
-            return val
-        val = _LAUNCH_VARS.get(name)
-        if val is not None:
-            return val
-        dt = _resolve_datetime_var(name, None)
-        if dt is not None:
-            return dt
-        ctx_fn = _CONTEXT_VARS.get(name)
-        if ctx_fn is not None:
-            return ctx_fn()
-        return m.group(0)
+        fmt = m.group(2)
+        val = resolve_one(name, fmt)
+        return val if val is not None else m.group(0)
 
     text = _VAR_REF_RE.sub(_replace, text)
     # Restore sentinel -> literal $

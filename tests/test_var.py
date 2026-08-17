@@ -11,7 +11,9 @@ from termapy.builtins.commands.var import (
     _VARS,
     check_bare_dollar,
     clear_vars,
+    deref_ref,
     expand_vars,
+    resolve_one,
     rewrite_assignment,
     set_start_time_vars,
 )
@@ -901,4 +903,152 @@ class TestHandlerCaptureFailurePath:
             f"capture must propagate failure with EMPTY error message "
             f"so the outer dispatch doesn't double-print; "
             f"got error={result.error!r}"
+        )
+
+
+# ── resolve_one ──────────────────────────────────────────────────────────────
+
+
+class TestResolveOne:
+    """Tests for the resolve_one function (shared resolution logic)."""
+
+    def test_resolve_user_var(self):
+        # Arrange
+        _VARS["PORT"] = "COM7"
+
+        # Act
+        actual = resolve_one("PORT", None)
+
+        # Assert
+        assert actual == "COM7", "user variable resolved"
+
+    def test_resolve_unknown_returns_none(self):
+        # Act
+        actual = resolve_one("UNKNOWN", None)
+
+        # Assert
+        assert actual is None, "unknown variable returns None"
+
+    def test_resolve_with_datetime_format(self):
+        # Act -- format suffix on a datetime var
+        actual = resolve_one("DATETIME", "%Y%m%d")
+
+        # Assert
+        assert actual is not None and len(actual) >= 8, (
+            "datetime var with format suffix is resolved"
+        )
+        assert actual.isdigit(), "datetime with %Y%m%d format is all digits"
+
+    def test_resolve_datetime_format_on_non_datetime_returns_none(self):
+        # Arrange
+        _VARS["PORT"] = "COM7"
+
+        # Act -- format suffix is only meaningful on datetime vars
+        actual = resolve_one("PORT", "%Y")
+
+        # Assert
+        assert actual is None, (
+            "format suffix on a non-datetime var returns None"
+        )
+
+    def test_resolve_context_var(self):
+        # Arrange
+        from termapy.builtins.commands.var import set_context_var
+        set_context_var("TEST_CTX", lambda: "ctx_value")
+
+        # Act
+        actual = resolve_one("TEST_CTX", None)
+
+        # Assert
+        assert actual == "ctx_value", "context variable resolved"
+
+
+# ── deref_ref: the $(*NAME) resolver ─────────────────────────────────────────
+
+
+class TestDerefRef:
+    """``deref_ref`` is the arity-1 counterpart to ``expand_vars``' splice.
+
+    It resolves the INNER text of one ``$(*NAME)`` reference; the token
+    grammar itself lives in ``plugins/params.py`` (argument grammar belongs
+    to the param binder), so these tests cover resolution only.
+    """
+
+    def test_resolves_user_var(self):
+        # Arrange
+        _VARS["p1"] = "010300000002c40b"
+
+        # Act
+        actual = deref_ref("p1")
+
+        # Assert
+        assert actual == "010300000002c40b", "user variable resolves"
+
+    def test_unknown_name_returns_none(self):
+        # Act / Assert -- None is the signal params.resolve_deref turns into
+        # "unknown variable: 'nope'"; it must not fall back to a literal
+        assert deref_ref("nope") is None, "undefined name resolves to None"
+
+    def test_value_with_spaces_returned_whole(self):
+        # Arrange -- the case the whole feature exists for
+        _VARS["spaced"] = "01 03 00 00 00 0a c5 cd"
+
+        # Act
+        actual = deref_ref("spaced")
+
+        # Assert
+        assert actual == "01 03 00 00 00 0a c5 cd", (
+            "interior spacing is preserved verbatim -- the binder treats the "
+            "result as one argument, so it cannot fork"
+        )
+
+    def test_value_with_newline_returned_whole(self):
+        # Arrange
+        _VARS["multi"] = "line1\nline2"
+
+        # Act / Assert
+        assert deref_ref("multi") == "line1\nline2", (
+            "a newline survives; $(*NAME) is the only way to put one in an argument"
+        )
+
+    def test_empty_value_is_not_none(self):
+        # Arrange -- an empty value must stay distinguishable from "undefined",
+        # since None means error and "" means a present, empty argument
+        _VARS["empty"] = ""
+
+        # Act
+        actual = deref_ref("empty")
+
+        # Assert
+        assert actual == "", "empty value resolves to empty string, not None"
+
+    def test_fmt_suffix_on_datetime_var(self):
+        # Act -- ":fmt" splits on the FIRST colon, same rule as $(NAME:fmt)
+        actual = deref_ref("DATETIME:%Y%m%d")
+
+        # Assert
+        assert actual is not None and actual.isdigit(), (
+            "datetime var with a format suffix resolves through deref_ref"
+        )
+
+    def test_fmt_suffix_on_non_datetime_returns_none(self):
+        # Arrange
+        _VARS["plain"] = "value"
+
+        # Act / Assert -- parity with expand_vars: :fmt is datetime-only
+        assert deref_ref("plain:%Y") is None, (
+            "a format suffix on a non-datetime var does not resolve"
+        )
+
+    def test_resolved_value_is_not_rescanned(self):
+        # Arrange -- a value that LOOKS like another reference
+        _VARS["indirect"] = "$(p1)"
+        _VARS["p1"] = "resolved"
+
+        # Act
+        actual = deref_ref("indirect")
+
+        # Assert -- returned verbatim; the binder never re-scans it
+        assert actual == "$(p1)", (
+            "a resolved value is data, never re-expanded"
         )

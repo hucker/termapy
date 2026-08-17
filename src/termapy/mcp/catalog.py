@@ -320,6 +320,7 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
                 "default": p.default,
                 "help": p.help,
                 "values": [ev.canonical for ev in p.values],
+                "variadic": p.variadic,
             }
             for p in plugin.params
         ]

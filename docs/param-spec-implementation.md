@@ -165,6 +165,28 @@ first, exactly as today, and after level-suffix/level-flag resolution — do NOT
    real regression: the Phase-3 `/profile.validate` migration used a plain
    positional `<path>`, which whitespace-split spaced paths — positional-rest is
    the fix.
+   **Variadic positional**: a positional param with `variadic=True` is the *last*
+   positional and binds every remaining token as a `list`, one `coerce_value` per
+   element (so `list[int]` / `list[enum]` and per-element `min`/`max` work).
+   `rest` and `variadic` are both tail consumers and are mutually exclusive on
+   the same command — `rest` joins the tail into one string, `variadic` keeps the
+   elements apart. A variadic **positional** and a rest **keyword** are different
+   slots and DO compose (that pairing is what gives `/proto.crc.detect` both its
+   `<frames>...` and its `frame=` forms). An absent variadic binds a fresh `[]`,
+   so it never declares a default; a *required* variadic must bind non-empty.
+   Declaration validation rejects: variadic on a keyword, `rest`+`variadic`
+   together, a variadic with a default, two tail positionals, and a tail
+   positional that is not last.
+2b. Resolve `$(*NAME)` dereferences (spec: **param-deref**). Runs per token, in
+   every token-scoped slot — fixed positionals, variadic elements, and non-`rest`
+   keyword values — *after* the split and *before* coercion, which is what makes
+   the arity of `$(*NAME)` exactly 1 regardless of the value's content. `rest`
+   values are excluded on both sides: a rest value is a whole line, not an
+   argument, so it has no arity to guarantee (use `$(NAME)` there). The resolver
+   arrives as `parse_params(..., deref=)`, injected by the dispatcher so this
+   module keeps no dependency on the variable store; `deref=None` (the default,
+   and what `raw_args=True` commands get) disables it entirely. A resolved value
+   is data — never re-split, re-scanned, or matched again.
 3. Coerce each bound value per its type. First failure short-circuits.
 4. Check `required` params are present.
 5. Apply `default` for absent optional params (defaults are already-coerced values;
@@ -220,6 +242,8 @@ Reason phrasing, fixed vocabulary (do not improvise variants):
 - enum miss: `invalid mode: 'appendd' (expected one of: new, append)`
 - range: `count must be between 1 and 1000 (got 0)`
 - unexpected positional: `unexpected argument: 'foo'`
+- undefined `$(*NAME)`: `unknown variable: 'frame'`
+- malformed `$(*NAME)`: `invalid reference: 'x$(*a)y' ($(*NAME) must be the whole argument)`
 
 The `Usage:` line is **derived** (see param-help-synth), not hand-written. This is what
 retires the 37 hand-written fail-usages.

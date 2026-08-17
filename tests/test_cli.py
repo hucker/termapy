@@ -1113,8 +1113,8 @@ class TestPortsFlag:
         assert "COM4" in out, "matched port in output"
         # COM3 and COM7 should NOT appear as data rows.  The header
         # text "PORT" might accidentally match so we check the row.
-        data_lines = [ln for ln in out.splitlines() if ln.startswith("COM")]
-        assert all("COM4" in ln for ln in data_lines), \
+        data_lines = [data_line for data_line in out.splitlines() if data_line.startswith("COM")]
+        assert all("COM4" in data_line for data_line in data_lines), \
             f"only COM4 row emitted, got: {data_lines}"
 
     def test_ports_filter_unknown_exits_nonzero(self, capsys, monkeypatch):
@@ -1181,7 +1181,10 @@ class TestChipsFlag:
         # Assert
         out = capsys.readouterr().out
         assert exc.value.code == 0, "filter exits 0"
-        data_lines = [ln for ln in out.splitlines() if ":" in ln and "FTDI" in ln]
+        data_lines = [
+            data_line for data_line in out.splitlines()
+            if ":" in data_line and "FTDI" in data_line
+        ]
         assert data_lines, "FTDI rows present"
         assert "Silicon Labs" not in out, "non-matching vendor excluded"
 
@@ -1268,12 +1271,12 @@ class TestWatchFlag:
         # on the line.
         out = capsys.readouterr().out
         added_marker = [
-            ln for ln in out.splitlines()
-            if "] +" in ln and "COM4" in ln
+            line for line in out.splitlines()
+            if "] +" in line and "COM4" in line
         ]
         removed_marker = [
-            ln for ln in out.splitlines()
-            if "] -" in ln and "COM3" in ln
+            line for line in out.splitlines()
+            if "] -" in line and "COM3" in line
         ]
         assert added_marker, f"expected a '+ COM4' marker line, got: {out!r}"
         assert removed_marker, f"expected a '- COM3' marker line, got: {out!r}"

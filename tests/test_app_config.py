@@ -374,17 +374,17 @@ class TestCustomButtonConfig:
         expected = ["ATZ", "AT+INFO", "/delay 500ms"]
 
         # Act
-        actual = [c.strip() for c in raw.split("\\n") if c.strip()]
+        actual = [token.strip() for token in raw.split("\\n") if token.strip()]
 
         # Assert
         assert actual == expected, "multi-command split correctly"
 
     def test_command_split_single(self):
-        actual = [c.strip() for c in "ATZ".split("\\n") if c.strip()]
+        actual = [token.strip() for token in "ATZ".split("\\n") if token.strip()]
         assert actual == ["ATZ"], "single command unchanged"
 
     def test_command_split_empty(self):
-        actual = [c.strip() for c in "".split("\\n") if c.strip()]
+        actual = [token.strip() for token in "".split("\\n") if token.strip()]
         assert actual == [], "empty string yields empty list"
 
     def test_repl_prefix_detection(self):
@@ -1074,7 +1074,7 @@ class TestRunCheck:
         actual = json.loads(stdout)
         assert code == 0, "still exits 0 (warnings, not errors)"
         assert actual["status"] == "warn", "flagged as warn"
-        assert any("baud_rate" in w for w in actual["warnings"]), "identifies field"
+        assert any("baud_rate" in warning for warning in actual["warnings"]), "identifies field"
 
     def test_malformed_json_errors(self, tmp_path):
         # Arrange

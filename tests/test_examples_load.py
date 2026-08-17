@@ -28,7 +28,7 @@ def _example_files() -> list[Path]:
     if not _EXAMPLES_DIR.exists():
         return []
     return sorted(
-        p for p in _EXAMPLES_DIR.glob("*.py") if not p.name.startswith("_")
+        path for path in _EXAMPLES_DIR.glob("*.py") if not path.name.startswith("_")
     )
 
 

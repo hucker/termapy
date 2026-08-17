@@ -263,7 +263,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
     result = _show_command_help(ctx, "cfg")
     files = sorted(
-        f"{f.parent.name}/{f.name}" for f in cfg_dir().glob("*/*.cfg")
+        f"{path.parent.name}/{path.name}" for path in cfg_dir().glob("*/*.cfg")
     )
     append_files_section(ctx, "AVAILABLE CONFIGS", files)
     return result
@@ -275,8 +275,8 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 def _names(directory: Path, pattern: str) -> list[str]:
     """Return sorted filenames matching pattern in directory."""
     if pattern == "*":
-        return sorted(f.name for f in directory.glob(pattern) if f.is_file())
-    return sorted(f.name for f in directory.glob(pattern))
+        return sorted(path.name for path in directory.glob(pattern) if path.is_file())
+    return sorted(path.name for path in directory.glob(pattern))
 
 
 def _build_tree(

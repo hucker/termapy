@@ -72,14 +72,14 @@ class ConfigPicker(ModalScreen[tuple | None]):
 
         d = cfg_dir()
         migrate_json_to_cfg(d)
-        json_files = sorted(f for f in d.glob("*/*.cfg") if not f.name.startswith("."))
+        json_files = sorted(path for path in d.glob("*/*.cfg") if not path.name.startswith("."))
         with Vertical(id="picker-dialog"):
             yield Static("Select Config", id="picker-title")
             ol = OptionList(id="picker-list")
             highlight_idx = None
-            for i, f in enumerate(json_files):
-                ol.add_option(Option(f.stem, id=str(f)))
-                if str(f) == self.current_path:
+            for i, path in enumerate(json_files):
+                ol.add_option(Option(path.stem, id=str(path)))
+                if str(path) == self.current_path:
                     highlight_idx = i
             ol.highlighted = highlight_idx if highlight_idx is not None else 0
             yield ol

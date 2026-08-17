@@ -142,8 +142,8 @@ class TestCliResolvedFromBanner:
         # raw spec leak into "Connected:" would be a regression.
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
         connected_lines = [
-            ln for ln in result.stdout.splitlines()
-            if ln.startswith("Connected:")
+            connected_line for connected_line in result.stdout.splitlines()
+            if connected_line.startswith("Connected:")
         ]
         assert connected_lines, (
             f"expected a Connected: line; stdout: {result.stdout!r}"
@@ -201,8 +201,8 @@ class TestPortCommandStatusMessage:
         # Assert
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
         changed_lines = [
-            ln for ln in result.stdout.splitlines()
-            if "Port changed to" in ln
+            changed_line for changed_line in result.stdout.splitlines()
+            if "Port changed to" in changed_line
         ]
         assert changed_lines, (
             f"expected a 'Port changed to' line; stdout: {result.stdout!r}"

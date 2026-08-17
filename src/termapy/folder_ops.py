@@ -39,10 +39,10 @@ def _names(path: Path, pattern: str) -> list[str]:
     if not path.is_dir():
         return []
     if pattern == "*":
-        matches = [f for f in path.glob(pattern) if f.is_file()]
+        matches = [match for match in path.glob(pattern) if match.is_file()]
     else:
         matches = list(path.glob(pattern))
-    return sorted(f.name for f in matches)
+    return sorted(match.name for match in matches)
 
 
 def _folder_path(ctx: PluginContext, folder: str) -> Path | None:
@@ -95,7 +95,7 @@ def _make_show_handler(folder: str, pattern: str):
             ctx.io.output(f"  {folder}/ is empty.")
             return CmdResult.ok(value="")
         if pattern == "*":
-            files = [f for f in data_dir.glob(pattern) if f.is_file()]
+            files = [file for file in data_dir.glob(pattern) if file.is_file()]
         else:
             files = list(data_dir.glob(pattern))
         if not files:
@@ -140,7 +140,7 @@ def _make_dump_handler(folder: str, pattern: str):
                 ctx.io.output(f"  {folder}/ is empty.")
                 return CmdResult.ok(value="")
             if pattern == "*":
-                files = [f for f in data_dir.glob(pattern) if f.is_file()]
+                files = [file for file in data_dir.glob(pattern) if file.is_file()]
             else:
                 files = list(data_dir.glob(pattern))
             if not files:
@@ -170,14 +170,14 @@ def _make_clear_handler(folder: str, pattern: str):
             ctx.io.output(f"  {folder}/ is already empty.")
             return CmdResult.ok(value="0")
         if pattern == "*":
-            files = [f for f in data_dir.glob(pattern) if f.is_file()]
+            files = [file for file in data_dir.glob(pattern) if file.is_file()]
         else:
             files = list(data_dir.glob(pattern))
         if not files:
             ctx.io.output(f"  {folder}/ is already empty.")
             return CmdResult.ok(value="0")
-        for f in files:
-            f.unlink()
+        for file in files:
+            file.unlink()
         ctx.io._write(f"  Deleted {len(files)} file(s) from {folder}/.")
         return CmdResult.ok(value=str(len(files)))
 

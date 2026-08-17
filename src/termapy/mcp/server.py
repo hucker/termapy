@@ -940,9 +940,9 @@ def _snapshot_cap_dir(cap_dir: Path) -> dict[str, float]:
     if not cap_dir.exists():
         return {}
     return {
-        p.name: p.stat().st_mtime
-        for p in cap_dir.iterdir()
-        if p.is_file()
+        path.name: path.stat().st_mtime
+        for path in cap_dir.iterdir()
+        if path.is_file()
     }
 
 

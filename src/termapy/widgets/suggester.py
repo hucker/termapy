@@ -31,7 +31,7 @@ class CommandSuggester(Suggester):
         prefix: str = DEFAULT_CMD_PREFIX,
     ) -> None:
         """Rebuild suggestions: REPL commands + non-REPL history (deduped)."""
-        device_cmds = [h for h in history if not h.startswith(prefix)]
+        device_cmds = [device_cmd for device_cmd in history if not device_cmd.startswith(prefix)]
         self._suggestions = commands + device_cmds
 
     async def get_suggestion(self, value: str) -> str | None:

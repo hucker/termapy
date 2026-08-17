@@ -105,8 +105,8 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     # current host's capabilities would surface.
     mcp_caps = ENVIRONMENTS["MCP"]
     cmd_count = sum(
-        1 for p in ctx.internal.plugins.values()
-        if not p.needs.missing_from(mcp_caps)
+        1 for value in ctx.internal.plugins.values()
+        if not value.needs.missing_from(mcp_caps)
     )
 
     # Port state.

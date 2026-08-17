@@ -125,7 +125,7 @@ def file_count(ctx: _Ctx, kind: str, pattern: str | None = None) -> int:
         return 0
     glob = pattern or FOLDER_PATTERNS.get(kind, "*")
     try:
-        return sum(1 for p in d.glob(glob) if p.is_file())
+        return sum(1 for path in d.glob(glob) if path.is_file())
     except OSError:
         return 0
 

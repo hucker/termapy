@@ -67,7 +67,7 @@ def compose(*parts: str | None) -> str:
     include a state line that may not apply (e.g. "port closed" cases
     return an empty string instead of branching at the call site).
     """
-    return "\n\n".join(p for p in parts if p)
+    return "\n\n".join(part for part in parts if part)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -120,9 +120,9 @@ class _TermapyCompleter(Completer):
         line = document.text
 
         # File completion for /run and /run.edit args
-        for fc in self._file_cmds:
-            if line.startswith(fc):
-                partial = line[len(fc):]
+        for file_cmd in self._file_cmds:
+            if line.startswith(file_cmd):
+                partial = line[len(file_cmd):]
                 if self._scripts_dir.is_dir():
                     for f in sorted(self._scripts_dir.glob("*.run")):
                         if f.name.startswith(partial):

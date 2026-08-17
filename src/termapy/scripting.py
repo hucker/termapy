@@ -352,8 +352,8 @@ def parse_count_arg(args: str, default_name: str) -> tuple[str, int | None]:
             form).  The message is ready for ``CmdResult.fail``.
     """
     tokens = args.split()
-    int_tokens = [t for t in tokens if _COUNT_RE.fullmatch(t)]
-    name_tokens = [t for t in tokens if not _COUNT_RE.fullmatch(t)]
+    int_tokens = [token for token in tokens if _COUNT_RE.fullmatch(token)]
+    name_tokens = [token for token in tokens if not _COUNT_RE.fullmatch(token)]
     if len(int_tokens) > 1:
         raise ValueError(
             "Only one count allowed  (N>0 last N, N<0 first N)"

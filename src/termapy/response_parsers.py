@@ -175,10 +175,10 @@ def _parse_lines(
             term_re = None
         if term_re is not None:
             cut = []
-            for ln in raw_lines:
-                if term_re.search(ln):
+            for raw_line in raw_lines:
+                if term_re.search(raw_line):
                     break
-                cut.append(ln)
+                cut.append(raw_line)
             raw_lines = cut
     # Apply line_filter (kept lines must match this regex).
     if line_filter:
@@ -187,7 +187,7 @@ def _parse_lines(
         except re.error:
             filt_re = None
         if filt_re is not None:
-            raw_lines = [ln for ln in raw_lines if filt_re.search(ln)]
+            raw_lines = [raw_line for raw_line in raw_lines if filt_re.search(raw_line)]
     # Per-line parsing.
     if not line_pattern:
         return raw_lines
@@ -196,8 +196,8 @@ def _parse_lines(
     except re.error:
         return raw_lines
     out: list = []
-    for ln in raw_lines:
-        m = line_re.search(ln)
+    for raw_line in raw_lines:
+        m = line_re.search(raw_line)
         if m is None:
             continue
         if m.groupdict():

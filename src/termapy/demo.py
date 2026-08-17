@@ -727,9 +727,9 @@ class FakeSerial:
                 # Deterministic: hash of address
                 val = ((row_addr + i) * 2654435761) & 0xFF
                 row_bytes.append(val)
-            hex_part = " ".join(f"{b:02X}" for b in row_bytes)
+            hex_part = " ".join(f"{row_byte:02X}" for row_byte in row_bytes)
             ascii_part = "".join(
-                chr(b) if 0x20 <= b < 0x7F else "." for b in row_bytes
+                chr(row_byte) if 0x20 <= row_byte < 0x7F else "." for row_byte in row_bytes
             )
             lines.append(f"  {row_addr:08X}: {hex_part:<48s} {ascii_part}")
         return ("\r\n".join(lines) + "\r\n").encode()

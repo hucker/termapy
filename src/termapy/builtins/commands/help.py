@@ -631,7 +631,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     all_names = (
         [n for names in groups.values() for n, _ in names]
         + [n for n, _ in script_only]
-        + [d.name for d in directives]
+        + [directive.name for directive in directives]
     )
     cmd_w = _compute_cmd_w(all_names, prefix)
 
@@ -663,9 +663,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if directives:
         ctx.io.output_markup("")
         ctx.io.output_markup(f"[{_SEP}]-- Directives --[/]")
-        for d in directives:
-            cmd_col = _pad(f"  [{_CMD}]{d.name}[/]", cmd_w + 2)
-            ctx.io.output_markup(f"{cmd_col}  {d.help}")
+        for directive in directives:
+            cmd_col = _pad(f"  [{_CMD}]{directive.name}[/]", cmd_w + 2)
+            ctx.io.output_markup(f"{cmd_col}  {directive.help}")
 
     if script_only:
         ctx.io.output_markup("")
@@ -782,7 +782,7 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     prefix = ctx.prefix
     _render_scripts(ctx, scripts, prefix)
     ctx.io.result(f"{len(scripts)} scripts.")
-    return CmdResult.ok(value="\n".join(p.stem for p in scripts))
+    return CmdResult.ok(value="\n".join(script.stem for script in scripts))
 
 
 def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:

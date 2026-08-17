@@ -274,8 +274,8 @@ def _run_validate_profile(path_str: str) -> None:
         print(f"OK: {p} ({n} commands)")
         sys.exit(0)
     print(f"FAIL: {p}", file=sys.stderr)
-    for err in result.errors:
-        print(f"  {err}", file=sys.stderr)
+    for error in result.errors:
+        print(f"  {error}", file=sys.stderr)
     sys.exit(1)
 
 

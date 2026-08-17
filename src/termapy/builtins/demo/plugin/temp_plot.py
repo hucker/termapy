@@ -83,8 +83,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     bars = "▁▂▃▄▅▆▇█"
     span = hi - lo or 1
     spark = ""
-    for v in readings:
-        idx = int((v - lo) / span * (len(bars) - 1))
+    for reading in readings:
+        idx = int((reading - lo) / span * (len(bars) - 1))
         spark += bars[idx]
 
     ctx.io.output_markup(f"  [cyan]{spark}[/]")

@@ -258,9 +258,9 @@ def format_header(
 ) -> tuple[str, str]:
     """Return ``(header_line, separator_line)`` for the port table header."""
     header = _COL_SEP.join(
-        COLUMN_HEADERS[col].ljust(widths[col]) for col in columns
+        COLUMN_HEADERS[column].ljust(widths[column]) for column in columns
     )
-    separator = _COL_SEP.join("-" * widths[col] for col in columns)
+    separator = _COL_SEP.join("-" * widths[column] for column in columns)
     return header, separator
 
 
@@ -301,7 +301,7 @@ def format_row(
         return _fit_tail(value, width) if col == "sn" else _fit_head(value, width)
 
     return _COL_SEP.join(
-        _fit(col, row[col], widths[col]) for col in columns
+        _fit(column, row[column], widths[column]) for column in columns
     )
 
 

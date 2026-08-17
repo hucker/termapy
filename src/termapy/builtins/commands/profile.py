@@ -81,8 +81,8 @@ def _apply_profile(
             f"refusing to load:",
             "red",
         )
-        for err in result.errors:
-            ctx.io.output(f"    - {err}", "yellow")
+        for error in result.errors:
+            ctx.io.output(f"    - {error}", "yellow")
         return CmdResult.fail(msg=f"{len(result.errors)} validation error(s)")
 
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
@@ -161,8 +161,8 @@ def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.result(f"Valid profile.  {n} commands.", "green")
         return CmdResult.ok(value=str(n))
     ctx.io.output(f"  Profile has {len(result.errors)} error(s):", "red")
-    for err in result.errors:
-        ctx.io.output(f"    - {err}", "yellow")
+    for error in result.errors:
+        ctx.io.output(f"    - {error}", "yellow")
     return CmdResult.fail(msg=f"{len(result.errors)} validation error(s)")
 
 

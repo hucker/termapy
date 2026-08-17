@@ -126,9 +126,9 @@ def validate_profile(profile: dict) -> ValidationResult:
     if not errors:
         return ValidationResult(ok=True)
     msgs = []
-    for e in errors:
-        loc = "/".join(str(p) for p in e.absolute_path) or "<root>"
-        msgs.append(f"{loc}: {e.message}")
+    for error in errors:
+        loc = "/".join(str(p) for p in error.absolute_path) or "<root>"
+        msgs.append(f"{loc}: {error.message}")
     return ValidationResult(ok=False, errors=msgs)
 
 

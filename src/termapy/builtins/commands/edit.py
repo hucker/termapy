@@ -141,9 +141,9 @@ def _make_list_handler(get_dir, pattern):
             return CmdResult.ok(value="")
         ctx.io.output("  Available file(s):")
         names = []
-        for f in files:
-            ctx.io.output(f"    {f.name}")
-            names.append(f.name)
+        for file in files:
+            ctx.io.output(f"    {file.name}")
+            names.append(file.name)
         return CmdResult.ok(value="\n".join(names))
     return handler
 

@@ -1079,11 +1079,11 @@ def _dispatch_via_profile(
         from termapy.profile import TypeRegistry as _TypeRegistry
 
         reg = _TypeRegistry.from_profile(profile)
-        for ta in typed_args:
-            if not isinstance(ta, dict):
+        for typed_arg in typed_args:
+            if not isinstance(typed_arg, dict):
                 continue
-            arg_name = ta.get("name")
-            arg_type = ta.get("type")
+            arg_name = typed_arg.get("name")
+            arg_type = typed_arg.get("type")
             if not arg_name or not arg_type or arg_name not in bound:
                 continue
             outcome = reg.validate(arg_type, bound[arg_name])

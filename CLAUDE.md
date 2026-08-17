@@ -169,6 +169,17 @@ uv run termapy --cfg-dir . # use cwd for configs
 - Google-style docstrings and type hints
 - Warn about hacks, threads, delays, magic,monkeypatch, test constants
 - OS-independent path handling: use `pathlib.Path` — never split on `/` or `\\`
+- **Loop variables name the element, singular: `for singular in plural:`.**
+  `for token in tokens:` — never `for tok in tokens:` or `for t in tokens:`.
+  When the collection has a plural name the loop variable is its singular form;
+  when it doesn't, still name the element for what it is (`for byte in data:`,
+  `for char in text:`). Applies to comprehensions. **Exempt:** positional and
+  numeric variables (`i`/`j`/`k` indexes, `x`/`y`/`z` coordinates), `_` for an
+  unused binding, and tuple unpacking where each name describes its own slot
+  (`for name, handler in COMMANDS.items():`). A full word that isn't the
+  singular is fine when it says more than the singular would — `for spec in
+  params:` over `ParamSpec` objects, `for info in plugins:` over `PluginInfo`.
+  The rule targets truncation, not variety.
 - Watch for large code added to solve small problems. AI can make any spec work regardless of how much code it takes, so volume is not evidence of difficulty. Sprawling helpers, many-branched special cases, or duplicated logic across helpers usually indicate the spec was under-specified or the approach is wrong — pause and re-scope rather than piling on more code.
 
 ## Threading

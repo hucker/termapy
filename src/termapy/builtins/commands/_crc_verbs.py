@@ -36,7 +36,7 @@ _TYPE_MAP = {"string": "str", "integer": "int"}
 
 def _enum_values(choices: tuple) -> tuple[EnumValue, ...]:
     """crcglot ChoiceInfo[] -> termapy EnumValue[] (canonical names, no aliases)."""
-    return tuple(EnumValue(c.name) for c in choices)
+    return tuple(EnumValue(choice.name) for choice in choices)
 
 
 def _input_group(verb: Any):
@@ -48,7 +48,7 @@ def _input_group(verb: Any):
     """
     return next(
         (g for g in verb.mutually_exclusive
-         if g.required and any("packet" in p or "data" in p for p in g.params)),
+         if g.required and any("packet" in param or "data" in param for param in g.params)),
         None,
     )
 
@@ -63,8 +63,8 @@ def _frames_param(verb: Any, group: Any) -> str | None:
     """
     if group is None:
         return None
-    arrays = [p.name for p in verb.params
-              if p.name in group.params and p.type == "array[string]"]
+    arrays = [param.name for param in verb.params
+              if param.name in group.params and param.type == "array[string]"]
     return arrays[0] if len(arrays) == 1 else None
 
 
@@ -113,19 +113,19 @@ def build_params(verb: Any) -> tuple[list[ParamSpec], dict[str, str], list[str]]
             ))
 
     skipped: list[str] = []
-    for p in verb.params:
-        if p.name in input_names:
+    for param in verb.params:
+        if param.name in input_names:
             continue
-        if p.choices:
+        if param.choices:
             specs.append(ParamSpec(
-                name=p.name, type="enum", values=_enum_values(p.choices),
-                default=p.default, help=p.help))
-        elif p.type in _TYPE_MAP:
+                name=param.name, type="enum", values=_enum_values(param.choices),
+                default=param.default, help=param.help))
+        elif param.type in _TYPE_MAP:
             specs.append(ParamSpec(
-                name=p.name, type=_TYPE_MAP[p.type], required=p.required,
-                default=p.default, help=p.help))
+                name=param.name, type=_TYPE_MAP[param.type], required=param.required,
+                default=param.default, help=param.help))
         else:
-            skipped.append(f"{p.name} ({p.type})")
+            skipped.append(f"{param.name} ({param.type})")
     return specs, input_map, skipped
 
 

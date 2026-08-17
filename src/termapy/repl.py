@@ -96,26 +96,26 @@ def _parse_flags(
     remaining: list[str] = []
     active: set[str] = set()
     literal_rest = False
-    for tok in tokens:
+    for token in tokens:
         if literal_rest:
-            remaining.append(tok)
+            remaining.append(token)
             continue
-        if tok == "--":
+        if token == "--":
             literal_rest = True
             continue
         # Only tokens that *look* like flags participate in flag parsing.
         # Positional args like "file.txt" or "0x01" pass through unchanged.
-        if tok.startswith("-") and len(tok) > 1 and not tok[1].isdigit():
-            canonical = _resolve_flag(tok, declared)
+        if token.startswith("-") and len(token) > 1 and not token[1].isdigit():
+            canonical = _resolve_flag(token, declared)
             if canonical is None:
                 # Typo path: suggest a near match from the declared set.
                 candidates = sorted(declared.keys())
-                suggestion = _closest_flag(tok, candidates)
+                suggestion = _closest_flag(token, candidates)
                 hint = f" -- did you mean {suggestion}?" if suggestion else ""
-                return "", set(), f"Unknown flag: {tok}{hint}"
+                return "", set(), f"Unknown flag: {token}{hint}"
             active.add(canonical)
             continue
-        remaining.append(tok)
+        remaining.append(token)
     return " ".join(remaining), active, None
 
 
@@ -133,11 +133,11 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
     tokens = args.split()
     remaining: list[str] = []
     level: str | None = None
-    for tok in tokens:
-        if tok in LEVEL_FLAGS:
-            level = LEVEL_FLAGS[tok]
+    for token in tokens:
+        if token in LEVEL_FLAGS:
+            level = LEVEL_FLAGS[token]
         else:
-            remaining.append(tok)
+            remaining.append(token)
     return " ".join(remaining), level
 
 
@@ -156,14 +156,14 @@ def _suggest_command(
 ) -> str | None:
     """Find close command names using edit distance (max 2, top 3)."""
     candidates = []
-    for cmd in plugins:
-        d = _edit_distance(name, cmd)
+    for command in plugins:
+        d = _edit_distance(name, command)
         if d <= 2:
-            candidates.append((d, cmd))
+            candidates.append((d, command))
     if not candidates:
         return None
     candidates.sort()
-    top = [cmd for _, cmd in candidates[:3]]
+    top = [command for _, command in candidates[:3]]
     return ", ".join(f"{prefix}{c}" for c in top)
 
 
@@ -832,9 +832,9 @@ class ReplEngine:
         Returns the first non-None DirectiveResult, or a "none" result
         if no directive matched.
         """
-        for d in self._directives:
-            if d.handler:
-                result = d.handler(line)
+        for directive in self._directives:
+            if directive.handler:
+                result = directive.handler(line)
                 if result is not None:
                     return result
         return DirectiveResult()
@@ -961,11 +961,11 @@ class ReplEngine:
             return None
 
         registry = TypeRegistry.from_profile(profile)
-        for ta in typed_args:
-            if not isinstance(ta, dict):
+        for typed_arg in typed_args:
+            if not isinstance(typed_arg, dict):
                 continue
-            arg_name = ta.get("name")
-            arg_type = ta.get("type")
+            arg_name = typed_arg.get("name")
+            arg_type = typed_arg.get("type")
             if not arg_name or not arg_type or arg_name not in bound:
                 continue
             outcome = registry.validate(arg_type, bound[arg_name])
@@ -1216,9 +1216,9 @@ class ReplEngine:
             CmdResult with success/error status and elapsed time.
         """
         result = self._dispatch_inner(line)
-        for obs in self._post_dispatch_observers:
+        for post_dispatch_observer in self._post_dispatch_observers:
             try:
-                obs(line, result)
+                post_dispatch_observer(line, result)
             except Exception as e:  # observer bug must not break dispatch
                 self.write(f"Observer error: {e}", "red")
         return result
@@ -1462,14 +1462,14 @@ class ReplEngine:
 
     def transform_repl(self, line: str) -> str:
         """Run all REPL transforms in load order."""
-        for fn in self._repl_transforms:
-            line = fn(line)
+        for repl_transform in self._repl_transforms:
+            line = repl_transform(line)
         return line
 
     def transform_serial(self, line: str) -> str:
         """Run all serial transforms in load order."""
-        for fn in self._serial_transforms:
-            line = fn(line)
+        for serial_transform in self._serial_transforms:
+            line = serial_transform(line)
         return line
 
     # -- Scripting ------------------------------------------------------------

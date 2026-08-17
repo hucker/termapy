@@ -245,9 +245,9 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
         return CmdResult.fail(msg=f"Invalid format spec: {e}")
 
     max_idx = 0
-    for col in columns:
-        if col.byte_indices:
-            max_idx = max(max_idx, max(col.byte_indices))
+    for column in columns:
+        if column.byte_indices:
+            max_idx = max(max_idx, max(column.byte_indices))
     record_size = max_idx + 1
     if record_size == 0:
         return CmdResult.fail(msg="Format spec has no byte references.")
@@ -476,10 +476,12 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
             # Build the row (timestamp optional)
             if notime:
                 csv_row = [counter] + values
-                line_parts = [str(counter).rjust(7)] + [v.rjust(10) for v in values]
+                line_parts = [str(counter).rjust(7)] + [value.rjust(10) for value in values]
             else:
                 csv_row = [ts, counter] + values
-                line_parts = [ts.ljust(23), str(counter).rjust(7)] + [v.rjust(10) for v in values]
+                line_parts = [ts.ljust(23), str(counter).rjust(7)] + [
+                    value.rjust(10) for value in values
+                ]
 
             # Write to file
             if writer is not None and fh is not None:
@@ -490,8 +492,8 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                     {} if notime else {"timestamp": ts}
                 )
                 row["counter"] = counter
-                for k, v in zip(labels, values):
-                    row[k] = v
+                for k, value in zip(labels, values):
+                    row[k] = value
                 fh.write(_json.dumps(row) + "\n")
                 fh.flush()
 

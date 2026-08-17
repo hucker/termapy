@@ -36,7 +36,7 @@ class CommandSuggester(Suggester):
 
     async def get_suggestion(self, value: str) -> str | None:
         """Return the first prefix match (case-insensitive)."""
-        for s in self._suggestions:
-            if s.casefold().startswith(value):
-                return s
+        for suggestion in self._suggestions:
+            if suggestion.casefold().startswith(value):
+                return suggestion
         return None

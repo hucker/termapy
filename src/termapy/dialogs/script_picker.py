@@ -87,12 +87,15 @@ class ScriptPicker(ModalScreen[tuple | None]):
         from textual.widgets import Static
 
         scripts = sorted(self.scripts_dir.glob("*"))
-        scripts = [f for f in scripts if f.is_file() and not f.name.startswith(".")]
+        scripts = [
+            script for script in scripts
+            if script.is_file() and not script.name.startswith(".")
+        ]
         with Vertical(id="script-dialog"):
             yield Static("Select Run File", id="script-title")
             ol = OptionList(id="script-list")
-            for f in scripts:
-                ol.add_option(Option(f.name, id=str(f)))
+            for script in scripts:
+                ol.add_option(Option(script.name, id=str(script)))
             if scripts:
                 ol.highlighted = 0
             yield ol

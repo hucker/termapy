@@ -112,9 +112,9 @@ class TestPortInfo:
         msgs, effects = port_info(_cfg(), None)
 
         # Assert - shows config values with disconnected state
-        texts = [t for t, _ in msgs]
-        assert any("disconnected" in t for t in texts), "should show disconnected state"
-        assert any("115200" in t for t in texts), "should show baud rate config value"
+        texts = [text for text, _ in msgs]
+        assert any("disconnected" in text for text in texts), "should show disconnected state"
+        assert any("115200" in text for text in texts), "should show baud rate config value"
 
     def test_connected_shows_hw_lines(self):
         # Arrange
@@ -124,10 +124,10 @@ class TestPortInfo:
         msgs, effects = port_info(_cfg(), ser)
 
         # Assert - shows hardware line values
-        texts = [t for t, _ in msgs]
-        assert any("connected" in t for t in texts), "should show connected state"
-        assert any("DTR" in t for t in texts), "should show DTR line"
-        assert any("RTS" in t for t in texts), "should show RTS line"
+        texts = [text for text, _ in msgs]
+        assert any("connected" in text for text in texts), "should show connected state"
+        assert any("DTR" in text for text in texts), "should show DTR line"
+        assert any("RTS" in text for text in texts), "should show RTS line"
 
 
 # ── get_set_prop ─────────────────────────────────────────────────────────────
@@ -934,11 +934,11 @@ class TestChipInfoResolvesSnSpec:
         msgs, _ = chip_info("", "A1B2C3D4", connected_port="COM3")
 
         # Assert
-        texts = [t for t, _ in msgs]
-        assert not any("No port matching" in t for t in texts), (
+        texts = [text for text, _ in msgs]
+        assert not any("No port matching" in text for text in texts), (
             "chip_info must resolve the SN, not report no match"
         )
-        assert any("COM3" in t for t in texts), (
+        assert any("COM3" in text for text in texts), (
             "resolves the SN to its device (COM3) and dumps its facts"
         )
 
@@ -947,11 +947,11 @@ class TestChipInfoResolvesSnSpec:
         msgs, _ = chip_field("model", "", "A1B2C3D4", connected_port="COM3")
 
         # Assert
-        texts = [t for t, _ in msgs]
-        assert not any("No port matching" in t for t in texts), (
+        texts = [text for text, _ in msgs]
+        assert not any("No port matching" in text for text in texts), (
             "chip_field must resolve the SN, not report no match"
         )
-        assert any("FT232R" in t or "FTDI" in t for t in texts), (
+        assert any("FT232R" in text or "FTDI" in text for text in texts), (
             f"returns the resolved device's model field, got {texts}"
         )
 

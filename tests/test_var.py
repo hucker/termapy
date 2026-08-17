@@ -760,7 +760,7 @@ class TestDirectiveIntegration:
 
         # Assert - at least one directive registered
         assert len(engine._directives) >= 1, "directive registered"
-        names = [d.name for d in engine._directives]
+        names = [directive.name for directive in engine._directives]
         assert "var_assign" in names, "var_assign specifically"
 
     def test_run_directives_rewrites_assignment(self, tmp_path):

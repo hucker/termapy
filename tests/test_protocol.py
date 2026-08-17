@@ -520,7 +520,7 @@ expect: 01 06 00 01 00 03 98 0B
         # Assert step count
         assert len(steps) == 5, "send, expect, delay, send, expect"
         # Assert step types
-        actual_actions = [s.action for s in steps]
+        actual_actions = [step.action for step in steps]
         expected_actions = ["send", "expect", "delay", "send", "expect"]
         assert actual_actions == expected_actions
         # Assert labels
@@ -568,7 +568,7 @@ send: "fw\\r"
 expect: "FB8d\\r"
 """
         _, steps = parse_proto_script(script)
-        actual_actions = [s.action for s in steps]
+        actual_actions = [step.action for step in steps]
         expected_actions = ["cmd", "flush", "send", "expect"]
         assert actual_actions == expected_actions
 
@@ -1528,7 +1528,7 @@ class TestDiffColumns:
         cols = parse_format_spec("Slave:H1 Func:H2 Addr:U3-4")
         headers, exp_vals, act_vals, statuses = diff_columns(
             data, data, mask, cols)
-        assert all(s == "match" for s in statuses)
+        assert all(status == "match" for status in statuses)
 
     def test_mismatch_column(self):
         """Byte mismatch in a column → that column is 'mismatch'."""

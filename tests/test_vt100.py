@@ -55,14 +55,14 @@ class TestMinitermSettings:
 
 
 def _apply_rx(transforms, text):
-    for t in transforms:
-        text = t.rx(text)
+    for transform in transforms:
+        text = transform.rx(text)
     return text
 
 
 def _apply_tx(transforms, text):
-    for t in transforms:
-        text = t.tx(text)
+    for transform in transforms:
+        text = transform.tx(text)
     return text
 
 

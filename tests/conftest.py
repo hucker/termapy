@@ -36,7 +36,7 @@ def _fix_msys2_path_on_windows() -> None:
         return
     path = os.environ.get("PATH", "")
     parts = path.split(os.pathsep)
-    norm = [os.path.normcase(p) for p in parts]
+    norm = [os.path.normcase(part) for part in parts]
     norm_msys2 = os.path.normcase(msys2_bin)
     # Already first?  No-op.
     if norm and norm[0] == norm_msys2:
@@ -64,7 +64,7 @@ def _fix_msys2_path_on_windows() -> None:
         )
     # Prepend (drop any existing later occurrence so PATH doesn't grow
     # every test session if conftest reloads).
-    parts = [p for p, n in zip(parts, norm) if n != norm_msys2]
+    parts = [part for part, n in zip(parts, norm) if n != norm_msys2]
     os.environ["PATH"] = os.pathsep.join([msys2_bin] + parts)
 
 

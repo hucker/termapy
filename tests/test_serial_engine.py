@@ -531,7 +531,7 @@ class TestReconnectLoop:
 
         # Assert
         assert len(statuses) > 0, "should have received status updates"
-        assert all("Connecting" in s for s in statuses), "status should show connecting"
+        assert all("Connecting" in status for status in statuses), "status should show connecting"
 
     def test_reconnect_loop_cancelled(self):
         # Arrange - use a port that always fails

@@ -318,10 +318,10 @@ class TestPaletteProvider:
 
         # Assert -- the Find entry matches, the others don't
         labels = [str(h.match_display) for h in hits]
-        assert any("Find" in lbl for lbl in labels), (
+        assert any("Find" in label for label in labels), (
             f"fuzzy 'find' matches the Find entry; got {labels!r}"
         )
-        assert not any("Exit" in lbl for lbl in labels), (
+        assert not any("Exit" in label for label in labels), (
             f"fuzzy 'find' does NOT match Exit; got {labels!r}"
         )
 

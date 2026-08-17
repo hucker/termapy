@@ -306,14 +306,14 @@ class TestRunDocstring:
 
         # Assert
         assert result.success, "/run.list succeeds"
-        texts = [t for t, _ in output]
+        texts = [text for text, _ in output]
         # Documented script: summary appears after the filename.
         assert any(
-            "documented.run" in t and "Short summary" in t for t in texts
+            "documented.run" in text and "Short summary" in text for text in texts
         ), f"summary should appear next to documented.run, got: {texts}"
         # Undocumented script: still listed, but without a summary.
         assert any(
-            "undocumented.run" in t and "--" not in t for t in texts
+            "undocumented.run" in text and "--" not in text for text in texts
         ), "undocumented script listed without a summary separator"
 
     def test_run_help_script_prints_full_docstring(
@@ -336,11 +336,11 @@ class TestRunDocstring:
         assert result.value == (
             "First line summary.\nSecond line of details."
         ), "value contains the full block"
-        texts = [t for t, _ in output]
-        assert any("First line summary" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert any("First line summary" in text for text in texts), (
             "summary printed to output"
         )
-        assert any("Second line of details" in t for t in texts), (
+        assert any("Second line of details" in text for text in texts), (
             "full block printed, not just summary"
         )
 
@@ -472,8 +472,8 @@ class TestVer:
         assert result.value == "0.66.0", (
             "scripting value is the latest PyPI version (per .info convention)"
         )
-        texts = [t for t, _ in output]
-        assert any("up to date" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert any("up to date" in text for text in texts), (
             "human-readable line says 'up to date'"
         )
 
@@ -498,11 +498,11 @@ class TestVer:
         # Assert
         assert result.success, "outdated is still ok -- nothing failed"
         assert result.value == "0.66.1", "value is the latest PyPI version"
-        texts = [t for t, _ in output]
-        assert any("update available" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert any("update available" in text for text in texts), (
             "human-readable line announces the upgrade"
         )
-        assert any("0.66.0" in t and "0.66.1" in t for t in texts), (
+        assert any("0.66.0" in text and "0.66.1" in text for text in texts), (
             "both versions appear on the comparison line"
         )
 
@@ -733,9 +733,9 @@ class TestHelp:
         engine.dispatch("help")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("help" in t for t in texts), "help command listed"
-        assert any("cfg" in t for t in texts), "cfg command listed"
+        texts = [text for text, _ in output]
+        assert any("help" in text for text in texts), "help command listed"
+        assert any("cfg" in text for text in texts), "cfg command listed"
 
     def test_help_landscape_has_footer_hint(self, repl_env):
         """Landscape view teaches the other two modes via a dim footer."""
@@ -746,9 +746,9 @@ class TestHelp:
         engine.dispatch("help")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("/help <term>" in t for t in texts), "footer mentions /help <term>"
-        assert any("/search" in t for t in texts), "footer mentions /search"
+        texts = [text for text, _ in output]
+        assert any("/help <term>" in text for text in texts), "footer mentions /help <term>"
+        assert any("/search" in text for text in texts), "footer mentions /search"
 
     def test_help_specific_command(self, repl_env):
         # Arrange
@@ -758,9 +758,9 @@ class TestHelp:
         engine.dispatch("help echo")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("echo" in t.lower() for t in texts), "echo help shown"
-        assert any("NAME" in t for t in texts), "man-page NAME section present"
+        texts = [text for text, _ in output]
+        assert any("echo" in text.lower() for text in texts), "echo help shown"
+        assert any("NAME" in text for text in texts), "man-page NAME section present"
 
     def test_help_man_page_sections(self, repl_env):
         """Leaf with args + long_help renders NAME, SYNOPSIS, DESCRIPTION."""
@@ -777,12 +777,12 @@ class TestHelp:
         engine.dispatch("help full_cmd")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("NAME" in t for t in texts), "NAME section"
-        assert any("SYNOPSIS" in t for t in texts), "SYNOPSIS section"
-        assert any("DESCRIPTION" in t for t in texts), "DESCRIPTION section"
-        assert any("Line one." in t for t in texts), "long_help line 1 present"
-        assert any("Line two." in t for t in texts), "long_help line 2 present"
+        texts = [text for text, _ in output]
+        assert any("NAME" in text for text in texts), "NAME section"
+        assert any("SYNOPSIS" in text for text in texts), "SYNOPSIS section"
+        assert any("DESCRIPTION" in text for text in texts), "DESCRIPTION section"
+        assert any("Line one." in text for text in texts), "long_help line 1 present"
+        assert any("Line two." in text for text in texts), "long_help line 2 present"
 
     def test_help_mcp_flag_drops_interactive_only_commands(self, repl_env):
         """``/help --mcp`` filters the landscape via ENVIRONMENTS["MCP"].
@@ -816,8 +816,8 @@ class TestHelp:
         engine.dispatch("help --mcp")
 
         # Assert
-        texts = [_plain(t) for t, _ in output]
-        assert any("MCP-visible only" in t for t in texts), (
+        texts = [_plain(text) for text, _ in output]
+        assert any("MCP-visible only" in text for text in texts), (
             "filter banner identifies the mode"
         )
 
@@ -843,11 +843,11 @@ class TestHelp:
         engine.dispatch("help help")
 
         # Assert
-        texts = [_plain(t) for t, _ in output]
-        assert any("AVAILABLE" in t for t in texts), "AVAILABLE section emitted"
-        assert any("TUI:" in t for t in texts), "TUI cell present"
-        assert any("CLI:" in t for t in texts), "CLI cell present"
-        assert any("MCP:" in t for t in texts), "MCP cell present"
+        texts = [_plain(text) for text, _ in output]
+        assert any("AVAILABLE" in text for text in texts), "AVAILABLE section emitted"
+        assert any("TUI:" in text for text in texts), "TUI cell present"
+        assert any("CLI:" in text for text in texts), "CLI cell present"
+        assert any("MCP:" in text for text in texts), "MCP cell present"
 
     def test_help_available_matrix_marks_interactive_commands(self, repl_env):
         """A command needing interactive shows MCP: no with reason."""
@@ -899,11 +899,11 @@ class TestHelp:
         result = engine.dispatch("help shiny")
 
         # Assert - both names surface as candidates, result is ok with names
-        texts = [_plain(t) for t, _ in output]
+        texts = [_plain(text) for text, _ in output]
         assert result.success, "candidate list succeeds"
-        assert any("Candidates matching" in t for t in texts), "banner shown"
-        assert any("one.shiny" in t for t in texts), "first candidate listed"
-        assert any("two.shiny" in t for t in texts), "second candidate listed"
+        assert any("Candidates matching" in text for text in texts), "banner shown"
+        assert any("one.shiny" in text for text in texts), "first candidate listed"
+        assert any("two.shiny" in text for text in texts), "second candidate listed"
         assert "one.shiny" in result.value.splitlines(), "name in scripting value"
         assert "two.shiny" in result.value.splitlines(), "name in scripting value"
 
@@ -925,9 +925,9 @@ class TestHelp:
         engine.dispatch("help foo")
 
         # Assert - man-page detail for /foo, not a candidate list
-        texts = [t for t, _ in output]
-        assert any("NAME" in t for t in texts), "man-page rendered"
-        assert not any("Candidates matching" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert any("NAME" in text for text in texts), "man-page rendered"
+        assert not any("Candidates matching" in text for text in texts), (
             "no candidate list when exact match exists"
         )
 
@@ -945,9 +945,9 @@ class TestHelp:
         result = engine.dispatch("help mumble_fritz")
 
         # Assert
-        texts = [_plain(t) for t, _ in output]
+        texts = [_plain(text) for text, _ in output]
         assert result.success, "help-text match succeeds"
-        assert any("widget_cmd" in t for t in texts), "found via short help"
+        assert any("widget_cmd" in text for text in texts), "found via short help"
 
     def test_help_parent_shows_subcommand_section(self, repl_env):
         """/help <parent> renders SUBCOMMANDS with name+one-liner only."""
@@ -973,11 +973,11 @@ class TestHelp:
         engine.dispatch("help group")
 
         # Assert - SUBCOMMANDS section present; child args are NOT rendered
-        texts = [t for t, _ in output]
-        assert any("SUBCOMMANDS" in t for t in texts), "SUBCOMMANDS section present"
-        assert any("group.one" in t for t in texts), "first child listed"
-        assert any("group.two" in t for t in texts), "second child listed"
-        assert not any("really-long-arg-list" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert any("SUBCOMMANDS" in text for text in texts), "SUBCOMMANDS section present"
+        assert any("group.one" in text for text in texts), "first child listed"
+        assert any("group.two" in text for text in texts), "second child listed"
+        assert not any("really-long-arg-list" in text for text in texts), (
             "child args column is omitted in parent listing"
         )
 
@@ -1001,8 +1001,8 @@ class TestHelp:
         engine.dispatch("help grp.a")
 
         # Assert - SEE ALSO mentions siblings and parent
-        texts = [t for t, _ in output]
-        see_lines = [t for t in texts if "SEE ALSO" in t or "/grp" in t]
+        texts = [text for text, _ in output]
+        see_lines = [text for text in texts if "SEE ALSO" in text or "/grp" in text]
         combined = " ".join(see_lines)
         assert "SEE ALSO" in combined, "SEE ALSO header present"
         assert "/grp.b" in combined, "sibling /grp.b listed"
@@ -1023,8 +1023,8 @@ class TestHelp:
         engine.dispatch("help lone_cmd")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert not any("SEE ALSO" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert not any("SEE ALSO" in text for text in texts), (
             "no SEE ALSO section when command has no peers"
         )
 
@@ -1042,9 +1042,9 @@ class TestHelp:
         engine.dispatch("help briefcmd")
 
         # Assert - NAME section is present; DESCRIPTION is not (no long_help)
-        texts = [t for t, _ in output]
-        assert any("NAME" in t for t in texts), "NAME always shown"
-        assert not any("DESCRIPTION" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert any("NAME" in text for text in texts), "NAME always shown"
+        assert not any("DESCRIPTION" in text for text in texts), (
             "DESCRIPTION skipped when long_help is empty"
         )
 
@@ -1063,9 +1063,9 @@ class TestHelp:
         engine.dispatch("help dyn_cmd")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("DESCRIPTION" in t for t in texts), "DESCRIPTION header emitted"
-        assert any("dynamic text here" in t for t in texts), \
+        texts = [text for text, _ in output]
+        assert any("DESCRIPTION" in text for text in texts), "DESCRIPTION header emitted"
+        assert any("dynamic text here" in text for text in texts), \
             "callable result appears in rendered output"
 
     def test_help_callable_long_help_receives_ctx(self, repl_env):
@@ -1090,8 +1090,8 @@ class TestHelp:
         engine.dispatch("help ctx_cmd")
 
         # Assert - the two items are reflected live.
-        texts = [t for t, _ in output]
-        assert any("count=2" in t for t in texts), \
+        texts = [text for text, _ in output]
+        assert any("count=2" in text for text in texts), \
             "callable receives live ctx and reads ns() correctly"
 
     def test_help_callable_long_help_exception_is_caught(self, repl_env):
@@ -1113,11 +1113,11 @@ class TestHelp:
         result = engine.dispatch("help boom_cmd")
 
         # Assert - fallback present, command reports success
-        texts = [t for t, _ in output]
+        texts = [text for text, _ in output]
         assert result.success is True, "rendering survives exception"
-        assert any("dynamic help failed" in t for t in texts), \
+        assert any("dynamic help failed" in text for text in texts), \
             "fallback prefix appears"
-        assert any("boom" in t for t in texts), "exception message included"
+        assert any("boom" in text for text in texts), "exception message included"
 
     def test_help_callable_empty_result_omits_description(self, repl_env):
         """Callable returning '' omits DESCRIPTION, matching static-empty behavior."""
@@ -1134,8 +1134,8 @@ class TestHelp:
         engine.dispatch("help silent_cmd")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert not any("DESCRIPTION" in t for t in texts), \
+        texts = [text for text, _ in output]
+        assert not any("DESCRIPTION" in text for text in texts), \
             "empty callable result hides the DESCRIPTION section"
 
     def test_search_callable_long_help_is_indexed(self, repl_env):
@@ -1169,10 +1169,10 @@ class TestHelp:
         # existing prose still follows it. The cfg name is the parent
         # directory stem; with the test fixture that's the tmp_path's
         # pytest-generated name, so we just look for the prefix.
-        texts = [t for t, _ in output]
-        assert any("Active cfg =" in t for t in texts), \
+        texts = [text for text, _ in output]
+        assert any("Active cfg =" in text for text in texts), \
             "Active cfg label appears in DESCRIPTION"
-        assert any("Three modes" in t for t in texts), \
+        assert any("Three modes" in text for text in texts), \
             "existing cfg prose still renders after dynamic line"
 
     def test_help_port_baud_rate_shows_current_value(self, repl_env):
@@ -1184,8 +1184,8 @@ class TestHelp:
         engine.dispatch("help port.baud_rate")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("Current baud rate = 115200" in t for t in texts), \
+        texts = [text for text, _ in output]
+        assert any("Current baud rate = 115200" in text for text in texts), \
             "dynamic state line reflects cfg value"
 
     def test_help_renders_flags_section(self, repl_env):
@@ -1203,10 +1203,10 @@ class TestHelp:
         engine.dispatch("help flag_cmd")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("FLAGS" in t for t in texts), "FLAGS header rendered"
-        assert any("--table" in t for t in texts), "flag name rendered"
-        assert any("lookup table" in t for t in texts), "description rendered"
+        texts = [text for text, _ in output]
+        assert any("FLAGS" in text for text in texts), "FLAGS header rendered"
+        assert any("--table" in text for text in texts), "flag name rendered"
+        assert any("lookup table" in text for text in texts), "description rendered"
 
     def test_help_collapses_alias_onto_canonical(self, repl_env):
         """Alias flags render on the same line as their canonical form."""
@@ -1223,10 +1223,10 @@ class TestHelp:
         engine.dispatch("help runner")
 
         # Assert - one FLAGS row containing both names, not two separate rows.
-        texts = [t for t, _ in output]
-        combo_lines = [t for t in texts if "--verbose" in t and "-v" in t]
+        texts = [text for text, _ in output]
+        combo_lines = [text for text in texts if "--verbose" in text and "-v" in text]
         assert combo_lines, "alias listed alongside canonical on one line"
-        desc_count = sum(1 for t in texts if "Verbose mode." in t)
+        desc_count = sum(1 for text in texts if "Verbose mode." in text)
         assert desc_count == 1, f"description printed once, got {desc_count}"
 
     # ── /help.dev (still uses forgiving lookup + man-page frame) ─────────────
@@ -1254,9 +1254,9 @@ class TestHelp:
         engine.dispatch("help.dev devtest")
 
         # Assert - docstring lines appear inside the man-page DESCRIPTION
-        texts = [t for t, _ in output]
-        assert any("dev docstring" in t for t in texts), "docstring content shown"
-        assert any("DESCRIPTION" in t for t in texts), "rendered inside DESCRIPTION"
+        texts = [text for text, _ in output]
+        assert any("dev docstring" in text for text in texts), "docstring content shown"
+        assert any("DESCRIPTION" in text for text in texts), "rendered inside DESCRIPTION"
 
     def test_help_dev_summary_bold(self, repl_env):
         """/help.dev renders summary line bold when followed by blank line."""
@@ -1279,8 +1279,10 @@ class TestHelp:
         engine.dispatch("help.dev boldsummary")
 
         # Assert
-        markup_lines = [t for t, c in output if c == "markup"]
-        assert any("[bold]Summary line here.[/]" in t for t in markup_lines), "bold summary"
+        markup_lines = [markup_line for markup_line, c in output if c == "markup"]
+        assert any(
+            "[bold]Summary line here.[/]" in markup_line for markup_line in markup_lines
+        ), "bold summary"
 
     def test_help_dev_section_headers_bold(self, repl_env):
         """/help.dev renders Google-style section headers (Args:, Returns:) bold."""
@@ -1307,9 +1309,13 @@ class TestHelp:
         engine.dispatch("help.dev sections")
 
         # Assert
-        markup_lines = [t for t, c in output if c == "markup"]
-        assert any("[bold]Args:[/]" in t for t in markup_lines), "Args header bold"
-        assert any("[bold]Returns:[/]" in t for t in markup_lines), "Returns header bold"
+        markup_lines = [markup_line for markup_line, c in output if c == "markup"]
+        assert any(
+            "[bold]Args:[/]" in markup_line for markup_line in markup_lines
+        ), "Args header bold"
+        assert any(
+            "[bold]Returns:[/]" in markup_line for markup_line in markup_lines
+        ), "Returns header bold"
 
     def test_help_dev_param_labels_bold(self, repl_env):
         """/help.dev renders 'param: description' with param: bold."""
@@ -1334,9 +1340,13 @@ class TestHelp:
         engine.dispatch("help.dev params")
 
         # Assert
-        markup_lines = [t for t, c in output if c == "markup"]
-        assert any("[bold]ctx:[/] Plugin context" in t for t in markup_lines), "ctx: bold"
-        assert any("[bold]args:[/] Command arguments" in t for t in markup_lines), "args: bold"
+        markup_lines = [markup_line for markup_line, c in output if c == "markup"]
+        assert any(
+            "[bold]ctx:[/] Plugin context" in markup_line for markup_line in markup_lines
+        ), "ctx: bold"
+        assert any(
+            "[bold]args:[/] Command arguments" in markup_line for markup_line in markup_lines
+        ), "args: bold"
 
     def test_help_dev_no_docstring(self, repl_env):
         """/help.dev <cmd> with no docstring shows a message."""
@@ -1352,8 +1362,8 @@ class TestHelp:
         engine.dispatch("help.dev nodoc")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("no docstring" in t for t in texts), "no-doc message shown"
+        texts = [text for text, _ in output]
+        assert any("no docstring" in text for text in texts), "no-doc message shown"
 
     def test_help_dev_skips_long_help(self, repl_env):
         """/help.dev shows docstring instead of the command's long_help."""
@@ -1374,9 +1384,9 @@ class TestHelp:
         engine.dispatch("help.dev both")
 
         # Assert - docstring shown, long_help not shown
-        texts = [t for t, _ in output]
-        assert any("Handler docstring" in t for t in texts), "docstring shown"
-        assert not any("This is the long help" in t for t in texts), (
+        texts = [text for text, _ in output]
+        assert any("Handler docstring" in text for text in texts), "docstring shown"
+        assert not any("This is the long help" in text for text in texts), (
             "user-facing long_help suppressed in dev mode"
         )
 
@@ -1655,9 +1665,9 @@ class TestShow:
         engine.dispatch("show.cfg")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("COM4" in t for t in texts), "config value shown"
-        assert any("end" in t for t in texts), "end marker shown"
+        texts = [text for text, _ in output]
+        assert any("COM4" in text for text in texts), "config value shown"
+        assert any("end" in text for text in texts), "end marker shown"
 
     def test_show_file(self, repl_env, tmp_path):
         # Arrange
@@ -1669,9 +1679,9 @@ class TestShow:
         engine.dispatch(f"show {test_file}")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("line one" in t for t in texts), "first line shown"
-        assert any("line two" in t for t in texts), "second line shown"
+        texts = [text for text, _ in output]
+        assert any("line one" in text for text in texts), "first line shown"
+        assert any("line two" in text for text in texts), "second line shown"
 
     def test_show_missing_file(self, repl_env):
         # Arrange
@@ -1718,8 +1728,8 @@ class TestOs:
         engine.dispatch("os echo hello_from_os")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("hello_from_os" in t for t in texts), "shell output captured"
+        texts = [text for text, _ in output]
+        assert any("hello_from_os" in text for text in texts), "shell output captured"
 
     def test_os_no_args(self, repl_env, monkeypatch):
         # Arrange
@@ -1747,8 +1757,8 @@ class TestDispatch:
     def test_empty_dispatch_shows_help(self, repl_env):
         engine, _, _, output = repl_env
         engine.dispatch("")
-        texts = [t for t, _ in output]
-        assert any("help" in t.lower() for t in texts), "empty triggers help"
+        texts = [text for text, _ in output]
+        assert any("help" in text.lower() for text in texts), "empty triggers help"
 
     def test_command_case_insensitive(self, repl_env):
         engine, _, _, output = repl_env
@@ -1787,31 +1797,31 @@ class TestGrep:
         engine.dispatch("grep error")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("2 match(es)" in t for t in texts), "match count shown"
-        assert any("2 |" in t and "ERROR" in t for t in texts), "line 2 matched"
-        assert any("5 |" in t and "error" in t for t in texts), "line 5 matched"
+        texts = [text for text, _ in output]
+        assert any("2 match(es)" in text for text in texts), "match count shown"
+        assert any("2 |" in text and "ERROR" in text for text in texts), "line 2 matched"
+        assert any("5 |" in text and "error" in text for text in texts), "line 5 matched"
 
     def test_grep_no_matches(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep zzzz_not_found")
-        texts = [t for t, _ in output]
-        assert any("no matches" in t for t in texts), "no matches message shown"
+        texts = [text for text, _ in output]
+        assert any("no matches" in text for text in texts), "no matches message shown"
 
     def test_grep_case_insensitive(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep ERROR")
-        texts = [t for t, _ in output]
-        assert any("2 match(es)" in t for t in texts), "both cases matched"
+        texts = [text for text, _ in output]
+        assert any("2 match(es)" in text for text in texts), "both cases matched"
 
     def test_grep_regex(self, repl_env):
         engine, _, _, output = repl_env
         self._set_screen_text(engine, _SCREEN_TEXT)
         engine.dispatch("grep error|warning")
-        texts = [t for t, _ in output]
-        assert any("3 match(es)" in t for t in texts), "regex alternation works"
+        texts = [text for text, _ in output]
+        assert any("3 match(es)" in text for text in texts), "regex alternation works"
 
     def test_grep_skips_own_output(self, repl_env):
         # Arrange - scrollback contains prior grep output and echoed command
@@ -1850,9 +1860,9 @@ class TestGrep:
         engine.dispatch("grep match")
 
         # Assert - default cap is 100
-        texts = [t for t, _ in output]
-        assert any("first 100 of 150" in t for t in texts), "assert cap message"
-        grep_lines = [t for t in texts if "grep:" in t and "|" in t]
+        texts = [text for text, _ in output]
+        assert any("first 100 of 150" in text for text in texts), "assert cap message"
+        grep_lines = [text for text in texts if "grep:" in text and "|" in text]
         assert len(grep_lines) == 100, "assert only 100 lines output"
 
     def test_grep_max_output_from_config(self, repl_env):
@@ -1866,9 +1876,9 @@ class TestGrep:
         engine.dispatch("grep match")
 
         # Assert - cap uses config value
-        texts = [t for t, _ in output]
-        assert any("first 5 of 20" in t for t in texts), "assert config cap message"
-        grep_lines = [t for t in texts if "grep:" in t and "|" in t]
+        texts = [text for text, _ in output]
+        assert any("first 5 of 20" in text for text in texts), "assert config cap message"
+        grep_lines = [text for text in texts if "grep:" in text and "|" in text]
         assert len(grep_lines) == 5, "assert only 5 lines output"
 
 
@@ -2402,8 +2412,8 @@ class TestCfgRead:
         result = engine.dispatch("cfg.dump dev.history")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("port.list" in t for t in texts), "file lines printed"
+        texts = [text for text, _ in output]
+        assert any("port.list" in text for text in texts), "file lines printed"
         assert result.value == "ping\nport.list", "value carries file text"
 
     def test_cfg_dump_named_subfolder_file(self, repl_env):
@@ -2467,9 +2477,9 @@ class TestCfgRead:
         engine.dispatch("cfg.dump")
 
         # Assert - should list config keys
-        texts = [t for t, _ in output]
-        assert any("port" in t for t in texts), "shows port key"
-        assert any("baud_rate" in t or "115200" in t for t in texts), "shows baud_rate"
+        texts = [text for text, _ in output]
+        assert any("port" in text for text in texts), "shows port key"
+        assert any("baud_rate" in text or "115200" in text for text in texts), "shows baud_rate"
 
     def test_cfg_specific_key(self, repl_env):
         # Arrange
@@ -2479,8 +2489,8 @@ class TestCfgRead:
         engine.dispatch("cfg port")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("COM4" in t for t in texts), "shows port value"
+        texts = [text for text, _ in output]
+        assert any("COM4" in text for text in texts), "shows port value"
 
     def test_cfg_unknown_key(self, repl_env):
         # Arrange
@@ -2490,9 +2500,9 @@ class TestCfgRead:
         engine.dispatch("cfg nonexistent_key")
 
         # Assert
-        texts = [t for t, _ in output]
-        assert any("not found" in t.lower() or "unknown" in t.lower()
-                    for t in texts)  # error message
+        texts = [text for text, _ in output]
+        assert any("not found" in text.lower() or "unknown" in text.lower()
+                    for text in texts)  # error message
 
     def test_cfg_info(self, repl_env):
         # Arrange
@@ -2512,8 +2522,8 @@ class TestCfgRead:
         engine.dispatch("cfg.dump")
 
         # Assert - should dump JSON
-        texts = [t for t, _ in output]
-        assert any("port" in t for t in texts), "JSON includes port"
+        texts = [text for text, _ in output]
+        assert any("port" in text for text in texts), "JSON includes port"
 
 
 class TestCfgHandlerValues:
@@ -2828,10 +2838,10 @@ class TestPortChipList:
 
         # Assert -- dumps a header, divider, at least a handful of rows.
         assert result.success, "list succeeds with no filter"
-        texts = [t for t, _ in output]
-        assert any("VID:PID" in t for t in texts), "header row printed"
+        texts = [text for text, _ in output]
+        assert any("VID:PID" in text for text in texts), "header row printed"
         # Spot-check one well-known chip makes it into the dump.
-        assert any("FT232R" in t for t in texts), "FTDI FT232R present"
+        assert any("FT232R" in text for text in texts), "FTDI FT232R present"
         # Return value is "Count=<N>" for script capture.
         assert result.value.startswith("Count="), \
             f"value should be 'Count=<N>', got: {result.value!r}"
@@ -2847,8 +2857,8 @@ class TestPortChipList:
 
         # Assert -- only FTDI rows printed, Count reflects the match size.
         assert result.success, "filtered list succeeds"
-        texts = [t for t, _ in output]
-        chip_rows = [t for t in texts if ":" in t and "FTDI" in t]
+        texts = [text for text, _ in output]
+        chip_rows = [text for text in texts if ":" in text and "FTDI" in text]
         assert chip_rows, "at least one FTDI row rendered"
         # There are ~10 FTDI chips in the table.
         count = int(result.value.split("=")[1])

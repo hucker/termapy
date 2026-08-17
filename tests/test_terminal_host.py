@@ -489,7 +489,7 @@ class TestCapture:
 
         # Assert
         assert actual is True, "returns True on success"
-        assert any("Capture started" in m for m in host._status_msgs), \
+        assert any("Capture started" in status_msg for status_msg in host._status_msgs), \
             "shows started message"
 
     def test_stop_delegates_message_to_on_complete(self, host):
@@ -506,7 +506,7 @@ class TestCapture:
 
         # Assert
         host.capture.stop.assert_called_once()
-        assert not any("Capture complete" in m for m in host._status_msgs), \
+        assert not any("Capture complete" in status_msg for status_msg in host._status_msgs), \
             "_stop_capture must not emit the message (on_complete owns it)"
 
     def test_stop_no_result(self, host):

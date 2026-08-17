@@ -205,7 +205,7 @@ class TestBuiltinValidator:
         result = validate_profile(profile)
         # Assert
         assert result.ok is False, "version 99 is not in {1,2}"
-        assert any("profile_version" in e for e in result.errors), (
+        assert any("profile_version" in error for error in result.errors), (
             "error mentions profile_version"
         )
 
@@ -217,7 +217,7 @@ class TestBuiltinValidator:
         result = validate_profile(profile)
         # Assert
         assert result.ok is False, "transport block must fail validation"
-        assert any("transport" in e for e in result.errors), (
+        assert any("transport" in error for error in result.errors), (
             "error mentions transport so authors can find what to remove"
         )
 
@@ -228,7 +228,7 @@ class TestBuiltinValidator:
         result = validate_profile(profile)
         # Assert
         assert result.ok is False, "command requires help"
-        assert any("BAD" in e and "help" in e for e in result.errors), (
+        assert any("BAD" in error and "help" in error for error in result.errors), (
             "error mentions command name and field"
         )
 
@@ -315,7 +315,7 @@ class TestTypesBlockSchema:
         result = validate_profile(profile)
         # Assert
         assert result.ok is False, "unknown kind is rejected"
-        assert any("kind" in e for e in result.errors), "error names kind"
+        assert any("kind" in error for error in result.errors), "error names kind"
 
     def test_enum_without_values_fails(self):
         # Arrange — schema requires `values` when kind=enum.

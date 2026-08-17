@@ -350,7 +350,7 @@ class TestCustomButtonConfig:
         ]
 
         # Act
-        actual = [b for b in buttons if b.get("enabled", False)]
+        actual = [button for button in buttons if button.get("enabled", False)]
 
         # Assert
         assert len(actual) == 2, "only enabled buttons returned"
@@ -362,7 +362,7 @@ class TestCustomButtonConfig:
         buttons = [{"name": "X", "command": "cmd", "tooltip": "tip"}]
 
         # Act
-        actual = [b for b in buttons if b.get("enabled", False)]
+        actual = [button for button in buttons if button.get("enabled", False)]
 
         # Assert
         assert len(actual) == 0, "missing enabled treated as False"

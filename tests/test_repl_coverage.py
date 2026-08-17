@@ -433,7 +433,7 @@ class TestDispatchDirectives:
 
         # Assert
         assert result.success is True, "warn directive returns ok"
-        assert any("watch out" in m for m in status_msgs), "warning shown"
+        assert any("watch out" in status_msg for status_msg in status_msgs), "warning shown"
 
 
 class TestDispatchBarePrefix:

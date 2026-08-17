@@ -53,9 +53,9 @@ class TestCfgShowAll:
         engine.dispatch("cfg.dump")
 
         # Assert
-        texts = [t for t, _ in output]
+        texts = [text for text, _ in output]
         for key in cfg:
-            assert any(key in t for t in texts), "each config key shown"
+            assert any(key in text for text in texts), "each config key shown"
 
 
 class TestCfgShowKey:

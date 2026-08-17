@@ -145,8 +145,8 @@ class TestRegistryConformance:
         )
         assert result.plugins, "demo plugin dir loaded (not vacuous)"
         bad = {
-            p.name: validate_synopsis(p.args)
-            for p in result.plugins
-            if validate_synopsis(p.args)
+            plugin.name: validate_synopsis(plugin.args)
+            for plugin in result.plugins
+            if validate_synopsis(plugin.args)
         }
         assert bad == {}, f"demo plugin synopses violating the grammar: {bad}"

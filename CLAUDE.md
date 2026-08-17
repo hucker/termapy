@@ -175,11 +175,17 @@ uv run termapy --cfg-dir . # use cwd for configs
   when it doesn't, still name the element for what it is (`for byte in data:`,
   `for char in text:`). Applies to comprehensions. **Exempt:** positional and
   numeric variables (`i`/`j`/`k` indexes, `x`/`y`/`z` coordinates), `_` for an
-  unused binding, and tuple unpacking where each name describes its own slot
-  (`for name, handler in COMMANDS.items():`). A full word that isn't the
-  singular is fine when it says more than the singular would — `for spec in
-  params:` over `ParamSpec` objects, `for info in plugins:` over `PluginInfo`.
-  The rule targets truncation, not variety.
+  unused binding, tuple unpacking where each name describes its own slot
+  (`for name, handler in COMMANDS.items():`), and short words that are whole
+  words rather than truncations — `key` (to a dict what `i` is to an index),
+  plus `app`, `raw`, `bus`, `pyc`, `hex`, `url`, `tag`, `row`, and `cmd`
+  (termapy's own vocabulary: `cmd=`, `cmds`, `cmd_delay_ms`). A full word that
+  isn't the singular is fine when it says more than the singular would — `for
+  spec in params:` over `ParamSpec` objects, `for info in plugins:` over
+  `PluginInfo`. The rule targets truncation, not variety.
+  Use **folder/folders**, never `dir` (a builtin) or `directory`. Note `file`
+  and `byte` are NOT builtins in Python 3 — only `bytes`/`bytearray` are — so
+  both are available as element names.
 - Watch for large code added to solve small problems. AI can make any spec work regardless of how much code it takes, so volume is not evidence of difficulty. Sprawling helpers, many-branched special cases, or duplicated logic across helpers usually indicate the spec was under-specified or the approach is wrong — pause and re-scope rather than piling on more code.
 
 ## Threading

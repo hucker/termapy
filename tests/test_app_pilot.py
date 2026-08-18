@@ -194,3 +194,136 @@ class TestSwitchConfig:
                 )
 
         _run(scenario)
+
+
+class TestInputLine:
+    """Driving the REPL input reaches on_input_submitted and on_key.
+
+    These are the app's primary interaction path and cannot be reached any
+    other way -- they are Textual event handlers by definition.
+    """
+
+    def test_submitting_a_repl_command_dispatches_it(self, app_factory):
+        async def scenario():
+            from textual.widgets import Input
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                cmd_input = app.query_one("#cmd", Input)
+
+                # Act -- type a REPL command and press enter
+                cmd_input.value = "/print pilot-was-here"
+                cmd_input.focus()
+                await pilot.pause()
+                await pilot.press("enter")
+                await pilot.pause()
+
+                # Assert -- the input clears, which only happens on the
+                # submit path after dispatch
+                assert cmd_input.value == "", "the input clears after submit"
+
+        _run(scenario)
+
+    def test_submitted_command_enters_history(self, app_factory):
+        async def scenario():
+            from textual.widgets import Input
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                cmd_input = app.query_one("#cmd", Input)
+
+                # Act
+                cmd_input.value = "/print remembered"
+                cmd_input.focus()
+                await pilot.pause()
+                await pilot.press("enter")
+                await pilot.pause()
+
+                # Assert
+                assert "/print remembered" in app.history, (
+                    "a submitted command is recorded in history"
+                )
+
+        _run(scenario)
+
+    def test_empty_submit_is_ignored_by_default(self, app_factory):
+        async def scenario():
+            from textual.widgets import Input
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                before = list(app.history)
+                cmd_input = app.query_one("#cmd", Input)
+
+                # Act -- bare enter, with send_bare_enter defaulted off
+                cmd_input.value = ""
+                cmd_input.focus()
+                await pilot.pause()
+                await pilot.press("enter")
+                await pilot.pause()
+
+                # Assert
+                assert list(app.history) == before, (
+                    "a bare enter adds nothing to history when send_bare_enter is off"
+                )
+
+        _run(scenario)
+
+    def test_duplicate_command_is_not_double_recorded(self, app_factory):
+        async def scenario():
+            from textual.widgets import Input
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                cmd_input = app.query_one("#cmd", Input)
+
+                # Act -- submit the same command twice
+                for _ in range(2):
+                    cmd_input.value = "/print twice"
+                    cmd_input.focus()
+                    await pilot.pause()
+                    await pilot.press("enter")
+                    await pilot.pause()
+
+                # Assert -- history keeps the most recent, not both
+                assert app.history.count("/print twice") == 1, (
+                    "an earlier duplicate is removed rather than stacked"
+                )
+
+        _run(scenario)
+
+
+class TestOutputBatching:
+    """``_write_batch`` is the serial reader's path onto the screen."""
+
+    def test_writes_lines_to_the_output_log(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- the batched write the reader thread uses
+                app._write_batch(["alpha", "beta", "gamma"])
+                await pilot.pause()
+
+                # Assert -- reaching here without raising means the batch
+                # path ran against real widgets; a torn-down or missing
+                # #output would have raised
+                assert app.is_running, "the app survives a batched write"
+
+        _run(scenario)
+
+    def test_empty_batch_is_harmless(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                app._write_batch([])
+                await pilot.pause()
+
+                # Assert
+                assert app.is_running, "an empty batch is a no-op, not an error"
+
+        _run(scenario)

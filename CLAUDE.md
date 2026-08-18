@@ -147,8 +147,9 @@ uv run termapy --cfg-dir . # use cwd for configs
 - `uv run pytest` — full suite (~110s); use this before commit/merge
 - `uv run pytest -m "not slow"` — fast suite (~25s) for tight iteration. Skips ~230 subprocess-spawning, real-serial-loopback, and sleep-based tests. Use during dev; ALWAYS run the full suite before pushing.
 - `uv run pytest -m slow` — only the slow tests (useful when debugging a specific subprocess test)
-- Coverage omits `__init__.py`, `builtins/*.py`, `app.py`, `dialogs/*.py`, and `vendor/*` (see `[tool.coverage.run]` in `pyproject.toml`). The reported percent is therefore **core-module** coverage, not whole-repo: `app.py`/`dialogs/` are the Textual UI (integration-tested via Pilot + the CLI gold test, not unit-tested), `builtins/` are plugins covered behaviorally, `vendor/` is third-party. Whole-repo coverage (only `vendor/` omitted) is ~61%.
-- `app.py` not unit tested — only non-UI modules
+- Coverage omits `__init__.py`, `builtins/*.py`, `dialogs/*.py`, and `vendor/*` (see `[tool.coverage.run]` in `pyproject.toml`). **`app.py` is measured** — it is Pilot-tested by `tests/test_app_pilot.py`, which boots the real `SerialTerminal` headless via `app.run_test()`, so its number is real and movable. `dialogs/` are still omitted (Pilot-testable by the same pattern, not yet done), `builtins/` are plugins covered behaviorally, `vendor/` is third-party.
+- `app.py` is not UNIT tested — its logic is orchestration glue (`_switch_config` is 36 lines of `self._disconnect()` / `self.repl.replace_cfg()` / `self._history_nav.reset()`), which cannot be made pure because it IS the wiring. Test it by DRIVING the app: `app.run_test()` +
+  `pilot.pause()`, then assert on state. An AST audit (2026-08-18) found only 418 Textual-free logic lines left in its 3634, none forming a cohesive module — extraction is exhausted, Pilot is the lever. Limits: `run_test()` does not model real-terminal focus/blur or `@work` timing, so cover STATE TRANSITIONS there and keep input-focus work on live iteration.
 - Run tests before commit; full suite before merging to main
 - AAA comments (`# Arrange`, `# Act`, `# Assert`) for non-trivial tests
 - Assert comments required

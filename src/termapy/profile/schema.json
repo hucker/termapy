@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://termapy.org/profile.schema.json",
   "title": "Termapy Device Profile",
-  "description": "Declarative description of a serial device for the termapy MCP bridge. Profiles describe command typing and help only; wire-level settings (baud rate, line ending, encoding, ndjson routing) belong to the cfg file. The cfg points to the profile via profile_path; the profile does not point back.",
+  "description": "Declarative description of a serial device for the termapy MCP bridge. Profiles describe command typing and help only; wire-level settings (baud rate, line ending, encoding, ndjson routing) belong to the cfg file. The cfg points to the profile via profile_path; the profile does not point back. Compatibility policy: profile_version is the only hard gate (major = breaking). Everything else evolves additively -- consumers MUST ignore unknown fields (linters may warn) and MUST apply the documented degrade rule for unrecognized values of format (treat as 'text'), safety (treat as 'destructive'), types kind (profile loads; args of that type refuse at dispatch), and coercion names (leave value as str). See docs/profile-spec.md for the normative prose.",
   "type": "object",
   "additionalProperties": true,
   "not": {
@@ -29,9 +29,9 @@
       "type": "string"
     },
     "device": {
-      "description": "Device-level metadata.",
+      "description": "Device-level metadata. Unknown fields are ignored (forward compatibility).",
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "name": {"type": "string"},
         "vendor": {"type": "string"},
@@ -47,9 +47,9 @@
       }
     },
     "error_detection": {
-      "description": "Global error pattern. Applied to every response after per-command parsing. Async-flagged matches without an in-flight command route to device_state.async_errors.",
+      "description": "Global error pattern. Applied to every response after per-command parsing. Async-flagged matches without an in-flight command route to device_state.async_errors. Unknown fields are ignored (forward compatibility).",
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "pattern": {
           "description": "Regex matching the error indicator in device output. Named groups recommended (e.g. (?P<code>\\d+)).",
@@ -65,12 +65,9 @@
           "additionalProperties": {"type": "string"}
         },
         "types": {
-          "description": "Type coercion for named regex groups. Same vocabulary as response.types.",
+          "description": "Type coercion for named regex groups. Same vocabulary as response.types: canonical names are int, float, bool, hex, str. Unrecognized names degrade to str (value passed through raw).",
           "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "enum": ["int", "float", "bool", "hex", "str"]
-          }
+          "additionalProperties": {"type": "string"}
         }
       }
     },
@@ -87,9 +84,9 @@
   },
   "$defs": {
     "command": {
-      "description": "A single device command. Only `help` is required; everything else is optional. v1 manifests with just help/args/long_help/flags continue to work.",
+      "description": "A single device command. Only `help` is required; everything else is optional. v1 manifests with just help/args/long_help/flags continue to work. Unknown fields are ignored (forward compatibility).",
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "required": ["help"],
       "properties": {
         "help": {
@@ -125,32 +122,31 @@
         },
         "response": {"$ref": "#/$defs/response"},
         "safety": {
-          "description": "v2: safety tier. readonly = pure observation; safe = default, no enduring effect; mutable = changes device state but reversible (LED toggle, set baud); destructive = irreversible / data-loss (factory reset, flash erase, file delete). Only destructive triggers the MCP confirmation gate; other tiers are documentation-only metadata.",
+          "description": "v2: safety tier. Canonical tiers: readonly = pure observation; safe = default, no enduring effect; mutable = changes device state but reversible (LED toggle, set baud); destructive = irreversible / data-loss (factory reset, flash erase, file delete). destructive triggers the MCP confirmation gate; other canonical tiers are documentation-only metadata. Unrecognized tier names are treated as destructive (fail-safe: a future stronger-than-destructive tier must gate, not silently run, on older hosts). Omitted = safe; authors of profiles with any side-effecting commands should set safety explicitly per command.",
           "type": "string",
-          "enum": ["safe", "readonly", "mutable", "destructive"],
           "default": "safe"
         },
         "rate_limit_hz": {
-          "description": "v2: bridge-enforced rate limit. 0 = no limit.",
+          "description": "v2: advisory rate-limit hint, exported to the MCP catalog for the consumer to honor. The reference bridge does not enforce it yet; enforcement is planned. 0 = no limit.",
           "type": "number",
           "minimum": 0
         },
         "timeout_ms": {
-          "description": "v2: per-command timeout override (separate from response.timeout_ms which is the wait-for-response window). 0 = use config default.",
+          "description": "Reserved. Accepted and preserved, but not consumed by the reference bridge today -- use response.timeout_ms for the wait-for-response window. 0 = use config default.",
           "type": "integer",
           "minimum": 0
         },
         "subcommands": {
-          "description": "v2: nested commands (e.g. /port.connect under /port).",
+          "description": "Reserved for nested catalogs. The reference bridge currently matches multi-word commands as flat keys containing spaces (e.g. \"cobs encode\"); prefer flat keys until subcommand dispatch lands.",
           "type": "object",
           "additionalProperties": {"$ref": "#/$defs/command"}
         }
       }
     },
     "typed_arg": {
-      "description": "A single argument descriptor. Matches the shape of a function parameter for codegen.",
+      "description": "A single argument descriptor. Matches the shape of a function parameter for codegen. Unknown fields are ignored (forward compatibility).",
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "required": ["name", "type"],
       "properties": {
         "name": {"type": "string"},
@@ -160,8 +156,14 @@
           "minLength": 1
         },
         "required": {"type": "boolean"},
-        "default": {},
+        "default": {
+          "description": "The value the DEVICE applies when the argument is omitted. Catalog metadata for the consumer: the bridge sends the caller's text verbatim and never substitutes defaults host-side. May coexist with required=true, meaning: the wire grammar has a slot for it, and bare invocation lets the device fill it."
+        },
         "help": {"type": "string"},
+        "unit": {
+          "description": "Unit of measure for this argument (e.g. \"mV\", \"ms\", \"cdeg\"). Purely descriptive metadata for humans and LLMs; no conversion is performed.",
+          "type": "string"
+        },
         "min": {"type": "number"},
         "max": {"type": "number"},
         "enum": {
@@ -172,15 +174,14 @@
       }
     },
     "type_def": {
-      "description": "A profile-local user-defined type, referenced by name from typed_args[i].type. Discriminated by 'kind'.",
+      "description": "A profile-local user-defined type, referenced by name from typed_args[i].type. Discriminated by 'kind'. Unknown fields are ignored (forward compatibility).",
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "required": ["kind"],
       "properties": {
         "kind": {
-          "description": "Discriminator. enum=closed list of allowed values. int_range/float_range=numeric bounds. str_length=string length bounds. pattern=regex fullmatch. format_spec=protocol.parse_format_spec language (validator is a stub today; schema accepts it and the registry caches parsed columns -- the wired-up 20% hook).",
-          "type": "string",
-          "enum": ["enum", "int_range", "float_range", "str_length", "pattern", "format_spec"]
+          "description": "Discriminator. Canonical kinds: enum=closed list of allowed values. int_range/float_range=numeric bounds. str_length=string length bounds. pattern=regex fullmatch. format_spec=protocol.parse_format_spec language (validator is a stub today; schema accepts it and the registry caches parsed columns -- the wired-up 20% hook). Unrecognized kinds degrade fail-closed: the profile still loads, but args declared with that type refuse at dispatch (the bridge will not send an argument it cannot validate).",
+          "type": "string"
         },
         "help": {"type": "string"},
         "values": {
@@ -208,22 +209,21 @@
       ]
     },
     "response": {
-      "description": "How to interpret the device's response. The four patterns + none.",
+      "description": "How to interpret the device's response. Unknown fields are ignored (forward compatibility).",
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "required": ["format"],
       "properties": {
         "format": {
-          "description": "Response shape. none=fire-and-forget. literal=must equal pattern. lines=collect until terminator. regex=match pattern (named groups become typed dict). json=parse as JSON.",
-          "type": "string",
-          "enum": ["none", "literal", "lines", "regex", "json"]
+          "description": "Response shape. Canonical formats: none=fire-and-forget (with verify-silence window). text=whole response as one unstructured string -- the right choice for human-oriented output (help screens, dumps, diagnostics); needs no pattern. literal=must equal pattern. lines=collect until terminator, producing a list. regex=match pattern (named groups become typed dict). json=parse as JSON. Unrecognized format names are treated as 'text' by consumers, so a profile written for a newer spec still returns usable raw text on an older host instead of failing.",
+          "type": "string"
         },
         "pattern": {
-          "description": "Regex (for format=regex/lines line-filter) or literal string (for format=literal).",
+          "description": "Regex (for format=regex/lines line-filter) or literal string (for format=literal). Unused for format=text/none/json.",
           "type": "string"
         },
         "terminator": {
-          "description": "For format=lines: regex matching the line that ends collection (e.g. \"^OK$\"). Overrides transport.prompt for this command.",
+          "description": "For format=lines: regex matching the line that ends collection (e.g. \"^OK$\"). Overrides device.prompt for this command.",
           "type": "string"
         },
         "line_pattern": {
@@ -231,23 +231,27 @@
           "type": "string"
         },
         "line_types": {
-          "description": "Type coercion for line_pattern named groups.",
+          "description": "Type coercion for line_pattern named groups. Canonical names: int, float, bool, hex, str. Unrecognized names degrade to str.",
           "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "enum": ["int", "float", "bool", "hex", "str"]
-          }
+          "additionalProperties": {"type": "string"}
+        },
+        "line_units": {
+          "description": "Unit of measure per line_pattern named group (e.g. {\"volts\": \"V\"}). Purely descriptive; no conversion is performed.",
+          "type": "object",
+          "additionalProperties": {"type": "string"}
         },
         "types": {
-          "description": "For format=regex: type coercion for named groups in pattern.",
+          "description": "For format=regex: type coercion for named groups in pattern. Canonical names: int, float, bool, hex, str. Unrecognized names degrade to str.",
           "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "enum": ["int", "float", "bool", "hex", "str"]
-          }
+          "additionalProperties": {"type": "string"}
+        },
+        "units": {
+          "description": "Unit of measure per named group in pattern (e.g. {\"deg_c\": \"cdeg\", \"volts\": \"V\"}). Purely descriptive metadata for humans and LLMs; no conversion is performed.",
+          "type": "object",
+          "additionalProperties": {"type": "string"}
         },
         "timeout_ms": {
-          "description": "Wait-for-response window (overrides transport.default_response_timeout_ms).",
+          "description": "Wait-for-response window in milliseconds (overrides the cfg's default_response_timeout_ms). For format=none this is the verify-silence window (default 100); 0 opts out of waiting entirely.",
           "type": "integer",
           "minimum": 0
         }

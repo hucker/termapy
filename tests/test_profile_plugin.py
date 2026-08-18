@@ -100,13 +100,14 @@ class TestProfileLoad:
         assert "parse" in result.error.lower(), "error names parse"
 
     def test_load_schema_invalid_refuses(self, env, tmp_path):
-        # Arrange — schema-invalid profile
+        # Arrange — structural violation (command without help) is a
+        # hard error under the compatibility policy.
         bad = tmp_path / "schema_bad.profile.json"
         bad.write_text(
             json.dumps(
                 {
                     "profile_version": 2,
-                    "commands": {"X": {"help": "h", "safety": "made-up"}},
+                    "commands": {"X": {"safety": "readonly"}},
                 }
             ),
             encoding="utf-8",
@@ -117,6 +118,32 @@ class TestProfileLoad:
         # Assert
         assert result.success is False, "schema error refuses load"
         assert ctx.ns("active_profile") == {}, "active profile not set on failure"
+
+    def test_load_unknown_vocabulary_warns_but_loads(self, env, tmp_path):
+        # Arrange — unknown safety tier: degrades per the compatibility
+        # policy (gates like destructive at dispatch), so the load
+        # succeeds with a surfaced warning instead of refusing.
+        newer = tmp_path / "newer.profile.json"
+        newer.write_text(
+            json.dumps(
+                {
+                    "profile_version": 2,
+                    "commands": {"X": {"help": "h", "safety": "made-up"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        eng, ctx, output = env
+        # Act
+        result = eng.dispatch(f"profile.load {newer}")
+        # Assert
+        assert result.success is True, "unknown vocabulary never blocks a load"
+        assert ctx.ns("active_profile").get("commands", {}).get("X"), (
+            "profile installed despite warning"
+        )
+        assert any("warning" in text.lower() for text, _color in output), (
+            "compatibility warning surfaced to the user"
+        )
 
     def test_load_replaces_previous_active_profile(self, env):
         # Arrange — load one, then another

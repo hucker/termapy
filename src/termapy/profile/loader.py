@@ -85,13 +85,32 @@ def save_profile(profile: dict, path: str | Path, *, indent: int = 2) -> None:
 
 # ── Validation ──────────────────────────────────────────────────────────────
 
+# Canonical value vocabularies.  These are deliberately NOT enforced as
+# hard schema enums: the compatibility policy (see schema description and
+# docs/profile-spec.md) is that unrecognized values degrade with defined
+# semantics instead of failing the load, so a profile written for a newer
+# minor spec revision still works on an older host.  The lint layer
+# (validation warnings) flags non-canonical values for authors.
+RESPONSE_FORMATS: tuple[str, ...] = (
+    "none", "text", "literal", "lines", "regex", "json",
+)
+SAFETY_TIERS: tuple[str, ...] = ("safe", "readonly", "mutable", "destructive")
+COERCION_NAMES: tuple[str, ...] = ("int", "float", "bool", "hex", "str")
+
 
 @dataclass
 class ValidationResult:
-    """Outcome of schema validation against the profile schema."""
+    """Outcome of schema validation against the profile schema.
+
+    ``errors`` block the load; ``warnings`` never do.  Warnings carry
+    the forward-compat lint findings: unknown fields (tolerated per the
+    compatibility policy) and non-canonical values that will degrade at
+    dispatch (unrecognized format/safety/kind/coercion names).
+    """
 
     ok: bool
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 def validate_profile(profile: dict) -> ValidationResult:
@@ -99,9 +118,14 @@ def validate_profile(profile: dict) -> ValidationResult:
 
     Uses ``jsonschema`` if installed; otherwise applies a small built-in
     structural check that covers the highest-leverage rules (required
-    fields, enum constraints).  The fallback is intentionally narrower
-    than full schema validation -- if a user wants strict checks they
-    can ``pip install jsonschema``.
+    fields, wrong shapes).  The fallback is intentionally narrower than
+    full schema validation -- if a user wants strict checks they can
+    ``pip install jsonschema``.
+
+    Either way, the result also carries lint ``warnings`` from
+    :func:`collect_warnings` -- unknown fields and non-canonical values
+    are tolerated on load (forward compatibility) but surfaced so
+    authors catch typos.
     """
     # Catch the most-cited migration failure before jsonschema's
     # "not.required" produces an unreadable error message.  Users
@@ -119,7 +143,16 @@ def validate_profile(profile: dict) -> ValidationResult:
     try:
         import jsonschema
     except ImportError:
-        return _builtin_validate(profile)
+        result = _builtin_validate(profile)
+    else:
+        result = _jsonschema_validate(profile, jsonschema)
+    if isinstance(profile, dict):
+        result.warnings.extend(collect_warnings(profile))
+    return result
+
+
+def _jsonschema_validate(profile: dict, jsonschema: Any) -> ValidationResult:
+    """Full schema validation via the optional ``jsonschema`` package."""
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     validator = jsonschema.Draft202012Validator(schema)
     errors = sorted(validator.iter_errors(profile), key=lambda e: list(e.absolute_path))
@@ -135,9 +168,13 @@ def validate_profile(profile: dict) -> ValidationResult:
 def _builtin_validate(profile: dict) -> ValidationResult:
     """Minimal structural validator for when jsonschema isn't installed.
 
-    Catches the high-leverage mistakes: bad enum values, missing
-    required fields, wrong top-level types.  Not a full replacement for
-    jsonschema -- callers who want strict checks should install it.
+    Catches the high-leverage structural mistakes: missing required
+    fields, wrong shapes, unsupported profile_version.  Not a full
+    replacement for jsonschema -- callers who want strict checks should
+    install it.  Vocabulary checks (safety tiers, response formats) are
+    NOT errors here: per the compatibility policy those values degrade
+    with defined semantics, so they surface as warnings via
+    :func:`collect_warnings` instead.
     """
     errors: list[str] = []
     if not isinstance(profile, dict):
@@ -173,32 +210,170 @@ def _builtin_validate(profile: dict) -> ValidationResult:
                     errors.append(
                         f"commands/{name}/enabled: must be a boolean, got {type(enabled).__name__}"
                     )
-                safety = entry.get("safety")
-                if safety is not None and safety not in (
-                    "safe",
-                    "readonly",
-                    "mutable",
-                    "destructive",
-                ):
-                    errors.append(
-                        f"commands/{name}/safety: invalid value {safety!r}"
-                    )
-                response = entry.get("response")
-                if response is not None and isinstance(response, dict):
-                    fmt = response.get("format")
-                    if fmt is not None and fmt not in (
-                        "none",
-                        "literal",
-                        "lines",
-                        "regex",
-                        "json",
-                    ):
-                        errors.append(
-                            f"commands/{name}/response/format: "
-                            f"invalid value {fmt!r}"
-                        )
 
     return ValidationResult(ok=not errors, errors=errors)
+
+
+# ── Forward-compat lint warnings ────────────────────────────────────────────
+
+_known_keys_cache: dict[str, frozenset[str]] | None = None
+
+
+def _known_keys() -> dict[str, frozenset[str]]:
+    """Per-object-level known property names, extracted from the schema.
+
+    The schema is the single source of truth for field names; deriving
+    the sets here keeps the lint walker from drifting when the schema
+    gains fields.  Returns empty sets (=> no unknown-key warnings) if
+    the schema file is unreadable -- lint must never block a load.
+    """
+    global _known_keys_cache
+    if _known_keys_cache is not None:
+        return _known_keys_cache
+    try:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        props = schema.get("properties", {})
+        defs = schema.get("$defs", {})
+
+        def _props_of(node: dict) -> frozenset[str]:
+            return frozenset(node.get("properties", {}).keys())
+
+        _known_keys_cache = {
+            "root": frozenset(props.keys()),
+            "device": _props_of(props.get("device", {})),
+            "error_detection": _props_of(props.get("error_detection", {})),
+            "command": _props_of(defs.get("command", {})),
+            "typed_arg": _props_of(defs.get("typed_arg", {})),
+            "type_def": _props_of(defs.get("type_def", {})),
+            "response": _props_of(defs.get("response", {})),
+        }
+    except (OSError, ValueError):
+        _known_keys_cache = {}
+    return _known_keys_cache
+
+
+def _is_extension_key(key: Any) -> bool:
+    """True for author-blessed extension keys that never warn.
+
+    ``$``-prefixed keys serve tooling conventions (``$schema``);
+    ``x_``/``x-`` prefixes are the documented extension namespace.
+    """
+    return isinstance(key, str) and (
+        key.startswith("$") or key.startswith("x_") or key.startswith("x-")
+    )
+
+
+def _suggest(name: str, candidates: Any) -> str:
+    """Return ``; did you mean 'x'?`` for the closest candidate, or ``""``.
+
+    Spelling errors are the main way a tolerated-unknown slips past an
+    author (a misspelled ``safety`` key silently un-gates a command),
+    so every warning about an unknown name carries the nearest
+    canonical one when the edit distance is plausibly a typo.
+    """
+    import difflib
+
+    matches = difflib.get_close_matches(name, list(candidates), n=1, cutoff=0.6)
+    return f"; did you mean {matches[0]!r}?" if matches else ""
+
+
+def _warn_unknown(obj: Any, level: str, loc: str, out: list[str]) -> None:
+    """Append a warning per unknown key in ``obj`` at schema ``level``."""
+    known = _known_keys().get(level)
+    if not known or not isinstance(obj, dict):
+        return
+    for k in obj:
+        if k not in known and not _is_extension_key(k):
+            out.append(
+                f"{loc}: unknown field {k!r} "
+                f"(ignored by this host{_suggest(k, known)})"
+            )
+
+
+def _warn_coercions(types_map: Any, loc: str, out: list[str]) -> None:
+    """Warn per non-canonical coercion name; such values degrade to str."""
+    if not isinstance(types_map, dict):
+        return
+    for group, coercion in types_map.items():
+        if isinstance(coercion, str) and coercion.lower() not in COERCION_NAMES:
+            out.append(
+                f"{loc}/{group}: unrecognized coercion {coercion!r} "
+                f"(value will stay a raw string"
+                f"{_suggest(coercion, COERCION_NAMES)})"
+            )
+
+
+def _warn_command(name: str, spec: Any, loc: str, out: list[str]) -> None:
+    """Lint one command entry (and nested subcommands, recursively)."""
+    if not isinstance(spec, dict):
+        return
+    _warn_unknown(spec, "command", loc, out)
+    safety = spec.get("safety")
+    if isinstance(safety, str) and safety not in SAFETY_TIERS:
+        out.append(
+            f"{loc}/safety: unrecognized tier {safety!r} "
+            f"(treated as destructive: confirmation required"
+            f"{_suggest(safety, SAFETY_TIERS)})"
+        )
+    for i, ta in enumerate(spec.get("typed_args") or []):
+        _warn_unknown(ta, "typed_arg", f"{loc}/typed_args/{i}", out)
+    response = spec.get("response")
+    if isinstance(response, dict):
+        rloc = f"{loc}/response"
+        _warn_unknown(response, "response", rloc, out)
+        fmt = response.get("format")
+        if isinstance(fmt, str) and fmt not in RESPONSE_FORMATS:
+            out.append(
+                f"{rloc}/format: unrecognized format {fmt!r} "
+                f"(treated as 'text': raw response string"
+                f"{_suggest(fmt, RESPONSE_FORMATS)})"
+            )
+        _warn_coercions(response.get("types"), f"{rloc}/types", out)
+        _warn_coercions(response.get("line_types"), f"{rloc}/line_types", out)
+    subs = spec.get("subcommands")
+    if isinstance(subs, dict):
+        for sub_name, sub_spec in subs.items():
+            _warn_command(
+                sub_name, sub_spec, f"{loc}/subcommands/{sub_name}", out
+            )
+
+
+def collect_warnings(profile: dict) -> list[str]:
+    """Forward-compat lint pass: unknown fields + non-canonical values.
+
+    Everything reported here is TOLERATED at load time -- the warnings
+    exist so authors catch typos and know which degrade rule applies.
+    Extension keys (``$schema``, ``x_*``, ``x-*``) never warn.
+    """
+    out: list[str] = []
+    if not isinstance(profile, dict):
+        return out
+    _warn_unknown(profile, "root", "<root>", out)
+    _warn_unknown(profile.get("device"), "device", "device", out)
+    err = profile.get("error_detection")
+    if isinstance(err, dict):
+        _warn_unknown(err, "error_detection", "error_detection", out)
+        _warn_coercions(err.get("types"), "error_detection/types", out)
+    types_block = profile.get("types")
+    if isinstance(types_block, dict):
+        from termapy.profile.types import schema_kinds
+
+        kinds = schema_kinds()
+        for tname, tdef in types_block.items():
+            tloc = f"types/{tname}"
+            _warn_unknown(tdef, "type_def", tloc, out)
+            kind = tdef.get("kind") if isinstance(tdef, dict) else None
+            if isinstance(kind, str) and kind not in kinds:
+                out.append(
+                    f"{tloc}/kind: unrecognized kind {kind!r} (profile loads; "
+                    f"args of this type refuse at dispatch"
+                    f"{_suggest(kind, kinds)})"
+                )
+    commands = profile.get("commands")
+    if isinstance(commands, dict):
+        for name, spec in commands.items():
+            _warn_command(name, spec, f"commands/{name}", out)
+    return out
 
 
 # ── Precedence ──────────────────────────────────────────────────────────────

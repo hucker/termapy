@@ -145,7 +145,7 @@ class TestMcpDispatch:
             "install hint mentions the extra: pip install termapy[mcp]"
         )
 
-    def test_mcp_verbose_emits_host_built_notice_to_stderr(self):
+    def test_mcp_verbose_emits_host_built_notice_to_stderr(self, tmp_path):
         """--mcp --mcp-verbose prints a startup notice to stderr.
 
         Phase 3 emits "host built; cfg=...; mcp_dir=..." on startup
@@ -157,13 +157,19 @@ class TestMcpDispatch:
             from mcp.server import MCPServer  # noqa: F401
         except ImportError:
             pytest.skip("mcp SDK not installed; verbose path unreachable")
-        # Act — close stdin so the server shuts down quickly after the banner.
+        # Act — close stdin so the server shuts down quickly after the
+        # banner.  Same hardening as the EOF test above: isolated cfg
+        # dir + generous timeout, because a cold start that imports the
+        # whole MCP/pydantic stack under full-suite CPU load can blow a
+        # tight budget (flaky TimeoutExpired).
         result = subprocess.run(
-            [sys.executable, "-m", "termapy", "--mcp", "--mcp-verbose"],
+            [sys.executable, "-m", "termapy", "--mcp", "--mcp-verbose",
+             "--cfg-dir", str(tmp_path)],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=30,
             input="",
+            cwd=str(tmp_path),
         )
         # Assert
         assert "Traceback" not in result.stderr, (

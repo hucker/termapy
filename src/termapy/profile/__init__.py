@@ -71,9 +71,13 @@ from types import SimpleNamespace
 from typing import Any
 
 from termapy.profile.loader import (
+    COERCION_NAMES,
+    RESPONSE_FORMATS,
+    SAFETY_TIERS,
     SCHEMA_PATH,
     Profile,
     ValidationResult,
+    collect_warnings,
     load_profile,
     precedence,
     save_profile,
@@ -132,9 +136,13 @@ def profile_command_view(profile: dict[str, Any] | None) -> dict[str, SimpleName
 
 __all__ = [
     # loader
+    "COERCION_NAMES",
     "Profile",
+    "RESPONSE_FORMATS",
+    "SAFETY_TIERS",
     "SCHEMA_PATH",
     "ValidationResult",
+    "collect_warnings",
     "load_profile",
     "precedence",
     "save_profile",

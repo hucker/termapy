@@ -1,9 +1,12 @@
-"""Pure response parsers for the four supported profile patterns + none.
+"""Pure response parsers for the profile response formats.
 
 The MCP bridge applies one of these formats to every device response,
 turning raw text into structured data the LLM consumes.  Formats:
 
 - ``none``   -- fire-and-forget; returns ``None``.
+- ``text``   -- whole response as one unstructured string.  The right
+                choice for human-oriented output (help screens, dumps);
+                needs no pattern.
 - ``literal`` -- response must equal ``pattern`` exactly (after strip).
 - ``lines``  -- splits on newlines; optional ``line_pattern`` parses each
                 line into a typed dict.  Produces a list.
@@ -11,6 +14,13 @@ turning raw text into structured data the LLM consumes.  Formats:
                 unnamed groups become a list; no groups returns the
                 matched substring.
 - ``json``   -- parses the response as JSON.
+
+Forward compatibility: an *unrecognized* format name degrades to
+``text`` -- the caller still gets the raw response string instead of a
+failure, so profiles written for a newer spec revision stay usable on
+older hosts (see docs/profile-spec.md).  The same policy applies to
+coercion names in ``types`` maps: unknown names leave the value as str
+(see ``_coerce``).
 
 This module is pure and stateless.  It intentionally ``never raises``
 on bad text -- callers expect a graceful ``None`` (or empty result) so
@@ -92,7 +102,8 @@ def parse_response(
 
     Args:
         text: Raw response text from the device (after echo/prompt strip).
-        fmt: One of ``"none" | "literal" | "lines" | "regex" | "json"``.
+        fmt: One of ``"none" | "text" | "literal" | "lines" | "regex" |
+            "json"``; unrecognized values degrade to ``"text"``.
         pattern: Regex (regex/lines line-filter) or literal (literal).
         types: Type coercion map for named regex groups in ``pattern``.
         line_pattern: For ``lines``: optional per-line regex with named
@@ -105,12 +116,14 @@ def parse_response(
     Returns:
         Parsed value, shape depending on format:
             none     -> None
+            text     -> the response text unchanged (str)
             literal  -> stripped text if it equals pattern, else None
             lines    -> list[str] or list[dict] (if line_pattern provided)
             regex    -> str | list[str] | dict[str, Any] | None
             json     -> any JSON-parseable value, or None on parse failure
 
-        Unknown format returns ``None``.
+        Unknown format degrades to ``text`` (returns the raw string) so
+        a profile from a newer spec revision stays usable on this host.
     """
     if fmt == "none":
         return None
@@ -130,7 +143,9 @@ def parse_response(
     if fmt == "regex":
         return _parse_regex(text, pattern, types)
 
-    return None
+    # "text" and any unrecognized future format: hand back the raw
+    # response string -- degrade, never fail (compatibility policy).
+    return text
 
 
 # ── Per-format implementations ───────────────────────────────────────────────

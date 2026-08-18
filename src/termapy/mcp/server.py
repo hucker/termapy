@@ -1054,16 +1054,30 @@ def _dispatch_via_profile(
     # handshake + a richer safety/hazard vocabulary in the profile schema
     # -- both device-agnostic mechanisms, not device policy in the bridge.)
     safety = spec.get("safety", "safe")
-    if safety == "destructive" and not confirm:
-        result = CmdResult.fail(
-            msg=(
+    # Unrecognized tiers gate exactly like destructive (fail-safe
+    # degrade): a future stronger-than-destructive tier in a newer
+    # profile must require confirmation on this host, not silently run.
+    from termapy.profile import SAFETY_TIERS
+
+    unrecognized_tier = safety not in SAFETY_TIERS
+    if (safety == "destructive" or unrecognized_tier) and not confirm:
+        if unrecognized_tier:
+            msg = (
+                f"Confirmation required: {name!r} declares unrecognized "
+                f"safety tier {safety!r} (treated as destructive). "
+                "Re-call with confirm=true after the user has approved."
+            )
+        else:
+            msg = (
                 f"Confirmation required: {name!r} is destructive. "
                 "Re-call with confirm=true after the user has approved."
-            ),
+            )
+        result = CmdResult.fail(
+            msg=msg,
             value={
                 "needs_confirmation": True,
                 "command": name,
-                "safety": "destructive",
+                "safety": safety,
                 "help": spec.get("help", ""),
             },
         )

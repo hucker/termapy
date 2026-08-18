@@ -61,7 +61,7 @@ src/termapy/
 │   ├── crc/                #              Built-in CRC plugins (sum8, sum16)
 │   ├── demo/               #              Demo config, scripts, proto files, plugins
 │   └── viz/                #              Built-in packet visualizers (hex, text)
-├── dialogs/                # (2451 lines) Modal screens - one file per dialog
+├── dialogs/                # (2448 lines) Modal screens - one file per dialog
 │   ├── _common.py          #   Shared CSS, dismiss bindings, port-row helper
 │   ├── cfg_confirm.py      #   CfgConfirm
 │   ├── config_editor.py    #   ConfigEditor - the cfg-dict editor (the big one)
@@ -78,18 +78,18 @@ src/termapy/
 │   └── welcome_dialog.py   #   WelcomeDialog
 ├── help/                   #              Markdown help pages (source for HTML build)
 ├── html/                   #              Generated HTML help
-├── mcp/                    # (2011 lines) MCP stdio server
+├── mcp/                    # (2038 lines) MCP stdio server
 │   ├── catalog.py          #   JSON catalog + device-state resources
 │   ├── prompts.py          #   MCP prompts (draft_profile, etc.)
 │   └── server.py           #   MCPHost - run_command, async events, lifecycle
-├── plugins/                # (2935 lines) Plugin system - capability-handle architecture
+├── plugins/                # (3046 lines) Plugin system - capability-handle architecture
 │   ├── handles/            #   IOHandle, SerialHandle, FilesystemHandle, UIHandle, InternalHandle
 │   ├── capabilities.py     #   CapabilitySet, MissingCapability
 │   ├── command.py          #   Command, CmdResult, Transform, Directive
 │   ├── context.py          #   PluginContext dataclass + ns/plugin_cfg/dispatch
 │   ├── loader.py           #   Plugin discovery, COMMAND validation
 │   └── output_levels.py    #   Silent/quiet/normal/verbose constants + ordering
-├── profile/                # (1099 lines) v2 device-profile schema, loader, type registry
+├── profile/                # (1282 lines) v2 device-profile schema, loader, type registry
 │   ├── loader.py           #   load/save/validate + Profile dataclass + transport apply
 │   ├── matcher.py          #   match_profile_command, template_to_regex
 │   ├── schema.json         #   Canonical JSON Schema (Draft 2020-12)
@@ -99,12 +99,12 @@ src/termapy/
 │   ├── crc.py              #   crcglot catalog shim (100+ algorithms via crcglot pkg) + CRC plugin registry
 │   ├── runner.py           #   .pro file execution
 │   └── viz.py              #   Visualizer plugin loader
-├── usb/                    # (3913 lines) USB lookup tables (library-shaped)
+├── usb/                    # (3911 lines) USB lookup tables (library-shaped)
 │   ├── _vendors_full.py    #   Generated USB-IF table (fallback)
 │   ├── aliases.py          #   Manufacturer-string -> short display alias
 │   ├── chips.py            #   (VID, PID) -> ChipInfo (model, speed, max baud)
 │   └── vendors.py          #   VID -> canonical vendor name (curated short forms)
-├── app.py                  # (3781 lines) Textual TUI - UI, modals, app hooks
+├── app.py                  # (3635 lines) Textual TUI - UI, modals, app hooks
 ├── capture.py              # (365 lines)  Capture state machine - text, binary, format spec
 ├── cli.py                  # (1095 lines) Plain-text CLI frontend - CLITerminal + _run_cli_mode
 ├── config.py               # (824 lines)  Config dirs, loading, validation, migration trigger
@@ -116,11 +116,11 @@ src/termapy/
 ├── help_dynamic.py         # (258 lines)  Reusable helpers for callable long_help
 ├── history_nav.py          #              REPL Up/Down history browsing cursor (Textual-free)
 ├── migration.py            # (701 lines)  Config schema migration chain
-├── port_control.py         # (1535 lines) Pure serial port control functions - no Textual
-├── proto_debug.py          # (1181 lines) Interactive protocol debug screen (Textual)
-├── repl.py                 # (1883 lines) REPL engine - dispatch, scripting, transforms
+├── port_control.py         # (1584 lines) Pure serial port control functions - no Textual
+├── proto_debug.py          # (1185 lines) Interactive protocol debug screen (Textual)
+├── repl.py                 # (1918 lines) REPL engine - dispatch, scripting, transforms
 ├── scripting.py            # (534 lines)  Pure functions - templates, duration parsing, ANSI
-├── serial_engine.py        # (605 lines)  Serial connection lifecycle, reader loop orchestrator
+├── serial_engine.py        # (606 lines)  Serial connection lifecycle, reader loop orchestrator
 ├── serial_port.py          # (451 lines)  Serial I/O wrapper + SerialReader data processor
 ├── terminal_host.py        # (649 lines)  Shared base for TUI and CLI - builds PluginContext
 └── vt100.py                # (173 lines)  --vt100 ANSI passthrough - raw serial <-> host terminal via miniterm
@@ -591,7 +591,7 @@ files (see [Hooks](#hooks) for the host-registered exceptions).
 
 ## Suppressions
 
-27 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
+26 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
 
 ## Test coverage
 

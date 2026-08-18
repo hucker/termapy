@@ -1,5 +1,138 @@
 # Changelog
 
+## 0.74.0 (2026-08-18)
+
+Two new argument primitives that any command can use, multi-frame CRC
+identification built on them, the device-profile format published as a
+versioned spec with a forward-compatibility policy, and the MCP server moved
+to the 2.x SDK. Release gates are now reproducible, and Linux CI is green
+again after a month.
+
+### Passing a value that contains a space
+
+Termapy has never had quoting: every argument parser splits on whitespace, so
+a value containing a space could not reach a single parameter. `$(*NAME)` --
+star inside the parens -- closes that. Where `$(NAME)` is expanded *before*
+the line is split into arguments (so its value is text, and spaces in it
+become extra arguments), `$(*NAME)` resolves *after* the split, so it is
+always **exactly one argument** whatever it holds -- spaces, newlines, or an
+empty string.
+
+```text
+$(FRAME) = 01 03 00 00 00 0a c5 cd
+
+/proto.crc.detect $(FRAME)     # splice: 8 arguments, so 8 frames
+/proto.crc.detect $(*FRAME)    # deref:  1 argument,  so 1 frame
+```
+
+The rule to remember: **`$(NAME)` is text, `$(*NAME)` is one argument.** It
+works in any command that declares typed parameters, in every argument slot
+except a whole-line `rest` value. An undefined name is an error rather than a
+silent pass-through, and a reference embedded in a larger token is rejected
+instead of being treated as a literal.
+
+`ParamSpec` also gained `variadic=True`, so a positional can bind a *list*
+with per-element coercion and range checks -- `list[int]`, `list[enum]` and
+friends work with no change to the coercion layer.
+
+### CRC identification across several frames
+
+crcglot 0.31 taught `detect` to take a frame list, and `/proto.crc.detect`
+now surfaces it: `<frames>...` binds one frame per argument, while `frame=`
+takes a single frame that may contain spaces, so a line pasted from a log
+needs no variable round-trip. crcglot owns and enforces the rule that the two
+forms are mutually exclusive.
+
+This matters because a single frame is often ambiguous: a narrow CRC matches
+by coincidence roughly once in 2^width, so an 8-byte frame carrying a crc8
+can also fit `crc6-darc`, and `match=first` would report whichever came up.
+Several frames intersect and eliminate the phantom. It composes with the
+existing `width=` and `algorithms=` filters rather than replacing them --
+`width=` is the cheaper fix when you know the width, several frames narrow it
+when you don't.
+
+`/proto.crc.reverse` accepts `$(*NAME)` for its packets too. It keeps parsing
+its own arguments, because its documented `cmd=<trigger> count=N` form puts
+keywords after a to-end-of-line value, which the declarative parser cannot
+express.
+
+**Note:** whitespace now separates frames for `/proto.crc.detect`, so the old
+`detect 01 03 00 00 00 0a c5 cd` spelling means eight frames. Use
+`frame=01 03 00 ...`, comma/colon separators inside a frame, or `$(*NAME)`.
+
+### Device profiles: a published spec that survives its own evolution
+
+`docs/profile-spec.md` is now the normative reference for the profile format,
+and the format has an explicit policy for what happens when it evolves: a
+profile written for a newer revision **degrades on an older host instead of
+failing**. `profile_version` is the only hard gate. Unknown response formats
+fall back to `text`; an unknown safety tier is gated like `destructive`
+(fail-safe); an unknown type kind loads with a warning and refuses at dispatch
+(fail-closed); `$`-prefixed and `x_`/`x-` keys are a blessed extension
+namespace that never warns.
+
+Leniency opens a real hole, so it ships with a typo defense: `saftey:
+destructive` would have left a command **ungated**. Unknown-name warnings now
+carry a did-you-mean suggestion, and `--validate-profile <path> --strict`
+escalates warnings to exit 1 for CI and pre-commit hooks -- enforcement runs
+where the author is, so deployed consumers never brick on a profile from a
+newer producer.
+
+Also: `response.format: "text"` returns the whole reply as one string, a
+first-class replacement for the `(?s)(?P<text>.*)` catch-all that dominated
+real profiles, plus descriptive unit metadata on typed args and responses.
+
+### MCP server on the mcp 2.x SDK
+
+mcp 2.0 removed `mcp.server.fastmcp` and replaced it with
+`mcp.server.MCPServer`. The two majors share no server API, so the `[mcp]`
+extra is now a floor (`mcp>=2,<3`) rather than a range: **an environment
+pinned to mcp 1.x will no longer resolve.** The decorator surface termapy uses
+is unchanged across the break, and the port was verified with a live
+handshake against a real 2.x client over stdio.
+
+### Terminal, ports, and scripts
+
+The port picker offers pyserial's loopback (`loop://`) as a selectable entry,
+and a config naming a URL or virtual port now connects directly on load
+instead of only doing so for `DEMO`. The port table shows `?` rather than `-`
+for genuinely unknown cells. REPL input focus and the bottom bar are restored
+after a script finishes, and `echo_repl` defaults off inside scripts and is
+restored on exit. The Help tooltip shows update status and credits crcglot.
+
+### Reproducible release gates
+
+`ruff` and `ty` are pinned exactly and the lint rule set is selected
+explicitly, because both were floating: ruff 0.16 widened its implicit default
+from 59 rules to 414, which would have redefined "zero" mid-release without
+review. The gate also pins its *environment* (`uv sync --all-extras`) -- ty's
+diagnostic count depends on what is installed, not just on the source, so the
+two states contradicted each other.
+
+Linux CI is green again after being red since 2026-07-15. The cause was a test
+asserting `/cfg.dump` refuses an absolute path using `C:/Windows/win.ini` --
+absolute on Windows, an ordinary relative name on POSIX, so the guard never
+fired. CI runs ubuntu-latest exclusively, so it was invisible from a Windows
+dev box.
+
+Transitive advisories patched: aiohttp 3.14.3 and cryptography 50.0.0. Both
+arrive via optional extras (`[web]` and `[mcp]`), so a plain install pulls
+neither.
+
+### Internal
+
+`app.py`'s size ratchet is gone, replaced by guidance framed around
+essential-versus-accidental complexity: a feature-rich TUI has irreducible UI
+code, and relocating it to shrink a number scatters it without reducing it.
+The honest extractions -- driven by testability rather than size -- landed:
+`StatusBar` and a `widgets/` package, the command suggester, the help and
+title tooltip formatters, and a testable `HistoryNavigator` for REPL history
+browsing, each with tests.
+
+Loop variables across the codebase follow `for singular in plural:` (1053
+renames); `i`/`j`/`k`, `_`, tuple unpacking, and short whole words like `key`
+are exempt, since the rule targets truncation rather than variety.
+
 ## 0.73.0 (2026-07-15)
 
 A broad release focused on the terminal experience, a consistent

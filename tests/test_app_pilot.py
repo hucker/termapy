@@ -327,3 +327,181 @@ class TestOutputBatching:
                 assert app.is_running, "an empty batch is a no-op, not an error"
 
         _run(scenario)
+
+
+class TestFindBar:
+    """``_update_find_bar`` swaps the live output for a frozen, highlighted copy.
+
+    It is driven by ``/find`` through ``ctx.internal.update_find_bar``, so the
+    state dict is the plugin's contract -- these build it directly rather than
+    routing through the plugin, keeping the test about the UI half.
+    """
+
+    @staticmethod
+    def _state(**overrides) -> dict:
+        """A find-state snapshot shaped like find.current_state().
+
+        Kept honest by test_fixture_matches_the_real_contract below: a
+        hand-rolled dict that drifts from the plugin would let these tests
+        pass while the real UI broke on a missing key.
+        """
+        state = {
+            "pattern": "beta",
+            "total": 1,
+            "matches": [(2, "beta line")],
+            "scrollback_text": "alpha line\nbeta line\ngamma line",
+            "index": 0,
+            "line_no": 2,
+            "snippet": "beta line",
+        }
+        state.update(overrides)
+        return state
+
+    def test_fixture_matches_the_real_contract(self):
+        # Arrange -- drive the real plugin so current_state() builds a
+        # genuine snapshot to compare shapes against
+        from termapy.builtins.commands import find
+
+        find._active = find._Active(
+            pattern="beta",
+            matches=[(2, "beta line")],
+            current=0,
+            scrollback_text="alpha line\nbeta line\ngamma line",
+        )
+        try:
+            real = find.current_state()
+        finally:
+            find._active = None
+
+        # Assert -- same keys, so a contract change fails HERE rather than
+        # silently diverging from what the UI actually receives
+        actual, expected = set(self._state()), set(real)
+        assert actual == expected, (
+            f"fixture drifted from find.current_state(): "
+            f"missing {expected - actual}, extra {actual - expected}"
+        )
+
+    def test_activating_shows_the_bar_and_freezes_output(self, app_factory):
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                app._update_find_bar(self._state())
+                await pilot.pause()
+
+                # Assert -- the frozen view takes over from the live log
+                live = app.query_one("#output", RichLog)
+                frozen = app.query_one("#output-find", RichLog)
+                actual = (live.display, frozen.display)
+                assert actual == (False, True), (
+                    "find hides live #output and reveals the frozen #output-find"
+                )
+
+        _run(scenario)
+
+    def test_activating_reveals_every_find_bar_widget(self, app_factory):
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                app._update_find_bar(self._state())
+                await pilot.pause()
+
+                # Assert
+                hidden = [sel for sel in app._FIND_BAR_WIDGETS
+                          if not app.query_one(sel).display]
+                assert hidden == [], f"every find widget is shown, hidden: {hidden}"
+
+        _run(scenario)
+
+    def test_record_button_steps_aside_for_the_bar(self, app_factory):
+        async def scenario():
+            from textual.widgets import Button
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                app._update_find_bar(self._state())
+                await pilot.pause()
+
+                # Assert -- find takes the row, Record yields it
+                assert app.query_one("#btn-record", Button).display is False, (
+                    "the Record button hides while the find bar owns the row"
+                )
+
+        _run(scenario)
+
+    def test_deactivating_restores_the_live_view(self, app_factory):
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app._update_find_bar(self._state())
+                await pilot.pause()
+
+                # Act -- state=None is the "close find" signal
+                app._update_find_bar(None)
+                await pilot.pause()
+
+                # Assert
+                live = app.query_one("#output", RichLog)
+                frozen = app.query_one("#output-find", RichLog)
+                actual = (live.display, frozen.display)
+                assert actual == (True, False), (
+                    "closing find restores live #output and hides the frozen copy"
+                )
+
+        _run(scenario)
+
+    def test_zero_matches_leaves_the_live_view_alone(self, app_factory):
+        async def scenario():
+            from textual.widgets import RichLog
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- a pattern that matched nothing: there is no frozen
+                # view worth building, so the live output must stay put
+                app._update_find_bar(
+                    self._state(total=0, matches=[], index=-1)
+                )
+                await pilot.pause()
+
+                # Assert
+                assert app.query_one("#output", RichLog).display is True, (
+                    "a zero-match find does not freeze the live output"
+                )
+
+        _run(scenario)
+
+    def test_status_label_reports_position(self, app_factory):
+        async def scenario():
+            from textual.widgets import Label
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act -- second of three matches
+                app._update_find_bar(self._state(
+                    total=3,
+                    matches=[(1, "a"), (2, "b"), (3, "c")],
+                    index=1,
+                ))
+                await pilot.pause()
+
+                # Assert -- the slim label is "n/m", 1-based for humans.
+                # Textual 8.x exposes the text as `.content`, not the older
+                # `.renderable`.
+                text = str(app.query_one("#find-status", Label).content)
+                assert "2" in text and "3" in text, (
+                    f"status shows current/total, got {text!r}"
+                )
+
+        _run(scenario)

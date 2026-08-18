@@ -55,7 +55,10 @@ from termapy.config import (
 # entry.py / cli_flags.py can import from config_resolve directly.
 from termapy.config_resolve import (
     find_config as _find_config,
+    proto_dir_for,
+    proto_script_name,
     resolve_config as _resolve_config,
+    resolve_proto_path,
 )
 from termapy.defaults import cmd_prefix, default_cfg
 from termapy.dialogs import (
@@ -3437,15 +3440,11 @@ def _run_proto_headless(args) -> None:
     cfg["_config_path"] = config_path
 
     # Resolve .pro file from config's proto/ dir
-    proto_dir = Path(config_path).parent / "proto"
-    name = args.proto
-    if not name.endswith(".pro"):
-        name += ".pro"
-    pro_path = Path(name)
-    if not pro_path.exists():
-        pro_path = proto_dir / name
-    if not pro_path.exists():
-        print(f"termapy: proto file not found: {Path(name).resolve()}", file=sys.stderr)
+    pro_path = resolve_proto_path(args.proto, config_path)
+    if pro_path is None:
+        proto_dir = proto_dir_for(config_path)
+        print(f"termapy: proto file not found: {Path(proto_script_name(args.proto)).resolve()}",
+              file=sys.stderr)
         if proto_dir.exists():
             print(f"  (checked {proto_dir.resolve()})", file=sys.stderr)
         sys.exit(2)

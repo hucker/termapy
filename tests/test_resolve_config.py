@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from termapy.config_resolve import resolve_config as _resolve_config
+from termapy.config_resolve import (
+    proto_dir_for,
+    proto_script_name,
+    resolve_config as _resolve_config,
+    resolve_proto_path,
+)
 
 
 def _make_cfg(base: Path, name: str) -> Path:
@@ -251,3 +256,141 @@ class TestResolveConfigPriority:
         # Assert
         assert actual is not None, "resolver returned a path"
         assert Path(actual).resolve() == cfg_a.resolve(), "rule 3 (cfg_dir) wins over rule 4 (cwd/termapy_cfg)"
+
+
+# ── resolve_proto_path / proto_dir_for ──────────────────────────────────────
+#
+# These back `termapy --proto <name>`, whose runner lives in app.py and is
+# therefore omitted from coverage.  Extracting the lookup into config_resolve
+# is what makes it reachable at all -- the point is the tests, not the move.
+
+
+class TestProtoDirFor:
+    def test_sits_beside_the_config(self, tmp_path):
+        # Arrange
+        config_path = tmp_path / "proj" / "proj.cfg"
+
+        # Act
+        actual = proto_dir_for(str(config_path))
+
+        # Assert
+        assert actual == tmp_path / "proj" / "proto", "proto/ is a sibling of the cfg"
+
+    def test_does_not_require_the_folder_to_exist(self, tmp_path):
+        # Act -- a config with no proto/ folder yet is normal, not an error
+        actual = proto_dir_for(str(tmp_path / "p.cfg"))
+
+        # Assert
+        assert actual.name == "proto", "returns the path regardless of existence"
+        assert not actual.exists(), "and does not create it"
+
+
+class TestResolveProtoPath:
+    def _cfg(self, tmp_path):
+        """A config file with an empty proto/ folder beside it."""
+        config_path = tmp_path / "proj" / "proj.cfg"
+        config_path.parent.mkdir(parents=True)
+        (config_path.parent / "proto").mkdir()
+        return config_path
+
+    def test_finds_script_in_the_proto_folder(self, tmp_path):
+        # Arrange
+        config_path = self._cfg(tmp_path)
+        script = config_path.parent / "proto" / "smoke.pro"
+        script.write_text("", encoding="utf-8")
+
+        # Act
+        actual = resolve_proto_path("smoke.pro", str(config_path))
+
+        # Assert
+        assert actual == script, "resolves inside the config's proto/ folder"
+
+    def test_appends_the_extension(self, tmp_path):
+        # Arrange -- `--proto smoke` must behave like `--proto smoke.pro`
+        config_path = self._cfg(tmp_path)
+        script = config_path.parent / "proto" / "smoke.pro"
+        script.write_text("", encoding="utf-8")
+
+        # Act
+        actual = resolve_proto_path("smoke", str(config_path))
+
+        # Assert
+        assert actual == script, "a bare name gets .pro appended"
+
+    def test_does_not_double_the_extension(self, tmp_path):
+        # Arrange
+        config_path = self._cfg(tmp_path)
+        script = config_path.parent / "proto" / "smoke.pro"
+        script.write_text("", encoding="utf-8")
+
+        # Act
+        actual = resolve_proto_path("smoke.pro", str(config_path))
+
+        # Assert -- never smoke.pro.pro
+        assert actual == script, "an explicit .pro is left alone"
+
+    def test_direct_path_wins_over_the_proto_folder(self, tmp_path, monkeypatch):
+        # Arrange -- same filename in both places; the one the user typed
+        # relative to their shell must win, since that is what they meant
+        config_path = self._cfg(tmp_path)
+        in_folder = config_path.parent / "proto" / "dup.pro"
+        in_folder.write_text("from proto dir", encoding="utf-8")
+        cwd = tmp_path / "elsewhere"
+        cwd.mkdir()
+        (cwd / "dup.pro").write_text("from cwd", encoding="utf-8")
+        monkeypatch.chdir(cwd)
+
+        # Act
+        actual = resolve_proto_path("dup.pro", str(config_path))
+
+        # Assert
+        assert actual.read_text(encoding="utf-8") == "from cwd", (
+            "a path relative to the shell takes precedence over proto/"
+        )
+
+    def test_missing_script_returns_none(self, tmp_path):
+        # Arrange
+        config_path = self._cfg(tmp_path)
+
+        # Act
+        actual = resolve_proto_path("nope", str(config_path))
+
+        # Assert -- None, not an exception and not sys.exit: the caller owns
+        # the error message and the exit code
+        assert actual is None, "an unresolvable name resolves to None"
+
+    def test_missing_proto_folder_is_not_an_error(self, tmp_path):
+        # Arrange -- config with no proto/ folder at all
+        config_path = tmp_path / "proj" / "proj.cfg"
+        config_path.parent.mkdir(parents=True)
+
+        # Act
+        actual = resolve_proto_path("smoke", str(config_path))
+
+        # Assert
+        assert actual is None, "a missing proto/ folder resolves to None, not a crash"
+
+
+class TestProtoScriptName:
+    """The normalization the error message and the resolver must agree on."""
+
+    def test_appends_when_absent(self):
+        assert proto_script_name("smoke") == "smoke.pro", "bare name gets .pro"
+
+    def test_leaves_an_explicit_extension(self):
+        assert proto_script_name("smoke.pro") == "smoke.pro", "no doubling"
+
+    def test_error_message_reports_the_searched_name(self, tmp_path):
+        # Arrange -- regression guard.  The "not found" message must name
+        # smoke.pro, the file actually looked for, not the bare `smoke` the
+        # user typed; an earlier refactor reported the un-normalized name.
+        config_path = tmp_path / "proj.cfg"
+
+        # Act
+        resolved = resolve_proto_path("smoke", str(config_path))
+
+        # Assert
+        assert resolved is None, "nothing to find"
+        assert proto_script_name("smoke").endswith(".pro"), (
+            "the name used in the error message carries the extension"
+        )

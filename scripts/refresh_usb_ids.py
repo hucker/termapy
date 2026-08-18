@@ -142,6 +142,20 @@ def emit_python_module(vendors: dict[int, str], source_url: str) -> str:
     )
 
 
+_DATE_LINE_RE = re.compile(r"^(Generated: |GENERATED_DATE: str = ).*$", re.M)
+
+
+def _same_vendor_data(old_text: str, new_text: str) -> bool:
+    """True when two generated modules differ only by their date stamps.
+
+    The generator stamps the local date in two places (the module docstring
+    and the ``GENERATED_DATE`` constant).  Masking both leaves exactly the
+    vendor data plus the boilerplate, so equality here means upstream has
+    not moved.
+    """
+    return _DATE_LINE_RE.sub("", old_text) == _DATE_LINE_RE.sub("", new_text)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__.split("\n", 1)[0],
@@ -183,10 +197,22 @@ def main() -> int:
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(
-        emit_python_module(vendors, args.source),
-        encoding="utf-8",
-    )
+    new_text = emit_python_module(vendors, args.source)
+
+    # Idempotence: the date stamp changes on every run, so writing
+    # unconditionally dirties the working tree even when upstream has not
+    # moved.  release_prep runs this on every release and then refuses to
+    # publish a dirty tree, so an unchanged refresh used to block the
+    # release.  Compare with the stamps masked out and skip the write when
+    # only the date would differ -- the existing stamp stays truthful about
+    # when the DATA last changed, which is the useful reading.
+    if out_path.exists() and _same_vendor_data(out_path.read_text(encoding="utf-8"),
+                                               new_text):
+        print(f"==> {out_path} already current")
+        print(f"OK  {len(vendors):,} vendors unchanged (file left alone)")
+        return 0
+
+    out_path.write_text(new_text, encoding="utf-8")
     print(f"==> Wrote {out_path}")
     print(f"OK  {len(vendors):,} vendors written")
     return 0

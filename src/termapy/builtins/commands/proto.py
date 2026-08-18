@@ -1787,11 +1787,22 @@ def _crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
     else:
         if len(rest_tokens) < 2:
             raise UsageError()
-        try:
-            for tok in rest_tokens:
-                packets.append(bytes.fromhex(tok))
-        except ValueError:
-            return CmdResult.fail(msg="Invalid hex bytes in packet")
+        # $(*NAME) per token.  This command stays hand-rolled (its cmd= value
+        # may contain spaces and is followed by more keywords -- the documented
+        # params boundary), but the dereference primitive is public precisely
+        # so a holdout can opt in: resolve each frame token here, exactly as
+        # the param binder would, so a captured frame containing whitespace
+        # still counts as ONE packet.
+        from termapy.builtins.commands.var import deref_ref
+        from termapy.plugins.params import resolve_deref
+        for token in rest_tokens:
+            ok, resolved = resolve_deref(token, deref_ref)
+            if not ok:
+                return CmdResult.fail(msg=resolved)
+            try:
+                packets.append(bytes.fromhex(resolved))
+            except ValueError:
+                return CmdResult.fail(msg="Invalid hex bytes in packet")
         if len(packets) < 2:
             return CmdResult.fail(msg="Need at least 2 packets to reverse")
 
@@ -2402,7 +2413,16 @@ COMMAND = Command(
                         "  {prefix}proto.crc.c $(rev)\n"
                         "\n"
                         "Example (explicit):\n"
-                        "  {prefix}proto.crc.reverse crc_bytes=2 010203AA55 040506BB66 0708CCAA"
+                        "  {prefix}proto.crc.reverse crc_bytes=2 010203AA55 040506BB66 0708CCAA\n"
+                        "\n"
+                        "A frame held in a variable is passed with $(*NAME), which\n"
+                        "binds it as exactly ONE packet whatever it contains -- use\n"
+                        "it when a captured frame has spaces or line breaks:\n"
+                        "  {prefix}proto.crc.reverse crc_bytes=2 $(*p1) $(*p2) $(*p3)\n"
+                        "\n"
+                        "Keywords may appear in any order, including after cmd=\n"
+                        "(count= and crc_bytes= are recovered from the trigger\n"
+                        "text), which is why this command parses its own args."
                     ),
                     handler=_crc_reverse,
                 ),

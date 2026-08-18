@@ -91,7 +91,11 @@ for any multi-arg command.
   (`{path|cmd=<command>}`: path XOR cmd XOR empty), bare `/cfg` (picker/query/set).
 - **A keyword value with spaces followed by more keywords** — `cap.struct`/`cap.hex`
   `fmt=Temp:U1-2 Pressure:F3-6 records=5` (the spec syntax is space-separated by
-  definition, shared via `protocol.parse_format_spec`).
+  definition, shared via `protocol.parse_format_spec`); and `proto.crc.reverse`,
+  whose documented `cmd=AT+RND.CUSTOM count=13 crc_bytes=2` puts keywords AFTER
+  a to-end-of-line `cmd=`. `parse_keywords` would swallow them into the trigger
+  text, so the hand-rolled parser (which recovers them) is load-bearing, not
+  legacy. This is a PERMANENT holdout — do not "migrate" it.
 - **Bare `-flag`-style literal grammar** flag parsing would eat — `search`'s `-term`.
 - **Variadic positional lists** — `ymodem.send <file> {file2} ...`. (`params` can
   now express these via `ParamSpec(variadic=True)`, so this is a *not-yet-migrated*
@@ -106,6 +110,11 @@ for any multi-arg command.
   (why `/env.set` was left hand-rolled).
 - **Trivial single-arg** commands are net-zero-value to migrate (the parse is a
   one-liner); do it only if the typed MCP schema genuinely matters.
+- **A holdout is not second-class.** `$(*NAME)` dereference is a public
+  primitive (`plugins.params.resolve_deref`), not dispatcher-internal, so a
+  hand-rolled handler opts in with two lines — resolve each token before
+  coercing it. `proto.crc.reverse` does exactly this. Never migrate a command
+  to `params` *just* to reach a primitive; call the primitive.
 - Within one file, prefer all-params or clearly-documented holdouts — don't
   cherry-pick subcommands without a "why" comment (see `cap.py`).
 

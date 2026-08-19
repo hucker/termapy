@@ -801,14 +801,12 @@ class TestFindPortHolder:
 
 
 class TestTeardownContract:
-    """Pins the timing invariant that keeps the port-teardown race unreachable.
+    """Pins the handoff timing that keeps the COMMON teardown path clean.
 
-    ``disconnect`` and the reader's ``finally`` both close the shared
-    ``_port_obj``; the reader wins only because it signals ``reader_stopped``
-    within one read-timeout, comfortably inside ``READER_STOP_WAIT_S``.  If a
-    future change raised the read timeout toward (or past) the stop wait, the
-    race documented in serial_engine could arm.  These tests fail first, in CI,
-    so that change gets a real reader-thread join instead.
+    Correctness no longer rests on these numbers -- ``TestReaderOwnership``
+    below covers that, by identity.  A comfortable margin here just keeps the
+    normal disconnect handing off without burning the full wait, so these
+    tests are a regression guard on latency, not on safety.
     """
 
     def test_read_timeout_is_well_below_stop_wait(self):
@@ -837,3 +835,146 @@ class TestTeardownContract:
         # the reader, defeating the single-owner-close contract outright.
         actual = READER_STOP_WAIT_S
         assert actual > 0, "teardown wait must be a positive duration"
+
+
+class _ControlledPort:
+    """Serial-port double whose reads never run dry and whose close is traceable.
+
+    Injected through ``SerialEngine``'s existing ``open_fn`` seam (the same
+    seam ``_make_engine`` uses for ``FakeSerial``), so no patching is involved.
+
+    Args:
+        tag: Human label used in assertion messages.
+    """
+
+    def __init__(self, tag: str) -> None:
+        self.tag = tag
+        self.is_open = True
+        self.closed_by: str | None = None
+
+    @property
+    def in_waiting(self) -> int:
+        return 16
+
+    def read(self, size: int) -> bytes:
+        return b"LINE\r\n"
+
+    def close(self) -> None:
+        self.is_open = False
+        self.closed_by = threading.current_thread().name
+
+
+class TestReaderOwnership:
+    """A reader must only ever tear down the generation it belongs to.
+
+    ``disconnect`` waits on an Event with a timeout rather than joining, and
+    ``on_lines`` blocks in ``call_from_thread`` -- so a reader CAN still be
+    alive after its own disconnect returned and a new connection opened.  When
+    that happens its ``finally`` must not touch the newer connection.
+
+    Regression guard for the reproduced bug where a stale reader closed the
+    port the user had just selected, leaving the app "connected" to a dead
+    handle (docs/review/2026-08-19-v0.74.0-opus-5.md, finding T1).
+    """
+
+    def _engine_with_ports(self, ports):
+        cfg = {"port": "DEMO", "baud_rate": 115200, "encoding": "utf-8",
+               "eol": "\r", "eol_markers": False}
+        queue = list(ports)
+        return SerialEngine(
+            cfg=cfg,
+            capture=CaptureEngine(),
+            open_fn=lambda c: queue.pop(0),
+            log=lambda d, t: None,
+        )
+
+    def _stale_reader_scenario(self):
+        """Park a reader in on_lines, then disconnect+reconnect past it.
+
+        Returns:
+            ``(engine, first, second, release, thread)`` with the generation-1
+            reader still parked -- the caller releases it and joins.
+        """
+        # Arrange -- generation 1 connected and streaming.
+        first, second = _ControlledPort("first"), _ControlledPort("second")
+        engine = self._engine_with_ports([first, second])
+        assert engine.connect() is True, "generation 1 should connect"
+
+        parked, release = threading.Event(), threading.Event()
+
+        def on_lines(_lines):
+            # Stands in for call_from_thread blocking on a busy event loop.
+            parked.set()
+            release.wait(5)
+
+        thread = threading.Thread(
+            target=lambda: engine.read_loop(on_lines=on_lines),
+            name="reader-gen1",
+            daemon=True,
+        )
+        thread.start()
+        assert parked.wait(2) is True, "reader should reach on_lines"
+
+        # Act -- a disconnect/reconnect turn that gives up waiting on the
+        # parked reader, exactly as _switch_config and the port picker do.
+        engine.disconnect()
+        assert engine.connect() is True, "generation 2 should connect"
+
+        return engine, first, second, release, thread
+
+    def test_stale_reader_does_not_close_the_next_connections_port(self):
+        # Arrange / Act
+        engine, _first, second, release, thread = self._stale_reader_scenario()
+        release.set()
+        thread.join(5)
+
+        # Assert -- the generation-1 reader has now run its finally block.
+        assert second.is_open is True, (
+            f"generation-2 port was closed by {second.closed_by!r}; a stale "
+            f"reader must close only the handle it read from"
+        )
+        assert second.closed_by is None, "generation-2 port must not be closed at all"
+        assert engine.is_connected is True, (
+            "engine should still report the generation-2 connection as live"
+        )
+        engine.disconnect()
+
+    def test_stale_reader_does_not_disarm_the_current_stop_gate(self):
+        # Arrange / Act
+        engine, _first, _second, release, thread = self._stale_reader_scenario()
+        release.set()
+        thread.join(5)
+
+        # Assert -- generation 2's reader has not run, so nothing may claim it
+        # stopped; a spurious set here would make the NEXT disconnect skip its
+        # wait entirely.
+        actual = engine.reader_stopped.is_set()
+        assert actual is False, (
+            "a stale generation set reader_stopped, disarming the gate that "
+            "the current generation's disconnect relies on"
+        )
+        engine.disconnect()
+
+    def test_reader_closes_its_own_port_on_the_normal_path(self):
+        # Arrange -- no interference: one generation, stopped normally.
+        only = _ControlledPort("only")
+        engine = self._engine_with_ports([only])
+        assert engine.connect() is True, "should connect"
+
+        thread = threading.Thread(
+            target=lambda: engine.read_loop(), name="reader-solo", daemon=True
+        )
+        thread.start()
+
+        # Act
+        engine.stop_event.set()
+        thread.join(5)
+
+        # Assert -- ownership held, so the reader still does the closing.
+        assert only.is_open is False, "reader should close the port it opened over"
+        assert only.closed_by == "reader-solo", (
+            f"port should be closed by the reader thread, not {only.closed_by!r}"
+        )
+        assert engine.reader_stopped.is_set() is True, (
+            "the owning generation must still signal reader_stopped"
+        )

@@ -104,7 +104,6 @@ class MCPHost(TerminalHost):
         self.verbose = verbose
         self.prefix = cfg.get("cmd_prefix", "/")
         self._xfer_cancel = threading.Event()
-        self._reader_thread: threading.Thread | None = None
 
         # Resolve mcp/ state directory and log path -- both follow the
         # cfg, per termapy convention.  When no cfg is loaded (zero-config
@@ -333,20 +332,15 @@ class MCPHost(TerminalHost):
                 else:
                     self._record_async_event(line, source="between_calls")
 
-        self._reader_thread = threading.Thread(
-            target=self.engine.read_loop,
-            kwargs={
-                "on_lines": on_lines,
-                "on_clear": lambda: None,
-                "on_capture_done": lambda: self._stop_capture(),
-                "on_error": lambda detail: self._log_line(
-                    f"! Serial error: {detail}"
-                ),
-                "on_disconnect": lambda: self._log_line("! Serial disconnected"),
-            },
-            daemon=True,
+        # The engine owns the thread now (so disconnect() can join it); this
+        # host no longer tracks its own handle.
+        self.engine.start_reader(
+            on_lines=on_lines,
+            on_clear=lambda: None,
+            on_capture_done=lambda: self._stop_capture(),
+            on_error=lambda detail: self._log_line(f"! Serial error: {detail}"),
+            on_disconnect=lambda: self._log_line("! Serial disconnected"),
         )
-        self._reader_thread.start()
 
     def _confirm(self, message: str) -> bool:
         """No interactive UI in MCP mode -- destructive commands fail-fast."""

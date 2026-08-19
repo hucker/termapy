@@ -635,3 +635,34 @@ class TestSerialRxHandoff:
                 pilot.app._disconnect()
 
         _run(scenario)
+
+    def test_disconnect_leaves_no_reader_thread_behind(self, app_factory):
+        """Teardown joins the reader instead of hoping it stopped.
+
+        The old handshake set an Event, waited ``READER_STOP_WAIT_S``, and
+        proceeded regardless -- which with RX in flight meant proceeding while
+        the reader was still alive (T1/T2).
+        """
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- real connect, real engine-owned reader thread.
+                assert pilot.app._connect() is True, "DEMO port should connect"
+                await pilot.pause()
+                thread = pilot.app._engine._reader_thread
+                assert thread is not None, "the engine should own a reader thread"
+                assert thread.is_alive() is True, "reader should be running"
+
+                # Act
+                pilot.app._disconnect()
+                await pilot.pause()
+
+                # Assert
+                assert thread.is_alive() is False, (
+                    "reader thread outlived _disconnect(); teardown must join "
+                    "it, not wait on an Event and proceed"
+                )
+                assert pilot.app._engine.is_connected is False, "engine disconnected"
+
+        _run(scenario)

@@ -33,7 +33,7 @@ import pytest
 from termapy.capture import CaptureEngine
 from termapy.config import SERIAL_READ_TIMEOUT_S, SERIAL_RX_BUFFER_BYTES
 from termapy.port_control import resolve_port
-from termapy.serial_engine import READER_STOP_WAIT_S, SerialEngine
+from termapy.serial_engine import READER_JOIN_TIMEOUT_S, SerialEngine
 
 # Only one process may hold the port.  Without the group, xdist scatters
 # these across workers and every worker but one fails to open it -- which
@@ -274,12 +274,12 @@ class TestReaderTeardown:
         # Act
         started = time.monotonic()
         engine.stop_event.set()
-        stopped = engine.reader_stopped.wait(timeout=READER_STOP_WAIT_S)
+        stopped = engine.stop_reader()
         elapsed = time.monotonic() - started
 
         # Assert
         assert stopped is True, (
-            f"reader did not signal stopped within {READER_STOP_WAIT_S}s "
+            f"reader did not exit within {READER_JOIN_TIMEOUT_S}s "
             f"(took at least {elapsed:.3f}s) -- teardown is back to relying "
             f"on the wait expiring rather than the reader actually finishing"
         )

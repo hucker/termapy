@@ -42,10 +42,12 @@ _LOCAL_DIR_NAME = "termapy_cfg"
 
 # Read timeout for every opened serial port.  Deliberately small so the
 # reader loop's blocking ``read()`` returns promptly and can notice the
-# stop signal.  This bound is load-bearing for teardown correctness: it
-# must stay well below ``serial_engine.READER_STOP_WAIT_S`` (see the
-# teardown note in serial_engine.disconnect).  ``test_serial_engine``
-# pins the margin so a future change here cannot silently arm the race.
+# stop signal.  This sets how long teardown takes: ``disconnect`` joins the
+# reader thread, and the reader can only reach its stop check once ``read()``
+# returns -- so this is the latency of a disconnect, not a race window.  It
+# no longer needs to beat any other constant (the old timing contract against
+# ``READER_STOP_WAIT_S`` is gone; teardown is a join).  Raising it slows
+# disconnects proportionally.
 SERIAL_READ_TIMEOUT_S = 0.05
 
 # Driver-side RX buffer requested for every real port we open.

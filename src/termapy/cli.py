@@ -691,18 +691,16 @@ class CLITerminal(TerminalHost):
                     # instead of silently dropping the rest.
                     self._stop_capture()
 
-        reader_thread = threading.Thread(
-            target=self.engine.read_loop,
-            kwargs={
-                "on_lines": on_lines,
-                "on_clear": lambda: self._raw("\x1b[2J\x1b[H", end=""),
-                "on_capture_done": lambda: self._stop_capture(),
-                "on_error": lambda detail: self._err(f"Serial error: {detail}"),
-                "on_disconnect": lambda: self._err("Serial disconnected"),
-            },
-            daemon=True,
+        # The engine owns the thread so disconnect() can join it; the CLI
+        # used to start one here and drop the handle, leaving teardown
+        # nothing to wait on.
+        self.engine.start_reader(
+            on_lines=on_lines,
+            on_clear=lambda: self._raw("\x1b[2J\x1b[H", end=""),
+            on_capture_done=lambda: self._stop_capture(),
+            on_error=lambda detail: self._err(f"Serial error: {detail}"),
+            on_disconnect=lambda: self._err("Serial disconnected"),
         )
-        reader_thread.start()
 
     # -- Run modes ------------------------------------------------------------
 

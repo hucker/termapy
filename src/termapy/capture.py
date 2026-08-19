@@ -256,11 +256,21 @@ class CaptureEngine:
         else:
             self._buf.extend(data)
 
-        if self._target and len(self._buf) >= self._target:
-            self._buf = self._buf[: self._target]
-            self._flush_bin()
-            self._target_done = True
-            return True  # caller should call stop()
+        # Compare against the RUNNING TOTAL, not the since-last-flush buffer:
+        # ``_flush_bin`` clears ``_buf`` every 4096 bytes, so a plain
+        # ``len(self._buf) >= self._target`` could never be true for any
+        # target above 4096 and the capture ran forever.
+        if self._target:
+            captured = self._bytes + len(self._buf)
+            if captured >= self._target:
+                # Trim to land on the target exactly; ``_bytes`` is already
+                # written and cannot be taken back, so only the pending
+                # buffer is trimmable.
+                keep = max(0, self._target - self._bytes)
+                self._buf = self._buf[:keep]
+                self._flush_bin()
+                self._target_done = True
+                return True  # caller should call stop()
 
         if len(self._buf) >= 4096:
             self._flush_bin()

@@ -494,3 +494,73 @@ class TestWriteFailure:
         # Assert
         assert actual_stop is False, "no stop signal on a clean write"
         assert result.error == "", "no error on a successful capture"
+
+
+class TestBinaryTargetAboveFlushSize:
+    """A byte target larger than the 4 KB flush threshold must still stop.
+
+    ``feed_bytes`` compared the target against ``len(self._buf)`` -- the
+    buffer SINCE THE LAST FLUSH -- while ``_flush_bin`` clears that buffer
+    every 4096 bytes.  Any target above 4096 was therefore unreachable and
+    ``/cap.bin <file> bytes=N`` ran until a duration or a manual /cap.stop
+    (docs/review/2026-08-19-v0.74.0-opus-5.md, finding T17).
+    """
+
+    def test_target_above_flush_threshold_is_reached(self, tmp_path):
+        # Arrange -- 10000 > the 4096 internal flush point.
+        engine = CaptureEngine()
+        path = tmp_path / "out.bin"
+        target = 10000
+        engine.start(path=path, file_mode="wb", mode="bin", target_bytes=target)
+
+        # Act -- feed in 1 KB chunks, as the reader does.
+        reached_after = None
+        for i in range(1, 21):
+            if engine.feed_bytes(b"X" * 1024):
+                reached_after = i * 1024
+                break
+
+        # Assert
+        assert reached_after is not None, (
+            f"capture never reported reaching its {target}-byte target after "
+            f"20 KB -- the target is compared against the post-flush buffer "
+            f"instead of the running total, so any target above 4096 is "
+            f"unreachable"
+        )
+        engine.stop()
+
+    def test_captured_file_is_exactly_the_target_size(self, tmp_path):
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.bin"
+        target = 10000
+        engine.start(path=path, file_mode="wb", mode="bin", target_bytes=target)
+
+        # Act -- keep feeding past the target; the engine must not over-capture.
+        for _ in range(20):
+            if engine.feed_bytes(b"Y" * 1024):
+                break
+        result = engine.stop()
+
+        # Assert
+        actual = path.stat().st_size
+        assert actual == target, f"file should hold exactly {target} bytes, got {actual}"
+        assert result is not None and result.byte_count == target, (
+            f"reported byte_count should match the target, got "
+            f"{result.byte_count if result else None}"
+        )
+
+    def test_target_below_flush_threshold_still_works(self, tmp_path):
+        # Arrange -- the case that always worked; guard against regressing it.
+        engine = CaptureEngine()
+        path = tmp_path / "out.bin"
+        engine.start(path=path, file_mode="wb", mode="bin", target_bytes=500)
+
+        # Act
+        reached = engine.feed_bytes(b"Z" * 1024)
+        engine.stop()
+
+        # Assert
+        assert reached is True, "a sub-flush-size target should still be reached"
+        actual = path.stat().st_size
+        assert actual == 500, f"file should hold exactly 500 bytes, got {actual}"

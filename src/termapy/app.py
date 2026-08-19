@@ -503,6 +503,14 @@ class SerialTerminal(TerminalHost, App):
         # on call_from_thread.  Re-entrant so nested ctx.dispatch on the same
         # thread is allowed.
         self._dispatch_guard = threading.RLock()
+        # Our own record of the main (event-loop) thread.  Textual keeps one
+        # in App._thread_id, but that is private API: it is set by
+        # _thread_init and zeroed after shutdown, and four output helpers
+        # depend on it to decide whether to marshal.  Capturing it costs two
+        # lines and removes the dependency.  Stamped here because the app is
+        # constructed on the main thread, and again in on_mount, which is
+        # authoritative -- it runs on the loop thread itself.
+        self._main_thread_id = threading.get_ident()
         # True while /find is showing the frozen highlighted view.
         # New live data arrival (in _write_batch) flips this back
         # to False and restores #output.
@@ -939,6 +947,8 @@ class SerialTerminal(TerminalHost, App):
         self.query_one("#output", RichLog).styles.border = ("solid", color)
 
     def on_mount(self) -> None:
+        # Authoritative: on_mount runs on the event-loop thread (see D4).
+        self._main_thread_id = threading.get_ident()
         self._setup_vars()
         self._apply_border_color()
         self._build_context()
@@ -1115,9 +1125,14 @@ class SerialTerminal(TerminalHost, App):
         internal.start_capture = self._cap_start
         internal.stop_capture = self._cap_stop
         internal.directives = self.repl._directives
-        # /find plugin calls this with a state snapshot to refresh
-        # the FindBar widget (or None to hide it).
-        internal.update_find_bar = self._update_find_bar
+        # /find plugin calls this with a state snapshot to refresh the
+        # FindBar widget (or None to hide it).  It runs on a dispatch
+        # worker and mutates widgets, so it marshals like every sibling
+        # slot -- this was the one internal-handle callback wired bare,
+        # racing _write_batch's auto-dismiss on the main thread.
+        internal.update_find_bar = lambda state: self._on_main(
+            self._update_find_bar, state
+        )
 
         ctx = self._build_plugin_context(internal)
         # TUI-specific PluginContext overrides
@@ -1379,7 +1394,7 @@ class SerialTerminal(TerminalHost, App):
 
     def _on_main(self, fn, *args, **kwargs):
         """Run *fn* on the main thread.  No-op if already there."""
-        if self._thread_id == threading.get_ident():
+        if self._main_thread_id == threading.get_ident():
             return fn(*args, **kwargs)
         try:
             return self.call_from_thread(fn, *args, **kwargs)
@@ -1392,7 +1407,7 @@ class SerialTerminal(TerminalHost, App):
         Thread-safe: if called from a background thread (e.g. interactive
         command dispatch), posts the widget update to the main thread.
         """
-        if self._thread_id != threading.get_ident():
+        if self._main_thread_id != threading.get_ident():
             try:
                 self.call_from_thread(self._status, text, color)
             except RuntimeError:
@@ -1413,7 +1428,7 @@ class SerialTerminal(TerminalHost, App):
         only marshals to the main thread when a plugin calls it from a
         background thread (via ``ctx.io.status_bar``).
         """
-        if self._thread_id != threading.get_ident():
+        if self._main_thread_id != threading.get_ident():
             try:
                 self.call_from_thread(self._set_status_bar, text, timeout)
             except RuntimeError:
@@ -1514,11 +1529,21 @@ class SerialTerminal(TerminalHost, App):
             # of running unconfirmed. Mirrors MCP mode's fail-fast _confirm.
             self._status("/confirm can only be used in scripts.", "yellow")
             return False
-        event.wait()
+        # Bounded, stop-aware wait.  ConfirmDialog binds escape/ctrl+q to a
+        # dismissing action, so the normal path always sets the event -- but
+        # a /stop or an app shutdown while the modal is up would otherwise
+        # park this worker forever, and teardown joins the threads a worker
+        # like this one runs on.  Fails closed, same as the misuse path.
+        # The dialog is deliberately left on screen: dismissing a modal from
+        # here would race the user's own click, and answering it after the
+        # abort simply sets an event nobody is waiting on any more.
+        while not event.wait(timeout=0.25):
+            if self._shutting_down or self.repl._script_stop.is_set():
+                return False
         return result[0]
 
     def _write_output_markup(self, text: str) -> None:
-        if self._thread_id != threading.get_ident():
+        if self._main_thread_id != threading.get_ident():
             try:
                 self.call_from_thread(self._write_output_markup, text)
             except RuntimeError:
@@ -2986,7 +3011,7 @@ class SerialTerminal(TerminalHost, App):
         Returns:
             True if the guard was acquired (the caller must release it).
         """
-        if self._thread_id == threading.get_ident():
+        if self._main_thread_id == threading.get_ident():
             return self._dispatch_guard.acquire(blocking=False)
         return self._dispatch_guard.acquire(timeout=self._DISPATCH_WAIT_S)
 

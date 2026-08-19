@@ -234,6 +234,18 @@ def eol_label(line_ending: str) -> str:
 # Receive-newline modes (mirrors TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).
 RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
 
+# Longest run of undelimited characters ``SerialReader`` accumulates before
+# flushing it as one line.
+#
+# Every chunk re-scans the whole pending buffer: ``apply_backspace`` walks it,
+# the clear-screen regex searches it, and ``split_rx_lines`` splits it.  That
+# is fine while lines terminate, and quadratic when they never do -- a device
+# streaming without any terminator makes each chunk cost more than the last,
+# on the reader thread, forever.  Flushing at a cap bounds both the per-chunk
+# scan and the memory.  64 K characters is far past any real line, so a device
+# that terminates its output never reaches it.
+RX_LINE_MAX_CHARS = 65536
+
 _EOL_MARKERS = {"cr": _EOL_CR, "lf": _EOL_LF, "crlf": _EOL_CR + _EOL_LF}
 
 
@@ -458,6 +470,13 @@ class SerialReader:
             pairs, self._buf = split_rx_lines(self._buf, self._rx_newline)
             for content, term in pairs:
                 result.lines.append(self._render_line(content, term))
+
+            # Nothing terminated it and the buffer has grown past the cap:
+            # flush it as one line rather than re-scanning an ever-longer
+            # buffer on every chunk (see RX_LINE_MAX_CHARS above).
+            if len(self._buf) >= RX_LINE_MAX_CHARS:
+                result.lines.append(self._render_line(self._buf, ""))
+                self._buf = ""
 
         else:
             # No data - flush partial line after 200ms of silence

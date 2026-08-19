@@ -2872,13 +2872,13 @@ class SerialTerminal(TerminalHost, App):
             else:
                 renderables.append(Text(f"{prefix}{bare}"))
         if renderables:
-            # ONE RichLog.write for the whole batch (E1).  Per-line writes
-            # measured 605-669 us each -- a 50-line batch spent ~40 ms on the
-            # main thread, which is the reader's stall and, at 921600 baud,
-            # right at the driver's overflow threshold.  Consequence to know:
-            # a combined write measures one render width for the block, so
-            # wrapping for mixed-width lines can differ slightly from the
-            # per-line rendering.
+            # ONE RichLog.write for the whole batch (E1).  Measured 3.7x
+            # faster for 50 lines (6.03 ms -> 1.63 ms), and this runs on the
+            # main thread inside the reader's round trip -- that time IS the
+            # reader's stall, which at high baud is what overflows the
+            # driver buffer.  Consequence to know: a combined write measures
+            # one render width for the block, so wrapping for mixed-width
+            # lines can differ slightly from the per-line rendering.
             log.write(Text("\n").join(renderables))
         self._log_lines("<", plain)
 

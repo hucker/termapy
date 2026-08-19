@@ -584,6 +584,15 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 
 At most two workers run concurrently: the serial reader plus one command/script/test worker.
 
+That is enforced in two places, not assumed. `ReplEngine.start_script` holds
+the thread id of the run in progress, so a nested `/run` (same thread, inline)
+is allowed while a second launch from any other thread -- the picker, a button,
+another frontend -- is refused; the rule lives in the engine because the CLI and
+MCP need it as much as the TUI does. `app._acquire_dispatch_guard` serializes
+individual dispatches: non-blocking on the main thread, where waiting for a
+guard a worker holds would deadlock against that worker's own `call_from_thread`,
+and a bounded wait off it, so a colliding line is delayed rather than dropped.
+
 Two different hand-off mechanisms, and the difference is load-bearing. Output
 helpers called from a worker (`_status`, `_set_status_bar`,
 `_write_output_markup`, `_on_main`) marshal via `call_from_thread`, which

@@ -564,3 +564,74 @@ class TestBinaryTargetAboveFlushSize:
         assert reached is True, "a sub-flush-size target should still be reached"
         actual = path.stat().st_size
         assert actual == 500, f"file should hold exactly 500 bytes, got {actual}"
+
+
+class TestStopRacesTheReader:
+    """``stop()`` closes the file on one thread while the reader still writes.
+
+    ``stop()`` runs ``_fh.close()`` and then ``_reset()``; a reader-thread
+    write landing between those raises ``ValueError`` (closed file), and one
+    landing after raises ``AttributeError`` (``None``).  Only ``OSError`` was
+    caught, so both escaped onto the reader thread.
+    """
+
+    def test_text_write_to_a_closed_handle_is_caught(self, tmp_path):
+        # Arrange -- the close half of stop(), with the field still set
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "out.txt", file_mode="w", mode="text", duration=5.0)
+        engine._fh.close()
+
+        # Act -- the reader was already inside feed_text when the close landed
+        actual_stop = engine.feed_text(["late line"])
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is True, "a write onto a closed file must signal stop"
+        assert result is not None and result.error != "", (
+            "the failure is reported on the result, not raised at the reader"
+        )
+
+    def test_binary_flush_to_a_closed_handle_is_caught(self, tmp_path):
+        # Arrange -- no byte target, so only the periodic flush writes
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=0)
+        engine._fh.close()
+
+        # Act -- 4096 bytes triggers the flush that now hits a closed file
+        actual_stop = engine.feed_bytes(b"\x00" * 4096)
+        result = engine.stop()
+
+        # Assert
+        assert actual_stop is True, "a failed flush must signal stop"
+        assert result is not None and result.error != "", (
+            "the failure is reported on the result, not raised at the reader"
+        )
+
+    def test_a_late_failure_is_not_charged_to_the_next_capture(self, tmp_path):
+        """Ownership by identity, not by timing.
+
+        A straggler write from the *previous* capture can fail after a new
+        one has started.  Recording that on the live engine would report a
+        failure against a capture that is writing perfectly well.
+        """
+        # Arrange -- capture A fails and is stopped, capture B starts clean
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "a.txt", file_mode="w", mode="text", duration=5.0)
+        stale_fh = engine._fh
+        stale_fh.close()
+        engine.feed_text(["doomed"])
+        engine.stop()
+        engine.start(path=tmp_path / "b.txt", file_mode="w", mode="text", duration=5.0)
+
+        # Act -- A's straggler reports its failure after B is live
+        engine._record_write_error(stale_fh, ValueError("I/O operation on closed file"))
+        engine.feed_text(["healthy"])
+        result = engine.stop()
+
+        # Assert
+        assert result is not None and result.error == "", (
+            "a failure from the previous capture's handle must not be "
+            f"charged to the current one, got {result.error!r}"
+        )
+        actual = (tmp_path / "b.txt").read_text(encoding="utf-8")
+        assert actual == "healthy\n", f"capture B wrote normally, got {actual!r}"

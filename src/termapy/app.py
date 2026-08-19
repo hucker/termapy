@@ -1124,11 +1124,7 @@ class SerialTerminal(TerminalHost, App):
         ctx.io._write = self._status
         ctx.io._write_markup = self._write_output_markup
         ctx.io.log = self._log_line
-        ctx.serial.wait_for_data = lambda timeout_ms=250: (
-            self._engine.serial_port.wait_for_data(timeout_ms)
-            if self._engine.serial_port
-            else False
-        )
+        ctx.serial.wait_for_data = self._wait_for_data
         ctx.wait_for_match = self.repl.wait_for_match
         ctx.io.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
@@ -1431,25 +1427,53 @@ class SerialTerminal(TerminalHost, App):
     def _log_line(self, prefix: str, text: str) -> None:
         """Write a prefixed line to the log file.
 
+        THREADING: reached from the reader path (``_write_batch``) and from
+        dispatch workers, while ``/log.delete`` closes and nulls ``log_fh``
+        on another thread.  Bind the handle to a local so the write cannot
+        land on ``None``, and catch ``ValueError`` -- writing to a file that
+        closed between the bind and the write raises that, not ``OSError``.
+
         Args:
             prefix: Line prefix (``>`` TX, ``<`` RX, ``#`` status).
             text: Content to log.
         """
-        if self.log_fh:
+        fh = self.log_fh
+        if fh is not None:
             try:
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                self.log_fh.write(f"[{ts}] {prefix} {text}\n")
-                self.log_fh.flush()
-            except OSError:
-                pass
+                fh.write(f"[{ts}] {prefix} {text}\n")
+                fh.flush()
+            except (OSError, ValueError):
+                pass  # closed under us by /log.delete, or a disk error
 
     def _serial_write(self, data: bytes) -> None:
-        """Write bytes to serial port and log TX (delegates to SerialPort)."""
-        if self._engine.serial_port:
-            self._engine.serial_port.write(data)
-            self._engine.notify_tx(data)
-        else:
+        """Write bytes to serial port and log TX (delegates to SerialPort).
+
+        THREADING: the reader thread's ``finally`` disowns
+        ``_engine.serial_port`` when it exits, so a check-then-use on the
+        shared field can pass the check and then write to ``None``.  Bind
+        it to a local, and treat a port that closes between the bind and
+        the write as a failed send rather than an unhandled exception.
+        """
+        port = self._engine.serial_port
+        if port is None:
             self._log_line(">", data.hex(" "))
+            return
+        try:
+            port.write(data)
+        except (OSError, serial.SerialException) as e:
+            self._status(f"Write failed: {e}", "red")
+            return
+        self._engine.notify_tx(data)
+
+    def _wait_for_data(self, timeout_ms: int = 250) -> bool:
+        """Block until RX arrives or *timeout_ms* elapses (``ctx.serial``).
+
+        Same bind-to-local reason as ``_serial_write``: the port can be
+        disowned between the check and the call.
+        """
+        port = self._engine.serial_port
+        return port.wait_for_data(timeout_ms) if port is not None else False
 
     def _confirm(self, message: str) -> bool:
         """Show a Yes/Cancel dialog and block until the user responds.
@@ -1500,7 +1524,10 @@ class SerialTerminal(TerminalHost, App):
             except RuntimeError:
                 pass
             return
-        self.query_one("#output", RichLog).write(text)
+        try:
+            self.query_one("#output", RichLog).write(text)
+        except SHUTDOWN_RACE:
+            pass  # widgets gone during shutdown
 
     def _report_exception(self, e: Exception) -> None:
         """Write exception details to the terminal output in red.

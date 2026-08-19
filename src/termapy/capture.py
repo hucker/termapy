@@ -286,15 +286,16 @@ class CaptureEngine:
         Returns:
             True if a write failed and the caller should stop the capture.
         """
-        if not self._fh or self._mode != "text":
+        fh = self._fh
+        if fh is None or self._mode != "text":
             return False
         try:
             for text in lines:
-                self._fh.write(text + "\n")
+                fh.write(text + "\n")
                 self._bytes += len(text) + 1
-            self._fh.flush()
-        except OSError as e:
-            self._write_error = str(e)
+            fh.flush()
+        except (OSError, ValueError) as e:
+            self._record_write_error(fh, e)
             return True
         return False
 
@@ -322,17 +323,24 @@ class CaptureEngine:
         )
 
     def _flush_bin(self) -> None:
-        """Write accumulated binary buffer to file (complete records only)."""
-        if not self._fh or not self._buf:
+        """Write accumulated binary buffer to file (complete records only).
+
+        THREADING: runs on the reader thread while ``stop()`` runs on the
+        caller's.  The handle is bound once, so a close mid-flush surfaces
+        as ``ValueError`` on a real file object rather than
+        ``AttributeError`` on a reset ``None``.
+        """
+        fh = self._fh
+        if fh is None or not self._buf:
             return
 
         data = bytes(self._buf)
         if self._raw:
             try:
-                self._fh.write(data)
+                fh.write(data)
                 self._bytes += len(data)
-            except OSError as e:
-                self._write_error = str(e)
+            except (OSError, ValueError) as e:
+                self._record_write_error(fh, e)
         elif self._record_size > 0:
             usable = len(data) - (len(data) % self._record_size)
             if usable > 0:
@@ -356,14 +364,31 @@ class CaptureEngine:
 
                 text = "\n".join(lines) + "\n"
                 try:
-                    self._fh.write(text)
+                    fh.write(text)
                     self._bytes += usable
-                except OSError as e:
-                    self._write_error = str(e)
+                except (OSError, ValueError) as e:
+                    self._record_write_error(fh, e)
                 if self._echo and self._on_echo:
                     for line in lines:
                         self._on_echo(line)
         self._buf.clear()
+
+    def _record_write_error(self, fh: IO[Any], exc: Exception) -> None:
+        """Record a failed write, but only against the capture that made it.
+
+        A reader-thread write can fail because ``stop()`` closed the file
+        under it.  By then the engine may already be reset -- or restarted
+        on a new file -- and stamping ``_write_error`` there would report a
+        stale failure against a healthy capture.  The identity check makes
+        ownership explicit instead of timing-dependent, the same way the
+        reader's port-ownership check does in ``serial_engine.read_loop``.
+
+        Args:
+            fh: The handle the failed write was issued against.
+            exc: The exception it raised.
+        """
+        if self._fh is fh:
+            self._write_error = str(exc)
 
     def _reset(self) -> None:
         """Clear all state back to idle."""
